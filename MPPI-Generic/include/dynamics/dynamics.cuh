@@ -1,3 +1,8 @@
+#pragma once
+
+#ifndef DYNAMICS_CUH_
+#define DYNAMICS_CUH_
+
 /*
 Header file for dynamics
 */
@@ -27,4 +32,6 @@ public:
   void printParams();
 
   __device__ void xDot(float* state, float* control, float* state_der);
-}
+};
+
+#endif DYNAMICS_CUH_

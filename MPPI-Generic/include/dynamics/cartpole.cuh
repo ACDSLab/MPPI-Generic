@@ -1,14 +1,19 @@
+#pragma once
+
+#ifndef CARTPOLE_CUH_
+#define CARTPOLE_CUH_
+
 #include "dynamics.cuh"
 
-template<int S_DIM, int, C_DIM>
-
-class Cartpole: public Dynamics
+template<int S_DIM, int C_DIM>
+class Cartpole : public Dynamics<S_DIM, C_DIM>
 {
 public:
   float cart_mass_;
   float pole_mass_;
   float pole_length_;
   const float gravity_ = 9.81;
+  float dt_ = 0;
 
   //CUDA coefficients
   float* cart_mass_d_;
@@ -23,8 +28,9 @@ public:
   void loadParams(); //figure out what to pass in here
   void paramsToDevice();
   void freeCudaMem();
-  void printState();
+  void printState(Eigen::MatrixXf state);
   void printParams();
 
   __device__ void xDot(float* state, float* control, float* state_der);
-}
+};
+#endif // CARTPOLE_CUH_

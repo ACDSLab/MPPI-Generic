@@ -1,6 +1,10 @@
+#pragma once
 /*
 Header file for costs
 */
+
+#ifndef COSTS_CUH_
+#define COSTS_CUH_
 
 #include<Eigen/Dense>
 
@@ -21,3 +25,5 @@ public:
   __device__ float mapCost(float* s);
   __device__ float computeCost(float* s, float* u, float* du);
 }
+
+#endif // COSTS_CUH_

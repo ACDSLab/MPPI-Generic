@@ -17,18 +17,33 @@ endif()
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
 
+# Find OpenCV
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS})
+
 # find yaml-cpp
 find_package(yaml-cpp REQUIRED)
 include_directories(${YAML_CPP_INCLUDE_DIR})
 
 # set up cnpy
-find_package(cnpy REQUIRED)
-if(cnpy_FOUND)
-    message(STATUS "Found cnpy with ${CNPY_INCLUDE_DIRS} ${CNPY_LIBRARIES}")
-endif()
+include_directories(submodules/cnpy)
 
 find_package(CUDA REQUIRED)
 
 if(NOT ${CUDA_curand_LIBRARY} MATCHES "NOTFOUND")
     set(CURAND_LIBRARY ${CUDA_curand_LIBRARY})
 endif()
+
+set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+
+set(
+        CUDA_NVCC_FLAGS
+        ${CUDA_NVCC_FLAGS};
+        -std=c++11
+        -maxrregcount=32;
+        -O3;
+        -arch=sm_35;
+        -w
+)
+
+add_subdirectory(MPPI-Generic)
