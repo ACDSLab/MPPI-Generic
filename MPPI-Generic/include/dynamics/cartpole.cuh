@@ -5,8 +5,7 @@
 
 #include "dynamics.cuh"
 
-template<int S_DIM, int C_DIM>
-class Cartpole : public Dynamics<S_DIM, C_DIM>
+class Cartpole : public Dynamics<4, 1>
 {
 public:
   float cart_mass_;

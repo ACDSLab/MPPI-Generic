@@ -1,8 +1,7 @@
 //#include <dynamics/cartpole.cuh>
 #include "../../include/dynamics/cartpole.cuh"
 
-template <int S_DIM, int C_DIM>
-Cartpole<S_DIM, C_DIM>::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length)
+Cartpole::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length)
 {
   cart_mass_ = cart_mass;
   pole_mass_ = pole_mass;
@@ -14,8 +13,7 @@ Cartpole<S_DIM, C_DIM>::Cartpole(float delta_t, float cart_mass, float pole_mass
   cudaMalloc((void**)&pole_length_d_, sizeof(int));
 }
 
-template<int S_DIM, int C_DIM>
-void Cartpole<S_DIM, C_DIM>::Cartpole::xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der)
+void Cartpole::Cartpole::xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der)
 {
   float theta = state(2);
   float theta_dot = state(3);
@@ -27,8 +25,7 @@ void Cartpole<S_DIM, C_DIM>::Cartpole::xDot(Eigen::MatrixXf &state, Eigen::Matri
   state_der(3) = 1/(pole_length_*(cart_mass_+pole_mass_*(powf(sinf(theta),2.0))))*(-force*cosf(theta)-pole_mass_*pole_length_*(powf(theta_dot,2.0))*cosf(theta)*sinf(theta)-(cart_mass_+pole_mass_)*gravity_*sinf(theta));
 }
 
-template<int S_DIM, int C_DIM>
-void Cartpole<S_DIM, C_DIM>::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B)
+void Cartpole::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B)
 {
   float theta = state(2);
   float theta_dot = state(3);
@@ -47,39 +44,33 @@ void Cartpole<S_DIM, C_DIM>::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf
   B(3,0) = -cosf(theta)/(pole_length_*(cart_mass_+pole_mass_*powf(sinf(theta),2.0)));
 }
 
-template<int S_DIM, int C_DIM>
-void Cartpole<S_DIM, C_DIM>::loadParams() {}
+void Cartpole::loadParams() {}
 
-template<int S_DIM, int C_DIM>
-void Cartpole<S_DIM, C_DIM>::paramsToDevice()
+void Cartpole::paramsToDevice()
 {
   cudaMemcpy(pole_mass_d_, &pole_mass_, sizeof(float), cudaMemcpyHostToDevice);
   cudaMemcpy(cart_mass_d_, &cart_mass_, sizeof(float), cudaMemcpyHostToDevice);
   cudaMemcpy(pole_length_d_, &pole_length_, sizeof(float), cudaMemcpyHostToDevice);
 }
 
-template<int S_DIM, int C_DIM>
-void Cartpole<S_DIM, C_DIM>::freeCudaMem()
+void Cartpole::freeCudaMem()
 {
   cudaFree(pole_mass_d_);
   cudaFree(cart_mass_d_);
   cudaFree(pole_length_d_);
 }
 
-template<int S_DIM, int C_DIM>
-void Cartpole<S_DIM, C_DIM>::printState(Eigen::MatrixXf state)
+void Cartpole::printState(Eigen::MatrixXf state)
 {
   printf("Cart position: %f; Cart velocity: %f; Pole angle: %f; Pole rate: %f \n", state(0), state(1), state(2), state(3)); //Needs to be completed
 }
 
-template<int S_DIM, int C_DIM>
-void Cartpole<S_DIM, C_DIM>::printParams()
+void Cartpole::printParams()
 {
   printf("Cart mass: %f; Pole mass: %f; Pole length: %f \n", cart_mass_, pole_mass_, pole_length_);
 }
 
-template<int S_DIM, int C_DIM>
-__device__ void Cartpole<S_DIM, C_DIM>::xDot(float* state, float* control, float* state_der)
+__device__ void Cartpole::xDot(float* state, float* control, float* state_der)
 {
   float gravity = 9.81;
   float theta = state[2];
@@ -97,6 +88,3 @@ __device__ void Cartpole<S_DIM, C_DIM>::xDot(float* state, float* control, float
   state_der[2] = state[3];
   state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity*sinf(theta));
 }
-
-// explicit template
-template class Cartpole<4, 1>;
