@@ -31,6 +31,12 @@
 *.out
 *.app
 
-# clion ido
+# clion ide
 .idea
 cmake-build-debug
+
+# vscode ide
+.vscode
+
+# Build directories
+build
