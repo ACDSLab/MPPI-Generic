@@ -3,7 +3,7 @@ SET (LIB_MAJOR 0)
 SET (LIB_MINOR 0)
 SET (LIB_RELEASE 1)
 
-cuda_add_library(${LIBRARY_NAME} SHARED
+add_library(${LIBRARY_NAME} SHARED
         ar_standard_cost.cu
         )
 

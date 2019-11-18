@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.00)
-project(MPPIGeneric)
+cmake_minimum_required(VERSION 3.8)
+project(MPPIGeneric LANGUAGES C CXX CUDA)
 
 set(BUILD_FLAGS "-std=c++11 -Wuninitialized -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
@@ -28,7 +28,7 @@ include_directories(${YAML_CPP_INCLUDE_DIR})
 # set up cnpy
 include_directories(submodules/cnpy)
 
-find_package(CUDA REQUIRED)
+# find_package(CUDA REQUIRED)
 
 if(NOT ${CUDA_curand_LIBRARY} MATCHES "NOTFOUND")
     set(CURAND_LIBRARY ${CUDA_curand_LIBRARY})

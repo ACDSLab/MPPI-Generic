@@ -11,7 +11,7 @@ Header file for dynamics
 #include <stdio.h>
 #include <math.h>
 
-#include <utils/managed.cuh>
+#include "../utils/managed.cuh" // TODO fix relative include
 
 template<int S_DIM, int C_DIM>
 class Dynamics : Managed
@@ -36,4 +36,4 @@ public:
   __device__ void xDot(float* state, float* control, float* state_der);
 };
 
-#endif DYNAMICS_CUH_
+#endif // DYNAMICS_CUH_
