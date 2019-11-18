@@ -1,5 +1,4 @@
-//#include <dynamics/cartpole.cuh>
-#include "../../include/dynamics/cartpole.cuh"
+#include <dynamics/cartpole.cuh>
 
 Cartpole::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length)
 {

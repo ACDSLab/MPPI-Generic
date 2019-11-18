@@ -46,4 +46,11 @@ set(
         -w
 )
 
+# TODO make option
+#set(
+#        CUDA_NVCC_FLAGS
+#        ${CUDA_NVCC_FLAGS};
+#        -O3;
+#)
+
 add_subdirectory(MPPI-Generic)
