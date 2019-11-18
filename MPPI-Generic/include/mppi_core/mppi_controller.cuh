@@ -7,6 +7,6 @@
 
 class MPPIController {
 
-}
+};
 
 #endif //MPPIGENERIC_MPPI_CONTROLLER_CUH

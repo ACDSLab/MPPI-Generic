@@ -8,7 +8,9 @@ Header file for costs
 
 #include<Eigen/Dense>
 
-class Cost
+#include <utils/managed.cuh>
+
+class Cost : Managed
 {
 public:
 
@@ -24,6 +26,6 @@ public:
   __device__ float crashCost(float* s);
   __device__ float mapCost(float* s);
   __device__ float computeCost(float* s, float* u, float* du);
-}
+};
 
 #endif // COSTS_CUH_

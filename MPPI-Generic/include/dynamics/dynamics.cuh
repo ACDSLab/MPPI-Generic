@@ -11,8 +11,10 @@ Header file for dynamics
 #include <stdio.h>
 #include <math.h>
 
+#include <utils/managed.cuh>
+
 template<int S_DIM, int C_DIM>
-class Dynamics
+class Dynamics : Managed
 {
 public:
   static const int STATE_DIM = S_DIM;
