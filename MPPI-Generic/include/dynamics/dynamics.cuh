@@ -22,8 +22,8 @@ public:
   Eigen::Matrix<float, STATE_DIM, 1> state_der_;
   float dt;
 
-  Dynamics();
-  ~Dynamics();
+  Dynamics() = default;
+  ~Dynamics() = default;
 
   void xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der); //passing values in by reference
   void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control); //compute the Jacobians with respect to state and control
