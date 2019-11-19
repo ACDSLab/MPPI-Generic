@@ -43,7 +43,7 @@ set(
         -maxrregcount=32;
         -O3;
         -arch=sm_35;
-        -w
+        -w;
 )
 
 # TODO make option

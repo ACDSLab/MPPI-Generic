@@ -7,8 +7,9 @@
 
 
 TEST(Dummy, One) {
-
     auto CP = Cartpole(0.1, 1, 1, 1);
-    std::cout << "Hello Testing!" << std::endl;
-    FAIL();
+    EXPECT_EQ(4, Cartpole::STATE_DIM);
+}
+
+TEST(Dummy, two) {
 }

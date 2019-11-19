@@ -36,4 +36,9 @@ public:
   __device__ void xDot(float* state, float* control, float* state_der);
 };
 
+template <int S_DIM, int C_DIM>
+const int Dynamics<S_DIM, C_DIM>::STATE_DIM;
+
+template <int S_DIM, int C_DIM>
+const int Dynamics<S_DIM, C_DIM>::CONTROL_DIM;
 #endif // DYNAMICS_CUH_
