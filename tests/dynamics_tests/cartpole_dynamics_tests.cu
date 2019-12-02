@@ -33,7 +33,7 @@ TEST(CartPole, Equilibrium) {
 
     CP.xDot(state, control, state_dot_compute);
     for (int i = 0; i < Cartpole::STATE_DIM; i++) {
-        EXPECT_NEAR(state_dot_known(i), state_dot_compute(i), 1e-4);
+        EXPECT_NEAR(state_dot_known(i), state_dot_compute(i), 1e-4) << "Failed at index: " << i;
     }
 }
 
