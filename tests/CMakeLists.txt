@@ -1,2 +1,3 @@
 add_subdirectory(dynamics_tests)
 add_subdirectory(kernel_tests)
+add_subdirectory(cuda_stream_tests)
