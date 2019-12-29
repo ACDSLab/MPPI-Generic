@@ -74,6 +74,8 @@ namespace mppi_common {
     template<class DYN_T, class COST_T>
     __global__ void rolloutKernel(DYN_T dynamics, COST_T costs);
 
+    void launchRolloutKernel();
+
 }
 
 

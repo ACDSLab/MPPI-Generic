@@ -5,6 +5,7 @@ SET (LIB_RELEASE 1)
 
 add_library(${LIBRARY_NAME} SHARED
         mppi_controller.cu
+        mppi_common.cu
         )
 
 target_link_libraries( ${LIBRARY_NAME}

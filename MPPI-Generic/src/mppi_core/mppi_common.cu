@@ -1,4 +1,4 @@
-#include "mppi_common.cuh"
+#include "mppi_core/mppi_common.cuh"
 
 namespace mppi_common {
 
@@ -82,6 +82,10 @@ namespace mppi_common {
     __global__ void rolloutKernel(DYN_T dynamics, COST_T costs) {
         int tdx = threadIdx.x;
         int tid = tdx + blockDim.x * blockIdx.x;
+    }
+
+    void launchRolloutKernel() {
+
     }
 
 }
