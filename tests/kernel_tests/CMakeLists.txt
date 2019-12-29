@@ -3,8 +3,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 
 
-add_executable(rollout_kernel_tests ../test_main.cpp rollout_kernel_tests.cu)
-target_include_directories(rollout_kernel_tests PUBLIC ${CMAKE_SOURCE_DIR}/MPPI-Generic/include/mppi_core)
+add_executable(rollout_kernel_tests ../test_main.cpp rollout_kernel_tests.cpp)
 target_link_libraries(rollout_kernel_tests gtest gmock gtest_main)
 
 

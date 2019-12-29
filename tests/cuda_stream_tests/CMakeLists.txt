@@ -3,8 +3,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 
 
-add_executable(cuda_stream_tests ../test_main.cpp cuda_stream_tests.cu)
-#target_include_directories(cartpole_dynamics_tests PUBLIC ${CMAKE_SOURCE_DIR}/MPPI-Generic/include/dynamics)
+add_executable(cuda_stream_tests ../test_main.cpp cuda_stream_tests.cpp)
 target_link_libraries(cuda_stream_tests gtest gmock gtest_main)
 
 

@@ -3,8 +3,7 @@ set(CMAKE_CXX_STANDARD 11)
 
 
 
-add_executable(cartpole_dynamics_tests ../test_main.cpp cartpole_dynamics_tests.cu)
-target_include_directories(cartpole_dynamics_tests PUBLIC ${CMAKE_SOURCE_DIR}/MPPI-Generic/include/dynamics)
+add_executable(cartpole_dynamics_tests ../test_main.cpp cartpole_dynamics_tests.cpp)
 target_link_libraries(cartpole_dynamics_tests cartpole_dynamics gtest gmock gtest_main)
 
 

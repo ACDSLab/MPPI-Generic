@@ -1,13 +1,4 @@
-//
-// Created by Manan Gandhi on 12/2/19.
-//
-
-#ifndef MPPIGENERIC_MPPI_COMMON_CUH
-#define MPPIGENERIC_MPPI_COMMON_CUH
-
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <curand.h>
+#include "mppi_common.cuh"
 
 namespace mppi_common {
 
@@ -57,24 +48,40 @@ namespace mppi_common {
 
     template<class COST_T>
     __device__ void computeRunningCostAllRollouts(int thread_id, int num_rollouts, COST_T* costs,
-                                                         float* x_thread, float* u_thread, float& running_cost);
+                                                         float* x_thread, float* u_thread, float& running_cost) {
+//        if (thread_id < num_rollouts) {
+//            running_cost += costs->computeRunningCost_device(x_thread, u_thread);
+//        }
+    }
 
     template<class DYN_T>
     __device__ void computeStateDerivAllRollouts(int thread_id, int num_rollouts, DYN_T* dynamics,
-                                                        float* x_thread, float* u_thread, float* xdot_thread);
+                                                        float* x_thread, float* u_thread, float* xdot_thread) {
+//        if (thread_id < num_rollouts) {
+//            dynamics->computeStateDeriv(x_thread, u_thread, xdot_thread);
+//        }
+    }
 
     template<class DYN_T>
     __device__ void incrementStateAllRollouts(int thread_id, int num_rollouts, DYN_T* dynamics,
-                                                     float* x_thread, float* xdot_thread);
+                                                     float* x_thread, float* xdot_thread) {
+//        if (thread_id < num_rollouts) {
+//            dynamics->incrementState(x_thread, xdot_thread);
+//        }
+    }
 
     template<class COST_T>
     __device__ void computeTerminalCostandSave(int thread_id, int num_rollouts, COST_T* costs,
-                                                      float* x_thread, float running_cost, float* cost_rollouts_device);
+                                                      float* x_thread, float running_cost, float* cost_rollouts_device) {
+//        if (thread_id < num_rollouts) {
+//            cost_rollouts_device[thread_id] = running_cost + costs->computeTermianalCost(x_thread);
+//        }
+    }
 
     template<class DYN_T, class COST_T>
-    __global__ void rolloutKernel(DYN_T dynamics, COST_T costs);
+    __global__ void rolloutKernel(DYN_T dynamics, COST_T costs) {
+        int tdx = threadIdx.x;
+        int tid = tdx + blockDim.x * blockIdx.x;
+    }
 
 }
-
-
-#endif //MPPIGENERIC_MPPI_COMMON_CUH
