@@ -1,4 +1,4 @@
-#include "mppi_core/mppi_common.cuh"
+#include "mppi_common.cuh"
 
 namespace mppi_common {
 

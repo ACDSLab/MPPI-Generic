@@ -1,4 +1,10 @@
 include_directories(include)
+include_directories(${CMAKE_SOURCE_DIR}/MPPI-Generic/include/controllers
+        ${CMAKE_SOURCE_DIR}/MPPI-Generic/include/cost_functions
+        ${CMAKE_SOURCE_DIR}/MPPI-Generic/include/dynamics
+        ${CMAKE_SOURCE_DIR}/MPPI-Generic/include/mppi_core
+        ${CMAKE_SOURCE_DIR}/MPPI-Generic/include/utils
+        )
 
 # Install all library header files
 install(

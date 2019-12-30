@@ -1,1 +1,1 @@
-#include <mppi_core/mppi_controller.cuh>
+#include <mppi_controller.cuh>
