@@ -46,6 +46,26 @@ TEST(CartPole, BindStream) {
     EXPECT_EQ(CP.stream_, stream) << "Stream binding failure.";
 
     HANDLE_ERROR(cudaStreamDestroy(stream));
+}
 
+TEST(CartPole, SetGetParamsHost) {
+    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    auto CP = Cartpole(0.1, 1, 1, 2);
+
+    CP.setParams(params);
+    auto CP_params = CP.getParams();
+
+    EXPECT_FLOAT_EQ(params.cart_mass, CP_params.cart_mass);
+    EXPECT_FLOAT_EQ(params.pole_mass, CP_params.pole_mass);
+    EXPECT_FLOAT_EQ(params.pole_length, CP_params.pole_length);
+}
+
+TEST(CartPole, GetParamsDevice) {
+    FAIL();
+    // Test kernel that will get the parameters from the device itself?
+}
+
+TEST(CartPole, GetParamsDeviceStream) {
+    FAIL();
 }
 

@@ -5,7 +5,6 @@ Cartpole::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_l
   cart_mass_ = cart_mass;
   pole_mass_ = pole_mass;
   pole_length_ = pole_length;
-  dt_ = delta_t;
 
   cudaMalloc((void**)&cart_mass_d_, sizeof(float));
   cudaMalloc((void**)&pole_mass_d_, sizeof(float));
@@ -44,7 +43,16 @@ void Cartpole::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eig
   B(3,0) = -cosf(theta)/(pole_length_*(cart_mass_+pole_mass_*powf(sinf(theta),2.0)));
 }
 
-void Cartpole::loadParams() {}
+void Cartpole::setParams(const CartpoleParams &parameters) {
+    cart_mass_ = parameters.cart_mass;
+    pole_length_ = parameters.pole_length;
+    pole_mass_ = parameters.pole_mass;
+    paramsToDevice();
+};
+
+CartpoleParams Cartpole::getParams() {
+    return CartpoleParams(cart_mass_, pole_mass_, pole_length_);
+}
 
 void Cartpole::paramsToDevice()
 {
