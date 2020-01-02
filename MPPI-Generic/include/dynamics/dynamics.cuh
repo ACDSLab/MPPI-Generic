@@ -10,11 +10,10 @@ Header file for dynamics
 #include <Eigen/Dense>
 #include <stdio.h>
 #include <math.h>
-
-#include "../utils/managed.cuh" // TODO fix relative include
+#include "managed.cuh" // TODO fix relative include
 
 template<int S_DIM, int C_DIM>
-class Dynamics : Managed
+class Dynamics : public Managed
 {
 public:
   static const int STATE_DIM = S_DIM;

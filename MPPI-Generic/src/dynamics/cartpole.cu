@@ -1,15 +1,16 @@
-#include <dynamics/cartpole.cuh>
+#include "cartpole.cuh"
 
-Cartpole::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length)
+Cartpole::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream)
 {
   cart_mass_ = cart_mass;
   pole_mass_ = pole_mass;
   pole_length_ = pole_length;
   dt_ = delta_t;
 
-  cudaMalloc((void**)&cart_mass_d_, sizeof(int));
-  cudaMalloc((void**)&pole_mass_d_, sizeof(int));
-  cudaMalloc((void**)&pole_length_d_, sizeof(int));
+  cudaMalloc((void**)&cart_mass_d_, sizeof(float));
+  cudaMalloc((void**)&pole_mass_d_, sizeof(float));
+  cudaMalloc((void**)&pole_length_d_, sizeof(float));
+  bindToStream(stream);
 }
 
 void Cartpole::Cartpole::xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der)

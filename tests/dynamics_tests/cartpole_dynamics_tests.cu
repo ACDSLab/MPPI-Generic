@@ -5,7 +5,6 @@
 #include <gtest/gtest.h>
 #include "cartpole.cuh"
 
-
 TEST(CartPole, StateDim) {
     auto CP = Cartpole(0.1, 1, 1, 1);
     EXPECT_EQ(4, Cartpole::STATE_DIM);
@@ -35,5 +34,18 @@ TEST(CartPole, Equilibrium) {
     for (int i = 0; i < Cartpole::STATE_DIM; i++) {
         EXPECT_NEAR(state_dot_known(i), state_dot_compute(i), 1e-4) << "Failed at index: " << i;
     }
+}
+
+TEST(CartPole, BindStream) {
+    cudaStream_t stream;
+
+    HANDLE_ERROR(cudaStreamCreate(&stream));
+
+    auto CP = Cartpole(0.1, 1, 1, 2, stream);
+
+    EXPECT_EQ(CP.stream_, stream) << "Stream binding failure.";
+
+    HANDLE_ERROR(cudaStreamDestroy(stream));
+
 }
 

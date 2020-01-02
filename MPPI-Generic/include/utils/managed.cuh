@@ -35,7 +35,7 @@
 #ifndef MPPI_MANAGED_CUH_
 #define MPPI_MANAGED_CUH_
 
-#include <cuda_runtime.h>
+#include "gpu_err_chk.cuh"
 
 
 /**

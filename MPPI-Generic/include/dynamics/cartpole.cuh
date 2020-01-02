@@ -19,7 +19,7 @@ public:
   float* pole_mass_d_;
   float* pole_length_d_;
 
-  Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length);
+  Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream=0);
 
   void xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der);  //passing values in by reference
   void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B); //compute the Jacobians with respect to state and control

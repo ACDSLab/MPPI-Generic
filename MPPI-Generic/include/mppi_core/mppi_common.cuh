@@ -5,9 +5,8 @@
 #ifndef MPPIGENERIC_MPPI_COMMON_CUH
 #define MPPIGENERIC_MPPI_COMMON_CUH
 
-#include <cuda.h>
-#include <cuda_runtime.h>
 #include <curand.h>
+#include "gpu_err_chk.cuh"
 
 namespace mppi_common {
 
