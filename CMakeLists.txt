@@ -46,6 +46,7 @@ set(
         -w;
 )
 
+
 # TODO make option
 #set(
 #        CUDA_NVCC_FLAGS

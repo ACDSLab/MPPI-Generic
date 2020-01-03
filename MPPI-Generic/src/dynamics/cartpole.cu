@@ -2,14 +2,21 @@
 
 Cartpole::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream)
 {
-  cart_mass_ = cart_mass;
-  pole_mass_ = pole_mass;
-  pole_length_ = pole_length;
+    cart_mass_ = cart_mass;
+    pole_mass_ = pole_mass;
+    pole_length_ = pole_length;
 
-  cudaMalloc((void**)&cart_mass_d_, sizeof(float));
-  cudaMalloc((void**)&pole_mass_d_, sizeof(float));
-  cudaMalloc((void**)&pole_length_d_, sizeof(float));
-  bindToStream(stream);
+    cudaMalloc((void**)&cart_mass_d_, sizeof(float));
+    cudaMalloc((void**)&pole_mass_d_, sizeof(float));
+    cudaMalloc((void**)&pole_length_d_, sizeof(float));
+    cudaMalloc((void**)&gravity_d_, sizeof(float));
+
+    bindToStream(stream);
+    paramsToDevice();
+}
+
+Cartpole::~Cartpole() {
+    freeCudaMem();
 }
 
 void Cartpole::Cartpole::xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der)
@@ -54,18 +61,32 @@ CartpoleParams Cartpole::getParams() {
     return CartpoleParams(cart_mass_, pole_mass_, pole_length_);
 }
 
+__device__ float Cartpole::getCartMass_d() {
+    return *cart_mass_d_;
+}
+
+__device__ float Cartpole::getPoleMass() {
+    return *pole_mass_d_;
+}
+
+__device__ float Cartpole::getPoleLength() {
+    return *pole_length_d_;
+}
+
 void Cartpole::paramsToDevice()
 {
-  cudaMemcpy(pole_mass_d_, &pole_mass_, sizeof(float), cudaMemcpyHostToDevice);
-  cudaMemcpy(cart_mass_d_, &cart_mass_, sizeof(float), cudaMemcpyHostToDevice);
-  cudaMemcpy(pole_length_d_, &pole_length_, sizeof(float), cudaMemcpyHostToDevice);
-}
+    HANDLE_ERROR( cudaMemcpyAsync(pole_mass_d_, &pole_mass_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(cart_mass_d_, &cart_mass_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(pole_length_d_, &pole_length_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(gravity_d_, &gravity_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaStreamSynchronize(stream_) );}
 
 void Cartpole::freeCudaMem()
 {
-  cudaFree(pole_mass_d_);
-  cudaFree(cart_mass_d_);
-  cudaFree(pole_length_d_);
+    cudaFree(pole_mass_d_);
+    cudaFree(cart_mass_d_);
+    cudaFree(pole_length_d_);
+    cudaFree(gravity_d_);
 }
 
 void Cartpole::printState(Eigen::MatrixXf state)
@@ -96,3 +117,6 @@ __device__ void Cartpole::xDot(float* state, float* control, float* state_der)
   state_der[2] = state[3];
   state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity*sinf(theta));
 }
+
+
+
