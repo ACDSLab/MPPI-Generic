@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.8)
 project(MPPIGeneric LANGUAGES C CXX CUDA)
 
-set(BUILD_FLAGS "-std=c++11 -Wuninitialized -Wall")
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CUDA_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+set(BUILD_FLAGS "-Wuninitialized -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
 
 # Allow the lib location to be overwritten from command line
