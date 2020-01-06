@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <device_launch_parameters.h>
-#include "cartpole.cuh"
+#include "dynamics/cartpole.cuh"
 
 TEST(CartPole, StateDim) {
     auto CP = Cartpole(0.1, 1, 1, 1);

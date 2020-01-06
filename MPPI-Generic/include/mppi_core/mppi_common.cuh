@@ -6,7 +6,7 @@
 #define MPPIGENERIC_MPPI_COMMON_CUH
 
 #include <curand.h>
-#include "gpu_err_chk.cuh"
+#include "utils/gpu_err_chk.cuh"
 
 namespace mppi_common {
 

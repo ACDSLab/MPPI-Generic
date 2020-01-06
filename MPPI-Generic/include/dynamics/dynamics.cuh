@@ -10,7 +10,7 @@ Header file for dynamics
 #include <Eigen/Dense>
 #include <stdio.h>
 #include <math.h>
-#include "managed.cuh" // TODO fix relative include
+#include <utils/managed.cuh>
 
 template<int S_DIM, int C_DIM>
 class Dynamics : public Managed
