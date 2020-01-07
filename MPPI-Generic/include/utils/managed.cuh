@@ -62,8 +62,20 @@ public:
   @param stream is the CUDA stream that the object is assigned too.
   */
   void bindToStream(cudaStream_t stream) {
-    stream_ = stream;
-    cudaDeviceSynchronize();
+      stream_ = stream;
+      cudaDeviceSynchronize();
+  }
+
+protected:
+  template<class T>
+  static T* GPUSetup(const T* host_ptr) {
+      // Allocate enough space on the GPU for the object
+      T* device_ptr;
+      cudaMalloc((void**)&device_ptr, sizeof(T) );
+      // Cudamemcpy
+      HANDLE_ERROR(cudaMemcpyAsync(device_ptr, host_ptr, sizeof(T), cudaMemcpyHostToDevice, host_ptr->stream_));
+      cudaDeviceSynchronize();
+      return device_ptr;
   }
 
 };
