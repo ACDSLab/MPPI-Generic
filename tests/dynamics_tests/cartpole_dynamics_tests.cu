@@ -67,7 +67,7 @@ TEST(CartPole, CartPole_GPUSetup_Test) {
     CP_host->GPUSetup();
     launchParameterTestKernel(*CP_host);
 
-    EXPECT_TRUE(CP_host->getGPUMemStatus());
+    EXPECT_TRUE(CP_host->GPUMemStatus_);
 
     CP_host->freeCudaMem();
     delete(CP_host);

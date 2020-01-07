@@ -34,8 +34,6 @@ public:
     __host__ __device__ float getPoleLength() {return pole_length_;};
     __host__ __device__ float getGravity() {return gravity_;}
 
-    bool getGPUMemStatus() {return GPUMemStatus;};
-
     void printState(Eigen::MatrixXf state);
     void printParams();
 
@@ -54,11 +52,7 @@ protected:
     float pole_mass_;
     float pole_length_;
 
-
-
-private:
     void paramsToDevice(); // Params to device should automatically be called when setting parameters
-    bool GPUMemStatus = false;
 
 
 

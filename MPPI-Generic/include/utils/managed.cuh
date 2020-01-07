@@ -57,6 +57,9 @@ public:
 
   cudaStream_t stream_ = 0; ///< The CUDA Stream that the class is bound too. 0 is the default (NULL) stream.
 
+  // true when allocated
+  bool GPUMemStatus_ = false;
+
   /**
   @brief Sets the stream and synchronizes the device.
   @param stream is the CUDA stream that the object is assigned too.
@@ -68,13 +71,14 @@ public:
 
 protected:
   template<class T>
-  static T* GPUSetup(const T* host_ptr) {
+  static T* GPUSetup(T* host_ptr) {
       // Allocate enough space on the GPU for the object
       T* device_ptr;
       cudaMalloc((void**)&device_ptr, sizeof(T) );
       // Cudamemcpy
       HANDLE_ERROR(cudaMemcpyAsync(device_ptr, host_ptr, sizeof(T), cudaMemcpyHostToDevice, host_ptr->stream_));
       cudaDeviceSynchronize();
+      host_ptr->GPUMemStatus_ = true;
       return device_ptr;
   }
 
