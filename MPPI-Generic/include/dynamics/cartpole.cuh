@@ -20,39 +20,54 @@ class Cartpole : public Dynamics<4, 1>
 public:
     Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream=0);
     ~Cartpole();
+
+    void GPUSetup();
+
     void xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der);  //passing values in by reference
     void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B); //compute the Jacobians with respect to state and control
 
     void setParams(const CartpoleParams &parameters);
     CartpoleParams getParams();
 
-    __device__ float getCartMass_d();
-    __device__ float getPoleMass();
-    __device__ float getPoleLength();
+    __host__ __device__ float getCartMass() {return cart_mass_;};
+    __host__ __device__ float getPoleMass() {return pole_mass_;};
+    __host__ __device__ float getPoleLength() {return pole_length_;};
+    __host__ __device__ float getGravity() {return gravity_;}
+
+    bool getGPUMemStatus() {return GPUMemStatus;};
 
     void printState(Eigen::MatrixXf state);
     void printParams();
 
     __device__ void xDot(float* state, float* control, float* state_der);
 
-    //CUDA parameters
-    float* cart_mass_d_;
-    float* pole_mass_d_;
-    float* pole_length_d_;
-    float* gravity_d_;
+    // Device pointer of class object
+    Cartpole* CP_device;
+
+    void freeCudaMem();
+
+
 
 protected:
     float cart_mass_;
+    const float gravity_ = 9.81;
     float pole_mass_;
     float pole_length_;
-    const float gravity_ = 9.81;
+
 
 
 private:
     void paramsToDevice(); // Params to device should automatically be called when setting parameters
-    void freeCudaMem();
+    bool GPUMemStatus = false;
+
 
 
 };
 
+__global__ void ParameterTestKernel(Cartpole CP);
+
+void launchParameterTestKernel(const Cartpole& CP);
+
 #endif // CARTPOLE_CUH_
+
+

@@ -61,33 +61,28 @@ TEST(CartPole, SetGetParamsHost) {
     EXPECT_FLOAT_EQ(params.pole_length, CP_params.pole_length);
 }
 
-__global__ void ParameterTestKernel(Cartpole CP) {
-    int tid = blockIdx.x*blockDim.x + threadIdx.x;
-    printf("Entering the kernel!\n");
-    printf("The thread id is: %i\n", tid);
-    if (tid == 0) {
-        printf("The cart mass is: %f\n", *CP.cart_mass_d_);
-    }
+
+TEST(CartPole, CartPole_GPUSetup_Test) {
+    auto CP_host = new Cartpole(0.1, 1, 2, 2);
+    CP_host->GPUSetup();
+    launchParameterTestKernel(*CP_host);
+
+    EXPECT_TRUE(CP_host->getGPUMemStatus());
+
+    CP_host->freeCudaMem();
+    delete(CP_host);
 }
-/*
- * This pattern works because we are passing the CartPole object via copy to the kernel, then the kernel invokes the
- * constructor of CartPole and copies the values into the device memory. Thus, the resulting device code has pointers
- * to the correct locations, but we are allocating twice as much memory as we need (I think...). Either way, this is bad
- */
+
 TEST(CartPole, GetParamsDevice) {
-    auto CP = Cartpole(0.1, 1, 1, 2);
+    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    CP_host->GPUSetup();
+
     auto params = CartpoleParams(2.0, 3.0, 4.0);
-    CP.setParams(params);
+    CP_host->setParams(params);
 
-    ParameterTestKernel<<<1,1>>>(CP);
-    cudaDeviceSynchronize();
-    CudaCheckError();
-    // Test kernel that will get the parameters from the device itself?
-    FAIL();
-
+    launchParameterTestKernel(*CP_host);
+    CP_host->freeCudaMem();
+    delete(CP_host);
 }
 
-TEST(CartPole, GetParamsDeviceStream) {
-    FAIL();
-}
 
