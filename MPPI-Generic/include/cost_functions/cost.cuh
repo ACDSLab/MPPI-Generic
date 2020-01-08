@@ -25,7 +25,8 @@ public:
   __device__ float stateCost(float* s);
   __device__ float crashCost(float* s);
   __device__ float mapCost(float* s);
-  __device__ float computeCost(float* s, float* u, float* du);
+  __device__ float computeRunningCost(float* s, float* u, float* du);
+  __device__ float computeTerminalCost(float* s);
 };
 
 #endif // COSTS_CUH_
