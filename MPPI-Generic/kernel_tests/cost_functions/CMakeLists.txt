@@ -4,8 +4,7 @@ SET (LIB_MINOR 0)
 SET (LIB_RELEASE 1)
 
 add_library(${LIBRARY_NAME} SHARED
-        ar_standard_cost.cu
-        ../dynamics/cartpole/cartpole_kernels_test.cu)
+        ar_standard_cost.cu)
 
 target_link_libraries( ${LIBRARY_NAME}
         ${YAML_CPP_LIBRARIES}

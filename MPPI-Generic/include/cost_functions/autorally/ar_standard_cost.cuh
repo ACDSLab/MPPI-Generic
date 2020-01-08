@@ -54,8 +54,8 @@ public:
    */
   void freeCudaMem();
 
-  void setParams(ARStandardCostParams params);
-  ARStandardCostParams getParams();
+  void setParams(ARStandardCostParams params) {this->params_ = params;}
+  ARStandardCostParams getParams() {return params_;}
 
   /**
    * Copies the parameters to the GPU object
@@ -226,5 +226,10 @@ protected:
 protected:
 
 };
+
+
+#if __CUDACC__
+#include "ar_standard_cost.cu"
+#endif
 
 #endif // AR_STANDARD_COST_CUH_

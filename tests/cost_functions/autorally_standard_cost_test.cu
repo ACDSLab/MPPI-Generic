@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <device_launch_parameters.h>
-#include <cost_functions/ar_standard_cost.cuh>
+#include <cost_functions/autorally/ar_standard_cost.cuh>
 
 TEST(ARStandardCost, Constructor) {
   ARStandardCost cost(4, 5);
@@ -52,8 +52,7 @@ TEST(ARStandardCost, SetGetParamsHost) {
 }
  */
 
-TEST(ARStandardCost, AllocateCudaMemoryCheck) {
-  ARStandardCost cost(4,5);
-
-}
+//TEST(ARStandardCost, AllocateCudaMemoryCheck) {
+//  ARStandardCost cost(4,5);
+//}
 

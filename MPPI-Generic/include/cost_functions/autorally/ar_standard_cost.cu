@@ -1,4 +1,4 @@
-#include <cost_functions/ar_standard_cost.cuh>
+#include <cost_functions/autorally/ar_standard_cost.cuh>
 
 ARStandardCost::ARStandardCost(int width, int height, cudaStream_t stream) {
   this->width_ = width;
@@ -33,10 +33,3 @@ void ARStandardCost::paramsToDevice() {
   HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 
-ARStandardCost::ARStandardCostParams ARStandardCost::getParams() {
-  return params_;
-}
-
-void ARStandardCost::setParams(ARStandardCost::ARStandardCostParams params) {
-  params_ = params;
-}
