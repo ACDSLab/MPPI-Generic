@@ -1,14 +1,8 @@
 #include "mppi_core/mppi_common.cuh"
 
-#define state_dim 12
-#define control_dim 3
-#define blocksize_x 64
-#define blocksize_y 8
-#define num_rollouts 2000
-#define sum_stride 128
+//#define state_dim DYN_T::STATE_DIM;
 
 namespace mppi_common {
-
     // Kernel functions
     template<class DYN_T, class COST_T>
     __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
@@ -99,12 +93,13 @@ namespace mppi_common {
                                         float* x_device, float* sigma_u_device, float* x_thread,
                                         float* xdot_thread, float* u_thread, float* du_thread, float* sigma_u_thread) {
         //Transfer to shared memory
+        int i;
         if (global_idx < num_rollouts) {
-            for (int i = thread_idy; i < state_dim; i += blocksize_y) {
+            for (i = thread_idy; i < state_dim; i += blocksize_y) {
                 x_thread[i] = x_device[i];
                 xdot_thread[i] = 0;
             }
-            for (int i = thread_idy; i < control_dim; i += blocksize_y) {
+            for (i = thread_idy; i < control_dim; i += blocksize_y) {
                 u_thread[i] = 0;
                 du_thread[i] = 0;
                 sigma_u_thread[i] = sigma_u_device[i];

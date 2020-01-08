@@ -10,6 +10,12 @@
 
 namespace mppi_common {
 
+    const int state_dim = 12;
+    const int control_dim = 3;
+    const int blocksize_x = 64;
+    const int blocksize_y = 8;
+    const int num_rollouts = 2000;
+
     // Kernel functions
     template<class DYN_T, class COST_T>
     __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
@@ -23,8 +29,8 @@ namespace mppi_common {
      * Copy global memory into shared memory
      *
      * Args:
-     * state_dim
-     * control_dim
+     * global_idx
+     * thread_dy
      * x0_device: initial condition in device memory
      * sigma_u_device: control exploration variance in device memory
      * x_thread: state in shared memory
@@ -34,26 +40,26 @@ namespace mppi_common {
      * sigma_u_thread: control exploration variance in shared memory
      *
      */
-    __device__ void loadGlobalToShared(int state_dim,
-                                              int control_dim,
-                                              float* x0_device,
-                                              float* sigma_u_device,
-                                              float* x_thread,
-                                              float* xdot_thread,
-                                              float* u_thread,
-                                              float* du_thread,
-                                              float* sigma_u_thread);
+    __device__ void loadGlobalToShared(int global_idx,
+                                       int thread_idy,
+                                       float* x0_device,
+                                       float* sigma_u_device,
+                                       float* x_thread,
+                                       float* xdot_thread,
+                                       float* u_thread,
+                                       float* du_thread,
+                                       float* sigma_u_thread);
 
     __device__ void injectControlNoise(int i,
-                                              int control_dim,
-                                              int thread_id,
-                                              int num_timesteaps,
-                                              int num_rollouts,
-                                              float* u_traj_device,
-                                              float* ep_v_device,
-                                              float* u_thread,
-                                              float* du_thread,
-                                              float* sigma_u_thread);
+                                       int control_dim,
+                                       int thread_id,
+                                       int num_timesteaps,
+                                       int num_rollouts,
+                                       float* u_traj_device,
+                                       float* ep_v_device,
+                                       float* u_thread,
+                                       float* du_thread,
+                                       float* sigma_u_thread);
 
     template<class COST_T>
     __device__ void computeRunningCostAllRollouts(int thread_id, int num_rollouts, COST_T* costs,
