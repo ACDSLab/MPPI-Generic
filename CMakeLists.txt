@@ -36,7 +36,7 @@ include_directories(${YAML_CPP_INCLUDE_DIR})
 # set up cnpy
 include_directories(SYSTEM submodules/cnpy)
 
-# find_package(CUDA REQUIRED)
+#find_package(CUDA REQUIRED)
 
 if(NOT ${CUDA_curand_LIBRARY} MATCHES "NOTFOUND")
     set(CURAND_LIBRARY ${CUDA_curand_LIBRARY})
