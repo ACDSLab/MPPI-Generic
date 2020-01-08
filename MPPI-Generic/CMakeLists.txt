@@ -9,4 +9,7 @@ install(
 
 add_subdirectory(src)
 add_subdirectory(examples)
-#add_subdirectory(test)
+
+if (BUILD_TESTS)
+    add_subdirectory(kernel_tests)
+endif()

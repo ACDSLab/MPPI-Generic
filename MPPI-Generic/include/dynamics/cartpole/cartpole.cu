@@ -106,25 +106,6 @@ __device__ void Cartpole::xDot(float* state, float* control, float* state_der)
   state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity*sinf(theta));
 }
 
-__global__ void ParameterTestKernel(Cartpole* CP) {
-    int tid = blockIdx.x*blockDim.x + threadIdx.x;
-    printf("\nEntering the kernel!\n");
-    printf("The thread id is: %i\n", tid);
-    if (tid == 0) {
-        printf("This is gravity: %f\n", CP->getGravity());
-        printf("This is the mass of the cart: %f\n", CP->getCartMass());
-        printf("This is the mass of the pole: %f\n", CP->getPoleMass());
-        printf("This is the length of the pole: %f\n", CP->getPoleLength());
-        printf("This is the value of GPUMemstatus on the GPU: %d\n", CP->GPUMemStatus_);
-        printf("This is the value of CP_device on the GPU: %d\n", CP->CP_device);
-    }
-}
-
-void launchParameterTestKernel(const Cartpole& CP) {
-    ParameterTestKernel<<<1,1>>>(CP.CP_device);
-    CudaCheckError();
-}
-
 
 
 

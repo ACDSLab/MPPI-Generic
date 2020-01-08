@@ -9,6 +9,9 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(BUILD_FLAGS "-Wuninitialized -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
 
+option(BUILD_TESTS "BUILD_TESTS" ON)
+
+
 # Allow the lib location to be overwritten from command line
 if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
     get_filename_component(PROJECT_LIBS_DIR ${PROJECT_BINARY_DIR}/lib ABSOLUTE)
@@ -20,18 +23,18 @@ endif()
 
 # Find Eigen
 find_package(Eigen3 REQUIRED)
-include_directories(${EIGEN3_INCLUDE_DIR})
+include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
 
 # Find OpenCV
 find_package(OpenCV REQUIRED)
-include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 
 # find yaml-cpp
 find_package(yaml-cpp REQUIRED)
-include_directories(${YAML_CPP_INCLUDE_DIR})
+include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIR})
 
 # set up cnpy
-include_directories(submodules/cnpy)
+include_directories(SYSTEM submodules/cnpy)
 
 # find_package(CUDA REQUIRED)
 
@@ -51,7 +54,6 @@ set(
         -w;
 )
 
-
 # TODO make option
 #set(
 #        CUDA_NVCC_FLAGS
@@ -68,7 +70,6 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/
 ###################################################################
 # Add gtest
 ###################################################################
-option(BUILD_TESTS "BUILD_TESTS" OFF)
 if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   enable_testing()
 

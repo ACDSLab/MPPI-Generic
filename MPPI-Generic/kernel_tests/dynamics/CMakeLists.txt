@@ -1,10 +1,10 @@
-set(LIBRARY_NAME ar_standard_cost)
+set(LIBRARY_NAME dynamics_kernel_tests)
 SET (LIB_MAJOR 0)
 SET (LIB_MINOR 0)
 SET (LIB_RELEASE 1)
 
 add_library(${LIBRARY_NAME} SHARED
-        ar_standard_cost.cu
+        cartpole/cartpole_kernels_test.cu
         )
 
 target_link_libraries( ${LIBRARY_NAME}
