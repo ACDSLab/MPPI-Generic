@@ -30,4 +30,5 @@ void launchParameterTestKernel(const Cartpole& CP, float& mass_check) {
     HANDLE_ERROR(cudaMemcpy(&mass_check, mass_check_device, sizeof(float), cudaMemcpyDeviceToHost));
     cudaDeviceSynchronize();
 
+    cudaFree(mass_check_device);
 }
