@@ -1,5 +1,3 @@
-#include <dynamics/cartpole.cuh>
-
 Cartpole::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream)
 {
     cart_mass_ = cart_mass;
@@ -15,6 +13,7 @@ Cartpole::~Cartpole() {
 void Cartpole::GPUSetup() {
     if (!GPUMemStatus_) {
         CP_device = Managed::GPUSetup(this);
+
         //this->GPUMemStatus_ = true;
     } else {
         std::cout << "GPU Memory already set." << std::endl;
@@ -73,8 +72,6 @@ void Cartpole::paramsToDevice()
     HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 
-
-
 void Cartpole::freeCudaMem()
 {
     cudaFree(CP_device);
@@ -117,7 +114,10 @@ __global__ void ParameterTestKernel(Cartpole* CP) {
         printf("This is gravity: %f\n", CP->getGravity());
         printf("This is the mass of the cart: %f\n", CP->getCartMass());
         printf("This is the mass of the pole: %f\n", CP->getPoleMass());
-        printf("This is the length of the pole: %f\n", CP->getPoleLength());    }
+        printf("This is the length of the pole: %f\n", CP->getPoleLength());
+        printf("This is the value of GPUMemstatus on the GPU: %d\n", CP->GPUMemStatus_);
+        printf("This is the value of CP_device on the GPU: %d\n", CP->CP_device);
+    }
 }
 
 void launchParameterTestKernel(const Cartpole& CP) {

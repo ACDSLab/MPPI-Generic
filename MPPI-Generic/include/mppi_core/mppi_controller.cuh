@@ -11,4 +11,8 @@ class MPPIController {
 
 };
 
+#if __CUDACC__
+#include "mppi_controller.cu"
+#endif
+
 #endif //MPPIGENERIC_MPPI_CONTROLLER_CUH

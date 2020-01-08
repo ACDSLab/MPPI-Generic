@@ -76,6 +76,8 @@ namespace mppi_common {
     void launchRolloutKernel();
 
 }
-
+#if __CUDACC__
+#include "mppi_common.cu"
+#endif
 
 #endif //MPPIGENERIC_MPPI_COMMON_CUH

@@ -1,5 +1,5 @@
 #ifndef CUDA_TESTING_GPU_ERR_CHK_CUH
-#define CUDA_TESTING_CPU_ERR_CHK_CUH
+#define CUDA_TESTING_GPU_ERR_CHK_CUH
 
 #include <cuda_runtime.h>
 #include <iostream>
@@ -38,4 +38,4 @@ inline void __cudaCheckError( const char *file, const int line )
 
 
 
-#endif //! CUDA_TESTING_CPU_ERR_CHK_CUH
+#endif //! CUDA_TESTING_GPU_ERR_CHK_CUH

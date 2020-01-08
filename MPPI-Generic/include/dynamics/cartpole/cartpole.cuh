@@ -3,7 +3,7 @@
 #ifndef CARTPOLE_CUH_
 #define CARTPOLE_CUH_
 
-#include "dynamics.cuh"
+#include <dynamics/dynamics.cuh>
 
 struct CartpoleParams {
     float cart_mass = 1.0f;
@@ -40,7 +40,7 @@ public:
     __device__ void xDot(float* state, float* control, float* state_der);
 
     // Device pointer of class object
-    Cartpole* CP_device;
+    Cartpole* CP_device = nullptr;
 
     void freeCudaMem();
 
@@ -54,13 +54,15 @@ protected:
 
     void paramsToDevice(); // Params to device should automatically be called when setting parameters
 
-
-
 };
 
 __global__ void ParameterTestKernel(Cartpole CP);
 
 void launchParameterTestKernel(const Cartpole& CP);
+
+#if __CUDACC__
+#include "cartpole.cu"
+#endif
 
 #endif // CARTPOLE_CUH_
 

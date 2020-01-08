@@ -3,8 +3,7 @@
 //
 
 #include <gtest/gtest.h>
-#include <device_launch_parameters.h>
-#include "dynamics/cartpole.cuh"
+#include <dynamics/cartpole/cartpole.cuh>
 
 TEST(CartPole, StateDim) {
     auto CP = Cartpole(0.1, 1, 1, 1);
@@ -37,17 +36,17 @@ TEST(CartPole, Equilibrium) {
     }
 }
 
-TEST(CartPole, BindStream) {
-    cudaStream_t stream;
-
-    HANDLE_ERROR(cudaStreamCreate(&stream));
-
-    auto CP = Cartpole(0.1, 1, 1, 2, stream);
-
-    EXPECT_EQ(CP.stream_, stream) << "Stream binding failure.";
-
-    HANDLE_ERROR(cudaStreamDestroy(stream));
-}
+//TEST(CartPole, BindStream) {
+//    cudaStream_t stream;
+//
+//    HANDLE_ERROR(cudaStreamCreate(&stream));
+//
+//    auto CP = Cartpole(0.1, 1, 1, 2, stream);
+//
+//    EXPECT_EQ(CP.stream_, stream) << "Stream binding failure.";
+//
+//    HANDLE_ERROR(cudaStreamDestroy(stream));
+//}
 
 TEST(CartPole, SetGetParamsHost) {
     auto params = CartpoleParams(2.0, 3.0, 4.0);
