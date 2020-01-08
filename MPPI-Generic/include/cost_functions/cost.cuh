@@ -45,11 +45,9 @@ public:
   void freeCudaMem();
 
   __host__ __device__ float controlCost(float* u, float* du);
-  //__host__ __device__ float stateCost(float* s);
-  //__device__ float computeRunningCost(float* s, float* u, float* du);
+  __host__ __device__ float computeRunningCost(float* s, float* u, float* du);
   __host__ __device__ float terminalCost(float* s);
   __host__ __device__ float computeCost(float* s, float* u, float* du);
->>>>>>> Stashed changes
 };
 
 #endif // COSTS_CUH_

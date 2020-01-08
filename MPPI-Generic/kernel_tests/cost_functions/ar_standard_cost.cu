@@ -1,1 +1,1 @@
-#include <cost_functions/ar_standard_cost.cuh>
+#include <cost_functions/autorally/ar_standard_cost.cuh>
