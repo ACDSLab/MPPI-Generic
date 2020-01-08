@@ -69,6 +69,17 @@ public:
       cudaDeviceSynchronize();
   }
 
+
+  // REQUIRED: basic interface, make sure to implement in each class
+  // GPUSetup - allocates the GPU object
+  // freeCudaMem -> deallocates what is setup in GPUSetup
+  // getParams, setParams -> gets and sets the parameters
+  // paramsToDevice -> copies the parameters over to the GPU side
+
+  // OPTIONAL:
+  // printParams
+  // other printing methods
+
 protected:
   template<class T>
   static T* GPUSetup(T* host_ptr) {

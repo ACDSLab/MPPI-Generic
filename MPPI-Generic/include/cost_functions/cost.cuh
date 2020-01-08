@@ -7,26 +7,49 @@ Header file for costs
 #define COSTS_CUH_
 
 #include<Eigen/Dense>
-
+#include <stdio.h>
+#include <math.h>
 #include <utils/managed.cuh>
 
-class Cost : Managed
+
+class Cost : public Managed
 {
 public:
+  // struct namespaced by the class
+  typedef struct {
+    // fill in data here
+  } CostParams;
 
-  Cost();
-  ~Cost();
+  Cost() = default;
+  ~Cost() = default;
 
-  void loadParams();
-  void paramsToDevice();
+  /**
+   * Updates the device version of the parameter structure
+   */
+  void updateDevice();
+
+  /**
+   * Updates the cost parameters
+   * @param params
+   */
+  void updateParams(); // TODO what to pass in for the default
+
+  /**
+   * allocates all the cuda memory needed for the object
+   */
+  void allocateCudaMem();
+
+  /**
+   * deallocates the allocated cuda memory for an object
+   */
   void freeCudaMem();
 
-  __device__ float controlCost(float* u, float* du);
-  __device__ float stateCost(float* s);
-  __device__ float crashCost(float* s);
-  __device__ float mapCost(float* s);
-  __device__ float computeRunningCost(float* s, float* u, float* du);
-  __device__ float computeTerminalCost(float* s);
+  __host__ __device__ float controlCost(float* u, float* du);
+  //__host__ __device__ float stateCost(float* s);
+  //__device__ float computeRunningCost(float* s, float* u, float* du);
+  __host__ __device__ float terminalCost(float* s);
+  __host__ __device__ float computeCost(float* s, float* u, float* du);
+>>>>>>> Stashed changes
 };
 
 #endif // COSTS_CUH_
