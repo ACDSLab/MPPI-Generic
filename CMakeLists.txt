@@ -31,12 +31,12 @@ include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 
 # find yaml-cpp
 find_package(yaml-cpp REQUIRED)
-include_directories(SYSTEM ${YAML_CPP_INCLUDE_DIR})
+include_directories(${YAML_CPP_INCLUDE_DIR})
 
 # set up cnpy
 include_directories(SYSTEM submodules/cnpy)
 
-# find_package(CUDA REQUIRED)
+#find_package(CUDA REQUIRED)
 
 if(NOT ${CUDA_curand_LIBRARY} MATCHES "NOTFOUND")
     set(CURAND_LIBRARY ${CUDA_curand_LIBRARY})

@@ -53,7 +53,7 @@ namespace mppi_common {
         for (int t = 0; t < num_timesteps; t++) {
             if (global_idx < num_rollouts) {
                 //Load noise trajectories scaled by the exploration factor
-                injectControlNoise(t, global_idx, thread_idy, num_timesteps, u_d, du_d, u, du, sigma_u);
+                injectControlNoise(t, global_idx, thread_idy, num_timesteps, num_rollouts, u_d, du_d, u, du, sigma_u);
                 __syncthreads();
 
                 //Accumulate running cost
@@ -65,7 +65,7 @@ namespace mppi_common {
                 __syncthreads();
 
                 //Increment states
-                incrementStateAllRollouts(global_idx, thread_idy, dt, x, xdot);
+                incrementStateAllRollouts(global_idx, thread_idy, dynamics, x, xdot);
                 __syncthreads();
             }
         }
@@ -156,7 +156,7 @@ namespace mppi_common {
                                                 float* x_thread, float* xdot_thread) {
         if (global_idx < num_rollouts) {
             //Implementing simple first order Euler for now, more complex scheme can be added later
-            for (i = thread_idy; i < state_dim; i += blocksize_y) {
+            for (int i = thread_idy; i < state_dim; i += blocksize_y) {
                 x_thread[i] += xdot_thread[i] * dt;
             }
         }

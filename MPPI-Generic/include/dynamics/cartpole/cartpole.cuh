@@ -56,9 +56,9 @@ protected:
 
 };
 
-__global__ void ParameterTestKernel(Cartpole CP);
+__global__ void ParameterTestKernel(Cartpole CP, float mass_check);
 
-void launchParameterTestKernel(const Cartpole& CP);
+void launchParameterTestKernel(const Cartpole& CP, float& mass_check);
 
 #if __CUDACC__
 #include "cartpole.cu"

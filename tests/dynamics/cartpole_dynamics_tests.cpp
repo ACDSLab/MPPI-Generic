@@ -64,7 +64,8 @@ TEST(CartPole, SetGetParamsHost) {
 TEST(CartPole, CartPole_GPUSetup_Test) {
     auto CP_host = new Cartpole(0.1, 1, 2, 2);
     CP_host->GPUSetup();
-    launchParameterTestKernel(*CP_host);
+    float mass;
+    launchParameterTestKernel(*CP_host, mass);
 
     EXPECT_TRUE(CP_host->GPUMemStatus_);
 
@@ -78,8 +79,12 @@ TEST(CartPole, GetParamsDevice) {
 
     auto params = CartpoleParams(2.0, 3.0, 4.0);
     CP_host->setParams(params);
+    float mass;
 
-    launchParameterTestKernel(*CP_host);
+    launchParameterTestKernel(*CP_host, mass);
+
+    EXPECT_FLOAT_EQ(params.cart_mass, mass);
+
     CP_host->freeCudaMem();
     delete(CP_host);
 }
