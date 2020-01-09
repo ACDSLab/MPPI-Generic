@@ -76,6 +76,8 @@ public:
    */
   //void allocateTexMem();
 
+  bool changeCostmapSize(int width, int height);
+
   /**
    * @brief Initializes the host side costmap to all zeros.
    *

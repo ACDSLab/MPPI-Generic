@@ -92,12 +92,37 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_EQ(height, -1);
 }
 
-TEST(ARStandardCost, clearCostmapCPUTestValidInputs) {
+TEST(ARStandardCost, changeCostmapSizeTestValidInputs) {
+  ARStandardCost cost;
+  cost.changeCostmapSize(4, 8);
+
+  EXPECT_EQ(cost.getWidth(), 4);
+  EXPECT_EQ(cost.getHeight(), 8);
+  EXPECT_EQ(cost.getTrackCostCPU().capacity(), 4*8);
+}
+
+TEST(ARStandardCost, changeCostmapSizeTestFail) {
+  ARStandardCost cost;
+  cost.changeCostmapSize(4, 8);
+
+  EXPECT_EQ(cost.getWidth(), 4);
+  EXPECT_EQ(cost.getHeight(), 8);
+  EXPECT_EQ(cost.getTrackCostCPU().capacity(), 4*8);
+
+  cost.changeCostmapSize(-1, -1);
+
+  EXPECT_EQ(cost.getWidth(), 4);
+  EXPECT_EQ(cost.getHeight(), 8);
+  EXPECT_EQ(cost.getTrackCostCPU().capacity(), 4*8);
+}
+
+TEST(ARStandardCost, clearCostmapTest) {
   ARStandardCost cost;
   cost.clearCostmapCPU(4, 8);
 
   EXPECT_EQ(cost.getWidth(), 4);
   EXPECT_EQ(cost.getHeight(), 8);
+  EXPECT_EQ(cost.getTrackCostCPU().capacity(), 4*8);
 
   for(int i = 0; i < 4 * 8; i++) {
     EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).x, 0);
@@ -107,13 +132,26 @@ TEST(ARStandardCost, clearCostmapCPUTestValidInputs) {
   }
 }
 
-TEST(ARStandardCost, clearCostmapCPUTestDefault) {
+TEST(ARStandardCost, clearCostmapTestDefault) {
   ARStandardCost cost;
   cost.clearCostmapCPU(4, 8);
+
+  EXPECT_EQ(cost.getWidth(), 4);
+  EXPECT_EQ(cost.getHeight(), 8);
+  EXPECT_EQ(cost.getTrackCostCPU().capacity(), 4*8);
+
+  for(int i = 0; i < 4 * 8; i++) {
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).x, 0);
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).y, 0);
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).z, 0);
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).w, 0);
+  }
+
   cost.clearCostmapCPU();
 
   EXPECT_EQ(cost.getWidth(), 4);
   EXPECT_EQ(cost.getHeight(), 8);
+  EXPECT_EQ(cost.getTrackCostCPU().capacity(), 4*8);
 
   for(int i = 0; i < 4 * 8; i++) {
     EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).x, 0);
@@ -123,14 +161,15 @@ TEST(ARStandardCost, clearCostmapCPUTestDefault) {
   }
 }
 
-
-TEST(ARStandardCost, clearCostmapCPUTestDefaultFail) {
+TEST(ARStandardCost, clearCostmapTestDefaultFail) {
   ARStandardCost cost;
   cost.clearCostmapCPU();
 
   EXPECT_EQ(cost.getWidth(), -1);
   EXPECT_EQ(cost.getHeight(), -1);
+  EXPECT_EQ(cost.getTrackCostCPU().capacity(), 0);
 }
+
 
 TEST(ARStandardCost, LoadTrackDataTest) {
   ARStandardCost::ARStandardCostParams params;
@@ -142,6 +181,8 @@ TEST(ARStandardCost, LoadTrackDataTest) {
   int num_timesteps, height, width;
   float3 r_c1;
   launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1, width, height);
+
+  // TODO make path less stupid
   std::string test_location = "/home/jason/Documents/research/MPPI-Generic/resource/autorally/test/test_map.npz";
   Eigen::Matrix3f R;
   Eigen::Array3f trs;
