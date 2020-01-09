@@ -87,7 +87,7 @@ std::vector<float4> ARStandardCost::loadTrackData(std::string map_path, Eigen::M
   int width = int((x_max - x_min)*ppm);
   int height = int((y_max - y_min)*ppm);
 
-  if(changeCostmapSize(width, height)) {
+  if(!changeCostmapSize(width, height)) {
     std::cerr << "ERROR: load track has invalid sizes" << std::endl;
     return std::vector<float4>();
   }
