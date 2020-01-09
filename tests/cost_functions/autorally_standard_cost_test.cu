@@ -142,9 +142,46 @@ TEST(ARStandardCost, LoadTrackDataTest) {
   int num_timesteps, height, width;
   float3 r_c1;
   launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1, width, height);
+  std::string test_location = "/home/jason/Documents/research/MPPI-Generic/resource/autorally/test/test_map.npz";
+  Eigen::Matrix3f R;
+  Eigen::Array3f trs;
 
   // load
+  std::vector<float4> costmap = cost.loadTrackData(test_location, R, trs);
 
+  EXPECT_FLOAT_EQ(costmap.at(0).x, 0);
+  EXPECT_FLOAT_EQ(costmap.at(0).y, 0);
+  EXPECT_FLOAT_EQ(costmap.at(0).z, 0);
+  EXPECT_FLOAT_EQ(costmap.at(0).w, 0);
+  EXPECT_FLOAT_EQ(costmap.at(1).x, 1);
+  EXPECT_FLOAT_EQ(costmap.at(1).y, 10);
+  EXPECT_FLOAT_EQ(costmap.at(1).z, 100);
+  EXPECT_FLOAT_EQ(costmap.at(1).w, 1000);
+
+  // check transformation, should not have a rotation
+  EXPECT_FLOAT_EQ(R(0,0), 1.0 / (10));
+  EXPECT_FLOAT_EQ(R(1,1), 1.0 / (20));
+  EXPECT_FLOAT_EQ(R(2,2), 1.0);
+
+  EXPECT_FLOAT_EQ(R(0, 1), 0);
+  EXPECT_FLOAT_EQ(R(0, 2), 0);
+  EXPECT_FLOAT_EQ(R(1, 0), 0);
+  EXPECT_FLOAT_EQ(R(1, 2), 0);
+  EXPECT_FLOAT_EQ(R(2, 0), 0);
+  EXPECT_FLOAT_EQ(R(2, 1), 0);
+
+  EXPECT_FLOAT_EQ(trs(0), 0.5);
+  EXPECT_FLOAT_EQ(trs(1), 0.5);
+  EXPECT_FLOAT_EQ(trs(2), 1);
+
+  for(int i = 0; i < 2 * 10; i++) {
+    for(int j = 0; j < 2 * 20; j++) {
+      EXPECT_FLOAT_EQ(costmap.at(i*2*20 + j).x, i*2*20 + j);
+      EXPECT_FLOAT_EQ(costmap.at(i*2*20 + j).y, (i*2*20 + j) * 10);
+      EXPECT_FLOAT_EQ(costmap.at(i*2*20 + j).z, (i*2*20 + j) * 100);
+      EXPECT_FLOAT_EQ(costmap.at(i*2*20 + j).w, (i*2*20 + j) * 1000);
+    }
+  }
 
 }
 

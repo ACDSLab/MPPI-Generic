@@ -9,6 +9,7 @@
 #include <eigen3/Eigen/Dense>
 #include <opencv2/core/core.hpp>
 #include <cuda_runtime.h>
+#include <cnpy.h>
 
 class ARStandardCost : public Cost {
 public:
