@@ -3,7 +3,6 @@
 //
 
 #include <gtest/gtest.h>
-#include <device_launch_parameters.h>
 #include <cost_functions/autorally/ar_standard_cost.cuh>
 
 TEST(ARStandardCost, Constructor) {
@@ -52,7 +51,25 @@ TEST(ARStandardCost, SetGetParamsHost) {
 }
  */
 
-//TEST(ARStandardCost, AllocateCudaMemoryCheck) {
-//  ARStandardCost cost(4,5);
-//}
+TEST(ARStandardCost, GPUSetup_Test) {
+  ARStandardCost::ARStandardCostParams params;
+  ARStandardCost cost(4,5);
+  params.desired_speed = 25;
+  params.num_timesteps = 100;
+  params.r_c1.x = 0;
+  params.r_c1.y = 1;
+  params.r_c1.z = 2;
+  cost.setParams(params);
+  cost.GPUSetup();
+  float desired_speed;
+  int num_timesteps;
+  float3 r_c1;
+  launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1);
+
+  EXPECT_FLOAT_EQ(desired_speed, 25);
+  EXPECT_EQ(num_timesteps, 100);
+  EXPECT_FLOAT_EQ(r_c1.x, 0);
+  EXPECT_FLOAT_EQ(r_c1.y, 1);
+  EXPECT_FLOAT_EQ(r_c1.z, 2);
+}
 

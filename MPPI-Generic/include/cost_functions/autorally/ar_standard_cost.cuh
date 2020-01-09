@@ -54,8 +54,8 @@ public:
    */
   void freeCudaMem();
 
-  void setParams(ARStandardCostParams params) {this->params_ = params;}
-  ARStandardCostParams getParams() {return params_;}
+  __host__ __device__ void setParams(ARStandardCostParams params) {this->params_ = params;}
+  __host__ __device__ ARStandardCostParams getParams() {return params_;}
 
   /**
    * Copies the parameters to the GPU object
@@ -226,6 +226,12 @@ protected:
 protected:
 
 };
+
+__global__ void parameterTestKernel(ARStandardCost& cost, float& desired_speed, int& num_timesteps,
+        float3& r_c1);
+
+void launchParameterTestKernel(const ARStandardCost& cost, float& desired_speed, int& num_timesteps,
+                               float3& r_c1);
 
 
 #if __CUDACC__

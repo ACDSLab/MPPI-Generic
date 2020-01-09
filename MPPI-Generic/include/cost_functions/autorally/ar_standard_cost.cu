@@ -25,7 +25,7 @@ void ARStandardCost::GPUSetup() {
 }
 
 void ARStandardCost::freeCudaMem() {
-
+  cudaFree(cost_device_);
 }
 
 void ARStandardCost::paramsToDevice() {
