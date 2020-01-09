@@ -227,11 +227,6 @@ protected:
 
 };
 
-__global__ void parameterTestKernel(ARStandardCost& cost, float& desired_speed, int& num_timesteps,
-        float3& r_c1);
-
-void launchParameterTestKernel(const ARStandardCost& cost, float& desired_speed, int& num_timesteps,
-                               float3& r_c1);
 
 
 #if __CUDACC__

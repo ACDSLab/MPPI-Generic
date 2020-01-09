@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <cost_functions/autorally/ar_standard_cost.cuh>
+#include <cost_functions/ar_standard_cost_kernel_test.cuh>
 
 TEST(ARStandardCost, Constructor) {
   ARStandardCost cost(4, 5);
@@ -60,7 +61,13 @@ TEST(ARStandardCost, GPUSetup_Test) {
   params.r_c1.y = 1;
   params.r_c1.z = 2;
   cost.setParams(params);
+
+  EXPECT_EQ(cost.GPUMemStatus_, false);
+
   cost.GPUSetup();
+
+  EXPECT_EQ(cost.GPUMemStatus_, true);
+
   float desired_speed;
   int num_timesteps;
   float3 r_c1;
