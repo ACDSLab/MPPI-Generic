@@ -56,6 +56,8 @@ public:
 
   __host__ __device__ void setParams(ARStandardCostParams params) {this->params_ = params;}
   __host__ __device__ ARStandardCostParams getParams() {return params_;}
+  __host__ __device__ int getHeight() {return height_;}
+  __host__ __device__ int getWidth() {return width_;}
 
   /**
    * Copies the parameters to the GPU object

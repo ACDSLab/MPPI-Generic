@@ -22,6 +22,7 @@ void ARStandardCost::GPUSetup() {
   // update params
   // allocate texture memory
   // convert costmap to texture
+  paramsToDevice();
 }
 
 void ARStandardCost::freeCudaMem() {
@@ -29,7 +30,9 @@ void ARStandardCost::freeCudaMem() {
 }
 
 void ARStandardCost::paramsToDevice() {
-  HANDLE_ERROR( cudaMemcpyAsync(&cost_device_->params_, &params_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+  HANDLE_ERROR( cudaMemcpyAsync(&cost_device_->params_, &params_, sizeof(ARStandardCostParams), cudaMemcpyHostToDevice, stream_));
+  HANDLE_ERROR( cudaMemcpyAsync(&cost_device_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+  HANDLE_ERROR( cudaMemcpyAsync(&cost_device_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, stream_));
   HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 

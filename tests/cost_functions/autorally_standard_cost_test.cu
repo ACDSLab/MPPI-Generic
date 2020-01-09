@@ -8,6 +8,9 @@
 
 TEST(ARStandardCost, Constructor) {
   ARStandardCost cost(4, 5);
+
+  EXPECT_EQ(cost.getWidth(), 4);
+  EXPECT_EQ(cost.getHeight(), 5);
 }
 
 TEST(ARStandardCost, BindStream) {
@@ -52,9 +55,9 @@ TEST(ARStandardCost, SetGetParamsHost) {
 }
  */
 
-TEST(ARStandardCost, GPUSetup_Test) {
+TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   ARStandardCost::ARStandardCostParams params;
-  ARStandardCost cost(4,5);
+  ARStandardCost cost(4,8);
   params.desired_speed = 25;
   params.num_timesteps = 100;
   params.r_c1.x = 0;
@@ -69,14 +72,32 @@ TEST(ARStandardCost, GPUSetup_Test) {
   EXPECT_EQ(cost.GPUMemStatus_, true);
 
   float desired_speed;
-  int num_timesteps;
+  int num_timesteps, height, width;
   float3 r_c1;
-  launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1);
+  launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1, width, height);
 
   EXPECT_FLOAT_EQ(desired_speed, 25);
   EXPECT_EQ(num_timesteps, 100);
   EXPECT_FLOAT_EQ(r_c1.x, 0);
   EXPECT_FLOAT_EQ(r_c1.y, 1);
   EXPECT_FLOAT_EQ(r_c1.z, 2);
+  EXPECT_EQ(width, 4);
+  EXPECT_EQ(height, 8);
+
+  params.desired_speed = 5;
+  params.num_timesteps = 50;
+  params.r_c1.x = 4;
+  params.r_c1.y = 5;
+  params.r_c1.z = 6;
+  cost.setParams(params);
+  cost.paramsToDevice();
+
+  launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1, height, width);
+
+  EXPECT_FLOAT_EQ(desired_speed, 5);
+  EXPECT_EQ(num_timesteps, 50);
+  EXPECT_FLOAT_EQ(r_c1.x, 4);
+  EXPECT_FLOAT_EQ(r_c1.y, 5);
+  EXPECT_FLOAT_EQ(r_c1.z, 6);
 }
 
