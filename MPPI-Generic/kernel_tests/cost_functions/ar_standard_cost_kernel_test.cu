@@ -3,8 +3,8 @@
 __global__ void ParameterTestKernel(ARStandardCost* cost, float& desired_speed, int& num_timesteps,
                                     float3& r_c1, int& width, int& height) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
-  printf("\nEntering the kernel!\n");
-  printf("The thread id is: %i\n", tid);
+  //printf("\nEntering the kernel!\n");
+  //printf("The thread id is: %i\n", tid);
   if (tid == 0) {
     //printf("")
     desired_speed = cost->getParams().desired_speed;

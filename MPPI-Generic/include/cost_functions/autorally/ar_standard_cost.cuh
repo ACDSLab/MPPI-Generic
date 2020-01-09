@@ -4,6 +4,7 @@
 #define AR_STANDARD_COST_CUH_
 
 #include <cost_functions/cost.cuh>
+#include <utils/file_utils.h>
 #include <vector>
 #include <eigen3/Eigen/Dense>
 #include <opencv2/core/core.hpp>
@@ -36,7 +37,7 @@ public:
    * @param width
    * @param height
    */
-  ARStandardCost(int width, int height, cudaStream_t stream=0);
+  ARStandardCost(cudaStream_t stream=0);
 
   /**
    *
@@ -58,6 +59,7 @@ public:
   __host__ __device__ ARStandardCostParams getParams() {return params_;}
   __host__ __device__ int getHeight() {return height_;}
   __host__ __device__ int getWidth() {return width_;}
+  std::vector<float4> getTrackCostCPU() {return track_costs_;}
 
   /**
    * Copies the parameters to the GPU object
@@ -74,12 +76,12 @@ public:
   //void allocateTexMem();
 
   /**
-  * @brief Initializes the host side costmap to all zeros.
-  *
-  * Initializes a float4 vector to the correct width and height and sets every value to zero.
-  * This function is called by both constructors.
+   * @brief Initializes the host side costmap to all zeros.
+   *
+   * Initializes a float4 vector to the correct width and height and sets every value to zero on the CPU.
+   * default leaves the sizes alone
   */
-  //void initCostmap();
+  void clearCostmapCPU(int width=-1, int height=-1);
 
   /**
    * Converts the passed in costmap to a CUDA texture
@@ -106,7 +108,7 @@ public:
    * @param h Matrix representing a transform from world to (offset) costmap coordinates.
    * @param trs Array representing the offset.
    */
-  //std::vector<float4> loadTrackData(std::string map_path, Eigen::Matrix3f &R, Eigen::Array3f &trs);
+  std::vector<float4> loadTrackData(std::string map_path, Eigen::Matrix3f &R, Eigen::Array3f &trs);
 
   /**
    * @brief Return what the desired speed is set to.
@@ -207,7 +209,8 @@ protected:
   bool l1_cost_; //Whether to use L1 speed cost (if false it is L2)
 
   //Primary variables
-  int width_, height_; ///< Width and height of costmap.
+  int width_ =  -1; ///< width of costmap
+  int height_ = -1; ///< height of costmap.
   ARStandardCostParams params_; ///< object copy of params
   cudaArray *costmapArray_d_; ///< Cuda array for texture binding.
   cudaChannelFormatDesc channelDesc_; ///< Cuda texture channel description.

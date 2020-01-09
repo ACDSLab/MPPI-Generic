@@ -1,8 +1,6 @@
 #include <cost_functions/autorally/ar_standard_cost.cuh>
 
-ARStandardCost::ARStandardCost(int width, int height, cudaStream_t stream) {
-  this->width_ = width;
-  this->height_ = height;
+ARStandardCost::ARStandardCost(cudaStream_t stream) {
 
   bindToStream(stream);
 }
@@ -36,3 +34,38 @@ void ARStandardCost::paramsToDevice() {
   HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 
+void ARStandardCost::clearCostmapCPU(int width, int height) {
+  if(width > 0 && height > 0) {
+    width_ = width;
+    height_ = height;
+  }
+
+  if(width_ < 0 || height_ < 0) {
+    std::cerr << "ERROR: cannot clear costmap on the CPU with size less than 0" << std::endl;
+    return;
+  }
+  track_costs_.clear();
+  track_costs_.resize(width_ * height_);
+
+  for (int i = 0; i < width_*height_; i++){
+    track_costs_[i].x = 0;
+    track_costs_[i].y = 0;
+    track_costs_[i].z = 0;
+    track_costs_[i].w = 0;
+  }
+}
+
+std::vector<float4> ARStandardCost::loadTrackData(std::string map_path, Eigen::Matrix3f &R, Eigen::Array3f &trs) {
+  // check if file exists
+  if(!fileExists(map_path)) {
+    std::cerr << "ERROR: map path invalid, " << map_path << std::endl;
+    return std::vector<float4>();
+  }
+
+  // load the npz file
+
+  // init Costmap
+
+  // copy the track data into CPU side storage
+  return std::vector<float4>();
+}

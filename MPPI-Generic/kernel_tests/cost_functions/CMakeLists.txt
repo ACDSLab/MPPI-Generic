@@ -4,7 +4,7 @@ SET (LIB_MINOR 0)
 SET (LIB_RELEASE 1)
 
 add_library(${LIBRARY_NAME} SHARED
-        ar_standard_cost_kernel_test.cu)
+        ar_standard_cost_kernel_test.cu ../../include/utils/file_utils.h)
 
 target_link_libraries( ${LIBRARY_NAME}
         ${YAML_CPP_LIBRARIES}

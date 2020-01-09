@@ -7,10 +7,7 @@
 #include <cost_functions/ar_standard_cost_kernel_test.cuh>
 
 TEST(ARStandardCost, Constructor) {
-  ARStandardCost cost(4, 5);
-
-  EXPECT_EQ(cost.getWidth(), 4);
-  EXPECT_EQ(cost.getHeight(), 5);
+  ARStandardCost cost;
 }
 
 TEST(ARStandardCost, BindStream) {
@@ -18,7 +15,7 @@ TEST(ARStandardCost, BindStream) {
 
   HANDLE_ERROR(cudaStreamCreate(&stream));
 
-  ARStandardCost cost(1, 2, stream);
+  ARStandardCost cost(stream);
 
   EXPECT_EQ(cost.stream_, stream) << "Stream binding failure.";
 
@@ -32,7 +29,7 @@ TEST(ARStandardCost, SetGetParamsHost) {
   params.r_c1.x = 0;
   params.r_c1.y = 1;
   params.r_c1.z = 2;
-  ARStandardCost cost(4, 5);
+  ARStandardCost cost;
 
   cost.setParams(params);
   ARStandardCost::ARStandardCostParams result_params = cost.getParams();
@@ -44,20 +41,9 @@ TEST(ARStandardCost, SetGetParamsHost) {
   EXPECT_FLOAT_EQ(params.r_c1.z, result_params.r_c1.z);
 }
 
-/*
- * __global__ void objectAllocationTestKernel(ARStandardCost* cost) {
-  int tid = blockIdx.x*blockDim.x + threadIdx.x;
-  printf("Entering the kernel!\n");
-  printf("The thread id is: %i\n", tid);
-  if (tid == 0) {
-    printf("The cart mass is: %f\n", cost->getParams().desired_speed);
-  }
-}
- */
-
 TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   ARStandardCost::ARStandardCostParams params;
-  ARStandardCost cost(4,8);
+  ARStandardCost cost;
   params.desired_speed = 25;
   params.num_timesteps = 100;
   params.r_c1.x = 0;
@@ -81,8 +67,9 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_FLOAT_EQ(r_c1.x, 0);
   EXPECT_FLOAT_EQ(r_c1.y, 1);
   EXPECT_FLOAT_EQ(r_c1.z, 2);
-  EXPECT_EQ(width, 4);
-  EXPECT_EQ(height, 8);
+  // neither should be set by this sequence
+  EXPECT_EQ(width, -1);
+  EXPECT_EQ(height, -1);
 
   params.desired_speed = 5;
   params.num_timesteps = 50;
@@ -99,5 +86,65 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_FLOAT_EQ(r_c1.x, 4);
   EXPECT_FLOAT_EQ(r_c1.y, 5);
   EXPECT_FLOAT_EQ(r_c1.z, 6);
+
+  // neither should be set by this sequence
+  EXPECT_EQ(width, -1);
+  EXPECT_EQ(height, -1);
+}
+
+TEST(ARStandardCost, clearCostmapCPUTestValidInputs) {
+  ARStandardCost cost;
+  cost.clearCostmapCPU(4, 8);
+
+  EXPECT_EQ(cost.getWidth(), 4);
+  EXPECT_EQ(cost.getHeight(), 8);
+
+  for(int i = 0; i < 4 * 8; i++) {
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).x, 0);
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).y, 0);
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).z, 0);
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).w, 0);
+  }
+}
+
+TEST(ARStandardCost, clearCostmapCPUTestDefault) {
+  ARStandardCost cost;
+  cost.clearCostmapCPU(4, 8);
+  cost.clearCostmapCPU();
+
+  EXPECT_EQ(cost.getWidth(), 4);
+  EXPECT_EQ(cost.getHeight(), 8);
+
+  for(int i = 0; i < 4 * 8; i++) {
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).x, 0);
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).y, 0);
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).z, 0);
+    EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).w, 0);
+  }
+}
+
+
+TEST(ARStandardCost, clearCostmapCPUTestDefaultFail) {
+  ARStandardCost cost;
+  cost.clearCostmapCPU();
+
+  EXPECT_EQ(cost.getWidth(), -1);
+  EXPECT_EQ(cost.getHeight(), -1);
+}
+
+TEST(ARStandardCost, LoadTrackDataTest) {
+  ARStandardCost::ARStandardCostParams params;
+  ARStandardCost cost;
+  // TODO set parameters for cost map
+  cost.setParams(params);
+  cost.GPUSetup();
+  float desired_speed;
+  int num_timesteps, height, width;
+  float3 r_c1;
+  launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1, width, height);
+
+  // load
+
+
 }
 
