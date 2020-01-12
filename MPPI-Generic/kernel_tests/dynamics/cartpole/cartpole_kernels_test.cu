@@ -3,6 +3,9 @@
 //
 #include <kernel_tests/dynamics/cartpole/cartpole_kernel_test.cuh>
 
+/**
+ * Kernels to test device functions
+ */
 __global__ void CartMassTestKernel(Cartpole* CP, float& mass_check) {
     int tid = blockIdx.x*blockDim.x + threadIdx.x;
     // printf("\nEntering the kernel!\n");
@@ -18,6 +21,27 @@ __global__ void CartMassTestKernel(Cartpole* CP, float& mass_check) {
     }
 }
 
+__global__ void PoleMassTestKernel(Cartpole* CP, float& mass_check) {
+    int tid = blockIdx.x*blockDim.x + threadIdx.x;
+    if (tid == 0) {
+        mass_check = CP->getPoleMass();
+    }
+}
+
+__global__ void GravityTestKernel(Cartpole* CP, float& gravity_check) {
+    int tid = blockIdx.x*blockDim.x + threadIdx.x;
+    if (tid == 0) {
+        gravity_check = CP->getGravity();
+    }
+}
+
+__global__ void PoleLengthTestKernel(Cartpole* CP, float& length_check) {
+    int tid = blockIdx.x*blockDim.x + threadIdx.x;
+    if (tid == 0) {
+        length_check = CP->getPoleLength();
+    }
+}
+
 __global__ void DyanmicsTestKernel(Cartpole* CP, float* state, float* control, float* state_der) {
     // int tid = blockIdx.x*blockDim.x + threadIdx.x;
     /**
@@ -26,6 +50,10 @@ __global__ void DyanmicsTestKernel(Cartpole* CP, float* state, float* control, f
      */
     CP->xDot(state, control, state_der);
 }
+
+/**
+ * Wrapper for kernels
+ */
 
 void launchCartMassTestKernel(const Cartpole& CP, float& mass_check) {
     // Allocate memory on the CPU for checking the mass
@@ -40,6 +68,51 @@ void launchCartMassTestKernel(const Cartpole& CP, float& mass_check) {
     cudaDeviceSynchronize();
 
     cudaFree(mass_check_device);
+}
+
+void launchPoleMassTestKernel(const Cartpole& CP, float& mass_check) {
+    // Allocate memory on the CPU for checking the mass
+    float* mass_check_device;
+    HANDLE_ERROR(cudaMalloc((void**)&mass_check_device, sizeof(float)));
+
+    PoleMassTestKernel<<<1,1>>>(CP.CP_device, *mass_check_device);
+    CudaCheckError();
+
+    // Copy the memory back to the host
+    HANDLE_ERROR(cudaMemcpy(&mass_check, mass_check_device, sizeof(float), cudaMemcpyDeviceToHost));
+    cudaDeviceSynchronize();
+
+    cudaFree(mass_check_device);
+}
+
+void launchPoleLengthTestKernel(const Cartpole& CP, float& length_check) {
+    // Allocate memory on the CPU for checking the mass
+    float* length_check_device;
+    HANDLE_ERROR(cudaMalloc((void**)&length_check_device, sizeof(float)));
+
+    PoleLengthTestKernel<<<1,1>>>(CP.CP_device, *length_check_device);
+    CudaCheckError();
+
+    // Copy the memory back to the host
+    HANDLE_ERROR(cudaMemcpy(&length_check, length_check_device, sizeof(float), cudaMemcpyDeviceToHost));
+    cudaDeviceSynchronize();
+
+    cudaFree(length_check_device);
+}
+
+void launchGravityTestKernel(const Cartpole& CP, float& gravity_check) {
+    // Allocate memory on the CPU for checking the mass
+    float* gravity_check_device;
+    HANDLE_ERROR(cudaMalloc((void**)&gravity_check_device, sizeof(float)));
+
+    GravityTestKernel<<<1,1>>>(CP.CP_device, *gravity_check_device);
+    CudaCheckError();
+
+    // Copy the memory back to the host
+    HANDLE_ERROR(cudaMemcpy(&gravity_check, gravity_check_device, sizeof(float), cudaMemcpyDeviceToHost));
+    cudaDeviceSynchronize();
+
+    cudaFree(gravity_check_device);
 }
 
 void launchDyanmicsTestKernel(const Cartpole& CP, float* state_cpu,

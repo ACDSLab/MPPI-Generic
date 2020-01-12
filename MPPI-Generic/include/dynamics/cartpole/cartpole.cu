@@ -20,18 +20,6 @@ void Cartpole::GPUSetup() {
     }
 }
 
-void Cartpole::xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der)
-{
-  float theta = state(2);
-  float theta_dot = state(3);
-  float force = control(0);
-
-  state_der(0) = state(1);
-  state_der(1) = 1/(cart_mass_+pole_mass_*powf(sinf(theta),2.0))*(force+pole_mass_*sinf(theta)*(pole_length_*(powf(theta_dot,2.0))+gravity_*cosf(theta)));
-  state_der(2) = state(3);
-  state_der(3) = 1/(pole_length_*(cart_mass_+pole_mass_*(powf(sinf(theta),2.0))))*(-force*cosf(theta)-pole_mass_*pole_length_*(powf(theta_dot,2.0))*cosf(theta)*sinf(theta)-(cart_mass_+pole_mass_)*gravity_*sinf(theta));
-}
-
 void Cartpole::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B)
 {
   float theta = state(2);
@@ -87,7 +75,7 @@ void Cartpole::printParams()
   printf("Cart mass: %f; Pole mass: %f; Pole length: %f \n", cart_mass_, pole_mass_, pole_length_);
 }
 
-__device__ void Cartpole::xDot(float* state, float* control, float* state_der)
+__host__ __device__ void Cartpole::xDot(float* state, float* control, float* state_der)
 {
   float gravity = 9.81;
   float theta = state[2];
@@ -97,14 +85,9 @@ __device__ void Cartpole::xDot(float* state, float* control, float* state_der)
   float m_p = pole_mass_;
   float l_p = pole_length_;
 
-
   // TODO WAT?
   state_der[0] = state[1];
   state_der[1] = 1/(m_c+m_p*powf(sinf(theta),2.0))*(force+m_p*sinf(theta)*(l_p*powf(theta_dot,2.0)+gravity*cosf(theta)));
   state_der[2] = state[3];
   state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity*sinf(theta));
 }
-
-
-
-

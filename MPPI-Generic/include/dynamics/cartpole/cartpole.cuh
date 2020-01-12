@@ -18,13 +18,38 @@ struct CartpoleParams {
 class Cartpole : public Dynamics<4, 1>
 {
 public:
-    Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream=0);
+    Cartpole(float delta_t, float cart_mass, float pole_mass,
+             float pole_length, cudaStream_t stream=0);
     ~Cartpole();
 
     void GPUSetup();
 
-    void xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der);  //passing values in by reference
-    void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B); //compute the Jacobians with respect to state and control
+    /**
+     * runs dynamics using state and control and sets it to state
+     * derivative. Everything is Eigen Matrices, not Eigen Vectors!
+     *
+     * @param state     input of current state, passed by reference
+     * @param control   input of currrent control, passed by reference
+     * @param state_der output of new state derivative, passed by reference
+     */
+    void xDot(Eigen::MatrixXf &state,
+              Eigen::MatrixXf &control,
+              Eigen::MatrixXf &state_der) {
+        xDot(state.data(), control.data(), state_der.data());
+    };
+
+    /**
+     * compute the Jacobians with respect to state and control
+     *
+     * @param state   input of current state, passed by reference
+     * @param control input of currrent control, passed by reference
+     * @param A       output Jacobian wrt state, passed by reference
+     * @param B       output Jacobian wrt control, passed by reference
+     */
+    void computeGrad(Eigen::MatrixXf &state,
+                     Eigen::MatrixXf &control,
+                     Eigen::MatrixXf &A,
+                     Eigen::MatrixXf &B);
 
     void setParams(const CartpoleParams &parameters);
     CartpoleParams getParams();
@@ -37,7 +62,9 @@ public:
     void printState(Eigen::MatrixXf state);
     void printParams();
 
-    __device__ void xDot(float* state, float* control, float* state_der);
+    __host__ __device__ void xDot(float* state,
+                                  float* control,
+                                  float* state_der);
 
     // Device pointer of class object
     Cartpole* CP_device = nullptr;
@@ -61,5 +88,3 @@ protected:
 #endif
 
 #endif // CARTPOLE_CUH_
-
-

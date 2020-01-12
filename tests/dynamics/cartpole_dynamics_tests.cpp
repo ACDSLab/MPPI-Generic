@@ -70,11 +70,10 @@ TEST(CartPole, CartPole_GPUSetup_Test) {
 
     EXPECT_TRUE(CP_host->GPUMemStatus_);
 
-    CP_host->freeCudaMem();
     delete(CP_host);
 }
 
-TEST(CartPole, GetMassFromGPU) {
+TEST(CartPole, GetCartMassFromGPU) {
     auto CP_host = new Cartpole(0.1, 1, 1, 2);
     CP_host->GPUSetup();
 
@@ -90,8 +89,56 @@ TEST(CartPole, GetMassFromGPU) {
     delete(CP_host);
 }
 
-TEST(CartPole, TestDynamicsGPU) {
+TEST(CartPole, GetPoleMassFromGPU) {
     auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    CP_host->GPUSetup();
+
+    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    CP_host->setParams(params);
+    float mass;
+
+    launchPoleMassTestKernel(*CP_host, mass);
+
+    EXPECT_FLOAT_EQ(params.pole_mass, mass);
+
+    CP_host->freeCudaMem();
+    delete(CP_host);
+}
+
+TEST(CartPole, GetPoleLengthFromGPU) {
+    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    CP_host->GPUSetup();
+
+    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    CP_host->setParams(params);
+    float length;
+
+    launchPoleLengthTestKernel(*CP_host, length);
+
+    EXPECT_FLOAT_EQ(params.pole_length, length);
+
+    CP_host->freeCudaMem();
+    delete(CP_host);
+}
+
+TEST(CartPole, GetGravityFromGPU) {
+    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    CP_host->GPUSetup();
+
+    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    CP_host->setParams(params);
+    float gravity_gpu;
+
+    launchGravityTestKernel(*CP_host, gravity_gpu);
+
+    EXPECT_FLOAT_EQ(CP_host->getGravity(), gravity_gpu);
+
+    CP_host->freeCudaMem();
+    delete(CP_host);
+}
+
+TEST(CartPole, TestDynamicsGPU) {
+    Cartpole * CP_host = new Cartpole(0.1, 1, 1, 2);
     CP_host->GPUSetup();
 
     auto params = CartpoleParams(2.0, 3.0, 4.0);
