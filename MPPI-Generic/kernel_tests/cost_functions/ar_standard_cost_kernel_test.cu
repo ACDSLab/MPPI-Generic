@@ -29,7 +29,7 @@ void launchParameterTestKernel(const ARStandardCost& cost, float& desired_speed,
   HANDLE_ERROR(cudaMalloc((void**)&width_d, sizeof(int)))
   HANDLE_ERROR(cudaMalloc((void**)&r_c1_d, sizeof(float3)))
 
-  ParameterTestKernel<<<1,1>>>(cost.cost_device_, *desired_speed_d, *num_timesteps_d, *r_c1_d, *width_d, *height_d);
+  ParameterTestKernel<<<1,1>>>(cost.cost_d_, *desired_speed_d, *num_timesteps_d, *r_c1_d, *width_d, *height_d);
   CudaCheckError();
 
   // Copy the memory back to the host
@@ -47,18 +47,27 @@ void launchParameterTestKernel(const ARStandardCost& cost, float& desired_speed,
   cudaFree(width_d);
 }
 
+// TODO actually check texture
 __global__ void checkCudaArrayKernel(float4* result_arr, cudaArray* array, int number) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   //printf("\nEntering the kernel!\n");
   //printf("The thread id is: %i\n", tid);
   if(tid < number) {
+    printf("The thread id is: %i\n", tid);
+    result_arr[tid].x = 0.0;
+    result_arr[tid].y = 0.0;
+    result_arr[tid].z = 0.0;
+    result_arr[tid].w = 0.0;
     //result_arr[tid] = array[tid];
+    //printf(array[tid]);
   }
 }
 
 void launchCheckCudaArray(std::vector<float4>& result_arr, cudaArray* array, int number) {
   float4* results_d;
   HANDLE_ERROR(cudaMalloc((void**)&results_d, sizeof(float4)*number));
+
+  result_arr.resize(number);
 
   dim3 threadsPerBlock(4, 1);
   dim3 numBlocks(1, 1);
@@ -73,7 +82,7 @@ void launchCheckCudaArray(std::vector<float4>& result_arr, cudaArray* array, int
 }
 
 
-__global__ void textureTestKernel(const ARStandardCost& cost, float4* test_results, int2* test_indexes, int num_points) {
+__global__ void textureTestKernel(const ARStandardCost& cost, float4* test_results, float2* test_indexes, int num_points) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   //printf("\nEntering the kernel!\n");
   //printf("The thread id is: %i\n", tid);
@@ -84,28 +93,28 @@ __global__ void textureTestKernel(const ARStandardCost& cost, float4* test_resul
     float4 track_params_back = cost.queryTexture(test_indexes[tid].x, test_indexes[tid].y);
     // put result in array
     printf("thread id: %i got texture point (%f, %f, %f, %f)\n", tid, track_params_back.x, track_params_back.y, track_params_back.z, track_params_back.w);
-    //test_results[tid] = track_params_back;
-    test_results[tid].x = 1;
+    test_results[tid] = track_params_back;
+    //test_results[tid].x = 1;
   } else {
     printf("thread id: %i did not check texture\n", tid);
   }
 }
 
-void launchTextureTestKernel(const ARStandardCost& cost, std::vector<float4>& test_results, std::vector<int2>& test_indexes) {
+void launchTextureTestKernel(const ARStandardCost& cost, std::vector<float4>& test_results, std::vector<float2>& test_indexes) {
   int num_test_points = test_indexes.size();
   test_results.resize(num_test_points);
 
   float4* tex_results_d;
-  int2* tex_test_indexes_d;
+  float2* tex_test_indexes_d;
   HANDLE_ERROR(cudaMalloc((void**)&tex_results_d, sizeof(float4)*num_test_points))
-  HANDLE_ERROR(cudaMalloc((void**)&tex_test_indexes_d, sizeof(int2)*num_test_points))
+  HANDLE_ERROR(cudaMalloc((void**)&tex_test_indexes_d, sizeof(float2)*num_test_points))
 
-  HANDLE_ERROR(cudaMemcpy(tex_test_indexes_d, test_indexes.data(), sizeof(int2)*num_test_points, cudaMemcpyHostToDevice));
+  HANDLE_ERROR(cudaMemcpy(tex_test_indexes_d, test_indexes.data(), sizeof(float2)*num_test_points, cudaMemcpyHostToDevice));
 
   // TODO amount should depend on the number of query points
-  dim3 threadsPerBlock(4, 1);
+  dim3 threadsPerBlock(num_test_points, 1);
   dim3 numBlocks(1, 1);
-  textureTestKernel<<<numBlocks,threadsPerBlock>>>(*cost.cost_device_, tex_results_d, tex_test_indexes_d, num_test_points);
+  textureTestKernel<<<numBlocks,threadsPerBlock>>>(*cost.cost_d_, tex_results_d, tex_test_indexes_d, num_test_points);
   CudaCheckError();
   cudaDeviceSynchronize();
 

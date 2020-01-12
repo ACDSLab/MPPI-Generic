@@ -11,7 +11,7 @@ ARStandardCost::~ARStandardCost() {
 
 void ARStandardCost::GPUSetup() {
   if (!GPUMemStatus_) {
-    cost_device_ = Managed::GPUSetup(this);
+    cost_d_ = Managed::GPUSetup(this);
   } else {
     std::cout << "GPU Memory already set." << std::endl;
   }
@@ -24,13 +24,13 @@ void ARStandardCost::GPUSetup() {
 }
 
 void ARStandardCost::freeCudaMem() {
-  cudaFree(cost_device_);
+  cudaFree(cost_d_);
 }
 
 void ARStandardCost::paramsToDevice() {
-  HANDLE_ERROR( cudaMemcpyAsync(&cost_device_->params_, &params_, sizeof(ARStandardCostParams), cudaMemcpyHostToDevice, stream_));
-  HANDLE_ERROR( cudaMemcpyAsync(&cost_device_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, stream_));
-  HANDLE_ERROR( cudaMemcpyAsync(&cost_device_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+  HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->params_, &params_, sizeof(ARStandardCostParams), cudaMemcpyHostToDevice, stream_));
+  HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+  HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, stream_));
   HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 
@@ -47,11 +47,14 @@ bool ARStandardCost::changeCostmapSize(int width, int height) {
     if(height_ > 0 && width_ > 0) {
       HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
     }
+    // 4 floats of size 32 bits
     channelDesc_ = cudaCreateChannelDesc(32, 32, 32, 32, cudaChannelFormatKindFloat);
     HANDLE_ERROR(cudaMallocArray(&costmapArray_d_, &channelDesc_, width, height));
 
     // set all of the elements in the array to be zero
-    cudaMemset(costmapArray_d_, 0, width_*height_*sizeof(float4));
+    std::vector<float4> zero_array(width_*height_);
+    zero_array.resize(0, make_float4(0,0,0,0));
+    HANDLE_ERROR(cudaMemcpyToArray(costmapArray_d_, 0, 0, zero_array.data(), width*height*sizeof(float4), cudaMemcpyHostToDevice));
   }
 
   width_ = width;
@@ -101,8 +104,6 @@ std::vector<float4> ARStandardCost::loadTrackData(std::string map_path, Eigen::M
     return std::vector<float4>();
   }
 
-  std::vector<float4> track_costs(width_*height_);
-
   float* channel0 = map_dict["channel0"].data<float>();
   float* channel1 = map_dict["channel1"].data<float>();
   float* channel2 = map_dict["channel2"].data<float>();
@@ -110,10 +111,10 @@ std::vector<float4> ARStandardCost::loadTrackData(std::string map_path, Eigen::M
 
   // copy the track data into CPU side storage
   for (int i = 0; i < width_*height_; i++){
-    track_costs[i].x = channel0[i];
-    track_costs[i].y = channel1[i];
-    track_costs[i].z = channel2[i];
-    track_costs[i].w = channel3[i];
+    track_costs_[i].x = channel0[i];
+    track_costs_[i].y = channel1[i];
+    track_costs_[i].z = channel2[i];
+    track_costs_[i].w = channel3[i];
   }
 
   //Save the scaling and offset
@@ -122,13 +123,18 @@ std::vector<float4> ARStandardCost::loadTrackData(std::string map_path, Eigen::M
           0,                  0,                  1;
   trs << -x_min/(x_max - x_min), -y_min/(y_max - y_min), 1;
 
-  return track_costs;
+  return track_costs_;
 }
 
 void ARStandardCost::costmapToTexture() {
+  if(width_ < 0 || height_ < 0) {
+    std::cerr << "ERROR: cannot allocate texture with zero size" << std::endl;
+    return;
+  }
+
   // transfer CPU version of costmap to GPU
   float4* costmap_ptr = track_costs_.data();
-  HANDLE_ERROR(cudaMemcpyToArray(costmapArray_d_, 0, 0, costmap_ptr, width_*height_*sizeof(float4), cudaMemcpyHostToDevice));
+  HANDLE_ERROR(cudaMemcpyToArray(costmapArray_d_ , 0, 0, costmap_ptr, width_*height_*sizeof(float4), cudaMemcpyHostToDevice));
   cudaStreamSynchronize(stream_);
 
   //Specify texture
@@ -147,11 +153,17 @@ void ARStandardCost::costmapToTexture() {
   texDesc.normalizedCoords = 1;
 
   //Destroy current texture and create new texture object
-  HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_));
-  HANDLE_ERROR(cudaCreateTextureObject(&costmap_tex_, &resDesc, &texDesc, NULL) );
+  HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_d_));
+  HANDLE_ERROR(cudaCreateTextureObject(&costmap_tex_d_, &resDesc, &texDesc, NULL) );
+
+  // copy over pointers setup up on CPU code to GPU
+  HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->costmapArray_d_, &costmapArray_d_, sizeof(cudaArray*), cudaMemcpyHostToDevice, stream_));
+  HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->costmap_tex_d_, &costmap_tex_d_, sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice, stream_));
+  cudaStreamSynchronize(stream_);
 }
 
 inline __device__ float4 ARStandardCost::queryTexture(float x, float y) const {
-  return tex2D<float4>(costmap_tex_, 0.1, 0.1);
+  printf("\nquerying point (%f, %f)", x, y);
+  return tex2D<float4>(costmap_tex_d_, x, y);
 }
 

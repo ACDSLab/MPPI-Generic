@@ -56,12 +56,15 @@ public:
    */
   void freeCudaMem();
 
-  __host__ __device__ void setParams(ARStandardCostParams params) {this->params_ = params;}
-  __host__ __device__ ARStandardCostParams getParams() {return params_;}
-  __host__ __device__ int getHeight() {return height_;}
-  __host__ __device__ int getWidth() {return width_;}
-  std::vector<float4> getTrackCostCPU() {return track_costs_;}
-  cudaArray* getCudaArray() {return costmapArray_d_;}
+  inline __host__ __device__ void setParams(ARStandardCostParams params) {this->params_ = params;}
+  inline __host__ __device__ ARStandardCostParams getParams() {return params_;}
+  inline __host__ __device__ int getHeight() {return height_;}
+  inline __host__ __device__ int getWidth() {return width_;}
+  inline std::vector<float4> getTrackCostCPU() {return track_costs_;}
+  //inline __host__ __device__ cudaArray* getCudaArray() {return costmapArray_d_;}
+  //inline __host__ __device__ cudaArray_t* getCudaArrayPointer() {return &costmapArray_d_;}
+  //inline __host__ __device__ cudaTextureObject_t* getCostmapTex(){return &costmap_tex_d_;};
+
 
 
   /**
@@ -208,7 +211,7 @@ public:
    */
   //__host__ __device__ float terminalCost(float* s);
 
-  ARStandardCost* cost_device_;
+  ARStandardCost* cost_d_;
 
 protected:
 
@@ -224,10 +227,8 @@ protected:
   ARStandardCostParams params_; ///< object copy of params
   cudaArray *costmapArray_d_; ///< Cuda array for texture binding.
   cudaChannelFormatDesc channelDesc_; ///< Cuda texture channel description.
-  cudaTextureObject_t costmap_tex_; ///< Cuda texture object.
+  cudaTextureObject_t costmap_tex_d_; ///< Cuda texture object.
   std::vector<float4> track_costs_;
-
-  ARStandardCost* cost_d_;
 
   //Debugging variables
   float* debug_data_; ///< Host array for holding debug info.
