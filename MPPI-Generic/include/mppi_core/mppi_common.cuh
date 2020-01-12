@@ -15,6 +15,7 @@ namespace mppi_common {
     const int blocksize_x = 64;
     const int blocksize_y = 8;
     const int num_rollouts = 2000;
+    const int sum_stride = 128;
 
     // Kernel functions
     template<class DYN_T, class COST_T>

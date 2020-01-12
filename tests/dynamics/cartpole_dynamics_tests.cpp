@@ -138,7 +138,7 @@ TEST(CartPole, GetGravityFromGPU) {
 }
 
 TEST(CartPole, TestDynamicsGPU) {
-    Cartpole * CP_host = new Cartpole(0.1, 1, 1, 2);
+    auto CP_host = new Cartpole(0.1, 1, 1, 2);
     CP_host->GPUSetup();
 
     auto params = CartpoleParams(2.0, 3.0, 4.0);
