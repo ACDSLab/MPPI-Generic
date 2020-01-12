@@ -42,7 +42,16 @@ bool ARStandardCost::changeCostmapSize(int width, int height) {
   if(height != height_ || width != width_) {
     track_costs_.resize(width * height);
 
-    // TODO reallocate GPU memory for texture
+    //Allocate memory for the cuda array which is bound the costmap_tex_
+    // has been allocated in the past, must be freed
+    if(height_ > 0 && width_ > 0) {
+      HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
+    }
+    channelDesc_ = cudaCreateChannelDesc(32, 32, 32, 32, cudaChannelFormatKindFloat);
+    HANDLE_ERROR(cudaMallocArray(&costmapArray_d_, &channelDesc_, width, height));
+
+    // set all of the elements in the array to be zero
+    cudaMemset(costmapArray_d_, 0, width_*height_*sizeof(float4));
   }
 
   width_ = width;
@@ -115,3 +124,34 @@ std::vector<float4> ARStandardCost::loadTrackData(std::string map_path, Eigen::M
 
   return track_costs;
 }
+
+void ARStandardCost::costmapToTexture() {
+  // transfer CPU version of costmap to GPU
+  float4* costmap_ptr = track_costs_.data();
+  HANDLE_ERROR(cudaMemcpyToArray(costmapArray_d_, 0, 0, costmap_ptr, width_*height_*sizeof(float4), cudaMemcpyHostToDevice));
+  cudaStreamSynchronize(stream_);
+
+  //Specify texture
+  struct cudaResourceDesc resDesc;
+  memset(&resDesc, 0, sizeof(resDesc));
+  resDesc.resType = cudaResourceTypeArray;
+  resDesc.res.array.array = costmapArray_d_;
+
+  //Specify texture object parameters
+  struct cudaTextureDesc texDesc;
+  memset(&texDesc, 0, sizeof(texDesc));
+  texDesc.addressMode[0] = cudaAddressModeClamp;
+  texDesc.addressMode[1] = cudaAddressModeClamp;
+  texDesc.filterMode = cudaFilterModePoint;
+  texDesc.readMode = cudaReadModeElementType;
+  texDesc.normalizedCoords = 1;
+
+  //Destroy current texture and create new texture object
+  HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_));
+  HANDLE_ERROR(cudaCreateTextureObject(&costmap_tex_, &resDesc, &texDesc, NULL) );
+}
+
+inline __device__ float4 ARStandardCost::queryTexture(float x, float y) const {
+  return tex2D<float4>(costmap_tex_, 0.1, 0.1);
+}
+

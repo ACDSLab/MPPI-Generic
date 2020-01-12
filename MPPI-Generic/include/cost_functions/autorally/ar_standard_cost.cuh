@@ -61,6 +61,8 @@ public:
   __host__ __device__ int getHeight() {return height_;}
   __host__ __device__ int getWidth() {return width_;}
   std::vector<float4> getTrackCostCPU() {return track_costs_;}
+  cudaArray* getCudaArray() {return costmapArray_d_;}
+
 
   /**
    * Copies the parameters to the GPU object
@@ -88,15 +90,20 @@ public:
 
   /**
    * Converts the passed in costmap to a CUDA texture
-   * @param costmap to be converted
+   * @param costmap
    * @param channel
+   * @param width in meters
+   * @param height in meters
+   * @param ppm pixels per meter
    */
-  //void costmapToTexture(float* costmap, int channel = 0);
+  //void costmapToTexture(float* costmap, int channel = 0, int width, int height, int ppm);
 
   /**
   * @brief Binds the member variable costmap to a CUDA texture.
   */
-  //void costmapToTexture();
+  void costmapToTexture();
+
+  __device__ float4 queryTexture(float x, float y) const;
 
   /**
    * @brief Updates the current costmap coordinate transform.
