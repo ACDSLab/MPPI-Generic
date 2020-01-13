@@ -243,6 +243,7 @@ protected:
   cudaArray *costmapArray_d_; ///< Cuda array for texture binding.
   cudaChannelFormatDesc channelDesc_; ///< Cuda texture channel description.
   cudaTextureObject_t costmap_tex_d_; ///< Cuda texture object.
+  // TODO what does this look like on GPU side
   std::vector<float4> track_costs_;
 
   //Debugging variables
