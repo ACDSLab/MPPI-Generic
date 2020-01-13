@@ -159,7 +159,7 @@ TEST(CartPole, TestDynamicsGPU) {
     // Run dynamics on CPU
     CP_host->xDot(state, control, state_der_cpu);
     // Run dynamics on GPU
-    launchDyanmicsTestKernel(*CP_host, state.data(), control.data(), state_der_gpu);
+    launchDynamicsTestKernel(*CP_host, state.data(), control.data(), state_der_gpu);
 
     // Compare CPU and GPU Results
     for (int i = 0; i < Cartpole::STATE_DIM; i++) {

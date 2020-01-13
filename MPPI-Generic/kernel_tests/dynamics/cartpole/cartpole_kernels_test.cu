@@ -42,7 +42,7 @@ __global__ void PoleLengthTestKernel(Cartpole* CP, float& length_check) {
     }
 }
 
-__global__ void DyanmicsTestKernel(Cartpole* CP, float* state, float* control, float* state_der) {
+__global__ void DynamicsTestKernel(Cartpole* CP, float* state, float* control, float* state_der) {
     // int tid = blockIdx.x*blockDim.x + threadIdx.x;
     /**
      * This will probably do stupid things because of parallelization
@@ -115,7 +115,7 @@ void launchGravityTestKernel(const Cartpole& CP, float& gravity_check) {
     cudaFree(gravity_check_device);
 }
 
-void launchDyanmicsTestKernel(const Cartpole& CP, float* state_cpu,
+void launchDynamicsTestKernel(const Cartpole& CP, float* state_cpu,
                               float* control_cpu, float* state_der_cpu) {
     // Allocate memory on the CPU for checking the mass
     float* state_gpu;
@@ -129,7 +129,7 @@ void launchDyanmicsTestKernel(const Cartpole& CP, float* state_cpu,
     HANDLE_ERROR(cudaMemcpy(state_gpu, state_cpu, sizeof(float)* CP.STATE_DIM, cudaMemcpyHostToDevice));
     HANDLE_ERROR(cudaMemcpy(control_gpu, control_cpu, sizeof(float)* CP.CONTROL_DIM, cudaMemcpyHostToDevice));
 
-    DyanmicsTestKernel<<<1,1>>>(CP.CP_device, state_gpu, control_gpu, state_der_gpu);
+    DynamicsTestKernel<<<1,1>>>(CP.CP_device, state_gpu, control_gpu, state_der_gpu);
     CudaCheckError();
 
     // Copy the memory back to the host
