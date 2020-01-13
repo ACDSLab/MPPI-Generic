@@ -25,3 +25,5 @@ install(TARGETS ${LIBRARY_NAME}
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib/${CMAKE_PROJECT_NAME}
         )
+
+add_subdirectory(autorally)
