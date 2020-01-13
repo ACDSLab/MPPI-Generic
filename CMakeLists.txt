@@ -24,7 +24,8 @@ endif()
 # Find Eigen
 find_package(Eigen3 REQUIRED)
 # TODO not generic
-include_directories(/home/jason/.local/include/eigen3)
+#include_directories(/home/jason/.local/include/eigen3)
+include_directories(${EIGEN3_INCLUDE_DIR})
 message(${EIGEN3_INCLUDE_DIR})
 
 # Find OpenCV
