@@ -13,4 +13,12 @@ void launchGlobalToShared_KernelTest(const std::vector<float>& x0_host,const std
                                      std::vector<float>& x_thread_host, std::vector<float>& xdot_thread_host,
                                      std::vector<float>& u_thread_host, std::vector<float>& du_thread_host, std::vector<float>& sigma_u_thread_host );
 
+__global__ void injectControlNoiseOnce_KernelTest();
+
+void launchInjectControlNoiseOnce_KernelTest();
+
+__global__ void injectControlNoise_KernelTest();
+
+void launchInjectControlNoise_KernelTest();
+
 #endif // !KERNEL_TESTS_MPPI_CORE_ROLLOUT_KERNEL_TEST_CUH_

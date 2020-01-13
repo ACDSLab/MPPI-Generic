@@ -12,6 +12,7 @@ namespace mppi_common {
 
     const int state_dim = 12;
     const int control_dim = 3;
+
     const int blocksize_x = 64;
     const int blocksize_y = 8;
     const int num_rollouts = 2000;
@@ -50,12 +51,25 @@ namespace mppi_common {
                                        float* u_thread,
                                        float* du_thread,
                                        float* sigma_u_thread);
-
-    __device__ void injectControlNoise(int i,
-                                       int control_dim,
-                                       int thread_id,
-                                       int num_timesteaps,
-                                       int num_rollouts,
+    /*
+     * injectControlNoise
+     * Disturb control trajectories per timestep
+     *
+     * Args:
+     * t: current timestep
+     * global_idx: current rollout
+     * thread_idy: y axis of block dimension
+     * num_timesteps: trajectory length
+     * u_traj_device: complete control trajectory
+     * ep_v_device: complete set of disturbances for all rollouts and timesteps
+     * u_thread: current control
+     * du_thread: current disturbance
+     * sigma_u_thread: control variance
+     */
+    __device__ void injectControlNoise(int t,
+                                       int global_idx,
+                                       int thread_idy,
+                                       int num_timesteps,
                                        float* u_traj_device,
                                        float* ep_v_device,
                                        float* u_thread,

@@ -29,7 +29,7 @@ namespace mppi_common {
 
         //Initialize running cost and total cost
         float running_cost = 0;
-        float* cost[num_rollouts];
+        float cost[num_rollouts];
 
         //Load global array to shared array
         if (global_idx < num_rollouts) {
@@ -48,7 +48,7 @@ namespace mppi_common {
         for (int t = 0; t < num_timesteps; t++) {
             if (global_idx < num_rollouts) {
                 //Load noise trajectories scaled by the exploration factor
-                injectControlNoise(t, global_idx, thread_idy, num_timesteps, num_rollouts, u_d, du_d, u, du, sigma_u);
+                injectControlNoise(t, global_idx, thread_idy, num_timesteps, u_d, du_d, u, du, sigma_u);
                 __syncthreads();
 
                 //Accumulate running cost
@@ -106,27 +106,40 @@ namespace mppi_common {
             }
         }
     }
-
+    /*
+     * injectControlNoise
+     * Disturb control trajectories per timestep
+     *
+     * Args:
+     * t: current timestep
+     * global_idx: current rollout
+     * thread_idy: y axis of block dimension
+     * num_timesteps: trajectory length
+     * u_traj_device: complete control trajectory
+     * ep_v_device: complete set of disturbances for all rollouts and timesteps
+     * u_thread: current control
+     * du_thread: current disturbance
+     * sigma_u_thread: control variance
+     */
     __device__ void injectControlNoise(int t, int global_idx, int thread_idy, int num_timesteps,
                                         float* u_traj_device, float* ep_v_device, float* u_thread, float* du_thread,
                                         float* sigma_u_thread) {
         //Load the noise trajectory scaled by the exploration factor
-        if (global_idx < num_rollouts) {
-            for (int i = thread_idy; i < control_dim; i += blocksize_y) {
-                //Keep one noise free trajectory
-                if (global_idx == 0){
-                    du_thread[i] = 0;
-                    u_thread[i] = u_traj_device[t*control_dim + i];
-                }
-                //Generate 1% zero control trajectory
-                else if (global_idx >= 0.99*num_rollouts) {
-                    du_thread[i] = ep_v_device[global_idx*control_dim*num_timesteps + t*control_dim + i] * sigma_u_thread[i];
-                    u_thread[i] = du_thread[i];
-                }
-                else {
-                    du_thread[i] = ep_v_device[global_idx*control_dim*num_timesteps + t*control_dim + i] * sigma_u_thread[i];
-                    u_thread[i] = u_traj_device[t*control_dim + i] + du_thread[i];
-                }
+        // The prior loop already guarantees that the global index is less than the number of rollouts
+        for (int i = thread_idy; i < control_dim; i += blocksize_y) {
+            //Keep one noise free trajectory
+            if (global_idx == 0){
+                du_thread[i] = 0;
+                u_thread[i] = u_traj_device[t*control_dim + i];
+            }
+            //Generate 1% zero control trajectory
+            else if (global_idx >= 0.99*num_rollouts) {
+                du_thread[i] = ep_v_device[global_idx*control_dim*num_timesteps + t*control_dim + i] * sigma_u_thread[i];
+                u_thread[i] = du_thread[i];
+            }
+            else {
+                du_thread[i] = ep_v_device[global_idx*control_dim*num_timesteps + t*control_dim + i] * sigma_u_thread[i];
+                u_thread[i] = u_traj_device[t*control_dim + i] + du_thread[i];
             }
         }
     }
