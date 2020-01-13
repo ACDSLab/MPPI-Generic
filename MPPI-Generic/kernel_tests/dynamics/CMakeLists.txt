@@ -4,7 +4,7 @@ SET (LIB_MINOR 0)
 SET (LIB_RELEASE 1)
 
 add_library(${LIBRARY_NAME} SHARED
-        cartpole/cartpole_kernels_test.cu
+        cartpole/cartpole_kernel_test.cu
         )
 
 target_link_libraries( ${LIBRARY_NAME}
