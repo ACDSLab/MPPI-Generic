@@ -5,6 +5,7 @@
 #define blocksize_x 64
 #define blocksize_y 8
 #define num_rollouts 2000
+#define sum_stride 128
 
 namespace mppi_common {
 
@@ -77,7 +78,7 @@ namespace mppi_common {
 
     // Launch functions
 
-    // RolloutKernel Helpers
+    // RolloutKernel Helpers -------------------------------------------------------------------------------------------
     /*
      * loadGlobalToShared
      * Copy global memory into shared memory
@@ -170,9 +171,90 @@ namespace mppi_common {
         }
     }
 
+    // End of rollout kernel helpers -----------------------------------------------------------------------------------
 
-//    void launchRolloutKernel() {
-//
-//    }
+    __global__ void normExpKernel(float* trajectory_costs_d, float gamma, float baseline) {
+        int thread_idx = threadIdx.x;
+        int block_idx = blockIdx.x;
+        int global_idx = blocksize_x*block_idx + thread_idx;
+
+        if (global_idx < num_rollouts) {
+            float cost_dif = trajectory_costs_d[global_idx] - baseline;
+            trajectory_costs_d[global_idx] = exp(-gamma*cost_dif);
+        }
+    }
+
+    __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps) {
+        int thread_idx = threadIdx.x;
+        int block_idx = blockIdx.x;
+
+        //Create a shared array for intermediate sums
+        __shared__ float u_intermediate[control_dim*((num_rollouts-1)/sum_stride) + 1];
+        int stride = sum_stride;
+
+        float u[control_dim];
+        for (int i = 0; i < control_dim; i++) {
+            u[i] = 0;
+            u_intermediate[thread_idx*control_dim + i] = 0;
+        }
+
+        __syncthreads();
+
+        //Sum the weighted control variations at a desired stride
+        if (thread_idx*stride < num_rollouts) {
+            float weight = 0;
+            for (int i = 0; i < stride; i++) {
+                weight = exp_costs_d[thread_idx*stride + i]/normalizer;
+                for (int j = 0; j < control_dim; j++) {
+                    u[j] = du_d[(thread_idx*stride + i)*(num_timesteps*control_dim) + block_idx*control_dim + j]*sigma_u_d[j];
+                    u_intermediate[thread_idx*control_dim + j] += weight*u[j];
+                }
+            }
+        }
+
+        __syncthreads();
+
+        //Sum all weighted control variations
+        if (thread_idx == 0 && block_idx < num_timesteps) {
+            for (int i = 0; i < control_dim; i++) {
+                u[i] = 0;
+            }
+            for (int i = 0; i < ((num_rollouts - 1)/sum_stride + 1); i++) {
+                for (int j = 0; j < control_dim; j++) {
+                    u[j] += u_intermediate[i*control_dim + j];
+                }
+            }
+            for (int i = 0; i < control_dim; i++) {
+                du_new_d[block_idx*control_dim + i] = u[i];
+            }
+        }
+    }
+
+    void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps) {
+        dim3 dimBlock((num_rollouts-1)/sum_stride + 1, 1, 1);
+        dim3 dimGrid(num_timesteps, 1, 1);
+        weightedReductionKernel<<<dimGrid, dimBlock>>>(exp_costs_d, du_d, sigma_u_d, du_new_d, normalizer, num_timesteps);
+        CudaCheckError();
+        HANDLE_ERROR( cudaDeviceSynchronize() );
+    }
+
+    void launchNormExpKernel(float* trajectory_costs_d, float gamma, float baseline) {
+        dim3 dimBlock(blocksize_x, 1, 1);
+        dim3 dimGrid((num_rollouts-1)/blocksize_x + 1, 1, 1);
+        normExpKernel<<<dimGrid, dimBlock>>>(trajectory_costs_d, gamma, baseline);
+        CudaCheckError();
+        HANDLE_ERROR( cudaDeviceSynchronize() );
+    }
+
+    template<class DYN_T, class COST_T>
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d) {
+        const int gridsize_x = (num_rollouts - 1)/blocksize_x + 1;
+        dim3 dimBlock(blocksize_x, blocksize_y, 1);
+        dim3 dimGrid(gridsize_x, 1, 1);
+        rolloutKernel<class DYN_T, class COST_T><<<dimGrid, dimBlock>>>(dynamics, costs, dt,
+                num_timesteps, x_d, u_d, du_d, sigma_u_d);
+        CudaCheckError();
+        HANDLE_ERROR( cudaDeviceSynchronize() );
+    }
 
 }

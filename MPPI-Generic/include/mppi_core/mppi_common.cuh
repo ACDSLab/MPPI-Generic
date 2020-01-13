@@ -12,7 +12,8 @@ namespace mppi_common {
 
     // Kernel functions
     template<class DYN_T, class COST_T>
-    __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs);
+    __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
+                                  int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d);
 
     // Launch functions
 
@@ -67,13 +68,19 @@ namespace mppi_common {
                                                      float* x_thread, float* xdot_thread);
 
     template<class COST_T>
-    __device__ void computeTerminalCostandSave(int thread_id, int num_rollouts, COST_T* costs,
+    __device__ void computeAndSaveCost(int thread_id, int num_rollouts, COST_T* costs,
                                                       float* x_thread, float running_cost, float* cost_rollouts_device);
 
-    template<class DYN_T, class COST_T>
-    __global__ void rolloutKernel(DYN_T dynamics, COST_T costs);
+    __global__ void normExpKernel(float* trajectory_costs_d, float gamma, float baseline);
 
-    void launchRolloutKernel();
+    __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps);
+
+    template<class DYN_T, class COST_T>
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d);
+
+    void launchNormExpKernel(float* trajectory_costs_d, float gamma, float baseline);
+
+    void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps);
 
 }
 #if __CUDACC__
