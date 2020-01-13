@@ -9,6 +9,13 @@ ARStandardCost::~ARStandardCost() {
 
 }
 
+void ARStandardCost::setParams(ARStandardCostParams params) {
+  this->params_ = params;
+  if(GPUMemStatus_) {
+    paramsToDevice();
+  }
+}
+
 void ARStandardCost::GPUSetup() {
   if (!GPUMemStatus_) {
     cost_d_ = Managed::GPUSetup(this);
@@ -167,3 +174,25 @@ inline __device__ float4 ARStandardCost::queryTexture(float x, float y) const {
   return tex2D<float4>(costmap_tex_d_, x, y);
 }
 
+void ARStandardCost::updateTransform(Eigen::MatrixXf m, Eigen::ArrayXf trs) {
+  params_.r_c1.x = m(0,0);
+  params_.r_c1.y = m(1,0);
+  params_.r_c1.z = m(2,0);
+  params_.r_c2.x = m(0,1);
+  params_.r_c2.y = m(1,1);
+  params_.r_c2.z = m(2,1);
+  params_.trs.x = trs(0);
+  params_.trs.y = trs(1);
+  params_.trs.z = trs(2);
+  //Move the updated parameters to gpu memory
+  if(GPUMemStatus_) {
+    paramsToDevice();
+  }
+}
+
+__host__ __device__ void ARStandardCost::coorTransform(float x, float y, float* u, float* v, float* w) {
+  //Compute a projective transform of (x, y, 0, 1)
+  u[0] = params_.r_c1.x*x + params_.r_c2.x*y + params_.trs.x;
+  v[0] = params_.r_c1.y*x + params_.r_c2.y*y + params_.trs.y;
+  w[0] = params_.r_c1.z*x + params_.r_c2.z*y + params_.trs.z;
+}

@@ -1,50 +1,53 @@
 #include <cost_functions/autorally/ar_standard_cost.cuh>
 
-__global__ void ParameterTestKernel(ARStandardCost* cost, float& desired_speed, int& num_timesteps,
-                                    float3& r_c1, int& width, int& height) {
+__global__ void ParameterTestKernel(ARStandardCost* cost, ARStandardCost::ARStandardCostParams& params, int& width, int& height) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   //printf("\nEntering the kernel!\n");
   //printf("The thread id is: %i\n", tid);
   if (tid == 0) {
     //printf("")
-    desired_speed = cost->getParams().desired_speed;
-    num_timesteps = cost->getParams().num_timesteps;
-    r_c1 = cost->getParams().r_c1;
+    params.desired_speed = cost->getParams().desired_speed;
+    params.speed_coeff = cost->getParams().speed_coeff;
+    params.track_coeff = cost->getParams().track_coeff;
+    params.max_slip_ang = cost->getParams().max_slip_ang;
+    params.slip_penalty = cost->getParams().slip_penalty;
+    params.track_slop = cost->getParams().track_slop;
+    params.crash_coeff = cost->getParams().crash_coeff;
+    params.steering_coeff = cost->getParams().steering_coeff;
+    params.throttle_coeff = cost->getParams().throttle_coeff;
+    params.boundary_threshold = cost->getParams().boundary_threshold;
+    params.discount = cost->getParams().discount;
+    params.num_timesteps = cost->getParams().num_timesteps;
+    params.grid_res = cost->getParams().grid_res;
+
+    params.r_c1 = cost->getParams().r_c1;
+    params.r_c2 = cost->getParams().r_c2;
+    params.trs = cost->getParams().trs;
+
     width = cost->getWidth();
     height = cost->getHeight();
   }
 }
 
-void launchParameterTestKernel(const ARStandardCost& cost, float& desired_speed, int& num_timesteps,
-                               float3& r_c1, int& width, int& height) {
+void launchParameterTestKernel(const ARStandardCost& cost, ARStandardCost::ARStandardCostParams& params, int& width, int& height) {
   // Allocate memory on the CPU for checking the mass
-  float* desired_speed_d;
-  int* num_timesteps_d;
-  int* height_d;
+  ARStandardCost::ARStandardCostParams* params_d;
   int* width_d;
-  float3* r_c1_d;
-  HANDLE_ERROR(cudaMalloc((void**)&desired_speed_d, sizeof(float)))
-  HANDLE_ERROR(cudaMalloc((void**)&num_timesteps_d, sizeof(int)))
-  HANDLE_ERROR(cudaMalloc((void**)&height_d, sizeof(int)))
-  HANDLE_ERROR(cudaMalloc((void**)&width_d, sizeof(int)))
-  HANDLE_ERROR(cudaMalloc((void**)&r_c1_d, sizeof(float3)))
+  int* height_d;
+  HANDLE_ERROR(cudaMalloc((void**)&params_d, sizeof(ARStandardCost::ARStandardCostParams)))
+  HANDLE_ERROR(cudaMalloc((void**)&width_d, sizeof(float)))
+  HANDLE_ERROR(cudaMalloc((void**)&height_d, sizeof(float)))
 
-  ParameterTestKernel<<<1,1>>>(cost.cost_d_, *desired_speed_d, *num_timesteps_d, *r_c1_d, *width_d, *height_d);
+  ParameterTestKernel<<<1,1>>>(cost.cost_d_, *params_d, *width_d, *height_d);
   CudaCheckError();
 
   // Copy the memory back to the host
-  HANDLE_ERROR(cudaMemcpy(&desired_speed, desired_speed_d, sizeof(float), cudaMemcpyDeviceToHost));
-  HANDLE_ERROR(cudaMemcpy(&num_timesteps, num_timesteps_d, sizeof(int), cudaMemcpyDeviceToHost));
-  HANDLE_ERROR(cudaMemcpy(&height, height_d, sizeof(int), cudaMemcpyDeviceToHost));
-  HANDLE_ERROR(cudaMemcpy(&width, width_d, sizeof(int), cudaMemcpyDeviceToHost));
-  HANDLE_ERROR(cudaMemcpy(&r_c1, r_c1_d, sizeof(float3), cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(&params, params_d, sizeof(ARStandardCost::ARStandardCostParams), cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(&width, width_d, sizeof(float), cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(&height, height_d, sizeof(float), cudaMemcpyDeviceToHost));
   cudaDeviceSynchronize();
 
-  cudaFree(desired_speed_d);
-  cudaFree(num_timesteps_d);
-  cudaFree(r_c1_d);
-  cudaFree(height_d);
-  cudaFree(width_d);
+  cudaFree(params_d);
 }
 
 // TODO actually check texture
@@ -80,6 +83,36 @@ void launchCheckCudaArray(std::vector<float4>& result_arr, cudaArray* array, int
 
   cudaFree(results_d);
 }
+
+__global__ void transformTestKernel(float3* results, ARStandardCost* cost) {
+  int tid = blockIdx.x*blockDim.x + threadIdx.x;
+  //printf("\nEntering the kernel!\n");
+  //printf("The thread id is: %i\n", tid);
+  if (tid == 0) {
+    //printf("")
+    results[0] = cost->getParams().r_c1;
+    results[1] = cost->getParams().r_c2;
+    results[2] = cost->getParams().trs;
+  }
+}
+
+void launchTransformTestKernel(std::vector<float3>& result, const ARStandardCost& cost) {
+  result.resize(3);
+
+  // Allocate memory on the CPU for checking the mass
+  float3* results_d;
+  HANDLE_ERROR(cudaMalloc((void**)&results_d, sizeof(float3) * 3))
+
+  transformTestKernel<<<1,1>>>(results_d, cost.cost_d_);
+  CudaCheckError();
+
+  // Copy the memory back to the host
+  HANDLE_ERROR(cudaMemcpy(result.data(), results_d, sizeof(float3)*3, cudaMemcpyDeviceToHost));
+  cudaDeviceSynchronize();
+
+  cudaFree(results_d);
+}
+
 
 
 __global__ void textureTestKernel(const ARStandardCost& cost, float4* test_results, float2* test_indexes, int num_points) {

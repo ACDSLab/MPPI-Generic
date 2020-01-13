@@ -25,30 +25,83 @@ TEST(ARStandardCost, BindStream) {
 TEST(ARStandardCost, SetGetParamsHost) {
   ARStandardCost::ARStandardCostParams params;
   params.desired_speed = 25;
+  params.speed_coeff = 2;
+  params.track_coeff = 100;
+  params.max_slip_ang = 1.5;
+  params.slip_penalty = 1000;
+  params.track_slop = 0.2;
+  params.crash_coeff = 10000;
+  params.steering_coeff = 20;
+  params.throttle_coeff = 10;
+  params.boundary_threshold = 10;
+  params.discount = 0.9;
+  params.grid_res = 2;
   params.num_timesteps = 100;
+
   params.r_c1.x = 0;
   params.r_c1.y = 1;
   params.r_c1.z = 2;
+  params.r_c2.x = 3;
+  params.r_c2.y = 4;
+  params.r_c2.z = 5;
+  params.trs.x = 6;
+  params.trs.y = 7;
+  params.trs.z = 8;
   ARStandardCost cost;
 
   cost.setParams(params);
   ARStandardCost::ARStandardCostParams result_params = cost.getParams();
 
   EXPECT_FLOAT_EQ(params.desired_speed, result_params.desired_speed);
+  EXPECT_FLOAT_EQ(params.speed_coeff, result_params.speed_coeff);
+  EXPECT_FLOAT_EQ(params.track_coeff, result_params.track_coeff);
+  EXPECT_FLOAT_EQ(params.max_slip_ang, result_params.max_slip_ang);
+  EXPECT_FLOAT_EQ(params.slip_penalty, result_params.slip_penalty);
+  EXPECT_FLOAT_EQ(params.track_slop, result_params.track_slop);
+  EXPECT_FLOAT_EQ(params.crash_coeff, result_params.crash_coeff);
+  EXPECT_FLOAT_EQ(params.steering_coeff, result_params.steering_coeff);
+  EXPECT_FLOAT_EQ(params.throttle_coeff, result_params.throttle_coeff);
+  EXPECT_FLOAT_EQ(params.boundary_threshold, result_params.boundary_threshold);
+  EXPECT_FLOAT_EQ(params.discount, result_params.discount);
+  EXPECT_EQ(params.grid_res, result_params.grid_res);
   EXPECT_EQ(params.num_timesteps, result_params.num_timesteps);
   EXPECT_FLOAT_EQ(params.r_c1.x, result_params.r_c1.x);
   EXPECT_FLOAT_EQ(params.r_c1.y, result_params.r_c1.y);
   EXPECT_FLOAT_EQ(params.r_c1.z, result_params.r_c1.z);
+  EXPECT_FLOAT_EQ(params.r_c2.x, result_params.r_c2.x);
+  EXPECT_FLOAT_EQ(params.r_c2.y, result_params.r_c2.y);
+  EXPECT_FLOAT_EQ(params.r_c2.z, result_params.r_c2.z);
+  EXPECT_FLOAT_EQ(params.trs.x, result_params.trs.x);
+  EXPECT_FLOAT_EQ(params.trs.y, result_params.trs.y);
+  EXPECT_FLOAT_EQ(params.trs.z, result_params.trs.z);
 }
 
 TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   ARStandardCost::ARStandardCostParams params;
   ARStandardCost cost;
   params.desired_speed = 25;
+  params.speed_coeff = 2;
+  params.track_coeff = 100;
+  params.max_slip_ang = 1.5;
+  params.slip_penalty = 1000;
+  params.track_slop = 0.2;
+  params.crash_coeff = 10000;
+  params.steering_coeff = 20;
+  params.throttle_coeff = 10;
+  params.boundary_threshold = 10;
+  params.discount = 0.9;
+  params.grid_res = 2;
   params.num_timesteps = 100;
+
   params.r_c1.x = 0;
   params.r_c1.y = 1;
   params.r_c1.z = 2;
+  params.r_c2.x = 3;
+  params.r_c2.y = 4;
+  params.r_c2.z = 5;
+  params.trs.x = 6;
+  params.trs.y = 7;
+  params.trs.z = 8;
   cost.setParams(params);
 
   EXPECT_EQ(cost.GPUMemStatus_, false);
@@ -57,16 +110,33 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
 
   EXPECT_EQ(cost.GPUMemStatus_, true);
 
-  float desired_speed;
-  int num_timesteps, height, width;
-  float3 r_c1;
-  launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1, width, height);
 
-  EXPECT_FLOAT_EQ(desired_speed, 25);
-  EXPECT_EQ(num_timesteps, 100);
-  EXPECT_FLOAT_EQ(r_c1.x, 0);
-  EXPECT_FLOAT_EQ(r_c1.y, 1);
-  EXPECT_FLOAT_EQ(r_c1.z, 2);
+  ARStandardCost::ARStandardCostParams result_params;
+  int width, height;
+  launchParameterTestKernel(cost, result_params, width, height);
+
+  EXPECT_FLOAT_EQ(params.desired_speed, result_params.desired_speed);
+  EXPECT_FLOAT_EQ(params.speed_coeff, result_params.speed_coeff);
+  EXPECT_FLOAT_EQ(params.track_coeff, result_params.track_coeff);
+  EXPECT_FLOAT_EQ(params.max_slip_ang, result_params.max_slip_ang);
+  EXPECT_FLOAT_EQ(params.slip_penalty, result_params.slip_penalty);
+  EXPECT_FLOAT_EQ(params.track_slop, result_params.track_slop);
+  EXPECT_FLOAT_EQ(params.crash_coeff, result_params.crash_coeff);
+  EXPECT_FLOAT_EQ(params.steering_coeff, result_params.steering_coeff);
+  EXPECT_FLOAT_EQ(params.throttle_coeff, result_params.throttle_coeff);
+  EXPECT_FLOAT_EQ(params.boundary_threshold, result_params.boundary_threshold);
+  EXPECT_FLOAT_EQ(params.discount, result_params.discount);
+  EXPECT_EQ(params.grid_res, result_params.grid_res);
+  EXPECT_EQ(params.num_timesteps, result_params.num_timesteps);
+  EXPECT_FLOAT_EQ(params.r_c1.x, result_params.r_c1.x);
+  EXPECT_FLOAT_EQ(params.r_c1.y, result_params.r_c1.y);
+  EXPECT_FLOAT_EQ(params.r_c1.z, result_params.r_c1.z);
+  EXPECT_FLOAT_EQ(params.r_c2.x, result_params.r_c2.x);
+  EXPECT_FLOAT_EQ(params.r_c2.y, result_params.r_c2.y);
+  EXPECT_FLOAT_EQ(params.r_c2.z, result_params.r_c2.z);
+  EXPECT_FLOAT_EQ(params.trs.x, result_params.trs.x);
+  EXPECT_FLOAT_EQ(params.trs.y, result_params.trs.y);
+  EXPECT_FLOAT_EQ(params.trs.z, result_params.trs.z);
   // neither should be set by this sequence
   EXPECT_EQ(width, -1);
   EXPECT_EQ(height, -1);
@@ -79,17 +149,61 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   cost.setParams(params);
   cost.paramsToDevice();
 
-  launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1, height, width);
+  launchParameterTestKernel(cost, result_params, width, height);
 
-  EXPECT_FLOAT_EQ(desired_speed, 5);
-  EXPECT_EQ(num_timesteps, 50);
-  EXPECT_FLOAT_EQ(r_c1.x, 4);
-  EXPECT_FLOAT_EQ(r_c1.y, 5);
-  EXPECT_FLOAT_EQ(r_c1.z, 6);
+  EXPECT_FLOAT_EQ(params.desired_speed, result_params.desired_speed);
+  EXPECT_FLOAT_EQ(params.speed_coeff, result_params.speed_coeff);
+  EXPECT_FLOAT_EQ(params.track_coeff, result_params.track_coeff);
+  EXPECT_FLOAT_EQ(params.max_slip_ang, result_params.max_slip_ang);
+  EXPECT_FLOAT_EQ(params.slip_penalty, result_params.slip_penalty);
+  EXPECT_FLOAT_EQ(params.track_slop, result_params.track_slop);
+  EXPECT_FLOAT_EQ(params.crash_coeff, result_params.crash_coeff);
+  EXPECT_FLOAT_EQ(params.steering_coeff, result_params.steering_coeff);
+  EXPECT_FLOAT_EQ(params.throttle_coeff, result_params.throttle_coeff);
+  EXPECT_FLOAT_EQ(params.boundary_threshold, result_params.boundary_threshold);
+  EXPECT_FLOAT_EQ(params.discount, result_params.discount);
+  EXPECT_EQ(params.grid_res, result_params.grid_res);
+  EXPECT_EQ(params.num_timesteps, result_params.num_timesteps);
+  EXPECT_FLOAT_EQ(params.r_c1.x, result_params.r_c1.x);
+  EXPECT_FLOAT_EQ(params.r_c1.y, result_params.r_c1.y);
+  EXPECT_FLOAT_EQ(params.r_c1.z, result_params.r_c1.z);
+  EXPECT_FLOAT_EQ(params.r_c2.x, result_params.r_c2.x);
+  EXPECT_FLOAT_EQ(params.r_c2.y, result_params.r_c2.y);
+  EXPECT_FLOAT_EQ(params.r_c2.z, result_params.r_c2.z);
+  EXPECT_FLOAT_EQ(params.trs.x, result_params.trs.x);
+  EXPECT_FLOAT_EQ(params.trs.y, result_params.trs.y);
+  EXPECT_FLOAT_EQ(params.trs.z, result_params.trs.z);
 
   // neither should be set by this sequence
   EXPECT_EQ(width, -1);
   EXPECT_EQ(height, -1);
+}
+
+TEST(ARStandardCost, coorTransformTest) {
+  float x,y,u,v,w;
+
+  ARStandardCost::ARStandardCostParams params;
+  ARStandardCost cost;
+
+  x = 0;
+  y = 10;
+
+  params.r_c1.x = 0;
+  params.r_c1.y = 1;
+  params.r_c1.z = 2;
+  params.r_c2.x = 3;
+  params.r_c2.y = 4;
+  params.r_c2.z = 5;
+  params.trs.x = 6;
+  params.trs.y = 7;
+  params.trs.z = 8;
+  cost.setParams(params);
+
+  cost.coorTransform(x, y, &u, &v, &w);
+
+  EXPECT_FLOAT_EQ(u, 36);
+  EXPECT_FLOAT_EQ(v, 47);
+  EXPECT_FLOAT_EQ(w, 58);
 }
 
 TEST(ARStandardCost, changeCostmapSizeTestValidInputs) {
@@ -185,6 +299,101 @@ TEST(ARStandardCost, clearCostmapTestDefaultFail) {
   EXPECT_EQ(cost.getTrackCostCPU().capacity(), 0);
 }
 
+TEST(ARStandardCost, updateTransformCPUTest) {
+  ARStandardCost cost;
+  Eigen::MatrixXf R(3, 3);
+  Eigen::ArrayXf trs(3);
+  R(0,0) = 1;
+  R(0,1) = 2;
+  R(0,2) = 3;
+
+  R(1,0) = 4;
+  R(1,1) = 5;
+  R(1,2) = 6;
+
+  R(2,0) = 7;
+  R(2,1) = 8;
+  R(2,2) = 9;
+
+  trs(0) = 10;
+  trs(1) = 11;
+  trs(2) = 12;
+
+  cost.updateTransform(R, trs);
+
+  /*
+   * Prospective transform matrix
+   * r_c1.x, r_c2.x, trs.x
+   * r_c1.y, r_c2.y, trs.y
+   * r_c1.z, r_c2.z, trs.z
+   */
+
+  EXPECT_FLOAT_EQ(cost.getParams().r_c1.x, 1);
+  EXPECT_FLOAT_EQ(cost.getParams().r_c2.x, 2);
+  EXPECT_FLOAT_EQ(cost.getParams().trs.x, 10);
+
+  EXPECT_FLOAT_EQ(cost.getParams().r_c1.y, 4);
+  EXPECT_FLOAT_EQ(cost.getParams().r_c2.y, 5);
+  EXPECT_FLOAT_EQ(cost.getParams().trs.y, 11);
+
+  EXPECT_FLOAT_EQ(cost.getParams().r_c1.z, 7);
+  EXPECT_FLOAT_EQ(cost.getParams().r_c2.z, 8);
+  EXPECT_FLOAT_EQ(cost.getParams().trs.z, 12);
+
+  EXPECT_EQ(cost.GPUMemStatus_, false);
+}
+
+TEST(ARStandardCost, updateTransformGPUTest) {
+
+  ARStandardCost cost;
+  cost.GPUSetup();
+  Eigen::MatrixXf R(3, 3);
+  Eigen::ArrayXf trs(3);
+  R(0,0) = 1;
+  R(0,1) = 2;
+  R(0,2) = 3;
+
+  R(1,0) = 4;
+  R(1,1) = 5;
+  R(1,2) = 6;
+
+  R(2,0) = 7;
+  R(2,1) = 8;
+  R(2,2) = 9;
+
+  trs(0) = 10;
+  trs(1) = 11;
+  trs(2) = 12;
+
+  cost.updateTransform(R, trs);
+
+  /*
+   * Prospective transform matrix
+   * r_c1.x, r_c2.x, trs.x
+   * r_c1.y, r_c2.y, trs.y
+   * r_c1.z, r_c2.z, trs.z
+   */
+
+  std::vector<float3> results;
+  launchTransformTestKernel(results, cost);
+
+  EXPECT_EQ(results.size(), 3);
+
+  EXPECT_FLOAT_EQ(results.at(0).x, 1);
+  EXPECT_FLOAT_EQ(results.at(0).y, 4);
+  EXPECT_FLOAT_EQ(results.at(0).z, 7);
+
+  EXPECT_FLOAT_EQ(results.at(1).x, 2);
+  EXPECT_FLOAT_EQ(results.at(1).y, 5);
+  EXPECT_FLOAT_EQ(results.at(1).z, 8);
+
+  EXPECT_FLOAT_EQ(results.at(2).x, 10);
+  EXPECT_FLOAT_EQ(results.at(2).y, 11);
+  EXPECT_FLOAT_EQ(results.at(2).z, 12);
+
+  EXPECT_EQ(cost.GPUMemStatus_, true);
+}
+
 
 TEST(ARStandardCost, LoadTrackDataTest) {
   ARStandardCost::ARStandardCostParams params;
@@ -192,13 +401,9 @@ TEST(ARStandardCost, LoadTrackDataTest) {
   // TODO set parameters for cost map
   cost.setParams(params);
   cost.GPUSetup();
-  float desired_speed;
-  int num_timesteps, height, width;
-  float3 r_c1;
-  launchParameterTestKernel(cost, desired_speed, num_timesteps, r_c1, width, height);
 
   // TODO make path less stupid
-  std::string test_location = "/home/jason/Documents/research/MPPI-Generic/resource/autorally/test/test_map.npz";
+  std::string test_location = "/home/jgibson37/Documents/MPPI-Generic/resource/autorally/test/test_map.npz";
   Eigen::Matrix3f R;
   Eigen::Array3f trs;
 
@@ -286,7 +491,7 @@ TEST(ARStandardCost, costmapToTextureLoadTest) {
   ARStandardCost cost;
   cost.GPUSetup();
 
-  std::string test_location = "/home/jason/Documents/research/MPPI-Generic/resource/autorally/test/test_map.npz";
+  std::string test_location = "/home/jgibson37/Documents/MPPI-Generic/resource/autorally/test/test_map.npz";
   Eigen::Matrix3f R;
   Eigen::Array3f trs;
 
@@ -316,3 +521,4 @@ TEST(ARStandardCost, costmapToTextureLoadTest) {
   EXPECT_FLOAT_EQ(results.at(1).z, 100);
   EXPECT_FLOAT_EQ(results.at(1).w, 1000);
 }
+

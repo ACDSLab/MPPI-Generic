@@ -28,9 +28,15 @@ public:
     float discount;
     int num_timesteps;
     int grid_res;
-    float3 r_c1;
-    float3 r_c2;
-    float3 trs;
+    /*
+     * Prospective transform matrix
+     * r_c1.x, r_c2.x, trs.x
+     * r_c1.y, r_c2.y, trs.y
+     * r_c1.z, r_c2.z, trs.z
+     */
+    float3 r_c1; // R matrix col 1
+    float3 r_c2; // R matrix col 2
+    float3 trs; // translation vector
   } ARStandardCostParams;
 
   /**
@@ -56,7 +62,13 @@ public:
    */
   void freeCudaMem();
 
-  inline __host__ __device__ void setParams(ARStandardCostParams params) {this->params_ = params;}
+  /**
+   * Updates GPU if allocated
+   * @param params
+   */
+  inline __host__ __device__ void setParams(ARStandardCostParams params);
+
+
   inline __host__ __device__ ARStandardCostParams getParams() {return params_;}
   inline __host__ __device__ int getHeight() {return height_;}
   inline __host__ __device__ int getWidth() {return width_;}
@@ -122,6 +134,13 @@ public:
    * @param trs Array representing the offset.
    */
   std::vector<float4> loadTrackData(std::string map_path, Eigen::Matrix3f &R, Eigen::Array3f &trs);
+
+  void updateTransform(Eigen::MatrixXf m, Eigen::ArrayXf trs);
+
+  /**
+   * @brief Compute a coordinate transform going from world to costmap coordinates.
+   */
+  __host__ __device__ void coorTransform(float x, float y, float* u, float* v, float* w);
 
   /**
    * @brief Return what the desired speed is set to.
@@ -190,10 +209,6 @@ public:
    */
   //__host__ __device__ float getStabilizingCost(float* s);
 
-  /**
-   * @brief Compute a coordinate transform going from world to costmap coordinates.
-   */
-  //__host__ __device__ void coorTransform(float x, float y, float* u, float* v, float* w);
 
   /**
    * @brief Compute the current track cost based on the costmap.

@@ -6,15 +6,17 @@
 #define MPPIGENERIC_AR_STANDARD_COST_KERNEL_TEST_CUH
 
 
-__global__ void parameterTestKernel(ARStandardCost& cost, float& desired_speed, int& num_timesteps,
-                                    float3& r_c1, int& width, int& height);
+__global__ void parameterTestKernel(ARStandardCost* cost, ARStandardCost::ARStandardCostParams& params, int& width, int& height);
 
-void launchParameterTestKernel(const ARStandardCost& cost, float& desired_speed, int& num_timesteps,
-                               float3& r_c1, int& width, int& height);
+void launchParameterTestKernel(const ARStandardCost& cost, ARStandardCost::ARStandardCostParams& params, int& width, int& height);
 
 void launchCheckCudaArray(std::vector<float4>& result_arr, cudaArray* array, int number);
 
 __global__ void checkCudaArrayKernel(float4* result_arr, cudaArray* array, int number);
+
+void launchTransformTestKernel(std::vector<float3>& result, const ARStandardCost& cost);
+
+__global__ void transformTestKernel(float3* results, ARStandardCost* cost);
 
 void launchTextureTestKernel(const ARStandardCost& cost, std::vector<float4>& test_results, std::vector<float2>& test_indexes);
 
