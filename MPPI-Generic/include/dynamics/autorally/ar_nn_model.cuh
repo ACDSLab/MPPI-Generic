@@ -3,6 +3,11 @@
 
 #include <dynamics/dynamics.cuh>
 #include "meta_math.h"
+#include <utils/file_utils.h>
+#include <vector>
+#include <eigen3/Eigen/Dense>
+#include <opencv2/core/core.hpp>
+#include <cuda_runtime.h>
 
 /**
  * For AutoRally
@@ -30,7 +35,7 @@ class NeuralNetModel : public Dynamics<S_DIM, C_DIM> {
 public:
   //static const int STATE_DIM = S_DIM;
   //static const int CONTROL_DIM = C_DIM;
-  static const int DYNAMICS_DIM = S_DIM - K_DIM;
+  static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
   static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
   static const int PRIME_PADDING = 1; ///< Extra padding to largest layer to avoid shared mem bank conflicts
   static const int LARGEST_LAYER = neuron_counter(layer_args...) + PRIME_PADDING; ///< Number of neurons in the largest layer(including in/out neurons)
@@ -38,26 +43,42 @@ public:
   static const int SHARED_MEM_REQUEST_GRD = 0; ///< Amount of shared memory we need per BLOCK.
   static const int SHARED_MEM_REQUEST_BLK = 2*LARGEST_LAYER; ///< Amount of shared memory we need per ROLLOUT.
 
-  //NeuralNetModel<S_DIM, C_DIM, K_DIM, int... layer_args>* model_d_;
-
-  //float* theta_d_; ///< GPU memory parameter array.
-  //int* stride_idcs_d_; ///< GPU memory for keeping track of parameter strides
-  //int* net_structure_d_; ///GPU memory for keeping track of the neural net structure.
-  //float2* control_rngs_;
-  std::array<float2, C_DIM> control_rngs_;
-
-  //Eigen::Matrix<float, STATE_DIM, 1> state_der_; ///< The state derivative.
-  //float2* control_rngs_d_;
-
-  //Eigen::MatrixXf ip_delta_; ///< The neural net state derivative.
-  //Eigen::Matrix<float, S_DIM, S_DIM + C_DIM> jac_; //Total state derivative
-
-  NeuralNetModel(float delta_t);
-  NeuralNetModel(float delta_t, std::array<float2, C_DIM> control_rngs);
+  NeuralNetModel(float delta_t, cudaStream_t stream=0);
+  NeuralNetModel(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream=0);
 
   ~NeuralNetModel();
 
-  std::array<float2, C_DIM> getControlRanges() {return control_rngs_;}
+  __host__ __device__ std::array<float2, C_DIM> getControlRanges() {return control_rngs_;}
+  std::array<int, NUM_LAYERS> getNetStructure() {
+    std::array<int, NUM_LAYERS> array;
+    for(int i = 0; i < NUM_LAYERS; i++) {
+      array[i] = net_structure_[i];
+    }
+    return array;
+  }
+  std::array<int, (NUM_LAYERS - 1) * 2> getStideIdcs() {
+    std::array<int, (NUM_LAYERS - 1) * 2> array;
+    for(int i = 0; i < (NUM_LAYERS - 1)*2; i++) {
+      array[i] = stride_idcs_[i];
+    }
+    return array;
+  }
+  std::array<float, NUM_PARAMS> getTheta() {
+    std::array<float, NUM_PARAMS> array;
+    for(int i = 0; i < NUM_PARAMS; i++) {
+      array[i] = theta_[i];
+    }
+    return array;
+  }
+  __device__ int* getNetStructurePtr(){return net_structure_;}
+  __device__ int* getStrideIdcsPtr(){return stride_idcs_;}
+  __device__ float* getThetaPtr(){return theta_;}
+
+  void GPUSetup();
+
+  void CPUSetup(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream);
+
+  void paramsToDevice();
 
   /*
 
@@ -99,20 +120,19 @@ public:
   __device__ void printCudaParamVec();
    */
 
+  NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>* model_d_;
+
 private:
-  float dt_;
 
-  //Neural net structure
-  //int net_structure_[NUM_LAYERS] = {layer_args...};
-  //int stride_idcs_[NUM_LAYERS*2 + 1] = {0};
+  std::array<float2, C_DIM> control_rngs_;
 
-  //Host fields
-  //Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* weights_; ///< Matrices of weights {W_1, W_2, ... W_n}
-  //Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* biases_; ///< Vectors of biases {b_1, b_2, ... b_n}
-
-  //Eigen::MatrixXf* weighted_in_;
-
-  //float* net_params_;
+  // TODO convert to std::array
+  float theta_[NUM_PARAMS]; ///< structure parameter array. i.e. the actual weights
+  //[neurons in layer 1, neurons in layer 2, ...]
+  int net_structure_[NUM_LAYERS] = {layer_args...}; ///< structure for keeping track of the neural net structure. neurons per layer
+  // index into theta for weights and bias (layer 0 weights start, no bias in input layer, layer 1 weights start, layer1 bias start...
+  int stride_idcs_[(NUM_LAYERS - 1) * 2] = {0}; ///< structure for keeping track of parameter strides.
+  int test[(NUM_LAYERS - 1) * 2] = {0}; ///< structure for keeping track of parameter strides.
 };
 
 /*

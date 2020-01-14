@@ -31,6 +31,8 @@ void ARStandardCost::GPUSetup() {
 }
 
 void ARStandardCost::freeCudaMem() {
+  // TODO free everything
+  //cudaFree();
   cudaFree(cost_d_);
 }
 
@@ -42,6 +44,7 @@ void ARStandardCost::paramsToDevice() {
 }
 
 bool ARStandardCost::changeCostmapSize(int width, int height) {
+  // TODO set flag at top that indicates memory allocation changes
   if(height < 0 && width < 0) {
     std::cerr << "ERROR: cannot resize costmap to size less than 1" << std::endl;
     return false;

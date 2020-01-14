@@ -27,6 +27,7 @@ public:
     float boundary_threshold;
     float discount;
     int num_timesteps;
+    // TODO remove from struct
     int grid_res;
     /*
      * Prospective transform matrix

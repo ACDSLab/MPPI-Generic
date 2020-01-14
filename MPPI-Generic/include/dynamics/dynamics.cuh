@@ -19,7 +19,7 @@ public:
   static const int STATE_DIM = S_DIM;
   static const int CONTROL_DIM = C_DIM;
   Eigen::Matrix<float, STATE_DIM, 1> state_der_;
-  float dt;
+  float dt_;
 
   Dynamics() = default;
   ~Dynamics() = default;

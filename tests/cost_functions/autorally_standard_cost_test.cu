@@ -77,6 +77,8 @@ TEST(ARStandardCost, SetGetParamsHost) {
 }
 
 TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
+
+  // TODO make sre GPUMemstatus is false on the GPU so deallocation can be automatic
   ARStandardCost::ARStandardCostParams params;
   ARStandardCost cost;
   params.desired_speed = 25;
