@@ -6,6 +6,9 @@
 #include <cost_functions/autorally/ar_standard_cost.cuh>
 #include <cost_functions/ar_standard_cost_kernel_test.cuh>
 
+// Auto-generated header file
+#include <autorally_test_map.h>
+
 TEST(ARStandardCost, Constructor) {
   ARStandardCost cost;
 }
@@ -404,13 +407,11 @@ TEST(ARStandardCost, LoadTrackDataTest) {
   cost.setParams(params);
   cost.GPUSetup();
 
-  // TODO make path less stupid
-  std::string test_location = "/home/jgibson37/Documents/MPPI-Generic/resource/autorally/test/test_map.npz";
   Eigen::Matrix3f R;
   Eigen::Array3f trs;
 
   // load
-  std::vector<float4> costmap = cost.loadTrackData(test_location, R, trs);
+  std::vector<float4> costmap = cost.loadTrackData(mppi::tests::test_map_file, R, trs);
 
   EXPECT_FLOAT_EQ(costmap.at(0).x, 0);
   EXPECT_FLOAT_EQ(costmap.at(0).y, 0);
@@ -493,11 +494,10 @@ TEST(ARStandardCost, costmapToTextureLoadTest) {
   ARStandardCost cost;
   cost.GPUSetup();
 
-  std::string test_location = "/home/jgibson37/Documents/MPPI-Generic/resource/autorally/test/test_map.npz";
   Eigen::Matrix3f R;
   Eigen::Array3f trs;
 
-  std::vector<float4> costmap = cost.loadTrackData(test_location, R, trs);
+  std::vector<float4> costmap = cost.loadTrackData(mppi::tests::test_map_file, R, trs);
   cost.costmapToTexture();
 
   std::vector<float4> results;

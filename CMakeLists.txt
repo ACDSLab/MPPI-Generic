@@ -11,12 +11,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
 
 option(BUILD_TESTS "BUILD_TESTS" ON)
 
-
 # Allow the lib location to be overwritten from command line
 if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
     get_filename_component(PROJECT_LIBS_DIR ${PROJECT_BINARY_DIR}/lib ABSOLUTE)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/lib)
-    message("${PROJECT_LIBS_DIR}")
 else()
     get_filename_component(PROJECT_LIBS_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} ABSOLUTE)
 endif()
@@ -26,7 +24,7 @@ find_package(Eigen3 REQUIRED)
 # TODO not generic
 #include_directories(/home/jason/.local/include/eigen3)
 include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
-message(${EIGEN3_INCLUDE_DIR})
+message(STATUS "Eigen loc: ${EIGEN3_INCLUDE_DIR}")
 
 # Find OpenCV
 find_package(OpenCV REQUIRED)
@@ -37,7 +35,12 @@ find_package(yaml-cpp REQUIRED)
 include_directories(${YAML_CPP_INCLUDE_DIR})
 
 # set up cnpy
-include_directories(SYSTEM submodules/cnpy)
+# Don't install cnpy to user package registry
+set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
+set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
+add_subdirectory(submodules/cnpy)
+# Set the no package registry back to default
+set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 
 #find_package(CUDA REQUIRED)
 
@@ -50,19 +53,10 @@ set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 set(
         CUDA_NVCC_FLAGS
         ${CUDA_NVCC_FLAGS};
-        -std=c++11
         -maxrregcount=32;
-        -O3;
         -arch=sm_35;
         -w;
 )
-
-# TODO make option
-#set(
-#        CUDA_NVCC_FLAGS
-#        ${CUDA_NVCC_FLAGS};
-#        -O3;
-#)
 
 add_subdirectory(MPPI-Generic)
 

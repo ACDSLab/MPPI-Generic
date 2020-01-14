@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 import argparse
 
-def genLoadTrackDataTestMap():
+def genLoadTrackDataTestMap(args):
 
     # is this correct??
     width = 10
@@ -37,13 +37,17 @@ def genLoadTrackDataTestMap():
                   "channel3":channel3}
 
 
-    np.savez("../../../resource/autorally/test/test_map", **track_dict)
+    np.savez(args.output, **track_dict)
 
 
 if __name__ == "__main__":
-    #parser = argparse.ArgumentParser()
-    #parser.add_argument("-i", "--input", type = str, help = "Costmap in old .txt format")
-    #parser.add_argument("-d", "--display", type = str, help = "Name of image to save costmap as", default="display_image.jpg")
-    #parser.add_argument("-o", "--output", type = str, help = "File to save map to", default = "map.npz")
-    #args = vars(parser.parse_args())
-    genLoadTrackDataTestMap()
+    parser = argparse.ArgumentParser(description="Creates a npz map file for testing purposes")
+    # parser.add_argument("-i", "--input", type = str, help = "Costmap in old .txt format")
+    # parser.add_argument("-d", "--display", type = str,
+    #                     help = "Name of image to save costmap as",
+    #                     default="display_image.jpg")
+    parser.add_argument("-o", "--output", type = str,
+                        help = "File to save map to",
+                        default = "../../../resource/autorally/test/test_map.npz")
+    args = parser.parse_args()
+    genLoadTrackDataTestMap(args)

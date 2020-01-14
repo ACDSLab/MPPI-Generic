@@ -251,7 +251,7 @@ namespace mppi_common {
         const int gridsize_x = (num_rollouts - 1)/blocksize_x + 1;
         dim3 dimBlock(blocksize_x, blocksize_y, 1);
         dim3 dimGrid(gridsize_x, 1, 1);
-        rolloutKernel<class DYN_T, class COST_T><<<dimGrid, dimBlock>>>(dynamics, costs, dt,
+        rolloutKernel<DYN_T, COST_T><<<dimGrid, dimBlock>>>(dynamics, costs, dt,
                 num_timesteps, x_d, u_d, du_d, sigma_u_d);
         CudaCheckError();
         HANDLE_ERROR( cudaDeviceSynchronize() );

@@ -120,7 +120,7 @@ public:
   __device__ void printCudaParamVec();
    */
 
-  NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>* model_d_;
+  NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>* model_d_ = nullptr;
 
 private:
 
