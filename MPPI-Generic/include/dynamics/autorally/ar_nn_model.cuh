@@ -8,6 +8,7 @@
 #include <eigen3/Eigen/Dense>
 #include <opencv2/core/core.hpp>
 #include <cuda_runtime.h>
+#include <cnpy.h>
 
 /**
  * For AutoRally
@@ -78,20 +79,19 @@ public:
 
   void CPUSetup(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream);
 
+  void updateModel(std::vector<int> description, std::vector<float> data);
+
   void paramsToDevice();
 
+  void freeCudaMem();
+
+  void loadParams(const std::string& model_path);
+
   /*
-
-  void loadParams(std::string model_path);
-
   void setParams(Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* weights,
                  Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* biases);
 
-  void paramsToDevice();
-
   void printParamVec();
-
-  void freeCudaMem();
 
   void enforceConstraints(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
 
@@ -103,7 +103,6 @@ public:
 
   void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
 
-  void updateModel(std::vector<int> description, std::vector<float> data);
 
   __device__ void computeKinematics(float* state, float* state_der);
 

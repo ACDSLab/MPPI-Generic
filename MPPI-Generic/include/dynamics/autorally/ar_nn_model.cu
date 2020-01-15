@@ -19,6 +19,11 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel() {
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem() {
+
+}
+
+template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream) {
   this->bindToStream(stream);
   this->dt_ = delta_t;
@@ -28,7 +33,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup(float delta_t,
 
   // setup the stride_idcs_ variable since it does not change in this template instantiation
   int stride = 0;
-  // TODO what?
+  // TODO verify that the change is correct
   for(int i = 0; i < NUM_LAYERS - 1; i++) {
     stride_idcs_[2 * i] = stride;
     stride += net_structure_[i+1] * net_structure_[i];
@@ -50,9 +55,38 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::GPUSetup() {
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice() {
-
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector<int> description,
+        std::vector<float> data) {
+  for(int i = 0; i < description.size(); i++) {
+    if(description[i] != net_structure_[i]) {
+      std::cerr << "Invalid model trying to to be set for NN" << std::endl;
+      exit(0);
+    }
+  }
+  for (int i = 0; i < NUM_LAYERS - 1; i++){
+    for (int j = 0; j < net_structure_[i+1]; j++){
+      for (int k = 0; k < net_structure_[i]; k++){
+        theta_[stride_idcs_[2*i] + j*net_structure_[i] + k] = data[stride_idcs_[2*i] + j*net_structure_[i] + k];
+      }
+    }
+  }
+  for (int i = 0; i < NUM_LAYERS - 1; i++){
+    for (int j = 0; j < net_structure_[i+1]; j++){
+      theta_[stride_idcs_[2*i + 1] + j] = data[stride_idcs_[2*i + 1] + j];
+    }
+  }
+  paramsToDevice();
 }
+
+template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice() {
+  HANDLE_ERROR( cudaMemcpy(model_d_->theta_, theta_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
+}
+
+template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::string& model_path) {
+}
+
 
 
 /*

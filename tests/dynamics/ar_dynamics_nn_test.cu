@@ -137,10 +137,12 @@ TEST(ARNeuralNetDynamics, GPUSetupAndParamsCheck) {
   std::array<int, 4> net_structure_result = {};
 
   EXPECT_EQ(model.GPUMemStatus_, false);
+  EXPECT_EQ(model.model_d_, nullptr);
 
   model.GPUSetup();
 
   EXPECT_EQ(model.GPUMemStatus_, true);
+  EXPECT_NE(model.model_d_, nullptr);
 
   //launch kernel
   launchParameterCheckTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1412, 6, 4>
@@ -159,5 +161,61 @@ TEST(ARNeuralNetDynamics, GPUSetupAndParamsCheck) {
   for(int i = 0; i < 4; i++) {
     EXPECT_EQ(net_structure[i], net_structure_result[i]);
   }
+}
+
+TEST(ARNeuralNetDynamics, UpdateModelTest) {
+  NeuralNetModel<7,2,3,6,32,32,4> model(0.1);
+
+  std::array<float, 1412> theta = model.getTheta();
+  std::array<int, 6> stride = model.getStideIdcs();
+  std::array<int, 4> net_structure = model.getNetStructure();
+
+  std::array<float, 1412> theta_result = {};
+  std::array<int, 6> stride_result = {};
+  std::array<int, 4> net_structure_result = {};
+
+  model.GPUSetup();
+
+  std::vector<float> theta_vec(1412);
+  srand (time(NULL));
+  for(int i = 0; i < 1412; i++) {
+    theta_vec[i] = rand();
+  }
+
+  model.updateModel({6, 32, 32, 4}, theta_vec);
+
+  // check CPU
+  for(int i = 0; i < 1412; i++) {
+    // these are a bunch of mostly random values and nan != nan
+    if(!isnan(theta_vec[i])) {
+      EXPECT_FLOAT_EQ(model.getTheta()[i], theta_vec[i]);
+    }
+  }
+
+  //launch kernel
+  launchParameterCheckTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1412, 6, 4>
+          (model, theta_result, stride_result, net_structure_result);
+
+  for(int i = 0; i < 1412; i++) {
+    // these are a bunch of mostly random values and nan != nan
+    if(!isnan(theta_vec[i])) {
+      EXPECT_FLOAT_EQ(theta_result[i], theta_vec[i]) << "failed at index " << i;
+    }
+  }
+  for(int i = 0; i < 6; i++) {
+    EXPECT_EQ(stride_result[i], stride[i]);
+  }
+
+  for(int i = 0; i < 4; i++) {
+    EXPECT_EQ(net_structure[i], net_structure_result[i]);
+  }
+}
+
+TEST(ARNeuralNetDynamics, LoadModelTest) {
+  NeuralNetModel<7,2,3,6,32,32,4> model(0.1);
+  model.GPUSetup();
+
+  // TODO procedurally generate a NN in python and save and run like costs
+
 }
 
