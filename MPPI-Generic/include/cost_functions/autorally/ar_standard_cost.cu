@@ -6,7 +6,9 @@ ARStandardCost::ARStandardCost(cudaStream_t stream) {
 }
 
 ARStandardCost::~ARStandardCost() {
-
+  if(!GPUMemStatus_) {
+    freeCudaMem();
+  }
 }
 
 void ARStandardCost::setParams(ARStandardCostParams params) {
@@ -87,7 +89,7 @@ void ARStandardCost::clearCostmapCPU(int width, int height) {
   }
 }
 
-std::vector<float4> ARStandardCost::loadTrackData(std::string map_path, Eigen::Matrix3f &R, Eigen::Array3f &trs) {
+std::vector<float4> ARStandardCost::loadTrackData(std::string map_path) {
   // check if file exists
   if(!fileExists(map_path)) {
     std::cerr << "ERROR: map path invalid, " << map_path << std::endl;
@@ -127,11 +129,17 @@ std::vector<float4> ARStandardCost::loadTrackData(std::string map_path, Eigen::M
     track_costs_[i].w = channel3[i];
   }
 
+  Eigen::Matrix3f R;
+  Eigen::Array3f trs;
+
   //Save the scaling and offset
   R << 1./(x_max - x_min), 0,                  0,
           0,                  1./(y_max - y_min), 0,
           0,                  0,                  1;
   trs << -x_min/(x_max - x_min), -y_min/(y_max - y_min), 1;
+
+  updateTransform(R, trs);
+  costmapToTexture();
 
   return track_costs_;
 }
@@ -173,7 +181,7 @@ void ARStandardCost::costmapToTexture() {
 }
 
 inline __device__ float4 ARStandardCost::queryTexture(float x, float y) const {
-  printf("\nquerying point (%f, %f)", x, y);
+  //printf("\nquerying point (%f, %f)", x, y);
   return tex2D<float4>(costmap_tex_d_, x, y);
 }
 
@@ -198,4 +206,116 @@ __host__ __device__ void ARStandardCost::coorTransform(float x, float y, float* 
   u[0] = params_.r_c1.x*x + params_.r_c2.x*y + params_.trs.x;
   v[0] = params_.r_c1.y*x + params_.r_c2.y*y + params_.trs.y;
   w[0] = params_.r_c1.z*x + params_.r_c2.z*y + params_.trs.z;
+}
+
+__device__ float4 ARStandardCost::queryTextureTransformed(float x, float y) {
+  float u, v, w;
+  coorTransform(x, y, &u, &v, &w);
+  return tex2D<float4>(costmap_tex_d_, u/w, v/w);
+}
+
+Eigen::Matrix3f ARStandardCost::getRotation() {
+  Eigen::Matrix3f m;
+  m(0,0) = params_.r_c1.x;
+  m(1,0) = params_.r_c1.y;
+  m(2,0) = params_.r_c1.z;
+  m(0,1) = params_.r_c2.x;
+  m(1,1) = params_.r_c2.y;
+  m(2,1) = params_.r_c2.z;
+  m(0,2) = 0.0;
+  m(1,2) = 0.0;
+  m(2,2) = 1.0;
+  return m;
+}
+
+Eigen::Array3f ARStandardCost::getTranslation() {
+  Eigen::Array3f array;
+  array(0) = params_.trs.x;
+  array(1) = params_.trs.y;
+  array(2) = params_.trs.z;
+  return array;
+}
+
+inline __host__ __device__ float ARStandardCost::getTerminalCost(float *s) {
+  return 0.0;
+}
+
+inline __host__ __device__ float ARStandardCost::getControlCost(float *u, float *du, float *vars) {
+  float control_cost = 0.0;
+  control_cost += params_.steering_coeff*du[0]*(u[0] - du[0])/(vars[0]*vars[0]);
+  control_cost += params_.throttle_coeff*du[1]*(u[1] - du[1])/(vars[1]*vars[1]);
+  return control_cost;
+}
+
+inline __host__ __device__ float ARStandardCost::getSpeedCost(float *s, int *crash) {
+  float cost = 0;
+  float error = s[4] - params_.desired_speed;
+  if (l1_cost_){
+    cost = fabs(error);
+  }
+  else {
+    cost = error*error;
+  }
+  return (params_.speed_coeff*cost);
+}
+
+inline __host__ __device__ float ARStandardCost::getStabilizingCost(float *s) {
+  float stabilizing_cost = 0;
+  if (fabs(s[4]) > 0.001) {
+    float slip = -atan(s[5]/fabs(s[4]));
+    stabilizing_cost = params_.slip_penalty*powf(slip,2);
+    if (fabs(-atan(s[5]/fabs(s[4]))) > params_.max_slip_ang) {
+      //If the slip angle is above the max slip angle kill the trajectory.
+      stabilizing_cost += params_.crash_coeff;
+    }
+  }
+  return stabilizing_cost;
+}
+
+inline __host__ __device__ float ARStandardCost::getCrashCost(float *s, int *crash, int num_timestep) {
+  float crash_cost = 0;
+  if (crash[0] > 0) {
+    crash_cost = params_.crash_coeff;
+  }
+  return crash_cost;
+}
+
+inline __device__ float ARStandardCost::getTrackCost(float *s, int *crash) {
+  float track_cost = 0;
+
+  //Compute a transformation to get the (x,y) positions of the front and back of the car.
+  float x_front = s[0] + FRONT_D*__cosf(s[2]);
+  float y_front = s[1] + FRONT_D*__sinf(s[2]);
+  float x_back = s[0] + BACK_D*__cosf(s[2]);
+  float y_back = s[1] + BACK_D*__sinf(s[2]);
+
+  //Cost of front of the car
+  float track_cost_front = queryTextureTransformed(x_front, y_front).x;
+  //Cost for back of the car
+  float track_cost_back = queryTextureTransformed(x_back, y_back).x;
+
+  track_cost = (fabs(track_cost_front) + fabs(track_cost_back) )/2.0;
+  if (fabs(track_cost) < params_.track_slop) {
+    track_cost = 0;
+  }
+  else {
+    track_cost = params_.track_coeff*track_cost;
+  }
+  if (track_cost_front >= params_.boundary_threshold || track_cost_back >= params_.boundary_threshold) {
+    crash[0] = 1;
+  }
+  return track_cost;
+}
+
+inline __device__ float ARStandardCost::computeCost(float *s, float *u, float *du, float *vars, int *crash, int timestep) {
+  float control_cost = getControlCost(u, du, vars);
+  float track_cost = getTrackCost(s, crash);
+  float speed_cost = getSpeedCost(s, crash);
+  float crash_cost = (1.0 - params_.discount)*getCrashCost(s, crash, timestep);
+  float stabilizing_cost = getStabilizingCost(s);
+  float cost = control_cost + speed_cost + crash_cost + track_cost + stabilizing_cost;
+  if (cost > 1e12 || isnan(cost)) {
+    cost = 1e12;
+  }
+  return cost;
 }

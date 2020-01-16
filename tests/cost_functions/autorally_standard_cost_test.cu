@@ -110,10 +110,12 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   cost.setParams(params);
 
   EXPECT_EQ(cost.GPUMemStatus_, false);
+  EXPECT_EQ(cost.cost_d_, nullptr);
 
   cost.GPUSetup();
 
   EXPECT_EQ(cost.GPUMemStatus_, true);
+  EXPECT_NE(cost.cost_d_, nullptr);
 
 
   ARStandardCost::ARStandardCostParams result_params;
@@ -401,17 +403,15 @@ TEST(ARStandardCost, updateTransformGPUTest) {
 
 
 TEST(ARStandardCost, LoadTrackDataTest) {
-  ARStandardCost::ARStandardCostParams params;
   ARStandardCost cost;
   // TODO set parameters for cost map
-  cost.setParams(params);
   cost.GPUSetup();
 
-  Eigen::Matrix3f R;
-  Eigen::Array3f trs;
-
   // load
-  std::vector<float4> costmap = cost.loadTrackData(mppi::tests::test_map_file, R, trs);
+  std::vector<float4> costmap = cost.loadTrackData(mppi::tests::test_map_file);
+
+  Eigen::Matrix3f R = cost.getRotation();
+  Eigen::Array3f trs = cost.getTranslation();
 
   EXPECT_FLOAT_EQ(costmap.at(0).x, 0);
   EXPECT_FLOAT_EQ(costmap.at(0).y, 0);
@@ -490,14 +490,13 @@ TEST(ARStandardCost, costmapToTextureNoLoadTest) {
 }
 
 TEST(ARStandardCost, costmapToTextureLoadTest) {
-  std::cout << "\n\n" << std::endl;
   ARStandardCost cost;
   cost.GPUSetup();
 
   Eigen::Matrix3f R;
   Eigen::Array3f trs;
 
-  std::vector<float4> costmap = cost.loadTrackData(mppi::tests::test_map_file, R, trs);
+  std::vector<float4> costmap = cost.loadTrackData(mppi::tests::test_map_file);
   cost.costmapToTexture();
 
   std::vector<float4> results;
@@ -524,3 +523,236 @@ TEST(ARStandardCost, costmapToTextureLoadTest) {
   EXPECT_FLOAT_EQ(results.at(1).w, 1000);
 }
 
+
+TEST(ARStandardCost, costmapToTextureTransformTest) {
+  ARStandardCost cost;
+  cost.GPUSetup();
+
+
+  std::vector<float4> costmap = cost.loadTrackData(mppi::tests::test_map_file);
+  cost.costmapToTexture();
+
+  std::vector<float4> results;
+  std::vector<float2> query_points;
+  float2 point;
+  // transform has x = 0.5
+  point.x = -4.5; // comes out to index 0
+  point.y = -10;
+  query_points.push_back(point);
+  point.x = -3.5; // 1 meter over, 2ppm = third index
+  point.y = -10;
+  query_points.push_back(point);
+
+  launchTextureTransformTestKernel(cost, results, query_points);
+
+  EXPECT_EQ(query_points.size(), results.size());
+
+  EXPECT_FLOAT_EQ(results.at(0).x, 0);
+  EXPECT_FLOAT_EQ(results.at(0).y, 0);
+  EXPECT_FLOAT_EQ(results.at(0).z, 0);
+  EXPECT_FLOAT_EQ(results.at(0).w, 0);
+  EXPECT_FLOAT_EQ(results.at(1).x, 2);
+  EXPECT_FLOAT_EQ(results.at(1).y, 20);
+  EXPECT_FLOAT_EQ(results.at(1).z, 200);
+  EXPECT_FLOAT_EQ(results.at(1).w, 2000);
+
+
+  Eigen::Matrix3f R;
+  Eigen::Array3f trs;
+
+  R <<  0.1, 0, 0, 0, 0.05, 0, 0, 0, 1;
+  trs << 0, 0, 1;
+  cost.updateTransform(R, trs);
+
+  query_points[0].x = 0.0;
+  query_points[0].y = 0.0;
+
+  query_points[1].x = 0.0;
+  query_points[1].y = 1.0;
+
+  launchTextureTransformTestKernel(cost, results, query_points);
+
+  EXPECT_EQ(query_points.size(), results.size());
+
+  EXPECT_FLOAT_EQ(results.at(0).x, 0);
+  EXPECT_FLOAT_EQ(results.at(0).y, 0);
+  EXPECT_FLOAT_EQ(results.at(0).z, 0);
+  EXPECT_FLOAT_EQ(results.at(0).w, 0);
+  EXPECT_FLOAT_EQ(results.at(1).x, 20);
+  EXPECT_FLOAT_EQ(results.at(1).y, 200);
+  EXPECT_FLOAT_EQ(results.at(1).z, 2000);
+  EXPECT_FLOAT_EQ(results.at(1).w, 20000);
+}
+
+
+TEST(ARStandardCost, TerminalCostTest) {
+  ARStandardCost cost;
+  float state[7];
+  float result = cost.getTerminalCost(state);
+  EXPECT_FLOAT_EQ(result, 0.0);
+}
+
+TEST(ARStandardCost, controlCostTest) {
+
+  float u[2] = {0.5, 0.6};
+  float du[2] = {0.3, 0.4};
+  float nu[2] = {0.2, 0.8};
+  ARStandardCost cost;
+  ARStandardCost::ARStandardCostParams params;
+  params.steering_coeff = 20;
+  params.throttle_coeff = 10;
+  cost.setParams(params);
+
+  float result = cost.getControlCost(u, du, nu);
+
+  EXPECT_FLOAT_EQ(result, 1.5*20+.125*10);
+
+  params.throttle_coeff = 20;
+  params.steering_coeff = 10;
+  cost.setParams(params);
+
+  result = cost.getControlCost(u, du, nu);
+  EXPECT_FLOAT_EQ(result, 1.5*10+.125*20);
+}
+
+TEST(ARStandardCost, getSpeedCostTest) {
+  ARStandardCost cost;
+  ARStandardCost::ARStandardCostParams params;
+  params.desired_speed = 25;
+  params.speed_coeff = 10;
+  cost.setParams(params);
+
+  float state[7];
+  for(int i = 0; i < 7; i++) {
+    state[i] = 0;
+  }
+  int crash = 0;
+  state[4] = 10;
+
+  float result = cost.getSpeedCost(state, &crash);
+
+  EXPECT_FLOAT_EQ(result, 15*15*10);
+
+  params.desired_speed = 0;
+  params.speed_coeff = 100;
+  cost.setParams(params);
+
+  result = cost.getSpeedCost(state, &crash);
+
+  EXPECT_FLOAT_EQ(result, 10*10*100);
+}
+
+TEST(ARStandardCost, getStablizingCostTest) {
+  ARStandardCost cost;
+  ARStandardCost::ARStandardCostParams params;
+  params.slip_penalty = 25;
+  params.crash_coeff = 1000;
+  params.max_slip_ang = 0.5;
+  cost.setParams(params);
+
+  float state[7];
+  for(int i = 0; i < 7; i++) {
+    state[i] = 0;
+  }
+  state[4] = 0.1;
+  state[5] = 0.0;
+
+  float result = cost.getStabilizingCost(state);
+
+  EXPECT_FLOAT_EQ(result, 0);
+
+  state[5] = 0.01;
+
+  result = cost.getStabilizingCost(state);
+
+  EXPECT_FLOAT_EQ(result, 0.2483460072);
+
+  state[5] = 0.2;
+
+  result = cost.getStabilizingCost(state);
+
+  EXPECT_FLOAT_EQ(result, 1030.6444);
+}
+
+TEST(ARStandardCost, getCrashCostTest) {
+
+  ARStandardCost cost;
+  ARStandardCost::ARStandardCostParams params;
+  params.crash_coeff = 10000;
+  cost.setParams(params);
+
+  float state[7];
+  for(int i = 0; i < 7; i++) {
+    state[i] = 0;
+  }
+  int crash = 0;
+  state[4] = 10;
+
+  float result = cost.getCrashCost(state, &crash, 10);
+
+  EXPECT_FLOAT_EQ(result, 0);
+
+  crash = 1;
+  result = cost.getCrashCost(state, &crash, 10);
+
+  EXPECT_FLOAT_EQ(result, 10000);
+}
+
+TEST(ARStandardCost, getTrackCostTest) {
+  ARStandardCost cost;
+  ARStandardCost::ARStandardCostParams params;
+  params.track_coeff = 100;
+  params.track_slop = 1.0;
+  params.boundary_threshold = 100.0;
+  cost.setParams(params);
+
+  cost.GPUSetup();
+
+  cost.loadTrackData(mppi::tests::test_map_file);
+
+  std::vector<float3> states(1);
+  states[0].x = -4.5;
+  states[0].y = -10;
+  states[0].z = 0.0; // theta
+
+  std::vector<float> cost_results;
+  std::vector<int> crash_results;
+
+  launchTrackCostTestKernel(cost, states, cost_results, crash_results);
+
+  EXPECT_FLOAT_EQ(cost_results[0], 0.0);
+  EXPECT_FLOAT_EQ(crash_results[0], 0.0);
+}
+
+TEST(ARStandardCost, computeCostTest) {
+  ARStandardCost cost;
+  ARStandardCost::ARStandardCostParams params;
+  params.track_coeff = 100;
+  params.track_slop = 1.0;
+  params.boundary_threshold = 100.0;
+  cost.setParams(params);
+
+  cost.GPUSetup();
+
+  cost.loadTrackData(mppi::tests::test_map_file);
+
+  std::vector<std::array<float, 9>> states;
+
+  std::array<float, 9> array = {0.0};
+  array[0] = 0.0;
+  array[1] = 0.0;
+  array[2] = 0.0;
+  array[3] = 0.0;
+  array[4] = 0.0;
+  array[5] = 0.0;
+  array[6] = 0.0;
+  array[7] = 0.0;
+  array[8] = 0.0;
+  states.push_back(array);
+
+  std::vector<float> cost_results;
+
+  launchComputeCostTestKernel(cost, states, cost_results);
+
+  EXPECT_FLOAT_EQ(cost_results[0], 0.0);
+}

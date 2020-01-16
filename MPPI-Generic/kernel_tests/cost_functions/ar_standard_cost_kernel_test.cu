@@ -56,7 +56,7 @@ __global__ void checkCudaArrayKernel(float4* result_arr, cudaArray* array, int n
   //printf("\nEntering the kernel!\n");
   //printf("The thread id is: %i\n", tid);
   if(tid < number) {
-    printf("The thread id is: %i\n", tid);
+    //printf("The thread id is: %i\n", tid);
     result_arr[tid].x = 0.0;
     result_arr[tid].y = 0.0;
     result_arr[tid].z = 0.0;
@@ -120,16 +120,14 @@ __global__ void textureTestKernel(const ARStandardCost& cost, float4* test_resul
   //printf("\nEntering the kernel!\n");
   //printf("The thread id is: %i\n", tid);
   if(tid < num_points) {
-    printf("thread id: %i went to check texture at index %i, %i\n", tid, test_indexes[tid].x, test_indexes[tid].y);
+    //printf("thread id: %i went to check texture at index %i, %i\n", tid, test_indexes[tid].x, test_indexes[tid].y);
 
     // query texture
     float4 track_params_back = cost.queryTexture(test_indexes[tid].x, test_indexes[tid].y);
     // put result in array
-    printf("thread id: %i got texture point (%f, %f, %f, %f)\n", tid, track_params_back.x, track_params_back.y, track_params_back.z, track_params_back.w);
+    //printf("thread id: %i got texture point (%f, %f, %f, %f)\n", tid, track_params_back.x, track_params_back.y, track_params_back.z, track_params_back.w);
     test_results[tid] = track_params_back;
     //test_results[tid].x = 1;
-  } else {
-    printf("thread id: %i did not check texture\n", tid);
   }
 }
 
@@ -158,5 +156,144 @@ void launchTextureTestKernel(const ARStandardCost& cost, std::vector<float4>& te
 
   cudaFree(tex_results_d);
   cudaFree(tex_test_indexes_d);
+}
+
+__global__ void textureTransformTestKernel(ARStandardCost& cost, float4* test_results, float2* test_indexes, int num_points) {
+  int tid = blockIdx.x*blockDim.x + threadIdx.x;
+  //printf("\nEntering the kernel!\n");
+  //printf("The thread id is: %i\n", tid);
+  if(tid < num_points) {
+    // query texture
+    float4 track_params_back = cost.queryTextureTransformed(test_indexes[tid].x, test_indexes[tid].y);
+    // put result in array
+    test_results[tid] = track_params_back;
+    //test_results[tid].x = 1;
+  }
+}
+
+void launchTextureTransformTestKernel(const ARStandardCost& cost, std::vector<float4>& test_results, std::vector<float2>& test_indexes) {
+  int num_test_points = test_indexes.size();
+  test_results.resize(num_test_points);
+
+  float4* tex_results_d;
+  float2* tex_test_indexes_d;
+  HANDLE_ERROR(cudaMalloc((void**)&tex_results_d, sizeof(float4)*num_test_points))
+  HANDLE_ERROR(cudaMalloc((void**)&tex_test_indexes_d, sizeof(float2)*num_test_points))
+
+  HANDLE_ERROR(cudaMemcpy(tex_test_indexes_d, test_indexes.data(), sizeof(float2)*num_test_points, cudaMemcpyHostToDevice));
+
+  // TODO amount should depend on the number of query points
+  dim3 threadsPerBlock(num_test_points, 1);
+  dim3 numBlocks(1, 1);
+  textureTransformTestKernel<<<numBlocks,threadsPerBlock>>>(*cost.cost_d_, tex_results_d, tex_test_indexes_d, num_test_points);
+  CudaCheckError();
+  cudaDeviceSynchronize();
+
+  // Copy the memory back to the host
+  HANDLE_ERROR(cudaMemcpy(test_results.data(), tex_results_d, sizeof(float4)*num_test_points, cudaMemcpyDeviceToHost));
+
+  cudaDeviceSynchronize();
+
+  cudaFree(tex_results_d);
+  cudaFree(tex_test_indexes_d);
+}
+
+__global__ void trackCostTestKernel(ARStandardCost& cost, float3* test_indexes, int num_points,
+                                    float* cost_results, int* crash_results) {
+
+  int tid = blockIdx.x*blockDim.x + threadIdx.x;
+  if(tid < num_points) {
+    float state[7];
+    int crash = 0;
+    state[0] = test_indexes[tid].x;
+    state[1] = test_indexes[tid].y;
+    state[2] = test_indexes[tid].z;
+    printf("got test indexes %d, state %d, %d, %d\n", tid, state[0], state[1], state[2]);
+    cost_results[tid] = cost.getTrackCost(state, &crash);
+    printf("set results %d\n", tid);
+    crash_results[tid] = crash;
+    printf("set crash results %d\n", tid);
+  }
+}
+
+void launchTrackCostTestKernel(const ARStandardCost& cost, std::vector<float3>& test_indexes,
+                               std::vector<float>& cost_results, std::vector<int>& crash_results) {
+
+  int num_test_points = test_indexes.size();
+  crash_results.resize(num_test_points);
+  cost_results.resize(num_test_points);
+
+  float* cost_results_d;
+  int* crash_results_d;
+  float3* test_indexes_d;
+  HANDLE_ERROR(cudaMalloc((void**)&cost_results_d, sizeof(float)*num_test_points))
+  HANDLE_ERROR(cudaMalloc((void**)&crash_results_d, sizeof(int)*num_test_points))
+  HANDLE_ERROR(cudaMalloc((void**)&test_indexes_d, sizeof(float3)*num_test_points))
+
+  HANDLE_ERROR(cudaMemcpy(test_indexes_d, test_indexes.data(), sizeof(float3)*num_test_points, cudaMemcpyHostToDevice));
+
+  // TODO amount should depend on the number of query points
+  dim3 threadsPerBlock(num_test_points, 1);
+  dim3 numBlocks(1, 1);
+  trackCostTestKernel<<<numBlocks,threadsPerBlock>>>(*cost.cost_d_, test_indexes_d, num_test_points, cost_results_d, crash_results_d);
+  CudaCheckError();
+  cudaDeviceSynchronize();
+
+  // Copy the memory back to the host
+  HANDLE_ERROR(cudaMemcpy(cost_results.data(), cost_results_d, sizeof(float)*num_test_points, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(crash_results.data(), crash_results_d, sizeof(int)*num_test_points, cudaMemcpyDeviceToHost));
+
+  cudaDeviceSynchronize();
+
+  cudaFree(cost_results_d);
+  cudaFree(crash_results_d);
+  cudaFree(test_indexes_d);
+}
+
+__global__ void computeCostTestKernel(ARStandardCost& cost, float* test_xu, float* cost_results, int num_points) {
+
+  int tid = blockIdx.x*blockDim.x + threadIdx.x;
+  if(tid < num_points) {
+    float* state = &test_xu[tid];
+    float* control = &test_xu[tid+7];
+    int crash = 0;
+    float vars[2];
+    float du[2];
+    cost_results[tid] = cost.computeCost(state, control, du, vars, &crash, tid);
+  }
+}
+
+void launchComputeCostTestKernel(const ARStandardCost& cost, std::vector<std::array<float, 9>>& test_xu, std::vector<float>& cost_results) {
+
+  int num_test_points = test_xu.size();
+  cost_results.resize(num_test_points*9);
+
+  float* cost_results_d;
+  float* test_xu_d;
+  HANDLE_ERROR(cudaMalloc((void**)&cost_results_d, sizeof(float)*num_test_points))
+  HANDLE_ERROR(cudaMalloc((void**)&test_xu_d, sizeof(float)*9*num_test_points))
+
+  for(int i = 0; i < num_test_points; i++) {
+    for(int j = 0; j < 9; j++) {
+      cost_results[9*i+j] = test_xu[i][j];
+    }
+  }
+
+  HANDLE_ERROR(cudaMemcpy(test_xu_d, test_xu.data(), sizeof(float)*9*num_test_points, cudaMemcpyHostToDevice));
+
+  // TODO amount should depend on the number of query points
+  dim3 threadsPerBlock(num_test_points, 1);
+  dim3 numBlocks(1, 1);
+  computeCostTestKernel<<<numBlocks,threadsPerBlock>>>(*cost.cost_d_, test_xu_d, cost_results_d, num_test_points);
+  CudaCheckError();
+  cudaDeviceSynchronize();
+
+  // Copy the memory back to the host
+  HANDLE_ERROR(cudaMemcpy(cost_results.data(), cost_results_d, sizeof(float)*num_test_points, cudaMemcpyDeviceToHost));
+
+  cudaDeviceSynchronize();
+
+  cudaFree(cost_results_d);
+  cudaFree(test_xu_d);
 }
 

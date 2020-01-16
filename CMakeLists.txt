@@ -39,6 +39,7 @@ include_directories(${YAML_CPP_INCLUDE_DIR})
 set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
 set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
 add_subdirectory(submodules/cnpy)
+include_directories(submodules/cnpy)
 # Set the no package registry back to default
 set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 

@@ -74,6 +74,8 @@ public:
   inline __host__ __device__ int getHeight() {return height_;}
   inline __host__ __device__ int getWidth() {return width_;}
   inline std::vector<float4> getTrackCostCPU() {return track_costs_;}
+  inline Eigen::Matrix3f getRotation();
+  inline Eigen::Array3f getTranslation();
   //inline __host__ __device__ cudaArray* getCudaArray() {return costmapArray_d_;}
   //inline __host__ __device__ cudaArray_t* getCudaArrayPointer() {return &costmapArray_d_;}
   //inline __host__ __device__ cudaTextureObject_t* getCostmapTex(){return &costmap_tex_d_;};
@@ -122,20 +124,18 @@ public:
   __device__ float4 queryTexture(float x, float y) const;
 
   /**
-   * @brief Updates the current costmap coordinate transform.
-   * @param h Matrix representing a transform from world to (offset) costmap coordinates.
-   * @param trs Array representing the offset.
-   */
-  //void updateTransform(Eigen::MatrixXf h, Eigen::ArrayXf trs);
-
-  /**
    * @brief Loads track data from a file.
    * @param C-string representing the path to the costmap data file.
    * @param h Matrix representing a transform from world to (offset) costmap coordinates.
    * @param trs Array representing the offset.
    */
-  std::vector<float4> loadTrackData(std::string map_path, Eigen::Matrix3f &R, Eigen::Array3f &trs);
+  std::vector<float4> loadTrackData(std::string map_path);
 
+  /**
+   * @brief Updates the current costmap coordinate transform.
+   * @param h Matrix representing a transform from world to (offset) costmap coordinates.
+   * @param trs Array representing the offset.
+   */
   void updateTransform(Eigen::MatrixXf m, Eigen::ArrayXf trs);
 
   /**
@@ -144,15 +144,9 @@ public:
   __host__ __device__ void coorTransform(float x, float y, float* u, float* v, float* w);
 
   /**
-   * @brief Return what the desired speed is set to.
+   * Queries the texture using coorTransform beforehand
    */
-  //float getDesiredSpeed();
-
-  /**
-   * @brief Sets the desired speed of the vehicle.
-   * @param desired_speed The desired speed.
-   */
-  //void setDesiredSpeed(float desired_speed);
+  __device__ float4 queryTextureTransformed(float x, float y);
 
   /**
    *@brief Initializes the debug window for a default 20x20 meter window.
@@ -193,41 +187,40 @@ public:
   /**
    * @brief Compute the control cost
    */
-  //__host__ __device__ float getControlCost(float* u, float* du, float* vars);
+  __host__ __device__ float getControlCost(float* u, float* du, float* vars);
 
   /**
    * @brief Compute the cost for achieving a desired speed
    */
-  //__host__ __device__ float getSpeedCost(float* s, int* crash);
+  __host__ __device__ float getSpeedCost(float* s, int* crash);
 
   /**
    * @brief Compute a penalty term for crashing
    */
-  //__host__ __device__ float getCrashCost(float* s, int* crash, int num_timestep);
+  __host__ __device__ float getCrashCost(float* s, int* crash, int num_timestep);
 
   /**
    * @brief Compute some cost terms that help stabilize the car.
    */
-  //__host__ __device__ float getStabilizingCost(float* s);
-
+  __host__ __device__ float getStabilizingCost(float* s);
 
   /**
    * @brief Compute the current track cost based on the costmap.
    * Requires using CUDA texture memory so can only be run on the GPU
    */
-  //__device__ float getTrackCost(float* s, int* crash);
+  __device__ float getTrackCost(float* s, int* crash);
 
   /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
-  //__host__ __device__ float computeCost(float* s, float* u, float* du, float* vars, int* crash, int t);
+  __device__ float computeCost(float* s, float* u, float* du, float* vars, int* crash, int timestep);
 
   /**
    * @brief Computes the terminal cost from a state
    */
-  //__host__ __device__ float terminalCost(float* s);
+  __host__ __device__ float getTerminalCost(float* s);
 
-  ARStandardCost* cost_d_;
+  ARStandardCost* cost_d_ = nullptr;
 
 protected:
 
@@ -235,7 +228,7 @@ protected:
   const float FRONT_D = 0.5; ///< Distance from GPS receiver to front of car.
   const float BACK_D = -0.5; ///< Distance from GPS receiver to back of car.
 
-  bool l1_cost_; //Whether to use L1 speed cost (if false it is L2)
+  bool l1_cost_ = false; //Whether to use L1 speed cost (if false it is L2)
 
   //Primary variables
   int width_ =  -1; ///< width of costmap

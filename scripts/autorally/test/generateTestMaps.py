@@ -19,6 +19,7 @@ def genLoadTrackDataTestMap(args):
     counter = 0
     for i in range(0, width*pixelsPerMeter):
         for j in range(0, height*pixelsPerMeter):
+            # TODO this is actually flipped, but loaded into CUDA correctly
             print("putting width and height, ", pixelsPerMeter * height * i + j, " ", counter)
             counter+= 1
             channel0[i, j] = pixelsPerMeter * height * i + j
