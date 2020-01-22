@@ -30,7 +30,7 @@ TEST(RolloutKernel, loadGlobalToShared) {
 
 TEST(RolloutKernel, injectControlNoiseOnce) {
     int num_timesteps = 1;
-    int num_rollouts = 1;
+    int num_rollouts = mppi_common::num_rollouts;
     std::vector<float> u_traj_host = {3.f, 4.f, 5.f};
 
     // Control noise
@@ -54,16 +54,16 @@ TEST(RolloutKernel, injectControlNoiseOnce) {
     // Make sure the last 99 percent are zero control with noise
     for (int j = num_rollouts*.99; j < num_rollouts; ++j) {
         for (int i = 0; i < mppi_common::control_dim; ++i) {
-            ASSERT_FLOAT_EQ(ep_v_host[j*num_timesteps*mppi_common::control_dim + timestep*mppi_common::control_dim + i],
+            ASSERT_FLOAT_EQ(ep_v_host[j*num_timesteps*mppi_common::control_dim + timestep*mppi_common::control_dim + i]*sigma_u_host[i],
                     control_compute[j*num_timesteps*mppi_common::control_dim + timestep*mppi_common::control_dim + i]);
         }
     }
 
     // Make sure everything else are initial control plus noise
-    for (int j = 0; j < num_rollouts*.99; ++j) {
+    for (int j = 1; j < num_rollouts*.99; ++j) {
         for (int i = 0; i < mppi_common::control_dim; ++i) {
-            ASSERT_FLOAT_EQ(ep_v_host[j*num_timesteps*mppi_common::control_dim + timestep*mppi_common::control_dim + i] + u_traj_host[i],
-                            control_compute[j*num_timesteps*mppi_common::control_dim + timestep*mppi_common::control_dim + i]);
+            ASSERT_FLOAT_EQ(ep_v_host[j*num_timesteps*mppi_common::control_dim + timestep*mppi_common::control_dim + i]*sigma_u_host[i] + u_traj_host[i],
+                            control_compute[j*num_timesteps*mppi_common::control_dim + timestep*mppi_common::control_dim + i]) << "Failed at rollout number: " << j;
         }
     }
 }

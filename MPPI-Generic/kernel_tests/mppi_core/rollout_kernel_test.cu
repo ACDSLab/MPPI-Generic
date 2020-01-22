@@ -154,14 +154,14 @@ void launchInjectControlNoiseOnce_KernelTest(const std::vector<float>& u_traj_ho
     HANDLE_ERROR(cudaMemcpy(ep_v_host.data(), ep_v_device, sizeof(float)*ep_v_host.size(), cudaMemcpyDeviceToHost));
 
     // Create the block and grid dimensions
-    dim3 block_size(1,mppi_common::blocksize_y);
+    dim3 block_size(mppi_common::blocksize_x,mppi_common::blocksize_y);
     dim3 grid_size(num_rollouts, 1);
 
     // Launch the test kernel
     injectControlNoiseOnce_KernelTest<<<grid_size,block_size>>>(num_rollouts, num_timesteps, timestep, u_traj_device, ep_v_device, sigma_u_device, control_compute_device);
     CudaCheckError();
-    // Copy the result back to the host
 
+    // Copy the result back to the host
     HANDLE_ERROR(cudaMemcpy(control_compute.data(), control_compute_device, sizeof(float)*control_compute.size(), cudaMemcpyDeviceToHost));
 
     // Free cuda memory
@@ -169,4 +169,5 @@ void launchInjectControlNoiseOnce_KernelTest(const std::vector<float>& u_traj_ho
     cudaFree(ep_v_device);
     cudaFree(control_compute_device);
     cudaFree(sigma_u_device);
+    curandDestroyGenerator(gen_);
 }

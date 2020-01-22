@@ -127,10 +127,6 @@ namespace mppi_common {
         //Load the noise trajectory scaled by the exploration factor
         // The prior loop already guarantees that the global index is less than the number of rollouts
         for (int i = thread_idy; i < control_dim; i += blocksize_y) {
-            printf("global index: %d\n", global_idx);
-            printf("i: %d\n", i);
-            printf("blocksize_y: %d\n", blocksize_y);
-
             //Keep one noise free trajectory
             if (global_idx == 0){
                 du_thread[i] = 0;
