@@ -1,4 +1,5 @@
 #include <kernel_tests/mppi_core/rollout_kernel_test.cuh>
+#include <curand.h>
 
 __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_device,
         float* x_thread_device, float* xdot_thread_device, float* u_thread_device, float* du_thread_device, float* sigma_u_thread_device) {
@@ -102,4 +103,70 @@ void launchGlobalToShared_KernelTest(const std::vector<float>& x0_host,const std
     cudaFree(u_thread_device);
     cudaFree(du_thread_device);
     cudaFree(sigma_u_thread_device);
+}
+
+__global__ void  injectControlNoiseOnce_KernelTest(int num_rollouts, int num_timesteps, int timestep, float* u_traj_device, float* ep_v_device, float* sigma_u_device, float* control_compute_device) {
+    int global_idx = threadIdx.x + blockDim.x*blockIdx.x;
+    int thread_idy = threadIdx.y;
+    float u_thread[mppi_common::control_dim];
+    float du_thread[mppi_common::control_dim];
+
+    if (global_idx < num_rollouts) {
+        mppi_common::injectControlNoise(timestep, global_idx, thread_idy, num_timesteps, u_traj_device, ep_v_device, u_thread, du_thread, sigma_u_device);
+        if (thread_idy < mppi_common::control_dim) {
+            control_compute_device[global_idx * mppi_common::control_dim + thread_idy] = u_thread[thread_idy];
+        }
+    }
+
+
+
+}
+
+void launchInjectControlNoiseOnce_KernelTest(const std::vector<float>& u_traj_host, const int num_rollouts, const int num_timesteps,
+        std::vector<float>& ep_v_host, std::vector<float>& sigma_u_host, std::vector<float>& control_compute) {
+
+    // Timestep
+    int timestep = 0;
+
+    // Declare variables for device memory
+    float* u_traj_device;
+    float* ep_v_device;
+    float* sigma_u_device;
+    float* control_compute_device;
+
+    // Allocate cuda memory
+    HANDLE_ERROR(cudaMalloc((void**)&u_traj_device, sizeof(float)*u_traj_host.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&ep_v_device, sizeof(float)*ep_v_host.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&sigma_u_device, sizeof(float)*sigma_u_host.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&control_compute_device, sizeof(float)*control_compute.size()));
+
+    // Copy the control trajectory and the control variance to the device
+    HANDLE_ERROR(cudaMemcpy(u_traj_device, u_traj_host.data(), sizeof(float)*u_traj_host.size(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(sigma_u_device, sigma_u_host.data(), sizeof(float)*sigma_u_host.size(), cudaMemcpyHostToDevice));
+
+    // Generate the noise
+    curandGenerator_t gen_;
+    curandCreateGenerator(&gen_, CURAND_RNG_PSEUDO_DEFAULT);
+    curandSetPseudoRandomGeneratorSeed(gen_, 1234ULL);
+    curandGenerateNormal(gen_, ep_v_device, ep_v_host.size(), 0.0, 1.0);
+
+    // Copy the noise back to the host
+    HANDLE_ERROR(cudaMemcpy(ep_v_host.data(), ep_v_device, sizeof(float)*ep_v_host.size(), cudaMemcpyDeviceToHost));
+
+    // Create the block and grid dimensions
+    dim3 block_size(1,mppi_common::blocksize_y);
+    dim3 grid_size(num_rollouts, 1);
+
+    // Launch the test kernel
+    injectControlNoiseOnce_KernelTest<<<grid_size,block_size>>>(num_rollouts, num_timesteps, timestep, u_traj_device, ep_v_device, sigma_u_device, control_compute_device);
+    CudaCheckError();
+    // Copy the result back to the host
+
+    HANDLE_ERROR(cudaMemcpy(control_compute.data(), control_compute_device, sizeof(float)*control_compute.size(), cudaMemcpyDeviceToHost));
+
+    // Free cuda memory
+    cudaFree(u_traj_device);
+    cudaFree(ep_v_device);
+    cudaFree(control_compute_device);
+    cudaFree(sigma_u_device);
 }

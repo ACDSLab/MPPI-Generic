@@ -30,7 +30,7 @@ TEST(RolloutKernel, loadGlobalToShared) {
 
 TEST(RolloutKernel, injectControlNoiseOnce) {
     int num_timesteps = 1;
-    int num_rollouts = 1000;
+    int num_rollouts = 1;
     std::vector<float> u_traj_host = {3.f, 4.f, 5.f};
 
     // Control noise
@@ -39,7 +39,10 @@ TEST(RolloutKernel, injectControlNoiseOnce) {
     // Control at timestep 1 for all rollouts
     std::vector<float> control_compute(num_rollouts*mppi_common::control_dim, 0.f);
 
-    //launchInjectControlNoiseOnce_KernelTest(u_traj_host, ep_v_host, control_compute);
+    // Control variance for each control channel
+    std::vector<float> sigma_u_host = {0.1f, 0.2f, 0.3f};
+
+    launchInjectControlNoiseOnce_KernelTest(u_traj_host, num_rollouts, num_timesteps, ep_v_host, sigma_u_host, control_compute);
 
     // Make sure the first control is undisturbed
     int timestep = 0;
