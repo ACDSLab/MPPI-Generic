@@ -10,13 +10,13 @@
 
 namespace mppi_common {
 
-    const int state_dim = 12;
-    const int control_dim = 3;
+    const int STATE_DIM = 12;
+    const int CONTROL_DIM = 3;
 
-    const int blocksize_x = 64;
-    const int blocksize_y = 8;
-    const int num_rollouts = 2000;
-    const int sum_stride = 128;
+    const int BLOCKSIZE_X = 64;
+    const int BLOCKSIZE_Y = 8;
+    const int NUM_ROLLOUTS = 2000;
+    const int SUM_STRIDE = 128;
 
     // Kernel functions
     template<class DYN_T, class COST_T>
@@ -56,36 +56,42 @@ namespace mppi_common {
      * Disturb control trajectories per timestep
      *
      * Args:
-     * t: current timestep
-     * global_idx: current rollout
-     * thread_idy: y axis of block dimension
-     * num_timesteps: trajectory length
-     * u_traj_device: complete control trajectory
-     * ep_v_device: complete set of disturbances for all rollouts and timesteps
-     * u_thread: current control
-     * du_thread: current disturbance
-     * sigma_u_thread: control variance
+     * CONTROL_DIM: Number of controls, defined in DYN_T
+     * BLOCKSIZE_Y: Y dimension of each block of threads
+     * NUM_ROLLOUTS: Total number of rollouts
+     * num_timesteps: Trajectory length
+     * current_timestep: Index of time in current trajectory
+     * global_idx: Current rollout index.
+     * thread_idy: Current y index of block dimension.
+     * u_traj_device: Complete control trajectory
+     * ep_v_device: Complete set of disturbances for all rollouts and timesteps
+     * u_thread: Current control for the given rollout
+     * du_thread: Current disturbance for the given rollout
+     * sigma_u_thread: Control variance for all rollouts
      */
-    __device__ void injectControlNoise(int t,
+    __device__ void injectControlNoise(int control_dim,
+                                       int blocksize_y,
+                                       int num_rollouts,
+                                       int num_timesteps,
+                                       int current_timestep,
                                        int global_idx,
                                        int thread_idy,
-                                       int num_timesteps,
-                                       float* u_traj_device,
-                                       float* ep_v_device,
+                                       const float* u_traj_device,
+                                       const float* ep_v_device,
+                                       const float* sigma_u_thread,
                                        float* u_thread,
-                                       float* du_thread,
-                                       float* sigma_u_thread);
+                                       float* du_thread);
 
     template<class COST_T>
     __device__ void computeRunningCostAllRollouts(int thread_id, int num_rollouts, COST_T* costs,
                                                          float* x_thread, float* u_thread, float& running_cost);
 
     template<class DYN_T>
-    __device__ void computeStateDerivAllRollouts(int thread_id, int num_rollouts, DYN_T* dynamics,
+    __device__ void computeStateDerivAllRollouts(int thread_id, DYN_T* dynamics,
                                                         float* x_thread, float* u_thread, float* xdot_thread);
 
     template<class DYN_T>
-    __device__ void incrementStateAllRollouts(int thread_id, int num_rollouts, DYN_T* dynamics,
+    __device__ void incrementStateAllRollouts(int thread_id, int num_rollouts, float dt,
                                                      float* x_thread, float* xdot_thread);
 
     template<class COST_T>
