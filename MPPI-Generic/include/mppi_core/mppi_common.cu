@@ -40,7 +40,7 @@ namespace mppi_common {
             sigma_u = &sigma_u_shared[thread_idx * CONTROL_DIM];
         }
         __syncthreads();
-        loadGlobalToShared(global_idx, thread_idy, x_d, sigma_u_d,
+        loadGlobalToShared(STATE_DIM, CONTROL_DIM, NUM_ROLLOUTS, global_idx, thread_idy, x_d, sigma_u_d,
                             x, xdot, u, du, sigma_u);
         __syncthreads();
 
@@ -75,8 +75,8 @@ namespace mppi_common {
 
     // RolloutKernel Helpers -------------------------------------------------------------------------------------------
 
-    __device__ void loadGlobalToShared(int global_idx, int thread_idy,
-                                        float* x_device, float* sigma_u_device, float* x_thread,
+    __device__ void loadGlobalToShared(int state_dim, int control_dim, int num_rollouts, int global_idx, int thread_idy,
+                                        const float* x_device, const float* sigma_u_device, float* x_thread,
                                         float* xdot_thread, float* u_thread, float* du_thread, float* sigma_u_thread) {
         //Transfer to shared memory
         int i;

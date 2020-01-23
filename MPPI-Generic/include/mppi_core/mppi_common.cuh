@@ -31,8 +31,11 @@ namespace mppi_common {
      * Copy global memory into shared memory
      *
      * Args:
-     * global_idx
-     * thread_dy
+     * state_dim: Number of states, defined in DYN_T
+     * control_dim: Number of controls, defined in DYN_T
+     * num_rollouts: Total number of rollouts
+     * global_idx: Current rollout index.
+     * thread_idy: Current y index of block dimension.
      * x0_device: initial condition in device memory
      * sigma_u_device: control exploration variance in device memory
      * x_thread: state in shared memory
@@ -42,10 +45,13 @@ namespace mppi_common {
      * sigma_u_thread: control exploration variance in shared memory
      *
      */
-    __device__ void loadGlobalToShared(int global_idx,
+    __device__ void loadGlobalToShared(int state_dim,
+                                       int control_dim,
+                                       int num_rollouts,
+                                       int global_idx,
                                        int thread_idy,
-                                       float* x0_device,
-                                       float* sigma_u_device,
+                                       const float* x0_device,
+                                       const float* sigma_u_device,
                                        float* x_thread,
                                        float* xdot_thread,
                                        float* u_thread,
@@ -56,9 +62,9 @@ namespace mppi_common {
      * Disturb control trajectories per timestep
      *
      * Args:
-     * CONTROL_DIM: Number of controls, defined in DYN_T
-     * BLOCKSIZE_Y: Y dimension of each block of threads
-     * NUM_ROLLOUTS: Total number of rollouts
+     * control_dim: Number of controls, defined in DYN_T
+     * blocksize_y: Y dimension of each block of threads
+     * num_rollouts: Total number of rollouts
      * num_timesteps: Trajectory length
      * current_timestep: Index of time in current trajectory
      * global_idx: Current rollout index.

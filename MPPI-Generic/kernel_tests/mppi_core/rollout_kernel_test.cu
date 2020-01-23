@@ -30,7 +30,7 @@ __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_d
         sigma_u_thread = &sigma_u_shared[thread_idx * mppi_common::CONTROL_DIM];
     }
     __syncthreads();
-    mppi_common::loadGlobalToShared(global_idx, thread_idy, x0_device, sigma_u_device, x_thread,
+    mppi_common::loadGlobalToShared(mppi_common::STATE_DIM, mppi_common::CONTROL_DIM, mppi_common::NUM_ROLLOUTS, global_idx, thread_idy, x0_device, sigma_u_device, x_thread,
                                     xdot_thread, u_thread, du_thread, sigma_u_thread);
     __syncthreads();
 
