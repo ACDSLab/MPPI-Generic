@@ -7,6 +7,13 @@
 #include <curand.h>
 #include <vector>
 
+// Declare some sizes for the kernel parameters
+const int STATE_DIM = 12;
+const int CONTROL_DIM = 3;
+const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is
+const int BLOCKSIZE_X = 64;
+const int BLOCKSIZE_Y = 8; // Blocksize_y has to be greater than the control dim TODO fix how we step through the controls
+
 __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_device,
                                               float* x_thread, float* xdot_thread, float* u_thread, float* du_thread, float* sigma_u_thread);
 

@@ -10,13 +10,13 @@
 
 namespace mppi_common {
 
-    const int STATE_DIM = 12;
-    const int CONTROL_DIM = 3;
-
-    const int BLOCKSIZE_X = 64;
-    const int BLOCKSIZE_Y = 8;
-    const int NUM_ROLLOUTS = 2000;
-    const int SUM_STRIDE = 128;
+//    const int STATE_DIM = 12;
+//    const int CONTROL_DIM = 3;
+//
+//    const int BLOCKSIZE_X = 64;
+//    const int BLOCKSIZE_Y = 8;
+//    const int NUM_ROLLOUTS = 2000;
+//    const int SUM_STRIDE = 128;
 
     // Kernel functions
     template<class DYN_T, class COST_T>
@@ -135,9 +135,9 @@ namespace mppi_common {
     __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs,
                                                       float* x_thread, float running_cost, float* cost_rollouts_device);
 
-    __global__ void normExpKernel(float* trajectory_costs_d, float gamma, float baseline);
+    __global__ void normExpKernel(int blocksize_x, int num_rollouts, float* trajectory_costs_d, float gamma, float baseline);
 
-    template<class DYN_T, int num_rollouts, int sum_stride>
+    template<int CONTROL_DIM, int NUM_ROLLOUT, int SUM_STRIDE>
     __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps);
 
     template<class DYN_T, class COST_T>
@@ -145,6 +145,7 @@ namespace mppi_common {
 
     void launchNormExpKernel(float* trajectory_costs_d, float gamma, float baseline);
 
+    template<class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE >
     void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps);
 
 }
