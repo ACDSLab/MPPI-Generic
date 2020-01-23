@@ -1,5 +1,4 @@
 #include <kernel_tests/mppi_core/rollout_kernel_test.cuh>
-#include <curand.h>
 
 __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_device,
         float* x_thread_device, float* xdot_thread_device, float* u_thread_device, float* du_thread_device, float* sigma_u_thread_device) {
@@ -30,8 +29,9 @@ __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_d
         sigma_u_thread = &sigma_u_shared[thread_idx * mppi_common::CONTROL_DIM];
     }
     __syncthreads();
-    mppi_common::loadGlobalToShared(mppi_common::STATE_DIM, mppi_common::CONTROL_DIM, mppi_common::NUM_ROLLOUTS, global_idx, thread_idy, x0_device, sigma_u_device, x_thread,
-                                    xdot_thread, u_thread, du_thread, sigma_u_thread);
+    mppi_common::loadGlobalToShared(mppi_common::STATE_DIM, mppi_common::CONTROL_DIM, mppi_common::NUM_ROLLOUTS,
+            mppi_common::BLOCKSIZE_Y, global_idx, thread_idy,
+            x0_device, sigma_u_device, x_thread, xdot_thread, u_thread, du_thread, sigma_u_thread);
     __syncthreads();
 
     // Check if on the first rollout the correct values were coped over

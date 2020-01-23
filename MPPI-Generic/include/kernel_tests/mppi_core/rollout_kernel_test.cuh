@@ -4,6 +4,7 @@
 #define KERNEL_TESTS_MPPI_CORE_ROLLOUT_KERNEL_TEST_CUH_
 
 #include <mppi_core/mppi_common.cuh>
+#include <curand.h>
 #include <vector>
 
 __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_device,

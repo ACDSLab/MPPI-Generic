@@ -34,6 +34,7 @@ namespace mppi_common {
      * state_dim: Number of states, defined in DYN_T
      * control_dim: Number of controls, defined in DYN_T
      * num_rollouts: Total number of rollouts
+     * blocksize_y: Y dimension of each block of threads
      * global_idx: Current rollout index.
      * thread_idy: Current y index of block dimension.
      * x0_device: initial condition in device memory
@@ -48,6 +49,7 @@ namespace mppi_common {
     __device__ void loadGlobalToShared(int state_dim,
                                        int control_dim,
                                        int num_rollouts,
+                                       int blocksize_y,
                                        int global_idx,
                                        int thread_idy,
                                        const float* x0_device,
@@ -88,24 +90,55 @@ namespace mppi_common {
                                        float* u_thread,
                                        float* du_thread);
 
+    /*
+     * computeRunningCostAllRollouts
+     * Compute the running cost for each rollout
+     *
+     * Args:
+     * costs: cost function class
+     * x_thread: Current state for the given rollout
+     * u_thread: Current control for the given rollout,
+     * running_cost: Running cost for the given rollout
+     */
     template<class COST_T>
-    __device__ void computeRunningCostAllRollouts(int thread_id, int num_rollouts, COST_T* costs,
-                                                         float* x_thread, float* u_thread, float& running_cost);
+    __device__ void computeRunningCostAllRollouts(COST_T* costs, float* x_thread, float* u_thread, float& running_cost);
 
+    /*
+     * computeRunningCostAllRollouts
+     * Compute the running cost for each rollout
+     *
+     * Args:
+     * dynamics: dynamics function class
+     * x_thread: Current state for the given rollout
+     * u_thread: Current control for the given rollout,
+     * xdot_thread: State derivative for the given rollout
+     */
     template<class DYN_T>
-    __device__ void computeStateDerivAllRollouts(int thread_id, DYN_T* dynamics,
-                                                        float* x_thread, float* u_thread, float* xdot_thread);
+    __device__ void computeStateDerivAllRollouts(DYN_T* dynamics, float* x_thread, float* u_thread, float* xdot_thread);
 
+    /*
+     * incrementStateAllRollouts
+     * Increment the state using the forward Euler method
+     *
+     * Args:
+     * state_dim: Number of states, defined in DYN_T
+     * blocksize_y: Y dimension of each block of threads
+     * thread_idy: Current y index of block dimension.
+     * dt: Timestep size
+     * x_thread: Current state for the given rollout
+     * xdot_thread: State derivative for the given rollout
+     */
     template<class DYN_T>
-    __device__ void incrementStateAllRollouts(int thread_id, int num_rollouts, float dt,
+    __device__ void incrementStateAllRollouts(int state_dim, int blocksize_y, int thread_idy, float dt,
                                                      float* x_thread, float* xdot_thread);
 
     template<class COST_T>
-    __device__ void computeAndSaveCost(int thread_id, int num_rollouts, COST_T* costs,
+    __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs,
                                                       float* x_thread, float running_cost, float* cost_rollouts_device);
 
     __global__ void normExpKernel(float* trajectory_costs_d, float gamma, float baseline);
 
+    template<class DYN_T, int num_rollouts, int sum_stride>
     __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps);
 
     template<class DYN_T, class COST_T>

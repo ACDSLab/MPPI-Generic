@@ -40,7 +40,7 @@ namespace mppi_common {
             sigma_u = &sigma_u_shared[thread_idx * CONTROL_DIM];
         }
         __syncthreads();
-        loadGlobalToShared(STATE_DIM, CONTROL_DIM, NUM_ROLLOUTS, global_idx, thread_idy, x_d, sigma_u_d,
+        loadGlobalToShared(STATE_DIM, CONTROL_DIM, NUM_ROLLOUTS, BLOCKSIZE_Y,global_idx, thread_idy, x_d, sigma_u_d,
                             x, xdot, u, du, sigma_u);
         __syncthreads();
 
@@ -53,15 +53,15 @@ namespace mppi_common {
                 __syncthreads();
 
                 //Accumulate running cost
-                computeRunningCostAllRollouts(global_idx, costs, x, u, running_cost);
+                computeRunningCostAllRollouts(costs, x, u, running_cost);
                 __syncthreads();
 
                 //Compute state derivatives
-                computeStateDerivAllRollouts(global_idx, dynamics, x, u, xdot);
+                computeStateDerivAllRollouts(dynamics, x, u, xdot);
                 __syncthreads();
 
                 //Increment states
-                incrementStateAllRollouts<DYN_T>(global_idx, thread_idy, dt, x, xdot);
+                incrementStateAllRollouts<DYN_T>(STATE_DIM, BLOCKSIZE_Y, thread_idy, dt, x, xdot);
                 __syncthreads();
             }
         }
@@ -75,17 +75,17 @@ namespace mppi_common {
 
     // RolloutKernel Helpers -------------------------------------------------------------------------------------------
 
-    __device__ void loadGlobalToShared(int state_dim, int control_dim, int num_rollouts, int global_idx, int thread_idy,
+    __device__ void loadGlobalToShared(int state_dim, int control_dim, int num_rollouts, int blocksize_y, int global_idx, int thread_idy,
                                         const float* x_device, const float* sigma_u_device, float* x_thread,
                                         float* xdot_thread, float* u_thread, float* du_thread, float* sigma_u_thread) {
         //Transfer to shared memory
         int i;
-        if (global_idx < NUM_ROLLOUTS) {
-            for (i = thread_idy; i < STATE_DIM; i += BLOCKSIZE_Y) {
+        if (global_idx < num_rollouts) {
+            for (i = thread_idy; i < state_dim; i += blocksize_y) {
                 x_thread[i] = x_device[i];
                 xdot_thread[i] = 0;
             }
-            for (i = thread_idy; i < CONTROL_DIM; i += BLOCKSIZE_Y) {
+            for (i = thread_idy; i < control_dim; i += blocksize_y) {
                 u_thread[i] = 0;
                 du_thread[i] = 0;
                 sigma_u_thread[i] = sigma_u_device[i];
@@ -118,37 +118,32 @@ namespace mppi_common {
     }
 
     template<class COST_T>
-    __device__ void computeRunningCostAllRollouts(int global_idx, COST_T* costs,
-                                                         float* x_thread, float* u_thread, float& running_cost) {
-        if (global_idx < NUM_ROLLOUTS) {
-            running_cost += costs->computeRunningCost(x_thread, u_thread);
-        }
+    __device__ void computeRunningCostAllRollouts(COST_T* costs, float* x_thread, float* u_thread, float& running_cost) {
+        // The prior loop already guarantees that the global index is less than the number of rollouts
+        running_cost += costs->computeRunningCost(x_thread, u_thread);
     }
 
     template<class DYN_T>
-    __device__ void computeStateDerivAllRollouts(int global_idx, DYN_T* dynamics,
-                                                        float* x_thread, float* u_thread, float* xdot_thread) {
-        if (global_idx < NUM_ROLLOUTS) {
-            dynamics->xDot(x_thread, u_thread, xdot_thread);
-        }
+    __device__ void computeStateDerivAllRollouts(DYN_T* dynamics, float* x_thread, float* u_thread, float* xdot_thread) {
+        // The prior loop already guarantees that the global index is less than the number of rollouts
+        dynamics->xDot(x_thread, u_thread, xdot_thread);
     }
 
     template<class DYN_T>
-    __device__ void incrementStateAllRollouts(int global_idx, int thread_idy, float dt,
+    __device__ void incrementStateAllRollouts(int state_dim, int blocksize_y, int thread_idy, float dt,
                                                 float* x_thread, float* xdot_thread) {
-        if (global_idx < NUM_ROLLOUTS) {
-            //Implementing simple first order Euler for now, more complex scheme can be added later
-            for (int i = thread_idy; i < STATE_DIM; i += BLOCKSIZE_Y) {
-                x_thread[i] += xdot_thread[i] * dt;
-            }
+        // The prior loop already guarantees that the global index is less than the number of rollouts
+        //Implementing simple first order Euler for now, more complex scheme can be added later
+        for (int i = thread_idy; i < state_dim; i += blocksize_y) {
+            x_thread[i] += xdot_thread[i] * dt;
         }
     }
 
     template<class COST_T>
-    __device__ void computeAndSaveCost(int global_idx, COST_T* costs, float* x_thread,
+    __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* x_thread,
                                         float running_cost, float* cost_rollouts_device) {
-        if (global_idx < NUM_ROLLOUTS) {
-            cost_rollouts_device[global_idx] = running_cost + costs->computeTermianalCost(x_thread);
+        if (global_idx < num_rollouts) {
+            cost_rollouts_device[global_idx] = running_cost + costs->computeTerminalCost(x_thread);
         }
     }
 
@@ -161,34 +156,35 @@ namespace mppi_common {
 
         if (global_idx < NUM_ROLLOUTS) {
             float cost_dif = trajectory_costs_d[global_idx] - baseline;
-            trajectory_costs_d[global_idx] = exp(-gamma*cost_dif);
+            trajectory_costs_d[global_idx] = expf(-gamma*cost_dif);
         }
     }
 
-    __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps) {
+    template<class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
+    __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d,
+            float normalizer, int num_timesteps) {
         int thread_idx = threadIdx.x;
         int block_idx = blockIdx.x;
 
         //Create a shared array for intermediate sums
-        __shared__ float u_intermediate[CONTROL_DIM * ((NUM_ROLLOUTS - 1) / SUM_STRIDE) + 1];
-        int stride = SUM_STRIDE;
+        __shared__ float u_intermediate[DYN_T::CONTROL_DIM * ((NUM_ROLLOUTS - 1) / SUM_STRIDE) + 1];
 
-        float u[CONTROL_DIM];
-        for (int i = 0; i < CONTROL_DIM; i++) {
+        float u[DYN_T::CONTROL_DIM];
+        for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
             u[i] = 0;
-            u_intermediate[thread_idx * CONTROL_DIM + i] = 0;
+            u_intermediate[thread_idx * DYN_T::CONTROL_DIM + i] = 0;
         }
 
         __syncthreads();
 
         //Sum the weighted control variations at a desired stride
-        if (thread_idx*stride < NUM_ROLLOUTS) {
+        if (thread_idx * SUM_STRIDE < NUM_ROLLOUTS) {
             float weight = 0;
-            for (int i = 0; i < stride; i++) {
-                weight = exp_costs_d[thread_idx*stride + i]/normalizer;
-                for (int j = 0; j < CONTROL_DIM; j++) {
-                    u[j] = du_d[(thread_idx*stride + i)*(num_timesteps * CONTROL_DIM) + block_idx * CONTROL_DIM + j] * sigma_u_d[j];
-                    u_intermediate[thread_idx * CONTROL_DIM + j] += weight * u[j];
+            for (int i = 0; i < SUM_STRIDE; i++) {
+                weight = exp_costs_d[thread_idx * SUM_STRIDE + i] / normalizer;
+                for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
+                    u[j] = du_d[(thread_idx * SUM_STRIDE + i) * (num_timesteps * DYN_T::CONTROL_DIM) + block_idx * DYN_T::CONTROL_DIM + j] * sigma_u_d[j];
+                    u_intermediate[thread_idx * DYN_T::CONTROL_DIM + j] += weight * u[j];
                 }
             }
         }
@@ -197,24 +193,25 @@ namespace mppi_common {
 
         //Sum all weighted control variations
         if (thread_idx == 0 && block_idx < num_timesteps) {
-            for (int i = 0; i < CONTROL_DIM; i++) {
+            for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
                 u[i] = 0;
             }
             for (int i = 0; i < ((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1); i++) {
-                for (int j = 0; j < CONTROL_DIM; j++) {
-                    u[j] += u_intermediate[i * CONTROL_DIM + j];
+                for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
+                    u[j] += u_intermediate[i * DYN_T::CONTROL_DIM + j];
                 }
             }
-            for (int i = 0; i < CONTROL_DIM; i++) {
-                du_new_d[block_idx * CONTROL_DIM + i] = u[i];
+            for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
+                du_new_d[block_idx * DYN_T::CONTROL_DIM + i] = u[i];
             }
         }
     }
 
+    template<class DYN_T>
     void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps) {
         dim3 dimBlock((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1, 1, 1);
         dim3 dimGrid(num_timesteps, 1, 1);
-        weightedReductionKernel<<<dimGrid, dimBlock>>>(exp_costs_d, du_d, sigma_u_d, du_new_d, normalizer, num_timesteps);
+        weightedReductionKernel<DYN_T, NUM_ROLLOUTS, SUM_STRIDE><<<dimGrid, dimBlock>>>(exp_costs_d, du_d, sigma_u_d, du_new_d, normalizer, num_timesteps);
         CudaCheckError();
         HANDLE_ERROR( cudaDeviceSynchronize() );
     }
