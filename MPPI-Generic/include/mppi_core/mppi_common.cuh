@@ -128,7 +128,6 @@ namespace mppi_common {
      * x_thread: Current state for the given rollout
      * xdot_thread: State derivative for the given rollout
      */
-    template<class DYN_T>
     __device__ void incrementStateAllRollouts(int state_dim, int blocksize_y, int thread_idy, float dt,
                                                      float* x_thread, float* xdot_thread);
 

@@ -4,7 +4,7 @@
 
 namespace mppi_common {
     // Kernel functions
-    template<class DYN_T, class COST_T>
+    template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS>
     __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
                                     int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d) {
         //Get thread and block id
@@ -14,11 +14,11 @@ namespace mppi_common {
         int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
 
         //Create shared state and control arrays
-        __shared__ float x_shared[BLOCKSIZE_X * STATE_DIM];
-        __shared__ float xdot_shared[BLOCKSIZE_X * STATE_DIM];
-        __shared__ float u_shared[BLOCKSIZE_X * CONTROL_DIM];
-        __shared__ float du_shared[BLOCKSIZE_X * CONTROL_DIM];
-        __shared__ float sigma_u_shared[BLOCKSIZE_X * CONTROL_DIM];
+        __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM];
+        __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM];
+        __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM];
+        __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM];
+        __shared__ float sigma_u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM];
 
         //Create local state, state dot and controls
         float* x;
@@ -33,14 +33,14 @@ namespace mppi_common {
 
         //Load global array to shared array
         if (global_idx < NUM_ROLLOUTS) {
-            x = &x_shared[thread_idx * STATE_DIM];
-            xdot = &xdot_shared[thread_idx * STATE_DIM];
-            u = &u_shared[thread_idx * CONTROL_DIM];
-            du = &du_shared[thread_idx * CONTROL_DIM];
-            sigma_u = &sigma_u_shared[thread_idx * CONTROL_DIM];
+            x = &x_shared[thread_idx * DYN_T::STATE_DIM];
+            xdot = &xdot_shared[thread_idx * DYN_T::STATE_DIM];
+            u = &u_shared[thread_idx * DYN_T::CONTROL_DIM];
+            du = &du_shared[thread_idx * DYN_T::CONTROL_DIM];
+            sigma_u = &sigma_u_shared[thread_idx * DYN_T::CONTROL_DIM];
         }
         __syncthreads();
-        loadGlobalToShared(STATE_DIM, CONTROL_DIM, NUM_ROLLOUTS, BLOCKSIZE_Y,global_idx, thread_idy, x_d, sigma_u_d,
+        loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS, BLOCKSIZE_Y,global_idx, thread_idy, x_d, sigma_u_d,
                             x, xdot, u, du, sigma_u);
         __syncthreads();
 
@@ -48,7 +48,7 @@ namespace mppi_common {
         for (int t = 0; t < num_timesteps; t++) {
             if (global_idx < NUM_ROLLOUTS) {
                 //Load noise trajectories scaled by the exploration factor
-                injectControlNoise(CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
+                injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
                                    t, global_idx, thread_idy, u_d, du_d, u, du, sigma_u);
                 __syncthreads();
 
@@ -61,7 +61,7 @@ namespace mppi_common {
                 __syncthreads();
 
                 //Increment states
-                incrementStateAllRollouts<DYN_T>(STATE_DIM, BLOCKSIZE_Y, thread_idy, dt, x, xdot);
+                incrementStateAllRollouts(DYN_T::STATE_DIM, BLOCKSIZE_Y, thread_idy, dt, x, xdot);
                 __syncthreads();
             }
         }
@@ -129,7 +129,6 @@ namespace mppi_common {
         dynamics->xDot(x_thread, u_thread, xdot_thread);
     }
 
-    template<class DYN_T>
     __device__ void incrementStateAllRollouts(int state_dim, int blocksize_y, int thread_idy, float dt,
                                                 float* x_thread, float* xdot_thread) {
         // The prior loop already guarantees that the global index is less than the number of rollouts
