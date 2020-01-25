@@ -111,7 +111,7 @@ TEST(ARNeuralNetDynamics, ControlRangesSetCPU) {
   EXPECT_FLOAT_EQ(ranges[1].y, 2.0);
 }
 
-TEST(AENeuralNetDynamics, stideIdcsSetDefault) {
+TEST(ARNeuralNetDynamics, stideIdcsSetDefault) {
   float dt = 0.1;
   NeuralNetModel<7,2,3,6,32,32,4> model(dt);
 
