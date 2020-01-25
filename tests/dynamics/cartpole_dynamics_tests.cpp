@@ -2,8 +2,9 @@
 // Created by mgandhi3 on 10/4/19.
 //
 
+#include <Eigen/Dense>
 #include <gtest/gtest.h>
-#include <dynamics/cartpole/cartpole.cuh>
+#include <kernel_tests/dynamics/cartpole/cartpole_kernel_test.cuh>
 
 TEST(CartPole, StateDim) {
     auto CP = Cartpole(0.1, 1, 1, 1);
@@ -17,10 +18,10 @@ TEST(CartPole, ControlDim) {
 
 TEST(CartPole, Equilibrium) {
     auto CP = Cartpole(0.1,1,1,1);
-    
+
     Eigen::MatrixXf state(Cartpole::STATE_DIM,1);
     state << 0,0,0,0;
-    
+
     Eigen::MatrixXf control(Cartpole::CONTROL_DIM,1);
     control << 0;
 
@@ -64,16 +65,15 @@ TEST(CartPole, SetGetParamsHost) {
 TEST(CartPole, CartPole_GPUSetup_Test) {
     auto CP_host = new Cartpole(0.1, 1, 2, 2);
     CP_host->GPUSetup();
-    float mass;
-    launchParameterTestKernel(*CP_host, mass);
+    // float mass;
+    // launchParameterTestKernel(*CP_host, mass);
 
     EXPECT_TRUE(CP_host->GPUMemStatus_);
 
-    CP_host->freeCudaMem();
     delete(CP_host);
 }
 
-TEST(CartPole, GetParamsDevice) {
+TEST(CartPole, GetCartMassFromGPU) {
     auto CP_host = new Cartpole(0.1, 1, 1, 2);
     CP_host->GPUSetup();
 
@@ -81,7 +81,7 @@ TEST(CartPole, GetParamsDevice) {
     CP_host->setParams(params);
     float mass;
 
-    launchParameterTestKernel(*CP_host, mass);
+    launchCartMassTestKernel(*CP_host, mass);
 
     EXPECT_FLOAT_EQ(params.cart_mass, mass);
 
@@ -89,4 +89,83 @@ TEST(CartPole, GetParamsDevice) {
     delete(CP_host);
 }
 
+TEST(CartPole, GetPoleMassFromGPU) {
+    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    CP_host->GPUSetup();
 
+    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    CP_host->setParams(params);
+    float mass;
+
+    launchPoleMassTestKernel(*CP_host, mass);
+
+    EXPECT_FLOAT_EQ(params.pole_mass, mass);
+
+    CP_host->freeCudaMem();
+    delete(CP_host);
+}
+
+TEST(CartPole, GetPoleLengthFromGPU) {
+    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    CP_host->GPUSetup();
+
+    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    CP_host->setParams(params);
+    float length;
+
+    launchPoleLengthTestKernel(*CP_host, length);
+
+    EXPECT_FLOAT_EQ(params.pole_length, length);
+
+    CP_host->freeCudaMem();
+    delete(CP_host);
+}
+
+TEST(CartPole, GetGravityFromGPU) {
+    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    CP_host->GPUSetup();
+
+    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    CP_host->setParams(params);
+    float gravity_gpu;
+
+    launchGravityTestKernel(*CP_host, gravity_gpu);
+
+    EXPECT_FLOAT_EQ(CP_host->getGravity(), gravity_gpu);
+
+    CP_host->freeCudaMem();
+    delete(CP_host);
+}
+
+TEST(CartPole, TestDynamicsGPU) {
+    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    CP_host->GPUSetup();
+
+    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    CP_host->setParams(params);
+
+    Eigen::MatrixXf state = Eigen::MatrixXf::Zero(Cartpole::STATE_DIM,1);
+    state(0) = 0.1;
+    state(1) = 0.3;
+    state(2) = 0.23;
+    state(3) = 0.334;
+    Eigen::MatrixXf control = Eigen::MatrixXf::Ones(Cartpole::CONTROL_DIM, 1);
+
+    // These variables will be changed so initialized to the right size only
+    Eigen::MatrixXf state_der_cpu = Eigen::MatrixXf::Zero(Cartpole::STATE_DIM,1);
+
+    float state_der_gpu[Cartpole::STATE_DIM];
+
+    // Run dynamics on CPU
+    CP_host->xDot(state, control, state_der_cpu);
+    // Run dynamics on GPU
+    launchDynamicsTestKernel(*CP_host, state.data(), control.data(), state_der_gpu);
+
+    // Compare CPU and GPU Results
+    for (int i = 0; i < Cartpole::STATE_DIM; i++) {
+        EXPECT_FLOAT_EQ(state_der_cpu(i), state_der_gpu[i]);
+    }
+
+    CP_host->freeCudaMem();
+    delete(CP_host);
+}

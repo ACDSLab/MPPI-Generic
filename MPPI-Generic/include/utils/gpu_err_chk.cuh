@@ -2,6 +2,7 @@
 #define CUDA_TESTING_GPU_ERR_CHK_CUH
 
 #include <cuda_runtime.h>
+#include <device_launch_parameters.h> // For block idx and thread idx, etc
 #include <iostream>
 
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
