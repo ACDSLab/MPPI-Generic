@@ -216,6 +216,126 @@ TEST(ARNeuralNetDynamics, LoadModelTest) {
   model.GPUSetup();
 
   // TODO procedurally generate a NN in python and save and run like costs
+  std::string path = "/home/jason/Documents/research/MPPI-Generic/test_nn.npz";
+  model.loadParams(path);
 
+  // check CPU
+  for(int i = 0; i < 1412; i++) {
+    EXPECT_FLOAT_EQ(model.getTheta()[i], i) << "failed at index " << i;
+  }
+
+  std::array<float, 1412> theta_result = {};
+  std::array<int, 6> stride_result = {};
+  std::array<int, 4> net_structure_result = {};
+
+  //launch kernel
+  launchParameterCheckTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1412, 6, 4>
+          (model, theta_result, stride_result, net_structure_result);
+
+  for(int i = 0; i < 1412; i++) {
+    EXPECT_FLOAT_EQ(theta_result[i], i) << "failed at index " << i;
+  }
 }
 
+TEST(ARNeuralNetDynamics, enforceConstraintsTest) {
+  std::array<float2, 2> u_constraint = {};
+  u_constraint[0].x = -1.0;
+  u_constraint[0].y = 1.0;
+
+  u_constraint[1].x = -2.0;
+  u_constraint[1].y = 2.0;
+  float dt = 0.1;
+  NeuralNetModel<7,2,3,6,32,32,4> model(dt, u_constraint);
+
+  float s[7];
+  float u[2];
+
+  u[0] = 10;
+  u[1] = 1000;
+
+  model.enforceConstraints(s, u);
+
+  EXPECT_FLOAT_EQ(u[0], 1);
+  EXPECT_FLOAT_EQ(u[1], 2);
+
+  u[0] = -124;
+  u[1] = -512789;
+
+  model.enforceConstraints(s, u);
+
+  EXPECT_FLOAT_EQ(u[0], -1);
+  EXPECT_FLOAT_EQ(u[1], -2);
+
+  u[0] = 0.5;
+  u[1] = 1;
+
+  model.enforceConstraints(s, u);
+
+  EXPECT_FLOAT_EQ(u[0], 0.5);
+  EXPECT_FLOAT_EQ(u[1], 1.0);
+}
+
+TEST(ARNeuralNetDynamics, computeKinematicsTest) {
+  float dt = 0.1;
+  NeuralNetModel<7,2,3,6,32,32,4> model(dt);
+
+  float s[7];
+  // x_dot, y_dot, theta_dot
+  float s_der[3];
+
+  s[2] = 0.0; // yaw
+  s[4] = 1.0; // body frame vx
+  s[5] = 2.0; // body frame vy
+  s[6] = 0.0; // yaw dot
+
+  model.computeKinematics(s, s_der);
+
+  EXPECT_FLOAT_EQ(s_der[0], 1.0);
+  EXPECT_FLOAT_EQ(s_der[1], 2.0);
+  EXPECT_FLOAT_EQ(s_der[2], 0.0);
+
+  s[2] = M_PI/2; // yaw
+  s[4] = 3.0; // body frame vx
+  s[5] = 5.0; // body frame vy
+  s[6] = 1.0; // yaw dot
+
+  model.computeKinematics(s, s_der);
+
+  EXPECT_FLOAT_EQ(s_der[0], -5);
+  EXPECT_FLOAT_EQ(s_der[1], 3.0);
+  EXPECT_FLOAT_EQ(s_der[2], -1.0);
+}
+
+TEST(ARNeuralNetDynamics, incrementState) {
+  float dt = 0.1;
+  NeuralNetModel<7,2,3,6,32,32,4> model(dt);
+
+  std::array<float, 7> s = {0.0};
+  // x_dot, y_dot, theta_dot
+  std::array<float, 3> s_der = {0.0};
+
+  s[2] = 0.0; // yaw
+  s[4] = 1.0; // body frame vx
+  s[5] = 2.0; // body frame vy
+  s[6] = 0.0; // yaw dot
+
+  s_der[0] = 1.0;
+  s_der[1] = 2.0;
+  s_der[2] = 3.0;
+
+  model.GPUSetup();
+
+  launchIncrementStateTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1, 7>(model, s, s_der);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+
+  EXPECT_FLOAT_EQ(s[0], 0.1);
+  EXPECT_FLOAT_EQ(s[1], 0.2);
+  EXPECT_FLOAT_EQ(s[2], 0.3);
+}
+
+TEST(ARNeuralNetDynamics, computeDynamicsTest) {
+
+}

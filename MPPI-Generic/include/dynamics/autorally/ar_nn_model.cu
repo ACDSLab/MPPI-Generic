@@ -80,16 +80,76 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice() {
+  // TODO copy to constant memory
   HANDLE_ERROR( cudaMemcpy(model_d_->theta_, theta_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::string& model_path) {
+  int i,j,k;
+  std::string bias_name = "";
+  std::string weight_name = "";
+  if (!fileExists(model_path)){
+    std::cerr << "Could not load neural net model at path: " << model_path.c_str();
+    exit(-1);
+  }
+  cnpy::npz_t param_dict = cnpy::npz_load(model_path);
+  for (i = 0; i < NUM_LAYERS - 1; i++){
+    // NN index from 1
+    bias_name = "dynamics_b" + std::to_string(i + 1);
+    weight_name = "dynamics_W" + std::to_string(i + 1);
+
+    cnpy::NpyArray weight_i_raw = param_dict[weight_name];
+    cnpy::NpyArray bias_i_raw = param_dict[bias_name];
+    double* weight_i = weight_i_raw.data<double>();
+    double* bias_i = bias_i_raw.data<double>();
+
+    for (j = 0; j < net_structure_[i + 1]; j++){
+      for (k = 0; k < net_structure_[i]; k++){
+        // TODO why i - 1?
+        theta_[stride_idcs_[2*i] + j*net_structure_[i] + k] = (float)weight_i[j*net_structure_[i] + k];
+      }
+    }
+    for (j = 0; j < net_structure_[i+1]; j++){
+      theta_[stride_idcs_[2*i + 1] + j] = (float)bias_i[j];
+    }
+  }
+  //Save parameters to GPU memory
+  paramsToDevice();
 }
 
+template<int s_dim, int c_dim, int k_dim, int... layer_args>
+__host__ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::enforceConstraints(
+        float* state, float* control) {
+  int i;
+  for (i = 0; i < this->CONTROL_DIM; i++){
+    if (control[i] < control_rngs_[i].x){
+      control[i] = control_rngs_[i].x;
+    }
+    else if (control[i] > control_rngs_[i].y){
+      control[i] = control_rngs_[i].y;
+    }
+  }
+}
 
+template<int s_dim, int c_dim, int k_dim, int... layer_args>
+__host__ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::computeStateDeriv(
+        float* state, float* control, float* state_der, float* theta_s) {
+  // TODO why?
+  if (threadIdx.y == 0){
+    computeKinematics(state, state_der);
+  }
+  computeDynamics(state, control, state_der, theta_s);
+}
 
-/*
+template<int s_dim, int c_dim, int k_dim, int... layer_args>
+__host__ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::computeKinematics(
+        float* state, float* state_der) {
+  state_der[0] = cosf(state[2])*state[4] - sinf(state[2])*state[5];
+  state_der[1] = sinf(state[2])*state[4] + cosf(state[2])*state[5];
+  state_der[2] = -state[6]; //Pose estimate actually gives the negative yaw derivative
+}
+
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
 {
@@ -107,10 +167,10 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   next_act = &theta_s[(2*LARGEST_LAYER)*(blockDim.x*tdz + tdx) + LARGEST_LAYER];
   // iterate through the part of the state that should be an input to the NN
   for (i = tdy; i < DYNAMICS_DIM; i+= blockDim.y){
-    curr_act[i] = state[i + (STATE_DIM - DYNAMICS_DIM)];
+    curr_act[i] = state[i + (this->STATE_DIM - DYNAMICS_DIM)];
   }
   // iterate through the control to put into first layer
-  for (i = tdy; i < CONTROL_DIM; i+= blockDim.y){
+  for (i = tdy; i < this->CONTROL_DIM; i+= blockDim.y){
     curr_act[DYNAMICS_DIM + i] = control[i];
   }
   __syncthreads();
@@ -118,20 +178,20 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   for (i = 0; i < NUM_LAYERS - 1; i++){
     //Conditional compilation depending on if we're using a global constant memory array or not.
 #if defined(MPPI_NNET_USING_CONSTANT_MEM___) //Use constant memory.
-    W = &NNET_PARAMS[stride_idcs_d_[2*i]]; // weights
-    b = &NNET_PARAMS[stride_idcs_d_[2*i + 1]]; // biases
+    W = &NNET_PARAMS[stride_idcs_[2*i]]; // weights
+    b = &NNET_PARAMS[stride_idcs_[2*i + 1]]; // biases
 #else //Use (slow) global memory.
-    W = &theta_d_[stride_idcs_d_[2*i]]; // weights
-    b = &theta_d_[stride_idcs_d_[2*i + 1]]; // biases
+    W = &theta_[stride_idcs_[2*i]]; // weights
+    b = &theta_[stride_idcs_[2*i + 1]]; // biases
 #endif
     // for first non input layer until last layer this thread deals with
     // calculates the next activation based on current
-    for (j = tdy; j < net_structure_d_[i+1]; j += blockDim.y) {
+    for (j = tdy; j < net_structure_[i+1]; j += blockDim.y) {
       tmp = 0;
       // apply each neuron activation from current layer
-      for (k = 0; k < net_structure_d_[i]; k++) {
+      for (k = 0; k < net_structure_[i]; k++) {
         //No atomic add necessary.
-        tmp += W[j*net_structure_d_[i] + k]*curr_act[k];
+        tmp += W[j*net_structure_[i] + k]*curr_act[k];
       }
       // add bias from next layer and neuron
       tmp += b[j];
@@ -148,9 +208,23 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   }
   // copies results back into state derivative
   for (i = tdy; i < DYNAMICS_DIM; i+= blockDim.y){
-    state_der[i + (STATE_DIM - DYNAMICS_DIM)] = curr_act[i];
+    state_der[i + (this->STATE_DIM - DYNAMICS_DIM)] = curr_act[i];
   }
   __syncthreads();
 }
- */
+
+template<int s_dim, int c_dim, int k_dim, int... layer_args>
+__device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::incrementState(
+        float* state, float* state_der) {
+  int i;
+  int tdy = threadIdx.y;
+  printf("tdy = %d\n", tdy);
+  //Add the state derivative time dt to the current state.
+  for (i = tdy; i < this->STATE_DIM; i+=blockDim.y){
+    printf("i = %d\n", i);
+    printf("dt = %f\n", this->dt_);
+    state[i] += state_der[i]*this->dt_;
+    state_der[i] = 0; //Important: reset the state derivative to zero.
+  }
+}
 

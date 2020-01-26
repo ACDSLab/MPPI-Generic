@@ -16,7 +16,8 @@
  * NeuralNetModel<7,2,3,6,32,32,4> model(dt, u_constraint);
  * DYNAMICS_DIM = 4
  */
-
+#define MPPI_NNET_NONLINEARITY(ans) tanh(ans)
+#define MPPI_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
 
 /**
  * @file neural_net_model.cuh
@@ -87,6 +88,18 @@ public:
 
   void loadParams(const std::string& model_path);
 
+  __host__ __device__ void computeKinematics(float* state, float* state_der);
+
+  //__device__ void cudaInit(float* theta_s);
+
+  __host__ __device__ void enforceConstraints(float* state, float* control);
+
+  __host__ __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
+
+  __device__ void incrementState(float* state, float* state_der);
+
+  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s);
+
   /*
   void setParams(Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* weights,
                  Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* biases);
@@ -102,19 +115,6 @@ public:
   void computeDynamics(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
 
   void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
-
-
-  __device__ void computeKinematics(float* state, float* state_der);
-
-  __device__ void cudaInit(float* theta_s);
-
-  __device__ void enforceConstraints(float* state, float* control);
-
-  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
-
-  __device__ void incrementState(float* state, float* state_der);
-
-  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s);
 
   __device__ void printCudaParamVec();
    */
