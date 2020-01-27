@@ -19,7 +19,8 @@ public:
   static const int STATE_DIM = S_DIM;
   static const int CONTROL_DIM = C_DIM;
   // Eigen::Matrix<float, STATE_DIM, 1> state_der_;
-  float dt;
+  float dt_;
+
 
   Dynamics() = default;
   /**
@@ -36,9 +37,9 @@ public:
    * @param control   input of currrent control, passed by reference
    * @param state_der output of new state derivative, passed by reference
    */
-  virtual void xDot(Eigen::MatrixXf &state,
+  void xDot(Eigen::MatrixXf &state,
                     Eigen::MatrixXf &control,
-                    Eigen::MatrixXf &state_der) = 0;
+                    Eigen::MatrixXf &state_der);
   void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control); //compute the Jacobians with respect to state and control
   void loadParams(); //figure out what to pass in here
   void paramsToDevice();

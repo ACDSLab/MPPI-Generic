@@ -13,8 +13,6 @@ Cartpole::~Cartpole() {
 void Cartpole::GPUSetup() {
     if (!GPUMemStatus_) {
         CP_device = Managed::GPUSetup(this);
-
-        //this->GPUMemStatus_ = true;
     } else {
         std::cout << "GPU Memory already set." << std::endl;
     }

@@ -1,11 +1,10 @@
-set(LIBRARY_NAME dynamics_kernel_tests)
+set(LIBRARY_NAME ar_nn_dynamics_kernel_test)
 SET (LIB_MAJOR 0)
 SET (LIB_MINOR 0)
 SET (LIB_RELEASE 1)
 
 add_library(${LIBRARY_NAME} SHARED
-        cartpole/cartpole_kernel_test.cu
-        )
+        ar_nn_dynamics_kernel_test.cu ../../../include/utils/file_utils.h)
 
 target_link_libraries( ${LIBRARY_NAME}
         ${YAML_CPP_LIBRARIES}
@@ -25,5 +24,3 @@ install(TARGETS ${LIBRARY_NAME}
         RUNTIME DESTINATION bin
         LIBRARY DESTINATION lib/${CMAKE_PROJECT_NAME}
         )
-
-add_subdirectory(autorally)
