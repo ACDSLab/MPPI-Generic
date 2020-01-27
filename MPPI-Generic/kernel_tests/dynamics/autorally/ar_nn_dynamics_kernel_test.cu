@@ -52,12 +52,15 @@ __global__ void incrementStateTestKernel(NETWORK_T* model, float* state, float* 
 }
 
 template<class NETWORK_T, int BLOCK_DIM_Y, int STATE_DIM>
-void launchIncrementStateTestKernel(NETWORK_T& model, std::array<float, STATE_DIM> state, std::array<float, 3> state_der) {
+void launchIncrementStateTestKernel(NETWORK_T& model, std::array<float, STATE_DIM>& state, std::array<float, 7>& state_der) {
   float* state_d;
   float* state_der_d;
 
   HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*state.size()))
   HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float)*state_der.size()))
+
+  HANDLE_ERROR(cudaMemcpy(state_d, state.data() , sizeof(float)*state.size(), cudaMemcpyHostToDevice))
+  HANDLE_ERROR(cudaMemcpy(state_der_d, state_der.data(), sizeof(float)*state_der.size(), cudaMemcpyHostToDevice))
 
   dim3 threadsPerBlock(1, 1);
   dim3 numBlocks(1, 1);
@@ -83,7 +86,7 @@ template __global__ void parameterCheckTestKernel<NeuralNetModel<7,2,3,6,32,32,4
 
 // explicit instantiation
 
-template void launchIncrementStateTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1, 7>(NeuralNetModel<7,2,3,6,32,32,4>& model, std::array<float, 7> state, std::array<float, 3> state_der);
+template void launchIncrementStateTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1, 7>(NeuralNetModel<7,2,3,6,32,32,4>& model, std::array<float, 7>& state, std::array<float, 7>& state_der);
 
 // explicit instantiation
 template __global__ void incrementStateTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7>(NeuralNetModel<7,2,3,6,32,32,4>* model,  float* state, float* state_der);

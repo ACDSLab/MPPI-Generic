@@ -216,7 +216,7 @@ TEST(ARNeuralNetDynamics, LoadModelTest) {
   model.GPUSetup();
 
   // TODO procedurally generate a NN in python and save and run like costs
-  std::string path = "/home/jason/Documents/research/MPPI-Generic/test_nn.npz";
+  std::string path = "/home/mgandhi3/git/MPPI-Generic/test_nn.npz";
   model.loadParams(path);
 
   // check CPU
@@ -312,7 +312,7 @@ TEST(ARNeuralNetDynamics, incrementState) {
 
   std::array<float, 7> s = {0.0};
   // x_dot, y_dot, theta_dot
-  std::array<float, 3> s_der = {0.0};
+  std::array<float, 7> s_der = {0.0};
 
   s[2] = 0.0; // yaw
   s[4] = 1.0; // body frame vx

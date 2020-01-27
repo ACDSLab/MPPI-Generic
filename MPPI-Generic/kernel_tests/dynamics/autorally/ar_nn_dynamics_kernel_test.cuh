@@ -15,7 +15,7 @@ __global__ void parameterCheckTestKernel(NETWORK_T* model,  float* theta, int* s
 
 
 template<class NETWORK_T, int BLOCK_DIM_Y, int STATE_DIM>
-void launchIncrementStateTestKernel(NETWORK_T& model, std::array<float, STATE_DIM> state, std::array<float, 3> state_der);
+void launchIncrementStateTestKernel(NETWORK_T& model, std::array<float, STATE_DIM>& state, std::array<float, 7>& state_der);
 
 template<class NETWORK_T, int STATE_DIM>
 __global__ void incrementStateTestKernel(NETWORK_T* model, float* state, float* state_der);
