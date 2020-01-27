@@ -1,4 +1,4 @@
-#include <kernel_tests/mppi_core/rollout_kernel_test.cuh>
+#include "rollout_kernel_test.cuh"
 
 __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_device,
         float* x_thread_device, float* xdot_thread_device, float* u_thread_device, float* du_thread_device, float* sigma_u_thread_device) {

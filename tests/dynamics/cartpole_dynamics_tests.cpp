@@ -4,7 +4,7 @@
 
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
-#include <kernel_tests/dynamics/cartpole/cartpole_kernel_test.cuh>
+#include <dynamics/cartpole/cartpole_kernel_test.cuh>
 
 TEST(CartPole, StateDim) {
     auto CP = Cartpole(0.1, 1, 1, 1);

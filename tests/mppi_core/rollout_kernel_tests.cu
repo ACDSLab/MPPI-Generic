@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 #include <dynamics/cartpole/cartpole.cuh>
 #include <mppi_core/mppi_common.cuh>
-#include <kernel_tests/mppi_core/rollout_kernel_test.cuh>
-#include <kernel_tests/test_helper.h>
+#include <mppi_core/rollout_kernel_test.cuh>
+#include <utils/test_helper.h>
 
 /*
  * Here we will test various device functions that are related to cuda kernel things.

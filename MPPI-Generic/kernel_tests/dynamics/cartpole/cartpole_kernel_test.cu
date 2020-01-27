@@ -1,7 +1,7 @@
 //
 // Created by mgandhi3 on 1/7/20.
 //
-#include <kernel_tests/dynamics/cartpole/cartpole_kernel_test.cuh>
+#include "cartpole_kernel_test.cuh"
 
 /**
  * Kernels to test device functions
