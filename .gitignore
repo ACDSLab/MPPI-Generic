@@ -38,8 +38,5 @@ cmake-build-debug
 # vscode ide
 .vscode
 
-# data files
-*.npz
-
 # Build directories
 build

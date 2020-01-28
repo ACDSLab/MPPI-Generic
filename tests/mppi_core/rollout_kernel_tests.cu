@@ -69,6 +69,7 @@ TEST(RolloutKernel, injectControlNoiseOnce) {
 }
 
 TEST(RolloutKernel, computeRunningCostAllouts) {
+    // Given a bundle of trajectories, compute the running cost of each rollout
     FAIL();
 }
 

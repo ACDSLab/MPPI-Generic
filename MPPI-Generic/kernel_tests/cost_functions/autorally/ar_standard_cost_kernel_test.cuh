@@ -5,6 +5,8 @@
 #ifndef MPPIGENERIC_AR_STANDARD_COST_KERNEL_TEST_CUH
 #define MPPIGENERIC_AR_STANDARD_COST_KERNEL_TEST_CUH
 
+#include <cost_functions/autorally/ar_standard_cost.cuh>
+
 
 __global__ void parameterTestKernel(ARStandardCost* cost, ARStandardCost::ARStandardCostParams& params, int& width, int& height);
 
@@ -20,7 +22,7 @@ __global__ void transformTestKernel(float3* results, ARStandardCost* cost);
 
 void launchTextureTestKernel(const ARStandardCost& cost, std::vector<float4>& test_results, std::vector<float2>& test_indexes);
 
-__global__ void textureTestKernel(ARStandardCost& cost, float4* test_results, float2* test_indexes, int num_points);
+__global__ void textureTestKernel(const ARStandardCost& cost, float4* test_results, float2* test_indexes, int num_points);
 
 void launchTextureTransformTestKernel(const ARStandardCost& cost, std::vector<float4>& test_results, std::vector<float2>& test_indexes);
 

@@ -1,4 +1,4 @@
-#include <cost_functions/autorally/ar_standard_cost.cuh>
+#include "ar_standard_cost_kernel_test.cuh"
 
 __global__ void ParameterTestKernel(ARStandardCost* cost, ARStandardCost::ARStandardCostParams& params, int& width, int& height) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
