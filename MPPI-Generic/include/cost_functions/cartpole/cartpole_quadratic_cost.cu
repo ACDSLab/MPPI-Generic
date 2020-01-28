@@ -35,3 +35,18 @@ void CartPoleQuadraticCost::paramsToDevice() {
     HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 
+__host__ __device__ float CartPoleQuadraticCost::getStateCost(float *state) {
+    return state[0]*state[0]*params_.cart_position_coeff +
+           state[1]*state[1]*params_.cart_velocity_coeff +
+           state[2]*state[2]*params_.pole_angle_coeff +
+           state[3]*state[3]*params_.pole_angular_velocity_coeff;
+}
+
+__host__ __device__ float CartPoleQuadraticCost::getControlCost(float *u, float *du, float *vars) {
+    return params_.control_force_coeff*du[0]*(u[0] - du[0])/(vars[0]*vars[0]);
+}
+
+__host__ __device__ float CartPoleQuadraticCost::computeCost(float *s, float *u, float *du, float *vars) {
+    return getStateCost(s) + getControlCost(u, du, vars);
+}
+
