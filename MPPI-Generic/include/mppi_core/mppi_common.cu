@@ -53,7 +53,7 @@ namespace mppi_common {
                 __syncthreads();
 
                 //Accumulate running cost
-                computeRunningCostAllRollouts(costs, x, u, running_cost);
+                computeRunningCostAllRollouts(costs, dt, x, u, du, sigma_u, running_cost);
                 __syncthreads();
 
                 //Compute state derivatives
@@ -118,9 +118,9 @@ namespace mppi_common {
     }
 
     template<class COST_T>
-    __device__ void computeRunningCostAllRollouts(COST_T* costs, float* x_thread, float* u_thread, float& running_cost) {
+    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt, float* x_thread, float* u_thread, float* du_thread, float* sigma_thread, float& running_cost) {
         // The prior loop already guarantees that the global index is less than the number of rollouts
-        running_cost += costs->computeRunningCost(x_thread, u_thread);
+        running_cost += costs->computeRunningCost(x_thread, u_thread, du_thread, sigma_thread)*dt;
     }
 
     template<class DYN_T>

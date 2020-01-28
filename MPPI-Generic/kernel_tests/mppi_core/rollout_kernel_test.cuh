@@ -6,6 +6,7 @@
 #include <mppi_core/mppi_common.cuh>
 #include <curand.h>
 #include <vector>
+#include <array>
 
 // Declare some sizes for the kernel parameters
 const int STATE_DIM = 12;
@@ -31,4 +32,24 @@ __global__ void injectControlNoise_KernelTest();
 
 void launchInjectControlNoise_KernelTest();
 
+template<class COST_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int STATE_DIM, int CONTROL_DIM>
+__global__ void computeRunningCostAllRollouts_KernelTest(COST_T* cost_d, float dt, float* x_trajectory_d, float* u_trajectory_d, float* du_trajectory_d, float* var_d, float* cost_allrollouts_d);
+
+template<class COST_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int STATE_DIM, int CONTROL_DIM>
+void computeRunningCostAllRollouts_CPU_TEST(COST_T& cost,
+                                            float dt,
+                                            std::array<float, STATE_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& x_trajectory,
+                                            std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& u_trajectory,
+                                            std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& du_trajectory,
+                                            std::array<float, CONTROL_DIM>& sigma_u,
+                                            std::array<float, NUM_ROLLOUTS>& cost_allrollouts);
+
+template<class COST_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int STATE_DIM, int CONTROL_DIM>
+void launchComputeRunningCostAllRollouts_KernelTest(const COST_T& cost,
+        float dt,
+        const std::array<float, STATE_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& x_trajectory,
+        const std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& u_trajectory,
+        const std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& du_trajectory,
+        const std::array<float, CONTROL_DIM>& sigma_u,
+        std::array<float, NUM_ROLLOUTS>& cost_allrollouts);
 #endif // !KERNEL_TESTS_MPPI_CORE_ROLLOUT_KERNEL_TEST_CUH_

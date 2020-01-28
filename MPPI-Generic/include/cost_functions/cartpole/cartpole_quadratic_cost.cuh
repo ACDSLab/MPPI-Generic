@@ -75,7 +75,7 @@ public:
     /**
      * @brief Compute all of the individual cost terms and adds them together.
      */
-    __host__ __device__ float computeCost(float* s, float* u, float* du, float* vars);
+    __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars);
 
     CartPoleQuadraticCost* cost_d_ = nullptr;
 

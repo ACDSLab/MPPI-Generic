@@ -1,5 +1,8 @@
 #include "rollout_kernel_test.cuh"
 
+#include <dynamics/cartpole/cartpole.cuh>
+#include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>
+
 __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_device,
         float* x_thread_device, float* xdot_thread_device, float* u_thread_device, float* du_thread_device, float* sigma_u_thread_device) {
     int thread_idx = threadIdx.x;
@@ -171,3 +174,101 @@ void launchInjectControlNoiseOnce_KernelTest(const std::vector<float>& u_traj_ho
     cudaFree(sigma_u_device);
     curandDestroyGenerator(gen_);
 }
+
+template<class COST_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int STATE_DIM, int CONTROL_DIM>
+__global__ void computeRunningCostAllRollouts_KernelTest(COST_T* cost_d, float dt, float* x_trajectory_d, float* u_trajectory_d, float* du_trajectory_d, float* var_d, float* cost_allrollouts_d) {
+    int tid = blockDim.x*blockIdx.x + threadIdx.x; // index on rollouts
+    if (tid < NUM_ROLLOUTS) {
+        float current_cost = 0.f;
+        for (int t = 0; t < NUM_TIMESTEPS; ++t) {
+            mppi_common::computeRunningCostAllRollouts(cost_d, dt, &x_trajectory_d[STATE_DIM*NUM_TIMESTEPS*tid + STATE_DIM*t],
+                                          &u_trajectory_d[CONTROL_DIM*NUM_TIMESTEPS*tid + CONTROL_DIM*t],
+                                          &du_trajectory_d[CONTROL_DIM*NUM_TIMESTEPS*tid + CONTROL_DIM*t],
+                                          var_d, current_cost);
+        }
+        cost_allrollouts_d[tid] = current_cost;
+    }
+}
+
+template<class COST_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int STATE_DIM, int CONTROL_DIM>
+void computeRunningCostAllRollouts_CPU_TEST(COST_T& cost,
+                                            float dt,
+                                            std::array<float, STATE_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& x_trajectory,
+                                            std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& u_trajectory,
+                                            std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& du_trajectory,
+                                            std::array<float, CONTROL_DIM>& sigma_u,
+                                            std::array<float, NUM_ROLLOUTS>& cost_allrollouts) {
+    float current_cost;
+    for (int i = 0; i < NUM_ROLLOUTS; ++i) {
+        current_cost = 0;
+        for (int t = 0; t < NUM_TIMESTEPS; ++t) {
+            current_cost += cost.computeRunningCost(&x_trajectory[STATE_DIM*NUM_TIMESTEPS*i + STATE_DIM*t],
+                                                    &u_trajectory[CONTROL_DIM*NUM_TIMESTEPS*i + CONTROL_DIM*t],
+                                                    &du_trajectory[CONTROL_DIM*NUM_TIMESTEPS*i + CONTROL_DIM*t],
+                                                    sigma_u.data())*dt;
+        }
+        cost_allrollouts[i] = current_cost;
+    }
+}
+
+template<class COST_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int STATE_DIM, int CONTROL_DIM>
+void launchComputeRunningCostAllRollouts_KernelTest(const COST_T& cost,
+                                                    float dt,
+                                                    const std::array<float, STATE_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& x_trajectory,
+                                                    const std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& u_trajectory,
+                                                    const std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& du_trajectory,
+                                                    const std::array<float, CONTROL_DIM>& sigma_u,
+                                                    std::array<float, NUM_ROLLOUTS>& cost_allrollouts) {
+    // Declare variables for device memory
+    float* x_traj_d;
+    float* u_traj_d;
+    float* du_traj_d;
+    float* sigma_u_d;
+    float* cost_allrollouts_d;
+
+
+    // Allocate cuda memory
+    HANDLE_ERROR(cudaMalloc((void**)&x_traj_d, sizeof(float)*x_trajectory.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&u_traj_d, sizeof(float)*u_trajectory.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&du_traj_d, sizeof(float)*du_trajectory.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&sigma_u_d, sizeof(float)*sigma_u.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&cost_allrollouts_d, sizeof(float)*cost_allrollouts.size()));
+
+
+    // Copy the trajectories to the device
+    HANDLE_ERROR(cudaMemcpy(x_traj_d, x_trajectory.data(), sizeof(float)*x_trajectory.size(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(u_traj_d, u_trajectory.data(), sizeof(float)*u_trajectory.size(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(du_traj_d, du_trajectory.data(), sizeof(float)*du_trajectory.size(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(sigma_u_d, sigma_u.data(), sizeof(float)*sigma_u.size(), cudaMemcpyHostToDevice));
+
+
+    // Launch the test kernel
+    computeRunningCostAllRollouts_KernelTest<COST_T, NUM_ROLLOUTS, NUM_TIMESTEPS, STATE_DIM, CONTROL_DIM><<<1,NUM_ROLLOUTS>>>(cost.cost_d_, dt, x_traj_d, u_traj_d, du_traj_d, sigma_u_d, cost_allrollouts_d);
+    CudaCheckError();
+
+    // Copy the result back to the host
+    HANDLE_ERROR(cudaMemcpy(cost_allrollouts.data(), cost_allrollouts_d, sizeof(float)*cost_allrollouts.size(), cudaMemcpyDeviceToHost));
+}
+
+// Explicitly instantiate test templates
+const int num_timesteps = 100;
+const int num_rollouts = 100;
+const int state_dim = 4;
+const int control_dim = 1;
+template void computeRunningCostAllRollouts_CPU_TEST<CartPoleQuadraticCost, num_timesteps, num_rollouts, state_dim, control_dim>(
+        CartPoleQuadraticCost& cost,
+        float dt,
+        std::array<float, state_dim*num_timesteps*num_rollouts>& x_trajectory,
+        std::array<float, control_dim*num_timesteps*num_rollouts>& u_trajectory,
+        std::array<float, control_dim*num_timesteps*num_rollouts>& du_trajectory,
+        std::array<float, control_dim>& sigma_u,
+        std::array<float, num_rollouts>& cost_allrollouts);
+
+template void launchComputeRunningCostAllRollouts_KernelTest<CartPoleQuadraticCost, num_timesteps, num_rollouts, state_dim, control_dim>(
+        const CartPoleQuadraticCost& cost,
+        float dt,
+        const std::array<float, state_dim*num_timesteps*num_rollouts>& x_trajectory,
+        const std::array<float, control_dim*num_timesteps*num_rollouts>& u_trajectory,
+        const std::array<float, control_dim*num_timesteps*num_rollouts>& du_trajectory,
+        const std::array<float, control_dim>& sigma_u,
+        std::array<float, num_rollouts>& cost_allrollouts);

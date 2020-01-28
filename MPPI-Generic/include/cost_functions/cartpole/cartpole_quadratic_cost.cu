@@ -46,7 +46,7 @@ __host__ __device__ float CartPoleQuadraticCost::getControlCost(float *u, float 
     return params_.control_force_coeff*du[0]*(u[0] - du[0])/(vars[0]*vars[0]);
 }
 
-__host__ __device__ float CartPoleQuadraticCost::computeCost(float *s, float *u, float *du, float *vars) {
+__host__ __device__ float CartPoleQuadraticCost::computeRunningCost(float *s, float *u, float *du, float *vars) {
     return getStateCost(s) + getControlCost(u, du, vars);
 }
 
