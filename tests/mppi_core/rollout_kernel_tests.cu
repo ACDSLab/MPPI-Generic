@@ -138,10 +138,10 @@ TEST(RolloutKernel, computeStateDerivAllRollouts_Cartpole) {
 }
 
 TEST(RolloutKernel, computeStateDerivAllRollouts_AR) {
-    FAIL() << "Requires implementation.";
+    GTEST_SKIP() << "Requires implementation.";
 }
 
 TEST(RolloutKernel, incrementStateAllRollouts) {
-    FAIL() << "Requires implementation.";
+    GTEST_SKIP() << "Requires implementation.";
 }
 
