@@ -60,7 +60,7 @@ void launchCartMassTestKernel(const Cartpole& CP, float& mass_check) {
     float* mass_check_device;
     HANDLE_ERROR(cudaMalloc((void**)&mass_check_device, sizeof(float)));
 
-    CartMassTestKernel<<<1,1>>>(CP.CP_device, *mass_check_device);
+    CartMassTestKernel<<<1,1>>>(CP.model_d_, *mass_check_device);
     CudaCheckError();
 
     // Copy the memory back to the host
@@ -75,7 +75,7 @@ void launchPoleMassTestKernel(const Cartpole& CP, float& mass_check) {
     float* mass_check_device;
     HANDLE_ERROR(cudaMalloc((void**)&mass_check_device, sizeof(float)));
 
-    PoleMassTestKernel<<<1,1>>>(CP.CP_device, *mass_check_device);
+    PoleMassTestKernel<<<1,1>>>(CP.model_d_, *mass_check_device);
     CudaCheckError();
 
     // Copy the memory back to the host
@@ -90,7 +90,7 @@ void launchPoleLengthTestKernel(const Cartpole& CP, float& length_check) {
     float* length_check_device;
     HANDLE_ERROR(cudaMalloc((void**)&length_check_device, sizeof(float)));
 
-    PoleLengthTestKernel<<<1,1>>>(CP.CP_device, *length_check_device);
+    PoleLengthTestKernel<<<1,1>>>(CP.model_d_, *length_check_device);
     CudaCheckError();
 
     // Copy the memory back to the host
@@ -105,7 +105,7 @@ void launchGravityTestKernel(const Cartpole& CP, float& gravity_check) {
     float* gravity_check_device;
     HANDLE_ERROR(cudaMalloc((void**)&gravity_check_device, sizeof(float)));
 
-    GravityTestKernel<<<1,1>>>(CP.CP_device, *gravity_check_device);
+    GravityTestKernel<<<1,1>>>(CP.model_d_, *gravity_check_device);
     CudaCheckError();
 
     // Copy the memory back to the host
@@ -129,7 +129,7 @@ void launchDynamicsTestKernel(const Cartpole& CP, float* state_cpu,
     HANDLE_ERROR(cudaMemcpy(state_gpu, state_cpu, sizeof(float)* CP.STATE_DIM, cudaMemcpyHostToDevice));
     HANDLE_ERROR(cudaMemcpy(control_gpu, control_cpu, sizeof(float)* CP.CONTROL_DIM, cudaMemcpyHostToDevice));
 
-    DynamicsTestKernel<<<1,1>>>(CP.CP_device, state_gpu, control_gpu, state_der_gpu);
+    DynamicsTestKernel<<<1,1>>>(CP.model_d_, state_gpu, control_gpu, state_der_gpu);
     CudaCheckError();
 
     // Copy the memory back to the host

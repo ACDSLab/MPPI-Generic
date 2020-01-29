@@ -9,7 +9,7 @@
 #include <eigen3/Eigen/Dense>
 #include <cuda_runtime.h>
 
-class CartPoleQuadraticCost : public Cost {
+class CartpoleQuadraticCost : public Cost {
 public:
 
     typedef struct {
@@ -19,19 +19,19 @@ public:
         float pole_angular_velocity_coeff = 1;
         float control_force_coeff = 1;
 
-    } CartPoleQuadraticCostParams;
+    } CartpoleQuadraticCostParams;
 
     /**
      * Constructor
      * @param width
      * @param height
      */
-    CartPoleQuadraticCost(cudaStream_t stream=0);
+    CartpoleQuadraticCost(cudaStream_t stream=0);
 
     /**
      *
      */
-    ~CartPoleQuadraticCost();
+    ~CartpoleQuadraticCost();
 
     /**
      * allocates all the extra cuda memory
@@ -47,13 +47,13 @@ public:
      * Updates GPU if allocated
      * @param params
      */
-    inline __host__ __device__ void setParams(CartPoleQuadraticCostParams params);
+    inline __host__ __device__ void setParams(CartpoleQuadraticCostParams params);
 
     /**
      *
      * @return current parameters for the system
      */
-    inline __host__ __device__ CartPoleQuadraticCostParams getParams() {return params_;}
+    inline __host__ __device__ CartpoleQuadraticCostParams getParams() {return params_;}
 
 
     /**
@@ -77,11 +77,11 @@ public:
      */
     __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars);
 
-    CartPoleQuadraticCost* cost_d_ = nullptr;
+    CartpoleQuadraticCost* cost_d_ = nullptr;
 
 protected:
 
-    CartPoleQuadraticCostParams params_; ///< object copy of params
+    CartpoleQuadraticCostParams params_; ///< object copy of params
 
 };
 

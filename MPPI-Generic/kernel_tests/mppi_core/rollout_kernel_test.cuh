@@ -46,10 +46,20 @@ void computeRunningCostAllRollouts_CPU_TEST(COST_T& cost,
 
 template<class COST_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int STATE_DIM, int CONTROL_DIM>
 void launchComputeRunningCostAllRollouts_KernelTest(const COST_T& cost,
-        float dt,
-        const std::array<float, STATE_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& x_trajectory,
-        const std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& u_trajectory,
-        const std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& du_trajectory,
-        const std::array<float, CONTROL_DIM>& sigma_u,
-        std::array<float, NUM_ROLLOUTS>& cost_allrollouts);
+                                                    float dt,
+                                                    const std::array<float, STATE_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& x_trajectory,
+                                                    const std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& u_trajectory,
+                                                    const std::array<float, CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS>& du_trajectory,
+                                                    const std::array<float, CONTROL_DIM>& sigma_u,
+                                                    std::array<float, NUM_ROLLOUTS>& cost_allrollouts);
+
+template<class DYN_T, int NUM_ROLLOUTS>
+__global__ void computeStateDerivAllRollouts_KernelTest(DYN_T* dynamics_d, float* x_trajectory_d, float* u_trajectory_d, float* xdot_trajectory_d);
+
+template<class DYN_T, int NUM_ROLLOUTS>
+void launchComputeStateDerivAllRollouts_KernelTest(const DYN_T& dynamics,
+                                                   const std::array<float, DYN_T::STATE_DIM*NUM_ROLLOUTS>& x_trajectory,
+                                                   const std::array<float, DYN_T::CONTROL_DIM*NUM_ROLLOUTS>& u_trajectory,
+                                                   std::array<float, DYN_T::STATE_DIM*NUM_ROLLOUTS>& xdot_trajectory) ;
+
 #endif // !KERNEL_TESTS_MPPI_CORE_ROLLOUT_KERNEL_TEST_CUH_

@@ -4,7 +4,7 @@
 #include <array>
 
 TEST(CartPoleQuadraticCost, Constructor) {
-    CartPoleQuadraticCost cost;
+    CartpoleQuadraticCost cost;
 
     // Test passes if the object is constructed without runetime error.
 }
@@ -12,32 +12,32 @@ TEST(CartPoleQuadraticCost, Constructor) {
 TEST(CartPoleQuadraticCost, BindStream) {
     cudaStream_t stream;
     HANDLE_ERROR(cudaStreamCreate(&stream));
-    CartPoleQuadraticCost cost(stream);
+    CartpoleQuadraticCost cost(stream);
     EXPECT_EQ(cost.stream_, stream) << "Stream binding failure.";
     HANDLE_ERROR(cudaStreamDestroy(stream));
 }
 
 TEST(CartPoleQuadraticCost, GPUMemoryNull) {
-    CartPoleQuadraticCost cost;
+    CartpoleQuadraticCost cost;
     ASSERT_EQ(cost.cost_d_, nullptr);
 }
 
 TEST(CartPoleQuadraticCost, GPUSetup) {
-    CartPoleQuadraticCost cost;
+    CartpoleQuadraticCost cost;
     cost.GPUSetup();
 
     ASSERT_FALSE(cost.cost_d_ == nullptr);
 }
 
 TEST(CartPoleQuadraticCost, SetParamsCPU) {
-    CartPoleQuadraticCost::CartPoleQuadraticCostParams new_params;
+    CartpoleQuadraticCost::CartpoleQuadraticCostParams new_params;
     new_params.cart_position_coeff = 3;
     new_params.pole_angle_coeff = 3;
     new_params.cart_velocity_coeff = 3;
     new_params.pole_angular_velocity_coeff = 3;
     new_params.control_force_coeff = 5;
 
-    CartPoleQuadraticCost cost;
+    CartpoleQuadraticCost cost;
 
     cost.setParams(new_params);
     auto current_params = cost.getParams();
@@ -51,17 +51,17 @@ TEST(CartPoleQuadraticCost, SetParamsCPU) {
 }
 
 TEST(CartPoleQuadraticCost, SetParamsGPU) {
-    CartPoleQuadraticCost cost;
+    CartpoleQuadraticCost cost;
     cost.GPUSetup();
 
-    CartPoleQuadraticCost::CartPoleQuadraticCostParams new_params;
+    CartpoleQuadraticCost::CartpoleQuadraticCostParams new_params;
     new_params.cart_position_coeff = 5;
     new_params.pole_angle_coeff = 6;
     new_params.cart_velocity_coeff = 7;
     new_params.pole_angular_velocity_coeff = 8;
     new_params.control_force_coeff = 9;
 
-    CartPoleQuadraticCost::CartPoleQuadraticCostParams gpu_params;
+    CartpoleQuadraticCost::CartpoleQuadraticCostParams gpu_params;
 
     cost.setParams(new_params);
 
@@ -80,7 +80,7 @@ TEST(CartPoleQuadraticCost, SetParamsGPU) {
 }
 
 TEST(CartPoleQuadraticCost, ComputeStateCost) {
-    CartPoleQuadraticCost cost;
+    CartpoleQuadraticCost cost;
 
     std::array<float, 4> state = {1.f, 2.f, 3.f, 4.f};
 
@@ -94,7 +94,7 @@ TEST(CartPoleQuadraticCost, ComputeStateCost) {
 }
 
 TEST(CartPoleQuadraticCost, ComputeControlCost) {
-    CartPoleQuadraticCost cost;
+    CartpoleQuadraticCost cost;
 
     float u = 10;
     float du = 0.4;
@@ -106,7 +106,7 @@ TEST(CartPoleQuadraticCost, ComputeControlCost) {
 }
 
 TEST(CartPoleQuadraticCost, ComputeRunningCost) {
-    CartPoleQuadraticCost cost;
+    CartpoleQuadraticCost cost;
 
     std::array<float, 4> state = {5.f, 3.f, 2.f, 4.f};
     float u = 6;

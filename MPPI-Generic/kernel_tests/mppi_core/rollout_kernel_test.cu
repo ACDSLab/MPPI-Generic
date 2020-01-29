@@ -250,25 +250,76 @@ void launchComputeRunningCostAllRollouts_KernelTest(const COST_T& cost,
     HANDLE_ERROR(cudaMemcpy(cost_allrollouts.data(), cost_allrollouts_d, sizeof(float)*cost_allrollouts.size(), cudaMemcpyDeviceToHost));
 }
 
-// Explicitly instantiate test templates
-const int num_timesteps = 100;
-const int num_rollouts = 100;
-const int state_dim = 4;
-const int control_dim = 1;
-template void computeRunningCostAllRollouts_CPU_TEST<CartPoleQuadraticCost, num_timesteps, num_rollouts, state_dim, control_dim>(
-        CartPoleQuadraticCost& cost,
-        float dt,
-        std::array<float, state_dim*num_timesteps*num_rollouts>& x_trajectory,
-        std::array<float, control_dim*num_timesteps*num_rollouts>& u_trajectory,
-        std::array<float, control_dim*num_timesteps*num_rollouts>& du_trajectory,
-        std::array<float, control_dim>& sigma_u,
-        std::array<float, num_rollouts>& cost_allrollouts);
+template<class DYN_T, int NUM_ROLLOUTS>
+__global__ void computeStateDerivAllRollouts_KernelTest(DYN_T* dynamics_d, float* x_trajectory_d, float* u_trajectory_d, float* xdot_trajectory_d) {
+    int tid = blockDim.x*blockIdx.x + threadIdx.x; // index on rollouts
+    if (tid < NUM_ROLLOUTS) {
+            mppi_common::computeStateDerivAllRollouts(dynamics_d, &x_trajectory_d[DYN_T::STATE_DIM*tid],
+                                                       &u_trajectory_d[DYN_T::CONTROL_DIM*tid],
+                                                       &xdot_trajectory_d[DYN_T::STATE_DIM*tid]);
+    }
+}
 
-template void launchComputeRunningCostAllRollouts_KernelTest<CartPoleQuadraticCost, num_timesteps, num_rollouts, state_dim, control_dim>(
-        const CartPoleQuadraticCost& cost,
+template<class DYN_T, int NUM_ROLLOUTS>
+void launchComputeStateDerivAllRollouts_KernelTest(const DYN_T& dynamics,
+                                                   const std::array<float, DYN_T::STATE_DIM*NUM_ROLLOUTS>& x_trajectory,
+                                                   const std::array<float, DYN_T::CONTROL_DIM*NUM_ROLLOUTS>& u_trajectory,
+                                                   std::array<float, DYN_T::STATE_DIM*NUM_ROLLOUTS>& xdot_trajectory) {
+    // Declare variables for device memory
+    float* x_traj_d;
+    float* u_traj_d;
+    float* xdot_traj_d;
+
+
+    // Allocate cuda memory
+    HANDLE_ERROR(cudaMalloc((void**)&x_traj_d, sizeof(float)*x_trajectory.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&u_traj_d, sizeof(float)*u_trajectory.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&xdot_traj_d, sizeof(float)*xdot_trajectory.size()));
+
+
+    // Copy the trajectories to the device
+    HANDLE_ERROR(cudaMemcpy(x_traj_d, x_trajectory.data(), sizeof(float)*x_trajectory.size(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(u_traj_d, u_trajectory.data(), sizeof(float)*u_trajectory.size(), cudaMemcpyHostToDevice));
+
+
+    // Launch the test kernel
+    computeStateDerivAllRollouts_KernelTest<DYN_T, NUM_ROLLOUTS><<<1,NUM_ROLLOUTS>>>(dynamics.model_d_, x_traj_d, u_traj_d, xdot_traj_d);
+    CudaCheckError();
+
+    // Copy the result back to the host
+    HANDLE_ERROR(cudaMemcpy(xdot_trajectory.data(), xdot_traj_d, sizeof(float)*xdot_trajectory.size(), cudaMemcpyDeviceToHost));
+}
+
+
+
+/***********************************************************************************************************************
+ * Cartpole Running Cost Rollout Template Instantiations
+ **********************************************************************************************************************/
+const int num_timesteps_rc = 100;
+const int num_rollouts_rc = 100;
+template void computeRunningCostAllRollouts_CPU_TEST<CartpoleQuadraticCost, num_timesteps_rc, num_rollouts_rc, Cartpole::STATE_DIM, Cartpole::CONTROL_DIM>(
+        CartpoleQuadraticCost& cost,
         float dt,
-        const std::array<float, state_dim*num_timesteps*num_rollouts>& x_trajectory,
-        const std::array<float, control_dim*num_timesteps*num_rollouts>& u_trajectory,
-        const std::array<float, control_dim*num_timesteps*num_rollouts>& du_trajectory,
-        const std::array<float, control_dim>& sigma_u,
-        std::array<float, num_rollouts>& cost_allrollouts);
+        std::array<float, Cartpole::STATE_DIM * num_timesteps_rc * num_rollouts_rc>& x_trajectory,
+        std::array<float, Cartpole::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& u_trajectory,
+        std::array<float, Cartpole::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& du_trajectory,
+        std::array<float, Cartpole::CONTROL_DIM>& sigma_u,
+        std::array<float, num_rollouts_rc>& cost_allrollouts);
+
+template void launchComputeRunningCostAllRollouts_KernelTest<CartpoleQuadraticCost, num_timesteps_rc, num_rollouts_rc, Cartpole::STATE_DIM, Cartpole::CONTROL_DIM>(
+        const CartpoleQuadraticCost& cost,
+        float dt,
+        const std::array<float, Cartpole::STATE_DIM * num_timesteps_rc * num_rollouts_rc>& x_trajectory,
+        const std::array<float, Cartpole::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& u_trajectory,
+        const std::array<float, Cartpole::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& du_trajectory,
+        const std::array<float, Cartpole::CONTROL_DIM>& sigma_u,
+        std::array<float, num_rollouts_rc>& cost_allrollouts);
+
+/***********************************************************************************************************************
+ * Cartpole Compute State Derivative Template Instantiations
+ **********************************************************************************************************************/
+ const int num_rollouts_sd = 1000;
+template void launchComputeStateDerivAllRollouts_KernelTest<Cartpole, num_rollouts_sd>(const Cartpole& dynamics,
+                                                   const std::array<float, Cartpole::STATE_DIM*num_rollouts_sd>& x_trajectory,
+                                                   const std::array<float, Cartpole::CONTROL_DIM*num_rollouts_sd>& u_trajectory,
+                                                   std::array<float, Cartpole::STATE_DIM*num_rollouts_sd>& xdot_trajectory);

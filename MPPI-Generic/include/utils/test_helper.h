@@ -37,6 +37,13 @@ inline void array_expect_float_eq(const float known, const std::array<float, siz
     }
 }
 
+template<int size>
+inline void array_expect_float_near(const std::array<float, size>& known,const std::array<float, size>& compute, float tol) {
+    ASSERT_EQ(compute.size(), size) << "The computed array size is not the given size!";
+    for (int i = 0; i < size; i++) {
+        EXPECT_NEAR(known[i], compute[i], tol) << "Failed at index: " << i;
+    }
+}
 
 
 #endif //MPPIGENERIC_KERNEL_TESTS_TEST_HELPER_H
