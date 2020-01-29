@@ -135,6 +135,7 @@ namespace mppi_common {
         //Implementing simple first order Euler for now, more complex scheme can be added later
         for (int i = thread_idy; i < state_dim; i += blocksize_y) {
             x_thread[i] += xdot_thread[i] * dt;
+            xdot_thread[i] = 0; // Reset the derivative to zero
         }
     }
 

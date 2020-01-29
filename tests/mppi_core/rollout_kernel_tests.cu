@@ -22,11 +22,11 @@ TEST(RolloutKernel, loadGlobalToShared) {
 
     launchGlobalToShared_KernelTest(x0_host, u_var_host, x_thread_host, xdot_thread_host, u_thread_host, du_thread_host, sigma_u_thread_host);
 
-    array_expect_float_eq(x0_host, x_thread_host, STATE_DIM);
-    array_expect_float_eq(0.f, xdot_thread_host, STATE_DIM);
-    array_expect_float_eq(0.f, u_thread_host, CONTROL_DIM);
-    array_expect_float_eq(0.f, du_thread_host, CONTROL_DIM);
-    array_expect_float_eq(sigma_u_thread_host, u_var_host, CONTROL_DIM);
+    array_assert_float_eq(x0_host, x_thread_host, STATE_DIM);
+    array_assert_float_eq(0.f, xdot_thread_host, STATE_DIM);
+    array_assert_float_eq(0.f, u_thread_host, CONTROL_DIM);
+    array_assert_float_eq(0.f, du_thread_host, CONTROL_DIM);
+    array_assert_float_eq(sigma_u_thread_host, u_var_host, CONTROL_DIM);
 }
 
 TEST(RolloutKernel, injectControlNoiseOnce) {
@@ -98,7 +98,7 @@ TEST(RolloutKernel, computeRunningCostAllRollouts) {
     launchComputeRunningCostAllRollouts_KernelTest<CartpoleQuadraticCost, num_rollouts, num_timesteps, state_dim, control_dim>(cost, dt, x_traj, u_traj, du_traj, sigma_u, cost_compute);
 
     // Compare
-    array_expect_float_eq<num_rollouts>(cost_known, cost_compute);
+    array_assert_float_eq<num_rollouts>(cost_known, cost_compute);
 
 }
 
@@ -134,7 +134,7 @@ TEST(RolloutKernel, computeStateDerivAllRollouts_Cartpole) {
     launchComputeStateDerivAllRollouts_KernelTest<Cartpole, num_rollouts>(model, x_traj, u_traj, xdot_traj_compute);
 
 
-    array_expect_float_near<num_rollouts*Cartpole::STATE_DIM>(xdot_traj_known, xdot_traj_compute, 1e-1);
+    array_assert_float_near<num_rollouts*Cartpole::STATE_DIM>(xdot_traj_known, xdot_traj_compute, 1e-1);
 }
 
 TEST(RolloutKernel, computeStateDerivAllRollouts_AR) {
@@ -142,6 +142,45 @@ TEST(RolloutKernel, computeStateDerivAllRollouts_AR) {
 }
 
 TEST(RolloutKernel, incrementStateAllRollouts) {
-    GTEST_SKIP() << "Requires implementation.";
+    float dt = 0.01;
+
+    const int num_rollouts = 5000; // Must match the value in rollout_kernel_test.cu
+    // Generate the trajectory data
+    std::array<float, Cartpole::STATE_DIM*num_rollouts> x_traj_known= {0};
+    std::array<float, Cartpole::STATE_DIM*num_rollouts> x_traj_compute = {0};
+    std::array<float, Cartpole::STATE_DIM*num_rollouts> xdot_traj_known= {0};
+    std::array<float, Cartpole::STATE_DIM*num_rollouts> xdot_traj_compute = {0};
+
+    // Range based for loop that will increase each index of x_traj by 0.1
+    // x_traj = {0.12, 0.24, 0.36, ...}
+    for(auto& x: x_traj_compute) {
+        x = *((&x)-1)+0.12;
+    }
+
+    x_traj_known = x_traj_compute;
+
+    // Range based for loop that will increase each index of u_traj by 0.1
+    // u_traj = {0.03, 0.06, 0.09, ...}
+    for(auto& xdot: xdot_traj_compute) {
+        xdot = *((&xdot)-1)+0.03;
+    }
+
+    xdot_traj_known = xdot_traj_compute;
+
+    // Compute increment the state on the CPU
+    for (int i = 0; i < num_rollouts; ++i) {
+        for (int j = 0; j < Cartpole::STATE_DIM; ++j) {
+            x_traj_known[i*Cartpole::STATE_DIM + j] += xdot_traj_known[i*Cartpole::STATE_DIM + j]*dt;
+            xdot_traj_known[i*Cartpole::STATE_DIM + j] = 0;
+        }
+    }
+
+    // Compute the dynamics on the GPU
+    launchIncrementStateAllRollouts_KernelTest<Cartpole::STATE_DIM, num_rollouts>(dt, x_traj_compute, xdot_traj_compute);
+
+
+    array_assert_float_eq<num_rollouts*Cartpole::STATE_DIM>(x_traj_known, x_traj_compute);
+    array_assert_float_eq<num_rollouts*Cartpole::STATE_DIM>(xdot_traj_known, xdot_traj_compute);
+
 }
 

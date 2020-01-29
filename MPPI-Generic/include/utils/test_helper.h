@@ -6,42 +6,42 @@
 #define MPPIGENERIC_KERNEL_TESTS_TEST_HELPER_H
 #include <gtest/gtest.h>
 
-inline void array_expect_float_eq(const std::vector<float>& known,const std::vector<float>& compute, int size) {
+inline void array_assert_float_eq(const std::vector<float>& known, const std::vector<float>& compute, int size) {
     ASSERT_EQ(compute.size(), size) << "The computed vector size is not the given size!";
-    EXPECT_EQ(known.size(), compute.size()) << "Two vectors are not the same size!";
+    ASSERT_EQ(known.size(), compute.size()) << "Two vectors are not the same size!";
     for (int i = 0; i < size; i++) {
-        EXPECT_FLOAT_EQ(known[i], compute[i]) << "Failed at index: " << i;
+        ASSERT_FLOAT_EQ(known[i], compute[i]) << "Failed at index: " << i;
     }
 }
 
-inline void array_expect_float_eq(const float known, const std::vector<float>& compute, const int size) {
+inline void array_assert_float_eq(const float known, const std::vector<float>& compute, const int size) {
     ASSERT_EQ(compute.size(), size) << "The computed vector size is not the given size!";
     for (int i = 0; i < size; i++) {
-        EXPECT_FLOAT_EQ(known, compute[i]) << "Failed at index: " << i;
+        ASSERT_FLOAT_EQ(known, compute[i]) << "Failed at index: " << i;
     }
 }
 
 template<int size>
-inline void array_expect_float_eq(const std::array<float, size>& known,const std::array<float, size>& compute) {
+inline void array_assert_float_eq(const std::array<float, size>& known,const std::array<float, size>& compute) {
     ASSERT_EQ(compute.size(), size) << "The computed array size is not the given size!";
     for (int i = 0; i < size; i++) {
-        EXPECT_FLOAT_EQ(known[i], compute[i]) << "Failed at index: " << i;
+        ASSERT_FLOAT_EQ(known[i], compute[i]) << "Failed at index: " << i;
     }
 }
 
 template<int size>
-inline void array_expect_float_eq(const float known, const std::array<float, size>& compute) {
+inline void array_assert_float_eq(const float known, const std::array<float, size>& compute) {
     ASSERT_EQ(compute.size(), size) << "The computed array size is not the given size!";
     for (int i = 0; i < size; i++) {
-        EXPECT_FLOAT_EQ(known, compute[i]) << "Failed at index: " << i;
+        ASSERT_FLOAT_EQ(known, compute[i]) << "Failed at index: " << i;
     }
 }
 
 template<int size>
-inline void array_expect_float_near(const std::array<float, size>& known,const std::array<float, size>& compute, float tol) {
+inline void array_assert_float_near(const std::array<float, size>& known,const std::array<float, size>& compute, float tol) {
     ASSERT_EQ(compute.size(), size) << "The computed array size is not the given size!";
     for (int i = 0; i < size; i++) {
-        EXPECT_NEAR(known[i], compute[i], tol) << "Failed at index: " << i;
+        ASSERT_NEAR(known[i], compute[i], tol) << "Failed at index: " << i;
     }
 }
 
