@@ -4,7 +4,7 @@
 #include <mppi_core/mppi_common.cuh>
 #include <mppi_core/rollout_kernel_test.cuh>
 #include <utils/test_helper.h>
-
+#include <random>
 /*
  * Here we will test various device functions that are related to cuda kernel things.
  */
@@ -185,9 +185,40 @@ TEST(RolloutKernel, incrementStateAllRollouts) {
 
 TEST(RolloutKernel, computeAndSaveCostAllRollouts) {
     // Define an assortment of costs for a given number of rollouts
+    CartpoleQuadraticCost cost;
+    cost.GPUSetup();
 
-    // Specify the terminal state for each trajectory
-    GTEST_SKIP() << "Requires implementation.";
+    const int num_rollouts = 1234;
+    std::array<float, num_rollouts> cost_all_rollouts = {0};
+    std::array<float, Cartpole::STATE_DIM*num_rollouts> x_traj_terminal = {0};
+    std::array<float, num_rollouts> cost_known = {0};
+    std::array<float, num_rollouts> cost_compute = {0};
 
+    std::default_random_engine generator(7.0);
+    std::normal_distribution<float> distribution(1.0,2.0);
+
+    for(auto& costs: cost_all_rollouts) {
+        costs = 10*distribution(generator);
+    }
+
+    for (auto& state: x_traj_terminal) {
+        state = distribution(generator);
+    }
+    int i = 0;
+    // Compute terminal cost on CPU
+    for (i; i < num_rollouts; ++i) {
+        cost_known[i] = cost_all_rollouts[i] +
+                (x_traj_terminal[Cartpole::STATE_DIM*i]* x_traj_terminal[Cartpole::STATE_DIM*i]*cost.getParams().cart_position_coeff +
+                        x_traj_terminal[Cartpole::STATE_DIM*i+1]* x_traj_terminal[Cartpole::STATE_DIM*i+1]*cost.getParams().cart_velocity_coeff +
+                        x_traj_terminal[Cartpole::STATE_DIM*i+2]* x_traj_terminal[Cartpole::STATE_DIM*i+2]*cost.getParams().pole_angle_coeff +
+                        x_traj_terminal[Cartpole::STATE_DIM*i+3]* x_traj_terminal[Cartpole::STATE_DIM*i+3]*cost.getParams().pole_angular_velocity_coeff)*
+                        cost.getParams().terminal_cost_coeff;
+    }
+
+    // Compute the dynamics on the GPU
+    launchComputeAndSaveCostAllRollouts_KernelTest<CartpoleQuadraticCost, Cartpole::STATE_DIM, num_rollouts>(cost,
+            cost_all_rollouts,x_traj_terminal,cost_compute);
+
+    array_assert_float_eq<num_rollouts>(cost_known, cost_compute);
 }
 

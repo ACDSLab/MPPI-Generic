@@ -347,6 +347,54 @@ void launchIncrementStateAllRollouts_KernelTest(float dt, std::array<float, STAT
 
 }
 
+template<class COST_T>
+__global__ void computeAndSaveCostAllRollouts_KernelTest(COST_T* cost, int state_dim, int num_rollouts, float* running_costs, float* terminal_state, float* cost_rollout_device) {
+    int tid = blockDim.x*blockIdx.x + threadIdx.x; // index on rollouts
+//    if (tid == 0) {
+//        printf("Current state [%f, %f, %f, %f]\n", terminal_state[state_dim * tid],
+//               terminal_state[state_dim * tid + 1], terminal_state[state_dim * tid + 2],
+//               terminal_state[state_dim * tid + 3]);
+//        printf("Current cost [%f]\n", running_costs[tid]);
+//    }
+    mppi_common::computeAndSaveCost(num_rollouts, tid, cost, &terminal_state[state_dim*tid], running_costs[tid], cost_rollout_device);
+//    if (tid == 0) {
+//        printf("Total cost [%f]\n", cost_rollout_device[tid]);
+//    }
+}
+
+template<class COST_T, int STATE_DIM, int NUM_ROLLOUTS>
+void launchComputeAndSaveCostAllRollouts_KernelTest(COST_T cost,
+        const std::array<float, NUM_ROLLOUTS>& cost_all_rollouts,
+        const std::array<float, STATE_DIM*NUM_ROLLOUTS>& terminal_states,
+        std::array<float, NUM_ROLLOUTS>& cost_compute) {
+    // Allocate CUDA memory
+    float* cost_all_rollouts_device;
+    float* terminal_states_device;
+    float* cost_compute_device;
+
+    HANDLE_ERROR(cudaMalloc((void**)&cost_all_rollouts_device, sizeof(float)*cost_all_rollouts.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&terminal_states_device, sizeof(float)*terminal_states.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&cost_compute_device, sizeof(float)*cost_compute.size()));
+
+    // Copy Host side data to the Device
+    HANDLE_ERROR(cudaMemcpy(cost_all_rollouts_device, cost_all_rollouts.data(), sizeof(float)*cost_all_rollouts.size(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(terminal_states_device, terminal_states.data(), sizeof(float)*terminal_states.size(), cudaMemcpyHostToDevice));
+
+    // Launch kernel
+    dim3 blocksize(BLOCKSIZE_X, 1);
+    dim3 gridsize((NUM_ROLLOUTS + (BLOCKSIZE_X - 1)) / BLOCKSIZE_X, 1);
+    computeAndSaveCostAllRollouts_KernelTest<<<blocksize, gridsize>>>(cost.cost_d_, STATE_DIM, NUM_ROLLOUTS, cost_all_rollouts_device, terminal_states_device, cost_compute_device);
+    CudaCheckError();
+
+    // Copy Device side data to the host
+    HANDLE_ERROR(cudaMemcpy(cost_compute.data(), cost_compute_device, sizeof(float)*cost_compute.size(), cudaMemcpyDeviceToHost));
+
+    // free cuda Memory
+    cudaFree(cost_all_rollouts_device);
+    cudaFree(terminal_states_device);
+    cudaFree(cost_compute_device);
+}
+
 
 /***********************************************************************************************************************
  * Cartpole Running Cost Rollout Template Instantiations
@@ -387,3 +435,12 @@ const int num_rollouts_is = 5000;
 template void launchIncrementStateAllRollouts_KernelTest<Cartpole::STATE_DIM, num_rollouts_is>(float dt,
         std::array<float, Cartpole::STATE_DIM*num_rollouts_is>& x_traj,
         std::array<float, Cartpole::STATE_DIM*num_rollouts_is>& xdot_traj);
+
+/**
+ * Cartpole Compute and Save cost all rollouts instantiations
+ */
+const int num_rollouts_cs = 1234;
+template void launchComputeAndSaveCostAllRollouts_KernelTest<CartpoleQuadraticCost, Cartpole::STATE_DIM, num_rollouts_cs>(CartpoleQuadraticCost cost,
+                                                    const std::array<float, num_rollouts_cs>& cost_all_rollouts,
+                                                    const std::array<float, Cartpole::STATE_DIM*num_rollouts_cs>& terminal_states,
+                                                    std::array<float, num_rollouts_cs>& cost_compute);

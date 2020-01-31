@@ -67,4 +67,13 @@ __global__ void incrementStateAllRollouts_KernelTest(int state_dim, int num_roll
 template<int STATE_DIM, int NUM_ROLLOUTS>
 void launchIncrementStateAllRollouts_KernelTest(float dt, std::array<float, STATE_DIM*NUM_ROLLOUTS>& x_traj, std::array<float, STATE_DIM*NUM_ROLLOUTS>& xdot_traj);
 
+template<class COST_T>
+__global__ void computeAndSaveCostAllRollouts_KernelTest(COST_T* cost, int state_dim, int num_rollouts,
+        float* running_costs, float* terminal_state, float* cost_rollout_device);
+
+template<class COST_T, int STATE_DIM, int NUM_ROLLOUTS>
+void launchComputeAndSaveCostAllRollouts_KernelTest(COST_T cost,
+                                                    const std::array<float, NUM_ROLLOUTS>& cost_all_rollouts,
+                                                    const std::array<float, STATE_DIM*NUM_ROLLOUTS>& terminal_states,
+                                                    std::array<float, NUM_ROLLOUTS>& cost_compute);
 #endif // !KERNEL_TESTS_MPPI_CORE_ROLLOUT_KERNEL_TEST_CUH_
