@@ -1,7 +1,12 @@
-#include "mppi_core_kernel_test.cuh"
+#include "rollout_kernel_test.cuh"
 
 #include <dynamics/cartpole/cartpole.cuh>
 #include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>
+const int STATE_DIM = 12;
+const int CONTROL_DIM = 3;
+const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is
+const int BLOCKSIZE_X = 64;
+const int BLOCKSIZE_Y = 8; // Blocksize_y has to be greater than the control dim TODO fix how we step through the controls
 
 __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_device,
         float* x_thread_device, float* xdot_thread_device, float* u_thread_device, float* du_thread_device, float* sigma_u_thread_device) {

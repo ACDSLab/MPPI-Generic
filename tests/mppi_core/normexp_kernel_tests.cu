@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include <mppi_core/mppi_core_kernel_test.cuh>
+#include <mppi_core/normexp_kernel_test.cuh>
 #include <utils/test_helper.h>
 #include <random>
 #include <algorithm>
 
-TEST(NormExpKernel, computeBaselineCost) {
+TEST(NormExpKernel, computeBaselineCost_Test) {
     std::default_random_engine generator(7.0);
     std::normal_distribution<float> distribution(100.0,2.0);
 
@@ -20,4 +20,8 @@ TEST(NormExpKernel, computeBaselineCost) {
     float min_cost_compute = mppi_common::computeBaselineCost(cost_vec.data(), num_rollouts);
 
     ASSERT_FLOAT_EQ(min_cost_compute, min_cost_known);
+}
+
+TEST(NormExpKernel, computeNormalizer_Test) {
+    GTEST_SKIP() << "Not implemented";
 }

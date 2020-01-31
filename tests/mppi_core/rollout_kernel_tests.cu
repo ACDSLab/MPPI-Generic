@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <dynamics/cartpole/cartpole.cuh>
 #include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>
-#include <mppi_core/mppi_core_kernel_test.cuh>
+#include <mppi_core/rollout_kernel_test.cuh>
 #include <utils/test_helper.h>
 #include <random>
 /*
@@ -9,6 +9,8 @@
  */
 
 TEST(RolloutKernel, loadGlobalToShared) {
+    const int STATE_DIM = 12;
+    const int CONTROL_DIM = 3;
     std::vector<float> x0_host = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2};
     std::vector<float> u_var_host = {0.8, 0.9, 1.0};
 
@@ -29,6 +31,8 @@ TEST(RolloutKernel, loadGlobalToShared) {
 }
 
 TEST(RolloutKernel, injectControlNoiseOnce) {
+    const int NUM_ROLLOUTS = 1000;
+    const int CONTROL_DIM = 3;
     int num_timesteps = 1;
     int num_rollouts = NUM_ROLLOUTS;
     std::vector<float> u_traj_host = {3.f, 4.f, 5.f};
