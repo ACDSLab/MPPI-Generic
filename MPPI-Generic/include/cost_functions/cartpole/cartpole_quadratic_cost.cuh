@@ -18,8 +18,8 @@ public:
         float pole_angle_coeff = 10;
         float pole_angular_velocity_coeff = 1;
         float control_force_coeff = 1;
-
-    } CartpoleQuadraticCostParams;
+        float terminal_cost_coeff = 100;
+    } Params;
 
     /**
      * Constructor
@@ -47,13 +47,13 @@ public:
      * Updates GPU if allocated
      * @param params
      */
-    inline __host__ __device__ void setParams(CartpoleQuadraticCostParams params);
+    inline __host__ __device__ void setParams(Params params);
 
     /**
      *
      * @return current parameters for the system
      */
-    inline __host__ __device__ CartpoleQuadraticCostParams getParams() {return params_;}
+    inline __host__ __device__ Params getParams() {return params_;}
 
 
     /**
@@ -77,11 +77,16 @@ public:
      */
     __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars);
 
+    /**
+     * @brief Compute the terminal cost of the system
+     */
+     __host__ __device__ float computeTerminalCost(float *s);
+
     CartpoleQuadraticCost* cost_d_ = nullptr;
 
 protected:
 
-    CartpoleQuadraticCostParams params_; ///< object copy of params
+    Params params_; ///< object copy of params
 
 };
 

@@ -23,7 +23,7 @@ void CartpoleQuadraticCost::freeCudaMem() {
     cudaFree(cost_d_);
 }
 
-void CartpoleQuadraticCost::setParams(CartpoleQuadraticCostParams params) {
+void CartpoleQuadraticCost::setParams(Params params) {
     this->params_ = params;
     if(GPUMemStatus_) {
         paramsToDevice();
@@ -31,7 +31,7 @@ void CartpoleQuadraticCost::setParams(CartpoleQuadraticCostParams params) {
 }
 
 void CartpoleQuadraticCost::paramsToDevice() {
-    HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->params_, &params_, sizeof(CartpoleQuadraticCostParams), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->params_, &params_, sizeof(Params), cudaMemcpyHostToDevice, stream_));
     HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 
@@ -48,5 +48,12 @@ __host__ __device__ float CartpoleQuadraticCost::getControlCost(float *u, float 
 
 __host__ __device__ float CartpoleQuadraticCost::computeRunningCost(float *s, float *u, float *du, float *vars) {
     return getStateCost(s) + getControlCost(u, du, vars);
+}
+
+__host__ __device__ float CartpoleQuadraticCost::computeTerminalCost(float *state) {
+    return (state[0]*state[0]*params_.cart_position_coeff +
+           state[1]*state[1]*params_.cart_velocity_coeff +
+           state[2]*state[2]*params_.pole_angle_coeff +
+           state[3]*state[3]*params_.pole_angular_velocity_coeff)*params_.terminal_cost_coeff;
 }
 

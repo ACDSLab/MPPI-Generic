@@ -181,6 +181,13 @@ TEST(RolloutKernel, incrementStateAllRollouts) {
 
     array_assert_float_eq<num_rollouts*Cartpole::STATE_DIM>(x_traj_known, x_traj_compute);
     array_assert_float_eq<num_rollouts*Cartpole::STATE_DIM>(xdot_traj_known, xdot_traj_compute);
+}
+
+TEST(RolloutKernel, computeAndSaveCostAllRollouts) {
+    // Define an assortment of costs for a given number of rollouts
+
+    // Specify the terminal state for each trajectory
+    GTEST_SKIP() << "Requires implementation.";
 
 }
 
