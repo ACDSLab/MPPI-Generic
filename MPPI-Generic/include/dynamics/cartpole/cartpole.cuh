@@ -67,7 +67,7 @@ public:
                                   float* state_der);
 
     // Device pointer of class object
-    Cartpole* CP_device = nullptr;
+    Cartpole* model_d_ = nullptr; //TODO choose a unified name for this object
 
     void freeCudaMem();
 

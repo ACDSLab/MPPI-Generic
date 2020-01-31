@@ -12,7 +12,7 @@ Cartpole::~Cartpole() {
 
 void Cartpole::GPUSetup() {
     if (!GPUMemStatus_) {
-        CP_device = Managed::GPUSetup(this);
+        model_d_ = Managed::GPUSetup(this);
     } else {
         std::cout << "GPU Memory already set." << std::endl;
     }
@@ -52,15 +52,15 @@ CartpoleParams Cartpole::getParams() {
 
 void Cartpole::paramsToDevice()
 {
-    HANDLE_ERROR( cudaMemcpyAsync(&CP_device->pole_mass_, &pole_mass_, sizeof(float), cudaMemcpyHostToDevice, stream_));
-    HANDLE_ERROR( cudaMemcpyAsync(&CP_device->cart_mass_, &cart_mass_, sizeof(float), cudaMemcpyHostToDevice, stream_));
-    HANDLE_ERROR( cudaMemcpyAsync(&CP_device->pole_length_, &pole_length_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->pole_mass_, &pole_mass_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->cart_mass_, &cart_mass_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->pole_length_, &pole_length_, sizeof(float), cudaMemcpyHostToDevice, stream_));
     HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 
 void Cartpole::freeCudaMem()
 {
-    cudaFree(CP_device);
+    cudaFree(model_d_);
 }
 
 void Cartpole::printState(Eigen::MatrixXf state)
