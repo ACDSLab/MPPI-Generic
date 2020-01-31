@@ -5,6 +5,7 @@ SET (LIB_RELEASE 1)
 
 add_library(${LIBRARY_NAME} SHARED
         rollout_kernel_test.cu
+        normexp_kernel_test.cu
         )
 
 target_link_libraries( ${LIBRARY_NAME}

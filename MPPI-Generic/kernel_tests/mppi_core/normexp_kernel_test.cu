@@ -1,0 +1,1 @@
+#include "normexp_kernel_test.cuh"
