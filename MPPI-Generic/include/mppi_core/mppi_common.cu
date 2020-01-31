@@ -1,11 +1,11 @@
 #include "mppi_core/mppi_common.cuh"
 
-//#define STATE_DIM DYN_T::STATE_DIM;
-
 namespace mppi_common {
-    // Kernel functions
+    /*******************************************************************************************************************
+     * Kernel Functions
+    *******************************************************************************************************************/
     template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS>
-    __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
+     __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
                                     int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d) {
         //Get thread and block id
         int thread_idx = threadIdx.x;
@@ -71,10 +71,10 @@ namespace mppi_common {
         __syncthreads();
     }
 
-    // Launch functions
 
-    // RolloutKernel Helpers -------------------------------------------------------------------------------------------
-
+    /*******************************************************************************************************************
+     * Rollout Kernel Helpers
+    *******************************************************************************************************************/
     __device__ void loadGlobalToShared(int state_dim, int control_dim, int num_rollouts, int blocksize_y, int global_idx, int thread_idy,
                                         const float* x_device, const float* sigma_u_device, float* x_thread,
                                         float* xdot_thread, float* u_thread, float* du_thread, float* sigma_u_thread) {
@@ -147,7 +147,19 @@ namespace mppi_common {
         }
     }
 
-    // End of rollout kernel helpers -----------------------------------------------------------------------------------
+    /*******************************************************************************************************************
+     * NormExp Kernel Helpers
+    *******************************************************************************************************************/
+    float computeBaselineCost(float* cost_rollouts_host, int num_rollouts) { // TODO if we use standard containers in MPPI, should this be replaced with a min algorithm?
+        float baseline = cost_rollouts_host[0];
+        // Find the minimum cost trajectory
+        for (int i = 0; i < num_rollouts; ++i) {
+            if (cost_rollouts_host[i] < baseline) {
+                baseline = cost_rollouts_host[i];
+            }
+        }
+        return baseline;
+    }
 
     __global__ void normExpKernel(int blocksize_x, int num_rollouts, float* trajectory_costs_d, float gamma, float baseline) {
         int thread_idx = threadIdx.x;
@@ -206,6 +218,10 @@ namespace mppi_common {
             }
         }
     }
+
+    /*******************************************************************************************************************
+     * Launch Functions
+    *******************************************************************************************************************/
 
     template<class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE >
     void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps) {

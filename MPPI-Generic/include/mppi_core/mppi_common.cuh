@@ -23,8 +23,6 @@ namespace mppi_common {
     __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
                                   int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d);
 
-    // Launch functions
-
     // RolloutKernel Helpers
     /*
      * loadGlobalToShared
@@ -135,11 +133,29 @@ namespace mppi_common {
     __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs,
                                                       float* x_thread, float running_cost, float* cost_rollouts_device);
 
+    // Norm Exponential Kernel
+
     __global__ void normExpKernel(int blocksize_x, int num_rollouts, float* trajectory_costs_d, float gamma, float baseline);
 
+    // Norm Exp Kernel Helpers
+    float computeBaselineCost(float* cost_rollouts_host, int num_rollouts);
+
+    __device__ float computeNormalizer(float* cost_rollouts_host, int num_rollouts);
+
+    // Weighted Reduction Kernel
     template<int CONTROL_DIM, int NUM_ROLLOUT, int SUM_STRIDE>
     __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps);
 
+    // Weighted Reduction Kernel Helpers
+    __device__ void setInitialControlToZero();
+
+    __device__ void workerControlWeightsReduction();
+
+    __device__ void threadControlWeightsReduction();
+
+    __device__ void rolloutWeightReductionAndSaveControl();
+
+    // Launch functions
     template<class DYN_T, class COST_T>
     void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d);
 

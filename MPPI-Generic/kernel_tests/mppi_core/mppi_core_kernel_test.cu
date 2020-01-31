@@ -1,4 +1,4 @@
-#include "rollout_kernel_test.cuh"
+#include "mppi_core_kernel_test.cuh"
 
 #include <dynamics/cartpole/cartpole.cuh>
 #include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>

@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef KERNEL_TESTS_MPPI_CORE_ROLLOUT_KERNEL_TEST_CUH_
-#define KERNEL_TESTS_MPPI_CORE_ROLLOUT_KERNEL_TEST_CUH_
+#ifndef KERNEL_TESTS_MPPI_CORE_MPPI_CORE_KERNEL_TEST_CUH_
+#define KERNEL_TESTS_MPPI_CORE_MPPI_CORE_KERNEL_TEST_CUH_
 
 #include <mppi_core/mppi_common.cuh>
 #include <curand.h>
@@ -76,4 +76,4 @@ void launchComputeAndSaveCostAllRollouts_KernelTest(COST_T cost,
                                                     const std::array<float, NUM_ROLLOUTS>& cost_all_rollouts,
                                                     const std::array<float, STATE_DIM*NUM_ROLLOUTS>& terminal_states,
                                                     std::array<float, NUM_ROLLOUTS>& cost_compute);
-#endif // !KERNEL_TESTS_MPPI_CORE_ROLLOUT_KERNEL_TEST_CUH_
+#endif // !KERNEL_TESTS_MPPI_CORE_MPPI_CORE_KERNEL_TEST_CUH_
