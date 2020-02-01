@@ -135,7 +135,7 @@ namespace mppi_common {
 
     // Norm Exponential Kernel
 
-    __global__ void normExpKernel(int blocksize_x, int num_rollouts, float* trajectory_costs_d, float gamma, float baseline);
+    __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float baseline);
 
     // Norm Exp Kernel Helpers
     float computeBaselineCost(float* cost_rollouts_host, int num_rollouts);

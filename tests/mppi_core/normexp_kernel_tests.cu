@@ -37,7 +37,7 @@ TEST_F(NormExpKernel, computeBaselineCost_Test) {
 }
 
 TEST_F(NormExpKernel, computeNormalizer_Test) {
-    const int num_rollouts = 5;
+    const int num_rollouts = 1024;
     std::array<float, num_rollouts> cost_vec = {0};
 
     // Use a range based for loop to set the cost
@@ -49,4 +49,27 @@ TEST_F(NormExpKernel, computeNormalizer_Test) {
     float sum_cost_compute = mppi_common::computeNormalizer(cost_vec.data(), num_rollouts);
 
     ASSERT_FLOAT_EQ(sum_cost_compute, sum_cost_known);
+}
+
+TEST_F(NormExpKernel, computeExpNorm_Test) {
+    const int num_rollouts = 555;
+    std::array<float, num_rollouts> cost_vec = {0};
+    std::array<float, num_rollouts> normalized_compute = {0};
+    std::array<float, num_rollouts> normalized_known = {0};
+    float gamma = 0.3;
+
+    // Use a range based for loop to set the cost
+    for(auto& cost: cost_vec) {
+        cost = distribution(generator);
+    }
+
+    float baseline = *std::min_element(cost_vec.begin(), cost_vec.end());
+
+    for (int i = 0; i < num_rollouts; i++) {
+        normalized_known[i] = expf(-gamma*(cost_vec[i] - baseline));
+    }
+
+    launchNormExp_KernelTest<num_rollouts>(cost_vec, gamma, baseline, normalized_compute);
+
+    array_assert_float_eq<num_rollouts>(normalized_compute, normalized_known);
 }

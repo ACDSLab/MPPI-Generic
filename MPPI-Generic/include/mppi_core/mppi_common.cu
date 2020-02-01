@@ -169,10 +169,8 @@ namespace mppi_common {
         return normalizer;
     }
 
-    __global__ void normExpKernel(int blocksize_x, int num_rollouts, float* trajectory_costs_d, float gamma, float baseline) {
-        int thread_idx = threadIdx.x;
-        int block_idx = blockIdx.x;
-        int global_idx = blocksize_x * block_idx + thread_idx;
+    __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float baseline) {
+        int global_idx = blockDim.x * blockIdx.x +  threadIdx.x;
 
         if (global_idx < num_rollouts) {
             float cost_dif = trajectory_costs_d[global_idx] - baseline;
@@ -243,7 +241,7 @@ namespace mppi_common {
     void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float baseline) {
         dim3 dimBlock(blocksize_x, 1, 1);
         dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
-        normExpKernel<<<dimGrid, dimBlock>>>(blocksize_x, num_rollouts, trajectory_costs_d, gamma, baseline);
+        normExpKernel<<<dimGrid, dimBlock>>>(num_rollouts, trajectory_costs_d, gamma, baseline);
         CudaCheckError();
         HANDLE_ERROR( cudaDeviceSynchronize() );
     }
