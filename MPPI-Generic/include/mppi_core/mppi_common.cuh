@@ -140,7 +140,7 @@ namespace mppi_common {
     // Norm Exp Kernel Helpers
     float computeBaselineCost(float* cost_rollouts_host, int num_rollouts);
 
-    __device__ float computeNormalizer(float* cost_rollouts_host, int num_rollouts);
+    float computeNormalizer(float* cost_rollouts_host, int num_rollouts);
 
     // Weighted Reduction Kernel
     template<int CONTROL_DIM, int NUM_ROLLOUT, int SUM_STRIDE>

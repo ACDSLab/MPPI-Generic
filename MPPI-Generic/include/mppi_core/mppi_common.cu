@@ -161,6 +161,14 @@ namespace mppi_common {
         return baseline;
     }
 
+    float computeNormalizer(float* cost_rollouts_host, int num_rollouts) {
+        float normalizer = 0.f;
+        for (int i = 0; i < num_rollouts; ++i) {
+            normalizer += cost_rollouts_host[i];
+        }
+        return normalizer;
+    }
+
     __global__ void normExpKernel(int blocksize_x, int num_rollouts, float* trajectory_costs_d, float gamma, float baseline) {
         int thread_idx = threadIdx.x;
         int block_idx = blockIdx.x;
