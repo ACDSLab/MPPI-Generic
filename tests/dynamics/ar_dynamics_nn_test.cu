@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <math.h>
 
+// Auto-generated header file
+#include <autorally_test_network.h>
+
 TEST(ARNeuralNetDynamics, verifyTemplateParamters) {
   int state_dim = NeuralNetModel<7,2,3,6,32,32,4>::STATE_DIM;
   EXPECT_EQ(state_dim, 7);
@@ -216,7 +219,7 @@ TEST(ARNeuralNetDynamics, LoadModelTest) {
   model.GPUSetup();
 
   // TODO procedurally generate a NN in python and save and run like costs
-  std::string path = "/home/mgandhi3/git/MPPI-Generic/test_nn.npz";
+  std::string path = mppi::tests::test_nn_file;
   model.loadParams(path);
 
   // check CPU
