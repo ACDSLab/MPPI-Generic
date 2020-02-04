@@ -154,7 +154,6 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   params.r_c1.y = 5;
   params.r_c1.z = 6;
   cost.setParams(params);
-  cost.paramsToDevice();
 
   launchParameterTestKernel(cost, result_params, width, height);
 
@@ -245,7 +244,11 @@ TEST(ARStandardCost, changeCostmapSizeTestFail) {
   EXPECT_EQ(cost.getHeight(), 8);
   EXPECT_EQ(cost.getTrackCostCPU().capacity(), 4*8);
 
+  testing::internal::CaptureStderr();
   cost.changeCostmapSize(-1, -1);
+  std::string error_msg = testing::internal::GetCapturedStderr();
+
+  EXPECT_NE(error_msg, "");
 
   EXPECT_EQ(cost.getWidth(), 4);
   EXPECT_EQ(cost.getHeight(), 8);
@@ -283,7 +286,11 @@ TEST(ARStandardCost, clearCostmapTestDefault) {
     EXPECT_FLOAT_EQ(cost.getTrackCostCPU().at(i).w, 0);
   }
 
+  testing::internal::CaptureStderr();
   cost.clearCostmapCPU();
+  std::string error_msg = testing::internal::GetCapturedStderr();
+
+  EXPECT_NE(error_msg, "");
 
   EXPECT_EQ(cost.getWidth(), 4);
   EXPECT_EQ(cost.getHeight(), 8);
@@ -299,7 +306,12 @@ TEST(ARStandardCost, clearCostmapTestDefault) {
 
 TEST(ARStandardCost, clearCostmapTestDefaultFail) {
   ARStandardCost cost;
+
+  testing::internal::CaptureStderr();
   cost.clearCostmapCPU();
+  std::string error_msg = testing::internal::GetCapturedStderr();
+
+  EXPECT_NE(error_msg, "");
 
   EXPECT_EQ(cost.getWidth(), -1);
   EXPECT_EQ(cost.getHeight(), -1);
@@ -401,6 +413,17 @@ TEST(ARStandardCost, updateTransformGPUTest) {
   EXPECT_EQ(cost.GPUMemStatus_, true);
 }
 
+TEST(ARStandardCost, LoadTrackDataInvalidLocationTest) {
+  ARStandardCost cost;
+
+  testing::internal::CaptureStderr();
+  cost.loadTrackData("/null");
+  std::string error_msg = testing::internal::GetCapturedStderr();
+
+  EXPECT_NE(error_msg, "");
+  EXPECT_NE(error_msg.find("/null", 0), std::string::npos);
+}
+
 
 TEST(ARStandardCost, LoadTrackDataTest) {
   ARStandardCost cost;
@@ -453,7 +476,11 @@ TEST(ARStandardCost, costmapToTextureNoSizeTest) {
   ARStandardCost cost;
   cost.GPUSetup();
 
+  testing::internal::CaptureStderr();
   cost.costmapToTexture();
+  std::string error_msg = testing::internal::GetCapturedStderr();
+
+  EXPECT_NE(error_msg, "");
 }
 
 TEST(ARStandardCost, costmapToTextureNoLoadTest) {
