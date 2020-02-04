@@ -900,7 +900,10 @@ TEST(ARStandardCost, computeCostOverflowTest) {
   launchComputeCostTestKernel(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], ARStandardCost::MAX_COST_VALUE);
 
+  cost_results[0] = 0;
+
   params.desired_speed = NAN;
   cost.setParams(params);
+  launchComputeCostTestKernel(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], ARStandardCost::MAX_COST_VALUE);
 }
