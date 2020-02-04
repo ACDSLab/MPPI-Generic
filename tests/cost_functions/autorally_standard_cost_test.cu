@@ -863,3 +863,44 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   EXPECT_FLOAT_EQ(cost_results[0], speed_cost + slip_cost + track_cost + crash_cost);
 
 }
+
+TEST(ARStandardCost, computeCostOverflowTest) {
+  ARStandardCost cost;
+  ARStandardCost::ARStandardCostParams params;
+  params.track_coeff = 0;
+  params.speed_coeff = 10;
+  params.crash_coeff = 0.0;
+  params.slip_penalty = 0.0;
+  params.throttle_coeff = 0.0;
+  params.steering_coeff = 0.0;
+  params.desired_speed = ARStandardCost::MAX_COST_VALUE;
+  cost.setParams(params);
+
+  cost.GPUSetup();
+
+  cost.loadTrackData(mppi::tests::test_map_file);
+  params = cost.getParams();
+
+  std::vector<std::array<float, 9>> states;
+
+  std::array<float, 9> array = {0.0};
+  array[0] = 3.0; // X
+  array[1] = 0.0; // Y
+  array[2] = M_PI_2; // Theta
+  array[3] = 0.0; // Roll
+  array[4] = 2.0; // Vx
+  array[5] = 1.0; // Vy
+  array[6] = 0.1; // Yaw dot
+  array[7] = 0.5; // steering
+  array[8] = 0.3; // throttle
+  states.push_back(array);
+
+  std::vector<float> cost_results;
+
+  launchComputeCostTestKernel(cost, states, cost_results);
+  EXPECT_FLOAT_EQ(cost_results[0], ARStandardCost::MAX_COST_VALUE);
+
+  params.desired_speed = NAN;
+  cost.setParams(params);
+  EXPECT_FLOAT_EQ(cost_results[0], ARStandardCost::MAX_COST_VALUE);
+}
