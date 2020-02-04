@@ -201,7 +201,8 @@ void ARStandardCost::updateTransform(Eigen::MatrixXf m, Eigen::ArrayXf trs) {
 }
 
 __host__ __device__ void ARStandardCost::coorTransform(float x, float y, float* u, float* v, float* w) {
-  //Compute a projective transform of (x, y, 0, 1)
+  ////Compute a projective transform of (x, y, 0, 1)
+  //printf("coordiante transform %f, %f, %f\n", params_.r_c1.x, params_.r_c2.x, params_.trs.x);
   u[0] = params_.r_c1.x*x + params_.r_c2.x*y + params_.trs.x;
   v[0] = params_.r_c1.y*x + params_.r_c2.y*y + params_.trs.y;
   w[0] = params_.r_c1.z*x + params_.r_c2.z*y + params_.trs.z;
@@ -210,7 +211,9 @@ __host__ __device__ void ARStandardCost::coorTransform(float x, float y, float* 
 __device__ float4 ARStandardCost::queryTextureTransformed(float x, float y) {
   float u, v, w;
   coorTransform(x, y, &u, &v, &w);
-  printf("\ntransformed coordinates %f, %f\n", u/w, v/w);
+  //printf("\ninput coordinates: %f, %f", x, y);
+  //printf("\nu = %f, v = %f, w = %f", u, v, w);
+  //printf("\ntransformed coordinates %f, %f\n", u/w, v/w);
   return tex2D<float4>(costmap_tex_d_, u/w, v/w);
 }
 
@@ -242,9 +245,9 @@ inline __host__ __device__ float ARStandardCost::getTerminalCost(float *s) {
 
 inline __host__ __device__ float ARStandardCost::getControlCost(float *u, float *du, float *vars) {
   float control_cost = 0.0;
-  printf("du %f, %f\n", du[0], du[1]);
-  printf("vars %f, %f\n", vars[0], vars[1]);
-  printf("vars %f, %f\n", u[0], u[1]);
+  //printf("du %f, %f\n", du[0], du[1]);
+//printf("vars %f, %f\n", vars[0], vars[1]);
+  //printf("vars %f, %f\n", u[0], u[1]);
   control_cost += params_.steering_coeff*du[0]*(u[0] - du[0])/(vars[0]*vars[0]);
   control_cost += params_.throttle_coeff*du[1]*(u[1] - du[1])/(vars[1]*vars[1]);
   return control_cost;
@@ -316,11 +319,6 @@ inline __device__ float ARStandardCost::computeCost(float *s, float *u, float *d
   float speed_cost = getSpeedCost(s, crash);
   float crash_cost = powf(params_.discount, timestep)*getCrashCost(s, crash, timestep);
   float stabilizing_cost = getStabilizingCost(s);
-  printf("\ntrack cost %f\n", track_cost);
-  printf("speed cost %f\n", speed_cost);
-  printf("crash cost %f\n", crash_cost);
-  printf("stab cost %f\n", stabilizing_cost);
-  printf("control cost %f\n", control_cost);
   float cost = control_cost + speed_cost + crash_cost + track_cost + stabilizing_cost;
   if (cost > MAX_COST_VALUE || isnan(cost)) {
     cost = MAX_COST_VALUE;

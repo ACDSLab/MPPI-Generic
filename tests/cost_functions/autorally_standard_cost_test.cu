@@ -461,6 +461,25 @@ TEST(ARStandardCost, LoadTrackDataTest) {
   EXPECT_FLOAT_EQ(trs(1), 0.5);
   EXPECT_FLOAT_EQ(trs(2), 1);
 
+  // check on the GPU
+  std::vector<float3> results;
+  launchTransformTestKernel(results, cost);
+
+  EXPECT_EQ(results.size(), 3);
+
+  // check diag
+  EXPECT_FLOAT_EQ(results.at(0).x, 1.0/10);
+  EXPECT_FLOAT_EQ(results.at(1).y, 1.0/(20));
+
+  EXPECT_FLOAT_EQ(results.at(0).y, 0);
+  EXPECT_FLOAT_EQ(results.at(0).z, 0);
+  EXPECT_FLOAT_EQ(results.at(1).x, 0);
+  EXPECT_FLOAT_EQ(results.at(1).z, 0);
+
+  EXPECT_FLOAT_EQ(results.at(2).x, 0.5);
+  EXPECT_FLOAT_EQ(results.at(2).y, 0.5);
+  EXPECT_FLOAT_EQ(results.at(2).z, 1);
+
   for(int i = 0; i < 2 * 10; i++) {
     for(int j = 0; j < 2 * 20; j++) {
       EXPECT_FLOAT_EQ(costmap.at(i*2*20 + j).x, i*2*20 + j);
@@ -736,7 +755,7 @@ TEST(ARStandardCost, getTrackCostTest) {
   cost.loadTrackData(mppi::tests::test_map_file);
 
   std::vector<float3> states(4);
-  states[0].x = -4.5;
+  states[0].x = -5.5;
   states[0].y = -10;
   states[0].z = 0.0; // theta
   states[1].x = 0.0;
@@ -763,7 +782,7 @@ TEST(ARStandardCost, getTrackCostTest) {
   EXPECT_FLOAT_EQ(cost_results[3], 79000.0);
   EXPECT_FLOAT_EQ(crash_results[3], 1.0);
 }
-/*
+
 TEST(ARStandardCost, computeCostIndividualTest) {
   ARStandardCost cost;
   ARStandardCost::ARStandardCostParams params;
@@ -778,6 +797,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   cost.GPUSetup();
 
   cost.loadTrackData(mppi::tests::test_map_file);
+  params = cost.getParams();
 
   std::vector<std::array<float, 9>> states;
 
@@ -843,4 +863,3 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   EXPECT_FLOAT_EQ(cost_results[0], speed_cost + slip_cost + track_cost + crash_cost);
 
 }
-*/
