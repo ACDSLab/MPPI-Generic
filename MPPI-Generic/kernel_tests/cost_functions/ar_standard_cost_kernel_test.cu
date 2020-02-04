@@ -208,7 +208,7 @@ __global__ void trackCostTestKernel(ARStandardCost& cost, float3* test_indexes, 
     state[0] = test_indexes[tid].x;
     state[1] = test_indexes[tid].y;
     state[2] = test_indexes[tid].z;
-    printf("got test indexes %d, state %d, %d, %d\n", tid, state[0], state[1], state[2]);
+    printf("got test indexes %d, state %f, %f, %f\n", tid, state[0], state[1], state[2]);
     cost_results[tid] = cost.getTrackCost(state, &crash);
     printf("set results %d\n", tid);
     crash_results[tid] = crash;
@@ -257,8 +257,8 @@ __global__ void computeCostTestKernel(ARStandardCost& cost, float* test_xu, floa
     float* state = &test_xu[tid];
     float* control = &test_xu[tid+7];
     int crash = 0;
-    float vars[2];
-    float du[2];
+    float vars[2] = {1,1};
+    float du[2] = {0,0};
     cost_results[tid] = cost.computeCost(state, control, du, vars, &crash, tid);
   }
 }

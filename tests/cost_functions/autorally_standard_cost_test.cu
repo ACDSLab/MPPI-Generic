@@ -728,19 +728,26 @@ TEST(ARStandardCost, getCrashCostTest) {
 TEST(ARStandardCost, getTrackCostTest) {
   ARStandardCost cost;
   ARStandardCost::ARStandardCostParams params;
-  params.track_coeff = 100;
-  params.track_slop = 1.0;
-  params.boundary_threshold = 100.0;
+  params.track_coeff = 200;
   cost.setParams(params);
 
   cost.GPUSetup();
 
   cost.loadTrackData(mppi::tests::test_map_file);
 
-  std::vector<float3> states(1);
+  std::vector<float3> states(4);
   states[0].x = -4.5;
   states[0].y = -10;
   states[0].z = 0.0; // theta
+  states[1].x = 0.0;
+  states[1].y = 0.0;
+  states[1].z = 0.0; // theta
+  states[2].x = 0.0;
+  states[2].y = 0.0;
+  states[2].z = M_PI/2; // theta
+  states[3].x = 3.0;
+  states[3].y = 0.0;
+  states[3].z = M_PI_2; // theta
 
   std::vector<float> cost_results;
   std::vector<int> crash_results;
@@ -749,14 +756,23 @@ TEST(ARStandardCost, getTrackCostTest) {
 
   EXPECT_FLOAT_EQ(cost_results[0], 0.0);
   EXPECT_FLOAT_EQ(crash_results[0], 0.0);
+  EXPECT_FLOAT_EQ(cost_results[1], 81800.0);
+  EXPECT_FLOAT_EQ(crash_results[1], 1.0);
+  EXPECT_FLOAT_EQ(cost_results[2], 78000.0);
+  EXPECT_FLOAT_EQ(crash_results[2], 1.0);
+  EXPECT_FLOAT_EQ(cost_results[3], 79000.0);
+  EXPECT_FLOAT_EQ(crash_results[3], 1.0);
 }
-
-TEST(ARStandardCost, computeCostTest) {
+/*
+TEST(ARStandardCost, computeCostIndividualTest) {
   ARStandardCost cost;
   ARStandardCost::ARStandardCostParams params;
-  params.track_coeff = 100;
-  params.track_slop = 1.0;
-  params.boundary_threshold = 100.0;
+  params.track_coeff = 0;
+  params.speed_coeff = 0;
+  params.crash_coeff = 0.0;
+  params.slip_penalty = 0.0;
+  params.throttle_coeff = 0.0;
+  params.steering_coeff = 0.0;
   cost.setParams(params);
 
   cost.GPUSetup();
@@ -766,20 +782,65 @@ TEST(ARStandardCost, computeCostTest) {
   std::vector<std::array<float, 9>> states;
 
   std::array<float, 9> array = {0.0};
-  array[0] = 0.0;
-  array[1] = 0.0;
-  array[2] = 0.0;
-  array[3] = 0.0;
-  array[4] = 0.0;
-  array[5] = 0.0;
-  array[6] = 0.0;
-  array[7] = 0.0;
-  array[8] = 0.0;
+  array[0] = 3.0; // X
+  array[1] = 0.0; // Y
+  array[2] = M_PI_2; // Theta
+  array[3] = 0.0; // Roll
+  array[4] = 2.0; // Vx
+  array[5] = 1.0; // Vy
+  array[6] = 0.1; // Yaw dot
+  array[7] = 0.5; // steering
+  array[8] = 0.3; // throttle
   states.push_back(array);
 
   std::vector<float> cost_results;
 
   launchComputeCostTestKernel(cost, states, cost_results);
-
   EXPECT_FLOAT_EQ(cost_results[0], 0.0);
+
+  params.speed_coeff = 4.25;
+  cost.setParams(params);
+
+  float speed_cost = powf(4.0, 2)*4.25;
+  launchComputeCostTestKernel(cost, states, cost_results);
+  EXPECT_FLOAT_EQ(cost_results[0], speed_cost);
+
+
+  params.speed_coeff = 0.0;
+  params.slip_penalty = 10;
+  cost.setParams(params);
+
+  float slip_cost = powf(-atanf(1.0/2.0), 2) * 10;
+  launchComputeCostTestKernel(cost, states, cost_results);
+  EXPECT_FLOAT_EQ(cost_results[0], slip_cost);
+
+
+  params.slip_penalty = 0.0;
+  params.track_coeff = 200.0;
+  cost.setParams(params);
+
+  float track_cost = 79000;
+  launchComputeCostTestKernel(cost, states, cost_results);
+  EXPECT_FLOAT_EQ(cost_results[0], track_cost);
+
+
+  params.track_coeff = 0.0;
+  params.crash_coeff = 10000;
+  cost.setParams(params);
+
+  float crash_cost = 10000;
+  launchComputeCostTestKernel(cost, states, cost_results);
+  EXPECT_FLOAT_EQ(cost_results[0], crash_cost);
+
+
+  params.speed_coeff = 4.25;
+  params.track_coeff = 200;
+  params.slip_penalty = 10;
+  params.crash_coeff = 10000;
+  cost.setParams(params);
+
+  launchComputeCostTestKernel(cost, states, cost_results);
+  EXPECT_FLOAT_EQ(cost_results[0], speed_cost + slip_cost + track_cost + crash_cost);
+
 }
+*/

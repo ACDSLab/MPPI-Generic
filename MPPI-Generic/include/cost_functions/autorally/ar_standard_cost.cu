@@ -34,7 +34,6 @@ void ARStandardCost::GPUSetup() {
 
 void ARStandardCost::freeCudaMem() {
   // TODO free everything
-  //cudaFree();
   cudaFree(cost_d_);
 }
 
@@ -211,6 +210,7 @@ __host__ __device__ void ARStandardCost::coorTransform(float x, float y, float* 
 __device__ float4 ARStandardCost::queryTextureTransformed(float x, float y) {
   float u, v, w;
   coorTransform(x, y, &u, &v, &w);
+  printf("\ntransformed coordinates %f, %f\n", u/w, v/w);
   return tex2D<float4>(costmap_tex_d_, u/w, v/w);
 }
 
@@ -242,6 +242,9 @@ inline __host__ __device__ float ARStandardCost::getTerminalCost(float *s) {
 
 inline __host__ __device__ float ARStandardCost::getControlCost(float *u, float *du, float *vars) {
   float control_cost = 0.0;
+  printf("du %f, %f\n", du[0], du[1]);
+  printf("vars %f, %f\n", vars[0], vars[1]);
+  printf("vars %f, %f\n", u[0], u[1]);
   control_cost += params_.steering_coeff*du[0]*(u[0] - du[0])/(vars[0]*vars[0]);
   control_cost += params_.throttle_coeff*du[1]*(u[1] - du[1])/(vars[1]*vars[1]);
   return control_cost;
@@ -311,11 +314,16 @@ inline __device__ float ARStandardCost::computeCost(float *s, float *u, float *d
   float control_cost = getControlCost(u, du, vars);
   float track_cost = getTrackCost(s, crash);
   float speed_cost = getSpeedCost(s, crash);
-  float crash_cost = (1.0 - params_.discount)*getCrashCost(s, crash, timestep);
+  float crash_cost = powf(params_.discount, timestep)*getCrashCost(s, crash, timestep);
   float stabilizing_cost = getStabilizingCost(s);
+  printf("\ntrack cost %f\n", track_cost);
+  printf("speed cost %f\n", speed_cost);
+  printf("crash cost %f\n", crash_cost);
+  printf("stab cost %f\n", stabilizing_cost);
+  printf("control cost %f\n", control_cost);
   float cost = control_cost + speed_cost + crash_cost + track_cost + stabilizing_cost;
-  if (cost > 1e12 || isnan(cost)) {
-    cost = 1e12;
+  if (cost > MAX_COST_VALUE || isnan(cost)) {
+    cost = MAX_COST_VALUE;
   }
   return cost;
 }

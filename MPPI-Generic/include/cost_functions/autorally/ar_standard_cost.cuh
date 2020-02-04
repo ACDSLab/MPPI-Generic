@@ -14,21 +14,23 @@
 class ARStandardCost : public Cost {
 public:
 
+  static constexpr float MAX_COST_VALUE = 1e12;
+
   typedef struct {
-    float desired_speed;
-    float speed_coeff;
-    float track_coeff;
-    float max_slip_ang;
-    float slip_penalty;
-    float track_slop;
-    float crash_coeff;
-    float steering_coeff;
-    float throttle_coeff;
-    float boundary_threshold;
-    float discount;
-    int num_timesteps;
+    float desired_speed = 6.0;
+    float speed_coeff = 4.25;
+    float track_coeff = 200.0;
+    float max_slip_ang = 1.25;
+    float slip_penalty = 10.0;
+    float track_slop = 0;
+    float crash_coeff = 10000;
+    float steering_coeff = 0;
+    float throttle_coeff = 0;
+    float boundary_threshold = 0.65;
+    float discount = 0.99;
+    int num_timesteps = 100;
     // TODO remove from struct
-    int grid_res;
+    int grid_res = 10;
     /*
      * Prospective transform matrix
      * r_c1.x, r_c2.x, trs.x
