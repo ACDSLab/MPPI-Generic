@@ -15,12 +15,14 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(float delta_t
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel() {
-
+  if(this->GPUMemStatus_) {
+      freeCudaMem();
+  }
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem() {
-
+  cudaFree(model_d_);
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
@@ -75,7 +77,9 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector
       theta_[stride_idcs_[2*i + 1] + j] = data[stride_idcs_[2*i + 1] + j];
     }
   }
-  paramsToDevice();
+  if(this->GPUMemStatus_) {
+    paramsToDevice();
+  }
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
@@ -133,7 +137,7 @@ __host__ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::enf
 }
 
 template<int s_dim, int c_dim, int k_dim, int... layer_args>
-__host__ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::computeStateDeriv(
+__device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::computeStateDeriv(
         float* state, float* control, float* state_der, float* theta_s) {
   // TODO why?
   if (threadIdx.y == 0){
