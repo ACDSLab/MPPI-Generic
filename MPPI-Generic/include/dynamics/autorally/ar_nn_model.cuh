@@ -50,7 +50,17 @@ public:
 
   ~NeuralNetModel();
 
-  __host__ __device__ std::array<float2, C_DIM> getControlRanges() {return control_rngs_;}
+  std::array<float2, C_DIM> getControlRanges() {
+    std::array<float2, C_DIM> result;
+    for(int i = 0; i < C_DIM; i++) {
+      result[i] = control_rngs_[i];
+    }
+    return result;
+  }
+  __host__ __device__ float* getControlRangesRaw() {
+    return control_rngs_;
+  }
+
   std::array<int, NUM_LAYERS> getNetStructure() {
     std::array<int, NUM_LAYERS> array;
     for(int i = 0; i < NUM_LAYERS; i++) {
@@ -123,7 +133,7 @@ public:
 
 private:
 
-  std::array<float2, C_DIM> control_rngs_;
+  float2 control_rngs_[C_DIM];
 
   // TODO convert to std::array
   float theta_[NUM_PARAMS]; ///< structure parameter array. i.e. the actual weights

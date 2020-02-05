@@ -470,9 +470,10 @@ TEST(ARNeuralNetDynamics, computeDynamicsParallelTest) {
 }
 
 
-TEST(ARNeuralNetDynamics, computeStateDeriv) {
+TEST(ARNeuralNetDynamics, computeDynamicsLoadControlTest) {
+  // TODO make u actually change the output
   float dt = 0.1;
-  NeuralNetModel<7,2,3,6,32,32,4> model(dt);
+  NeuralNetModel<7, 2, 3, 6, 32, 32, 4> model(dt);
 
   std::array<float, 7> s = {0.0};
   // x_dot, y_dot, theta_dot
@@ -480,5 +481,325 @@ TEST(ARNeuralNetDynamics, computeStateDeriv) {
   // steering, throttle
   std::array<float, 2> u = {0.0};
 
+  std::vector<float> theta(1412);
+  std::fill(theta.begin(), theta.end(), 1.0);
+
+  model.updateModel({6, 32, 32, 4}, theta);
+
   model.GPUSetup();
+
+  u[0] = 1.0;
+  u[1] = -1.0;
+
+  launchComputeDynamicsTestKernel<NeuralNetModel<7, 2, 3, 6, 32, 32, 4>, 7, 2, 4>(model, s.data(), u.data(),
+                                                                                  s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 0);
+  EXPECT_FLOAT_EQ(s[5], 0);
+  EXPECT_FLOAT_EQ(s[6], 0);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 33);
+  EXPECT_FLOAT_EQ(s_der[4], 33);
+  EXPECT_FLOAT_EQ(s_der[5], 33);
+  EXPECT_FLOAT_EQ(s_der[6], 33);
+
+  EXPECT_FLOAT_EQ(u[0], 1.0);
+  EXPECT_FLOAT_EQ(u[1], -1.0);
+}
+
+
+TEST(ARNeuralNetDynamics, computeStateNoParallelDeriv) {
+  float dt = 0.1;
+  NeuralNetModel<7,2,3,6,32,32,4> model(dt);
+
+  model.GPUSetup();
+
+  std::array<float, 7> s = {0.0};
+  // x_dot, y_dot, theta_dot
+  std::array<float, 7> s_der = {0.0};
+  // steering, throttle
+  std::array<float, 2> u = {0.0};
+
+  std::vector<float> theta(1412);
+  std::fill(theta.begin(), theta.end(), 0);
+
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(model, s.data(), u.data(), s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 0);
+  EXPECT_FLOAT_EQ(s[5], 0);
+  EXPECT_FLOAT_EQ(s[6], 0);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 0);
+  EXPECT_FLOAT_EQ(s_der[4], 0);
+  EXPECT_FLOAT_EQ(s_der[5], 0);
+  EXPECT_FLOAT_EQ(s_der[6], 0);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  s[4] = 1;
+  s[5] = 2;
+  s[6] = 3;
+
+  launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(model, s.data(), u.data(), s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 1);
+  EXPECT_FLOAT_EQ(s[5], 2);
+  EXPECT_FLOAT_EQ(s[6], 3);
+
+  EXPECT_FLOAT_EQ(s_der[0], 1);
+  EXPECT_FLOAT_EQ(s_der[1], 2);
+  EXPECT_FLOAT_EQ(s_der[2], -3);
+  EXPECT_FLOAT_EQ(s_der[3], 33);
+  EXPECT_FLOAT_EQ(s_der[4], 33);
+  EXPECT_FLOAT_EQ(s_der[5], 33);
+  EXPECT_FLOAT_EQ(s_der[6], 33);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+}
+
+
+TEST(ARNeuralNetDynamics, computeStateParallelDeriv) {
+  float dt = 0.1;
+  NeuralNetModel<7,2,3,6,32,32,4> model(dt);
+
+  model.GPUSetup();
+
+  std::array<float, 7> s = {0.0};
+  // x_dot, y_dot, theta_dot
+  std::array<float, 7> s_der = {0.0};
+  // steering, throttle
+  std::array<float, 2> u = {0.0};
+
+  std::vector<float> theta(1412);
+  std::fill(theta.begin(), theta.end(), 0);
+
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 4>(model, s.data(), u.data(), s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 0);
+  EXPECT_FLOAT_EQ(s[5], 0);
+  EXPECT_FLOAT_EQ(s[6], 0);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 0);
+  EXPECT_FLOAT_EQ(s_der[4], 0);
+  EXPECT_FLOAT_EQ(s_der[5], 0);
+  EXPECT_FLOAT_EQ(s_der[6], 0);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  s[4] = 1;
+  s[5] = 2;
+  s[6] = 3;
+
+  launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 8>(model, s.data(), u.data(), s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 1);
+  EXPECT_FLOAT_EQ(s[5], 2);
+  EXPECT_FLOAT_EQ(s[6], 3);
+
+  EXPECT_FLOAT_EQ(s_der[0], 1);
+  EXPECT_FLOAT_EQ(s_der[1], 2);
+  EXPECT_FLOAT_EQ(s_der[2], -3);
+  EXPECT_FLOAT_EQ(s_der[3], 33);
+  EXPECT_FLOAT_EQ(s_der[4], 33);
+  EXPECT_FLOAT_EQ(s_der[5], 33);
+  EXPECT_FLOAT_EQ(s_der[6], 33);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+}
+
+
+TEST(ARNeuralNetDynamics, fullNoParallelTest) {
+  float dt = 0.1;
+  std::array<float2, 2> u_constraint = {};
+  u_constraint[0].x = -1.0;
+  u_constraint[0].y = 1.0;
+  u_constraint[1].x = -2.0;
+  u_constraint[1].y = 2.0;
+
+  NeuralNetModel<7, 2, 3, 6, 32, 32, 4> model(dt, u_constraint);
+
+  model.GPUSetup();
+
+  std::array<float, 7> s = {0.0};
+  // x_dot, y_dot, theta_dot
+  std::array<float, 7> s_der = {0.0};
+  // steering, throttle
+  std::array<float, 2> u = {0.0};
+
+  std::vector<float> theta(1412);
+  std::fill(theta.begin(), theta.end(), 0);
+
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  launchFullARNNTestKernel<NeuralNetModel<7, 2, 3, 6, 32, 32, 4>, 7, 2, 1>(model, s.data(), u.data(),
+                                                                                    s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 0);
+  EXPECT_FLOAT_EQ(s[5], 0);
+  EXPECT_FLOAT_EQ(s[6], 0);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 0);
+  EXPECT_FLOAT_EQ(s_der[4], 0);
+  EXPECT_FLOAT_EQ(s_der[5], 0);
+  EXPECT_FLOAT_EQ(s_der[6], 0);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+
+  u[0] = 100;
+  u[1] = -20;
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  launchFullARNNTestKernel<NeuralNetModel<7, 2, 3, 6, 32, 32, 4>, 7, 2, 1>(model, s.data(), u.data(),
+          s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 2.5371017);
+  EXPECT_FLOAT_EQ(s[4], 2.5371017);
+  EXPECT_FLOAT_EQ(s[5], 2.5371017);
+  EXPECT_FLOAT_EQ(s[6], 2.5371017);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 0);
+  EXPECT_FLOAT_EQ(s_der[4], 0);
+  EXPECT_FLOAT_EQ(s_der[5], 0);
+  EXPECT_FLOAT_EQ(s_der[6], 0);
+
+  EXPECT_FLOAT_EQ(u[0], 1.0);
+  EXPECT_FLOAT_EQ(u[1], -2.0);
+
+}
+
+
+TEST(ARNeuralNetDynamics, fullParallelTest) {
+  float dt = 0.1;
+  std::array<float2, 2> u_constraint = {};
+  u_constraint[0].x = -1.0;
+  u_constraint[0].y = 1.0;
+  u_constraint[1].x = -2.0;
+  u_constraint[1].y = 2.0;
+
+  NeuralNetModel<7, 2, 3, 6, 32, 32, 4> model(dt, u_constraint);
+
+  model.GPUSetup();
+
+  std::array<float, 7> s = {0.0};
+  // x_dot, y_dot, theta_dot
+  std::array<float, 7> s_der = {0.0};
+  // steering, throttle
+  std::array<float, 2> u = {0.0};
+
+  std::vector<float> theta(1412);
+  std::fill(theta.begin(), theta.end(), 0);
+
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  launchFullARNNTestKernel<NeuralNetModel<7, 2, 3, 6, 32, 32, 4>, 7, 2, 4>(model, s.data(), u.data(),
+          s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 0);
+  EXPECT_FLOAT_EQ(s[5], 0);
+  EXPECT_FLOAT_EQ(s[6], 0);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 0);
+  EXPECT_FLOAT_EQ(s_der[4], 0);
+  EXPECT_FLOAT_EQ(s_der[5], 0);
+  EXPECT_FLOAT_EQ(s_der[6], 0);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+
+  u[0] = 100;
+  u[1] = -20;
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  launchFullARNNTestKernel<NeuralNetModel<7, 2, 3, 6, 32, 32, 4>, 7, 2, 8>(model, s.data(), u.data(),
+          s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 2.5371017);
+  EXPECT_FLOAT_EQ(s[4], 2.5371017);
+  EXPECT_FLOAT_EQ(s[5], 2.5371017);
+  EXPECT_FLOAT_EQ(s[6], 2.5371017);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 0);
+  EXPECT_FLOAT_EQ(s_der[4], 0);
+  EXPECT_FLOAT_EQ(s_der[5], 0);
+  EXPECT_FLOAT_EQ(s_der[6], 0);
+
+  EXPECT_FLOAT_EQ(u[0], 1.0);
+  EXPECT_FLOAT_EQ(u[1], -2.0);
+
 }
