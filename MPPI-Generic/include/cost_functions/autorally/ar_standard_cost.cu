@@ -6,7 +6,7 @@ ARStandardCost::ARStandardCost(cudaStream_t stream) {
 }
 
 ARStandardCost::~ARStandardCost() {
-  if(!GPUMemStatus_) {
+  if(GPUMemStatus_) {
     freeCudaMem();
   }
 }

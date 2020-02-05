@@ -94,7 +94,7 @@ public:
 
   __host__ __device__ void enforceConstraints(float* state, float* control);
 
-  __host__ __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
 
   __device__ void incrementState(float* state, float* state_der);
 

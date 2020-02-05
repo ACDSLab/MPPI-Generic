@@ -309,7 +309,7 @@ TEST(ARNeuralNetDynamics, computeKinematicsTest) {
   EXPECT_FLOAT_EQ(s_der[2], -1.0);
 }
 
-TEST(ARNeuralNetDynamics, incrementState) {
+TEST(ARNeuralNetDynamics, incrementStateTest) {
   float dt = 0.1;
   NeuralNetModel<7,2,3,6,32,32,4> model(dt);
 
@@ -339,6 +339,146 @@ TEST(ARNeuralNetDynamics, incrementState) {
   EXPECT_FLOAT_EQ(s[2], 0.3);
 }
 
-TEST(ARNeuralNetDynamics, computeDynamicsTest) {
 
+TEST(ARNeuralNetDynamics, computeDynamicsNoParallelTest) {
+  float dt = 0.1;
+  NeuralNetModel<7,2,3,6,32,32,4> model(dt);
+
+  std::array<float, 7> s = {0.0};
+  // x_dot, y_dot, theta_dot
+  std::array<float, 7> s_der = {0.0};
+  // steering, throttle
+  std::array<float, 2> u = {0.0};
+
+  std::vector<float> theta(1412);
+  std::fill(theta.begin(), theta.end(), 0);
+
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  model.GPUSetup();
+
+  launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(model, s.data(), u.data(), s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 0);
+  EXPECT_FLOAT_EQ(s[5], 0);
+  EXPECT_FLOAT_EQ(s[6], 0);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 0);
+  EXPECT_FLOAT_EQ(s_der[4], 0);
+  EXPECT_FLOAT_EQ(s_der[5], 0);
+  EXPECT_FLOAT_EQ(s_der[6], 0);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(model, s.data(), u.data(), s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 0);
+  EXPECT_FLOAT_EQ(s[5], 0);
+  EXPECT_FLOAT_EQ(s[6], 0);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 33);
+  EXPECT_FLOAT_EQ(s_der[4], 33);
+  EXPECT_FLOAT_EQ(s_der[5], 33);
+  EXPECT_FLOAT_EQ(s_der[6], 33);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+}
+
+
+TEST(ARNeuralNetDynamics, computeDynamicsParallelTest) {
+  float dt = 0.1;
+  NeuralNetModel<7,2,3,6,32,32,4> model(dt);
+
+  std::array<float, 7> s = {0.0};
+  // x_dot, y_dot, theta_dot
+  std::array<float, 7> s_der = {0.0};
+  // steering, throttle
+  std::array<float, 2> u = {0.0};
+
+  std::vector<float> theta(1412);
+  std::fill(theta.begin(), theta.end(), 0);
+
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  model.GPUSetup();
+
+  launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 4>(model, s.data(), u.data(), s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 0);
+  EXPECT_FLOAT_EQ(s[5], 0);
+  EXPECT_FLOAT_EQ(s[6], 0);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 0);
+  EXPECT_FLOAT_EQ(s_der[4], 0);
+  EXPECT_FLOAT_EQ(s_der[5], 0);
+  EXPECT_FLOAT_EQ(s_der[6], 0);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 8>(model, s.data(), u.data(), s_der.data());
+
+  EXPECT_FLOAT_EQ(s[0], 0);
+  EXPECT_FLOAT_EQ(s[1], 0);
+  EXPECT_FLOAT_EQ(s[2], 0);
+  EXPECT_FLOAT_EQ(s[3], 0);
+  EXPECT_FLOAT_EQ(s[4], 0);
+  EXPECT_FLOAT_EQ(s[5], 0);
+  EXPECT_FLOAT_EQ(s[6], 0);
+
+  EXPECT_FLOAT_EQ(s_der[0], 0);
+  EXPECT_FLOAT_EQ(s_der[1], 0);
+  EXPECT_FLOAT_EQ(s_der[2], 0);
+  EXPECT_FLOAT_EQ(s_der[3], 33);
+  EXPECT_FLOAT_EQ(s_der[4], 33);
+  EXPECT_FLOAT_EQ(s_der[5], 33);
+  EXPECT_FLOAT_EQ(s_der[6], 33);
+
+  EXPECT_FLOAT_EQ(u[0], 0);
+  EXPECT_FLOAT_EQ(u[1], 0);
+}
+
+
+TEST(ARNeuralNetDynamics, computeStateDeriv) {
+  float dt = 0.1;
+  NeuralNetModel<7,2,3,6,32,32,4> model(dt);
+
+  std::array<float, 7> s = {0.0};
+  // x_dot, y_dot, theta_dot
+  std::array<float, 7> s_der = {0.0};
+  // steering, throttle
+  std::array<float, 2> u = {0.0};
+
+  model.GPUSetup();
 }
