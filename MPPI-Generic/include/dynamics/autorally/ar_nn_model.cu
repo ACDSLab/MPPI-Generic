@@ -85,8 +85,13 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice() {
   // TODO copy to constant memory
-  HANDLE_ERROR( cudaMemcpy(model_d_->theta_, theta_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
   HANDLE_ERROR( cudaMemcpy(model_d_->control_rngs_, control_rngs_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
+  HANDLE_ERROR( cudaMemcpy(model_d_->theta_, theta_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
+
+#if defined(MPPI_NNET_USING_CONSTANT_MEM___) //Use constant memory.
+  HANDLE_ERROR( cudaMemcpyToSymbol(NNET_PARAMS, theta_d_, NUM_PARAMS*sizeof(float)) );
+#endif
+
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>

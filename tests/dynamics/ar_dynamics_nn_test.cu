@@ -11,6 +11,11 @@
 // Auto-generated header file
 #include <autorally_test_network.h>
 
+//Including neural net model
+#ifdef MPPI_NNET_USING_CONSTANT_MEM__
+__device__ __constant__ float NNET_PARAMS[param_counter(6,32,32,4)];
+#endif
+
 TEST(ARNeuralNetDynamics, verifyTemplateParamters) {
   int state_dim = NeuralNetModel<7,2,3,6,32,32,4>::STATE_DIM;
   EXPECT_EQ(state_dim, 7);

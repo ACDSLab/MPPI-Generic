@@ -37,3 +37,10 @@ target_link_libraries(ar_nn_dynamics_tests gtest gmock gtest_main ar_nn_dynamics
 
 add_test(NAME ar_nn_dynamics_tests COMMAND ar_nn_dynamics_tests)
 set_target_properties(ar_nn_dynamics_tests PROPERTIES FOLDER test)
+
+add_executable(ar_nn_dynamics_tests_constant ../test_main.cpp ar_dynamics_nn_test.cu)
+target_compile_definitions(ar_nn_dynamics_tests_constant PRIVATE MPPI_NNET_USING_CONSTANT_MEM__)
+target_link_libraries(ar_nn_dynamics_tests_constant gtest gmock gtest_main ar_nn_dynamics_kernel_test cnpy)
+
+add_test(NAME ar_nn_dynamics_tests_constant COMMAND ar_nn_dynamics_tests)
+set_target_properties(ar_nn_dynamics_tests_constant PROPERTIES FOLDER test)

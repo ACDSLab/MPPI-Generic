@@ -19,6 +19,7 @@
 #define MPPI_NNET_NONLINEARITY(ans) tanh(ans)
 #define MPPI_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
 
+
 /**
  * @file neural_net_model.cuh
  * @author Grady Williams <gradyrw@gmail.com>
@@ -35,6 +36,8 @@
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 class NeuralNetModel : public Dynamics<S_DIM, C_DIM> {
 public:
+
+
   //static const int STATE_DIM = S_DIM;
   //static const int CONTROL_DIM = C_DIM;
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
