@@ -18,6 +18,32 @@
 class MPPIController {
 public:
 	const int STATE_DIM = 1; // TODO: placeholder, Replace with template
+	const int CONTROL_DIM = 1; // TODO: placeholder, Replace with template
+	const int TIMESTEPS = 1; // TODO: placeholder, Replace with template
+	const int NUM_ROLLOUTS = 1; // TODO: placeholder, Replace with template
+
+	/**
+	 * Aliases for control-related components
+	 */
+	typedef std::array<float, CONTROL_DIM> control_t; // Control at a time t
+	typedef std::array<control_t, TIMESTEPS> control_trajectory; // A control trajectory
+	// All control trajectories sampled
+	typedef std::array<control_trajectory, NUM_ROLLOUTS> sampled_control_traj;
+
+	/**
+	 * Aliases for state-related components
+	 */
+	typedef std::array<float, STATE_DIM> state_t; // State at a time t
+	typedef std::array<state_t, TIMESTEPS> state_trajectory; // A state trajectory
+	 // All state trajectories sampled
+	typedef std::array<state_trajectory, NUM_ROLLOUTS> sampled_state_traj;
+
+	/**
+	 * Aliases for control-related components
+	 */
+	typedef std::array<float, TIMESTEPS> cost_trajectory; // A cost trajectory
+	 // All cost trajectories sampled
+	typedef std::array<cost_trajectory, NUM_ROLLOUTS> sampled_cost_traj;
 	/**
 	 * Given a state, calculates the optimal control sequence using MPPI according
 	 * to the cost function used as part of the template
@@ -34,13 +60,37 @@ public:
 	 *
 	 * returns the control sequence after computation
 	 */
-	std::vector<float> compute_control(Eigen::<float, STATE_DIM, 1> state);
+	control_trajectory compute_control(Eigen::<float, STATE_DIM, 1> state);
 
 	/**
 	 * returns the current control sequence
 	 */
-	std::vector<float> get_control_seq();
+	control_trajectory get_control_seq();
 
+	/**
+	 * return the entire sample of control sequences
+	 */
+	sampled_control_traj get_sampled_control_seq();
+
+	/**
+	 * Return the current optimal state sequence
+	 */
+	state_trajectory get_state_seq();
+
+	/**
+	 * Return all the sampled states sequences
+	 */
+	sampled_state_traj get_sampled_state_seq();
+
+	/**
+	 * Return the current minimal cost sequence
+	 */
+	cost_trajectory get_cost_seq();
+
+	/**
+	 * Return all the sampled costs sequences
+	 */
+	sampled_cost_traj get_sampled_cost_seq();
 };
 
 #if __CUDACC__
