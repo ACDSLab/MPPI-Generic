@@ -1,24 +1,27 @@
 #include <cost_functions/autorally/ar_standard_cost.cuh>
 
-ARStandardCost::ARStandardCost(cudaStream_t stream) {
-
+template <typename PARAMS_T>
+ARStandardCost<PARAMS_T>::ARStandardCost(cudaStream_t stream) {
   bindToStream(stream);
 }
 
-ARStandardCost::~ARStandardCost() {
+template <typename PARAMS_T>
+ARStandardCost<PARAMS_T>::~ARStandardCost() {
   if(GPUMemStatus_) {
     freeCudaMem();
   }
 }
 
-void ARStandardCost::setParams(ARStandardCostParams params) {
+template <typename PARAMS_T>
+void ARStandardCost<PARAMS_T>::setParams(ARStandardCostParams params) {
   this->params_ = params;
   if(GPUMemStatus_) {
     paramsToDevice();
   }
 }
 
-void ARStandardCost::GPUSetup() {
+template <typename PARAMS_T>
+void ARStandardCost<PARAMS_T>::GPUSetup() {
   if (!GPUMemStatus_) {
     cost_d_ = Managed::GPUSetup(this);
   } else {
@@ -32,19 +35,22 @@ void ARStandardCost::GPUSetup() {
   paramsToDevice();
 }
 
-void ARStandardCost::freeCudaMem() {
+template <typename PARAMS_T>
+void ARStandardCost<PARAMS_T>::freeCudaMem() {
   // TODO free everything
   cudaFree(cost_d_);
 }
 
-void ARStandardCost::paramsToDevice() {
+template <typename PARAMS_T>
+void ARStandardCost<PARAMS_T>::paramsToDevice() {
   HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->params_, &params_, sizeof(ARStandardCostParams), cudaMemcpyHostToDevice, stream_));
   HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, stream_));
   HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, stream_));
   HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 
-bool ARStandardCost::changeCostmapSize(int width, int height) {
+template <typename PARAMS_T>
+bool ARStandardCost<PARAMS_T>::changeCostmapSize(int width, int height) {
   // TODO set flag at top that indicates memory allocation changes
   if(height < 0 && width < 0) {
     std::cerr << "ERROR: cannot resize costmap to size less than 1" << std::endl;
@@ -73,7 +79,8 @@ bool ARStandardCost::changeCostmapSize(int width, int height) {
   return true;
 }
 
-void ARStandardCost::clearCostmapCPU(int width, int height) {
+template <typename PARAMS_T>
+void ARStandardCost<PARAMS_T>::clearCostmapCPU(int width, int height) {
   changeCostmapSize(width, height);
 
   if(width_ < 0 && height_ < 0) {
@@ -88,7 +95,8 @@ void ARStandardCost::clearCostmapCPU(int width, int height) {
   }
 }
 
-std::vector<float4> ARStandardCost::loadTrackData(std::string map_path) {
+template <typename PARAMS_T>
+std::vector<float4> ARStandardCost<PARAMS_T>::loadTrackData(std::string map_path) {
   // check if file exists
   if(!fileExists(map_path)) {
     std::cerr << "ERROR: map path invalid, " << map_path << std::endl;
@@ -143,7 +151,8 @@ std::vector<float4> ARStandardCost::loadTrackData(std::string map_path) {
   return track_costs_;
 }
 
-void ARStandardCost::costmapToTexture() {
+template <typename PARAMS_T>
+void ARStandardCost<PARAMS_T>::costmapToTexture() {
   if(width_ < 0 || height_ < 0) {
     std::cerr << "ERROR: cannot allocate texture with zero size" << std::endl;
     return;
@@ -179,12 +188,14 @@ void ARStandardCost::costmapToTexture() {
   cudaStreamSynchronize(stream_);
 }
 
-inline __device__ float4 ARStandardCost::queryTexture(float x, float y) const {
+template <typename PARAMS_T>
+inline __device__ float4 ARStandardCost<PARAMS_T>::queryTexture(float x, float y) const {
   //printf("\nquerying point (%f, %f)", x, y);
   return tex2D<float4>(costmap_tex_d_, x, y);
 }
 
-void ARStandardCost::updateTransform(Eigen::MatrixXf m, Eigen::ArrayXf trs) {
+template <typename PARAMS_T>
+void ARStandardCost<PARAMS_T>::updateTransform(Eigen::MatrixXf m, Eigen::ArrayXf trs) {
   params_.r_c1.x = m(0,0);
   params_.r_c1.y = m(1,0);
   params_.r_c1.z = m(2,0);
@@ -200,7 +211,8 @@ void ARStandardCost::updateTransform(Eigen::MatrixXf m, Eigen::ArrayXf trs) {
   }
 }
 
-__host__ __device__ void ARStandardCost::coorTransform(float x, float y, float* u, float* v, float* w) {
+template <typename PARAMS_T>
+__host__ __device__ void ARStandardCost<PARAMS_T>::coorTransform(float x, float y, float* u, float* v, float* w) {
   ////Compute a projective transform of (x, y, 0, 1)
   //printf("coordiante transform %f, %f, %f\n", params_.r_c1.x, params_.r_c2.x, params_.trs.x);
   u[0] = params_.r_c1.x*x + params_.r_c2.x*y + params_.trs.x;
@@ -208,7 +220,8 @@ __host__ __device__ void ARStandardCost::coorTransform(float x, float y, float* 
   w[0] = params_.r_c1.z*x + params_.r_c2.z*y + params_.trs.z;
 }
 
-__device__ float4 ARStandardCost::queryTextureTransformed(float x, float y) {
+template <typename PARAMS_T>
+__device__ float4 ARStandardCost<PARAMS_T>::queryTextureTransformed(float x, float y) {
   float u, v, w;
   coorTransform(x, y, &u, &v, &w);
   //printf("\ninput coordinates: %f, %f", x, y);
@@ -217,7 +230,8 @@ __device__ float4 ARStandardCost::queryTextureTransformed(float x, float y) {
   return tex2D<float4>(costmap_tex_d_, u/w, v/w);
 }
 
-Eigen::Matrix3f ARStandardCost::getRotation() {
+template <typename PARAMS_T>
+Eigen::Matrix3f ARStandardCost<PARAMS_T>::getRotation() {
   Eigen::Matrix3f m;
   m(0,0) = params_.r_c1.x;
   m(1,0) = params_.r_c1.y;
@@ -231,7 +245,8 @@ Eigen::Matrix3f ARStandardCost::getRotation() {
   return m;
 }
 
-Eigen::Array3f ARStandardCost::getTranslation() {
+template <typename PARAMS_T>
+Eigen::Array3f ARStandardCost<PARAMS_T>::getTranslation() {
   Eigen::Array3f array;
   array(0) = params_.trs.x;
   array(1) = params_.trs.y;
@@ -239,11 +254,13 @@ Eigen::Array3f ARStandardCost::getTranslation() {
   return array;
 }
 
-inline __host__ __device__ float ARStandardCost::getTerminalCost(float *s) {
+template <typename PARAMS_T>
+inline __host__ __device__ float ARStandardCost<PARAMS_T>::getTerminalCost(float *s) {
   return 0.0;
 }
 
-inline __host__ __device__ float ARStandardCost::getControlCost(float *u, float *du, float *vars) {
+template <typename PARAMS_T>
+inline __host__ __device__ float ARStandardCost<PARAMS_T>::getControlCost(float *u, float *du, float *vars) {
   float control_cost = 0.0;
   //printf("du %f, %f\n", du[0], du[1]);
 //printf("vars %f, %f\n", vars[0], vars[1]);
@@ -253,7 +270,8 @@ inline __host__ __device__ float ARStandardCost::getControlCost(float *u, float 
   return control_cost;
 }
 
-inline __host__ __device__ float ARStandardCost::getSpeedCost(float *s, int *crash) {
+template <typename PARAMS_T>
+inline __host__ __device__ float ARStandardCost<PARAMS_T>::getSpeedCost(float *s, int *crash) {
   float cost = 0;
   float error = s[4] - params_.desired_speed;
   if (l1_cost_){
@@ -265,7 +283,8 @@ inline __host__ __device__ float ARStandardCost::getSpeedCost(float *s, int *cra
   return (params_.speed_coeff*cost);
 }
 
-inline __host__ __device__ float ARStandardCost::getStabilizingCost(float *s) {
+template <typename PARAMS_T>
+inline __host__ __device__ float ARStandardCost<PARAMS_T>::getStabilizingCost(float *s) {
   float stabilizing_cost = 0;
   if (fabs(s[4]) > 0.001) {
     float slip = -atan(s[5]/fabs(s[4]));
@@ -278,7 +297,8 @@ inline __host__ __device__ float ARStandardCost::getStabilizingCost(float *s) {
   return stabilizing_cost;
 }
 
-inline __host__ __device__ float ARStandardCost::getCrashCost(float *s, int *crash, int num_timestep) {
+template <typename PARAMS_T>
+inline __host__ __device__ float ARStandardCost<PARAMS_T>::getCrashCost(float *s, int *crash, int num_timestep) {
   float crash_cost = 0;
   if (crash[0] > 0) {
     crash_cost = params_.crash_coeff;
@@ -286,7 +306,8 @@ inline __host__ __device__ float ARStandardCost::getCrashCost(float *s, int *cra
   return crash_cost;
 }
 
-inline __device__ float ARStandardCost::getTrackCost(float *s, int *crash) {
+template <typename PARAMS_T>
+inline __device__ float ARStandardCost<PARAMS_T>::getTrackCost(float *s, int *crash) {
   float track_cost = 0;
 
   //Compute a transformation to get the (x,y) positions of the front and back of the car.
@@ -313,7 +334,8 @@ inline __device__ float ARStandardCost::getTrackCost(float *s, int *crash) {
   return track_cost;
 }
 
-inline __device__ float ARStandardCost::computeCost(float *s, float *u, float *du, float *vars, int *crash, int timestep) {
+template <typename PARAMS_T>
+inline __device__ float ARStandardCost<PARAMS_T>::computeCost(float *s, float *u, float *du, float *vars, int *crash, int timestep) {
   float control_cost = getControlCost(u, du, vars);
   float track_cost = getTrackCost(s, crash);
   float speed_cost = getSpeedCost(s, crash);

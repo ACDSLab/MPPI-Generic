@@ -11,36 +11,37 @@
 #include <cuda_runtime.h>
 #include <cnpy.h>
 
-class ARStandardCost : public Cost {
+typedef struct {
+  float desired_speed = 6.0;
+  float speed_coeff = 4.25;
+  float track_coeff = 200.0;
+  float max_slip_ang = 1.25;
+  float slip_penalty = 10.0;
+  float track_slop = 0;
+  float crash_coeff = 10000;
+  float steering_coeff = 0;
+  float throttle_coeff = 0;
+  float boundary_threshold = 0.65;
+  float discount = 0.99;
+  int num_timesteps = 100;
+  // TODO remove from struct
+  int grid_res = 10;
+  /*
+   * Prospective transform matrix
+   * r_c1.x, r_c2.x, trs.x
+   * r_c1.y, r_c2.y, trs.y
+   * r_c1.z, r_c2.z, trs.z
+   */
+  float3 r_c1; // R matrix col 1
+  float3 r_c2; // R matrix col 2
+  float3 trs; // translation vector
+} ARStandardCostParams;
+
+template <typename PARAMS_T = ARStandardCostParams>
+class ARStandardCost : public Cost<ARStandardCostParams> {
 public:
 
-  static constexpr float MAX_COST_VALUE = 1e12;
-
-  typedef struct {
-    float desired_speed = 6.0;
-    float speed_coeff = 4.25;
-    float track_coeff = 200.0;
-    float max_slip_ang = 1.25;
-    float slip_penalty = 10.0;
-    float track_slop = 0;
-    float crash_coeff = 10000;
-    float steering_coeff = 0;
-    float throttle_coeff = 0;
-    float boundary_threshold = 0.65;
-    float discount = 0.99;
-    int num_timesteps = 100;
-    // TODO remove from struct
-    int grid_res = 10;
-    /*
-     * Prospective transform matrix
-     * r_c1.x, r_c2.x, trs.x
-     * r_c1.y, r_c2.y, trs.y
-     * r_c1.z, r_c2.z, trs.z
-     */
-    float3 r_c1; // R matrix col 1
-    float3 r_c2; // R matrix col 2
-    float3 trs; // translation vector
-  } ARStandardCostParams;
+  static constexpr float MAX_COST_VALUE = 1e16;
 
   /**
    * Constructor
@@ -235,7 +236,6 @@ protected:
   //Primary variables
   int width_ =  -1; ///< width of costmap
   int height_ = -1; ///< height of costmap.
-  ARStandardCostParams params_; ///< object copy of params
   cudaArray *costmapArray_d_; ///< Cuda array for texture binding.
   cudaChannelFormatDesc channelDesc_; ///< Cuda texture channel description.
   cudaTextureObject_t costmap_tex_d_; ///< Cuda texture object.
@@ -250,8 +250,6 @@ protected:
   int debug_img_ppm_; ///< Pixels per meter for resolution of debug view.
   int debug_img_size_; ///< Number of pixels in the debug image.
   bool debugging_; ///< Indicator for if we're in debugging mode
-
-protected:
 
 };
 

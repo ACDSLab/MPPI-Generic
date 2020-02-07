@@ -1,6 +1,6 @@
 #include <cost_functions/autorally/ar_standard_cost.cuh>
 
-__global__ void ParameterTestKernel(ARStandardCost* cost, ARStandardCost::ARStandardCostParams& params, int& width, int& height) {
+__global__ void ParameterTestKernel(ARStandardCost<>* cost, ARStandardCostParams& params, int& width, int& height) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   //printf("\nEntering the kernel!\n");
   //printf("The thread id is: %i\n", tid);
@@ -29,12 +29,12 @@ __global__ void ParameterTestKernel(ARStandardCost* cost, ARStandardCost::ARStan
   }
 }
 
-void launchParameterTestKernel(const ARStandardCost& cost, ARStandardCost::ARStandardCostParams& params, int& width, int& height) {
+void launchParameterTestKernel(const ARStandardCost<>& cost, ARStandardCostParams& params, int& width, int& height) {
   // Allocate memory on the CPU for checking the mass
-  ARStandardCost::ARStandardCostParams* params_d;
+  ARStandardCostParams* params_d;
   int* width_d;
   int* height_d;
-  HANDLE_ERROR(cudaMalloc((void**)&params_d, sizeof(ARStandardCost::ARStandardCostParams)))
+  HANDLE_ERROR(cudaMalloc((void**)&params_d, sizeof(ARStandardCostParams)))
   HANDLE_ERROR(cudaMalloc((void**)&width_d, sizeof(float)))
   HANDLE_ERROR(cudaMalloc((void**)&height_d, sizeof(float)))
 
@@ -42,7 +42,7 @@ void launchParameterTestKernel(const ARStandardCost& cost, ARStandardCost::ARSta
   CudaCheckError();
 
   // Copy the memory back to the host
-  HANDLE_ERROR(cudaMemcpy(&params, params_d, sizeof(ARStandardCost::ARStandardCostParams), cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(&params, params_d, sizeof(ARStandardCostParams), cudaMemcpyDeviceToHost));
   HANDLE_ERROR(cudaMemcpy(&width, width_d, sizeof(float), cudaMemcpyDeviceToHost));
   HANDLE_ERROR(cudaMemcpy(&height, height_d, sizeof(float), cudaMemcpyDeviceToHost));
   cudaDeviceSynchronize();
@@ -84,7 +84,7 @@ void launchCheckCudaArray(std::vector<float4>& result_arr, cudaArray* array, int
   cudaFree(results_d);
 }
 
-__global__ void transformTestKernel(float3* results, ARStandardCost* cost) {
+__global__ void transformTestKernel(float3* results, ARStandardCost<>* cost) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   //printf("\nEntering the kernel!\n");
   //printf("The thread id is: %i\n", tid);
@@ -96,7 +96,7 @@ __global__ void transformTestKernel(float3* results, ARStandardCost* cost) {
   }
 }
 
-void launchTransformTestKernel(std::vector<float3>& result, const ARStandardCost& cost) {
+void launchTransformTestKernel(std::vector<float3>& result, const ARStandardCost<>& cost) {
   result.resize(3);
 
   // Allocate memory on the CPU for checking the mass
@@ -115,7 +115,7 @@ void launchTransformTestKernel(std::vector<float3>& result, const ARStandardCost
 
 
 
-__global__ void textureTestKernel(const ARStandardCost& cost, float4* test_results, float2* test_indexes, int num_points) {
+__global__ void textureTestKernel(const ARStandardCost<>& cost, float4* test_results, float2* test_indexes, int num_points) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   //printf("\nEntering the kernel!\n");
   //printf("The thread id is: %i\n", tid);
@@ -131,7 +131,7 @@ __global__ void textureTestKernel(const ARStandardCost& cost, float4* test_resul
   }
 }
 
-void launchTextureTestKernel(const ARStandardCost& cost, std::vector<float4>& test_results, std::vector<float2>& test_indexes) {
+void launchTextureTestKernel(const ARStandardCost<>& cost, std::vector<float4>& test_results, std::vector<float2>& test_indexes) {
   int num_test_points = test_indexes.size();
   test_results.resize(num_test_points);
 
@@ -158,7 +158,7 @@ void launchTextureTestKernel(const ARStandardCost& cost, std::vector<float4>& te
   cudaFree(tex_test_indexes_d);
 }
 
-__global__ void textureTransformTestKernel(ARStandardCost& cost, float4* test_results, float2* test_indexes, int num_points) {
+__global__ void textureTransformTestKernel(ARStandardCost<>& cost, float4* test_results, float2* test_indexes, int num_points) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   //printf("\nEntering the kernel!\n");
   //printf("The thread id is: %i\n", tid);
@@ -171,7 +171,7 @@ __global__ void textureTransformTestKernel(ARStandardCost& cost, float4* test_re
   }
 }
 
-void launchTextureTransformTestKernel(const ARStandardCost& cost, std::vector<float4>& test_results, std::vector<float2>& test_indexes) {
+void launchTextureTransformTestKernel(const ARStandardCost<>& cost, std::vector<float4>& test_results, std::vector<float2>& test_indexes) {
   int num_test_points = test_indexes.size();
   test_results.resize(num_test_points);
 
@@ -198,7 +198,7 @@ void launchTextureTransformTestKernel(const ARStandardCost& cost, std::vector<fl
   cudaFree(tex_test_indexes_d);
 }
 
-__global__ void trackCostTestKernel(ARStandardCost& cost, float3* test_indexes, int num_points,
+__global__ void trackCostTestKernel(ARStandardCost<>& cost, float3* test_indexes, int num_points,
                                     float* cost_results, int* crash_results) {
 
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
@@ -216,7 +216,7 @@ __global__ void trackCostTestKernel(ARStandardCost& cost, float3* test_indexes, 
   }
 }
 
-void launchTrackCostTestKernel(const ARStandardCost& cost, std::vector<float3>& test_indexes,
+void launchTrackCostTestKernel(const ARStandardCost<>& cost, std::vector<float3>& test_indexes,
                                std::vector<float>& cost_results, std::vector<int>& crash_results) {
 
   int num_test_points = test_indexes.size();
@@ -250,7 +250,7 @@ void launchTrackCostTestKernel(const ARStandardCost& cost, std::vector<float3>& 
   cudaFree(test_indexes_d);
 }
 
-__global__ void computeCostTestKernel(ARStandardCost& cost, float* test_xu, float* cost_results, int num_points) {
+__global__ void computeCostTestKernel(ARStandardCost<>& cost, float* test_xu, float* cost_results, int num_points) {
 
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   if(tid < num_points) {
@@ -263,7 +263,7 @@ __global__ void computeCostTestKernel(ARStandardCost& cost, float* test_xu, floa
   }
 }
 
-void launchComputeCostTestKernel(const ARStandardCost& cost, std::vector<std::array<float, 9>>& test_xu, std::vector<float>& cost_results) {
+void launchComputeCostTestKernel(const ARStandardCost<>& cost, std::vector<std::array<float, 9>>& test_xu, std::vector<float>& cost_results) {
 
   int num_test_points = test_xu.size();
   cost_results.resize(num_test_points*9);
