@@ -72,6 +72,60 @@ TEST(RolloutKernel, injectControlNoiseOnce) {
     }
 }
 
+TEST(RolloutKernel, injectControlNoiseAllTimeSteps) {
+    GTEST_SKIP() << "Not implemented";
+}
+
+TEST(RolloutKernel, injectControlNoiseCheckControl_V) {
+    const int num_rollouts = 100;
+    const int control_dim = 3;
+    const int num_timesteps = 5;
+    std::array<float, control_dim*num_timesteps> u_traj_host = {0};
+    // Control variance for each control channel
+    std::array<float, control_dim> sigma_u_host = {0.1f, 0.2f, 0.3f};
+    // Noise
+    std::array<float, num_rollouts*num_timesteps*control_dim> ep_v_host = {0.f};
+    std::array<float, num_rollouts*num_timesteps*control_dim> ep_v_compute = {0.f};
+
+    auto generator = std::default_random_engine(7.0);
+    auto distribution = std::normal_distribution<float>(5.0, 0.2);
+
+    for (size_t i = 0; i <ep_v_host.size(); ++i) {
+        ep_v_host[i] = distribution(generator);
+        ep_v_compute[i] = ep_v_host[i];
+    }
+
+    for (size_t i = 0; i <u_traj_host.size(); ++i) {
+        u_traj_host[i] = i;
+    }
+
+    // Output vector
+
+    // CPU known vector
+    std::array<float, num_rollouts*num_timesteps*control_dim> ep_v_known = {0.f};
+
+    for (int i = 0; i < num_rollouts; ++i) {
+        for (int j =0; j < num_timesteps; ++j) {
+            for (int k =0; k < control_dim; ++k) {
+                int index = i*num_timesteps*control_dim + j*control_dim + k;
+                if (i == 0) {
+                    ep_v_known[index] = u_traj_host[j*control_dim + k];
+                } else if (i >= num_rollouts*.99) {
+                    ep_v_known[index] = ep_v_host[index]*sigma_u_host[k];
+                } else {
+                    ep_v_known[index] = u_traj_host[j*control_dim + k] + ep_v_host[index]*sigma_u_host[k];
+                }
+            }
+        }
+    }
+
+    launchInjectControlNoiseCheckControlV_KernelTest<num_rollouts,
+    num_timesteps, control_dim, 64, 8, num_rollouts>(u_traj_host, ep_v_compute, sigma_u_host);
+
+    array_assert_float_eq<num_rollouts*num_timesteps*control_dim>(ep_v_known, ep_v_compute);
+
+}
+
 TEST(RolloutKernel, computeRunningCostAllRollouts) {
     // Instantiate the cost object.
     CartpoleQuadraticCost cost;

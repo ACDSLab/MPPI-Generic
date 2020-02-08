@@ -125,9 +125,6 @@ __global__ void  injectControlNoiseOnce_KernelTest(int num_rollouts, int num_tim
             control_compute_device[global_idx * CONTROL_DIM + thread_idy] = u_thread[thread_idy];
         }
     }
-
-
-
 }
 
 void launchInjectControlNoiseOnce_KernelTest(const std::vector<float>& u_traj_host, const int num_rollouts, const int num_timesteps,
@@ -178,6 +175,57 @@ void launchInjectControlNoiseOnce_KernelTest(const std::vector<float>& u_traj_ho
     cudaFree(control_compute_device);
     cudaFree(sigma_u_device);
     curandDestroyGenerator(gen_);
+}
+
+template<int control_dim, int blocksize_y>
+__global__ void injectControlNoiseCheckControlV_KernelTest(int num_rollouts, int num_timesteps, int timestep,
+        float* u_traj_device, float* ep_v_device, float* sigma_u_device) {
+    int global_idx = threadIdx.x + blockDim.x*blockIdx.x;
+    int thread_idy = threadIdx.y;
+    float u_thread[control_dim];
+    float du_thread[control_dim];
+
+    if (global_idx < num_rollouts) {
+        mppi_common::injectControlNoise(control_dim, blocksize_y, num_rollouts, num_timesteps, timestep, global_idx, thread_idy, u_traj_device, ep_v_device, sigma_u_device, u_thread, du_thread);
+        __syncthreads();
+    }
+}
+
+template<int num_rollouts, int num_timesteps, int control_dim, int blocksize_x, int blocksize_y, int gridsize_x>
+void launchInjectControlNoiseCheckControlV_KernelTest(const std::array<float, num_timesteps*control_dim>& u_traj_host,
+        std::array<float, num_rollouts*num_timesteps*control_dim>& ep_v_host, const std::array<float, control_dim>& sigma_u_host) {
+
+    // Declare variables for device memory
+    float* u_traj_device;
+    float* ep_v_device;
+    float* sigma_u_device;
+
+    // Allocate cuda memory
+    HANDLE_ERROR(cudaMalloc((void**)&u_traj_device, sizeof(float)*u_traj_host.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&ep_v_device, sizeof(float)*ep_v_host.size()));
+    HANDLE_ERROR(cudaMalloc((void**)&sigma_u_device, sizeof(float)*sigma_u_host.size()));
+
+    // Copy to device
+    HANDLE_ERROR(cudaMemcpy(u_traj_device, u_traj_host.data(), sizeof(float)*u_traj_host.size(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(ep_v_device, ep_v_host.data(), sizeof(float)*ep_v_host.size(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpy(sigma_u_device, sigma_u_host.data(), sizeof(float)*sigma_u_host.size(), cudaMemcpyHostToDevice));
+
+
+    dim3 dimBlock(blocksize_x, blocksize_y, 1);
+    dim3 dimGrid(gridsize_x, 1, 1);
+
+    for (int i = 0; i < num_timesteps; ++i) {
+        injectControlNoiseCheckControlV_KernelTest<control_dim, blocksize_y><<<dimGrid, dimBlock>>>(num_rollouts, num_timesteps, i, u_traj_device, ep_v_device, sigma_u_device);
+        CudaCheckError();
+    }
+
+    // Copy to the host
+    HANDLE_ERROR(cudaMemcpy(ep_v_host.data(), ep_v_device, sizeof(float)*ep_v_host.size(), cudaMemcpyDeviceToHost));
+
+
+    cudaFree(u_traj_device);
+    cudaFree(ep_v_device);
+    cudaFree(sigma_u_device);
 }
 
 template<class COST_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int STATE_DIM, int CONTROL_DIM>

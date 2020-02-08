@@ -83,7 +83,7 @@ namespace mppi_common {
                                        int global_idx,
                                        int thread_idy,
                                        const float* u_traj_device,
-                                       const float* ep_v_device,
+                                       float* ep_v_device,
                                        const float* sigma_u_thread,
                                        float* u_thread,
                                        float* du_thread);
@@ -147,13 +147,12 @@ namespace mppi_common {
     __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps);
 
     // Weighted Reduction Kernel Helpers
-    __device__ void setInitialControlToZero();
+    __device__ void setInitialControlToZero(int control_dim, int thread_idx, float* u, float* u_intermediate);
 
-    __device__ void workerControlWeightsReduction();
+    __device__ void strideControlWeightReduction(int num_rollouts, int num_timesteps, int sum_stride, int thread_idx,
+            int block_idx, int control_dim, float* exp_costs_d, float normalizer, float* du_d, float* u, float* u_intermediate);
 
-    __device__ void threadControlWeightsReduction();
-
-    __device__ void rolloutWeightReductionAndSaveControl();
+    __device__ void rolloutWeightReductionAndSaveControl(int thread_idx, int block_idx, int num_rollouts, int num_timesteps, int control_dim, int sum_stride, float* u, float* u_intermediate, float* du_new_d);
 
     // Launch functions
     template<class DYN_T, class COST_T>

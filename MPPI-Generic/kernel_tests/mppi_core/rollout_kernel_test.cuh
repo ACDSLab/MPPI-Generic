@@ -23,9 +23,14 @@ __global__ void injectControlNoiseOnce_KernelTest(int num_rollouts, int num_time
 void launchInjectControlNoiseOnce_KernelTest(const std::vector<float>& u_traj_host, const int num_rollouts, const int num_timesteps,
                                              std::vector<float>& ep_v_host, std::vector<float>& sigma_u_host, std::vector<float>& control_compute);
 
-__global__ void injectControlNoise_KernelTest();
+template<int control_dim, int blocksize_y>
+__global__ void injectControlNoiseCheckControlV_KernelTest(int num_rollouts, int num_timesteps, int timestep,
+                                                           float* u_traj_device, float* ep_v_device, float* sigma_u_device);
 
-void launchInjectControlNoise_KernelTest();
+template<int num_rollouts, int num_timesteps, int control_dim, int blocksize_x, int blocksize_y, int gridsize_x>
+void launchInjectControlNoiseCheckControlV_KernelTest(const std::array<float, num_timesteps*control_dim>& u_traj_host,
+                                                      std::array<float, num_rollouts*num_timesteps*control_dim>& ep_v_host,
+                                                      const std::array<float, control_dim>& sigma_u_host);
 
 template<class COST_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int STATE_DIM, int CONTROL_DIM>
 __global__ void computeRunningCostAllRollouts_KernelTest(COST_T* cost_d, float dt, float* x_trajectory_d, float* u_trajectory_d, float* du_trajectory_d, float* var_d, float* cost_allrollouts_d);
