@@ -120,7 +120,7 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
 
   ARStandardCostParams result_params;
   int width, height;
-  launchParameterTestKernel(cost, result_params, width, height);
+  launchParameterTestKernel<>(cost, result_params, width, height);
 
   EXPECT_FLOAT_EQ(params.desired_speed, result_params.desired_speed);
   EXPECT_FLOAT_EQ(params.speed_coeff, result_params.speed_coeff);
@@ -155,7 +155,7 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   params.r_c1.z = 6;
   cost.setParams(params);
 
-  launchParameterTestKernel(cost, result_params, width, height);
+  launchParameterTestKernel<>(cost, result_params, width, height);
 
   EXPECT_FLOAT_EQ(params.desired_speed, result_params.desired_speed);
   EXPECT_FLOAT_EQ(params.speed_coeff, result_params.speed_coeff);
@@ -394,7 +394,7 @@ TEST(ARStandardCost, updateTransformGPUTest) {
    */
 
   std::vector<float3> results;
-  launchTransformTestKernel(results, cost);
+  launchTransformTestKernel<>(results, cost);
 
   EXPECT_EQ(results.size(), 3);
 
@@ -463,7 +463,7 @@ TEST(ARStandardCost, LoadTrackDataTest) {
 
   // check on the GPU
   std::vector<float3> results;
-  launchTransformTestKernel(results, cost);
+  launchTransformTestKernel<>(results, cost);
 
   EXPECT_EQ(results.size(), 3);
 
@@ -520,7 +520,7 @@ TEST(ARStandardCost, costmapToTextureNoLoadTest) {
   point.y = 0.0f;
   query_points.push_back(point);
 
-  launchTextureTestKernel(cost, results, query_points);
+  launchTextureTestKernel<>(cost, results, query_points);
 
   EXPECT_EQ(query_points.size(), results.size());
 
@@ -555,7 +555,7 @@ TEST(ARStandardCost, costmapToTextureLoadTest) {
   point.y = 0;
   query_points.push_back(point);
 
-  launchTextureTestKernel(cost, results, query_points);
+  launchTextureTestKernel<>(cost, results, query_points);
 
   EXPECT_EQ(query_points.size(), results.size());
 
@@ -589,7 +589,7 @@ TEST(ARStandardCost, costmapToTextureTransformTest) {
   point.y = -10;
   query_points.push_back(point);
 
-  launchTextureTransformTestKernel(cost, results, query_points);
+  launchTextureTransformTestKernel<>(cost, results, query_points);
 
   EXPECT_EQ(query_points.size(), results.size());
 
@@ -616,7 +616,7 @@ TEST(ARStandardCost, costmapToTextureTransformTest) {
   query_points[1].x = 0.0;
   query_points[1].y = 1.0;
 
-  launchTextureTransformTestKernel(cost, results, query_points);
+  launchTextureTransformTestKernel<>(cost, results, query_points);
 
   EXPECT_EQ(query_points.size(), results.size());
 
@@ -771,7 +771,7 @@ TEST(ARStandardCost, getTrackCostTest) {
   std::vector<float> cost_results;
   std::vector<int> crash_results;
 
-  launchTrackCostTestKernel(cost, states, cost_results, crash_results);
+  launchTrackCostTestKernel<>(cost, states, cost_results, crash_results);
 
   EXPECT_FLOAT_EQ(cost_results[0], 0.0);
   EXPECT_FLOAT_EQ(crash_results[0], 0.0);
@@ -815,14 +815,14 @@ TEST(ARStandardCost, computeCostIndividualTest) {
 
   std::vector<float> cost_results;
 
-  launchComputeCostTestKernel(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], 0.0);
 
   params.speed_coeff = 4.25;
   cost.setParams(params);
 
   float speed_cost = powf(4.0, 2)*4.25;
-  launchComputeCostTestKernel(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], speed_cost);
 
 
@@ -831,7 +831,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   cost.setParams(params);
 
   float slip_cost = powf(-atanf(1.0/2.0), 2) * 10;
-  launchComputeCostTestKernel(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], slip_cost);
 
 
@@ -840,7 +840,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   cost.setParams(params);
 
   float track_cost = 79000;
-  launchComputeCostTestKernel(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], track_cost);
 
 
@@ -849,7 +849,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   cost.setParams(params);
 
   float crash_cost = 10000;
-  launchComputeCostTestKernel(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], crash_cost);
 
 
@@ -859,7 +859,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   params.crash_coeff = 10000;
   cost.setParams(params);
 
-  launchComputeCostTestKernel(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], speed_cost + slip_cost + track_cost + crash_cost);
 
 }
@@ -897,13 +897,13 @@ TEST(ARStandardCost, computeCostOverflowTest) {
 
   std::vector<float> cost_results;
 
-  launchComputeCostTestKernel(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], ARStandardCost<>::MAX_COST_VALUE);
 
   cost_results[0] = 0;
 
   params.desired_speed = NAN;
   cost.setParams(params);
-  launchComputeCostTestKernel(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], ARStandardCost<>::MAX_COST_VALUE);
 }

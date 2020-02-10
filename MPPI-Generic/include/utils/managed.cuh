@@ -93,6 +93,8 @@ protected:
       return device_ptr;
   }
 
+  // TODO CRTP template this on the base class for allocation and dealloation
+
 };
 
 

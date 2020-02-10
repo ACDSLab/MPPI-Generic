@@ -24,15 +24,34 @@ if(BUILD_TESTS)
     message("")
 endif()
 
-add_executable(ar_cost_tests
+set(TEST_NAME ar_cost_tests)
+
+add_executable(${TEST_NAME}
                ../test_main.cpp
                autorally_standard_cost_test.cu)
 
-target_link_libraries(ar_cost_tests gtest
+target_link_libraries(${TEST_NAME} gtest
                       gmock
                       gtest_main
-                      ar_standard_cost_kernel_test
+                      #ar_standard_cost_kernel_test
                       cnpy)
 
-add_test(NAME ar_cost_tests COMMAND ar_cost_tests)
-set_target_properties(ar_cost_tests PROPERTIES FOLDER test)
+add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+set_target_properties(${TEST_NAME} PROPERTIES FOLDER test)
+
+
+set(TEST_NAME ar_robust_cost_tests)
+
+add_executable(${TEST_NAME}
+        ../test_main.cpp
+        autorally_robust_cost_test.cu)
+
+target_link_libraries(${TEST_NAME} gtest
+        gmock
+        gtest_main
+        #ar_standard_cost_kernel_test
+        #ar_robust_cost_kernel_test
+        cnpy)
+
+add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+set_target_properties(${TEST_NAME} PROPERTIES FOLDER test)

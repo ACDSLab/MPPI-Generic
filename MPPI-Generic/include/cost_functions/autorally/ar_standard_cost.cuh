@@ -38,7 +38,7 @@ typedef struct {
 } ARStandardCostParams;
 
 template <typename PARAMS_T = ARStandardCostParams>
-class ARStandardCost : public Cost<ARStandardCostParams> {
+class ARStandardCost : public Cost<PARAMS_T> {
 public:
 
   static constexpr float MAX_COST_VALUE = 1e16;
@@ -70,13 +70,13 @@ public:
    * Updates GPU if allocated
    * @param params
    */
-  inline __host__ __device__ void setParams(ARStandardCostParams params);
+  inline void setParams(PARAMS_T params);
 
 
-  inline __host__ __device__ ARStandardCostParams getParams() {return params_;}
-  inline __host__ __device__ int getHeight() {return height_;}
-  inline __host__ __device__ int getWidth() {return width_;}
-  inline std::vector<float4> getTrackCostCPU() {return track_costs_;}
+  inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
+  inline __host__ __device__ int getHeight() const {return height_;}
+  inline __host__ __device__ int getWidth() const {return width_;}
+  inline std::vector<float4> getTrackCostCPU()  const {return track_costs_;}
   inline Eigen::Matrix3f getRotation();
   inline Eigen::Array3f getTranslation();
   //inline __host__ __device__ cudaArray* getCudaArray() {return costmapArray_d_;}
