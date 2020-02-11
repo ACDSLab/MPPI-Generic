@@ -40,3 +40,6 @@ cmake-build-debug
 
 # Build directories
 build
+
+# resouces folder
+resource

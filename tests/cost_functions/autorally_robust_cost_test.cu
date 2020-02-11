@@ -125,13 +125,121 @@ TEST(ARRobustCost, getStabilizingCostTest) {
 }
 
 TEST(ARRobustCost, getCostmapCostSpeedMapTest) {
+  ARRobustCost<> cost;
+  ARRobustCostParams params;
+  params.boundary_threshold = 0.0;
+  params.crash_coeff = 10000;
+  params.track_slop = 0.0;
+  params.desired_speed = -1;
+  params.speed_coeff = 10;
+  params.heading_coeff = 20;
+  cost.setParams(params);
+  float s[7];
+  s[0] = 0.0;
+  s[1] = 0.0;
+  s[2] = 0.0;
+  s[4] = 10.0;
 
+  cost.GPUSetup();
+  cost.loadTrackData(mppi::tests::robust_test_map_file);
+
+  std::vector<std::array<float, 9>> states;
+
+  std::array<float, 9> array = {0.0};
+  array[0] = 3.0; // X
+  array[1] = 0.0; // Y
+  array[2] = M_PI_2; // Theta
+  array[3] = 0.0; // Roll
+  array[4] = 2.0; // Vx
+  array[5] = 1.0; // Vy
+  array[6] = 0.1; // Yaw dot
+  array[7] = 0.5; // steering
+  array[8] = 0.3; // throttle
+  states.push_back(array);
+
+  std::vector<float> cost_results;
+
+  launchGetCostmapCostTestKernel(cost, states, cost_results);
+
+  EXPECT_FLOAT_EQ(cost_results[0], 0.0);
 }
 
 TEST(ARRobustCost, getCostmapCostSpeedNoMapTest) {
+  ARRobustCost<> cost;
+  ARRobustCostParams params;
+  params.boundary_threshold = 0.0;
+  params.crash_coeff = 10000;
+  params.track_slop = 0.0;
+  params.desired_speed = 10;
+  params.speed_coeff = 10;
+  params.heading_coeff = 20;
+  cost.setParams(params);
+  float s[7];
+  s[0] = 0.0;
+  s[1] = 0.0;
+  s[2] = 0.0;
+  s[4] = 10.0;
 
+  cost.GPUSetup();
+  cost.loadTrackData(mppi::tests::robust_test_map_file);
+
+  std::vector<std::array<float, 9>> states;
+
+  std::array<float, 9> array = {0.0};
+  array[0] = 3.0; // X
+  array[1] = 0.0; // Y
+  array[2] = M_PI_2; // Theta
+  array[3] = 0.0; // Roll
+  array[4] = 2.0; // Vx
+  array[5] = 1.0; // Vy
+  array[6] = 0.1; // Yaw dot
+  array[7] = 0.5; // steering
+  array[8] = 0.3; // throttle
+  states.push_back(array);
+
+  std::vector<float> cost_results;
+
+  launchGetCostmapCostTestKernel(cost, states, cost_results);
+
+  EXPECT_FLOAT_EQ(cost_results[0], 0.0);
 }
 
 TEST(ARRobustCost, computeCostTest) {
+  ARRobustCost<> cost;
+  ARRobustCostParams params;
+  params.boundary_threshold = 0.0;
+  params.crash_coeff = 10000;
+  params.track_slop = 0.0;
+  params.desired_speed = 10;
+  params.speed_coeff = 10;
+  params.heading_coeff = 20;
+  cost.setParams(params);
+  float s[7];
+  s[0] = 0.0;
+  s[1] = 0.0;
+  s[2] = 0.0;
+  s[4] = 10.0;
 
+  cost.GPUSetup();
+  cost.loadTrackData(mppi::tests::robust_test_map_file);
+
+  std::vector<std::array<float, 9>> states;
+
+  std::array<float, 9> array = {0.0};
+  array[0] = 3.0; // X
+  array[1] = 0.0; // Y
+  array[2] = M_PI_2; // Theta
+  array[3] = 0.0; // Roll
+  array[4] = 2.0; // Vx
+  array[5] = 1.0; // Vy
+  array[6] = 0.1; // Yaw dot
+  array[7] = 0.5; // steering
+  array[8] = 0.3; // throttle
+  states.push_back(array);
+
+  std::vector<float> cost_results;
+
+  launchComputeCostTestKernel<>(cost, states, cost_results);
+
+  EXPECT_FLOAT_EQ(cost_results[0], 0.0);
 }

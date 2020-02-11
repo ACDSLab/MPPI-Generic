@@ -75,7 +75,7 @@ bool ARStandardCost<CLASS_T, PARAMS_T>::changeCostmapSize(int width, int height)
 
     // set all of the elements in the array to be zero
     std::vector<float4> zero_array(width_*height_);
-    zero_array.resize(0, make_float4(0,0,0,0));
+    zero_array.resize(width*height, make_float4(0,0,0,0));
     HANDLE_ERROR(cudaMemcpyToArray(costmapArray_d_, 0, 0, zero_array.data(), width*height*sizeof(float4), cudaMemcpyHostToDevice));
   }
 
@@ -229,9 +229,9 @@ template <class CLASS_T, class PARAMS_T>
 __device__ float4 ARStandardCost<CLASS_T, PARAMS_T>::queryTextureTransformed(float x, float y) {
   float u, v, w;
   coorTransform(x, y, &u, &v, &w);
-  //printf("\ninput coordinates: %f, %f", x, y);
+  printf("\ninput coordinates: %f, %f", x, y);
   //printf("\nu = %f, v = %f, w = %f", u, v, w);
-  //printf("\ntransformed coordinates %f, %f\n", u/w, v/w);
+  printf("\ntransformed coordinates %f, %f = %f\n", u/w, v/w, tex2D<float4>(costmap_tex_d_, u/w, v/w).x);
   return tex2D<float4>(costmap_tex_d_, u/w, v/w);
 }
 
@@ -322,8 +322,10 @@ inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getTrackCost(float *s
   float y_back = s[1] + BACK_D*__sinf(s[2]);
 
   //Cost of front of the car
+  printf("front %f, %f\n", x_front, y_front);
   float track_cost_front = queryTextureTransformed(x_front, y_front).x;
   //Cost for back of the car
+  printf("back %f, %f\n", x_back, y_back);
   float track_cost_back = queryTextureTransformed(x_back, y_back).x;
 
   track_cost = (fabs(track_cost_front) + fabs(track_cost_back) )/2.0;

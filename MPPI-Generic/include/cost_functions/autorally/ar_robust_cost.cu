@@ -98,7 +98,7 @@ __device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeCost(float* s, float* u
 {
   float control_cost = this->getControlCost(u, du, vars);
   float stabilizing_cost = getStabilizingCost(s);
-  float costmap_cost = getCostmapCost(s, timestep);
+  float costmap_cost = getCostmapCost(s);
   float cost = stabilizing_cost + control_cost + costmap_cost;
   if (cost > this->MAX_COST_VALUE || isnan(cost)) {
     cost = this->MAX_COST_VALUE;

@@ -200,11 +200,11 @@ __global__ void trackCostTestKernel(COST_T* cost, float3* test_indexes, int num_
     state[0] = test_indexes[tid].x;
     state[1] = test_indexes[tid].y;
     state[2] = test_indexes[tid].z;
-    printf("got test indexes %d, state %f, %f, %f\n", tid, state[0], state[1], state[2]);
+    //printf("got test indexes %d, state %f, %f, %f\n", tid, state[0], state[1], state[2]);
     cost_results[tid] = cost->getTrackCost(state, &crash);
-    printf("set results %d\n", tid);
+    //printf("set results %d\n", tid);
     crash_results[tid] = crash;
-    printf("set crash results %d\n", tid);
+    //printf("set crash results %d\n", tid);
   }
 }
 

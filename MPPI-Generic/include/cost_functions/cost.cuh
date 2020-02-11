@@ -53,7 +53,7 @@ public:
   __host__ __device__ float terminalCost(float* s);
   __host__ __device__ float computeCost(float* s, float* u, float* du);
 
-  CLASS_T* cost_d_;
+  CLASS_T* cost_d_ = nullptr;
 protected:
   PARAMS_T params_;
 

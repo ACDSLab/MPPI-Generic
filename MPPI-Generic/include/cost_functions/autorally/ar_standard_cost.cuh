@@ -222,11 +222,11 @@ public:
    */
   __host__ __device__ float getTerminalCost(float* s);
 
-protected:
-
   //Constant variables
   const float FRONT_D = 0.5; ///< Distance from GPS receiver to front of car.
   const float BACK_D = -0.5; ///< Distance from GPS receiver to back of car.
+
+protected:
 
   bool l1_cost_ = false; //Whether to use L1 speed cost (if false it is L2)
 
