@@ -11,7 +11,7 @@ Header file for costs
 #include <math.h>
 #include <utils/managed.cuh>
 
-template<class PARAMS_T>
+template<class CLASS_T, class PARAMS_T>
 class Cost : public Managed
 {
 public:
@@ -46,13 +46,17 @@ public:
    */
   void freeCudaMem();
 
+  inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
+
   __host__ __device__ float controlCost(float* u, float* du);
   __host__ __device__ float computeRunningCost(float* s, float* u, float* du);
   __host__ __device__ float terminalCost(float* s);
   __host__ __device__ float computeCost(float* s, float* u, float* du);
 
+  CLASS_T* cost_d_;
 protected:
   PARAMS_T params_;
+
 };
 
 #endif // COSTS_CUH_

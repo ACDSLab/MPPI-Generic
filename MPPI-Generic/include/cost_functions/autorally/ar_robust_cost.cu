@@ -1,16 +1,32 @@
 
-template<typename PARAMS_T>
-ARRobustCost<PARAMS_T>::ARRobustCost(cudaStream_t stream) : ARStandardCost<PARAMS_T>(stream) {
+template<class CLASS_T, class PARAMS_T>
+ARRobustCost<CLASS_T, PARAMS_T>::ARRobustCost(cudaStream_t stream) : ARStandardCost<ARRobustCost<CLASS_T, PARAMS_T>, PARAMS_T>(stream) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 }
 
-template<typename PARAMS_T>
-ARRobustCost<PARAMS_T>::~ARRobustCost() {
+template<class CLASS_T, class PARAMS_T>
+ARRobustCost<CLASS_T, PARAMS_T>::~ARRobustCost() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 }
 
-template<typename PARAMS_T>
-__device__ float ARRobustCost<PARAMS_T>::getStabilizingCost(float* s)
+template <class CLASS_T, class PARAMS_T>
+void ARRobustCost<CLASS_T, PARAMS_T>::GPUSetup() {
+  //std::cout << __PRETTY_FUNCTION__ << std::endl;
+  if (!this->GPUMemStatus_) {
+    this->cost_d_ = Managed::GPUSetup(this);
+  } else {
+    std::cout << "GPU Memory already set." << std::endl;
+  }
+  // load track data
+  // update transform
+  // update params
+  // allocate texture memory
+  // convert costmap to texture
+  this->paramsToDevice();
+}
+
+template<class CLASS_T, class PARAMS_T>
+__host__ __device__ float ARRobustCost<CLASS_T, PARAMS_T>::getStabilizingCost(float* s)
 {
   float penalty_val = 0;
   float slip;
@@ -22,14 +38,15 @@ __device__ float ARRobustCost<PARAMS_T>::getStabilizingCost(float* s)
   if (slip >= this->params_.max_slip_ang){
     penalty_val = this->params_.crash_coeff;
   }
+  // crash if roll is too large
   if (fabs(s[3]) >= 1.5){
     penalty_val += this->params_.crash_coeff;
   }
   return this->params_.slip_coeff*slip + penalty_val;
 }
 
-template<typename PARAMS_T>
-__device__ float ARRobustCost<PARAMS_T>::getCostmapCost(float* s)
+template<class CLASS_T, class PARAMS_T>
+__device__ float ARRobustCost<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 {
   float cost = 0;
 
@@ -75,8 +92,8 @@ __device__ float ARRobustCost<PARAMS_T>::getCostmapCost(float* s)
 }
 
 //Compute the immediate running cost.
-template<typename PARAMS_T>
-__device__ float ARRobustCost<PARAMS_T>::computeCost(float* s, float* u, float* du,
+template<class CLASS_T, class PARAMS_T>
+__device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeCost(float* s, float* u, float* du,
                                            float* vars, int* crash, int timestep)
 {
   float control_cost = this->getControlCost(u, du, vars);

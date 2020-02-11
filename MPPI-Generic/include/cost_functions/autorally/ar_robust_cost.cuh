@@ -25,14 +25,16 @@ typedef struct {
   float3 trs;
 } ARRobustCostParams;
 
-template<class PARAMS_T = ARRobustCostParams>
-class ARRobustCost : public ARStandardCost<PARAMS_T> {
+template<class CLASS_T = void, class PARAMS_T = ARRobustCostParams>
+class ARRobustCost : public ARStandardCost< ARRobustCost<CLASS_T, PARAMS_T>, PARAMS_T> {
 public:
 
   ARRobustCost(cudaStream_t stream=0);// : ARStandardCost<PARAMS_T>(steam);
   ~ARRobustCost();
 
-  __device__ float getStabilizingCost(float* s);
+  void GPUSetup();
+
+  __host__ __device__ float getStabilizingCost(float* s);
   __device__ float getCostmapCost(float* s);
   __device__ float computeCost(float* s, float* u, float* du, float* vars, int* crash, int timestep);
 

@@ -7,6 +7,9 @@
 
 #include "ar_standard_cost_kernel_test.cuh"
 
+__global__ void getCostmapCostTestKernel(ARRobustCost<>* cost, float* test_xu, float* cost_results, int num_points);
+
+void launchGetCostmapCostTestKernel(ARRobustCost<>& cost, std::vector<std::array<float, 9>>& test_xu, std::vector<float>& cost_results);
 
 #include "ar_robust_cost_kernel_test.cu"
 

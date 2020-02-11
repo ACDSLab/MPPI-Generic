@@ -1,4 +1,4 @@
-#include <cost_functions/autorally/ar_standard_cost.cuh>
+//#include <cost_functions/autorally/ar_standard_cost.cuh>
 
 template<typename COST_T, typename PARAMS_T>
 __global__ void parameterTestKernel(const COST_T* cost, PARAMS_T& params, int& width, int& height) {
@@ -23,7 +23,7 @@ void launchParameterTestKernel(const COST_T& cost, PARAMS_T& params, int& width,
   HANDLE_ERROR(cudaMalloc((void**)&width_d, sizeof(float)))
   HANDLE_ERROR(cudaMalloc((void**)&height_d, sizeof(float)))
 
-  parameterTestKernel<COST_T, PARAMS_T><<<1,1>>>(cost.cost_d_, *params_d, *width_d, *height_d);
+  parameterTestKernel<COST_T, PARAMS_T><<<1,1>>>(static_cast<COST_T*>(cost.cost_d_), *params_d, *width_d, *height_d);
   CudaCheckError();
 
   // Copy the memory back to the host

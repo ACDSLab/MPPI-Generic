@@ -37,8 +37,8 @@ typedef struct {
   float3 trs; // translation vector
 } ARStandardCostParams;
 
-template <typename PARAMS_T = ARStandardCostParams>
-class ARStandardCost : public Cost<PARAMS_T> {
+template <class CLASS_T = void, class PARAMS_T = ARStandardCostParams>
+class ARStandardCost : public Cost< ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T> {
 public:
 
   static constexpr float MAX_COST_VALUE = 1e16;
@@ -73,7 +73,6 @@ public:
   inline void setParams(PARAMS_T params);
 
 
-  inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
   inline __host__ __device__ int getHeight() const {return height_;}
   inline __host__ __device__ int getWidth() const {return width_;}
   inline std::vector<float4> getTrackCostCPU()  const {return track_costs_;}
@@ -222,8 +221,6 @@ public:
    * @brief Computes the terminal cost from a state
    */
   __host__ __device__ float getTerminalCost(float* s);
-
-  ARStandardCost* cost_d_ = nullptr;
 
 protected:
 

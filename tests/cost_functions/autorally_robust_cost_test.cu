@@ -88,22 +88,47 @@ TEST(ARRobustCost, setParams) {
 
   cost.GPUSetup();
   int width, height;
-  //launchParameterTestKernel<ARRobustCost<ARRobustCostParams>,ARRobustCostParams>(cost, params, width, height);
-}
-
-TEST(ARRobustCost, getSpeedCostMapTest) {
-
-}
-
-TEST(ARRobustCost, getSpeedCostNotMapTest) {
-
+  launchParameterTestKernel<>(cost, params, width, height);
+  checkParameters(params, result);
 }
 
 TEST(ARRobustCost, getStabilizingCostTest) {
+  ARRobustCost<> cost;
+  ARRobustCostParams params;
+  params.max_slip_ang = 1.25;
+  params.crash_coeff = 10000;
+  params.slip_coeff = 10;
+  cost.setParams(params);
+
+  float s[7];
+  s[4] = 0.24;
+  s[5] = 0.0;
+  float result = cost.getStabilizingCost(s);
+  EXPECT_FLOAT_EQ(result, 0.0);
+
+  s[4] = 1.0;
+  s[5] = 1.0;
+  result = cost.getStabilizingCost(s);
+  EXPECT_FLOAT_EQ(result, 0.785398*10);
+  //EXPECT_FLOAT_EQ(result, fabs(atan(s[5]/s[4])) * params.slip_coeff + params.crash_coeff);
+
+  s[4] = 1.0;
+  s[5] = 10.0;
+  result = cost.getStabilizingCost(s);
+  EXPECT_FLOAT_EQ(result, 1.4711*10 + params.crash_coeff);
+
+  s[3] = 1.5;
+  s[4] = 1.0;
+  s[5] = 10.0;
+  result = cost.getStabilizingCost(s);
+  EXPECT_FLOAT_EQ(result, 1.4711*10 + params.crash_coeff + params.crash_coeff);
+}
+
+TEST(ARRobustCost, getCostmapCostSpeedMapTest) {
 
 }
 
-TEST(ARRobustCost, getCostmapCostTest) {
+TEST(ARRobustCost, getCostmapCostSpeedNoMapTest) {
 
 }
 
