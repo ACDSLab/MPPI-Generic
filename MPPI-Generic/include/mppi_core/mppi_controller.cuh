@@ -14,11 +14,14 @@
 #include <chrono>
 
 
-
-
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 class VanillaMPPIController {
 public:
+    /**
+     * typedefs for access to templated class from outside classes
+     */
+    typedef DYN_T TEMPLATED_DYNAMICS;
+    typedef COST_T TEMPLATED_COSTS;
 	/**
 	 * Aliases
 	 */
@@ -57,7 +60,6 @@ public:
     void computeNominalStateTrajectory(const state_array& x0);
 
     void updateControlNoiseVariance(const control_array& sigma_u);
-
 
     /**
      * Given a state, calculates the optimal control sequence using MPPI according
@@ -105,6 +107,13 @@ public:
 
     cudaStream_t stream_;
 
+    /**
+     * Return control feedback gains
+     */
+    K_matrix getFeedbackGains() {
+        K_matrix empty_feedback_gain = {0};
+        return empty_feedback_gain
+    };
 
 private:
     int num_iters_;  // Number of optimization iterations

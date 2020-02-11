@@ -72,9 +72,9 @@ TEST(RolloutKernel, injectControlNoiseOnce) {
     }
 }
 
-TEST(RolloutKernel, injectControlNoiseAllTimeSteps) {
-    GTEST_SKIP() << "Not implemented";
-}
+// TEST(RolloutKernel, injectControlNoiseAllTimeSteps) {
+//     GTEST_SKIP() << "Not implemented";
+// }
 
 TEST(RolloutKernel, injectControlNoiseCheckControl_V) {
     const int num_rollouts = 100;
@@ -194,9 +194,9 @@ TEST(RolloutKernel, computeStateDerivAllRollouts_Cartpole) {
     array_assert_float_near<num_rollouts*Cartpole::STATE_DIM>(xdot_traj_known, xdot_traj_compute, 1e-1);
 }
 
-TEST(RolloutKernel, computeStateDerivAllRollouts_AR) {
-    GTEST_SKIP() << "Requires implementation.";
-}
+// TEST(RolloutKernel, computeStateDerivAllRollouts_AR) {
+//     GTEST_SKIP() << "Requires implementation.";
+// }
 
 TEST(RolloutKernel, incrementStateAllRollouts) {
     float dt = 0.01;

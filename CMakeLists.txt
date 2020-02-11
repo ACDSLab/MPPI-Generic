@@ -75,7 +75,6 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   # copied from
   # https://github.com/google/googletest/tree/master/googletest#incorporating-into-an-existing-cmake-project
   ############################################################
-
   # Download and unpack googletest at configure time
   if (NOT TARGET gtest_main)
     configure_file(${CMAKE_MODULE_PATH}/CMakeLists.txt.gtest.in
