@@ -34,7 +34,23 @@ public:
    * Updates the cost parameters
    * @param params
    */
-  void updateParams(); // TODO what to pass in for the default
+  __host__ __device__ void setParams(PARAMS_T params) {
+    this->params_ = params;
+    if(this->GPUMemStatus_) {
+      CLASS_T& derived = static_cast<CLASS_T&>(*this);
+      derived.paramsToDevice();
+    }
+  }
+
+  __host__ __device__ PARAMS_T getParams() {
+    return params_;
+  }
+
+  void paramsToDevice() {
+    printf("ERROR: calling paramsToDevice of base cost");
+    exit(1);
+    //std::cout << __PRETTY_FUNCTION__ << std::endl;
+  };
 
   /**
    * allocates all the cuda memory needed for the object

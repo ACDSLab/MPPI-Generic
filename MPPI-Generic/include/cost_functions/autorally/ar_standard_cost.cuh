@@ -66,13 +66,6 @@ public:
    */
   void freeCudaMem();
 
-  /**
-   * Updates GPU if allocated
-   * @param params
-   */
-  inline void setParams(PARAMS_T params);
-
-
   inline __host__ __device__ int getHeight() const {return height_;}
   inline __host__ __device__ int getWidth() const {return width_;}
   inline std::vector<float4> getTrackCostCPU()  const {return track_costs_;}

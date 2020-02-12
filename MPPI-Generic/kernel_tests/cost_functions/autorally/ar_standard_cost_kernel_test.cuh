@@ -5,6 +5,8 @@
 #ifndef MPPIGENERIC_AR_STANDARD_COST_KERNEL_TEST_CUH
 #define MPPIGENERIC_AR_STANDARD_COST_KERNEL_TEST_CUH
 
+#include <cost_functions/autorally/ar_standard_cost.cuh>
+
 template<typename COST_T, typename PARAMS_T>
 __global__ void parameterTestKernel(const COST_T* cost, PARAMS_T& params, int& width, int& height);
 

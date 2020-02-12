@@ -1,6 +1,19 @@
 cmake_minimum_required(VERSION 3.8)
 set(CMAKE_CXX_STANDARD 11)
 
+add_executable(cp_quadratic_cost_tests
+        ../test_main.cpp
+        cartpole_quadratic_cost_test.cu)
+
+target_link_libraries(cp_quadratic_cost_tests gtest
+        gmock
+        gtest_main
+        cartpole_quadratic_cost_kernel_test
+        cnpy)
+
+add_test(NAME cp_quadratic_cost_tests COMMAND cp_quadratic_cost_tests)
+set_target_properties(cp_quadratic_cost_tests PROPERTIES FOLDER test)
+
 if(BUILD_TESTS)
     message("")
     find_package(PythonInterp)

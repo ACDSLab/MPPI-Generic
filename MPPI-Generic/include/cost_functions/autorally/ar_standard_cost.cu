@@ -16,14 +16,6 @@ ARStandardCost<CLASS_T, PARAMS_T>::~ARStandardCost() {
 }
 
 template <class CLASS_T, class PARAMS_T>
-void ARStandardCost<CLASS_T, PARAMS_T>::setParams(PARAMS_T params) {
-  this->params_ = params;
-  if(this->GPUMemStatus_) {
-    paramsToDevice();
-  }
-}
-
-template <class CLASS_T, class PARAMS_T>
 void ARStandardCost<CLASS_T, PARAMS_T>::GPUSetup() {
   //std::cout << __PRETTY_FUNCTION__ << std::endl;
   if (!this->GPUMemStatus_) {
@@ -36,7 +28,7 @@ void ARStandardCost<CLASS_T, PARAMS_T>::GPUSetup() {
   // update params
   // allocate texture memory
   // convert costmap to texture
-  paramsToDevice();
+  this->paramsToDevice();
 }
 
 template <class CLASS_T, class PARAMS_T>
