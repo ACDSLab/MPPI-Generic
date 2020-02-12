@@ -6,3 +6,4 @@ include_directories(${CMAKE_SOURCE_DIR}/MPPI-Generic/include
 add_subdirectory(dynamics)
 add_subdirectory(cost_functions)
 add_subdirectory(mppi_core)
+add_subdirectory(controllers)

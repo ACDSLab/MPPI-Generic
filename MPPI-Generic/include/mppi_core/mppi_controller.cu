@@ -3,7 +3,13 @@
 #define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, NUM_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
 template<class DYN_T, class COST_T, int NUM_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost) : model_(model), cost_(cost) {
+VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, cudaStream_t stream=0):
+model_(model), cost_(cost), dt_(dt), stream_(stream) {
+
+    // Bind the model and control to the given stream
+    model_->bindToStream(stream_);
+    cost_->bindToStream(stream_);
+
     // Call the GPU setup functions of the model and cost
     model_->GPUSetup();
     cost_->GPUSetup();

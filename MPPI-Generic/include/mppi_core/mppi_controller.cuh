@@ -46,7 +46,7 @@ public:
      * Public member functions
      */
      // Constructor
-    VanillaMPPIController(DYN_T* model, COST_T* cost);
+    VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, cudaStream_t stream);
 
     // Destructor
     ~VanillaMPPIController();
@@ -96,12 +96,15 @@ public:
      */
     sampled_cost_traj get_sampled_cost_seq();
 
+    cudaStream_t stream_;
+
+
 private:
     int num_iters_;  // Number of optimization iterations
     float gamma_; // Value of the temperature in the softmax.
     float normalizer_; // Variable for the normalizing term from sampling.
+    float dt_;
 
-    cudaStream_t stream_;
 
     curandGenerator_t gen_;
 
