@@ -11,14 +11,16 @@ Header file for costs
 #include <math.h>
 #include <utils/managed.cuh>
 
-
+template<class CLASS_T, class PARAMS_T>
 class Cost : public Managed
 {
 public:
   // struct namespaced by the class
+  /*
   typedef struct {
     // fill in data here
   } CostParams;
+   */
 
   Cost() = default;
   ~Cost() = default;
@@ -32,7 +34,23 @@ public:
    * Updates the cost parameters
    * @param params
    */
-  void updateParams(); // TODO what to pass in for the default
+  __host__ __device__ void setParams(PARAMS_T params) {
+    this->params_ = params;
+    if(this->GPUMemStatus_) {
+      CLASS_T& derived = static_cast<CLASS_T&>(*this);
+      derived.paramsToDevice();
+    }
+  }
+
+  __host__ __device__ PARAMS_T getParams() {
+    return params_;
+  }
+
+  void paramsToDevice() {
+    printf("ERROR: calling paramsToDevice of base cost");
+    exit(1);
+    //std::cout << __PRETTY_FUNCTION__ << std::endl;
+  };
 
   /**
    * allocates all the cuda memory needed for the object
@@ -44,10 +62,17 @@ public:
    */
   void freeCudaMem();
 
+  inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
+
   __host__ __device__ float controlCost(float* u, float* du);
   __host__ __device__ float computeRunningCost(float* s, float* u, float* du);
   __host__ __device__ float terminalCost(float* s);
   __host__ __device__ float computeCost(float* s, float* u, float* du);
+
+  CLASS_T* cost_d_ = nullptr;
+protected:
+  PARAMS_T params_;
+
 };
 
 #endif // COSTS_CUH_

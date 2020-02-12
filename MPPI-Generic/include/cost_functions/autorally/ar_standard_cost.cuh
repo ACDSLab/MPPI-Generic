@@ -11,34 +11,37 @@
 #include <cuda_runtime.h>
 #include <cnpy.h>
 
-class ARStandardCost : public Cost {
+typedef struct {
+  float desired_speed = 6.0;
+  float speed_coeff = 4.25;
+  float track_coeff = 200.0;
+  float max_slip_ang = 1.25;
+  float slip_penalty = 10.0;
+  float track_slop = 0;
+  float crash_coeff = 10000;
+  float steering_coeff = 0;
+  float throttle_coeff = 0;
+  float boundary_threshold = 0.65;
+  float discount = 0.99;
+  int num_timesteps = 100;
+  // TODO remove from struct
+  int grid_res = 10;
+  /*
+   * Prospective transform matrix
+   * r_c1.x, r_c2.x, trs.x
+   * r_c1.y, r_c2.y, trs.y
+   * r_c1.z, r_c2.z, trs.z
+   */
+  float3 r_c1; // R matrix col 1
+  float3 r_c2; // R matrix col 2
+  float3 trs; // translation vector
+} ARStandardCostParams;
+
+template <class CLASS_T = void, class PARAMS_T = ARStandardCostParams>
+class ARStandardCost : public Cost< ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T> {
 public:
 
-  typedef struct {
-    float desired_speed;
-    float speed_coeff;
-    float track_coeff;
-    float max_slip_ang;
-    float slip_penalty;
-    float track_slop;
-    float crash_coeff;
-    float steering_coeff;
-    float throttle_coeff;
-    float boundary_threshold;
-    float discount;
-    int num_timesteps;
-    // TODO remove from struct
-    int grid_res;
-    /*
-     * Prospective transform matrix
-     * r_c1.x, r_c2.x, trs.x
-     * r_c1.y, r_c2.y, trs.y
-     * r_c1.z, r_c2.z, trs.z
-     */
-    float3 r_c1; // R matrix col 1
-    float3 r_c2; // R matrix col 2
-    float3 trs; // translation vector
-  } ARStandardCostParams;
+  static constexpr float MAX_COST_VALUE = 1e16;
 
   /**
    * Constructor
@@ -63,17 +66,9 @@ public:
    */
   void freeCudaMem();
 
-  /**
-   * Updates GPU if allocated
-   * @param params
-   */
-  inline __host__ __device__ void setParams(ARStandardCostParams params);
-
-
-  inline __host__ __device__ ARStandardCostParams getParams() {return params_;}
-  inline __host__ __device__ int getHeight() {return height_;}
-  inline __host__ __device__ int getWidth() {return width_;}
-  inline std::vector<float4> getTrackCostCPU() {return track_costs_;}
+  inline __host__ __device__ int getHeight() const {return height_;}
+  inline __host__ __device__ int getWidth() const {return width_;}
+  inline std::vector<float4> getTrackCostCPU()  const {return track_costs_;}
   inline Eigen::Matrix3f getRotation();
   inline Eigen::Array3f getTranslation();
   //inline __host__ __device__ cudaArray* getCudaArray() {return costmapArray_d_;}
@@ -220,20 +215,17 @@ public:
    */
   __host__ __device__ float getTerminalCost(float* s);
 
-  ARStandardCost* cost_d_ = nullptr;
-
-protected:
-
   //Constant variables
   const float FRONT_D = 0.5; ///< Distance from GPS receiver to front of car.
   const float BACK_D = -0.5; ///< Distance from GPS receiver to back of car.
+
+protected:
 
   bool l1_cost_ = false; //Whether to use L1 speed cost (if false it is L2)
 
   //Primary variables
   int width_ =  -1; ///< width of costmap
   int height_ = -1; ///< height of costmap.
-  ARStandardCostParams params_; ///< object copy of params
   cudaArray *costmapArray_d_; ///< Cuda array for texture binding.
   cudaChannelFormatDesc channelDesc_; ///< Cuda texture channel description.
   cudaTextureObject_t costmap_tex_d_; ///< Cuda texture object.
@@ -248,8 +240,6 @@ protected:
   int debug_img_ppm_; ///< Pixels per meter for resolution of debug view.
   int debug_img_size_; ///< Number of pixels in the debug image.
   bool debugging_; ///< Indicator for if we're in debugging mode
-
-protected:
 
 };
 

@@ -9,17 +9,18 @@
 #include <eigen3/Eigen/Dense>
 #include <cuda_runtime.h>
 
-class CartpoleQuadraticCost : public Cost {
+typedef struct {
+  float cart_position_coeff = 1;
+  float cart_velocity_coeff = 1;
+  float pole_angle_coeff = 10;
+  float pole_angular_velocity_coeff = 1;
+  float control_force_coeff = 1;
+  float terminal_cost_coeff = 100;
+} cartpoleQuadraticCostParams;
+
+class CartpoleQuadraticCost : public Cost<CartpoleQuadraticCost, cartpoleQuadraticCostParams> {
 public:
 
-    typedef struct {
-        float cart_position_coeff = 1;
-        float cart_velocity_coeff = 1;
-        float pole_angle_coeff = 10;
-        float pole_angular_velocity_coeff = 1;
-        float control_force_coeff = 1;
-        float terminal_cost_coeff = 100;
-    } Params;
 
     /**
      * Constructor
@@ -42,19 +43,6 @@ public:
      * Deallocates the allocated cuda memory for an object
      */
     void freeCudaMem();
-
-    /**
-     * Updates GPU if allocated
-     * @param params
-     */
-    inline __host__ __device__ void setParams(Params params);
-
-    /**
-     *
-     * @return current parameters for the system
-     */
-    inline __host__ __device__ Params getParams() {return params_;}
-
 
     /**
      * Copies the parameters to the GPU object
@@ -82,11 +70,7 @@ public:
      */
      __host__ __device__ float computeTerminalCost(float *s);
 
-    CartpoleQuadraticCost* cost_d_ = nullptr;
-
 protected:
-
-    Params params_; ///< object copy of params
 
 };
 

@@ -20,24 +20,23 @@ void launchIncrementStateTestKernel(NETWORK_T& model, std::array<float, STATE_DI
 template<class NETWORK_T, int STATE_DIM>
 __global__ void incrementStateTestKernel(NETWORK_T* model, float* state, float* state_der);
 
-template<class NETWORK_T>
-void launchComputeDynamicsKernel(NETWORK_T& model, float* state, float* control, float* state_der, float* theta_s);
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM, int BLOCKSIZE_Y>
+void launchComputeDynamicsTestKernel(NETWORK_T& model, float* state, float* control, float* state_der);
 
-template<class NETWORK_T>
-__global__ void computeDynamicsKernel(NETWORK_T& model, float* state, float* control, float* state_der, float* theta_s);
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM>
+__global__ void computeDynamicsTestKernel(NETWORK_T* model, float* state, float* control, float* state_der);
 
-template<class NETWORK_T>
-void launchComputeStateDerivKernel(NETWORK_T& model, float* state, float* control, float* state_der, float* theta_s);
+template<class NETWORK_T, int STATE_DIM, int CONTORL_DIM, int BLOCKSIZE_Y>
+void launchComputeStateDerivTestKernel(NETWORK_T& model, float* state, float* control, float* state_der);
 
-template<class NETWORK_T>
-__global__ void computeStateDerivKernel(NETWORK_T& model, float* state, float* control, float* state_der, float* theta_s);
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM>
+__global__ void computeStateDerivTestKernel(NETWORK_T* model, float* state, float* control, float* state_der);
 
-template<class NETWORK_T>
-void launchFullARNNTestKernel(NETWORK_T& model, float* state, float* control, float* state_der, float* theta_s);
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM, int BLOCKSIZE_Y>
+void launchFullARNNTestKernel(NETWORK_T& model, float* state, float* control, float* state_der);
 
-template<class NETWORK_T>
-__global__ void fullARNNTestKernel(NETWORK_T& model, float* state, float* control, float* state_der, float* theta_s);
-// calls enforce constraints -> compute state derivative -> increment state
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM>
+__global__ void fullARNNTestKernel(NETWORK_T* model, float* state, float* control, float* state_der);
 
 
 #endif //AR_NN_DYNAMICS_KERNEL_TEST_CUH

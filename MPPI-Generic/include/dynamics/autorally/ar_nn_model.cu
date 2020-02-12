@@ -15,12 +15,14 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(float delta_t
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel() {
-
+  if(this->GPUMemStatus_) {
+      freeCudaMem();
+  }
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem() {
-
+  cudaFree(model_d_);
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
@@ -75,13 +77,21 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector
       theta_[stride_idcs_[2*i + 1] + j] = data[stride_idcs_[2*i + 1] + j];
     }
   }
-  paramsToDevice();
+  if(this->GPUMemStatus_) {
+    paramsToDevice();
+  }
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice() {
   // TODO copy to constant memory
+  HANDLE_ERROR( cudaMemcpy(model_d_->control_rngs_, control_rngs_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
   HANDLE_ERROR( cudaMemcpy(model_d_->theta_, theta_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
+
+#if defined(MPPI_NNET_USING_CONSTANT_MEM___) //Use constant memory.
+  HANDLE_ERROR( cudaMemcpyToSymbol(NNET_PARAMS, theta_d_, NUM_PARAMS*sizeof(float)) );
+#endif
+
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
@@ -133,9 +143,10 @@ __host__ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::enf
 }
 
 template<int s_dim, int c_dim, int k_dim, int... layer_args>
-__host__ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::computeStateDeriv(
+__device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::computeStateDeriv(
         float* state, float* control, float* state_der, float* theta_s) {
-  // TODO why?
+  // only propagate a single state, i.e. thread.y = 0
+  // find the change in x,y,theta based off of the rest of the state
   if (threadIdx.y == 0){
     computeKinematics(state, state_der);
   }
@@ -218,11 +229,8 @@ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::incrementSta
         float* state, float* state_der) {
   int i;
   int tdy = threadIdx.y;
-  printf("tdy = %d\n", tdy);
   //Add the state derivative time dt to the current state.
   for (i = tdy; i < this->STATE_DIM; i+=blockDim.y){
-    printf("i = %d\n", i);
-    printf("dt = %f\n", this->dt_);
     state[i] += state_der[i]*this->dt_;
     state_der[i] = 0; //Important: reset the state derivative to zero.
   }

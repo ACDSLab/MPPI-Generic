@@ -76,6 +76,129 @@ void launchIncrementStateTestKernel(NETWORK_T& model, std::array<float, STATE_DI
   cudaFree(state_der_d);
 }
 
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM>
+__global__ void computeDynamicsTestKernel(NETWORK_T* model, float* state, float* control, float* state_der) {
+  __shared__ float theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK];
+
+  model->computeDynamics(state, control, state_der, theta);
+}
+
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM, int BLOCKSIZE_Y>
+void launchComputeDynamicsTestKernel(NETWORK_T& model, float* state, float* control, float* state_der) {
+  float* state_d;
+  float* state_der_d;
+  float* control_d;
+
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*STATE_DIM))
+  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float)*STATE_DIM))
+  HANDLE_ERROR(cudaMalloc((void**)&control_d, sizeof(float)*CONTROL_DIM))
+
+  HANDLE_ERROR(cudaMemcpy(state_d, state , sizeof(float)*STATE_DIM, cudaMemcpyHostToDevice))
+  HANDLE_ERROR(cudaMemcpy(state_der_d, state_der, sizeof(float)*STATE_DIM, cudaMemcpyHostToDevice))
+  HANDLE_ERROR(cudaMemcpy(control_d, control, sizeof(float)*CONTROL_DIM, cudaMemcpyHostToDevice))
+
+  // make sure you cannot use invalid inputs
+  dim3 threadsPerBlock(1, BLOCKSIZE_Y);
+  dim3 numBlocks(1, 1);
+  // launch kernel
+  computeDynamicsTestKernel<NETWORK_T, STATE_DIM, CONTROL_DIM><<<numBlocks,threadsPerBlock>>>(model.model_d_, state_d, control_d, state_der_d);
+  CudaCheckError();
+
+  HANDLE_ERROR(cudaMemcpy(state, state_d, sizeof(float)*STATE_DIM, cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(state_der, state_der_d, sizeof(float)*STATE_DIM, cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(control, control_d, sizeof(float)*CONTROL_DIM, cudaMemcpyDeviceToHost))
+  cudaDeviceSynchronize();
+
+  cudaFree(state_d);
+  cudaFree(state_der_d);
+  cudaFree(control_d);
+}
+
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM>
+__global__ void computeStateDerivTestKernel(NETWORK_T* model, float* state, float* control, float* state_der) {
+  __shared__ float theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK];
+
+  model->computeStateDeriv(state, control, state_der, theta);
+}
+
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM, int BLOCKSIZE_Y>
+void launchComputeStateDerivTestKernel(NETWORK_T& model, float* state, float* control, float* state_der) {
+  float* state_d;
+  float* state_der_d;
+  float* control_d;
+
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*STATE_DIM))
+  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float)*STATE_DIM))
+  HANDLE_ERROR(cudaMalloc((void**)&control_d, sizeof(float)*CONTROL_DIM))
+
+  HANDLE_ERROR(cudaMemcpy(state_d, state , sizeof(float)*STATE_DIM, cudaMemcpyHostToDevice))
+  HANDLE_ERROR(cudaMemcpy(state_der_d, state_der, sizeof(float)*STATE_DIM, cudaMemcpyHostToDevice))
+  HANDLE_ERROR(cudaMemcpy(control_d, control, sizeof(float)*CONTROL_DIM, cudaMemcpyHostToDevice))
+
+  // make sure you cannot use invalid inputs
+  dim3 threadsPerBlock(1, BLOCKSIZE_Y);
+  dim3 numBlocks(1, 1);
+  // launch kernel
+  computeStateDerivTestKernel<NETWORK_T, STATE_DIM, CONTROL_DIM><<<numBlocks, threadsPerBlock>>>(model.model_d_, state_d, control_d, state_der_d);
+  CudaCheckError();
+
+  HANDLE_ERROR(cudaMemcpy(state, state_d, sizeof(float)*STATE_DIM, cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(state_der, state_der_d, sizeof(float)*STATE_DIM, cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(control, control_d, sizeof(float)*CONTROL_DIM, cudaMemcpyDeviceToHost))
+  cudaDeviceSynchronize();
+
+  cudaFree(state_d);
+  cudaFree(state_der_d);
+  cudaFree(control_d);
+}
+
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM>
+__global__ void fullARNNTestKernel(NETWORK_T* model, float* state, float* control, float* state_der) {
+  __shared__ float theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK];
+
+  int tdy = threadIdx.y;
+  int tid = blockIdx.x*blockDim.x + threadIdx.x;
+
+  // calls enforce constraints -> compute state derivative -> increment state
+  if(tdy == 0) {
+    model->enforceConstraints(state, control);
+  }
+  model->computeStateDeriv(state, control, state_der, theta);
+  model->incrementState(state, state_der);
+}
+
+template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM, int BLOCKSIZE_Y>
+void launchFullARNNTestKernel(NETWORK_T& model, float* state, float* control, float* state_der) {
+  float* state_d;
+  float* state_der_d;
+  float* control_d;
+
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*STATE_DIM))
+  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float)*STATE_DIM))
+  HANDLE_ERROR(cudaMalloc((void**)&control_d, sizeof(float)*CONTROL_DIM))
+
+  HANDLE_ERROR(cudaMemcpy(state_d, state , sizeof(float)*STATE_DIM, cudaMemcpyHostToDevice))
+  HANDLE_ERROR(cudaMemcpy(state_der_d, state_der, sizeof(float)*STATE_DIM, cudaMemcpyHostToDevice))
+  HANDLE_ERROR(cudaMemcpy(control_d, control, sizeof(float)*CONTROL_DIM, cudaMemcpyHostToDevice))
+
+  // make sure you cannot use invalid inputs
+  dim3 threadsPerBlock(1, BLOCKSIZE_Y);
+  dim3 numBlocks(1, 1);
+  // launch kernel
+  fullARNNTestKernel<NETWORK_T, STATE_DIM, CONTROL_DIM><<<numBlocks, threadsPerBlock>>>(model.model_d_, state_d, control_d, state_der_d);
+  CudaCheckError();
+
+  HANDLE_ERROR(cudaMemcpy(state, state_d, sizeof(float)*STATE_DIM, cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(state_der, state_der_d, sizeof(float)*STATE_DIM, cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(control, control_d, sizeof(float)*CONTROL_DIM, cudaMemcpyDeviceToHost))
+  cudaDeviceSynchronize();
+
+  cudaFree(state_d);
+  cudaFree(state_der_d);
+  cudaFree(control_d);
+}
+
+
 // explicit instantiation
 template void launchParameterCheckTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1412, 6, 4>(NeuralNetModel<7,2,3,6,32,32,4>& model, std::array<float, 1412>& theta, std::array<int, 6>& stride,
                                                                                           std::array<int, 4>& net_structure);
@@ -85,8 +208,30 @@ template __global__ void parameterCheckTestKernel<NeuralNetModel<7,2,3,6,32,32,4
 
 
 // explicit instantiation
-
 template void launchIncrementStateTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1, 7>(NeuralNetModel<7,2,3,6,32,32,4>& model, std::array<float, 7>& state, std::array<float, 7>& state_der);
 
 // explicit instantiation
 template __global__ void incrementStateTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7>(NeuralNetModel<7,2,3,6,32,32,4>* model,  float* state, float* state_der);
+
+// explicit instantiation
+template void launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
+template void launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 4>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
+template void launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 8>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
+
+// explicit instantiation
+template __global__ void computeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2>(NeuralNetModel<7,2,3,6,32,32,4>* model, float* state, float* control, float* state_der);
+
+// explicit instantiantion
+template void launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
+template void launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 4>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
+template void launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 8>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
+
+template __global__ void computeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2>(NeuralNetModel<7,2,3,6,32,32,4>* model, float* state, float* control, float* state_der);
+
+
+// explicit instantiantion
+template void launchFullARNNTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
+template void launchFullARNNTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 4>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
+template void launchFullARNNTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 8>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
+
+template __global__ void fullARNNTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2>(NeuralNetModel<7,2,3,6,32,32,4>* model, float* state, float* control, float* state_der);

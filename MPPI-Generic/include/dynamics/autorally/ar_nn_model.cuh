@@ -19,6 +19,7 @@
 #define MPPI_NNET_NONLINEARITY(ans) tanh(ans)
 #define MPPI_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
 
+
 /**
  * @file neural_net_model.cuh
  * @author Grady Williams <gradyrw@gmail.com>
@@ -35,6 +36,8 @@
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 class NeuralNetModel : public Dynamics<S_DIM, C_DIM> {
 public:
+
+
   //static const int STATE_DIM = S_DIM;
   //static const int CONTROL_DIM = C_DIM;
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
@@ -50,7 +53,17 @@ public:
 
   ~NeuralNetModel();
 
-  __host__ __device__ std::array<float2, C_DIM> getControlRanges() {return control_rngs_;}
+  std::array<float2, C_DIM> getControlRanges() {
+    std::array<float2, C_DIM> result;
+    for(int i = 0; i < C_DIM; i++) {
+      result[i] = control_rngs_[i];
+    }
+    return result;
+  }
+  __host__ __device__ float* getControlRangesRaw() {
+    return control_rngs_;
+  }
+
   std::array<int, NUM_LAYERS> getNetStructure() {
     std::array<int, NUM_LAYERS> array;
     for(int i = 0; i < NUM_LAYERS; i++) {
@@ -94,7 +107,7 @@ public:
 
   __host__ __device__ void enforceConstraints(float* state, float* control);
 
-  __host__ __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
 
   __device__ void incrementState(float* state, float* state_der);
 
@@ -123,7 +136,7 @@ public:
 
 private:
 
-  std::array<float2, C_DIM> control_rngs_;
+  float2 control_rngs_[C_DIM];
 
   // TODO convert to std::array
   float theta_[NUM_PARAMS]; ///< structure parameter array. i.e. the actual weights

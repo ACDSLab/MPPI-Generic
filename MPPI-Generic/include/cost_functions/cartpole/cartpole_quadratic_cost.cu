@@ -23,15 +23,8 @@ void CartpoleQuadraticCost::freeCudaMem() {
     cudaFree(cost_d_);
 }
 
-void CartpoleQuadraticCost::setParams(Params params) {
-    this->params_ = params;
-    if(GPUMemStatus_) {
-        paramsToDevice();
-    }
-}
-
 void CartpoleQuadraticCost::paramsToDevice() {
-    HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->params_, &params_, sizeof(Params), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->params_, &params_, sizeof(cartpoleQuadraticCostParams), cudaMemcpyHostToDevice, stream_));
     HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 

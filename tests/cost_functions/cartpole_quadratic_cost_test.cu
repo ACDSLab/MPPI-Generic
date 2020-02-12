@@ -30,7 +30,7 @@ TEST(CartpoleQuadraticCost, GPUSetup) {
 }
 
 TEST(CartpoleQuadraticCost, SetParamsCPU) {
-    CartpoleQuadraticCost::Params new_params;
+    cartpoleQuadraticCostParams new_params;
     new_params.cart_position_coeff = 3;
     new_params.pole_angle_coeff = 3;
     new_params.cart_velocity_coeff = 3;
@@ -56,7 +56,7 @@ TEST(CartpoleQuadraticCost, SetParamsGPU) {
     CartpoleQuadraticCost cost;
     cost.GPUSetup();
 
-    CartpoleQuadraticCost::Params new_params;
+    cartpoleQuadraticCostParams new_params;
     new_params.cart_position_coeff = 5;
     new_params.pole_angle_coeff = 6;
     new_params.cart_velocity_coeff = 7;
@@ -64,7 +64,7 @@ TEST(CartpoleQuadraticCost, SetParamsGPU) {
     new_params.control_force_coeff = 9;
     new_params.terminal_cost_coeff = 2000;
 
-    CartpoleQuadraticCost::Params gpu_params;
+    cartpoleQuadraticCostParams gpu_params;
 
     cost.setParams(new_params);
 

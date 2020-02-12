@@ -1,0 +1,11 @@
+#ifndef TESTS_COST_FUNCTIONS_AUTORALLY_TEST_MAP_H_
+#define TESTS_COST_FUNCTIONS_AUTORALLY_TEST_MAP_H_
+
+#include <string>
+
+namespace mppi {
+namespace tests {
+	const std::string test_nn_file = "@TEST_NETWORK_FILE@";
+}
+}
+#endif // TESTS_COST_FUNCTIONS_AUTORALLY_TEST_MAP_H_
