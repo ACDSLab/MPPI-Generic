@@ -436,14 +436,14 @@ TEST(ARStandardCost, LoadTrackDataTest) {
   Eigen::Matrix3f R = cost.getRotation();
   Eigen::Array3f trs = cost.getTranslation();
 
-  EXPECT_FLOAT_EQ(costmap.at(0).x, 0);
-  EXPECT_FLOAT_EQ(costmap.at(0).y, 0);
-  EXPECT_FLOAT_EQ(costmap.at(0).z, 0);
-  EXPECT_FLOAT_EQ(costmap.at(0).w, 0);
-  EXPECT_FLOAT_EQ(costmap.at(1).x, 1);
-  EXPECT_FLOAT_EQ(costmap.at(1).y, 10);
-  EXPECT_FLOAT_EQ(costmap.at(1).z, 100);
-  EXPECT_FLOAT_EQ(costmap.at(1).w, 1000);
+  EXPECT_FLOAT_EQ(costmap.at(0).x, 1);
+  EXPECT_FLOAT_EQ(costmap.at(0).y, 10);
+  EXPECT_FLOAT_EQ(costmap.at(0).z, 100);
+  EXPECT_FLOAT_EQ(costmap.at(0).w, 1000);
+  EXPECT_FLOAT_EQ(costmap.at(1).x, 2);
+  EXPECT_FLOAT_EQ(costmap.at(1).y, 20);
+  EXPECT_FLOAT_EQ(costmap.at(1).z, 200);
+  EXPECT_FLOAT_EQ(costmap.at(1).w, 2000);
 
   // check transformation, should not have a rotation
   EXPECT_FLOAT_EQ(R(0,0), 1.0 / (10));
@@ -480,12 +480,14 @@ TEST(ARStandardCost, LoadTrackDataTest) {
   EXPECT_FLOAT_EQ(results.at(2).y, 0.5);
   EXPECT_FLOAT_EQ(results.at(2).z, 1);
 
+  int counter = 0;
   for(int i = 0; i < 2 * 10; i++) {
     for(int j = 0; j < 2 * 20; j++) {
-      EXPECT_FLOAT_EQ(costmap.at(i*2*20 + j).x, i*2*20 + j);
-      EXPECT_FLOAT_EQ(costmap.at(i*2*20 + j).y, (i*2*20 + j) * 10);
-      EXPECT_FLOAT_EQ(costmap.at(i*2*20 + j).z, (i*2*20 + j) * 100);
-      EXPECT_FLOAT_EQ(costmap.at(i*2*20 + j).w, (i*2*20 + j) * 1000);
+      EXPECT_FLOAT_EQ(costmap.at(counter).x, counter+1);
+      EXPECT_FLOAT_EQ(costmap.at(counter).y, (counter+1) * 10);
+      EXPECT_FLOAT_EQ(costmap.at(counter).z, (counter+1) * 100);
+      EXPECT_FLOAT_EQ(costmap.at(counter).w, (counter+1) * 1000);
+      counter++;
     }
   }
 
@@ -546,27 +548,67 @@ TEST(ARStandardCost, costmapToTextureLoadTest) {
   cost.costmapToTexture();
 
   std::vector<float4> results;
-  std::vector<float2> query_points;
-  float2 point;
-  point.x = 0;
-  point.y = 0;
-  query_points.push_back(point);
-  point.x = 0.1; // index 1 normalized
-  point.y = 0;
-  query_points.push_back(point);
+  std::vector<float2> query_points(8);
+  query_points[0].x = 0;
+  query_points[0].y = 0;
+  query_points[1].x = 0.1;
+  query_points[1].y = 0;
+  query_points[2].x = 0.5;
+  query_points[2].y = 0;
+  query_points[3].x = 1.0;
+  query_points[3].y = 0;
+  query_points[4].x = 0.0;
+  query_points[4].y = 0.5;
+  query_points[5].x = 0.0;
+  query_points[5].y = 1.0;
+  query_points[6].x = 0.5;
+  query_points[6].y = 0.5;
+  query_points[7].x = 1.0;
+  query_points[7].y = 1.0;
 
   launchTextureTestKernel<>(cost, results, query_points);
 
   EXPECT_EQ(query_points.size(), results.size());
-
-  EXPECT_FLOAT_EQ(results.at(0).x, 0);
-  EXPECT_FLOAT_EQ(results.at(0).y, 0);
-  EXPECT_FLOAT_EQ(results.at(0).z, 0);
-  EXPECT_FLOAT_EQ(results.at(0).w, 0);
-  EXPECT_FLOAT_EQ(results.at(1).x, 1);
-  EXPECT_FLOAT_EQ(results.at(1).y, 10);
-  EXPECT_FLOAT_EQ(results.at(1).z, 100);
-  EXPECT_FLOAT_EQ(results.at(1).w, 1000);
+  // 0,0
+  EXPECT_FLOAT_EQ(results.at(0).x, 1);
+  EXPECT_FLOAT_EQ(results.at(0).y, 10);
+  EXPECT_FLOAT_EQ(results.at(0).z, 100);
+  EXPECT_FLOAT_EQ(results.at(0).w, 1000);
+  // 0.1, 0
+  EXPECT_FLOAT_EQ(results.at(1).x, 2);
+  EXPECT_FLOAT_EQ(results.at(1).y, 20);
+  EXPECT_FLOAT_EQ(results.at(1).z, 200);
+  EXPECT_FLOAT_EQ(results.at(1).w, 2000);
+  //0.5, 0
+  EXPECT_FLOAT_EQ(results.at(2).x, 11);
+  EXPECT_FLOAT_EQ(results.at(2).y, 110);
+  EXPECT_FLOAT_EQ(results.at(2).z, 1100);
+  EXPECT_FLOAT_EQ(results.at(2).w, 11000);
+  // 1.0, 0
+  EXPECT_FLOAT_EQ(results.at(3).x, 20);
+  EXPECT_FLOAT_EQ(results.at(3).y, 200);
+  EXPECT_FLOAT_EQ(results.at(3).z, 2000);
+  EXPECT_FLOAT_EQ(results.at(3).w, 20000);
+  // 0.0, 0.5
+  EXPECT_FLOAT_EQ(results.at(4).x, 401);
+  EXPECT_FLOAT_EQ(results.at(4).y, 4010);
+  EXPECT_FLOAT_EQ(results.at(4).z, 40100);
+  EXPECT_FLOAT_EQ(results.at(4).w, 401000);
+  // 0.0, 1.0
+  EXPECT_FLOAT_EQ(results.at(5).x, 781);
+  EXPECT_FLOAT_EQ(results.at(5).y, 7810);
+  EXPECT_FLOAT_EQ(results.at(5).z, 78100);
+  EXPECT_FLOAT_EQ(results.at(5).w, 781000);
+  // 0.5, 0.5
+  EXPECT_FLOAT_EQ(results.at(6).x, 411);
+  EXPECT_FLOAT_EQ(results.at(6).y, 4110);
+  EXPECT_FLOAT_EQ(results.at(6).z, 41100);
+  EXPECT_FLOAT_EQ(results.at(6).w, 411000);
+  // 1,1
+  EXPECT_FLOAT_EQ(results.at(7).x, 800);
+  EXPECT_FLOAT_EQ(results.at(7).y, 8000);
+  EXPECT_FLOAT_EQ(results.at(7).z, 80000);
+  EXPECT_FLOAT_EQ(results.at(7).w, 800000);
 }
 
 
@@ -579,55 +621,67 @@ TEST(ARStandardCost, costmapToTextureTransformTest) {
   cost.costmapToTexture();
 
   std::vector<float4> results;
-  std::vector<float2> query_points;
-  float2 point;
-  // transform has x = 0.5
-  point.x = -4.5; // comes out to index 0
-  point.y = -10;
-  query_points.push_back(point);
-  point.x = -3.5; // 1 meter over, 2ppm = third index
-  point.y = -10;
-  query_points.push_back(point);
+  std::vector<float2> query_points(8);
+  query_points[0].x = -5;
+  query_points[0].y = -10;
+  query_points[1].x = -4;
+  query_points[1].y = -10;
+  query_points[2].x = 0;
+  query_points[2].y = -10;
+  query_points[3].x = 5;
+  query_points[3].y = -10;
+  query_points[4].x = -5;
+  query_points[4].y = 0;
+  query_points[5].x = -5;
+  query_points[5].y = 10;
+  query_points[6].x = 0;
+  query_points[6].y = 0;
+  query_points[7].x = 5;
+  query_points[7].y = 10;
 
   launchTextureTransformTestKernel<>(cost, results, query_points);
 
   EXPECT_EQ(query_points.size(), results.size());
-
-  EXPECT_FLOAT_EQ(results.at(0).x, 0);
-  EXPECT_FLOAT_EQ(results.at(0).y, 0);
-  EXPECT_FLOAT_EQ(results.at(0).z, 0);
-  EXPECT_FLOAT_EQ(results.at(0).w, 0);
+  // 0,0
+  EXPECT_FLOAT_EQ(results.at(0).x, 1);
+  EXPECT_FLOAT_EQ(results.at(0).y, 10);
+  EXPECT_FLOAT_EQ(results.at(0).z, 100);
+  EXPECT_FLOAT_EQ(results.at(0).w, 1000);
+  // 0.1, 0
   EXPECT_FLOAT_EQ(results.at(1).x, 2);
   EXPECT_FLOAT_EQ(results.at(1).y, 20);
   EXPECT_FLOAT_EQ(results.at(1).z, 200);
   EXPECT_FLOAT_EQ(results.at(1).w, 2000);
-
-
-  Eigen::Matrix3f R;
-  Eigen::Array3f trs;
-
-  R <<  0.1, 0, 0, 0, 0.05, 0, 0, 0, 1;
-  trs << 0, 0, 1;
-  cost.updateTransform(R, trs);
-
-  query_points[0].x = 0.0;
-  query_points[0].y = 0.0;
-
-  query_points[1].x = 0.0;
-  query_points[1].y = 1.0;
-
-  launchTextureTransformTestKernel<>(cost, results, query_points);
-
-  EXPECT_EQ(query_points.size(), results.size());
-
-  EXPECT_FLOAT_EQ(results.at(0).x, 0);
-  EXPECT_FLOAT_EQ(results.at(0).y, 0);
-  EXPECT_FLOAT_EQ(results.at(0).z, 0);
-  EXPECT_FLOAT_EQ(results.at(0).w, 0);
-  EXPECT_FLOAT_EQ(results.at(1).x, 20);
-  EXPECT_FLOAT_EQ(results.at(1).y, 200);
-  EXPECT_FLOAT_EQ(results.at(1).z, 2000);
-  EXPECT_FLOAT_EQ(results.at(1).w, 20000);
+  //0.5, 0
+  EXPECT_FLOAT_EQ(results.at(2).x, 11);
+  EXPECT_FLOAT_EQ(results.at(2).y, 110);
+  EXPECT_FLOAT_EQ(results.at(2).z, 1100);
+  EXPECT_FLOAT_EQ(results.at(2).w, 11000);
+  // 1.0, 0
+  EXPECT_FLOAT_EQ(results.at(3).x, 20);
+  EXPECT_FLOAT_EQ(results.at(3).y, 200);
+  EXPECT_FLOAT_EQ(results.at(3).z, 2000);
+  EXPECT_FLOAT_EQ(results.at(3).w, 20000);
+  // 0.0, 0.5
+  EXPECT_FLOAT_EQ(results.at(4).x, 401);
+  EXPECT_FLOAT_EQ(results.at(4).y, 4010);
+  EXPECT_FLOAT_EQ(results.at(4).z, 40100);
+  EXPECT_FLOAT_EQ(results.at(4).w, 401000);
+  // 0.0, 1.0
+  EXPECT_FLOAT_EQ(results.at(5).x, 781);
+  EXPECT_FLOAT_EQ(results.at(5).y, 7810);
+  EXPECT_FLOAT_EQ(results.at(5).z, 78100);
+  EXPECT_FLOAT_EQ(results.at(5).w, 781000);
+  // 0.5, 0.5
+  EXPECT_FLOAT_EQ(results.at(6).x, 411);
+  EXPECT_FLOAT_EQ(results.at(6).y, 4110);
+  EXPECT_FLOAT_EQ(results.at(6).z, 41100);
+  EXPECT_FLOAT_EQ(results.at(6).w, 411000);
+  // 1,1
+  EXPECT_FLOAT_EQ(results.at(7).x, 800);
+  EXPECT_FLOAT_EQ(results.at(7).y, 8000);
+  EXPECT_FLOAT_EQ(results.at(7).z, 80000);
+  EXPECT_FLOAT_EQ(results.at(7).w, 800000);
 }
 
 
@@ -744,45 +798,45 @@ TEST(ARStandardCost, getCrashCostTest) {
   EXPECT_FLOAT_EQ(result, 10000);
 }
 
-float calculateStandardCostmapValue(ARStandardCost<>& cost, float3 state, int width, int height, float x_min, float y_min) {
-  float u,v,w;
+float calculateStandardCostmapValue(ARStandardCost<>& cost, float3 state, int width, int height, float x_min, float x_max, float y_min, float y_max, int ppm) {
   float x_front = state.x + cost.FRONT_D*cosf(state.z);
   float y_front = state.y + cost.FRONT_D*sinf(state.z);
   float x_back = state.x + cost.BACK_D*cosf(state.z);
   float y_back = state.y + cost.BACK_D*sinf(state.z);
 
-  cost.coorTransform(x_front,y_front,&u,&v,&w);
-  float x_transformed_front = u/w;
-  float y_transformed_front = v/w;
-  float front = fabs(width/2.0f - (x_transformed_front - x_min)) + (y_transformed_front - y_min)/height;
-  std::cout << "front point = " << x_transformed_front << ", " << y_transformed_front << " = " << front << std::endl;
+  float new_x = max(min(x_front - x_min, x_max - x_min), 0.0f);
+  float new_y = max(min(y_front - y_min, y_max - y_min), 0.0f);
 
-  cost.coorTransform(x_back,y_back,&u,&v,&w);
-  float x_transformed_back =u/w;
-  float y_transformed_back = v/w;
-  float back = fabs(width/2.0f - (x_transformed_back - x_min)) + (y_transformed_back - y_min)/height;
-  std::cout << "back point = " << x_transformed_front << ", " << y_transformed_front << " = " << back << std::endl;
+  float front = fabs(height/2.0f - (new_y)) + (new_x)/width;
+  std::cout << "front point = " << new_x << ", " << new_y << " = " << front << std::endl;
+
+  new_x = max(min(x_back - x_min + 1.0/(width*ppm), x_max - x_min), 0.0f);
+  new_y = max(min(y_back - y_min + 1.0/(height*ppm), y_max - y_min), 0.0f);
+
+  float back = fabs(height/2.0f - (new_y)) + (new_x)/width;
+  std::cout << "back point = " << new_x << ", " << new_y << " = " << back << std::endl;
   return (front + back) / 2.0f;
 }
 
 TEST(ARStandardCost, getTrackCostTest) {
-  std::cout << "==========================" << std::endl;
+  std::cout << "==========================\n\n" << std::endl;
   ARStandardCost<> cost;
   ARStandardCostParams params;
   params.track_coeff = 1;
+  params.track_slop = 0.0;
+  params.boundary_threshold = 1.0;
   cost.setParams(params);
 
   cost.GPUSetup();
 
   cost.loadTrackData(mppi::tests::standard_test_map_file);
 
-  std::vector<float3> states(1);
-  states[0].x = 0;
-  states[0].y = 0;
+  std::vector<float3> states(4);
+  states[0].x = -13.5;
+  states[0].y = -10;
   states[0].z = 0.0; // theta
-  /*
-  states[1].x = -5.5;
-  states[1].y = -10;
+  states[1].x = 0;
+  states[1].y = -10.0;
   states[1].z = 0.0; // theta
   states[2].x = 0.0;
   states[2].y = 0.0;
@@ -790,23 +844,20 @@ TEST(ARStandardCost, getTrackCostTest) {
   states[3].x = 3.0;
   states[3].y = 0.0;
   states[3].z = M_PI_2; // theta
-   */
 
   std::vector<float> cost_results;
   std::vector<int> crash_results;
 
   launchTrackCostTestKernel<>(cost, states, cost_results, crash_results);
 
-  EXPECT_FLOAT_EQ(cost_results[0], calculateStandardCostmapValue(cost, states[0], 30, 30, -13, -10));
-  EXPECT_FLOAT_EQ(crash_results[0], 0.0);
-  /*
-  EXPECT_FLOAT_EQ(cost_results[1], 200*calculateStandardCostmapValue(cost, states[1], 30, 30, -13, -10));
+  EXPECT_NEAR(cost_results[0], params.track_coeff*calculateStandardCostmapValue(cost, states[0], 30, 30, -13, 17, -10, 20, 20), 0.001);
+  EXPECT_FLOAT_EQ(crash_results[0], 1.0);
+  EXPECT_NEAR(cost_results[1], params.track_coeff*calculateStandardCostmapValue(cost, states[1], 30, 30, -13, 17, -10, 20, 20), 0.001);
   EXPECT_FLOAT_EQ(crash_results[1], 1.0);
-  EXPECT_FLOAT_EQ(cost_results[2], 200*calculateStandardCostmapValue(cost, states[2], 30, 30, -13, -10));
+  EXPECT_NEAR(cost_results[2], params.track_coeff*calculateStandardCostmapValue(cost, states[2], 30, 30, -13, 17, -10, 20, 20), 0.1);
   EXPECT_FLOAT_EQ(crash_results[2], 1.0);
-  EXPECT_FLOAT_EQ(cost_results[3], 200*calculateStandardCostmapValue(cost, states[3], 30, 30, -13, -10));
+  EXPECT_NEAR(cost_results[3], params.track_coeff*calculateStandardCostmapValue(cost, states[3], 30, 30, -13, 17, -10, 20, 20), 0.1);
   EXPECT_FLOAT_EQ(crash_results[3], 1.0);
-   */
 }
 
 TEST(ARStandardCost, computeCostIndividualTest) {
@@ -865,7 +916,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   params.track_coeff = 200.0;
   cost.setParams(params);
 
-  float track_cost = 79000;
+  float track_cost = 1116.3333;
   launchComputeCostTestKernel<>(cost, states, cost_results);
   EXPECT_FLOAT_EQ(cost_results[0], track_cost);
 

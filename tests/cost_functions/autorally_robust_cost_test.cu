@@ -124,6 +124,28 @@ TEST(ARRobustCost, getStabilizingCostTest) {
   EXPECT_FLOAT_EQ(result, 1.4711*10 + params.crash_coeff + params.crash_coeff);
 }
 
+float calculateRobustCostmapValue(ARRobustCost<>& cost, float3 state, int width, int height, float x_min, float x_max, float y_min, float y_max, int ppm) {
+  float x_front = state.x + cost.FRONT_D*cosf(state.z);
+  float y_front = state.y + cost.FRONT_D*sinf(state.z);
+  float x_back = state.x + cost.BACK_D*cosf(state.z);
+  float y_back = state.y + cost.BACK_D*sinf(state.z);
+
+  // check for overflow
+  float new_x = max(min(x_front - x_min, x_max - x_min), 0.0f);
+  float new_y = max(min(y_front - y_min, y_max - y_min), 0.0f);
+
+  // calculate the track value
+  float front_track = fabs(height/2.0f - (new_y)) + (new_x)/width;
+  std::cout << "front point = " << new_x << ", " << new_y << " = " << front_track << std::endl;
+
+  new_x = max(min(x_back - x_min + 1.0/(width*ppm), x_max - x_min), 0.0f);
+  new_y = max(min(y_back - y_min + 1.0/(height*ppm), y_max - y_min), 0.0f);
+
+  float back_track = fabs(height/2.0f - (new_y)) + (new_x)/width;
+  std::cout << "back point = " << new_x << ", " << new_y << " = " << back_track << std::endl;
+  return (front_track + back_track) / 2.0f;
+}
+
 TEST(ARRobustCost, getCostmapCostSpeedMapTest) {
   ARRobustCost<> cost;
   ARRobustCostParams params;
@@ -161,7 +183,7 @@ TEST(ARRobustCost, getCostmapCostSpeedMapTest) {
 
   launchGetCostmapCostTestKernel(cost, states, cost_results);
 
-  EXPECT_FLOAT_EQ(cost_results[0], 0.0);
+  EXPECT_FLOAT_EQ(cost_results[0], 11629.229);
 }
 
 TEST(ARRobustCost, getCostmapCostSpeedNoMapTest) {
@@ -201,7 +223,7 @@ TEST(ARRobustCost, getCostmapCostSpeedNoMapTest) {
 
   launchGetCostmapCostTestKernel(cost, states, cost_results);
 
-  EXPECT_FLOAT_EQ(cost_results[0], 0.0);
+  EXPECT_FLOAT_EQ(cost_results[0], 11549.229);
 }
 
 TEST(ARRobustCost, computeCostTest) {
@@ -241,5 +263,5 @@ TEST(ARRobustCost, computeCostTest) {
 
   launchComputeCostTestKernel<>(cost, states, cost_results);
 
-  EXPECT_FLOAT_EQ(cost_results[0], 0.0);
+  EXPECT_FLOAT_EQ(cost_results[0], 11549.229);
 }

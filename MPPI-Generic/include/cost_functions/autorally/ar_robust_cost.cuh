@@ -7,19 +7,19 @@ typedef struct {
   //values, if negative ignored
   float desired_speed = -1;
   //Cost term coefficients
-  float speed_coeff;
-  float track_coeff;
-  float heading_coeff;
-  float steering_coeff;
-  float throttle_coeff;
-  float slip_coeff;
+  float speed_coeff = 20.0;
+  float track_coeff = 33.0;
+  float heading_coeff = 0.0;
+  float steering_coeff = 0.0;
+  float throttle_coeff = 0.0;
+  float slip_coeff = 0.0;
   //Constraint penalty thresholds
-  float crash_coeff;
-  float boundary_threshold;
-  float max_slip_ang;
+  float crash_coeff = 125000;
+  float boundary_threshold = 0.75;
+  float max_slip_ang = 1.5;
   //Miscellaneous
-  float track_slop;
-  int num_timesteps;
+  float track_slop = 0.0;
+  int num_timesteps = 100;
   float3 r_c1;
   float3 r_c2;
   float3 trs;
