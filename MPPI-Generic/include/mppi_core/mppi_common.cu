@@ -1,4 +1,6 @@
 #include "mppi_core/mppi_common.cuh"
+#include <curand.h>
+#include "utils/gpu_err_chk.cuh"
 
 namespace mppi_common {
     /*******************************************************************************************************************

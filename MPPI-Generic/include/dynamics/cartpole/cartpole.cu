@@ -1,3 +1,5 @@
+#include <dynamics/cartpole/cartpole.cuh>
+
 Cartpole::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream)
 {
     cart_mass_ = cart_mass;

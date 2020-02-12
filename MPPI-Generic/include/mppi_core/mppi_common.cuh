@@ -5,18 +5,8 @@
 #ifndef MPPIGENERIC_MPPI_COMMON_CUH
 #define MPPIGENERIC_MPPI_COMMON_CUH
 
-#include <curand.h>
-#include "utils/gpu_err_chk.cuh"
-
 namespace mppi_common {
 
-//    const int STATE_DIM = 12;
-//    const int CONTROL_DIM = 3;
-//
-//    const int BLOCKSIZE_X = 64;
-//    const int BLOCKSIZE_Y = 8;
-//    const int NUM_ROLLOUTS = 2000;
-//    const int SUM_STRIDE = 128;
 
     // Kernel functions
     template<class DYN_T, class COST_T>
