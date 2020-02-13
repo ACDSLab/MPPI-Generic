@@ -60,11 +60,14 @@ public:
     __host__ __device__ float getGravity() {return gravity_;}
 
     void printState(Eigen::MatrixXf state);
+    void printState(float* state);
     void printParams();
 
     __host__ __device__ void xDot(float* state,
                                   float* control,
                                   float* state_der);
+
+    void incrementState(float* state, float* xdot, float dt);
 
     // Device pointer of class object
     Cartpole* model_d_ = nullptr; //TODO choose a unified name for this object

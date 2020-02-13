@@ -69,6 +69,8 @@ public:
 
     control_array getControlVariance() { return control_variance_;};
 
+    float getBaselineCost() {return baseline_;};
+
     /**
      * returns the current control sequence
      */
@@ -106,6 +108,7 @@ private:
     int num_iters_;  // Number of optimization iterations
     float gamma_; // Value of the temperature in the softmax.
     float normalizer_; // Variable for the normalizing term from sampling.
+    float baseline_; // Baseline cost of the system.
     float dt_;
 
 

@@ -10,12 +10,13 @@
 #include <cuda_runtime.h>
 
 typedef struct {
-  float cart_position_coeff = 1;
-  float cart_velocity_coeff = 1;
-  float pole_angle_coeff = 10;
-  float pole_angular_velocity_coeff = 1;
+  float cart_position_coeff = 1000;
+  float cart_velocity_coeff = 100;
+  float pole_angle_coeff = 2000;
+  float pole_angular_velocity_coeff = 100;
   float control_force_coeff = 1;
-  float terminal_cost_coeff = 100;
+  float terminal_cost_coeff = 0;
+  float desired_terminal_state[4] = {0, 0, M_PI, 0};
 } cartpoleQuadraticCostParams;
 
 class CartpoleQuadraticCost : public Cost<CartpoleQuadraticCost, cartpoleQuadraticCostParams> {

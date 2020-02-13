@@ -5,5 +5,5 @@
  * Will have a dynamics model of cartpole, some cost function,
  * and a controller of just MPPI, (not tube or R)
  */
-
-template class VanillaMPPIController<Cartpole, CartpoleQuadraticCost, 100, 150, 64, 8>;
+// Num_timesteps, num_rollouts, blockdim x, blockdim y
+template class VanillaMPPIController<Cartpole, CartpoleQuadraticCost, 100, 2048, 64, 8>;

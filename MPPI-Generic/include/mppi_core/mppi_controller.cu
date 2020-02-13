@@ -59,10 +59,10 @@ void VanillaMPPI::computeControl(state_array state) {
         HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_.data(), trajectory_costs_d_, NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, stream_));
         HANDLE_ERROR( cudaStreamSynchronize(stream_) );
 
-        float baseline = mppi_common::computeBaselineCost(trajectory_costs_.data(), NUM_ROLLOUTS);
+        baseline_ = mppi_common::computeBaselineCost(trajectory_costs_.data(), NUM_ROLLOUTS);
 
         // Launch the norm exponential kernel
-        mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, trajectory_costs_d_, gamma_, baseline, stream_);
+        mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, trajectory_costs_d_, gamma_, baseline_, stream_);
         HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_.data(), trajectory_costs_d_, NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, stream_));
         HANDLE_ERROR(cudaStreamSynchronize(stream_));
 

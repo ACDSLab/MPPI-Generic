@@ -37,6 +37,10 @@ TEST(CartpoleQuadraticCost, SetParamsCPU) {
     new_params.pole_angular_velocity_coeff = 3;
     new_params.control_force_coeff = 5;
     new_params.terminal_cost_coeff = 20;
+    new_params.desired_terminal_state[0] = 3;
+    new_params.desired_terminal_state[1] = 2;
+    new_params.desired_terminal_state[2] = 3.14;
+    new_params.desired_terminal_state[3] = 1;
 
     CartpoleQuadraticCost cost;
 
@@ -49,6 +53,11 @@ TEST(CartpoleQuadraticCost, SetParamsCPU) {
     EXPECT_FLOAT_EQ(new_params.pole_angular_velocity_coeff, current_params.pole_angular_velocity_coeff);
     EXPECT_FLOAT_EQ(new_params.control_force_coeff, current_params.control_force_coeff);
     EXPECT_FLOAT_EQ(new_params.terminal_cost_coeff, current_params.terminal_cost_coeff);
+    EXPECT_FLOAT_EQ(new_params.desired_terminal_state[0], current_params.desired_terminal_state[0]);
+    EXPECT_FLOAT_EQ(new_params.desired_terminal_state[1], current_params.desired_terminal_state[1]);
+    EXPECT_FLOAT_EQ(new_params.desired_terminal_state[2], current_params.desired_terminal_state[2]);
+    EXPECT_FLOAT_EQ(new_params.desired_terminal_state[3], current_params.desired_terminal_state[3]);
+
 
 }
 
@@ -63,6 +72,10 @@ TEST(CartpoleQuadraticCost, SetParamsGPU) {
     new_params.pole_angular_velocity_coeff = 8;
     new_params.control_force_coeff = 9;
     new_params.terminal_cost_coeff = 2000;
+    new_params.desired_terminal_state[0] = 3;
+    new_params.desired_terminal_state[1] = 2;
+    new_params.desired_terminal_state[2] = 3.14;
+    new_params.desired_terminal_state[3] = 1;
 
     cartpoleQuadraticCostParams gpu_params;
 
@@ -81,6 +94,10 @@ TEST(CartpoleQuadraticCost, SetParamsGPU) {
     EXPECT_FLOAT_EQ(new_params.pole_angular_velocity_coeff, gpu_params.pole_angular_velocity_coeff);
     EXPECT_FLOAT_EQ(new_params.control_force_coeff, gpu_params.control_force_coeff);
     EXPECT_FLOAT_EQ(new_params.terminal_cost_coeff, gpu_params.terminal_cost_coeff);
+    EXPECT_FLOAT_EQ(new_params.desired_terminal_state[0], gpu_params.desired_terminal_state[0]);
+    EXPECT_FLOAT_EQ(new_params.desired_terminal_state[1], gpu_params.desired_terminal_state[1]);
+    EXPECT_FLOAT_EQ(new_params.desired_terminal_state[2], gpu_params.desired_terminal_state[2]);
+    EXPECT_FLOAT_EQ(new_params.desired_terminal_state[3], gpu_params.desired_terminal_state[3]);
 }
 
 TEST(CartpoleQuadraticCost, ComputeStateCost) {
