@@ -11,7 +11,7 @@ namespace mppi_common {
     // Kernel functions
     template<class DYN_T, class COST_T>
     __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
-                                  int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d);
+                                  int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs_d);
 
     // RolloutKernel Helpers
     /*
@@ -146,7 +146,7 @@ namespace mppi_common {
 
     // Launch functions
     template<class DYN_T, class COST_T>
-    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d);
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream);
 
     void launchNormExpKernel(float* trajectory_costs_d, float gamma, float baseline);
 

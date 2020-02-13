@@ -8,7 +8,8 @@ namespace mppi_common {
     *******************************************************************************************************************/
     template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS>
      __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
-                                    int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d) {
+                                    int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d,
+                                    float* trajectory_costs_d) {
         //Get thread and block id
         int thread_idx = threadIdx.x;
         int thread_idy = threadIdx.y;
@@ -31,7 +32,6 @@ namespace mppi_common {
 
         //Initialize running cost and total cost
         float running_cost = 0;
-        float cost[NUM_ROLLOUTS];
 
         //Load global array to shared array
         if (global_idx < NUM_ROLLOUTS) {
@@ -69,7 +69,7 @@ namespace mppi_common {
         }
 
         //Compute terminal cost and the final cost for each thread
-        computeAndSaveCost(global_idx, costs, x, running_cost, cost);
+        computeAndSaveCost(global_idx, costs, x, running_cost, trajectory_costs_d);
         __syncthreads();
     }
 
@@ -252,14 +252,14 @@ namespace mppi_common {
      * Launch Functions
     *******************************************************************************************************************/
     template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
-    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d) {
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream) {
         const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
         dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
         dim3 dimGrid(gridsize_x, 1, 1);
-        rolloutKernel<DYN_T, COST_T><<<dimGrid, dimBlock>>>(dynamics, costs, dt,
-                num_timesteps, x_d, u_d, du_d, sigma_u_d);
+        rolloutKernel<DYN_T, COST_T><<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
+                num_timesteps, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
         CudaCheckError();
-        HANDLE_ERROR( cudaDeviceSynchronize() );
+        HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
     void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float baseline) {
