@@ -29,10 +29,10 @@ void CartpoleQuadraticCost::paramsToDevice() {
 }
 
 __host__ __device__ float CartpoleQuadraticCost::getStateCost(float *state) {
-    return state[0]*state[0]*params_.cart_position_coeff +
-           state[1]*state[1]*params_.cart_velocity_coeff +
-           state[2]*state[2]*params_.pole_angle_coeff +
-           state[3]*state[3]*params_.pole_angular_velocity_coeff;
+    return (state[0]-params_.desired_terminal_state[0])*(state[0]-params_.desired_terminal_state[0])*params_.cart_position_coeff +
+            (state[1]-params_.desired_terminal_state[1])*(state[1]-params_.desired_terminal_state[1])*params_.cart_velocity_coeff +
+            (state[2]-params_.desired_terminal_state[2])*(state[2]-params_.desired_terminal_state[2])*params_.pole_angle_coeff +
+            (state[3]-params_.desired_terminal_state[3])*(state[3]-params_.desired_terminal_state[3])*params_.pole_angular_velocity_coeff;
 }
 
 __host__ __device__ float CartpoleQuadraticCost::getControlCost(float *u, float *du, float *vars) {
@@ -44,9 +44,9 @@ __host__ __device__ float CartpoleQuadraticCost::computeRunningCost(float *s, fl
 }
 
 __host__ __device__ float CartpoleQuadraticCost::computeTerminalCost(float *state) {
-    return (state[0]*state[0]*params_.cart_position_coeff +
-           state[1]*state[1]*params_.cart_velocity_coeff +
-           state[2]*state[2]*params_.pole_angle_coeff +
-           state[3]*state[3]*params_.pole_angular_velocity_coeff)*params_.terminal_cost_coeff;
+    return ((state[0]-params_.desired_terminal_state[0])*(state[0]-params_.desired_terminal_state[0])*params_.cart_position_coeff +
+           (state[1]-params_.desired_terminal_state[1])*(state[1]-params_.desired_terminal_state[1])*params_.cart_velocity_coeff +
+           (state[2]-params_.desired_terminal_state[2])*(state[2]-params_.desired_terminal_state[2])*params_.pole_angle_coeff +
+           (state[3]-params_.desired_terminal_state[3])*(state[3]-params_.desired_terminal_state[3])*params_.pole_angular_velocity_coeff)*params_.terminal_cost_coeff;
 }
 

@@ -1,3 +1,5 @@
+#include <dynamics/cartpole/cartpole.cuh>
+
 Cartpole::Cartpole(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream)
 {
     cart_mass_ = cart_mass;
@@ -68,6 +70,10 @@ void Cartpole::printState(Eigen::MatrixXf state)
   printf("Cart position: %f; Cart velocity: %f; Pole angle: %f; Pole rate: %f \n", state(0), state(1), state(2), state(3)); //Needs to be completed
 }
 
+void Cartpole::printState(float *state) {
+    printf("Cart position: %f; Cart velocity: %f; Pole angle: %f; Pole rate: %f \n", state[0], state[1], state[2], state[3]); //Needs to be completed
+}
+
 void Cartpole::printParams()
 {
   printf("Cart mass: %f; Pole mass: %f; Pole length: %f \n", cart_mass_, pole_mass_, pole_length_);
@@ -88,4 +94,11 @@ __host__ __device__ void Cartpole::xDot(float* state, float* control, float* sta
   state_der[1] = 1/(m_c+m_p*powf(sinf(theta),2.0))*(force+m_p*sinf(theta)*(l_p*powf(theta_dot,2.0)+gravity*cosf(theta)));
   state_der[2] = state[3];
   state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity*sinf(theta));
+}
+
+void Cartpole::incrementState(float *state, float *xdot, float dt) {
+    for (int i = 0; i < STATE_DIM; i++) {
+        state[i] += xdot[i]*dt;
+        xdot[i] = 0;
+    }
 }
