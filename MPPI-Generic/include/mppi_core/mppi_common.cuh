@@ -9,9 +9,10 @@ namespace mppi_common {
 
 
     // Kernel functions
-    template<class DYN_T, class COST_T>
+    template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS>
     __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
-                                  int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs_d);
+                                  int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d,
+                                  float* trajectory_costs_d);
 
     // RolloutKernel Helpers
     /*
@@ -89,7 +90,8 @@ namespace mppi_common {
      * running_cost: Running cost for the given rollout
      */
     template<class COST_T>
-    __device__ void computeRunningCostAllRollouts(COST_T* costs, float* x_thread, float* u_thread, float& running_cost);
+    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt, float* x_thread, float* u_thread,
+                                                  float* du_thread, float* sigma_thread, float& running_cost);
 
     /*
      * computeRunningCostAllRollouts
@@ -120,8 +122,8 @@ namespace mppi_common {
                                                      float* x_thread, float* xdot_thread);
 
     template<class COST_T>
-    __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs,
-                                                      float* x_thread, float running_cost, float* cost_rollouts_device);
+    __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* x_thread,
+                                       float running_cost, float* cost_rollouts_device);
 
     // Norm Exponential Kernel
 
@@ -142,16 +144,18 @@ namespace mppi_common {
     __device__ void strideControlWeightReduction(int num_rollouts, int num_timesteps, int sum_stride, int thread_idx,
             int block_idx, int control_dim, float* exp_costs_d, float normalizer, float* du_d, float* u, float* u_intermediate);
 
-    __device__ void rolloutWeightReductionAndSaveControl(int thread_idx, int block_idx, int num_rollouts, int num_timesteps, int control_dim, int sum_stride, float* u, float* u_intermediate, float* du_new_d);
+    __device__ void rolloutWeightReductionAndSaveControl(int thread_idx, int block_idx, int num_rollouts, int num_timesteps,
+            int control_dim, int sum_stride, float* u, float* u_intermediate, float* du_new_d);
 
     // Launch functions
     template<class DYN_T, class COST_T>
-    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream);
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d,
+            float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream);
 
-    void launchNormExpKernel(float* trajectory_costs_d, float gamma, float baseline);
+    void launchNormExpKernel(float* trajectory_costs_d, float gamma, float baseline, cudaStream_t stream);
 
     template<class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE >
-    void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps);
+    void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps, cudaStream_t stream);
 
 }
 #if __CUDACC__

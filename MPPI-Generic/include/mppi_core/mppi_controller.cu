@@ -1,4 +1,5 @@
 #include "mppi_core/mppi_controller.cuh"
+#include "mppi_common.cuh"
 
 #define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, NUM_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
@@ -51,7 +52,7 @@ void VanillaMPPI::computeControl(state_array state) {
         curandGenerateNormal(gen_, control_noise_d_, NUM_ROLLOUTS*NUM_TIMESTEPS*DYN_T::CONTROL_DIM, 0.0, 1.0);
 
         //Launch the rollout kernel
-        mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(model_, cost_, dt_, NUM_TIMESTEPS,
+        mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(model_->model_d_, cost_->cost_d_, dt_, NUM_TIMESTEPS,
                 initial_state_d_, nominal_control_d_, control_noise_d_, control_variance_d_, trajectory_costs_d_, stream_);
 
         // Copy the costs back to the host
@@ -61,16 +62,25 @@ void VanillaMPPI::computeControl(state_array state) {
         float baseline = mppi_common::computeBaselineCost(trajectory_costs_.data(), NUM_ROLLOUTS);
 
         // Launch the norm exponential kernel
-        mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, trajectory_costs_d_, gamma_, baseline);
+        mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, trajectory_costs_d_, gamma_, baseline, stream_);
         HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_.data(), trajectory_costs_d_, NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, stream_));
         HANDLE_ERROR(cudaStreamSynchronize(stream_));
 
         // Compute the normalizer
-        float normalizer = mppi_common::computeNormalizer(trajectory_costs_.data(), NUM_ROLLOUTS);
+        normalizer_ = mppi_common::computeNormalizer(trajectory_costs_.data(), NUM_ROLLOUTS);
 
         // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
-//        mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(trajectory_costs_d_, control_noise_d_, control_variance_d_, )
+        mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(trajectory_costs_d_, control_noise_d_,
+                control_variance_d_, nominal_control_d_, normalizer_, NUM_TIMESTEPS, stream_);
 
+        // Transfer the new control to the host
+        HANDLE_ERROR( cudaMemcpyAsync(nominal_control_.data(), nominal_control_d_,
+                sizeof(float)*NUM_TIMESTEPS*DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, stream_));
+        cudaStreamSynchronize(stream_);
+
+        // TODO Add SavitskyGolay?
+
+        // TODO Add nominal state computation
 
     }
 
@@ -78,6 +88,7 @@ void VanillaMPPI::computeControl(state_array state) {
 
 template<class DYN_T, class COST_T, int NUM_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void VanillaMPPI::allocateCUDAMemory() {
+    HANDLE_ERROR(cudaMalloc((void**)&initial_state_d_, sizeof(float)*DYN_T::STATE_DIM));
     HANDLE_ERROR(cudaMalloc((void**)&nominal_control_d_, sizeof(float)*DYN_T::CONTROL_DIM*NUM_TIMESTEPS));
     HANDLE_ERROR(cudaMalloc((void**)&nominal_state_d_, sizeof(float)*DYN_T::STATE_DIM*NUM_TIMESTEPS));
     HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d_, sizeof(float)*NUM_ROLLOUTS));

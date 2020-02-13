@@ -69,7 +69,7 @@ namespace mppi_common {
         }
 
         //Compute terminal cost and the final cost for each thread
-        computeAndSaveCost(global_idx, costs, x, running_cost, trajectory_costs_d);
+        computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost, trajectory_costs_d);
         __syncthreads();
     }
 
@@ -98,7 +98,7 @@ namespace mppi_common {
 
         //Sum the weighted control variations at a desired stride
         strideControlWeightReduction(NUM_ROLLOUTS, num_timesteps, SUM_STRIDE, thread_idx, block_idx, CONTROL_DIM,
-                exp_costs_d, normalizer, du_d, sigma_u_d, u, u_intermediate);
+                exp_costs_d, normalizer, du_d, u, u_intermediate);
 
         __syncthreads();
 
@@ -155,7 +155,8 @@ namespace mppi_common {
     }
 
     template<class COST_T>
-    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt, float* x_thread, float* u_thread, float* du_thread, float* sigma_thread, float& running_cost) {
+    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt, float* x_thread, float* u_thread,
+            float* du_thread, float* sigma_thread, float& running_cost) {
         // The prior loop already guarantees that the global index is less than the number of rollouts
         running_cost += costs->computeRunningCost(x_thread, u_thread, du_thread, sigma_thread)*dt;
     }
@@ -232,7 +233,8 @@ namespace mppi_common {
         }
     }
 
-    __device__ void rolloutWeightReductionAndSaveControl(int thread_idx, int block_idx, int num_rollouts, int num_timesteps, int control_dim, int sum_stride, float* u, float* u_intermediate, float* du_new_d) {
+    __device__ void rolloutWeightReductionAndSaveControl(int thread_idx, int block_idx, int num_rollouts, int num_timesteps,
+            int control_dim, int sum_stride, float* u, float* u_intermediate, float* du_new_d) {
         if (thread_idx == 0 && block_idx < num_timesteps) { //block index refers to the current timestep
             for (int i = 0; i < control_dim; ++i) { // TODO replace with memset?
                 u[i] = 0;
@@ -252,31 +254,34 @@ namespace mppi_common {
      * Launch Functions
     *******************************************************************************************************************/
     template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
-    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream) {
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d,
+            float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream) {
         const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
         dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
         dim3 dimGrid(gridsize_x, 1, 1);
-        rolloutKernel<DYN_T, COST_T><<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
+        rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS><<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
                 num_timesteps, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
         CudaCheckError();
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
-    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float baseline) {
+    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float baseline, cudaStream_t stream) {
         dim3 dimBlock(blocksize_x, 1, 1);
         dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
-        normExpKernel<<<dimGrid, dimBlock>>>(num_rollouts, trajectory_costs_d, gamma, baseline);
+        normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, gamma, baseline);
         CudaCheckError();
-        HANDLE_ERROR( cudaDeviceSynchronize() );
+        HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
     template<class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE >
-    void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps) {
+    void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer,
+            int num_timesteps, cudaStream_t stream) {
         dim3 dimBlock((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1, 1, 1);
         dim3 dimGrid(num_timesteps, 1, 1);
-        weightedReductionKernel<DYN_T::CONTROL_DIM, NUM_ROLLOUTS, SUM_STRIDE><<<dimGrid, dimBlock>>>(exp_costs_d, du_d, sigma_u_d, du_new_d, normalizer, num_timesteps);
+        weightedReductionKernel<DYN_T::CONTROL_DIM, NUM_ROLLOUTS, SUM_STRIDE><<<dimGrid, dimBlock, 0, stream>>>
+                (exp_costs_d, du_d, sigma_u_d, du_new_d, normalizer, num_timesteps);
         CudaCheckError();
-        HANDLE_ERROR( cudaDeviceSynchronize() );
+        HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
 

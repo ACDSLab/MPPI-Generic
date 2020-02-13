@@ -8,7 +8,6 @@
 #ifndef MPPIGENERIC_MPPI_CONTROLLER_CUH
 #define MPPIGENERIC_MPPI_CONTROLLER_CUH
 
-#include "mppi_common.cuh"
 #include "curand.h"
 // Double check if these are included in mppi_common.h
 #include <Eigen/Dense>
@@ -73,7 +72,7 @@ public:
     /**
      * returns the current control sequence
      */
-    control_trajectory get_control_seq();
+    control_trajectory get_control_seq() { return nominal_control_;};
 
     /**
      * return the entire sample of control sequences
