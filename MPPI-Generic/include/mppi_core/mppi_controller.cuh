@@ -117,7 +117,7 @@ public:
      * Return control feedback gains
      */
     K_matrix getFeedbackGains() {
-        K_matrix empty_feedback_gain = {0};
+        K_matrix empty_feedback_gain = {{0}};
         return empty_feedback_gain;
     };
 
@@ -132,11 +132,11 @@ private:
 
     curandGenerator_t gen_;
 
-    control_trajectory nominal_control_ = {0};
-    state_trajectory nominal_state_ = {0};
-    sampled_cost_traj trajectory_costs_ = {0};
-    control_array control_variance_ = {0};
-    control_trajectory control_history_ = {0};
+    control_trajectory nominal_control_ = {{0}};
+    state_trajectory nominal_state_ = {{0}};
+    sampled_cost_traj trajectory_costs_ = {{0}};
+    control_array control_variance_ = {{0}};
+    control_trajectory control_history_ = {{0}};
 
     float* initial_state_d_;
     float* nominal_control_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS

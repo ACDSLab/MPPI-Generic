@@ -55,7 +55,7 @@ namespace mppi_common {
                 __syncthreads();
 
                 //Accumulate running cost
-                computeRunningCostAllRollouts(costs, dt, x, u, du, sigma_u, running_cost);
+                computeRunningCostAllRollouts(costs, dt, x, u, du, sigma_u, running_cost, t);
                 __syncthreads();
 
                 //Compute state derivatives
@@ -155,10 +155,19 @@ namespace mppi_common {
     }
 
     template<class COST_T>
-    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt, float* x_thread, float* u_thread,
-            float* du_thread, float* sigma_thread, float& running_cost) {
+    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt,
+                                                  float* x_thread,
+                                                  float* u_thread,
+                                                  float* du_thread,
+                                                  float* sigma_thread,
+                                                  float& running_cost,
+                                                  int timestep) {
         // The prior loop already guarantees that the global index is less than the number of rollouts
-        running_cost += costs->computeRunningCost(x_thread, u_thread, du_thread, sigma_thread)*dt;
+        running_cost += costs->computeRunningCost(x_thread,
+                                                  u_thread,
+                                                  du_thread,
+                                                  sigma_thread,
+                                                  timestep)*dt;
     }
 
     template<class DYN_T>
@@ -181,7 +190,7 @@ namespace mppi_common {
     __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* x_thread,
                                         float running_cost, float* cost_rollouts_device) {
         if (global_idx < num_rollouts) {
-            cost_rollouts_device[global_idx] = running_cost + costs->computeTerminalCost(x_thread);
+            cost_rollouts_device[global_idx] = running_cost + costs->terminalCost(x_thread);
         }
     }
 

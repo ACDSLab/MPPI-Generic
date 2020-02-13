@@ -43,6 +43,7 @@ include_directories(submodules/cnpy)
 # Set the no package registry back to default
 set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 
+# required for curand on some systems
 find_package(CUDA REQUIRED)
 
 if(NOT ${CUDA_curand_LIBRARY} MATCHES "NOTFOUND")

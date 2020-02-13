@@ -90,8 +90,13 @@ namespace mppi_common {
      * running_cost: Running cost for the given rollout
      */
     template<class COST_T>
-    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt, float* x_thread, float* u_thread,
-                                                  float* du_thread, float* sigma_thread, float& running_cost);
+    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt,
+                                                  float* x_thread,
+                                                  float* u_thread,
+                                                  float* du_thread,
+                                                  float* sigma_thread,
+                                                  float& running_cost,
+                                                  int timestep);
 
     /*
      * computeRunningCostAllRollouts

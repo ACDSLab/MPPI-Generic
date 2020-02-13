@@ -64,12 +64,12 @@ public:
     /**
      * @brief Compute all of the individual cost terms and adds them together.
      */
-    __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars);
+    __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
 
     /**
      * @brief Compute the terminal cost of the system
      */
-     __host__ __device__ float computeTerminalCost(float *s);
+     __host__ __device__ float terminalCost(float *s);
 
 protected:
 

@@ -1,5 +1,5 @@
 /**
- * Created by jason on 10/30/19.
+ * Created by Bogdan on 2/11/20.
  * Creates the API for interfacing with an MPPI controller
  * should define a compute_control based on state as well
  * as return timing info
@@ -7,8 +7,6 @@
 
 #ifndef BASE_PLANT_H_
 #define BASE_PLANT_H_
-
-#include "mppi_common.cuh"
 
 // Double check if these are included in mppi_common.h
 #include <Eigen/Dense>
@@ -20,25 +18,40 @@
 // TODO Figure out template here
 template <class CONTROLLER_T>
 class basePlant {
+protected:
+  using c_array = typename CONTROLLER_T::control_array;
+  using c_traj = typename CONTROLLER_T::control_trajectory;
+
+  using s_array = typename CONTROLLER_T::state_array;
+  using s_traj = typename CONTROLLER_T::state_trajectory;
+  using K_mat = typename CONTROLLER_T::K_matrix;
+
+
+  bool use_feedback_gains_ = false;
+  int hz_ = 0; // Frequency of control publisher
+  bool debug_mode_ = false;
+/**
+ * TODO: figure out what values in private should not be touched by
+ * a wrapper class and which can be moved into protected
+ */
 private:
   // from SystemParams * params
-  int hz = 0;
-  bool debug_mode = false;
+
+
   int num_timesteps = 0;
 
   // Values needed
-  CONTROLLER_T::state_t init_state = {0};
-  CONTROLLER_T::control_t init_u = {0};
+  s_array init_state_ = {{0}};
+  c_array init_u_ = {{0}};
 
   // Values updated at every time step
-  CONTROLLER_T::state_t state;
-  CONTROLLER_T::control_t u;
-  CONTROLLER_T::state_trajectory state_traj;
-  CONTROLLER_T::control_trajectory control_traj;
+  s_array state;
+  c_array u;
+  s_traj state_traj;
+  c_traj control_traj;
 
   // from ROSHandle mppi_node
   int optimization_stride = 0;
-  bool use_feedback_gains = 0;
 
   /**
    * From before while loop
@@ -71,19 +84,18 @@ public:
    * Return the latest state received
    * @return the latest state
    */
-  virtual CONTROLLER_T::state_t getState();
+  virtual s_array getState() = 0;
 
-  // TODO: Set Params typedef in Costs.cu after merge with Jason's branch
   // virtual typename CONTROLLER_T::TEMPLATED_COSTS::TEMPLATED_PARAMS getDynRcfgParams();
 
   virtual void getNewObstacles(std::vector<int>& obs_description,
-                               std::vector<float>& obs_data);
+                               std::vector<float>& obs_data) {};
 
   virtual void getNewCostmap(std::vector<int>& costmap_description,
-                             std::vector<float>& costmap_data);
+                             std::vector<float>& costmap_data) {};
 
   virtual void getNewModel(std::vector<int>& model_description,
-                           std::vector<float>& model_data);
+                           std::vector<float>& model_data) {};
 
   /**
    * Receives timing info from control loop and can be overwritten
@@ -98,9 +110,9 @@ public:
 
   virtual void setDebugImage(cv::Mat debug_img) = 0;
 
-  virtual void setSolution(CONTROLLER_T::state_trajectory state_seq,
-                           CONTROLLER_T::control_trajectory control_seq,
-                           CONTROLLER_T::K_matrix feedback_gains,
+  virtual void setSolution(s_traj state_seq,
+                           c_traj control_seq,
+                           K_mat feedback_gains,
                            double timestamp,
                            double loop_speed) = 0;
 
@@ -118,23 +130,94 @@ public:
   * nominally, 1 means something is wrong but no action needs to be taken,
   * 2 means that the vehicle should stop immediately.
   */
-  virtual int checkStatus() {return 0;};
+  virtual int checkStatus() = 0;
+
+  /**
+   * Linearly interpolate the controls
+   * @param  t           time in s that we desire a control for
+   * @param  dt          time between control steps
+   * @param  control_seq control trajectory used for interpolation
+   * @return             the control at time t, interpolated from
+   *                     the control sequence
+   */
+  c_array interpolateControls(double t,
+                              double dt,
+                              const c_traj& control_seq) {
+
+    int lower_idx = (int) (t / dt);
+    int upper_idx = lower_idx + 1;
+    double alpha = (t - lower_idx * dt) / dt;
+
+    c_array interpolated_control;
+    int control_dim = CONTROLLER_T::TEMPLATED_DYNAMICS::CONTROL_DIM;
+    for (int i = 0; i < interpolated_control.size(); i++) {
+      float prev_cmd = control_seq[control_dim * lower_idx + i];
+      float next_cmd = control_seq[control_dim * upper_idx + i];
+      interpolated_control[i] = (1 - alpha) * prev_cmd + alpha * next_cmd;
+    }
+    return interpolated_control;
+  };
+
+  /**
+   * Linearly interpolate the controls
+   * @param  t           time in s that we desire a control for
+   * @param  dt          time between control steps
+   * @param  control_seq control trajectory used for interpolation
+   * @return             the control at time t, interpolated from
+   *                     the control sequence
+   */
+  // c_array interpolateFeedbackControls(double t,
+  //                                     double dt,
+  //                                     const c_traj& control_seq,
+  //                                     const s_traj& state_seq,
+  //                                     const s_array& curr_state,
+  //                                     const K_mat& K) {
+  //   int lower_idx = (int) (t / dt);
+  //   int upper_idx = lower_idx + 1;
+  //   double alpha = (t - lower_idx * dt) / dt;
+
+  //   c_array interpolated_control;
+  //   s_array desired_state;
+
+  //   int state_dim = CONTROLLER_T::TEMPLATED_DYNAMICS::STATE_DIM;
+
+  //   Eigen::MatrixXf current_state(7,1);
+  //   Eigen::MatrixXf desired_state(7,1);
+  //   Eigen::MatrixXf deltaU;
+  //   current_state << full_state_.x_pos, full_state_.y_pos, full_state_.yaw, full_state_.roll, full_state_.u_x, full_state_.u_y, full_state_.yaw_mder;
+  //   for (int i = 0; i < 7; i++){
+  //     desired_state(i) = (1 - alpha)*stateSequence_[7*lowerIdx + i] + alpha*stateSequence_[7*upperIdx + i];
+  //   }
+
+  //   deltaU = ((1-alpha)*feedback_gains_[lowerIdx] + alpha*feedback_gains_[upperIdx])*(current_state - desired_state);
+
+  //   if (std::isnan( deltaU(0) ) || std::isnan( deltaU(1))){
+  //     steering = steering_ff;
+  //     throttle = throttle_ff;
+  //   }
+  //   else {
+  //     steering_fb = deltaU(0);
+  //     throttle_fb = deltaU(1);
+  //     steering = fmin(0.99, fmax(-0.99, steering_ff + steering_fb));
+  //     throttle = fmin(throttleMax_, fmax(-0.99, throttle_ff + throttle_fb));
+  //   }
+  // };
 
   void runControlLoop(CONTROLLER_T* controller,
                       std::atomic<bool>* is_alive) {
     //Initial condition of the robot
-    state = init_state;
+    state = init_state_;
 
     //Initial control value
-    u = init_u;
+    u = init_u_;
 
     last_pose_update = getLastPoseTime();
-    optimizeLoopTime = optimization_stride / (1.0 * hz);
+    optimizeLoopTime = optimization_stride / (1.0 * hz_);
 
     //Set the loop rate
-    std::chrono::milliseconds ms{(int)(optimization_stride*1000.0/params->hz)};
+    std::chrono::milliseconds ms{(int)(optimization_stride*1000.0/hz_)};
 
-    if (!params->debug_mode){
+    if (!debug_mode_){
       while(last_pose_update == getLastPoseTime() && is_alive->load()){ //Wait until we receive a pose estimate
         usleep(50);
       }
@@ -149,7 +232,7 @@ public:
       setTimingInfo(avgOptimizeLoopTime_ms, avgOptimizeTickTime_ms, avgSleepTime_ms);
       num_iter ++;
 
-      if (debug_mode){ //Display the debug window.
+      if (debug_mode_){ //Display the debug window.
         // TODO: have getDebugDisplay take in entire state, not just 3 values
         cv::Mat debug_img = controller->costs_->getDebugDisplay(state(0), state(1), state(2));
         setDebugImage(debug_img);
@@ -183,7 +266,7 @@ public:
 
       //Figure out how many controls have been published since we were last here and slide the
       //control sequence by that much.
-      int stride = round(optimizeLoopTime * hz);
+      int stride = round(optimizeLoopTime * hz_);
       if (status != 0){
         stride = optimization_stride;
       }
@@ -193,15 +276,15 @@ public:
 
       //Compute a new control sequence
       controller->computeControl(state); //Compute the control
-      if (use_feedback_gains){
+      if (use_feedback_gains_){
         controller->computeFeedbackGains(state);
       }
       control_traj = controller->getControlSeq();
-      strate_traj = controller->getStateSeq();
-      CONTROLLER_T::K_matrix feedback_gain = controller->getFeedbackGains();
+      state_traj = controller->getStateSeq();
+      K_mat feedback_gain = controller->getFeedbackGains();
 
       //Set the updated solution for execution
-      setSolution(strate_traj,
+      setSolution(state_traj,
                   control_traj,
                   feedback_gain,
                   last_pose_update,
@@ -211,9 +294,12 @@ public:
       status = checkStatus();
 
       //Increment the state if debug mode is set to true
-      if (status != 0 && debug_mode){
+      if (status != 0 && debug_mode_){
         for (int t = 0; t < optimization_stride; t++){
-          u << controlSolution[2*t], controlSolution[2*t + 1];
+          int control_dim = CONTROLLER_T::TEMPLATED_DYNAMICS::CONTROL_DIM;
+          for (int i = 0; i < control_dim; i++) {
+            u[i] = control_traj[control_dim * t + i];
+          }
           controller->model_->updateState(state, u);
         }
       }
@@ -225,7 +311,7 @@ public:
       double optimizeTickTime_ms = fp_ms.count();
       int count = 0;
 
-      double time_int = 1.0/hz - 0.0025;
+      double time_int = 1.0/hz_ - 0.0025;
       while(is_alive->load() &&
             (fp_ms < ms ||
               ((getLastPoseTime() - last_pose_update) < time_int && status == 0))) {
@@ -233,7 +319,7 @@ public:
         fp_ms = std::chrono::steady_clock::now() - loop_start;
         count++;
       }
-      double sleepTime_ms = fp_ms.count() - optimizeTickTime;
+      double sleepTime_ms = fp_ms.count() - optimizeTickTime_ms;
 
       // Update the average loop time data
       double prev_iter_percent = (num_iter - 1.0) / num_iter;

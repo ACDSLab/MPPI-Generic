@@ -33,7 +33,12 @@ if(BUILD_TESTS)
 endif()
 
 add_executable(ar_nn_dynamics_tests ../test_main.cpp ar_dynamics_nn_test.cu)
-target_link_libraries(ar_nn_dynamics_tests gtest gmock gtest_main ar_nn_dynamics_kernel_test cnpy)
+target_link_libraries(ar_nn_dynamics_tests
+                      gtest
+                      gmock
+                      gtest_main
+                      ar_nn_dynamics_kernel_test
+                      cnpy)
 
 add_test(NAME ar_nn_dynamics_tests COMMAND ar_nn_dynamics_tests)
 set_target_properties(ar_nn_dynamics_tests PROPERTIES FOLDER test)

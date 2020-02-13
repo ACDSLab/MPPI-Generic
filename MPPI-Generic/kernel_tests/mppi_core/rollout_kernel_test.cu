@@ -237,7 +237,7 @@ __global__ void computeRunningCostAllRollouts_KernelTest(COST_T* cost_d, float d
             mppi_common::computeRunningCostAllRollouts(cost_d, dt, &x_trajectory_d[STATE_DIM*NUM_TIMESTEPS*tid + STATE_DIM*t],
                                           &u_trajectory_d[CONTROL_DIM*NUM_TIMESTEPS*tid + CONTROL_DIM*t],
                                           &du_trajectory_d[CONTROL_DIM*NUM_TIMESTEPS*tid + CONTROL_DIM*t],
-                                          var_d, current_cost);
+                                          var_d, current_cost, t);
         }
         cost_allrollouts_d[tid] = current_cost;
     }
@@ -258,7 +258,7 @@ void computeRunningCostAllRollouts_CPU_TEST(COST_T& cost,
             current_cost += cost.computeRunningCost(&x_trajectory[STATE_DIM*NUM_TIMESTEPS*i + STATE_DIM*t],
                                                     &u_trajectory[CONTROL_DIM*NUM_TIMESTEPS*i + CONTROL_DIM*t],
                                                     &du_trajectory[CONTROL_DIM*NUM_TIMESTEPS*i + CONTROL_DIM*t],
-                                                    sigma_u.data())*dt;
+                                                    sigma_u.data(), t)*dt;
         }
         cost_allrollouts[i] = current_cost;
     }

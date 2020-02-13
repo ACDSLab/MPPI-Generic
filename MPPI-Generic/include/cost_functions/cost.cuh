@@ -15,6 +15,10 @@ template<class CLASS_T, class PARAMS_T>
 class Cost : public Managed
 {
 public:
+  /**
+     * typedefs for access to templated class from outside classes
+     */
+  typedef PARAMS_T TEMPLATED_PARAMS;
   // struct namespaced by the class
   /*
   typedef struct {
@@ -65,9 +69,9 @@ public:
   inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
 
   __host__ __device__ float controlCost(float* u, float* du);
-  __host__ __device__ float computeRunningCost(float* s, float* u, float* du);
+  __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
   __host__ __device__ float terminalCost(float* s);
-  __host__ __device__ float computeCost(float* s, float* u, float* du);
+  __host__ __device__ float computeCost(float* s, float* u, float* du, float * vars, int timestep);
 
   CLASS_T* cost_d_ = nullptr;
 protected:

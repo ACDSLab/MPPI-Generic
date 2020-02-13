@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <controllers/cartpole_mppi.cuh>
+#include <controllers/cartpole_mppi/cartpole_mppi.cuh>
 
 
 class Cartpole_VanillaMPPI: public ::testing::Test {

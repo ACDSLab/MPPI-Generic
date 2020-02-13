@@ -113,6 +113,25 @@ public:
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s);
 
+
+  /**
+   * WARNING THIS IS CURRENTLY BROKEN!!!
+   * theta_ is not what we want here!!!
+   * TODO: Fix this
+   */
+  __host__ __device__ void xDot(float* state,
+                                float* control,
+                                float* state_der) {
+    // This is broken                               |
+    //                                              |
+    //                                              |
+    //                                              |
+    //                                              |
+    //                                              |
+    //                                              V
+    computeStateDeriv(state, control, state_der, theta_);
+  };
+
   /*
   void setParams(Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* weights,
                  Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* biases);
