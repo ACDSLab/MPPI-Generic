@@ -118,7 +118,7 @@ public:
      */
     K_matrix getFeedbackGains() {
         K_matrix empty_feedback_gain = {0};
-        return empty_feedback_gain
+        return empty_feedback_gain;
     };
 
 private:
