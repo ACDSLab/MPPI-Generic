@@ -27,14 +27,10 @@ public:
 	 */
 	 // Control
     typedef std::array<float, DYN_T::CONTROL_DIM> control_array; // State at a time t
-<<<<<<< 4e1c4b5d9196acd31f4d11c2b494fd5cb725527e
     typedef std::array<float, DYN_T::CONTROL_DIM*MAX_TIMESTEPS> control_trajectory; // A control trajectory
 	typedef std::array<float, DYN_T::CONTROL_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS> sampled_control_traj; // All control trajectories sampled
-=======
-    typedef std::array<float, DYN_T::CONTROL_DIM*NUM_TIMESTEPS> control_trajectory; // A control trajectory
-	typedef std::array<float, DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS> sampled_control_traj; // All control trajectories sampled
     typedef std::array<float, DYN_T::CONTROL_DIM * DYN_T::STATE_DIM> K_matrix;
->>>>>>> Change typedefs to c array instead of std::array
+
     // State
 	typedef std::array<float, DYN_T::STATE_DIM> state_array; // State at a time t
 	typedef std::array<float, DYN_T::STATE_DIM*MAX_TIMESTEPS> state_trajectory; // A state trajectory
