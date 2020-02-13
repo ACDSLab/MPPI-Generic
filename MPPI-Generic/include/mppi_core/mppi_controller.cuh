@@ -16,7 +16,7 @@
 
 
 
-template<class DYN_T, class COST_T, int NUM_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 class VanillaMPPIController {
 public:
 	/**
@@ -24,14 +24,14 @@ public:
 	 */
 	 // Control
     typedef std::array<float, DYN_T::CONTROL_DIM> control_array; // State at a time t
-    typedef std::array<float, DYN_T::CONTROL_DIM*NUM_TIMESTEPS> control_trajectory; // A control trajectory
-	typedef std::array<float, DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS> sampled_control_traj; // All control trajectories sampled
+    typedef std::array<float, DYN_T::CONTROL_DIM*MAX_TIMESTEPS> control_trajectory; // A control trajectory
+	typedef std::array<float, DYN_T::CONTROL_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS> sampled_control_traj; // All control trajectories sampled
     // State
 	typedef std::array<float, DYN_T::STATE_DIM> state_array; // State at a time t
-	typedef std::array<float, DYN_T::STATE_DIM*NUM_TIMESTEPS> state_trajectory; // A state trajectory
-	typedef std::array<float, DYN_T::STATE_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS> sampled_state_traj; // All state trajectories sampled
+	typedef std::array<float, DYN_T::STATE_DIM*MAX_TIMESTEPS> state_trajectory; // A state trajectory
+	typedef std::array<float, DYN_T::STATE_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS> sampled_state_traj; // All state trajectories sampled
     // Cost
-	typedef std::array<float, NUM_TIMESTEPS> cost_trajectory; // A cost trajectory
+	typedef std::array<float, MAX_TIMESTEPS> cost_trajectory; // A cost trajectory
 	typedef std::array<float, NUM_ROLLOUTS> sampled_cost_traj; // All costs sampled for all rollouts
 
 	/**
@@ -46,9 +46,9 @@ public:
      * Public member functions
      */
      // Constructor
-    VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
-            const control_array& control_variance, const control_trajectory& init_control_traj = control_trajectory(),
-            cudaStream_t stream=nullptr);
+     VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma, int num_timesteps,
+                           const control_array& control_variance, const control_trajectory& init_control_traj = control_trajectory(),
+                           cudaStream_t stream= nullptr);
 
     // Destructor
     ~VanillaMPPIController();
@@ -106,6 +106,7 @@ public:
 
 private:
     int num_iters_;  // Number of optimization iterations
+    int num_timesteps_;
     float gamma_; // Value of the temperature in the softmax.
     float normalizer_; // Variable for the normalizing term from sampling.
     float baseline_; // Baseline cost of the system.
@@ -127,12 +128,11 @@ private:
     float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
     float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS
 
-    void createAndSeedCUDARandomNumberGen() {
-        // Seed the PseudoRandomGenerator with the CPU time.
-        curandCreateGenerator(&gen_, CURAND_RNG_PSEUDO_DEFAULT);
-        unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-        curandSetPseudoRandomGeneratorSeed(gen_, seed);
-    }
+    // WARNING This method is private because it is only called once in the constructor. Logic is required
+    // so that CUDA memory is properly reallocated when the number of timesteps changes.
+    void setNumTimesteps(int num_timesteps);
+
+    void createAndSeedCUDARandomNumberGen();
 
     void setCUDAStream(cudaStream_t stream);
 

@@ -7,7 +7,13 @@ int main(int argc, char** argv) {
     CartpoleQuadraticCost cost;
 
     cartpoleQuadraticCostParams new_params;
-    new_params.desired_terminal_state[0] = 2;
+    new_params.cart_position_coeff = 100;
+    new_params.pole_angle_coeff = 200;
+    new_params.cart_velocity_coeff = 10;
+    new_params.pole_angular_velocity_coeff = 20;
+    new_params.control_force_coeff = 1;
+    new_params.terminal_cost_coeff = 0;
+    new_params.desired_terminal_state[0] = -20;
     new_params.desired_terminal_state[1] = 0;
     new_params.desired_terminal_state[2] = M_PI;
     new_params.desired_terminal_state[3] = 0;
@@ -18,16 +24,17 @@ int main(int argc, char** argv) {
     float dt = 0.01;
     int max_iter = 1;
     float gamma = 0.25;
+    int num_timesteps = 100;
 
     std::array<float, Cartpole::CONTROL_DIM> control_var = {5.0};
 
     auto CartpoleController = VanillaMPPIController<Cartpole, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
-            dt, max_iter, gamma, control_var);
+            dt, max_iter, gamma, num_timesteps, control_var);
 
     decltype(CartpoleController)::state_array current_state { 0, 0, 0, 0};
 
 
-    int time_horizon = 500;
+    int time_horizon = 1000;
 
     float xdot[Cartpole::STATE_DIM];
 

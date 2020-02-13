@@ -106,10 +106,10 @@ TEST(CartpoleQuadraticCost, ComputeStateCost) {
     std::array<float, 4> state = {1.f, 2.f, 3.f, 4.f};
 
     float cost_compute = cost.getStateCost(state.data());
-    float cost_known = state[0]*state[0]*cost.getParams().cart_position_coeff +
-            state[1]*state[1]*cost.getParams().cart_velocity_coeff +
-            state[2]*state[2]*cost.getParams().pole_angle_coeff +
-            state[3]*state[3]*cost.getParams().pole_angular_velocity_coeff;
+    float cost_known = (state[0]-cost.getParams().desired_terminal_state[0])*(state[0]-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
+                       (state[1]-cost.getParams().desired_terminal_state[1])*(state[1]-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
+                       (state[2]-cost.getParams().desired_terminal_state[2])*(state[2]-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
+                       (state[3]-cost.getParams().desired_terminal_state[3])*(state[3]-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff;
 
     ASSERT_EQ(cost_known, cost_compute);
 }
@@ -135,10 +135,10 @@ TEST(CartpoleQuadraticCost, ComputeRunningCost) {
     float var = 2;
 
     float cost_compute = cost.computeRunningCost(state.data(), &u, &du, &var);
-    float cost_known = state[0]*state[0]*cost.getParams().cart_position_coeff +
-                       state[1]*state[1]*cost.getParams().cart_velocity_coeff +
-                       state[2]*state[2]*cost.getParams().pole_angle_coeff +
-                       state[3]*state[3]*cost.getParams().pole_angular_velocity_coeff+
+    float cost_known = (state[0]-cost.getParams().desired_terminal_state[0])*(state[0]-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
+                       (state[1]-cost.getParams().desired_terminal_state[1])*(state[1]-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
+                       (state[2]-cost.getParams().desired_terminal_state[2])*(state[2]-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
+                       (state[3]-cost.getParams().desired_terminal_state[3])*(state[3]-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff+
                        cost.getParams().control_force_coeff*du*(u - du) / (var*var);
     ASSERT_EQ(cost_known, cost_compute);
 }
@@ -150,10 +150,10 @@ TEST(CartpoleQuadraticCost, ComputeTerminalCost) {
 
 
     float cost_compute = cost.computeTerminalCost(state.data());
-    float cost_known = (state[0]*state[0]*cost.getParams().cart_position_coeff +
-                       state[1]*state[1]*cost.getParams().cart_velocity_coeff +
-                       state[2]*state[2]*cost.getParams().pole_angle_coeff +
-                       state[3]*state[3]*cost.getParams().pole_angular_velocity_coeff)*
+    float cost_known = ((state[0]-cost.getParams().desired_terminal_state[0])*(state[0]-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
+                        (state[1]-cost.getParams().desired_terminal_state[1])*(state[1]-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
+                        (state[2]-cost.getParams().desired_terminal_state[2])*(state[2]-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
+                        (state[3]-cost.getParams().desired_terminal_state[3])*(state[3]-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff)*
                                cost.getParams().terminal_cost_coeff;
     ASSERT_EQ(cost_known, cost_compute);
 }
