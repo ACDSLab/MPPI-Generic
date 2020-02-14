@@ -200,7 +200,8 @@ VanillaMPPI::createAndSeedCUDARandomNumberGen() {
     curandSetPseudoRandomGeneratorSeed(gen_, seed);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+         int BDIM_X, int BDIM_Y>
 void VanillaMPPI::slideControlSequence(int steps) {
     for (int i = 0; i < num_timesteps_; ++i) {
         if (i + steps < num_timesteps_) {

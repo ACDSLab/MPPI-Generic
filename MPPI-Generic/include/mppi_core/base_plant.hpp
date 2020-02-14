@@ -271,7 +271,7 @@ public:
         stride = optimization_stride;
       }
       if (stride >= 0 && stride < num_timesteps){
-        controller->slideControlSeq(stride);
+        controller->slideControlSequence(stride);
       }
 
       //Compute a new control sequence

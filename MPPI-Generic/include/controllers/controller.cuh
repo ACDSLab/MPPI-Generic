@@ -104,7 +104,7 @@ public:
   /**
    * Slide the control sequence back
    */
-  virtual void slideControlSeq(int steps) {};
+  virtual void slideControlSequence(int steps) = 0;
 
   /**
    * Reset Controls
