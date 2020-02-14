@@ -3,7 +3,7 @@
 
 #include <dynamics/autorally/ar_nn_model.cuh>
 #include <cost_functions/autorally/ar_standard_cost.cuh>
-#include <mppi_core/mppi_controller.cuh>
+#include <controllers/MPPI/mppi_controller.cuh>
 #include <mppi_core/mppi_common.cuh>
 
 // #ifdef USE_NEURAL_NETWORK_MODEL__ /*Use neural network dynamics model*/
