@@ -49,11 +49,17 @@ public:
             BDIM_X,
             BDIM_Y>::sampled_cost_traj;
 
+    TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+                       float gamma, int num_timesteps,
+                       const control_array& control_variance,
+                       const control_trajectory& init_control_traj = control_trajectory(),
+                       cudaStream_t stream= nullptr);
+
     void computeControl(state_array state) override {};
 
     /**
- * returns the current control sequence
- */
+     * returns the current control sequence
+     */
     control_trajectory getControlSeq() override { return nominal_control_;};
 
     /**

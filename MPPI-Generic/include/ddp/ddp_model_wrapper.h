@@ -54,14 +54,19 @@ struct ModelWrapperDDP: public DDP_structures::Dynamics<float, DYNAMICS_T::STATE
 
     State f(const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u)
     {
-        state = x;
-        control = u;
-        model_->computeKinematics(state);
-        model_->computeDynamics(state, control);
+        // This section is specific to the neural network implementation for the autorally
+//        state = x;
+//        control = u;
+//        model_->computeKinematics(state);
+//        model_->computeDynamics(state, control);
+//        for (int i = 0; i < DYNAMICS_T::STATE_DIM; i++){
+//            dx(i) = model_->state_der_(i);
+//        }
+
+        // Compute the state derivative xDot
         State dx;
-        for (int i = 0; i < DYNAMICS_T::STATE_DIM; i++){
-            dx(i) = model_->state_der_(i);
-        }
+        model_->xDot(x.data(), u.data(), dx.data());
+
         return dx;
     }
 

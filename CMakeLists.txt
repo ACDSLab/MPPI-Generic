@@ -34,6 +34,10 @@ include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 find_package(yaml-cpp REQUIRED)
 include_directories(${YAML_CPP_INCLUDE_DIR})
 
+# Find boost -> required for Tube MPPI
+find_package(Boost REQUIRED)
+include_directories(SYSTEM ${Boost_LIBRARY_DIRS})
+
 # set up cnpy
 # Don't install cnpy to user package registry
 set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})

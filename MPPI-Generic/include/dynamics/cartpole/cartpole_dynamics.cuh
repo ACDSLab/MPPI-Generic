@@ -32,21 +32,18 @@ public:
      * @param state_der output of new state derivative, passed by reference
      */
     void computeDynamics(Eigen::MatrixXf &state,
-              Eigen::MatrixXf &control,
-              Eigen::MatrixXf &state_der);
+                         Eigen::MatrixXf &control,
+                         Eigen::MatrixXf &state_der);
 
     /**
      * compute the Jacobians with respect to state and control
      *
      * @param state   input of current state, passed by reference
      * @param control input of currrent control, passed by reference
-     * @param A       output Jacobian wrt state, passed by reference
-     * @param B       output Jacobian wrt control, passed by reference
+
      */
     void computeGrad(Eigen::MatrixXf &state,
-                     Eigen::MatrixXf &control,
-                     Eigen::MatrixXf &A,
-                     Eigen::MatrixXf &B);
+                     Eigen::MatrixXf &control);
 
     __host__ __device__ float getCartMass() {return this->params_.cart_mass;};
     __host__ __device__ float getPoleMass() {return this->params_.pole_mass;};
@@ -65,10 +62,12 @@ public:
 
     void paramsToDevice();
 
-
-
+    // Eigen matrix holding the state and control jacobians required for DDP N X (N+M)
+    Eigen::MatrixXf jac_;
 protected:
     const float gravity_ = 9.81;
+
+
 
 };
 

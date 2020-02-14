@@ -23,7 +23,8 @@ target_link_libraries(tube_mppi_tests gtest
         gmock
         gtest_main
         cartpole_mppi
-        cnpy)
+        cnpy
+        ${Boost_LIBRARIES})
 
 add_test(NAME tube_mppi_tests COMMAND tube_mppi_tests)
 set_target_properties(tube_mppi_tests PROPERTIES FOLDER test)
