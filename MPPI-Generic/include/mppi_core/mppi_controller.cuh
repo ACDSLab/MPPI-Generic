@@ -69,6 +69,8 @@ public:
 
     control_array getControlVariance() { return control_variance_;};
 
+    void slideControlSequence(int steps);
+
     float getBaselineCost() {return baseline_;};
 
     /**

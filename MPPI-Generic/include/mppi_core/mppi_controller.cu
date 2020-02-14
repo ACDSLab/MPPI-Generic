@@ -73,7 +73,7 @@ void VanillaMPPI::computeControl(state_array state) {
 
         // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
         mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(trajectory_costs_d_, control_noise_d_,
-                control_variance_d_, nominal_control_d_, normalizer_, num_timesteps_, stream_);
+                nominal_control_d_, normalizer_, num_timesteps_, stream_);
 
         // Transfer the new control to the host
         HANDLE_ERROR( cudaMemcpyAsync(nominal_control_.data(), nominal_control_d_,
@@ -158,6 +158,17 @@ VanillaMPPI::createAndSeedCUDARandomNumberGen() {
     curandCreateGenerator(&gen_, CURAND_RNG_PSEUDO_DEFAULT);
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     curandSetPseudoRandomGeneratorSeed(gen_, seed);
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void VanillaMPPI::slideControlSequence(int steps) {
+    for (int i = 0; i < num_timesteps_; ++i) {
+        if (i + steps < num_timesteps_) {
+            nominal_control_[i] = nominal_control_[i + steps];
+        } else {
+            nominal_control_[i] = nominal_control_[num_timesteps_-1];
+        }
+    }
 }
 
 //template<class DYN_T, class COST_T, int NUM_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>

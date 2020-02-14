@@ -91,9 +91,12 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
         // Increment the state
         model.xDot(current_state.data(), &controller.get_control_seq()[0], xdot);
         model.incrementState(current_state.data(), xdot, dt);
+
+        controller.slideControlSequence(1);
+
     }
 
-    EXPECT_LT(controller.getBaselineCost(), 10.0);
+    EXPECT_LT(controller.getBaselineCost(), 1.0);
 }
 
 

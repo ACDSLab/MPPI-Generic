@@ -83,7 +83,7 @@ namespace mppi_common {
     }
 
     template<int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE>
-    __global__ void weightedReductionKernel(float*  exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d,
+    __global__ void weightedReductionKernel(float*  exp_costs_d, float* du_d, float* du_new_d,
             float normalizer, int num_timesteps) {
         int thread_idx = threadIdx.x;  // Rollout index
         int block_idx = blockIdx.x; // Timestep
@@ -274,12 +274,12 @@ namespace mppi_common {
     }
 
     template<class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE >
-    void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer,
+    void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float normalizer,
             int num_timesteps, cudaStream_t stream) {
         dim3 dimBlock((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1, 1, 1);
         dim3 dimGrid(num_timesteps, 1, 1);
         weightedReductionKernel<DYN_T::CONTROL_DIM, NUM_ROLLOUTS, SUM_STRIDE><<<dimGrid, dimBlock, 0, stream>>>
-                (exp_costs_d, du_d, sigma_u_d, du_new_d, normalizer, num_timesteps);
+                (exp_costs_d, du_d, du_new_d, normalizer, num_timesteps);
         CudaCheckError();
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }

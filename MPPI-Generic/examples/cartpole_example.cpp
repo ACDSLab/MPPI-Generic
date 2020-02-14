@@ -52,6 +52,9 @@ int main(int argc, char** argv) {
         // Increment the state
         model.xDot(current_state.data(), &CartpoleController.get_control_seq()[0], xdot);
         model.incrementState(current_state.data(), xdot, dt);
+
+        // Slide the controls down before calling the optimizer again
+        CartpoleController.slideControlSequence(1);
     }
     auto time_end = std::chrono::system_clock::now();
     auto diff = std::chrono::duration<double, std::milli>(time_end - time_start);
