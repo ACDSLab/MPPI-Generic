@@ -39,11 +39,11 @@ __host__ __device__ float CartpoleQuadraticCost::getControlCost(float *u, float 
     return params_.control_force_coeff*du[0]*(u[0] - du[0])/(vars[0]*vars[0]);
 }
 
-__host__ __device__ float CartpoleQuadraticCost::computeRunningCost(float *s, float *u, float *du, float *vars) {
+__host__ __device__ float CartpoleQuadraticCost::computeRunningCost(float *s, float *u, float *du, float *vars, int timestep) {
     return getStateCost(s) + getControlCost(u, du, vars);
 }
 
-__host__ __device__ float CartpoleQuadraticCost::computeTerminalCost(float *state) {
+__host__ __device__ float CartpoleQuadraticCost::terminalCost(float *state) {
     return ((state[0]-params_.desired_terminal_state[0])*(state[0]-params_.desired_terminal_state[0])*params_.cart_position_coeff +
            (state[1]-params_.desired_terminal_state[1])*(state[1]-params_.desired_terminal_state[1])*params_.cart_velocity_coeff +
            (state[2]-params_.desired_terminal_state[2])*(state[2]-params_.desired_terminal_state[2])*params_.pole_angle_coeff +

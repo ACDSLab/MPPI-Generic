@@ -1,4 +1,4 @@
-#include <controllers/cartpole_mppi.cuh>
+#include <instantiations/cartpole_mppi/cartpole_mppi.cuh>
 #include <iostream>
 #include <chrono>
 
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
         CartpoleController.computeControl(current_state);
 
         // Increment the state
-        model.xDot(current_state.data(), &CartpoleController.get_control_seq()[0], xdot);
+        model.xDot(current_state.data(), &CartpoleController.getControlSeq()[0], xdot);
         model.incrementState(current_state.data(), xdot, dt);
 
         // Slide the controls down before calling the optimizer again

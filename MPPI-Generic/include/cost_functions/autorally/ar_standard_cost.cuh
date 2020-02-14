@@ -209,11 +209,12 @@ public:
    * @brief Compute all of the individual cost terms and adds them together.
    */
   __device__ float computeCost(float* s, float* u, float* du, float* vars, int* crash, int timestep);
+  __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
 
   /**
    * @brief Computes the terminal cost from a state
    */
-  __host__ __device__ float getTerminalCost(float* s);
+  __host__ __device__ float terminalCost(float* s);
 
   //Constant variables
   const float FRONT_D = 0.5; ///< Distance from GPS receiver to front of car.

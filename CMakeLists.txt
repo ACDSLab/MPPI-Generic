@@ -43,6 +43,7 @@ include_directories(submodules/cnpy)
 # Set the no package registry back to default
 set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 
+# required for curand on some systems
 find_package(CUDA REQUIRED)
 
 if(NOT ${CUDA_curand_LIBRARY} MATCHES "NOTFOUND")
@@ -75,7 +76,6 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   # copied from
   # https://github.com/google/googletest/tree/master/googletest#incorporating-into-an-existing-cmake-project
   ############################################################
-
   # Download and unpack googletest at configure time
   if (NOT TARGET gtest_main)
     configure_file(${CMAKE_MODULE_PATH}/CMakeLists.txt.gtest.in

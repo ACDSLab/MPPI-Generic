@@ -688,7 +688,7 @@ TEST(ARStandardCost, costmapToTextureTransformTest) {
 TEST(ARStandardCost, TerminalCostTest) {
   ARStandardCost<> cost;
   float state[7];
-  float result = cost.getTerminalCost(state);
+  float result = cost.terminalCost(state);
   EXPECT_FLOAT_EQ(result, 0.0);
 }
 

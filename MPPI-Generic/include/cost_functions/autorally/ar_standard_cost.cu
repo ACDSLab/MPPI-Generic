@@ -254,7 +254,7 @@ Eigen::Array3f ARStandardCost<CLASS_T, PARAMS_T>::getTranslation() {
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __host__ __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getTerminalCost(float *s) {
+inline __host__ __device__ float ARStandardCost<CLASS_T, PARAMS_T>::terminalCost(float *s) {
   return 0.0;
 }
 
@@ -340,6 +340,21 @@ inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getTrackCost(float *s
 template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeCost(float *s, float *u, float *du, float *vars, int *crash, int timestep) {
   float control_cost = getControlCost(u, du, vars);
+  float track_cost = getTrackCost(s, crash);
+  float speed_cost = getSpeedCost(s, crash);
+  float crash_cost = powf(this->params_.discount, timestep)*getCrashCost(s, crash, timestep);
+  float stabilizing_cost = getStabilizingCost(s);
+  float cost = control_cost + speed_cost + crash_cost + track_cost + stabilizing_cost;
+  if (cost > MAX_COST_VALUE || isnan(cost)) {
+    cost = MAX_COST_VALUE;
+  }
+  return cost;
+}
+
+template <class CLASS_T, class PARAMS_T>
+inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *du, float *vars, int timestep) {
+  float control_cost = getControlCost(u, du, vars);
+  int crash[1] = {0};
   float track_cost = getTrackCost(s, crash);
   float speed_cost = getSpeedCost(s, crash);
   float crash_cost = powf(this->params_.discount, timestep)*getCrashCost(s, crash, timestep);
