@@ -15,7 +15,7 @@ struct HasAnalyticGrad
 };
 
 template<typename T>
-bool getGrad(T* model, typename Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Jacobian &jac,
+bool getGrad(T* model, typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Jacobian &jac,
             Eigen::MatrixXf &x, Eigen::MatrixXf &u, std::true_type)
 {
     model->computeGrad(x, u);
@@ -28,19 +28,19 @@ bool getGrad(T* model, typename Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::J
 }
 
 template<typename T>
-bool getGrad(T* model, typename Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Jacobian &jac, 
+bool getGrad(T* model, typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Jacobian &jac,
             Eigen::MatrixXf &x, Eigen::MatrixXf &u, std::false_type)
 {
     return false;
 }
 
 template <class DYNAMICS_T>
-struct ModelWrapperDDP: public Dynamics<float, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>
+struct ModelWrapperDDP: public DDP_structures::Dynamics<float, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>
 {
     using Scalar = float;
-    using State = typename Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::State;
-    using Control = typename Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::Control;
-    using Jacobian = typename Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::Jacobian;
+    using State = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::State;
+    using Control = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::Control;
+    using Jacobian = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::Jacobian;
 
     Eigen::MatrixXf state;
     Eigen::MatrixXf control;
@@ -72,7 +72,7 @@ struct ModelWrapperDDP: public Dynamics<float, DYNAMICS_T::STATE_DIM, DYNAMICS_T
         control = u;
         bool analyticGradComputed = getGrad(model_, j_, state, control, std::integral_constant<bool, HasAnalyticGrad<DYNAMICS_T>::Has>());
         if (!analyticGradComputed){
-            j_ = Dynamics<float, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::df(x,u); 
+            j_ = DDP_structures::Dynamics<float, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::df(x,u);
         }
         return j_;
     }

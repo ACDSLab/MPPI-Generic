@@ -14,6 +14,7 @@ struct CartpoleDynamicsParams {
     CartpoleDynamicsParams(float cart_mass, float pole_mass, float pole_length):
     cart_mass(cart_mass), pole_mass(pole_mass), pole_length(pole_length) {};
 };
+using namespace MPPI_internal;
 
 class CartpoleDynamics : public Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>
 {

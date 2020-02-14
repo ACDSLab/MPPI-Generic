@@ -4,6 +4,7 @@
 #include <dynamics/cartpole/cartpole_dynamics.cuh>
 #include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>
 #include <controllers/MPPI/mppi_controller.cuh>
+#include <controllers/Tube-MPPI/tube_mppi_controller.cuh>
 #include <mppi_core/mppi_common.cuh>
 
 

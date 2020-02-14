@@ -38,50 +38,59 @@ private:
 
 } // namespace internal
 
-template <class T, int S, int C>
-struct Dynamics
-{
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+namespace DDP_structures {
 
-    enum { StateSize = S, ControlSize = C };
-    using Scalar                    = T;
-    using State                     = Eigen::Matrix<T, StateSize, 1>;
-    using Control                   = Eigen::Matrix<T, ControlSize, 1>;
-    using StateTrajectory           = Eigen::Matrix<T, StateSize, Eigen::Dynamic>;
-    using ControlTrajectory         = Eigen::Matrix<T, ControlSize, Eigen::Dynamic>;
-    using Jacobian                  = typename internal::Differentiable<T, StateSize, ControlSize>::JacobianType;
-    using StateControl              = typename internal::Differentiable<T, StateSize, ControlSize>::InputType;
-    using FeedbackGain              = Eigen::Matrix<T, ControlSize, StateSize>;
-    using FeedforwardGain           = Eigen::Matrix<T, ControlSize, 1>;
-    using FeedbackGainTrajectory    = util::EigenAlignedVector<T, C, S>;
-    using FeedforwardGainTrajectory = Eigen::Matrix<T, ControlSize, Eigen::Dynamic>;
+    template<class T, int S, int C>
+    struct Dynamics {
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    Dynamics()
-    : diff_([this](const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u) -> State { return this->f(x, u); }),
-      num_diff_(diff_)
-    {
-    }
+        enum {
+            StateSize = S, ControlSize = C
+        };
+        using Scalar                    = T;
+        using State                     = Eigen::Matrix<T, StateSize, 1>;
+        using Control                   = Eigen::Matrix<T, ControlSize, 1>;
+        using StateTrajectory           = Eigen::Matrix<T, StateSize, Eigen::Dynamic>;
+        using ControlTrajectory         = Eigen::Matrix<T, ControlSize, Eigen::Dynamic>;
+        using Jacobian                  = typename internal::Differentiable<T, StateSize, ControlSize>::JacobianType;
+        using StateControl              = typename internal::Differentiable<T, StateSize, ControlSize>::InputType;
+        using FeedbackGain              = Eigen::Matrix<T, ControlSize, StateSize>;
+        using FeedforwardGain           = Eigen::Matrix<T, ControlSize, 1>;
+        using FeedbackGainTrajectory    = util::EigenAlignedVector<T, C, S>;
+        using FeedforwardGainTrajectory = Eigen::Matrix<T, ControlSize, Eigen::Dynamic>;
 
-    Dynamics(const Dynamics &other) = default;
-    Dynamics(Dynamics &&other) = default;
-    Dynamics& operator=(const Dynamics &other) = default;
-    Dynamics& operator=(Dynamics &&other) = default;
-    virtual ~Dynamics() = default;
+        Dynamics()
+                : diff_([this](const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u) -> State {
+            return this->f(x, u);
+        }),
+                  num_diff_(diff_) {
+        }
 
-    // Implementation required
-    virtual State f(const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u) = 0;
+        Dynamics(const Dynamics &other) = default;
 
-    // Implementation optional
-    virtual Jacobian df(const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u)
-    {
-        num_diff_.df((typename internal::Differentiable<T, StateSize, ControlSize>::InputType() << x, u).finished(), j_);
-        return j_;
-    }
+        Dynamics(Dynamics &&other) = default;
 
-private:
-    Jacobian j_;
-    typename internal::Differentiable<T, StateSize, ControlSize> diff_;
-    Eigen::NumericalDiff<typename internal::Differentiable<T, StateSize, ControlSize>, Eigen::Central> num_diff_;
-};
+        Dynamics &operator=(const Dynamics &other) = default;
+
+        Dynamics &operator=(Dynamics &&other) = default;
+
+        virtual ~Dynamics() = default;
+
+        // Implementation required
+        virtual State f(const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u) = 0;
+
+        // Implementation optional
+        virtual Jacobian df(const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u) {
+            num_diff_.df((typename internal::Differentiable<T, StateSize, ControlSize>::InputType() << x, u).finished(),
+                         j_);
+            return j_;
+        }
+
+    private:
+        Jacobian j_;
+        typename internal::Differentiable<T, StateSize, ControlSize> diff_;
+        Eigen::NumericalDiff<typename internal::Differentiable<T, StateSize, ControlSize>, Eigen::Central> num_diff_;
+    };
+} // namespace DDP
 
 #endif // TRAJOPT_DYNAMICS_HPP

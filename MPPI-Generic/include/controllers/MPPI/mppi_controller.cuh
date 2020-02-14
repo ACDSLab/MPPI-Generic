@@ -74,7 +74,7 @@ public:
 
     float getBaselineCost() {return baseline_;};
 
-    virtual void computeControl(state_array state) override;
+    void computeControl(state_array state) override;
 
     /**
      * returns the current control sequence

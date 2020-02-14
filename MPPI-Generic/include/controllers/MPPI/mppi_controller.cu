@@ -1,4 +1,4 @@
-// #include "controllers/MPPI/mppi_controller.cuh"
+#include <controllers/MPPI/mppi_controller.cuh>
 #include <mppi_core/mppi_common.cuh>
 
 #define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>

@@ -4,7 +4,12 @@
 /**
  * Kernels to test device functions
  */
+<<<<<<< 535e4e70bf73d21d48df2314e1304eefb66f18bd
 __global__ void CartMassTestKernel(CartpoleDynamics* CP, float& mass_check) {
+=======
+
+__global__ void CartMassTestKernel(Cartpole* CP, float& mass_check) {
+>>>>>>> Created the base of the tube MPPI controller template. Added a compiling test.
     int tid = blockIdx.x*blockDim.x + threadIdx.x;
     // printf("\nEntering the kernel!\n");
     // printf("The thread id is: %i\n", tid);

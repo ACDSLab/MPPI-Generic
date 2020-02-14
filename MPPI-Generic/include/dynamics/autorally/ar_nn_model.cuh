@@ -37,6 +37,9 @@ typedef struct {
  * If you use the entire state in the NN K should equal 0
  * @tparam layer_args size of the NN layers
  */
+
+using namespace MPPI_internal;
+
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 class NeuralNetModel : public Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM> {
 public:

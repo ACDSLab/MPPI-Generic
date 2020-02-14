@@ -13,6 +13,7 @@ Header file for dynamics
 #include <utils/managed.cuh>
 #include <vector>
 
+namespace MPPI_internal {
 template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 class Dynamics : public Managed
 {
@@ -233,4 +234,5 @@ const int Dynamics<CLASS_T, PARAMS_T, S_DIM, C_DIM>::STATE_DIM;
 
 template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 const int Dynamics<CLASS_T, PARAMS_T, S_DIM, C_DIM>::CONTROL_DIM;
+} // MPPI_internal
 #endif // DYNAMICS_CUH_
