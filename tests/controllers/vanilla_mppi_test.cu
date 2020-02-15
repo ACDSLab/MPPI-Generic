@@ -4,7 +4,7 @@
 
 class Cartpole_VanillaMPPI: public ::testing::Test {
 public:
-    Cartpole model = Cartpole(0.1, 1.0, 1.0, 1.0);
+    CartpoleDynamics model = CartpoleDynamics(0.1, 1.0, 1.0, 1.0);
     CartpoleQuadraticCost cost;
     float dt = 0.01;
     int max_iter = 10;
@@ -17,14 +17,14 @@ TEST_F(Cartpole_VanillaMPPI, BindToStream) {
     const int num_timesteps = 100;
     const int num_rollouts = 256;
 
-    std::array<float, Cartpole::CONTROL_DIM> control_var = {2.5};
-    std::array<float, Cartpole::CONTROL_DIM*num_timesteps> init_control = {0};
+    std::array<float, CartpoleDynamics::CONTROL_DIM> control_var = {2.5};
+    std::array<float, CartpoleDynamics::CONTROL_DIM * num_timesteps> init_control = {0};
     cudaStream_t stream;
 
     HANDLE_ERROR(cudaStreamCreate(&stream));
 
-    auto CartpoleController = VanillaMPPIController<Cartpole, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
-            dt, max_iter, gamma, num_timesteps, control_var, init_control, stream);
+    auto CartpoleController = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
+                                                                                                                                 dt, max_iter, gamma, num_timesteps, control_var, init_control, stream);
 
     EXPECT_EQ(CartpoleController.stream_, CartpoleController.model_->stream_)
                         << "Stream bind to dynamics failure";
@@ -36,11 +36,11 @@ TEST_F(Cartpole_VanillaMPPI, BindToStream) {
 TEST_F(Cartpole_VanillaMPPI, UpdateNoiseVariance) {
     const int num_timesteps = 150;
     const int num_rollouts = 512;
-    std::array<float, Cartpole::CONTROL_DIM> control_var = {1.5};
-    std::array<float, Cartpole::CONTROL_DIM> new_control_var = {3.5};
+    std::array<float, CartpoleDynamics::CONTROL_DIM> control_var = {1.5};
+    std::array<float, CartpoleDynamics::CONTROL_DIM> new_control_var = {3.5};
 
-    auto CartpoleController = VanillaMPPIController<Cartpole, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
-            dt, max_iter, gamma, num_timesteps, control_var);
+    auto CartpoleController = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
+                                                                                                                                 dt, max_iter, gamma, num_timesteps, control_var);
 
     CartpoleController.updateControlNoiseVariance(new_control_var);
 
@@ -68,14 +68,14 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
     float gamma = 0.25;
     int num_timesteps = 100;
 
-    std::array<float, Cartpole::CONTROL_DIM> control_var = {5.0};
+    std::array<float, CartpoleDynamics::CONTROL_DIM> control_var = {5.0};
 
-    auto controller = VanillaMPPIController<Cartpole, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
-                                                                                                dt, max_iter, gamma, num_timesteps, control_var);
+    auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
+                                                                                                       dt, max_iter, gamma, num_timesteps, control_var);
     decltype(controller)::state_array current_state {0, 0, 0, 0};
     int time_horizon = 1000;
 
-    float xdot[Cartpole::STATE_DIM];
+    float xdot[CartpoleDynamics::STATE_DIM];
 
     auto time_start = std::chrono::system_clock::now();
     for (int i =0; i < time_horizon; ++i) {

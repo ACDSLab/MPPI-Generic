@@ -18,7 +18,6 @@ class Dynamics : public Managed
 public:
   static const int STATE_DIM = S_DIM;
   static const int CONTROL_DIM = C_DIM;
-  // Eigen::Matrix<float, STATE_DIM, 1> state_der_;
   float dt_;
 
 
@@ -27,7 +26,7 @@ public:
    * Destructor must be virtual so that children are properly
    * destroyed when called from a Dynamics reference
    */
-  virtual ~Dynamics() = default;
+  ~Dynamics() = default;
 
   /**
    * runs dynamics using state and control and sets it to state
@@ -40,11 +39,37 @@ public:
   void xDot(Eigen::MatrixXf &state,
                     Eigen::MatrixXf &control,
                     Eigen::MatrixXf &state_der);
+
+  /**
+   *
+   * @param state
+   * @param control
+   */
   void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control); //compute the Jacobians with respect to state and control
+
+  /**
+   *
+   */
   void loadParams(); //figure out what to pass in here
+
+  /**
+   *
+   */
   void paramsToDevice();
+
+  /**
+   *
+   */
   void freeCudaMem();
+
+  /**
+   *
+   */
   void printState();
+
+  /**
+   *
+   */
   void printParams();
 
   /**
@@ -65,7 +90,7 @@ public:
    * virtual ... = {}
    * causes the same problem as a pure virtual function
    */
-  __host__ __device__ void xDot(float* state,
+  __device__ void xDot(float* state,
                                 float* control,
                                 float* state_der);
 };

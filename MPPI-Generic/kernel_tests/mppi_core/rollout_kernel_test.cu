@@ -1,6 +1,6 @@
 #include "rollout_kernel_test.cuh"
 
-#include <dynamics/cartpole/cartpole.cuh>
+#include <dynamics/cartpole/cartpole_dynamics.cuh>
 #include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>
 const int STATE_DIM = 12;
 const int CONTROL_DIM = 3;
@@ -454,46 +454,46 @@ void launchComputeAndSaveCostAllRollouts_KernelTest(COST_T cost,
  **********************************************************************************************************************/
 const int num_timesteps_rc = 100;
 const int num_rollouts_rc = 100;
-template void computeRunningCostAllRollouts_CPU_TEST<CartpoleQuadraticCost, num_timesteps_rc, num_rollouts_rc, Cartpole::STATE_DIM, Cartpole::CONTROL_DIM>(
+template void computeRunningCostAllRollouts_CPU_TEST<CartpoleQuadraticCost, num_timesteps_rc, num_rollouts_rc, CartpoleDynamics::STATE_DIM, CartpoleDynamics::CONTROL_DIM>(
         CartpoleQuadraticCost& cost,
         float dt,
-        std::array<float, Cartpole::STATE_DIM * num_timesteps_rc * num_rollouts_rc>& x_trajectory,
-        std::array<float, Cartpole::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& u_trajectory,
-        std::array<float, Cartpole::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& du_trajectory,
-        std::array<float, Cartpole::CONTROL_DIM>& sigma_u,
+        std::array<float, CartpoleDynamics::STATE_DIM * num_timesteps_rc * num_rollouts_rc>& x_trajectory,
+        std::array<float, CartpoleDynamics::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& u_trajectory,
+        std::array<float, CartpoleDynamics::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& du_trajectory,
+        std::array<float, CartpoleDynamics::CONTROL_DIM>& sigma_u,
         std::array<float, num_rollouts_rc>& cost_allrollouts);
 
-template void launchComputeRunningCostAllRollouts_KernelTest<CartpoleQuadraticCost, num_timesteps_rc, num_rollouts_rc, Cartpole::STATE_DIM, Cartpole::CONTROL_DIM>(
+template void launchComputeRunningCostAllRollouts_KernelTest<CartpoleQuadraticCost, num_timesteps_rc, num_rollouts_rc, CartpoleDynamics::STATE_DIM, CartpoleDynamics::CONTROL_DIM>(
         const CartpoleQuadraticCost& cost,
         float dt,
-        const std::array<float, Cartpole::STATE_DIM * num_timesteps_rc * num_rollouts_rc>& x_trajectory,
-        const std::array<float, Cartpole::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& u_trajectory,
-        const std::array<float, Cartpole::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& du_trajectory,
-        const std::array<float, Cartpole::CONTROL_DIM>& sigma_u,
+        const std::array<float, CartpoleDynamics::STATE_DIM * num_timesteps_rc * num_rollouts_rc>& x_trajectory,
+        const std::array<float, CartpoleDynamics::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& u_trajectory,
+        const std::array<float, CartpoleDynamics::CONTROL_DIM * num_timesteps_rc * num_rollouts_rc>& du_trajectory,
+        const std::array<float, CartpoleDynamics::CONTROL_DIM>& sigma_u,
         std::array<float, num_rollouts_rc>& cost_allrollouts);
 
 /***********************************************************************************************************************
  * Cartpole Compute State Derivative Template Instantiations
  **********************************************************************************************************************/
  const int num_rollouts_sd = 1000;
-template void launchComputeStateDerivAllRollouts_KernelTest<Cartpole, num_rollouts_sd>(const Cartpole& dynamics,
-                                                   const std::array<float, Cartpole::STATE_DIM*num_rollouts_sd>& x_trajectory,
-                                                   const std::array<float, Cartpole::CONTROL_DIM*num_rollouts_sd>& u_trajectory,
-                                                   std::array<float, Cartpole::STATE_DIM*num_rollouts_sd>& xdot_trajectory);
+template void launchComputeStateDerivAllRollouts_KernelTest<CartpoleDynamics, num_rollouts_sd>(const CartpoleDynamics& dynamics,
+                                                   const std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_sd>& x_trajectory,
+                                                   const std::array<float, CartpoleDynamics::CONTROL_DIM*num_rollouts_sd>& u_trajectory,
+                                                   std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_sd>& xdot_trajectory);
 
 /***********************************************************************************************************************
  * Cartpole Increment State Derivative Template Instantiations
  **********************************************************************************************************************/
 const int num_rollouts_is = 5000;
-template void launchIncrementStateAllRollouts_KernelTest<Cartpole::STATE_DIM, num_rollouts_is>(float dt,
-        std::array<float, Cartpole::STATE_DIM*num_rollouts_is>& x_traj,
-        std::array<float, Cartpole::STATE_DIM*num_rollouts_is>& xdot_traj);
+template void launchIncrementStateAllRollouts_KernelTest<CartpoleDynamics::STATE_DIM, num_rollouts_is>(float dt,
+        std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_is>& x_traj,
+        std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_is>& xdot_traj);
 
 /**
  * Cartpole Compute and Save cost all rollouts instantiations
  */
 const int num_rollouts_cs = 1234;
-template void launchComputeAndSaveCostAllRollouts_KernelTest<CartpoleQuadraticCost, Cartpole::STATE_DIM, num_rollouts_cs>(CartpoleQuadraticCost cost,
+template void launchComputeAndSaveCostAllRollouts_KernelTest<CartpoleQuadraticCost, CartpoleDynamics::STATE_DIM, num_rollouts_cs>(CartpoleQuadraticCost cost,
                                                     const std::array<float, num_rollouts_cs>& cost_all_rollouts,
-                                                    const std::array<float, Cartpole::STATE_DIM*num_rollouts_cs>& terminal_states,
+                                                    const std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_cs>& terminal_states,
                                                     std::array<float, num_rollouts_cs>& cost_compute);

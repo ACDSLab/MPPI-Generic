@@ -5,22 +5,22 @@
 
 #include <dynamics/dynamics.cuh>
 
-struct CartpoleParams {
+struct CartpoleDynamicsParams {
     float cart_mass = 1.0f;
     float pole_mass = 1.0f;
     float pole_length = 1.0f;
 
-    CartpoleParams();
-    CartpoleParams(float cart_mass, float pole_mass, float pole_length):
+    CartpoleDynamicsParams();
+    CartpoleDynamicsParams(float cart_mass, float pole_mass, float pole_length):
     cart_mass(cart_mass), pole_mass(pole_mass), pole_length(pole_length) {};
 };
 
-class Cartpole : public Dynamics<4, 1>
+class CartpoleDynamics : public Dynamics<4, 1>
 {
 public:
-    Cartpole(float delta_t, float cart_mass, float pole_mass,
-             float pole_length, cudaStream_t stream=0);
-    ~Cartpole();
+    CartpoleDynamics(float delta_t, float cart_mass, float pole_mass,
+                     float pole_length, cudaStream_t stream=0);
+    ~CartpoleDynamics();
 
     void GPUSetup();
 
@@ -51,8 +51,8 @@ public:
                      Eigen::MatrixXf &A,
                      Eigen::MatrixXf &B);
 
-    void setParams(const CartpoleParams &parameters);
-    CartpoleParams getParams();
+    void setParams(const CartpoleDynamicsParams &parameters);
+    CartpoleDynamicsParams getParams();
 
     __host__ __device__ float getCartMass() {return cart_mass_;};
     __host__ __device__ float getPoleMass() {return pole_mass_;};
@@ -70,7 +70,7 @@ public:
     void incrementState(float* state, float* xdot, float dt);
 
     // Device pointer of class object
-    Cartpole* model_d_ = nullptr; //TODO choose a unified name for this object
+    CartpoleDynamics* model_d_ = nullptr; //TODO choose a unified name for this object
 
     void freeCudaMem();
 
@@ -87,7 +87,7 @@ protected:
 };
 
 #if __CUDACC__
-#include "cartpole.cu"
+#include "cartpole_dynamics.cu"
 #endif
 
 #endif // CARTPOLE_CUH_

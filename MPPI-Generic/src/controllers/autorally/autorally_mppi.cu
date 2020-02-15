@@ -11,4 +11,4 @@ template class ARStandardCost<>;
 template class VanillaMPPIController<DynamicsModel, CostFunction, NUM_TIMESTEPS,
 									 MPPI_NUM_ROLLOUTS__, BLOCKSIZE_X, BLOCKSIZE_Y>;
 
-// template class VanillaMPPIController<Cartpole, CartpoleQuadraticCost, 100, 150, 64, 8>;
+// template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 150, 64, 8>;

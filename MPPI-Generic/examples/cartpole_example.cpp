@@ -3,7 +3,7 @@
 #include <chrono>
 
 int main(int argc, char** argv) {
-    Cartpole model(0.01, 1.0, 1.0, 1.0);
+    CartpoleDynamics model(0.01, 1.0, 1.0, 1.0);
     CartpoleQuadraticCost cost;
 
     cartpoleQuadraticCostParams new_params;
@@ -26,17 +26,17 @@ int main(int argc, char** argv) {
     float gamma = 0.25;
     int num_timesteps = 100;
 
-    std::array<float, Cartpole::CONTROL_DIM> control_var = {5.0};
+    std::array<float, CartpoleDynamics::CONTROL_DIM> control_var = {5.0};
 
-    auto CartpoleController = VanillaMPPIController<Cartpole, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
-            dt, max_iter, gamma, num_timesteps, control_var);
+    auto CartpoleController = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
+                                                                                                               dt, max_iter, gamma, num_timesteps, control_var);
 
     decltype(CartpoleController)::state_array current_state { 0, 0, 0, 0};
 
 
     int time_horizon = 1000;
 
-    float xdot[Cartpole::STATE_DIM];
+    float xdot[CartpoleDynamics::STATE_DIM];
 
     auto time_start = std::chrono::system_clock::now();
     for (int i =0; i < time_horizon; ++i) {

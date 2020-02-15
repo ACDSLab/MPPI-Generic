@@ -8,32 +8,32 @@
 #include <cuda_runtime.h>
 
 TEST(CartPole, StateDim) {
-    auto CP = Cartpole(0.1, 1, 1, 1);
-    EXPECT_EQ(4, Cartpole::STATE_DIM);
+    auto CP = CartpoleDynamics(0.1, 1, 1, 1);
+    EXPECT_EQ(4, CartpoleDynamics::STATE_DIM);
 }
 
 TEST(CartPole, ControlDim) {
-    auto CP = Cartpole(0.1,1,1,1);
-    EXPECT_EQ(1, Cartpole::CONTROL_DIM);
+    auto CP = CartpoleDynamics(0.1, 1, 1, 1);
+    EXPECT_EQ(1, CartpoleDynamics::CONTROL_DIM);
 }
 
 TEST(CartPole, Equilibrium) {
-    auto CP = Cartpole(0.1,1,1,1);
+    auto CP = CartpoleDynamics(0.1, 1, 1, 1);
 
-    Eigen::MatrixXf state(Cartpole::STATE_DIM,1);
+    Eigen::MatrixXf state(CartpoleDynamics::STATE_DIM,1);
     state << 0,0,0,0;
 
-    Eigen::MatrixXf control(Cartpole::CONTROL_DIM,1);
+    Eigen::MatrixXf control(CartpoleDynamics::CONTROL_DIM,1);
     control << 0;
 
-    Eigen::MatrixXf state_dot_compute(Cartpole::STATE_DIM,1);
+    Eigen::MatrixXf state_dot_compute(CartpoleDynamics::STATE_DIM,1);
     state_dot_compute << 1,1,1,1;
 
-    Eigen::MatrixXf state_dot_known(Cartpole::STATE_DIM,1);
+    Eigen::MatrixXf state_dot_known(CartpoleDynamics::STATE_DIM,1);
     state_dot_known << 0,0,0,0;
 
     CP.xDot(state, control, state_dot_compute);
-    for (int i = 0; i < Cartpole::STATE_DIM; i++) {
+    for (int i = 0; i < CartpoleDynamics::STATE_DIM; i++) {
         EXPECT_NEAR(state_dot_known(i), state_dot_compute(i), 1e-4) << "Failed at index: " << i;
     }
 }
@@ -43,7 +43,7 @@ TEST(CartPole, BindStream) {
 
     HANDLE_ERROR(cudaStreamCreate(&stream));
 
-    auto CP = Cartpole(0.1, 1, 1, 2, stream);
+    auto CP = CartpoleDynamics(0.1, 1, 1, 2, stream);
 
     EXPECT_EQ(CP.stream_, stream) << "Stream binding failure.";
 
@@ -51,8 +51,8 @@ TEST(CartPole, BindStream) {
 }
 
 TEST(CartPole, SetGetParamsHost) {
-    auto params = CartpoleParams(2.0, 3.0, 4.0);
-    auto CP = Cartpole(0.1, 1, 1, 2);
+    auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
+    auto CP = CartpoleDynamics(0.1, 1, 1, 2);
 
     CP.setParams(params);
     auto CP_params = CP.getParams();
@@ -64,7 +64,7 @@ TEST(CartPole, SetGetParamsHost) {
 
 
 TEST(CartPole, CartPole_GPUSetup_Test) {
-    auto CP_host = new Cartpole(0.1, 1, 2, 2);
+    auto CP_host = new CartpoleDynamics(0.1, 1, 2, 2);
     CP_host->GPUSetup();
     // float mass;
     // launchParameterTestKernel(*CP_host, mass);
@@ -75,10 +75,10 @@ TEST(CartPole, CartPole_GPUSetup_Test) {
 }
 
 TEST(CartPole, GetCartMassFromGPU) {
-    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
     CP_host->GPUSetup();
 
-    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
     CP_host->setParams(params);
     float mass;
 
@@ -91,10 +91,10 @@ TEST(CartPole, GetCartMassFromGPU) {
 }
 
 TEST(CartPole, GetPoleMassFromGPU) {
-    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
     CP_host->GPUSetup();
 
-    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
     CP_host->setParams(params);
     float mass;
 
@@ -107,10 +107,10 @@ TEST(CartPole, GetPoleMassFromGPU) {
 }
 
 TEST(CartPole, GetPoleLengthFromGPU) {
-    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
     CP_host->GPUSetup();
 
-    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
     CP_host->setParams(params);
     float length;
 
@@ -123,10 +123,10 @@ TEST(CartPole, GetPoleLengthFromGPU) {
 }
 
 TEST(CartPole, GetGravityFromGPU) {
-    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
     CP_host->GPUSetup();
 
-    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
     CP_host->setParams(params);
     float gravity_gpu;
 
@@ -139,23 +139,23 @@ TEST(CartPole, GetGravityFromGPU) {
 }
 
 TEST(CartPole, TestDynamicsGPU) {
-    auto CP_host = new Cartpole(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
     CP_host->GPUSetup();
 
-    auto params = CartpoleParams(2.0, 3.0, 4.0);
+    auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
     CP_host->setParams(params);
 
-    Eigen::MatrixXf state = Eigen::MatrixXf::Zero(Cartpole::STATE_DIM,1);
+    Eigen::MatrixXf state = Eigen::MatrixXf::Zero(CartpoleDynamics::STATE_DIM, 1);
     state(0) = 0.1;
     state(1) = 0.3;
     state(2) = 0.23;
     state(3) = 0.334;
-    Eigen::MatrixXf control = Eigen::MatrixXf::Ones(Cartpole::CONTROL_DIM, 1);
+    Eigen::MatrixXf control = Eigen::MatrixXf::Ones(CartpoleDynamics::CONTROL_DIM, 1);
 
     // These variables will be changed so initialized to the right size only
-    Eigen::MatrixXf state_der_cpu = Eigen::MatrixXf::Zero(Cartpole::STATE_DIM,1);
+    Eigen::MatrixXf state_der_cpu = Eigen::MatrixXf::Zero(CartpoleDynamics::STATE_DIM, 1);
 
-    float state_der_gpu[Cartpole::STATE_DIM];
+    float state_der_gpu[CartpoleDynamics::STATE_DIM];
 
     // Run dynamics on CPU
     CP_host->xDot(state, control, state_der_cpu);
@@ -163,7 +163,7 @@ TEST(CartPole, TestDynamicsGPU) {
     launchDynamicsTestKernel(*CP_host, state.data(), control.data(), state_der_gpu);
 
     // Compare CPU and GPU Results
-    for (int i = 0; i < Cartpole::STATE_DIM; i++) {
+    for (int i = 0; i < CartpoleDynamics::STATE_DIM; i++) {
         EXPECT_FLOAT_EQ(state_der_cpu(i), state_der_gpu[i]);
     }
 

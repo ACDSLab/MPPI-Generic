@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <dynamics/cartpole/cartpole.cuh>
+#include <dynamics/cartpole/cartpole_dynamics.cuh>
 #include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>
 #include <mppi_core/rollout_kernel_test.cuh>
 #include <utils/test_helper.h>
@@ -160,15 +160,15 @@ TEST(RolloutKernel, computeRunningCostAllRollouts) {
 }
 
 TEST(RolloutKernel, computeStateDerivAllRollouts_Cartpole) {
-    Cartpole model(0.01, 1, 2, 3);
+    CartpoleDynamics model(0.01, 1, 2, 3);
     model.GPUSetup();
 
     const int num_rollouts = 1000; // Must match the value in rollout_kernel_test.cu
     // Generate the trajectory data
-    std::array<float, Cartpole::STATE_DIM*num_rollouts> x_traj = {0};
-    std::array<float, Cartpole::CONTROL_DIM*num_rollouts> u_traj = {0};
-    std::array<float, Cartpole::STATE_DIM*num_rollouts> xdot_traj_known = {0};
-    std::array<float, Cartpole::STATE_DIM*num_rollouts> xdot_traj_compute = {0};
+    std::array<float, CartpoleDynamics::STATE_DIM * num_rollouts> x_traj = {0};
+    std::array<float, CartpoleDynamics::CONTROL_DIM * num_rollouts> u_traj = {0};
+    std::array<float, CartpoleDynamics::STATE_DIM * num_rollouts> xdot_traj_known = {0};
+    std::array<float, CartpoleDynamics::STATE_DIM * num_rollouts> xdot_traj_compute = {0};
 
     // Range based for loop that will increase each index of x_traj by 0.1
     // x_traj = {0.1, 0.2, 0.3, ...}
@@ -184,14 +184,14 @@ TEST(RolloutKernel, computeStateDerivAllRollouts_Cartpole) {
 
     // Compute the dynamics on CPU
     for (int i = 0; i < num_rollouts; ++i) {
-        model.xDot(&x_traj[i*Cartpole::STATE_DIM], &u_traj[i*Cartpole::CONTROL_DIM], &xdot_traj_known[i*Cartpole::STATE_DIM]);
+        model.xDot(&x_traj[i * CartpoleDynamics::STATE_DIM], &u_traj[i * CartpoleDynamics::CONTROL_DIM], &xdot_traj_known[i * CartpoleDynamics::STATE_DIM]);
     }
 
     // Compute the dynamics on the GPU
-    launchComputeStateDerivAllRollouts_KernelTest<Cartpole, num_rollouts>(model, x_traj, u_traj, xdot_traj_compute);
+    launchComputeStateDerivAllRollouts_KernelTest<CartpoleDynamics, num_rollouts>(model, x_traj, u_traj, xdot_traj_compute);
 
 
-    array_assert_float_near<num_rollouts*Cartpole::STATE_DIM>(xdot_traj_known, xdot_traj_compute, 1e-1);
+    array_assert_float_near<num_rollouts * CartpoleDynamics::STATE_DIM>(xdot_traj_known, xdot_traj_compute, 1e-1);
 }
 
 // TEST(RolloutKernel, computeStateDerivAllRollouts_AR) {
@@ -203,10 +203,10 @@ TEST(RolloutKernel, incrementStateAllRollouts) {
 
     const int num_rollouts = 5000; // Must match the value in rollout_kernel_test.cu
     // Generate the trajectory data
-    std::array<float, Cartpole::STATE_DIM*num_rollouts> x_traj_known= {0};
-    std::array<float, Cartpole::STATE_DIM*num_rollouts> x_traj_compute = {0};
-    std::array<float, Cartpole::STATE_DIM*num_rollouts> xdot_traj_known= {0};
-    std::array<float, Cartpole::STATE_DIM*num_rollouts> xdot_traj_compute = {0};
+    std::array<float, CartpoleDynamics::STATE_DIM * num_rollouts> x_traj_known= {0};
+    std::array<float, CartpoleDynamics::STATE_DIM * num_rollouts> x_traj_compute = {0};
+    std::array<float, CartpoleDynamics::STATE_DIM * num_rollouts> xdot_traj_known= {0};
+    std::array<float, CartpoleDynamics::STATE_DIM * num_rollouts> xdot_traj_compute = {0};
 
     // Range based for loop that will increase each index of x_traj by 0.1
     // x_traj = {0.12, 0.24, 0.36, ...}
@@ -226,18 +226,18 @@ TEST(RolloutKernel, incrementStateAllRollouts) {
 
     // Compute increment the state on the CPU
     for (int i = 0; i < num_rollouts; ++i) {
-        for (int j = 0; j < Cartpole::STATE_DIM; ++j) {
-            x_traj_known[i*Cartpole::STATE_DIM + j] += xdot_traj_known[i*Cartpole::STATE_DIM + j]*dt;
-            xdot_traj_known[i*Cartpole::STATE_DIM + j] = 0;
+        for (int j = 0; j < CartpoleDynamics::STATE_DIM; ++j) {
+            x_traj_known[i * CartpoleDynamics::STATE_DIM + j] += xdot_traj_known[i * CartpoleDynamics::STATE_DIM + j] * dt;
+            xdot_traj_known[i * CartpoleDynamics::STATE_DIM + j] = 0;
         }
     }
 
     // Compute the dynamics on the GPU
-    launchIncrementStateAllRollouts_KernelTest<Cartpole::STATE_DIM, num_rollouts>(dt, x_traj_compute, xdot_traj_compute);
+    launchIncrementStateAllRollouts_KernelTest<CartpoleDynamics::STATE_DIM, num_rollouts>(dt, x_traj_compute, xdot_traj_compute);
 
 
-    array_assert_float_eq<num_rollouts*Cartpole::STATE_DIM>(x_traj_known, x_traj_compute);
-    array_assert_float_eq<num_rollouts*Cartpole::STATE_DIM>(xdot_traj_known, xdot_traj_compute);
+    array_assert_float_eq<num_rollouts * CartpoleDynamics::STATE_DIM>(x_traj_known, x_traj_compute);
+    array_assert_float_eq<num_rollouts * CartpoleDynamics::STATE_DIM>(xdot_traj_known, xdot_traj_compute);
 }
 
 TEST(RolloutKernel, computeAndSaveCostAllRollouts) {
@@ -247,7 +247,7 @@ TEST(RolloutKernel, computeAndSaveCostAllRollouts) {
 
     const int num_rollouts = 1234;
     std::array<float, num_rollouts> cost_all_rollouts = {0};
-    std::array<float, Cartpole::STATE_DIM*num_rollouts> x_traj_terminal = {0};
+    std::array<float, CartpoleDynamics::STATE_DIM * num_rollouts> x_traj_terminal = {0};
     std::array<float, num_rollouts> cost_known = {0};
     std::array<float, num_rollouts> cost_compute = {0};
 
@@ -264,16 +264,16 @@ TEST(RolloutKernel, computeAndSaveCostAllRollouts) {
     // Compute terminal cost on CPU
     for (int i = 0; i < num_rollouts; ++i) {
         cost_known[i] = cost_all_rollouts[i] +
-                (x_traj_terminal[Cartpole::STATE_DIM*i]* x_traj_terminal[Cartpole::STATE_DIM*i]*cost.getParams().cart_position_coeff +
-                        x_traj_terminal[Cartpole::STATE_DIM*i+1]* x_traj_terminal[Cartpole::STATE_DIM*i+1]*cost.getParams().cart_velocity_coeff +
-                        x_traj_terminal[Cartpole::STATE_DIM*i+2]* x_traj_terminal[Cartpole::STATE_DIM*i+2]*cost.getParams().pole_angle_coeff +
-                        x_traj_terminal[Cartpole::STATE_DIM*i+3]* x_traj_terminal[Cartpole::STATE_DIM*i+3]*cost.getParams().pole_angular_velocity_coeff)*
-                        cost.getParams().terminal_cost_coeff;
+                (x_traj_terminal[CartpoleDynamics::STATE_DIM * i] * x_traj_terminal[CartpoleDynamics::STATE_DIM * i] * cost.getParams().cart_position_coeff +
+                 x_traj_terminal[CartpoleDynamics::STATE_DIM * i + 1] * x_traj_terminal[CartpoleDynamics::STATE_DIM * i + 1] * cost.getParams().cart_velocity_coeff +
+                 x_traj_terminal[CartpoleDynamics::STATE_DIM * i + 2] * x_traj_terminal[CartpoleDynamics::STATE_DIM * i + 2] * cost.getParams().pole_angle_coeff +
+                 x_traj_terminal[CartpoleDynamics::STATE_DIM * i + 3] * x_traj_terminal[CartpoleDynamics::STATE_DIM * i + 3] * cost.getParams().pole_angular_velocity_coeff) *
+                cost.getParams().terminal_cost_coeff;
     }
 
     // Compute the dynamics on the GPU
-    launchComputeAndSaveCostAllRollouts_KernelTest<CartpoleQuadraticCost, Cartpole::STATE_DIM, num_rollouts>(cost,
-            cost_all_rollouts,x_traj_terminal,cost_compute);
+    launchComputeAndSaveCostAllRollouts_KernelTest<CartpoleQuadraticCost, CartpoleDynamics::STATE_DIM, num_rollouts>(cost,
+                                                                                                                     cost_all_rollouts, x_traj_terminal, cost_compute);
 
     array_assert_float_eq<num_rollouts>(cost_known, cost_compute);
 }

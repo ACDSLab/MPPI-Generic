@@ -11,6 +11,12 @@ Header file for costs
 #include <math.h>
 #include <utils/managed.cuh>
 
+/*
+typedef struct {
+  // fill in data here
+} CostParams;
+ */
+
 template<class CLASS_T, class PARAMS_T>
 class Cost : public Managed
 {
@@ -19,12 +25,6 @@ public:
      * typedefs for access to templated class from outside classes
      */
   typedef PARAMS_T TEMPLATED_PARAMS;
-  // struct namespaced by the class
-  /*
-  typedef struct {
-    // fill in data here
-  } CostParams;
-   */
 
   Cost() = default;
   ~Cost() = default;
