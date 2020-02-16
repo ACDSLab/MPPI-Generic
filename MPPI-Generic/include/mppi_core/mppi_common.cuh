@@ -9,7 +9,8 @@ namespace mppi_common {
 
 
     // Kernel functions
-    template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS>
+    template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
+             int NUM_ROLLOUTS, int BLOCKSIZE_Z = 1>
     __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
                                   int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d,
                                   float* trajectory_costs_d);

@@ -71,7 +71,7 @@ struct ModelWrapperDDP: public DDP_structures::Dynamics<float, DYNAMICS_T::STATE
     }
 
     Jacobian df(const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u)
-    {   
+    {
         Jacobian j_;
         state = x;
         control = u;

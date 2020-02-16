@@ -61,6 +61,8 @@ public:
                           const control_array& control_variance,
                           const control_trajectory& init_control_traj = control_trajectory(),
                           cudaStream_t stream= nullptr);
+    // Empty Constructor used in inheritance
+    VanillaMPPIController() {};
 
     // Destructor
     ~VanillaMPPIController();
@@ -95,28 +97,31 @@ public:
 
 private:
     int num_iters_;  // Number of optimization iterations
-    int num_timesteps_;
+
     float gamma_; // Value of the temperature in the softmax.
     float normalizer_; // Variable for the normalizing term from sampling.
     float baseline_; // Baseline cost of the system.
     float dt_;
 
-
-    curandGenerator_t gen_;
-
     control_trajectory nominal_control_ = {{0}};
     state_trajectory nominal_state_ = {{0}};
     sampled_cost_traj trajectory_costs_ = {{0}};
-    control_array control_variance_ = {{0}};
-    control_trajectory control_history_ = {{0}};
 
     float* initial_state_d_;
     float* nominal_control_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
     float* nominal_state_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
     float* trajectory_costs_d_; // Array of size NUM_ROLLOUTS
-    float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
     float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS
 
+
+    void copyNominalControlToDevice();
+protected:
+    int num_timesteps_;
+    curandGenerator_t gen_;
+
+
+    control_array control_variance_ = {{0}};
+    float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
     // WARNING This method is private because it is only called once in the constructor. Logic is required
     // so that CUDA memory is properly reallocated when the number of timesteps changes.
     void setNumTimesteps(int num_timesteps);
@@ -126,14 +131,12 @@ private:
     void setCUDAStream(cudaStream_t stream);
 
     // Allocate CUDA memory for the controller
-    void allocateCUDAMemory();
+    virtual void allocateCUDAMemory();
 
     // Free CUDA memory for the controller
-    void deallocateCUDAMemory();
+    virtual void deallocateCUDAMemory();
 
     void copyControlVarianceToDevice();
-
-    void copyNominalControlToDevice();
 
 };
 
