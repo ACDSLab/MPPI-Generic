@@ -10,19 +10,17 @@ struct CartpoleDynamicsParams {
     float pole_mass = 1.0f;
     float pole_length = 1.0f;
 
-    CartpoleDynamicsParams();
+    CartpoleDynamicsParams() = default;
     CartpoleDynamicsParams(float cart_mass, float pole_mass, float pole_length):
     cart_mass(cart_mass), pole_mass(pole_mass), pole_length(pole_length) {};
 };
 
-class CartpoleDynamics : public Dynamics<4, 1>
+class CartpoleDynamics : public Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>
 {
 public:
     CartpoleDynamics(float delta_t, float cart_mass, float pole_mass,
                      float pole_length, cudaStream_t stream=0);
     ~CartpoleDynamics();
-
-    void GPUSetup();
 
     /**
      * runs dynamics using state and control and sets it to state
@@ -34,9 +32,7 @@ public:
      */
     void xDot(Eigen::MatrixXf &state,
               Eigen::MatrixXf &control,
-              Eigen::MatrixXf &state_der) {
-        xDot(state.data(), control.data(), state_der.data());
-    };
+              Eigen::MatrixXf &state_der);
 
     /**
      * compute the Jacobians with respect to state and control
@@ -51,38 +47,29 @@ public:
                      Eigen::MatrixXf &A,
                      Eigen::MatrixXf &B);
 
-    void setParams(const CartpoleDynamicsParams &parameters);
-    CartpoleDynamicsParams getParams();
-
-    __host__ __device__ float getCartMass() {return cart_mass_;};
-    __host__ __device__ float getPoleMass() {return pole_mass_;};
-    __host__ __device__ float getPoleLength() {return pole_length_;};
+    __host__ __device__ float getCartMass() {return this->params_.cart_mass;};
+    __host__ __device__ float getPoleMass() {return this->params_.pole_mass;};
+    __host__ __device__ float getPoleLength() {return this->params_.pole_length;};
     __host__ __device__ float getGravity() {return gravity_;}
 
     void printState(Eigen::MatrixXf state);
     void printState(float* state);
     void printParams();
 
-    __host__ __device__ void xDot(float* state,
+    __device__ void xDot(float* state,
                                   float* control,
                                   float* state_der);
 
-    void incrementState(float* state, float* xdot, float dt);
-
-    // Device pointer of class object
-    CartpoleDynamics* model_d_ = nullptr; //TODO choose a unified name for this object
+    void updateState(std::array<float, STATE_DIM> state, std::array<float, STATE_DIM> xdot, float dt);
 
     void freeCudaMem();
+
+    void paramsToDevice();
 
 
 
 protected:
-    float cart_mass_;
     const float gravity_ = 9.81;
-    float pole_mass_;
-    float pole_length_;
-
-    void paramsToDevice(); // Params to device should automatically be called when setting parameters
 
 };
 

@@ -11,16 +11,15 @@ CartpoleQuadraticCost::~CartpoleQuadraticCost() {
 }
 
 void CartpoleQuadraticCost::GPUSetup() {
-    if (!GPUMemStatus_) {
-        cost_d_ = Managed::GPUSetup(this);
-    } else {
-        std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
-    }
-    paramsToDevice();
+  if (!this->GPUMemStatus_) {
+    this->cost_d_ = Managed::GPUSetup(this);
+  } else {
+    std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
+  }
 }
 
 void CartpoleQuadraticCost::freeCudaMem() {
-    cudaFree(cost_d_);
+  Cost<CartpoleQuadraticCost, cartpoleQuadraticCostParams>::freeCudaMem();
 }
 
 void CartpoleQuadraticCost::paramsToDevice() {

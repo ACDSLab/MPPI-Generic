@@ -16,26 +16,9 @@ ARStandardCost<CLASS_T, PARAMS_T>::~ARStandardCost() {
 }
 
 template <class CLASS_T, class PARAMS_T>
-void ARStandardCost<CLASS_T, PARAMS_T>::GPUSetup() {
-  //std::cout << __PRETTY_FUNCTION__ << std::endl;
-  if (!this->GPUMemStatus_) {
-    this->cost_d_ = Managed::GPUSetup(this);
-  } else {
-    std::cout << "GPU Memory already set." << std::endl;
-  }
-  // load track data
-  // update transform
-  // update params
-  // allocate texture memory
-  // convert costmap to texture
-  this->paramsToDevice();
-}
-
-template <class CLASS_T, class PARAMS_T>
 void ARStandardCost<CLASS_T, PARAMS_T>::freeCudaMem() {
   // TODO free everything
-  //std::cout << __PRETTY_FUNCTION__ << std::endl;
-  cudaFree(this->cost_d_);
+  Cost<ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T>::freeCudaMem();
 }
 
 template <class CLASS_T, class PARAMS_T>

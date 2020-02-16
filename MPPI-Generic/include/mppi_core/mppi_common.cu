@@ -6,6 +6,7 @@ namespace mppi_common {
     /*******************************************************************************************************************
      * Kernel Functions
     *******************************************************************************************************************/
+    // TODO remove dt
     template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS>
      __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
                                     int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d,
@@ -55,14 +56,18 @@ namespace mppi_common {
                 __syncthreads();
 
                 //Accumulate running cost
+                // TODO pull dt from dynamics
                 computeRunningCostAllRollouts(costs, dt, x, u, du, sigma_u, running_cost, t);
                 __syncthreads();
+
+                // TODO apply constraints kernel
 
                 //Compute state derivatives
                 computeStateDerivAllRollouts(dynamics, x, u, xdot);
                 __syncthreads();
 
                 //Increment states
+                // TODO remove dt, it is inside dynamics
                 incrementStateAllRollouts(DYN_T::STATE_DIM, BLOCKSIZE_Y, thread_idy, dt, x, xdot);
                 __syncthreads();
             }
@@ -176,10 +181,12 @@ namespace mppi_common {
         dynamics->xDot(x_thread, u_thread, xdot_thread);
     }
 
+    // TODO this should pass blocksize or thread number
     __device__ void incrementStateAllRollouts(int state_dim, int blocksize_y, int thread_idy, float dt,
                                                 float* x_thread, float* xdot_thread) {
         // The prior loop already guarantees that the global index is less than the number of rollouts
         //Implementing simple first order Euler for now, more complex scheme can be added later
+        // TODO should use updateState and let dynamics choose how to parallelize
         for (int i = thread_idy; i < state_dim; i += blocksize_y) {
             x_thread[i] += xdot_thread[i] * dt;
             xdot_thread[i] = 0; // Reset the derivative to zero

@@ -56,11 +56,6 @@ public:
   ~ARStandardCost();
 
   /**
-   * allocates all the extra cuda memory
-   */
-  void GPUSetup();
-
-  /**
    * Deallocates the allocated cuda memory for an object
    * TODO make a generic version of this
    */
@@ -83,33 +78,20 @@ public:
   void paramsToDevice();
 
   /**
-   * @brief Allocates memory to cuda array which is bound to a texture.
-   *
-   * Allocates an array using the special cudaMallocArray function.
-   * The size of the array allocated by this function is determined based on
-   * the width and height of the costmap. This function is called by the constructor
+   * alters the costmap size in CPU storage and GPU texture
+   * @param width
+   * @param height
+   * @return
    */
-  //void allocateTexMem();
-
   bool changeCostmapSize(int width, int height);
 
   /**
-   * @brief Initializes the host side costmap to all zeros.
+   * @brief Initializes the costmap to all zeros.
    *
    * Initializes a float4 vector to the correct width and height and sets every value to zero on the CPU.
    * default leaves the sizes alone
   */
   void clearCostmapCPU(int width=-1, int height=-1);
-
-  /**
-   * Converts the passed in costmap to a CUDA texture
-   * @param costmap
-   * @param channel
-   * @param width in meters
-   * @param height in meters
-   * @param ppm pixels per meter
-   */
-  //void costmapToTexture(float* costmap, int channel = 0, int width, int height, int ppm);
 
   /**
   * @brief Binds the member variable costmap to a CUDA texture.
@@ -152,6 +134,8 @@ public:
    * @brief Initialize and allocate memory for debug window display
    */
   //void debugDisplayInit(int width_m, int height_m, int ppm);
+
+  bool getDebugDisplayEnabled() {return false;}
 
   /**
    * @brief Display the debug view centered around x and y.

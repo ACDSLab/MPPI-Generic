@@ -10,6 +10,8 @@ Header file for costs
 #include <stdio.h>
 #include <math.h>
 #include <utils/managed.cuh>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 /*
 typedef struct {
@@ -29,16 +31,32 @@ public:
   Cost() = default;
   ~Cost() = default;
 
+  void GPUSetup() {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    if (!GPUMemStatus_) {
+      this->cost_d_ = Managed::GPUSetup(derived);
+    } else {
+      std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
+    }
+    derived->paramsToDevice();
+  }
+
+  bool getDebugDisplayEnabled() {return false;}
+
   /**
-   * Updates the device version of the parameter structure
+   * returns a debug display that will be visualized based off of the state
+   * @param state vector
+   * @return
    */
-  void updateDevice();
+  cv::Mat getDebugDisplay(float* s) {
+    return cv::Mat();
+  }
 
   /**
    * Updates the cost parameters
    * @param params
    */
-  __host__ __device__ void setParams(PARAMS_T params) {
+  void setParams(PARAMS_T params) {
     this->params_ = params;
     if(this->GPUMemStatus_) {
       CLASS_T& derived = static_cast<CLASS_T&>(*this);
@@ -53,25 +71,29 @@ public:
   void paramsToDevice() {
     printf("ERROR: calling paramsToDevice of base cost");
     exit(1);
-    //std::cout << __PRETTY_FUNCTION__ << std::endl;
   };
 
   /**
-   * allocates all the cuda memory needed for the object
+   *
+   * @param description
+   * @param data
    */
-  void allocateCudaMem();
+  void updateCostmap(std::vector<int> description, std::vector<float> data) {};
 
   /**
    * deallocates the allocated cuda memory for an object
    */
-  void freeCudaMem();
+  void freeCudaMem() {
+    if(GPUMemStatus_) {
+      cudaFree(cost_d_);
+      cost_d_ = nullptr;
+    }
+  }
 
   inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
 
-  __host__ __device__ float controlCost(float* u, float* du);
-  __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
-  __host__ __device__ float terminalCost(float* s);
-  __host__ __device__ float computeCost(float* s, float* u, float* du, float * vars, int timestep);
+  __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
+  __device__ float terminalCost(float* s);
 
   CLASS_T* cost_d_ = nullptr;
 protected:

@@ -72,10 +72,11 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
 
     auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
                                                                                                        dt, max_iter, gamma, num_timesteps, control_var);
-    decltype(controller)::state_array current_state {0, 0, 0, 0};
+    Eigen::MatrixXf current_state(4, 1);
     int time_horizon = 1000;
 
-    float xdot[CartpoleDynamics::STATE_DIM];
+    //float xdot[CartpoleDynamics::STATE_DIM];
+    Eigen::MatrixXf xdot(4, 1);
 
     auto time_start = std::chrono::system_clock::now();
     for (int i =0; i < time_horizon; ++i) {
@@ -90,7 +91,7 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
 
         // Increment the state
         model.xDot(current_state.data(), &controller.getControlSeq()[0], xdot);
-        model.incrementState(current_state.data(), xdot, dt);
+        model.updateState(current_state.data(), xdot, dt);
 
         controller.slideControlSequence(1);
 

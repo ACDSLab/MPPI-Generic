@@ -184,7 +184,20 @@ TEST(RolloutKernel, computeStateDerivAllRollouts_Cartpole) {
 
     // Compute the dynamics on CPU
     for (int i = 0; i < num_rollouts; ++i) {
-        model.xDot(&x_traj[i * CartpoleDynamics::STATE_DIM], &u_traj[i * CartpoleDynamics::CONTROL_DIM], &xdot_traj_known[i * CartpoleDynamics::STATE_DIM]);
+      Eigen::MatrixXf eigen_state(CartpoleDynamics::STATE_DIM, 1);
+      Eigen::MatrixXf eigen_state_der(CartpoleDynamics::STATE_DIM, 1);
+      Eigen::MatrixXf eigen_control(CartpoleDynamics::CONTROL_DIM, 1);
+      for(int j = 0; j < CartpoleDynamics::STATE_DIM; j++) {
+        eigen_state(j) = x_traj[i * CartpoleDynamics::STATE_DIM + j];
+      }
+      for(int j = 0; j < CartpoleDynamics::CONTROL_DIM; j++) {
+        eigen_control(j) = u_traj[i * CartpoleDynamics::CONTROL_DIM + j];
+      }
+      model.xDot(eigen_state, eigen_control, eigen_state_der);
+
+      for(int j = 0; j < CartpoleDynamics::STATE_DIM; j++) {
+        xdot_traj_known[i * CartpoleDynamics::STATE_DIM + j] = eigen_state_der(j);
+      }
     }
 
     // Compute the dynamics on the GPU

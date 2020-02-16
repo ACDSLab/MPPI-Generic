@@ -108,6 +108,7 @@ public:
                              double avg_tick_duration,
                              double avg_sleep_time) = 0;
 
+  // TODO should publish to a topic not a static window
   virtual void setDebugImage(cv::Mat debug_img) = 0;
 
   virtual void setSolution(s_traj state_seq,
@@ -232,9 +233,8 @@ public:
       setTimingInfo(avgOptimizeLoopTime_ms, avgOptimizeTickTime_ms, avgSleepTime_ms);
       num_iter ++;
 
-      if (debug_mode_){ //Display the debug window.
-        // TODO: have getDebugDisplay take in entire state, not just 3 values
-        cv::Mat debug_img = controller->costs_->getDebugDisplay(state(0), state(1), state(2));
+      if (debug_mode_ && controller->costs_->getDebugDisplayEnabled()) { //Display the debug window.
+        cv::Mat debug_img = controller->costs_->getDebugDisplay(state.data());
         setDebugImage(debug_img);
       }
       //Update the state estimate
@@ -244,15 +244,20 @@ public:
         state = getState(); //Get the new state.
       }
       //Update the cost parameters
-      if (hasNewDynRcfg()){
-        // TODO: get parameters typedef from costs
+      if (hasNewDynRcfg()) {
+        // TODO resolve issue with typename coming from the plant
+        //controller->costs_->TEMPLATED_PARAMS = getParams();
         // controller->costs_->updateParams_dcfg(getDynRcfgParams());
+        //controller->costs_->setParams(params);
       }
       //Update any obstacles
+      /*
+      TODO should this exist at all?
       if (hasNewObstacles()){
         getNewObstacles(obstacleDescription, obstacleData);
         controller->costs_->updateObstacles(obstacleDescription, obstacleData);
       }
+       */
       //Update the costmap
       if (hasNewCostmap()){
         getNewCostmap(costmapDescription, costmapData);
@@ -260,6 +265,7 @@ public:
       }
       //Update dynamics model
       if (hasNewModel()){
+        // TODO define generic
         getNewModel(modelDescription, modelData);
         controller->model_->updateModel(modelDescription, modelData);
       }

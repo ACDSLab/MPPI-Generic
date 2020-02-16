@@ -9,22 +9,6 @@ ARRobustCost<CLASS_T, PARAMS_T>::~ARRobustCost() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 }
 
-template <class CLASS_T, class PARAMS_T>
-void ARRobustCost<CLASS_T, PARAMS_T>::GPUSetup() {
-  //std::cout << __PRETTY_FUNCTION__ << std::endl;
-  if (!this->GPUMemStatus_) {
-    this->cost_d_ = Managed::GPUSetup(this);
-  } else {
-    std::cout << "GPU Memory already set." << std::endl;
-  }
-  // load track data
-  // update transform
-  // update params
-  // allocate texture memory
-  // convert costmap to texture
-  this->paramsToDevice();
-}
-
 template<class CLASS_T, class PARAMS_T>
 __host__ __device__ float ARRobustCost<CLASS_T, PARAMS_T>::getStabilizingCost(float* s)
 {

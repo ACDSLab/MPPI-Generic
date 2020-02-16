@@ -19,6 +19,13 @@
 #define MPPI_NNET_NONLINEARITY(ans) tanh(ans)
 #define MPPI_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
 
+/*
+ * TODO create templated value here
+template<>
+typedef struct {
+
+} NNDynamicsParams;
+*/
 
 /**
  * @file neural_net_model.cuh
@@ -34,12 +41,9 @@
  * @tparam layer_args size of the NN layers
  */
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-class NeuralNetModel : public Dynamics<S_DIM, C_DIM> {
+class NeuralNetModel : public Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, int... layer_args>, void, S_DIM, C_DIM> {
 public:
 
-
-  //static const int STATE_DIM = S_DIM;
-  //static const int CONTROL_DIM = C_DIM;
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
   static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
   static const int PRIME_PADDING = 1; ///< Extra padding to largest layer to avoid shared mem bank conflicts
@@ -52,17 +56,6 @@ public:
   NeuralNetModel(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream=0);
 
   ~NeuralNetModel();
-
-  std::array<float2, C_DIM> getControlRanges() {
-    std::array<float2, C_DIM> result;
-    for(int i = 0; i < C_DIM; i++) {
-      result[i] = control_rngs_[i];
-    }
-    return result;
-  }
-  __host__ __device__ float* getControlRangesRaw() {
-    return control_rngs_;
-  }
 
   std::array<int, NUM_LAYERS> getNetStructure() {
     std::array<int, NUM_LAYERS> array;
@@ -93,69 +86,46 @@ public:
 
   void CPUSetup(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream);
 
-  void updateModel(std::vector<int> description, std::vector<float> data);
-
   void paramsToDevice();
 
   void freeCudaMem();
 
+  void printState();
+
+  void printParams();
+
   void loadParams(const std::string& model_path);
 
-  __host__ __device__ void computeKinematics(float* state, float* state_der);
-
-  //__device__ void cudaInit(float* theta_s);
-
-  __host__ __device__ void enforceConstraints(float* state, float* control);
-
-  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
-
-  __device__ void incrementState(float* state, float* state_der);
-
-  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s);
-
-
-  /**
-   * WARNING THIS IS CURRENTLY BROKEN!!!
-   * theta_ is not what we want here!!!
-   * TODO: Fix this
-   */
-  __host__ __device__ void xDot(float* state,
-                                float* control,
-                                float* state_der) {
-    // This is broken                               |
-    //                                              |
-    //                                              |
-    //                                              |
-    //                                              |
-    //                                              |
-    //                                              V
-    computeStateDeriv(state, control, state_der, theta_);
-  };
-
-  /*
-  void setParams(Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* weights,
-                 Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* biases);
-
-  void printParamVec();
-
   void enforceConstraints(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
+
+  void updateModel(std::vector<int> description, std::vector<float> data);
 
   void updateState(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
 
   void computeKinematics(Eigen::MatrixXf &state);
 
-  void computeDynamics(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
+  void xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
 
   void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
 
-  __device__ void printCudaParamVec();
-   */
+  __device__ void computeKinematics(float* state, float* state_der);
 
-  NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>* model_d_ = nullptr;
+  __device__ void enforceConstraints(float* state, float* control);
+
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
+
+  __device__ void incrementState(float* state, float* state_der);
+
+  /**
+   * computes the state derivative
+   * @param state
+   * @param control
+   * @param state_der
+   * @param theta_s shared memory that is used since the network prop is parallel
+   */
+  __device__ void xDot(float* state, float* control, float* state_der, float* theta_s);
 
 private:
-
-  float2 control_rngs_[C_DIM];
 
   // TODO convert to std::array
   float theta_[NUM_PARAMS]; ///< structure parameter array. i.e. the actual weights

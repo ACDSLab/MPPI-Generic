@@ -2,9 +2,7 @@
 
 CartpoleDynamics::CartpoleDynamics(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream)
 {
-    cart_mass_ = cart_mass;
-    pole_mass_ = pole_mass;
-    pole_length_ = pole_length;
+    this->params_ = CartpoleDynamicsParams(cart_mass, pole_mass, pole_length);
 
     bindToStream(stream);
 }
@@ -12,6 +10,7 @@ CartpoleDynamics::CartpoleDynamics(float delta_t, float cart_mass, float pole_ma
 CartpoleDynamics::~CartpoleDynamics() {
 }
 
+/*
 void CartpoleDynamics::GPUSetup() {
     if (!GPUMemStatus_) {
         model_d_ = Managed::GPUSetup(this);
@@ -19,6 +18,7 @@ void CartpoleDynamics::GPUSetup() {
         std::cout << "GPU Memory already set." << std::endl;
     }
 }
+ */
 
 void CartpoleDynamics::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B)
 {
@@ -27,36 +27,39 @@ void CartpoleDynamics::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &cont
   float force = control(0);
 
   A(0,1) = 1.0;
-  A(1,2) = (pole_mass_*cosf(theta)*(pole_length_*powf(theta_dot,2.0)+gravity_*cosf(theta))-gravity_*pole_mass_*powf(sin(theta),2.0))/(cart_mass_+pole_mass_*powf(sinf(theta),2.0))
-  -(2*pole_mass_*cosf(theta)*sinf(theta)*(force+pole_mass_*sinf(theta)*(pole_length_*powf(theta_dot,2.0) + gravity_*cosf(theta))))/powf((cart_mass_+pole_mass_*powf(sinf(theta),2.0)),2.0);
-  A(1,3) = (2*pole_length_*pole_mass_*theta_dot*sinf(theta))/(cart_mass_+pole_mass_*powf(sinf(theta),2.0));
+  A(1,2) = (this->params_.pole_mass*cosf(theta)*(this->params_.pole_length*powf(theta_dot,2.0)+gravity_*cosf(theta))-gravity_*this->params_.pole_mass*powf(sin(theta),2.0))/(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0))
+  -(2*this->params_.pole_mass*cosf(theta)*sinf(theta)*(force+this->params_.pole_mass*sinf(theta)*(this->params_.pole_length*powf(theta_dot,2.0) + gravity_*cosf(theta))))/powf((this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)),2.0);
+  A(1,3) = (2*this->params_.pole_length*this->params_.pole_mass*theta_dot*sinf(theta))/(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0));
   A(2,3) = 1.0;
-  A(3,2) = (force*sinf(theta)-gravity_*cosf(theta)*(pole_mass_+cart_mass_)-pole_length_*pole_mass_*powf(theta_dot,2.0)*powf(cosf(theta),2.0)+pole_length_*pole_mass_*powf(theta_dot,2.0)*powf(sinf(theta),2.0))/(pole_length_*(cart_mass_+pole_mass_*powf(sinf(theta),2.0)))
-  +(2*pole_mass_*cosf(theta)*sinf(theta)*(pole_length_*pole_mass_*cosf(theta)*sinf(theta)*powf(theta_dot,2.0)+force*cosf(theta)+gravity_*sinf(theta)*(pole_mass_+cart_mass_)))/powf(pole_length_*(cart_mass_+pole_mass_*powf(sinf(theta),2.0)),2.0);
-  A(3,3) = -(2*pole_mass_*theta_dot*cosf(theta)*sinf(theta))/(cart_mass_+pole_mass_*powf(sinf(theta),2.0));
+  A(3,2) = (force*sinf(theta)-gravity_*cosf(theta)*(this->params_.pole_mass+this->params_.cart_mass)-this->params_.pole_length*this->params_.pole_mass*powf(theta_dot,2.0)*powf(cosf(theta),2.0)+this->params_.pole_length*this->params_.pole_mass*powf(theta_dot,2.0)*powf(sinf(theta),2.0))/(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)))
+  +(2*this->params_.pole_mass*cosf(theta)*sinf(theta)*(this->params_.pole_length*this->params_.pole_mass*cosf(theta)*sinf(theta)*powf(theta_dot,2.0)+force*cosf(theta)+gravity_*sinf(theta)*(this->params_.pole_mass+this->params_.cart_mass)))/powf(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)),2.0);
+  A(3,3) = -(2*this->params_.pole_mass*theta_dot*cosf(theta)*sinf(theta))/(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0));
 
-  B(1,0) = 1/(cart_mass_+pole_mass_*powf(theta,2.0));
-  B(3,0) = -cosf(theta)/(pole_length_*(cart_mass_+pole_mass_*powf(sinf(theta),2.0)));
+  B(1,0) = 1/(this->params_.cart_mass+this->params_.pole_mass*powf(theta,2.0));
+  B(3,0) = -cosf(theta)/(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)));
 }
 
-void CartpoleDynamics::setParams(const CartpoleDynamicsParams &parameters) {
-    cart_mass_ = parameters.cart_mass;
-    pole_length_ = parameters.pole_length;
-    pole_mass_ = parameters.pole_mass;
-    if (GPUMemStatus_) {
-        paramsToDevice();
-    }
-};
 
-CartpoleDynamicsParams CartpoleDynamics::getParams() {
-    return CartpoleDynamicsParams(cart_mass_, pole_mass_, pole_length_);
+void CartpoleDynamics::xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der) {
+  float theta = state(2);
+  float theta_dot = state(3);
+  float force = control(0);
+  float m_c = this->params_.cart_mass;
+  float m_p = this->params_.pole_mass;
+  float l_p = this->params_.pole_length;
+
+  // TODO WAT?
+  state_der(0) = state(1);
+  state_der(1) = 1/(m_c+m_p*powf(sinf(theta),2.0))*(force+m_p*sinf(theta)*(l_p*powf(theta_dot,2.0)+gravity_*cosf(theta)));
+  state_der(2) = state(3);
+  state_der(3) = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity_*sinf(theta));
 }
 
 void CartpoleDynamics::paramsToDevice()
 {
-    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->pole_mass_, &pole_mass_, sizeof(float), cudaMemcpyHostToDevice, stream_));
-    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->cart_mass_, &cart_mass_, sizeof(float), cudaMemcpyHostToDevice, stream_));
-    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->pole_length_, &pole_length_, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->params_.pole_mass, &this->params_.pole_mass, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->params_.cart_mass, &this->params_.cart_mass, sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->params_.pole_length, &this->params_.pole_length, sizeof(float), cudaMemcpyHostToDevice, stream_));
     HANDLE_ERROR( cudaStreamSynchronize(stream_));
 }
 
@@ -76,27 +79,26 @@ void CartpoleDynamics::printState(float *state) {
 
 void CartpoleDynamics::printParams()
 {
-  printf("Cart mass: %f; Pole mass: %f; Pole length: %f \n", cart_mass_, pole_mass_, pole_length_);
+  printf("Cart mass: %f; Pole mass: %f; Pole length: %f \n", this->params_.cart_mass, this->params_.pole_mass, this->params_.pole_length);
 }
 
-__host__ __device__ void CartpoleDynamics::xDot(float* state, float* control, float* state_der)
+__device__ void CartpoleDynamics::xDot(float* state, float* control, float* state_der)
 {
-  float gravity = 9.81;
   float theta = state[2];
   float theta_dot = state[3];
   float force = control[0];
-  float m_c = cart_mass_;
-  float m_p = pole_mass_;
-  float l_p = pole_length_;
+  float m_c = this->params_.cart_mass;
+  float m_p = this->params_.pole_mass;
+  float l_p = this->params_.pole_length;
 
   // TODO WAT?
   state_der[0] = state[1];
-  state_der[1] = 1/(m_c+m_p*powf(sinf(theta),2.0))*(force+m_p*sinf(theta)*(l_p*powf(theta_dot,2.0)+gravity*cosf(theta)));
+  state_der[1] = 1/(m_c+m_p*powf(sinf(theta),2.0))*(force+m_p*sinf(theta)*(l_p*powf(theta_dot,2.0)+gravity_*cosf(theta)));
   state_der[2] = state[3];
-  state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity*sinf(theta));
+  state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity_*sinf(theta));
 }
 
-void CartpoleDynamics::incrementState(float *state, float *xdot, float dt) {
+void CartpoleDynamics::updateState(std::array<float, STATE_DIM> state, std::array<float, STATE_DIM> xdot, float dt) {
     for (int i = 0; i < STATE_DIM; i++) {
         state[i] += xdot[i]*dt;
         xdot[i] = 0;

@@ -11,8 +11,9 @@ Header file for dynamics
 #include <stdio.h>
 #include <math.h>
 #include <utils/managed.cuh>
+#include <vector>
 
-template<int S_DIM, int C_DIM>
+template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 class Dynamics : public Managed
 {
 public:
@@ -29,43 +30,54 @@ public:
   ~Dynamics() = default;
 
   /**
-   * runs dynamics using state and control and sets it to state
-   * derivative. Everything is Eigen Matrices, not Eigen Vectors!
-   *
-   * @param state     input of current state, passed by reference
-   * @param control   input of currrent control, passed by reference
-   * @param state_der output of new state derivative, passed by reference
+   * Allocates all of the GPU memory
    */
-  void xDot(Eigen::MatrixXf &state,
-                    Eigen::MatrixXf &control,
-                    Eigen::MatrixXf &state_der);
+  void GPUSetup() {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    if (!GPUMemStatus_) {
+      this->model_d_ = Managed::GPUSetup(derived);
+    } else {
+      std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
+    }
+    derived->paramsToDevice();
+  }
+
+  std::array<float2, C_DIM> getControlRanges() {
+    std::array<float2, C_DIM> result;
+    for(int i = 0; i < C_DIM; i++) {
+      result[i] = control_rngs_[i];
+    }
+    return result;
+  }
+  __host__ __device__ float* getControlRangesRaw() {
+    return control_rngs_;
+  }
+
+  void setParams(const PARAMS_T& params) {
+    this->params_ = params;
+    if(this->GPUMemStatus_) {
+      CLASS_T& derived = static_cast<CLASS_T&>(*this);
+      derived.paramsToDevice();
+    }
+  }
+
+  PARAMS_T getParams() { return params_; }
+
 
   /**
    *
-   * @param state
-   * @param control
    */
-  void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control); //compute the Jacobians with respect to state and control
+  void freeCudaMem() {
+    if(GPUMemStatus_) {
+      cudaFree(model_d_);
+      model_d_ = nullptr;
+    }
+  }
 
   /**
    *
    */
-  void loadParams(); //figure out what to pass in here
-
-  /**
-   *
-   */
-  void paramsToDevice();
-
-  /**
-   *
-   */
-  void freeCudaMem();
-
-  /**
-   *
-   */
-  void printState();
+  void printState(float* state);
 
   /**
    *
@@ -73,31 +85,102 @@ public:
   void printParams();
 
   /**
-   * TODO: Replace with thrust::array<float, STATE_SIZE>
-   * to ensure that sizes are enforced
    *
-   * Can't make this virtual!!
-   * Making this a pure virtual function with:
+   */
+  void paramsToDevice() {
+    printf("ERROR: calling paramsToDevice of base dynamics");
+    exit(1);
+  }
+
+  /**
+   * loads the .npz at given path
+   * @param model_path
+   */
+  void loadParams(const std::string& model_path);
+
+  /**
+   * updates the internals of the dynamics model
+   * @param description
+   * @param data
+   */
+  // TODO generalize
+  void updateModel(std::vector<int> description, std::vector<float> data);
+
+  /**
+   * updates the current state using s_der
+   * @param s state
+   * @param s_der
+   */
+  void updateState(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der, float dt);
+
+  /**
+   * compute the Jacobians with respect to state and control
    *
-   * virtual ... = 0;
-   *
-   * makes the GPU version of this function an illegal
-   * memory access so this must be left as follows for now.
-   *
-   * Even just making it a virtual function causes problems for executables
-   * as there is no definition of this virtual function for the executable
-   * to link to. Defining it to an empty function:
-   * virtual ... = {}
-   * causes the same problem as a pure virtual function
+   * @param state   input of current state, passed by reference
+   * @param control input of currrent control, passed by reference
+   * @param A       output Jacobian wrt state, passed by reference
+   * @param B       output Jacobian wrt control, passed by reference
+   */
+  void computeGrad(Eigen::MatrixXf &state,
+                   Eigen::MatrixXf &control,
+                   Eigen::MatrixXf &A,
+                   Eigen::MatrixXf &B);
+
+  /**
+   * enforces control constraints
+   * @param state
+   * @param control
+   */
+  void enforceConstraints(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
+
+  /**
+   * computes the state derivative
+   * @param state
+   * @param control
+   * @param state_der
+   */
+  void xDot(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
+
+
+  /**
+   * computes the state_der
+   * @param state
+   * @param control
+   * @param state_der
+   * @param theta_s shared memory that can be used when computation is computed across the same block
    */
   __device__ void xDot(float* state,
                                 float* control,
-                                float* state_der);
+                                float* state_der,
+                                float* theta_s = nullptr);
+
+  /**
+   * applies the state derivative
+   * @param state
+   * @param state_der
+   * @param dt
+   */
+  __device__ void updateState(float* state, float* state_der, float dt);
+
+  /**
+   * enforces control constraints
+   */
+  __device__ void enforceConstraints(float* state, float* control);
+
+  // device pointer, null on the device
+  CLASS_T* model_d_ = nullptr;
+protected:
+  // generic parameter structure
+  PARAMS_T params_;
+
+  // control ranges [.x, .y]
+  float2 control_rngs_[C_DIM];
+
 };
 
-template <int S_DIM, int C_DIM>
-const int Dynamics<S_DIM, C_DIM>::STATE_DIM;
+template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
+const int Dynamics<CLASS_T, PARAMS_T, S_DIM, C_DIM>::STATE_DIM;
 
-template <int S_DIM, int C_DIM>
-const int Dynamics<S_DIM, C_DIM>::CONTROL_DIM;
+template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
+const int Dynamics<CLASS_T, PARAMS_T, S_DIM, C_DIM>::CONTROL_DIM;
 #endif // DYNAMICS_CUH_
