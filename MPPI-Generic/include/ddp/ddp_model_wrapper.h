@@ -20,8 +20,8 @@ bool getGrad(T* model, typename DDP_structures::Dynamics<float, T::STATE_DIM, T:
 {
     // T::dfdx A;
     // T::dfdu B;
-    Eigen::MatrixXf A(T::STATE_DIM, T::STATE_DIM);
-    Eigen::MatrixXf B(T::STATE_DIM, T::CONTROL_DIM);
+    Eigen::MatrixXf A = Eigen::MatrixXf::Zero(T::STATE_DIM, T::STATE_DIM);
+    Eigen::MatrixXf B = Eigen::MatrixXf::Zero(T::STATE_DIM, T::CONTROL_DIM);
     model->computeGrad(x, u, A, B);
     jac.block(0,0, T::STATE_DIM, T::STATE_DIM) = A;
     jac.block(0, T::STATE_DIM, T::STATE_DIM, T::CONTROL_DIM) = B;
@@ -82,7 +82,7 @@ struct ModelWrapperDDP: public DDP_structures::Dynamics<float, DYNAMICS_T::STATE
 
     Jacobian df(const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u)
     {
-        Jacobian j_;
+        Jacobian j_ = Jacobian::Zero(DYNAMICS_T::STATE_DIM, DYNAMICS_T::STATE_DIM + DYNAMICS_T::CONTROL_DIM);
         state = x;
         control = u;
         bool analyticGradComputed = getGrad(model_, j_, state, control, std::integral_constant<bool, HasAnalyticGrad<DYNAMICS_T>::Has>());
