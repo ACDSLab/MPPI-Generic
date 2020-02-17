@@ -51,7 +51,7 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
 void TubeMPPI::computeControl(state_array state) {
     if (!nominalStateInit_){
       for (int i = 0; i < DYN_T::STATE_DIM; i++){
-        nominal_state_[i] = state[i];
+        nominal_state_(i, 0) = state(i);
       }
       nominalStateInit_ = true;
     }
@@ -156,10 +156,10 @@ void TubeMPPI::computeControl(state_array state) {
             use_nominal_state_ = false;
             // reset nominal to actual
 
-            std::copy(actual_state_.begin(), actual_state_.end(), nominal_state_.begin());
-            std::copy(actual_control_.begin(), actual_control_.end(), nominal_control_.begin());
-            // nominal_state_ = actual_state_;
-            // nominal_control_ = actual_control_;
+            // std::copy(actual_state_.begin(), actual_state_.end(), nominal_state_.begin());
+            // std::copy(actual_control_.begin(), actual_control_.end(), nominal_control_.begin());
+            nominal_state_ = actual_state_;
+            nominal_control_ = actual_control_;
         }
 
 
@@ -231,8 +231,8 @@ void TubeMPPI::initDDP(const StateCostWeight& q_mat,
     R_ = r_mat;
 
     for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
-        control_min_(i) = this->model_->control_rngs[i].x;
-        control_max_(i) = this->model_->control_rngs[i].y;
+        control_min_(i) = this->model_->control_rngs_[i].x;
+        control_max_(i) = this->model_->control_rngs_[i].y;
     }
 
     run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(Q_,

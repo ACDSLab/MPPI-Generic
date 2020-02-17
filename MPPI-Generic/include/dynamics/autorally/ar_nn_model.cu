@@ -50,7 +50,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::GPUSetup() {
   // allocate object
   if (!this->GPUMemStatus_) {
     // TODO check if this is setup properly in test cases
-    model_d_ = Managed::GPUSetup(this);
+    this->model_d_ = Managed::GPUSetup(this);
   } else {
     std::cout << "GPU Memory already set." << std::endl;
   }

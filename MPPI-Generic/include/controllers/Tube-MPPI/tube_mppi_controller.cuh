@@ -26,25 +26,25 @@ public:
     /**
      * Set up useful types
      */
-    using typename Controller<DYN_T, COST_T,
+    using control_array = typename Controller<DYN_T, COST_T,
             MAX_TIMESTEPS,
             NUM_ROLLOUTS,
             BDIM_X,
             BDIM_Y>::control_array;
 
-    using typename Controller<DYN_T, COST_T,
+    using control_trajectory = typename Controller<DYN_T, COST_T,
             MAX_TIMESTEPS,
             NUM_ROLLOUTS,
             BDIM_X,
             BDIM_Y>::control_trajectory;
 
-    using typename Controller<DYN_T, COST_T,
+    using state_trajectory = typename Controller<DYN_T, COST_T,
             MAX_TIMESTEPS,
             NUM_ROLLOUTS,
             BDIM_X,
             BDIM_Y>::state_trajectory;
 
-    using typename Controller<DYN_T, COST_T,
+    using state_array = typename Controller<DYN_T, COST_T,
             MAX_TIMESTEPS,
             NUM_ROLLOUTS,
             BDIM_X,
@@ -116,15 +116,15 @@ private:
     float dt_;
     float nominal_threshold_; // How much worse the actual system has to be compared to the nominal
 
-    control_trajectory nominal_control_ = {{0}};
-    control_trajectory actual_control_ = {{0}};
-    state_trajectory nominal_state_ = {{0}};
-    state_trajectory actual_state_ = {{0}};
+    control_trajectory nominal_control_ = control_trajectory::Zero();
+    control_trajectory actual_control_ = control_trajectory::Zero();
+    state_trajectory nominal_state_ = state_trajectory::Zero();
+    state_trajectory actual_state_ = state_trajectory::Zero();
 
-    Eigen::Matrix<float, DYN_T::CONTROL_DIM, 1> control_min_;
-    Eigen::Matrix<float, DYN_T::CONTROL_DIM, 1> control_max_;
+    control_array control_min_;
+    control_array control_max_;
 
-    typename OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
+    OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
 
     sampled_cost_traj trajectory_costs_nominal_ = {{0}};
     sampled_cost_traj trajectory_costs_actual_ = {{0}};

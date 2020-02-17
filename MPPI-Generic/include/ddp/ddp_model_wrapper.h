@@ -18,12 +18,18 @@ template<typename T>
 bool getGrad(T* model, typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Jacobian &jac,
             Eigen::MatrixXf &x, Eigen::MatrixXf &u, std::true_type)
 {
-    model->computeGrad(x, u);
-    for (int i = 0; i < T::STATE_DIM; i++){
-        for (int j = 0; j < T::STATE_DIM + T::CONTROL_DIM; j++){
-            jac(i,j) = model->jac_(i,j);
-        }
-    }
+    // T::dfdx A;
+    // T::dfdu B;
+    Eigen::MatrixXf A(T::STATE_DIM, T::STATE_DIM);
+    Eigen::MatrixXf B(T::STATE_DIM, T::CONTROL_DIM);
+    model->computeGrad(x, u, A, B);
+    jac.block(0,0, T::STATE_DIM, T::STATE_DIM) = A;
+    jac.block(0, T::STATE_DIM, T::STATE_DIM, T::CONTROL_DIM) = B;
+    // for (int i = 0; i < T::STATE_DIM; i++){
+    //     for (int j = 0; j < T::STATE_DIM; j++){
+    //         jac(i,j) = A(i,j);
+    //     }
+    // }
     return true;
 }
 
@@ -55,8 +61,8 @@ struct ModelWrapperDDP: public DDP_structures::Dynamics<float, DYNAMICS_T::STATE
     State f(const Eigen::Ref<const State> &x, const Eigen::Ref<const Control> &u)
     {
         // This section is specific to the neural network implementation for the autorally
-//        state = x;
-//        control = u;
+        state = x;
+        control = u;
 //        model_->computeKinematics(state);
 //        model_->computeDynamics(state, control);
 //        for (int i = 0; i < DYNAMICS_T::STATE_DIM; i++){
@@ -64,8 +70,12 @@ struct ModelWrapperDDP: public DDP_structures::Dynamics<float, DYNAMICS_T::STATE
 //        }
 
         // Compute the state derivative xDot
-        State dx;
-        model_->xDot(x.data(), u.data(), dx.data());
+        State dx; // dx can't be passed in directly at the moment
+        Eigen::MatrixXf state_der;
+        model_->xDot(state, control, state_der);
+        for (int i = 0; i < DYNAMICS_T::STATE_DIM; i++) {
+            dx(i) = state_der(i);
+        }
 
         return dx;
     }

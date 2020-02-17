@@ -20,8 +20,10 @@ void CartpoleDynamics::GPUSetup() {
 }
  */
 
-void CartpoleDynamics::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B)
-{
+void CartpoleDynamics::computeGrad(const Eigen::MatrixXf &state,
+                                   const Eigen::MatrixXf &control,
+                                   Eigen::MatrixXf& A,
+                                   Eigen::MatrixXf& B) {
   float theta = state(2);
   float theta_dot = state(3);
   float force = control(0);

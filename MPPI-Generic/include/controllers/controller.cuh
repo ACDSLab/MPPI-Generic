@@ -6,6 +6,8 @@
 #define MPPIGENERIC_CONTROLLER_CUH
 
 #include <array>
+#include <Eigen/Core>
+#include <ddp/util.h>
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
@@ -23,15 +25,17 @@ public:
    * Aliases
    */
    // Control
-  typedef std::array<float, DYN_T::CONTROL_DIM> control_array; // State at a time t
-  typedef std::array<float, DYN_T::CONTROL_DIM*MAX_TIMESTEPS> control_trajectory; // A control trajectory
-  typedef std::array<float, DYN_T::CONTROL_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS> sampled_control_traj; // All control trajectories sampled
-  typedef std::array<float, DYN_T::CONTROL_DIM * DYN_T::STATE_DIM> K_matrix;
+  using control_array = typename DYN_T::control_array;
+  // typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, 1> control_array; // Control at a time t
+  typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, MAX_TIMESTEPS> control_trajectory; // A control trajectory
+  typedef std::array<control_trajectory, NUM_ROLLOUTS> sampled_control_traj; // All control trajectories sampled
+  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> K_matrix;
 
   // State
-  typedef std::array<float, DYN_T::STATE_DIM> state_array; // State at a time t
-  typedef std::array<float, DYN_T::STATE_DIM*MAX_TIMESTEPS> state_trajectory; // A state trajectory
-  typedef std::array<float, DYN_T::STATE_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS> sampled_state_traj; // All state trajectories sampled
+  using state_array = typename DYN_T::state_array;
+  // typedef Eigen::Matrix<float, DYN_T::STATE_DIM, 1> state_array; // State at a time t
+  typedef Eigen::Matrix<float, DYN_T::STATE_DIM, MAX_TIMESTEPS> state_trajectory; // A state trajectory
+  typedef std::array<state_trajectory, NUM_ROLLOUTS> sampled_state_traj; // All state trajectories sampled
   // Cost
   typedef std::array<float, MAX_TIMESTEPS> cost_trajectory; // A cost trajectory
   typedef std::array<float, NUM_ROLLOUTS> sampled_cost_traj; // All costs sampled for all rollouts
@@ -53,7 +57,7 @@ public:
   /**
    * Calculate new feedback gains
    */
-  virtual void computeFeedbackGains(state_array state) {};
+  virtual void computeFeedbackGains(const state_array& state) {};
 
   /**
    * returns the current control sequence

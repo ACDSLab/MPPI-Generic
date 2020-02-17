@@ -26,17 +26,17 @@ int main(int argc, char** argv) {
     float gamma = 0.25;
     int num_timesteps = 100;
 
-    std::array<float, CartpoleDynamics::CONTROL_DIM> control_var = {5.0};
+    CartpoleDynamics::control_array control_var;
+    control_var = CartpoleDynamics::control_array::Constant(5.0);
 
     auto CartpoleController = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
                                                                                                                dt, max_iter, gamma, num_timesteps, control_var);
 
-    decltype(CartpoleController)::state_array current_state { 0, 0, 0, 0};
-
+    Eigen::MatrixXf current_state = CartpoleDynamics::state_array::Zero();
 
     int time_horizon = 1000;
 
-    float xdot[CartpoleDynamics::STATE_DIM];
+    Eigen::MatrixXf xdot = CartpoleDynamics::state_array::Zero();
 
     auto time_start = std::chrono::system_clock::now();
     for (int i =0; i < time_horizon; ++i) {
@@ -50,8 +50,10 @@ int main(int argc, char** argv) {
         CartpoleController.computeControl(current_state);
 
         // Increment the state
-        model.xDot(current_state.data(), &CartpoleController.getControlSeq()[0], xdot);
-        model.incrementState(current_state.data(), xdot, dt);
+        Eigen::MatrixXf control(CartpoleDynamics::CONTROL_DIM, 1);
+        control = CartpoleController.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
+        model.xDot(current_state, control, xdot);
+        model.updateState(current_state, xdot, dt);
 
         // Slide the controls down before calling the optimizer again
         CartpoleController.slideControlSequence(1);

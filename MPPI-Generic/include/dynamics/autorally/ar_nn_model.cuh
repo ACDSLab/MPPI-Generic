@@ -104,7 +104,6 @@ public:
   void computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der);
   void computeStateDeriv(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
 
-
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
   __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);

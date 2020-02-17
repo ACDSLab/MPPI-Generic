@@ -22,25 +22,27 @@ class VanillaMPPIController : public Controller<DYN_T, COST_T,
                                                 BDIM_X,
                                                 BDIM_Y> {
 public:
-    using typename Controller<DYN_T, COST_T,
+    // need control_array = ... so that we can initialize
+    // Eigen::Matrix with Eigen::Matrix::Zero();
+    using control_array = typename Controller<DYN_T, COST_T,
                               MAX_TIMESTEPS,
                               NUM_ROLLOUTS,
                               BDIM_X,
                               BDIM_Y>::control_array;
 
-    using typename Controller<DYN_T, COST_T,
+    using control_trajectory = typename Controller<DYN_T, COST_T,
                               MAX_TIMESTEPS,
                               NUM_ROLLOUTS,
                               BDIM_X,
                               BDIM_Y>::control_trajectory;
 
-    using typename Controller<DYN_T, COST_T,
+    using state_trajectory = typename Controller<DYN_T, COST_T,
                               MAX_TIMESTEPS,
                               NUM_ROLLOUTS,
                               BDIM_X,
                               BDIM_Y>::state_trajectory;
 
-    using typename Controller<DYN_T, COST_T,
+    using state_array = typename Controller<DYN_T, COST_T,
                               MAX_TIMESTEPS,
                               NUM_ROLLOUTS,
                               BDIM_X,
@@ -103,8 +105,8 @@ private:
     float baseline_; // Baseline cost of the system.
     float dt_;
 
-    control_trajectory nominal_control_ = {{0}};
-    state_trajectory nominal_state_ = {{0}};
+    control_trajectory nominal_control_ = control_trajectory::Zero();
+    state_trajectory nominal_state_ = state_trajectory::Zero();
     sampled_cost_traj trajectory_costs_ = {{0}};
 
     float* initial_state_d_;
@@ -120,7 +122,7 @@ protected:
     curandGenerator_t gen_;
 
 
-    control_array control_variance_ = {{0}};
+    control_array control_variance_ = control_array::Zero();
     float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
     // WARNING This method is private because it is only called once in the constructor. Logic is required
     // so that CUDA memory is properly reallocated when the number of timesteps changes.

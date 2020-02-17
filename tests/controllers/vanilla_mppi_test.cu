@@ -17,8 +17,8 @@ TEST_F(Cartpole_VanillaMPPI, BindToStream) {
     const int num_timesteps = 100;
     const int num_rollouts = 256;
 
-    std::array<float, CartpoleDynamics::CONTROL_DIM> control_var = {2.5};
-    std::array<float, CartpoleDynamics::CONTROL_DIM * num_timesteps> init_control = {0};
+    CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(2.5);
+    Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps> init_control = Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps>::Constant(0);
     cudaStream_t stream;
 
     HANDLE_ERROR(cudaStreamCreate(&stream));
@@ -36,8 +36,8 @@ TEST_F(Cartpole_VanillaMPPI, BindToStream) {
 TEST_F(Cartpole_VanillaMPPI, UpdateNoiseVariance) {
     const int num_timesteps = 150;
     const int num_rollouts = 512;
-    std::array<float, CartpoleDynamics::CONTROL_DIM> control_var = {1.5};
-    std::array<float, CartpoleDynamics::CONTROL_DIM> new_control_var = {3.5};
+    CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(1.5);
+    CartpoleDynamics::control_array new_control_var = CartpoleDynamics::control_array::Constant(3.5);
 
     auto CartpoleController = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
                                                                                                                                  dt, max_iter, gamma, num_timesteps, control_var);
@@ -68,7 +68,7 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
     float gamma = 0.25;
     int num_timesteps = 100;
 
-    std::array<float, CartpoleDynamics::CONTROL_DIM> control_var = {5.0};
+    CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
 
     auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
                                                                                                        dt, max_iter, gamma, num_timesteps, control_var);
@@ -89,9 +89,11 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
         // Compute the control
         controller.computeControl(current_state);
 
+        Eigen::MatrixXf control(CartpoleDynamics::CONTROL_DIM, 1);
+        control = controller.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
         // Increment the state
-        model.xDot(current_state.data(), &controller.getControlSeq()[0], xdot);
-        model.updateState(current_state.data(), xdot, dt);
+        model.xDot(current_state, control, xdot);
+        model.updateState(current_state, xdot, dt);
 
         controller.slideControlSequence(1);
 

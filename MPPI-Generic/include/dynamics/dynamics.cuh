@@ -22,6 +22,21 @@ public:
   static const int CONTROL_DIM = C_DIM;
   static const int SHARED_MEM_REQUEST_GRD = 0;
   static const int SHARED_MEM_REQUEST_BLK = 0;
+  float dt_;
+
+  /**
+   * useful typedefs
+   * TODO: figure out how to ensure matrices passed in to various functions
+   * match these types. These values can't be passed in to methods with MatrixXf
+   * parameters
+   * and MatrixXfs can't be passed into methods with these types because
+   * Eigen::Matrix<float, 4, 4> =/= Eigen::MatrixXf(4, 4)!
+   */
+  typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array; // Control at a time t
+  typedef Eigen::Matrix<float, STATE_DIM, 1> state_array; // State at a time t
+  typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM> dfdx; // Jacobian wrt x
+  typedef Eigen::Matrix<float, STATE_DIM, CONTROL_DIM> dfdu; // Jacobian wrt u
+  typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM + CONTROL_DIM> Jacobian; // Jacobian of x and u
 
   Dynamics() = default;
   /**
@@ -115,10 +130,10 @@ public:
    * @param A       output Jacobian wrt state, passed by reference
    * @param B       output Jacobian wrt control, passed by reference
    */
-  void computeGrad(Eigen::MatrixXf &state,
-                   Eigen::MatrixXf &control,
-                   Eigen::MatrixXf &A,
-                   Eigen::MatrixXf &B);
+  void computeGrad(const Eigen::MatrixXf& state,
+                   const Eigen::MatrixXf& control,
+                   Eigen::MatrixXf& A,
+                   Eigen::MatrixXf& B);
 
   /**
    * enforces control constraints
@@ -218,15 +233,18 @@ public:
    */
   __device__ void enforceConstraints(float* state, float* control);
 
-  // device pointer, null on the device
-  CLASS_T* model_d_ = nullptr;
-protected:
-  // generic parameter structure
-  PARAMS_T params_;
 
   // control ranges [.x, .y]
   float2 control_rngs_[C_DIM];
 
+  // device pointer, null on the device
+  CLASS_T* model_d_ = nullptr;
+
+  // Eigen matrix holding the state and control jacobians required for DDP N X (N+M)
+  // Jacobian jac_;
+protected:
+  // generic parameter structure
+  PARAMS_T params_;
 };
 
 template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>

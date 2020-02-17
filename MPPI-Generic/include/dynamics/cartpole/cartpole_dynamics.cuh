@@ -42,8 +42,10 @@ public:
      * @param control input of currrent control, passed by reference
 
      */
-    void computeGrad(Eigen::MatrixXf &state,
-                     Eigen::MatrixXf &control);
+    void computeGrad(const Eigen::MatrixXf& state,
+                     const Eigen::MatrixXf& control,
+                     Eigen::MatrixXf& A,
+                     Eigen::MatrixXf& B);
 
     __host__ __device__ float getCartMass() {return this->params_.cart_mass;};
     __host__ __device__ float getPoleMass() {return this->params_.pole_mass;};
@@ -62,8 +64,6 @@ public:
 
     void paramsToDevice();
 
-    // Eigen matrix holding the state and control jacobians required for DDP N X (N+M)
-    Eigen::MatrixXf jac_;
 protected:
     const float gravity_ = 9.81;
 
