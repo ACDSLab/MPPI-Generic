@@ -94,7 +94,7 @@ public:
 
     void computeFeedbackGains(const state_array& s) override;
 
-    FeedbackGainTrajectory getFeedback() { return result_.feedback_gain;};
+    FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
 
     StateCostWeight Q_;
     Hessian Qf_;

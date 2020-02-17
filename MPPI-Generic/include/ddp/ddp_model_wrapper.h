@@ -71,7 +71,7 @@ struct ModelWrapperDDP: public DDP_structures::Dynamics<float, DYNAMICS_T::STATE
 
         // Compute the state derivative xDot
         State dx; // dx can't be passed in directly at the moment
-        Eigen::MatrixXf state_der;
+        Eigen::MatrixXf state_der(DYNAMICS_T::STATE_DIM, 1);
         model_->computeStateDeriv(state, control, state_der);
         for (int i = 0; i < DYNAMICS_T::STATE_DIM; i++) {
             dx(i) = state_der(i);
