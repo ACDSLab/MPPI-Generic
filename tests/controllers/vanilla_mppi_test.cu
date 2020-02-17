@@ -72,7 +72,7 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
 
     auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
                                                                                                        dt, max_iter, gamma, num_timesteps, control_var);
-    Eigen::MatrixXf current_state(4, 1);
+    Eigen::MatrixXf current_state = CartpoleDynamics::state_array::Zero();
     int time_horizon = 1000;
 
     //float xdot[CartpoleDynamics::STATE_DIM];
@@ -92,7 +92,7 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
         Eigen::MatrixXf control(CartpoleDynamics::CONTROL_DIM, 1);
         control = controller.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
         // Increment the state
-        model.xDot(current_state, control, xdot);
+        model.computeStateDeriv(current_state, control, xdot);
         model.updateState(current_state, xdot, dt);
 
         controller.slideControlSequence(1);

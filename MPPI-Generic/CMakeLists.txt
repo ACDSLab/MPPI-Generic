@@ -6,5 +6,5 @@ install(
         FILES_MATCHING PATTERN "*.h"
 )
 
-#add_subdirectory(src)
-#add_subdirectory(examples)
+add_subdirectory(src)
+add_subdirectory(examples)

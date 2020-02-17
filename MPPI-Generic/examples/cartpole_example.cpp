@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
         // Increment the state
         Eigen::MatrixXf control(CartpoleDynamics::CONTROL_DIM, 1);
         control = CartpoleController.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
-        model.xDot(current_state, control, xdot);
+        model.computeStateDeriv(current_state, control, xdot);
         model.updateState(current_state, xdot, dt);
 
         // Slide the controls down before calling the optimizer again

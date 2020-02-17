@@ -41,8 +41,15 @@ void CartpoleDynamics::computeGrad(const Eigen::MatrixXf &state,
   B(3,0) = -cosf(theta)/(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)));
 }
 
+void CartpoleDynamics::computeStateDeriv(Eigen::MatrixXf& state,
+                                         Eigen::MatrixXf& control,
+                                         Eigen::MatrixXf& state_der) {
+  computeDynamics(state, control, state_der);
+}
 
-void CartpoleDynamics::computeDynamics(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &state_der) {
+void CartpoleDynamics::computeDynamics(Eigen::MatrixXf &state,
+                                       Eigen::MatrixXf &control,
+                                       Eigen::MatrixXf &state_der) {
   float theta = state(2);
   float theta_dot = state(3);
   float force = control(0);
@@ -84,7 +91,8 @@ void CartpoleDynamics::printParams()
   printf("Cart mass: %f; Pole mass: %f; Pole length: %f \n", this->params_.cart_mass, this->params_.pole_mass, this->params_.pole_length);
 }
 
-__device__ void CartpoleDynamics::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
+__device__ void CartpoleDynamics::computeDynamics(float* state, float* control,
+                                                  float* state_der, float* theta_s)
 {
   float theta = state[2];
   float theta_dot = state[3];

@@ -56,9 +56,24 @@ public:
     void printState(float* state);
     void printParams();
 
+    void computeStateDeriv(Eigen::MatrixXf& state,
+                           Eigen::MatrixXf& control,
+                           Eigen::MatrixXf& state_der);
+
+    // TODO Figure out why this method is required for mppi_common to use this
+    // rather than the Eigen version
+    __device__ void computeStateDeriv(float* state,
+                                      float* control,
+                                      float* state_der,
+                                      float* theta_s) {
+        Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>::computeStateDeriv(
+            state, control, state_der, theta_s);
+    }
+
     __device__ void computeDynamics(float* state,
-                                  float* control,
-                                  float* state_der, float* theta = nullptr);
+                                    float* control,
+                                    float* state_der,
+                                    float* theta = nullptr);
 
     void freeCudaMem();
 

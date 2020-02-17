@@ -205,10 +205,12 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void VanillaMPPI::slideControlSequence(int steps) {
     for (int i = 0; i < num_timesteps_; ++i) {
-        if (i + steps < num_timesteps_) {
-            nominal_control_[i] = nominal_control_[i + steps];
-        } else {
-            nominal_control_[i] = nominal_control_[num_timesteps_-1];
+        for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
+            if (i + steps < num_timesteps_) {
+                nominal_control_(j,i) = nominal_control_(j,i + steps);
+            } else {
+                nominal_control_(j,i) = nominal_control_(j,num_timesteps_-1);
+            }
         }
     }
 }

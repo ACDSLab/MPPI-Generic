@@ -20,7 +20,7 @@ class Dynamics : public Managed
 public:
   static const int STATE_DIM = S_DIM;
   static const int CONTROL_DIM = C_DIM;
-  static const int SHARED_MEM_REQUEST_GRD = 0;
+  static const int SHARED_MEM_REQUEST_GRD = 1; //TODO set to one to prevent array of size 0 error
   static const int SHARED_MEM_REQUEST_BLK = 0;
   float dt_;
 
@@ -199,13 +199,15 @@ public:
   __device__ void computeKinematics(float* state, float* state_der) {};
 
   /**
+   * TODO Figure out why this doesn't actually work. Needs to be redefined in
+   * derived class
    * computes the full state derivative by calling computeKinematics then computeDynamics
    * @param state
    * @param control
    * @param state_der
    * @param theta_s shared memory that can be used when computation is computed across the same block
    */
-  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s) {
+  __device__ inline void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s) {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     // only propagate a single state, i.e. thread.y = 0
     // find the change in x,y,theta based off of the rest of the state
