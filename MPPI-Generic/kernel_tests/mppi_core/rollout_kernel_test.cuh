@@ -53,10 +53,10 @@ void launchComputeRunningCostAllRollouts_KernelTest(const COST_T& cost,
                                                     const std::array<float, CONTROL_DIM>& sigma_u,
                                                     std::array<float, NUM_ROLLOUTS>& cost_allrollouts);
 
-template<class DYN_T, int NUM_ROLLOUTS>
+template<class DYN_T, int NUM_ROLLOUTS, int BLOCKSIZE_X>
 __global__ void computeStateDerivAllRollouts_KernelTest(DYN_T* dynamics_d, float* x_trajectory_d, float* u_trajectory_d, float* xdot_trajectory_d);
 
-template<class DYN_T, int NUM_ROLLOUTS>
+template<class DYN_T, int NUM_ROLLOUTS, int BLOCKSIZE_X>
 void launchComputeStateDerivAllRollouts_KernelTest(const DYN_T& dynamics,
                                                    const std::array<float, DYN_T::STATE_DIM*NUM_ROLLOUTS>& x_trajectory,
                                                    const std::array<float, DYN_T::CONTROL_DIM*NUM_ROLLOUTS>& u_trajectory,
