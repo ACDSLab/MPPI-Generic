@@ -30,7 +30,7 @@ public:
      * @param control   input of currrent control, passed by reference
      * @param state_der output of new state derivative, passed by reference
      */
-    void xDot(Eigen::MatrixXf &state,
+    void computeDynamics(Eigen::MatrixXf &state,
               Eigen::MatrixXf &control,
               Eigen::MatrixXf &state_der);
 
@@ -56,11 +56,9 @@ public:
     void printState(float* state);
     void printParams();
 
-    __device__ void xDot(float* state,
+    __device__ void computeDynamics(float* state,
                                   float* control,
-                                  float* state_der);
-
-    void updateState(std::array<float, STATE_DIM> state, std::array<float, STATE_DIM> xdot, float dt);
+                                  float* state_der, float* theta = nullptr);
 
     void freeCudaMem();
 

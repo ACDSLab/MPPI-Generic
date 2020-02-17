@@ -2,8 +2,6 @@
 // Created by jgibson37 on 2/7/20.
 //
 
-//#include "ar_robust_cost_kernel_test.cuh"
-
 template<class CLASS_T>
 __global__ void getCostmapCostTestKernel(CLASS_T* cost, float* test_xu, float* cost_results, int num_points) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;

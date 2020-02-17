@@ -8,7 +8,6 @@ add_executable(cp_quadratic_cost_tests
 target_link_libraries(cp_quadratic_cost_tests gtest
         gmock
         gtest_main
-        cartpole_quadratic_cost_kernel_test
         cnpy)
 
 add_test(NAME cp_quadratic_cost_tests COMMAND cp_quadratic_cost_tests)
@@ -46,7 +45,6 @@ add_executable(${TEST_NAME}
 target_link_libraries(${TEST_NAME} gtest
                       gmock
                       gtest_main
-                      #ar_standard_cost_kernel_test
                       cnpy)
 
 add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
@@ -62,8 +60,6 @@ add_executable(${TEST_NAME}
 target_link_libraries(${TEST_NAME} gtest
         gmock
         gtest_main
-        #ar_standard_cost_kernel_test
-        #ar_robust_cost_kernel_test
         cnpy)
 
 add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})

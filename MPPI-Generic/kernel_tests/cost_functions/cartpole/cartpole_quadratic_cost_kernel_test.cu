@@ -1,5 +1,3 @@
-#include "cartpole_quadratic_cost_kernel_test.cuh"
-
 __global__ void parameterTestKernel(CartpoleQuadraticCost* cost_d, cartpoleQuadraticCostParams& params_d) {
     // The parameters have been set outside of the kernel on the device, copy the current values of the parameters to params_d
     int tid = blockIdx.x*blockDim.x + threadIdx.x;

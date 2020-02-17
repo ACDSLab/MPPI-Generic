@@ -13,4 +13,6 @@ __global__ void parameterTestKernel(CartpoleQuadraticCost* cost_d, cartpoleQuadr
  */
 void launchParameterTestKernel(const CartpoleQuadraticCost& cost, cartpoleQuadraticCostParams& param_check);
 
+#include "cartpole_quadratic_cost_kernel_test.cu"
+
 #endif //!MPPIGENERIC_CARTPOLE_QUADRATIC_COST_KERNEL_TEST_CUH

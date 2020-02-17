@@ -1,5 +1,3 @@
-//#include <cost_functions/autorally/ar_standard_cost.cuh>
-
 template<typename COST_T, typename PARAMS_T>
 __global__ void parameterTestKernel(const COST_T* cost, PARAMS_T& params, int& width, int& height) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;

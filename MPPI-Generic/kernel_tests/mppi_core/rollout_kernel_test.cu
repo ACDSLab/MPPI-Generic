@@ -306,10 +306,14 @@ void launchComputeRunningCostAllRollouts_KernelTest(const COST_T& cost,
 template<class DYN_T, int NUM_ROLLOUTS>
 __global__ void computeStateDerivAllRollouts_KernelTest(DYN_T* dynamics_d, float* x_trajectory_d, float* u_trajectory_d, float* xdot_trajectory_d) {
     int tid = blockDim.x*blockIdx.x + threadIdx.x; // index on rollouts
-    if (tid < NUM_ROLLOUTS) {
+  //Create a shared array for the dynamics model to use
+  // TODO this is needed since 0 size is a compile error
+  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X + 1];
+  if (tid < NUM_ROLLOUTS) {
             mppi_common::computeStateDerivAllRollouts(dynamics_d, &x_trajectory_d[DYN_T::STATE_DIM*tid],
                                                        &u_trajectory_d[DYN_T::CONTROL_DIM*tid],
-                                                       &xdot_trajectory_d[DYN_T::STATE_DIM*tid]);
+                                                       &xdot_trajectory_d[DYN_T::STATE_DIM*tid],
+                                                       theta_s);
     }
 }
 

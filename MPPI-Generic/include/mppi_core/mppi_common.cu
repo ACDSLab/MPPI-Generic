@@ -24,6 +24,9 @@ namespace mppi_common {
         __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM];
         __shared__ float sigma_u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM];
 
+      //Create a shared array for the dynamics model to use
+      __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+
         //Create local state, state dot and controls
         float* x;
         float* xdot;
@@ -63,7 +66,7 @@ namespace mppi_common {
                 // TODO apply constraints kernel
 
                 //Compute state derivatives
-                computeStateDerivAllRollouts(dynamics, x, u, xdot);
+                computeStateDerivAllRollouts(dynamics, x, u, xdot, theta_s);
                 __syncthreads();
 
                 //Increment states
@@ -176,9 +179,10 @@ namespace mppi_common {
     }
 
     template<class DYN_T>
-    __device__ void computeStateDerivAllRollouts(DYN_T* dynamics, float* x_thread, float* u_thread, float* xdot_thread) {
+    __device__ void computeStateDerivAllRollouts(DYN_T* dynamics, float* x_thread, float* u_thread, float* xdot_thread, float* theta_s) {
         // The prior loop already guarantees that the global index is less than the number of rollouts
-        dynamics->xDot(x_thread, u_thread, xdot_thread);
+        // TODO pass through theta_s
+        dynamics->computeStateDeriv(x_thread, u_thread, xdot_thread, theta_s);
     }
 
     // TODO this should pass blocksize or thread number

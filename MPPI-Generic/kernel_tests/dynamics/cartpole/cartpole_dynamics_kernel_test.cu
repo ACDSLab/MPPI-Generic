@@ -1,8 +1,6 @@
 //
 // Created by mgandhi3 on 1/7/20.
 //
-#include "cartpole_kernel_test.cuh"
-
 /**
  * Kernels to test device functions
  */
@@ -48,7 +46,7 @@ __global__ void DynamicsTestKernel(CartpoleDynamics* CP, float* state, float* co
      * This will probably do stupid things because of parallelization
      * Fix later
      */
-    CP->xDot(state, control, state_der);
+    CP->computeDynamics(state, control, state_der);
 }
 
 /**

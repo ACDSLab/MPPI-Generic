@@ -19,13 +19,10 @@
 #define MPPI_NNET_NONLINEARITY(ans) tanh(ans)
 #define MPPI_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
 
-/*
- * TODO create templated value here
-template<>
+// TODO create templated value here
 typedef struct {
 
 } NNDynamicsParams;
-*/
 
 /**
  * @file neural_net_model.cuh
@@ -41,7 +38,7 @@ typedef struct {
  * @tparam layer_args size of the NN layers
  */
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-class NeuralNetModel : public Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, int... layer_args>, void, S_DIM, C_DIM> {
+class NeuralNetModel : public Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM> {
 public:
 
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
@@ -52,8 +49,8 @@ public:
   static const int SHARED_MEM_REQUEST_GRD = 0; ///< Amount of shared memory we need per BLOCK.
   static const int SHARED_MEM_REQUEST_BLK = 2*LARGEST_LAYER; ///< Amount of shared memory we need per ROLLOUT.
 
-  NeuralNetModel(float delta_t, cudaStream_t stream=0);
-  NeuralNetModel(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream=0);
+  NeuralNetModel(cudaStream_t stream=0);
+  NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream=0);
 
   ~NeuralNetModel();
 
@@ -82,9 +79,7 @@ public:
   __device__ int* getStrideIdcsPtr(){return stride_idcs_;}
   __device__ float* getThetaPtr(){return theta_;}
 
-  void GPUSetup();
-
-  void CPUSetup(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream);
+  void CPUSetup(std::array<float2, C_DIM> control_rngs, cudaStream_t stream);
 
   void paramsToDevice();
 
@@ -96,34 +91,22 @@ public:
 
   void loadParams(const std::string& model_path);
 
-  void enforceConstraints(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
-
   void updateModel(std::vector<int> description, std::vector<float> data);
 
-  void updateState(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
+  void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B);
 
-  void computeKinematics(Eigen::MatrixXf &state);
+  void enforceConstraints(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
+  void updateState(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der, float dt);
+  void computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
+  void computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der);
+  void computeStateDeriv(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
 
-  void xDot(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
 
-  void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
-
+  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
-
-  __device__ void enforceConstraints(float* state, float* control);
-
   __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
-
-  __device__ void incrementState(float* state, float* state_der);
-
-  /**
-   * computes the state derivative
-   * @param state
-   * @param control
-   * @param state_der
-   * @param theta_s shared memory that is used since the network prop is parallel
-   */
-  __device__ void xDot(float* state, float* control, float* state_der, float* theta_s);
+  __device__ void updateState(float* state, float* state_der, float dt);
+  __device__ void enforceConstraints(float* state, float* control);
 
 private:
 
@@ -135,14 +118,6 @@ private:
   int stride_idcs_[(NUM_LAYERS - 1) * 2] = {0}; ///< structure for keeping track of parameter strides.
   int test[(NUM_LAYERS - 1) * 2] = {0}; ///< structure for keeping track of parameter strides.
 };
-
-/*
-
-template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::STATE_DIM;
-
-template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CONTROL_DIM;
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::DYNAMICS_DIM;
@@ -161,8 +136,6 @@ const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::SHARED_MEM_REQUEST
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::SHARED_MEM_REQUEST_BLK;
-
- */
 
 #if __CUDACC__
 #include "ar_nn_model.cu"

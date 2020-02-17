@@ -107,9 +107,10 @@ namespace mppi_common {
      * x_thread: Current state for the given rollout
      * u_thread: Current control for the given rollout,
      * xdot_thread: State derivative for the given rollout
+     * theta_s: shared memory to combine answers in a block
      */
     template<class DYN_T>
-    __device__ void computeStateDerivAllRollouts(DYN_T* dynamics, float* x_thread, float* u_thread, float* xdot_thread);
+    __device__ void computeStateDerivAllRollouts(DYN_T* dynamics, float* x_thread, float* u_thread, float* xdot_thread, float* theta_s);
 
     /*
      * incrementStateAllRollouts

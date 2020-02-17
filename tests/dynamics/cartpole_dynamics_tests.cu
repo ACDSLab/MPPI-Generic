@@ -4,7 +4,7 @@
 
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
-#include <dynamics/cartpole/cartpole_kernel_test.cuh>
+#include <dynamics/cartpole/cartpole_dynamics_kernel_test.cuh>
 #include <cuda_runtime.h>
 
 TEST(CartPole, StateDim) {
@@ -32,7 +32,7 @@ TEST(CartPole, Equilibrium) {
     Eigen::MatrixXf state_dot_known(CartpoleDynamics::STATE_DIM,1);
     state_dot_known << 0,0,0,0;
 
-    CP.xDot(state, control, state_dot_compute);
+    CP.computeDynamics(state, control, state_dot_compute);
     for (int i = 0; i < CartpoleDynamics::STATE_DIM; i++) {
         EXPECT_NEAR(state_dot_known(i), state_dot_compute(i), 1e-4) << "Failed at index: " << i;
     }
@@ -158,7 +158,7 @@ TEST(CartPole, TestDynamicsGPU) {
     float state_der_gpu[CartpoleDynamics::STATE_DIM];
 
     // Run dynamics on CPU
-    CP_host->xDot(state, control, state_der_cpu);
+    CP_host->computeDynamics(state, control, state_der_cpu);
     // Run dynamics on GPU
     launchDynamicsTestKernel(*CP_host, state.data(), control.data(), state_der_gpu);
 

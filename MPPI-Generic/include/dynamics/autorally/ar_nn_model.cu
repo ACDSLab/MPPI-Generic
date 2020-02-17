@@ -1,16 +1,16 @@
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream) {
-  CPUSetup(delta_t, control_rngs, stream);
+NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream) {
+  CPUSetup(control_rngs, stream);
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(float delta_t, cudaStream_t stream) {
+NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t stream) {
   std::array<float2, C_DIM> control_rngs;
   for(int i = 0; i < C_DIM; i++) {
     control_rngs[i].x = -FLT_MAX;
     control_rngs[i].y = FLT_MAX;
   }
-  CPUSetup(delta_t, control_rngs, stream);
+  CPUSetup(control_rngs, stream);
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
@@ -22,15 +22,14 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel() {
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem() {
-  cudaFree(model_d_);
+  Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>::freeCudaMem();
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup(float delta_t, std::array<float2, C_DIM> control_rngs, cudaStream_t stream) {
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup(std::array<float2, C_DIM> control_rngs, cudaStream_t stream) {
   this->bindToStream(stream);
-  this->dt_ = delta_t;
   for(int i = 0; i < C_DIM; i++) {
-    control_rngs_[i] = control_rngs[i];
+    this->control_rngs_[i] = control_rngs[i];
   }
 
   // setup the stride_idcs_ variable since it does not change in this template instantiation
@@ -45,6 +44,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup(float delta_t,
   stride_idcs_[(NUM_LAYERS - 1)*2] = stride;
 }
 
+/*
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::GPUSetup() {
   // allocate object
@@ -55,6 +55,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::GPUSetup() {
     std::cout << "GPU Memory already set." << std::endl;
   }
 }
+ */
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector<int> description,
@@ -85,8 +86,8 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice() {
   // TODO copy to constant memory
-  HANDLE_ERROR( cudaMemcpy(model_d_->control_rngs_, control_rngs_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
-  HANDLE_ERROR( cudaMemcpy(model_d_->theta_, theta_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
+  HANDLE_ERROR( cudaMemcpy(this->model_d_->control_rngs_, this->control_rngs_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
+  HANDLE_ERROR( cudaMemcpy(this->model_d_->theta_, theta_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
 
 #if defined(MPPI_NNET_USING_CONSTANT_MEM___) //Use constant memory.
   HANDLE_ERROR( cudaMemcpyToSymbol(NNET_PARAMS, theta_d_, NUM_PARAMS*sizeof(float)) );
@@ -128,22 +129,22 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
   paramsToDevice();
 }
 
-template<int s_dim, int c_dim, int k_dim, int... layer_args>
-__host__ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::enforceConstraints(
+template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::enforceConstraints(
         float* state, float* control) {
   int i;
   for (i = 0; i < this->CONTROL_DIM; i++){
-    if (control[i] < control_rngs_[i].x){
-      control[i] = control_rngs_[i].x;
+    if (control[i] < this->control_rngs_[i].x){
+      control[i] = this->control_rngs_[i].x;
     }
-    else if (control[i] > control_rngs_[i].y){
-      control[i] = control_rngs_[i].y;
+    else if (control[i] > this->control_rngs_[i].y){
+      control[i] = this->control_rngs_[i].y;
     }
   }
 }
 
-template<int s_dim, int c_dim, int k_dim, int... layer_args>
-__device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::computeStateDeriv(
+template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeStateDeriv(
         float* state, float* control, float* state_der, float* theta_s) {
   // only propagate a single state, i.e. thread.y = 0
   // find the change in x,y,theta based off of the rest of the state
@@ -153,8 +154,8 @@ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::computeState
   computeDynamics(state, control, state_der, theta_s);
 }
 
-template<int s_dim, int c_dim, int k_dim, int... layer_args>
-__host__ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::computeKinematics(
+template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(
         float* state, float* state_der) {
   state_der[0] = cosf(state[2])*state[4] - sinf(state[2])*state[5];
   state_der[1] = sinf(state[2])*state[4] + cosf(state[2])*state[5];
@@ -225,13 +226,13 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
 }
 
 template<int s_dim, int c_dim, int k_dim, int... layer_args>
-__device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::incrementState(
-        float* state, float* state_der) {
+__device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::updateState(
+        float* state, float* state_der, float dt) {
   int i;
   int tdy = threadIdx.y;
   //Add the state derivative time dt to the current state.
   for (i = tdy; i < this->STATE_DIM; i+=blockDim.y){
-    state[i] += state_der[i]*this->dt_;
+    state[i] += state_der[i]*dt;
     state_der[i] = 0; //Important: reset the state derivative to zero.
   }
 }

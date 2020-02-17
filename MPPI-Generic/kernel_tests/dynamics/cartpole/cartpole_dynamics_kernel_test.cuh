@@ -18,4 +18,6 @@ void launchGravityTestKernel(const CartpoleDynamics&, float& gravity_check);
 void launchDynamicsTestKernel(const CartpoleDynamics&, float* state_cpu,
                               float* control_cpu, float* state_der_cpu);
 
+#include "cartpole_dynamics_kernel_test.cu"
+
 #endif // !KERNEL_TESTS_DYNAMICS_CARTPOLE_CARTPOLE_KERNEL_TEST_CUH_

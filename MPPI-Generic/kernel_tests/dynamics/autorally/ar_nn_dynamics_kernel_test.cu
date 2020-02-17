@@ -1,6 +1,3 @@
-#include "ar_nn_dynamics_kernel_test.cuh"
-
-
 template <class NETWORK_T, int THETA_SIZE, int STRIDE_SIZE, int NUM_LAYERS>
 __global__ void parameterCheckTestKernel(NETWORK_T* model,  float* theta, int* stride, int* net_structure) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
@@ -47,7 +44,8 @@ template<class NETWORK_T, int STATE_DIM>
 __global__ void incrementStateTestKernel(NETWORK_T* model, float* state, float* state_der) {
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   if(tid == 0) {
-    model->incrementState(state, state_der);
+    // TODO generalize
+    model->updateState(state, state_der, 0.1);
   }
 }
 
@@ -164,7 +162,8 @@ __global__ void fullARNNTestKernel(NETWORK_T* model, float* state, float* contro
     model->enforceConstraints(state, control);
   }
   model->computeStateDeriv(state, control, state_der, theta);
-  model->incrementState(state, state_der);
+  // TODO generalize
+  model->updateState(state, state_der, 0.1);
 }
 
 template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM, int BLOCKSIZE_Y>
@@ -199,39 +198,3 @@ void launchFullARNNTestKernel(NETWORK_T& model, float* state, float* control, fl
 }
 
 
-// explicit instantiation
-template void launchParameterCheckTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1412, 6, 4>(NeuralNetModel<7,2,3,6,32,32,4>& model, std::array<float, 1412>& theta, std::array<int, 6>& stride,
-                                                                                          std::array<int, 4>& net_structure);
-
-// explicit instantiation
-template __global__ void parameterCheckTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1412, 6, 4>(NeuralNetModel<7,2,3,6,32,32,4>* model,  float* theta, int* stride, int* net_structure);
-
-
-// explicit instantiation
-template void launchIncrementStateTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 1, 7>(NeuralNetModel<7,2,3,6,32,32,4>& model, std::array<float, 7>& state, std::array<float, 7>& state_der);
-
-// explicit instantiation
-template __global__ void incrementStateTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7>(NeuralNetModel<7,2,3,6,32,32,4>* model,  float* state, float* state_der);
-
-// explicit instantiation
-template void launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
-template void launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 4>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
-template void launchComputeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 8>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
-
-// explicit instantiation
-template __global__ void computeDynamicsTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2>(NeuralNetModel<7,2,3,6,32,32,4>* model, float* state, float* control, float* state_der);
-
-// explicit instantiantion
-template void launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
-template void launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 4>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
-template void launchComputeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 8>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
-
-template __global__ void computeStateDerivTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2>(NeuralNetModel<7,2,3,6,32,32,4>* model, float* state, float* control, float* state_der);
-
-
-// explicit instantiantion
-template void launchFullARNNTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 1>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
-template void launchFullARNNTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 4>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
-template void launchFullARNNTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2, 8>(NeuralNetModel<7,2,3,6,32,32,4>& model, float* state, float* control, float* state_der);
-
-template __global__ void fullARNNTestKernel<NeuralNetModel<7,2,3,6,32,32,4>, 7, 2>(NeuralNetModel<7,2,3,6,32,32,4>* model, float* state, float* control, float* state_der);

@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(TARGET_NAME cartpole_dynamics_tests)
 
 add_executable(${TARGET_NAME} ../test_main.cpp cartpole_dynamics_tests.cu)
-target_link_libraries(${TARGET_NAME} gtest gmock gtest_main cartpole_dynamics_kernel_tests)
+target_link_libraries(${TARGET_NAME} gtest gmock gtest_main)
 
 add_test(NAME ${TARGET_NAME} COMMAND cartpole_dynamics_tests)
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER test)
@@ -37,7 +37,6 @@ target_link_libraries(ar_nn_dynamics_tests
                       gtest
                       gmock
                       gtest_main
-                      ar_nn_dynamics_kernel_test
                       cnpy)
 
 add_test(NAME ar_nn_dynamics_tests COMMAND ar_nn_dynamics_tests)
@@ -45,7 +44,7 @@ set_target_properties(ar_nn_dynamics_tests PROPERTIES FOLDER test)
 
 add_executable(ar_nn_dynamics_tests_constant ../test_main.cpp ar_dynamics_nn_test.cu)
 target_compile_definitions(ar_nn_dynamics_tests_constant PRIVATE MPPI_NNET_USING_CONSTANT_MEM__)
-target_link_libraries(ar_nn_dynamics_tests_constant gtest gmock gtest_main ar_nn_dynamics_kernel_test cnpy)
+target_link_libraries(ar_nn_dynamics_tests_constant gtest gmock gtest_main cnpy)
 
 add_test(NAME ar_nn_dynamics_tests_constant COMMAND ar_nn_dynamics_tests)
 set_target_properties(ar_nn_dynamics_tests_constant PROPERTIES FOLDER test)

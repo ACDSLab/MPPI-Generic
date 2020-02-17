@@ -38,5 +38,6 @@ void launchFullARNNTestKernel(NETWORK_T& model, float* state, float* control, fl
 template<class NETWORK_T, int STATE_DIM, int CONTROL_DIM>
 __global__ void fullARNNTestKernel(NETWORK_T* model, float* state, float* control, float* state_der);
 
+#include "ar_nn_dynamics_kernel_test.cu"
 
 #endif //AR_NN_DYNAMICS_KERNEL_TEST_CUH

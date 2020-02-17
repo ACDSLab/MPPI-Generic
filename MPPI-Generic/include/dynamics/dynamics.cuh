@@ -19,8 +19,8 @@ class Dynamics : public Managed
 public:
   static const int STATE_DIM = S_DIM;
   static const int CONTROL_DIM = C_DIM;
-  float dt_;
-
+  static const int SHARED_MEM_REQUEST_GRD = 0;
+  static const int SHARED_MEM_REQUEST_BLK = 0;
 
   Dynamics() = default;
   /**
@@ -107,13 +107,6 @@ public:
   void updateModel(std::vector<int> description, std::vector<float> data);
 
   /**
-   * updates the current state using s_der
-   * @param s state
-   * @param s_der
-   */
-  void updateState(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der, float dt);
-
-  /**
    * compute the Jacobians with respect to state and control
    *
    * @param state   input of current state, passed by reference
@@ -134,25 +127,77 @@ public:
   void enforceConstraints(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
 
   /**
-   * computes the state derivative
+   * updates the current state using s_der
+   * @param s state
+   * @param s_der
+   */
+  void updateState(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der, float dt) {
+    for (int i = 0; i < STATE_DIM; i++) {
+      state(i) += s_der(i)*dt;
+      s_der(i) = 0;
+    }
+  }
+
+  /**
+   * computes the section of the state derivative that comes form the dyanmics
    * @param state
    * @param control
    * @param state_der
    */
-  void xDot(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
+  void computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
+
+  /**
+   * computes the parts of the state that are based off of kinematics
+   * @param s state
+   * @param s_der
+   */
+  void computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der);
+
+  /**
+   * computes the full state derivative by calling computeKinematics then computeDynamics
+   * @param state
+   * @param control
+   * @param state_der
+   */
+  void computeStateDeriv(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
 
 
   /**
-   * computes the state_der
+   * computes the section of the state derivative that comes form the dyanmics
    * @param state
    * @param control
    * @param state_der
    * @param theta_s shared memory that can be used when computation is computed across the same block
    */
-  __device__ void xDot(float* state,
+  __device__ void computeDynamics(float* state,
                                 float* control,
                                 float* state_der,
                                 float* theta_s = nullptr);
+
+  /**
+   * computes the parts of the state that are based off of kinematics
+   * parallelized on X only
+   * @param state
+   * @param state_der
+   */
+  __device__ void computeKinematics(float* state, float* state_der) {};
+
+  /**
+   * computes the full state derivative by calling computeKinematics then computeDynamics
+   * @param state
+   * @param control
+   * @param state_der
+   * @param theta_s shared memory that can be used when computation is computed across the same block
+   */
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s) {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    // only propagate a single state, i.e. thread.y = 0
+    // find the change in x,y,theta based off of the rest of the state
+    if (threadIdx.y == 0){
+      derived->computeKinematics(state, state_der);
+    }
+    derived->computeDynamics(state, control, state_der, theta_s);
+  }
 
   /**
    * applies the state derivative
@@ -160,7 +205,12 @@ public:
    * @param state_der
    * @param dt
    */
-  __device__ void updateState(float* state, float* state_der, float dt);
+  __device__ void updateState(float* state, float* state_der, float dt) {
+    for (int i = 0; i < STATE_DIM; i++) {
+      state[i] += state_der[i]*dt;
+      state_der[i] = 0;
+    }
+  }
 
   /**
    * enforces control constraints

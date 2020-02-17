@@ -193,7 +193,7 @@ TEST(RolloutKernel, computeStateDerivAllRollouts_Cartpole) {
       for(int j = 0; j < CartpoleDynamics::CONTROL_DIM; j++) {
         eigen_control(j) = u_traj[i * CartpoleDynamics::CONTROL_DIM + j];
       }
-      model.xDot(eigen_state, eigen_control, eigen_state_der);
+      model.computeDynamics(eigen_state, eigen_control, eigen_state_der);
 
       for(int j = 0; j < CartpoleDynamics::STATE_DIM; j++) {
         xdot_traj_known[i * CartpoleDynamics::STATE_DIM + j] = eigen_state_der(j);
