@@ -155,7 +155,7 @@ __global__ void fullARNNTestKernel(NETWORK_T* model, float* state, float* contro
   __shared__ float theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK];
 
   int tdy = threadIdx.y;
-  int tid = blockIdx.x*blockDim.x + threadIdx.x;
+  //int tid = blockIdx.x*blockDim.x + threadIdx.x;
 
   // calls enforce constraints -> compute state derivative -> increment state
   if(tdy == 0) {

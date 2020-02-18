@@ -86,6 +86,7 @@ public:
   void freeCudaMem() {
     if(GPUMemStatus_) {
       cudaFree(cost_d_);
+      this->GPUMemStatus_ = false;
       cost_d_ = nullptr;
     }
   }

@@ -36,11 +36,6 @@ public:
     ~CartpoleQuadraticCost();
 
     /**
-     * allocates all the extra cuda memory
-     */
-    void GPUSetup();
-
-    /**
      * Deallocates the allocated cuda memory for an object
      */
     void freeCudaMem();

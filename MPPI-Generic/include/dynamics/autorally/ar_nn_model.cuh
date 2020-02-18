@@ -32,7 +32,7 @@ typedef struct {
  * @brief Neural Network Model class definition
  * @tparam S_DIM state dimension
  * @tparam C_DIM control dimension
- * @tparam K_DIM dimensions that are actually used for input to NN
+ * @tparam K_DIM dimensions that are ignored from the state, 1 ignores the first, 2 the first and second, etc.
  * For example in AutoRally we want to input the last 4 values of our state (dim 7), so our K is 3
  * If you use the entire state in the NN K should equal 0
  * @tparam layer_args size of the NN layers
@@ -82,7 +82,7 @@ public:
   __device__ int* getStrideIdcsPtr(){return stride_idcs_;}
   __device__ float* getThetaPtr(){return theta_;}
 
-  void CPUSetup(std::array<float2, C_DIM> control_rngs, cudaStream_t stream);
+  void CPUSetup(std::array<float2, C_DIM> control_rngs);
 
   void paramsToDevice();
 
@@ -99,16 +99,12 @@ public:
   void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B);
 
   void enforceConstraints(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
-  void updateState(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der, float dt);
   void computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
   void computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der);
-  void computeStateDeriv(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
 
+  __device__ void enforceConstraints(float* state, float* control);
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
-  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
-  __device__ void updateState(float* state, float* state_der, float dt);
-  __device__ void enforceConstraints(float* state, float* control);
 
 private:
 

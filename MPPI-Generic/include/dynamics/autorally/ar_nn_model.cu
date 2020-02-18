@@ -1,16 +1,13 @@
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream) {
-  CPUSetup(control_rngs, stream);
+NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream)
+                  : Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>(control_rngs, stream) {
+  CPUSetup();
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t stream) {
-  std::array<float2, C_DIM> control_rngs;
-  for(int i = 0; i < C_DIM; i++) {
-    control_rngs[i].x = -FLT_MAX;
-    control_rngs[i].y = FLT_MAX;
-  }
-  CPUSetup(control_rngs, stream);
+NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t stream)
+                  : Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>(stream) {
+  CPUSetup();
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
@@ -26,11 +23,12 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem() {
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup(std::array<float2, C_DIM> control_rngs, cudaStream_t stream) {
-  this->bindToStream(stream);
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup(std::array<float2, C_DIM> control_rngs) {
+  /*
   for(int i = 0; i < C_DIM; i++) {
     this->control_rngs_[i] = control_rngs[i];
   }
+   */
 
   // setup the stride_idcs_ variable since it does not change in this template instantiation
   int stride = 0;
@@ -136,13 +134,13 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::enforceConst
   for (i = 0; i < this->CONTROL_DIM; i++){
     if (control[i] < this->control_rngs_[i].x){
       control[i] = this->control_rngs_[i].x;
-    }
-    else if (control[i] > this->control_rngs_[i].y){
+    } else if (control[i] > this->control_rngs_[i].y){
       control[i] = this->control_rngs_[i].y;
     }
   }
 }
 
+/*
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeStateDeriv(
         float* state, float* control, float* state_der, float* theta_s) {
@@ -153,6 +151,7 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeState
   }
   computeDynamics(state, control, state_der, theta_s);
 }
+ */
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(
@@ -225,6 +224,7 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   __syncthreads();
 }
 
+/*
 template<int s_dim, int c_dim, int k_dim, int... layer_args>
 __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::updateState(
         float* state, float* state_der, float dt) {
@@ -236,4 +236,4 @@ __device__ void NeuralNetModel<s_dim, c_dim, k_dim, layer_args...>::updateState(
     state_der[i] = 0; //Important: reset the state derivative to zero.
   }
 }
-
+*/
