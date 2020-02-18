@@ -14,6 +14,9 @@ template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel() {
   if(this->GPUMemStatus_) {
       freeCudaMem();
+      delete weights_;
+      delete biases_;
+      delete weighted_in_;
   }
 }
 
@@ -40,6 +43,14 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup() {
     stride += net_structure_[i+1];
   }
   stride_idcs_[(NUM_LAYERS - 1)*2] = stride;
+
+  weights_ = new Eigen::Matrix<float, -1, -1, Eigen::RowMajor>[NUM_LAYERS-1];
+  biases_ = new Eigen::Matrix<float, -1, -1, Eigen::RowMajor>[NUM_LAYERS-1];
+
+  weighted_in_ = new Eigen::MatrixXf[NUM_LAYERS - 1];
+  for(int i = 1; i < NUM_LAYERS; i++) {
+    weighted_in_[i-1] = Eigen::MatrixXf::Zero(net_structure_[i], 1);
+  }
 }
 
 /*
@@ -170,7 +181,6 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(Eigen
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der) {
-  /*
   int i,j;
   Eigen::MatrixXf acts(net_structure_[0], 1);
   for (i = 0; i < DYNAMICS_DIM; i++){
@@ -194,9 +204,8 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(Eigen::
     }
   }
   for (i = 0; i < DYNAMICS_DIM; i++){
-    state_der_(i + (S_DIM - DYNAMICS_DIM)) = acts(i);
+    state_der(i + (S_DIM - DYNAMICS_DIM)) = acts(i);
   }
-   */
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>

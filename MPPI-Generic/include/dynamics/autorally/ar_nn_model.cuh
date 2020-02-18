@@ -114,6 +114,10 @@ private:
   // index into theta for weights and bias (layer 0 weights start, no bias in input layer, layer 1 weights start, layer1 bias start...
   int stride_idcs_[(NUM_LAYERS - 1) * 2] = {0}; ///< structure for keeping track of parameter strides.
   int test[(NUM_LAYERS - 1) * 2] = {0}; ///< structure for keeping track of parameter strides.
+
+  Eigen::MatrixXf* weighted_in_ = nullptr;
+  Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* weights_ = nullptr;
+  Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* biases_ = nullptr;
 };
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
