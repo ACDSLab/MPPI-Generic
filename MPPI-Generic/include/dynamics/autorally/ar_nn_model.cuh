@@ -82,7 +82,7 @@ public:
   __device__ int* getStrideIdcsPtr(){return stride_idcs_;}
   __device__ float* getThetaPtr(){return theta_;}
 
-  void CPUSetup(std::array<float2, C_DIM> control_rngs);
+  void CPUSetup();
 
   void paramsToDevice();
 
@@ -98,13 +98,12 @@ public:
 
   void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B);
 
-  void enforceConstraints(Eigen::MatrixXf &state, Eigen::MatrixXf &control);
   void computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
   void computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der);
 
-  __device__ void enforceConstraints(float* state, float* control);
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
 
 private:
 

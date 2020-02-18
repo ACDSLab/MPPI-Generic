@@ -190,7 +190,7 @@ TEST(Dynamics, SetControlRangesGPU) {
   DynamicsTester<> tester(tester_ranges);
   tester.GPUSetup();
   std::array<float2, 1> ranges_result = {};
-  launchControlRangesTestKernel<DynamicsTester<>, DynamicsTesterParams, 1>(tester, ranges_result);
+  launchControlRangesTestKernel<DynamicsTester<>, 1>(tester, ranges_result);
   EXPECT_FLOAT_EQ(ranges_result[0].x, -2);
   EXPECT_FLOAT_EQ(ranges_result[0].y, 5);
 
@@ -202,7 +202,7 @@ TEST(Dynamics, SetControlRangesGPU) {
   DynamicsTester<4, 2> tester_2(tester_2_ranges);
   tester_2.GPUSetup();
   std::array<float2, 2> ranges_result_2 = {};
-  launchControlRangesTestKernel<DynamicsTester<4, 2>, DynamicsTesterParams, 2>(tester_2, ranges_result_2);
+  launchControlRangesTestKernel<DynamicsTester<4, 2>, 2>(tester_2, ranges_result_2);
   for(int i = 0; i < ranges_result_2.size(); i++) {
     EXPECT_FLOAT_EQ(ranges_result_2[i].x, tester_2_ranges[i].x) << "failed at index: " << i;
     EXPECT_FLOAT_EQ(ranges_result_2[i].y, tester_2_ranges[i].y) << "failed at index: " << i;
@@ -288,7 +288,7 @@ TEST(Dynamics, enforceConstraintsGPU) {
     controls[3][1] = -1.5;
     controls[3][2] = -1.5;
 
-    launchEnforceConstraintTestKernel<DynamicsTester<1, 3>, DynamicsTesterParams, 1, 3>(tester, states, controls, j);
+    launchEnforceConstraintTestKernel<DynamicsTester<1, 3>, 1, 3>(tester, states, controls, j);
 
     EXPECT_FLOAT_EQ(controls[0][0], 5);
     EXPECT_FLOAT_EQ(controls[0][1], 8);
@@ -350,7 +350,7 @@ TEST(Dynamics, updateStateGPU) {
     s_der[0][2] = 2;
     s_der[0][3] = 3;
 
-    launchUpdateStateTestKernel<DynamicsTester<4, 1>, DynamicsTesterParams, 4>(tester, s, s_der, 0.1, i);
+    launchUpdateStateTestKernel<DynamicsTester<4, 1>, 4>(tester, s, s_der, 0.1, i);
 
     EXPECT_FLOAT_EQ(s[0][0], 0);
     EXPECT_FLOAT_EQ(s[0][1], 1.1);
@@ -398,7 +398,7 @@ TEST(Dynamics, computeStateDerivGPU) {
     s_der[0][1] = 20;
     u[0][0] = 3;
 
-    launchComputeStateDerivTestKernel<DynamicsTester<2, 1>, DynamicsTesterParams, 2, 1>(tester, s, u, s_der, j);
+    launchComputeStateDerivTestKernel<DynamicsTester<2, 1>, 2, 1>(tester, s, u, s_der, j);
 
     EXPECT_FLOAT_EQ(s[0][0], 5) << "j = " << j;
     EXPECT_FLOAT_EQ(s[0][1], 10) << "j = " << j;
