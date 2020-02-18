@@ -127,6 +127,39 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
   paramsToDevice();
 }
 
+template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B) {
+  /*
+  jac_ = Eigen::Matrix<float, S_DIM, S_DIM + C_DIM>::Zero();
+
+  //Start with the kinematic and physics model derivatives
+  jac_.row(0) << 0, 0, -sin(state(2))*state(4) - cos(state(2))*state(5), 0, cos(state(2)), -sin(state(2)), 0, 0, 0;
+  jac_.row(1) << 0, 0, cos(state(2))*state(4) - sin(state(2))*state(5), 0, sin(state(2)), cos(state(2)), 0, 0, 0;
+  jac_.row(2) << 0, 0, 0, 0, 0, 0, -1, 0, 0;
+
+  //First do the forward pass
+  computeDynamics(state, control);
+
+  //Start backprop
+  ip_delta_ = Eigen::MatrixXf::Identity(DYNAMICS_DIM, DYNAMICS_DIM);
+  Eigen::MatrixXf temp_delta = Eigen::MatrixXf::Identity(DYNAMICS_DIM, DYNAMICS_DIM);
+
+  //Main backprop loop
+  for (int i = NUM_LAYERS-2; i > 0; i--){
+    Eigen::MatrixXf zp = weighted_in_[i-1];
+    for (int j = 0; j < net_structure_[i]; j++){
+      zp(j) = MPPI_NNET_NONLINEARITY_DERIV(zp(j));
+    }
+    ip_delta_ =  ( (weights_[i]).transpose()*ip_delta_ ).eval();
+    for (int j = 0; j < DYNAMICS_DIM; j++){
+      ip_delta_.col(j) = ip_delta_.col(j).array() * zp.array();
+    }
+  }
+  //Finish the backprop loop
+  ip_delta_ = ( ((weights_[0]).transpose())*ip_delta_).eval();
+  jac_.bottomRightCorner(DYNAMICS_DIM, DYNAMICS_DIM + C_DIM) += ip_delta_.transpose();
+   */
+}
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &state_der) {
@@ -137,7 +170,33 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(Eigen
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der) {
-
+  /*
+  int i,j;
+  Eigen::MatrixXf acts(net_structure_[0], 1);
+  for (i = 0; i < DYNAMICS_DIM; i++){
+    acts(i) = state(i + (S_DIM - DYNAMICS_DIM));
+  }
+  for (i = 0; i < C_DIM; i++){
+    acts(DYNAMICS_DIM + i) = control(i);
+  }
+  for (i = 0; i < NUM_LAYERS - 1; i++){
+    weighted_in_[i] = (weights_[i]*acts + biases_[i]).eval();
+    acts = Eigen::MatrixXf::Zero(net_structure_[i+1], 1);
+    if (i < NUM_LAYERS - 2) { //Last layer doesn't apply any non-linearity
+      for (j = 0; j < net_structure_[i+1]; j++){
+        acts(j) = MPPI_NNET_NONLINEARITY( (weighted_in_[i])(j) ); //Nonlinear component.
+      }
+    }
+    else {
+      for (j = 0; j < net_structure_[i+1]; j++){
+        acts(j) = (weighted_in_[i])(j) ;
+      }
+    }
+  }
+  for (i = 0; i < DYNAMICS_DIM; i++){
+    state_der_(i + (S_DIM - DYNAMICS_DIM)) = acts(i);
+  }
+   */
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
@@ -165,10 +224,10 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   next_act = &theta_s[(2*LARGEST_LAYER)*(blockDim.x*tdz + tdx) + LARGEST_LAYER];
   // iterate through the part of the state that should be an input to the NN
   for (i = tdy; i < DYNAMICS_DIM; i+= blockDim.y){
-    curr_act[i] = state[i + (this->STATE_DIM - DYNAMICS_DIM)];
+    curr_act[i] = state[i + (S_DIM - DYNAMICS_DIM)];
   }
   // iterate through the control to put into first layer
-  for (i = tdy; i < this->CONTROL_DIM; i+= blockDim.y){
+  for (i = tdy; i < C_DIM; i+= blockDim.y){
     curr_act[DYNAMICS_DIM + i] = control[i];
   }
   __syncthreads();
@@ -206,7 +265,7 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   }
   // copies results back into state derivative
   for (i = tdy; i < DYNAMICS_DIM; i+= blockDim.y){
-    state_der[i + (this->STATE_DIM - DYNAMICS_DIM)] = curr_act[i];
+    state_der[i + (S_DIM - DYNAMICS_DIM)] = curr_act[i];
   }
   __syncthreads();
 }
