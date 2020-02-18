@@ -48,7 +48,7 @@ nominal_control_(init_control_traj), stream_(stream) {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void TubeMPPI::computeControl(state_array state) {
+void TubeMPPI::computeControl(const state_array& state) {
     if (!nominalStateInit_){
       for (int i = 0; i < DYN_T::STATE_DIM; i++){
         nominal_state_(i, 0) = state(i);

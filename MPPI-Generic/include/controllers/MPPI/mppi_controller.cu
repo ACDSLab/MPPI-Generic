@@ -52,7 +52,7 @@ VanillaMPPI::~VanillaMPPIController() {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void VanillaMPPI::computeControl(state_array state) {
+void VanillaMPPI::computeControl(const state_array& state) {
 
     // Send the initial condition to the device
     HANDLE_ERROR( cudaMemcpyAsync(initial_state_d_, state.data(),
