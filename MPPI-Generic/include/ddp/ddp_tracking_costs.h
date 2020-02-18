@@ -66,14 +66,15 @@ public:
         }
     }
 
-    void setStop(Eigen::MatrixXf state, int timesteps)
-    {
-        for (int t = 0; t < timesteps; t++){
-            traj_target_x_.col(t) << state;
-        }
-        traj_target_u_ = Eigen::MatrixXf::Zero(Dynamics::ControlSize, timesteps);
-        Q_.diagonal() << 10.0, 10.0, 25.0, 10.0, 10.0, 10.0, 10.0;
-    }
+    // Still specific for autorally
+//    void setStop(Eigen::MatrixXf state, int timesteps)
+//    {
+//        for (int t = 0; t < timesteps; t++){
+//            traj_target_x_.col(t) << state;
+//        }
+//        traj_target_u_ = Eigen::MatrixXf::Zero(Dynamics::ControlSize, timesteps);
+//        Q_.diagonal() << 10.0, 10.0, 25.0, 10.0, 10.0, 10.0, 10.0;
+//    }
 
 private:
     StateCostWeight Q_;
