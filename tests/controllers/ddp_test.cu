@@ -73,17 +73,66 @@ TEST_F(ModelWrapper_Test, Jacobian_1) {
     ASSERT_EQ(known_result, result);
 }
 
-TEST(TrackingCosts_Test, Construction) {
-    CartpoleDynamics model = CartpoleDynamics(0.01, 1, 1, 1);
-    std::shared_ptr<ModelWrapperDDP<CartpoleDynamics>> ddp_model = std::make_shared<ModelWrapperDDP<CartpoleDynamics>>(&model);
+class TrackingCosts_Test : public testing::Test {
+public:
+    Eigen::MatrixXf Q;
+    Eigen::MatrixXf R;
+    Eigen::MatrixXf QR;
+    int num_timesteps;
 
-    auto Q = 5*Eigen::MatrixXf::Identity(CartpoleDynamics::STATE_DIM,CartpoleDynamics::STATE_DIM);
-    auto R = Eigen::MatrixXf::Identity(CartpoleDynamics::CONTROL_DIM,CartpoleDynamics::CONTROL_DIM);
-    auto QR = Eigen::MatrixXf(CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM);
-    QR.template topLeftCorner<CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM>() = Q;
-    QR.template bottomRightCorner<CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM>() = R;
-    int num_timesteps = 100;
-    std::cout << Q << std::endl;
-    auto tracking_cost = TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>(Q,R,num_timesteps);
-    auto terminal_cost = TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>(QR);
+    std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>> tracking_cost;
+    std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>> terminal_cost;
+
+    Eigen::MatrixXf state;
+    Eigen::MatrixXf control;
+    Eigen::MatrixXf result;
+    Eigen::MatrixXf known_result;
+
+
+protected:
+    void SetUp() override {
+        Q = Eigen::MatrixXf::Identity(CartpoleDynamics::STATE_DIM,CartpoleDynamics::STATE_DIM);
+        R = Eigen::MatrixXf::Identity(CartpoleDynamics::CONTROL_DIM,CartpoleDynamics::CONTROL_DIM);
+        QR = Eigen::MatrixXf(CartpoleDynamics::STATE_DIM+ CartpoleDynamics::CONTROL_DIM,
+        CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM);
+        QR.template topLeftCorner<CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM>() = Q;
+        QR.template bottomRightCorner<CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM>() = R;
+        num_timesteps = 100;
+
+        tracking_cost = std::make_shared<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>>(Q,R,num_timesteps);
+        terminal_cost = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>>(QR);
+
+        state.resize(CartpoleDynamics::STATE_DIM, 1);
+        control.resize(CartpoleDynamics::CONTROL_DIM, 1);
+    }
+
+};
+
+TEST_F(TrackingCosts_Test, ComputeCost) {
+    state << 1, 2, 3, 4;
+    control << 5;
+    int timestep = 0;
+    ASSERT_FLOAT_EQ(1+4+9+16+25, tracking_cost->c(state, control, timestep));
+    ASSERT_FLOAT_EQ(1+4+9+16, terminal_cost->c(state));
+}
+
+TEST_F(TrackingCosts_Test, ComputeCostGradient) {
+    known_result.resize(5,1);
+    state << 1, 2, 3, 4;
+    control << 5;
+    known_result.block(0,0,4,1) = state;
+    known_result.block(4,0,1,1) = control;
+    std::cout << known_result << std::endl;
+    int timestep = 0;
+    ASSERT_EQ(QR*known_result, tracking_cost->dc(state, control, timestep)) << "Known:\n" << QR*known_result
+    << "\nTracking cost: \n" << tracking_cost->dc(state, control, timestep);
+    ASSERT_EQ(Q*state, terminal_cost->dc(state));
+}
+
+TEST_F(TrackingCosts_Test, ComputeCostHessian) {
+    state << 1, 2, 3, 4;
+    control << 5;
+    int timestep = 0;
+    ASSERT_EQ(QR, tracking_cost->d2c(state, control, timestep));
+    ASSERT_EQ(Q, terminal_cost->d2c(state));
 }
