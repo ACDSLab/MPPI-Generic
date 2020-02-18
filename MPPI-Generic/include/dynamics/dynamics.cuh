@@ -183,7 +183,7 @@ public:
    * @param s state
    * @param s_der
    */
-  void updateState(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der, float dt) {
+  void updateState(Eigen::MatrixXf& state, Eigen::MatrixXf& s_der, float dt) {
     state += s_der*dt;
     s_der.setZero();
   }
@@ -201,7 +201,7 @@ public:
    * @param s state
    * @param s_der
    */
-  void computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der) {};
+  void computeKinematics(Eigen::MatrixXf& state, Eigen::MatrixXf& s_der) {};
 
   /**
    * computes the full state derivative by calling computeKinematics then computeDynamics
