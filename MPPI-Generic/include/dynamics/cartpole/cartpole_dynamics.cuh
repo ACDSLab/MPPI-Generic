@@ -19,6 +19,7 @@ using namespace MPPI_internal;
 class CartpoleDynamics : public Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>
 {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     CartpoleDynamics(float delta_t, float cart_mass, float pole_mass,
                      float pole_length, cudaStream_t stream=0);
     ~CartpoleDynamics();

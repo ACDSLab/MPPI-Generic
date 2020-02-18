@@ -13,6 +13,7 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 class Controller {
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   Controller() = default;
   /**
    * Destructor must be virtual so that children are properly

@@ -23,6 +23,7 @@ class TubeMPPIController: public VanillaMPPIController<DYN_T, COST_T,
                                                        BDIM_X, BDIM_Y> {
 
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     /**
      * Set up useful types
      */
