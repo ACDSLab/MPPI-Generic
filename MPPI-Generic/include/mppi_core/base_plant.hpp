@@ -74,6 +74,13 @@ private:
   std::vector<float> modelData;
 public:
 
+  basePlant() = default;
+  /**
+   * Destructor must be virtual so that children are properly
+   * destroyed when called from a basePlant reference
+   */
+  virtual ~basePlant() = default;
+
   /**
    * Gives the last time the pose was updated
    * @return the time at which the pose was upated in seconds
