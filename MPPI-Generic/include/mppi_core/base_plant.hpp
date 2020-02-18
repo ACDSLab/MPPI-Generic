@@ -41,8 +41,8 @@ private:
   int num_timesteps = 0;
 
   // Values needed
-  s_array init_state_ = {{0}};
-  c_array init_u_ = {{0}};
+  s_array init_state_ = s_array::Zero();
+  c_array init_u_ = c_array::Zero();
 
   // Values updated at every time step
   s_array state;
@@ -73,6 +73,13 @@ private:
   std::vector<int> modelDescription;
   std::vector<float> modelData;
 public:
+
+  basePlant() = default;
+  /**
+   * Destructor must be virtual so that children are properly
+   * destroyed when called from a basePlant reference
+   */
+  virtual ~basePlant() = default;
 
   /**
    * Gives the last time the pose was updated
@@ -152,9 +159,9 @@ public:
     c_array interpolated_control;
     int control_dim = CONTROLLER_T::TEMPLATED_DYNAMICS::CONTROL_DIM;
     for (int i = 0; i < interpolated_control.size(); i++) {
-      float prev_cmd = control_seq[control_dim * lower_idx + i];
-      float next_cmd = control_seq[control_dim * upper_idx + i];
-      interpolated_control[i] = (1 - alpha) * prev_cmd + alpha * next_cmd;
+      float prev_cmd = control_seq(i, lower_idx);
+      float next_cmd = control_seq(i, upper_idx);
+      interpolated_control(i) = (1 - alpha) * prev_cmd + alpha * next_cmd;
     }
     return interpolated_control;
   };

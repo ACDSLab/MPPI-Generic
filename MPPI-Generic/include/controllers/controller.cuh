@@ -14,7 +14,11 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
 class Controller {
 public:
   Controller() = default;
-  ~Controller() = default;
+  /**
+   * Destructor must be virtual so that children are properly
+   * destroyed when called from a basePlant reference
+   */
+  virtual ~Controller() = default;
   /**
    * typedefs for access to templated class from outside classes
    */

@@ -29,7 +29,11 @@ public:
   typedef PARAMS_T TEMPLATED_PARAMS;
 
   Cost() = default;
-  ~Cost() = default;
+  /**
+   * Destructor must be virtual so that children are properly
+   * destroyed when called from a basePlant reference
+   */
+  virtual ~Cost() = default;
 
   void GPUSetup() {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
