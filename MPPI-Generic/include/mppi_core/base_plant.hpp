@@ -119,9 +119,9 @@ public:
   // TODO should publish to a topic not a static window
   virtual void setDebugImage(cv::Mat debug_img) = 0;
 
-  virtual void setSolution(s_traj state_seq,
-                           c_traj control_seq,
-                           K_mat feedback_gains,
+  virtual void setSolution(const s_traj& state_seq,
+                           const c_traj& control_seq,
+                           const K_mat& feedback_gains,
                            double timestamp,
                            double loop_speed) = 0;
 
@@ -225,16 +225,13 @@ public:
 
     //Set the loop rate
     std::chrono::milliseconds ms{(int)(optimization_stride*1000.0/hz_)};
-
     if (!debug_mode_){
       while(last_pose_update == getLastPoseTime() && is_alive->load()){ //Wait until we receive a pose estimate
         usleep(50);
       }
     }
-
     controller->resetControls();
     controller->computeFeedbackGains(state);
-
     //Start the control loop.
     while (is_alive->load()) {
       std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
@@ -287,7 +284,6 @@ public:
       if (stride >= 0 && stride < num_timesteps){
         controller->slideControlSequence(stride);
       }
-
       //Compute a new control sequence
       controller->computeControl(state); //Compute the control
       if (use_feedback_gains_){
