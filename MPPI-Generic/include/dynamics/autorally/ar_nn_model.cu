@@ -12,11 +12,17 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t 
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel() {
+  if(weights_ != nullptr) {
+    delete[] weights_;
+  }
+  if(biases_ != nullptr) {
+    delete[] biases_;
+  }
+  if(weighted_in_ != nullptr) {
+    delete[] weighted_in_;
+  }
   if(this->GPUMemStatus_) {
-      freeCudaMem();
-      delete weights_;
-      delete biases_;
-      delete weighted_in_;
+    freeCudaMem();
   }
 }
 
@@ -27,15 +33,8 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem() {
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup() {
-  /*
-  for(int i = 0; i < C_DIM; i++) {
-    this->control_rngs_[i] = control_rngs[i];
-  }
-   */
-
   // setup the stride_idcs_ variable since it does not change in this template instantiation
   int stride = 0;
-  // TODO verify that the change is correct
   for(int i = 0; i < NUM_LAYERS - 1; i++) {
     stride_idcs_[2 * i] = stride;
     stride += net_structure_[i+1] * net_structure_[i];
@@ -44,27 +43,16 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup() {
   }
   stride_idcs_[(NUM_LAYERS - 1)*2] = stride;
 
-  weights_ = new Eigen::Matrix<float, -1, -1, Eigen::RowMajor>[NUM_LAYERS-1];
-  biases_ = new Eigen::Matrix<float, -1, -1, Eigen::RowMajor>[NUM_LAYERS-1];
+  weights_ = new Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>[NUM_LAYERS-1];
+  biases_ = new Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>[NUM_LAYERS-1];
 
   weighted_in_ = new Eigen::MatrixXf[NUM_LAYERS - 1];
   for(int i = 1; i < NUM_LAYERS; i++) {
     weighted_in_[i-1] = Eigen::MatrixXf::Zero(net_structure_[i], 1);
+    weights_[i-1] = Eigen::MatrixXf::Zero(net_structure_[i], net_structure_[i-1]);
+    biases_[i-1] = Eigen::MatrixXf::Zero(net_structure_[i], 1);
   }
 }
-
-/*
-template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::GPUSetup() {
-  // allocate object
-  if (!this->GPUMemStatus_) {
-    // TODO check if this is setup properly in test cases
-    this->model_d_ = Managed::GPUSetup(this);
-  } else {
-    std::cout << "GPU Memory already set." << std::endl;
-  }
-}
- */
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector<int> description,
@@ -78,12 +66,14 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector
   for (int i = 0; i < NUM_LAYERS - 1; i++){
     for (int j = 0; j < net_structure_[i+1]; j++){
       for (int k = 0; k < net_structure_[i]; k++){
+        weights_[i](j,k) = data[stride_idcs_[2*i] + j*net_structure_[i] + k];
         theta_[stride_idcs_[2*i] + j*net_structure_[i] + k] = data[stride_idcs_[2*i] + j*net_structure_[i] + k];
       }
     }
   }
   for (int i = 0; i < NUM_LAYERS - 1; i++){
     for (int j = 0; j < net_structure_[i+1]; j++){
+      biases_[i](j,0) = data[stride_idcs_[2*i + 1] + j];
       theta_[stride_idcs_[2*i + 1] + j] = data[stride_idcs_[2*i + 1] + j];
     }
   }
@@ -128,10 +118,12 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
       for (k = 0; k < net_structure_[i]; k++){
         // TODO why i - 1?
         theta_[stride_idcs_[2*i] + j*net_structure_[i] + k] = (float)weight_i[j*net_structure_[i] + k];
+        weights_[i](j,k) = (float)weight_i[j*net_structure_[i] + k];
       }
     }
     for (j = 0; j < net_structure_[i+1]; j++){
       theta_[stride_idcs_[2*i + 1] + j] = (float)bias_i[j];
+      biases_[i](j,0) = (float)bias_i[j];
     }
   }
   //Save parameters to GPU memory
@@ -139,20 +131,22 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B) {
-  /*
-  jac_ = Eigen::Matrix<float, S_DIM, S_DIM + C_DIM>::Zero();
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B) {
+  Eigen::Matrix<float, S_DIM, S_DIM + C_DIM> jac;
+  jac.setZero();
 
   //Start with the kinematic and physics model derivatives
-  jac_.row(0) << 0, 0, -sin(state(2))*state(4) - cos(state(2))*state(5), 0, cos(state(2)), -sin(state(2)), 0, 0, 0;
-  jac_.row(1) << 0, 0, cos(state(2))*state(4) - sin(state(2))*state(5), 0, sin(state(2)), cos(state(2)), 0, 0, 0;
-  jac_.row(2) << 0, 0, 0, 0, 0, 0, -1, 0, 0;
+  jac.row(0) << 0, 0, -sin(state(2))*state(4) - cos(state(2))*state(5), 0, cos(state(2)), -sin(state(2)), 0, 0, 0;
+  jac.row(1) << 0, 0, cos(state(2))*state(4) - sin(state(2))*state(5), 0, sin(state(2)), cos(state(2)), 0, 0, 0;
+  jac.row(2) << 0, 0, 0, 0, 0, 0, -1, 0, 0;
+
+  Eigen::MatrixXf state_der(S_DIM, 1);
 
   //First do the forward pass
-  computeDynamics(state, control);
+  computeDynamics(state, control, state_der);
 
   //Start backprop
-  ip_delta_ = Eigen::MatrixXf::Identity(DYNAMICS_DIM, DYNAMICS_DIM);
+  Eigen::MatrixXf ip_delta = Eigen::MatrixXf::Identity(DYNAMICS_DIM, DYNAMICS_DIM);
   Eigen::MatrixXf temp_delta = Eigen::MatrixXf::Identity(DYNAMICS_DIM, DYNAMICS_DIM);
 
   //Main backprop loop
@@ -161,15 +155,14 @@ void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::Matrix
     for (int j = 0; j < net_structure_[i]; j++){
       zp(j) = MPPI_NNET_NONLINEARITY_DERIV(zp(j));
     }
-    ip_delta_ =  ( (weights_[i]).transpose()*ip_delta_ ).eval();
+    ip_delta =  ( (weights_[i]).transpose()*ip_delta).eval();
     for (int j = 0; j < DYNAMICS_DIM; j++){
-      ip_delta_.col(j) = ip_delta_.col(j).array() * zp.array();
+      ip_delta.col(j) = ip_delta.col(j).array() * zp.array();
     }
   }
   //Finish the backprop loop
-  ip_delta_ = ( ((weights_[0]).transpose())*ip_delta_).eval();
-  jac_.bottomRightCorner(DYNAMICS_DIM, DYNAMICS_DIM + C_DIM) += ip_delta_.transpose();
-   */
+  ip_delta = ( ((weights_[0]).transpose())*ip_delta).eval();
+  jac.bottomRightCorner(DYNAMICS_DIM, DYNAMICS_DIM + C_DIM) += ip_delta.transpose();
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>

@@ -116,8 +116,8 @@ private:
   int test[(NUM_LAYERS - 1) * 2] = {0}; ///< structure for keeping track of parameter strides.
 
   Eigen::MatrixXf* weighted_in_ = nullptr;
-  Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* weights_ = nullptr;
-  Eigen::Matrix<float, -1, -1, Eigen::RowMajor>* biases_ = nullptr;
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* weights_ = nullptr;
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* biases_ = nullptr;
 };
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>

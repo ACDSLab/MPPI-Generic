@@ -345,7 +345,61 @@ TEST(ARNeuralNetDynamics, updateStateGPUTest) {
 
 }
 
-// TODO computeDynamics CPU
+TEST(ARNeuralNetDynamics, computeGradCPU) {
+  NeuralNetModel<7,2,3,6,32,32,4> model;
+
+  Eigen::MatrixXf s(7, 1);
+  Eigen::MatrixXf u(2, 1);
+  s.setZero();
+  u << 1, -1;
+
+  std::vector<float> theta(1412);
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  Eigen::MatrixXf A(1,1);
+  Eigen::MatrixXf B(1,1);
+
+  model.computeGrad(s, u, A, B);
+}
+
+TEST(ARNeuralNetDynamics, computeDynamicsCPU) {
+  NeuralNetModel<7,2,3,6,32,32,4> model;
+
+  Eigen::MatrixXf s(7, 1);
+  Eigen::MatrixXf u(2, 1);
+  Eigen::MatrixXf s_der(7, 1);
+  s.setZero();
+  s_der.setZero();
+  u << 1, -1;
+
+  std::vector<float> theta(1412);
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  model.computeDynamics(s, u, s_der);
+
+  EXPECT_FLOAT_EQ(s(0), 0);
+  EXPECT_FLOAT_EQ(s(1), 0);
+  EXPECT_FLOAT_EQ(s(2), 0);
+  EXPECT_FLOAT_EQ(s(3), 0);
+  EXPECT_FLOAT_EQ(s(4), 0);
+  EXPECT_FLOAT_EQ(s(5), 0);
+  EXPECT_FLOAT_EQ(s(6), 0);
+
+  EXPECT_FLOAT_EQ(s_der(0), 0);
+  EXPECT_FLOAT_EQ(s_der(1), 0);
+  EXPECT_FLOAT_EQ(s_der(2), 0);
+  EXPECT_FLOAT_EQ(s_der(3), 33);
+  EXPECT_FLOAT_EQ(s_der(4), 33);
+  EXPECT_FLOAT_EQ(s_der(5), 33);
+  EXPECT_FLOAT_EQ(s_der(6), 33);
+
+  EXPECT_FLOAT_EQ(u(0), 1.0);
+  EXPECT_FLOAT_EQ(u(1), -1.0);
+}
 
 TEST(ARNeuralNetDynamics, computeDynamicsGPU) {
   NeuralNetModel<7,2,3,6,32,32,4> model;
@@ -394,6 +448,9 @@ TEST(ARNeuralNetDynamics, computeDynamicsGPU) {
 }
 
 // TODO compute state deriv CPU
+TEST(ARNeuralNetDynamics, computeStateDerivCPU) {
+
+}
 
 TEST(ARNeuralNetDynamics, computeStateDerivGPU) {
   NeuralNetModel<7,2,3,6,32,32,4> model;
