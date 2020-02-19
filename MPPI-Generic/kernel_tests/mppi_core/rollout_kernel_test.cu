@@ -349,7 +349,8 @@ void launchComputeStateDerivAllRollouts_KernelTest(const DYN_T& dynamics,
     HANDLE_ERROR(cudaMemcpy(xdot_trajectory.data(), xdot_traj_d, sizeof(float)*xdot_trajectory.size(), cudaMemcpyDeviceToHost));
 }
 
-__global__ void incrementStateAllRollouts_KernelTest(int state_dim, int num_rollouts, float dt, float* x_trajectory_d, float* xdot_trajectory_d) {
+template<class DYN_T>
+__global__ void incrementStateAllRollouts_KernelTest(DYN_T* dynamics, int state_dim, int num_rollouts, float dt, float* x_trajectory_d, float* xdot_trajectory_d) {
     int tid = blockDim.x*blockIdx.x + threadIdx.x; // index on rollouts
     int blocksize_y = blockDim.y;
     int thread_idy = threadIdx.y;
@@ -365,8 +366,9 @@ __global__ void incrementStateAllRollouts_KernelTest(int state_dim, int num_roll
 //                   xdot_trajectory_d[state_dim * tid + 1], xdot_trajectory_d[state_dim * tid + 2],
 //                   xdot_trajectory_d[state_dim * tid + 3]);
 //        }
-        mppi_common::incrementStateAllRollouts(state_dim, blocksize_y, thread_idy, dt,
-                &x_trajectory_d[state_dim * tid],&xdot_trajectory_d[state_dim * tid]);
+        //mppi_common::incrementStateAllRollouts(state_dim, blocksize_y, thread_idy, dt,
+        //        &x_trajectory_d[state_dim * tid],&xdot_trajectory_d[state_dim * tid]);
+        mppi_common::incrementStateAllRollouts<DYN_T>(dynamics, dt, x_trajectory_d, xdot_trajectory_d);
 //        if (tid == 1) {
 //            printf("Post increment state [%f, %f, %f, %f]\n", x_trajectory_d[state_dim * tid],
 //                   x_trajectory_d[state_dim * tid + 1], x_trajectory_d[state_dim * tid + 2],
@@ -378,8 +380,8 @@ __global__ void incrementStateAllRollouts_KernelTest(int state_dim, int num_roll
     }
 }
 
-template<int STATE_DIM, int NUM_ROLLOUTS>
-void launchIncrementStateAllRollouts_KernelTest(float dt, std::array<float, STATE_DIM*NUM_ROLLOUTS>& x_traj, std::array<float, STATE_DIM*NUM_ROLLOUTS>& xdot_traj) {
+template<class DYN_T, int STATE_DIM, int NUM_ROLLOUTS>
+void launchIncrementStateAllRollouts_KernelTest(const DYN_T& dynamics, float dt, std::array<float, STATE_DIM*NUM_ROLLOUTS>& x_traj, std::array<float, STATE_DIM*NUM_ROLLOUTS>& xdot_traj) {
     // Declare variables for device memory
     float* x_traj_d;
     float* xdot_traj_d;
@@ -397,7 +399,7 @@ void launchIncrementStateAllRollouts_KernelTest(float dt, std::array<float, STAT
     dim3 gridsize((NUM_ROLLOUTS + (BLOCKSIZE_X - 1)) / BLOCKSIZE_X, 1);
 
     // Launch the test kernel
-    incrementStateAllRollouts_KernelTest<<<gridsize, blocksize>>>(STATE_DIM, NUM_ROLLOUTS, dt, x_traj_d, xdot_traj_d);
+    incrementStateAllRollouts_KernelTest<DYN_T><<<gridsize, blocksize>>>(dynamics.model_d_, STATE_DIM, NUM_ROLLOUTS, dt, x_traj_d, xdot_traj_d);
     CudaCheckError();
 
     // Copy the result back to the host
@@ -491,9 +493,12 @@ template void launchComputeStateDerivAllRollouts_KernelTest<CartpoleDynamics, nu
  * Cartpole Increment State Derivative Template Instantiations
  **********************************************************************************************************************/
 const int num_rollouts_is = 5000;
-template void launchIncrementStateAllRollouts_KernelTest<CartpoleDynamics::STATE_DIM, num_rollouts_is>(float dt,
+template void launchIncrementStateAllRollouts_KernelTest<CartpoleDynamics, CartpoleDynamics::STATE_DIM, num_rollouts_is>(const CartpoleDynamics& dynamics,
+        float dt,
         std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_is>& x_traj,
         std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_is>& xdot_traj);
+
+template __global__ void incrementStateAllRollouts_KernelTest<CartpoleDynamics>(CartpoleDynamics* dynamics, int state_dim, int num_rollouts, float dt, float* x_trajectory_d, float* xdot_trajectory_d);
 
 /**
  * Cartpole Compute and Save cost all rollouts instantiations

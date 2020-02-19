@@ -66,7 +66,6 @@ namespace mppi_common {
                 __syncthreads();
 
                 //Accumulate running cost
-                // TODO pull dt from dynamics
                 computeRunningCostAllRollouts(costs, dt, x, u, du, sigma_u, running_cost, t);
                 __syncthreads();
 
@@ -77,8 +76,7 @@ namespace mppi_common {
                 __syncthreads();
 
                 //Increment states
-                // TODO remove dt, it is inside dynamics
-                incrementStateAllRollouts(DYN_T::STATE_DIM, BLOCKSIZE_Y, thread_idy, dt, x, xdot);
+                incrementStateAllRollouts<DYN_T>(dynamics, dt, x, xdot);
                 __syncthreads();
             }
         }
@@ -218,15 +216,17 @@ namespace mppi_common {
     }
 
     // TODO this should pass blocksize or thread number
-    __device__ void incrementStateAllRollouts(int state_dim, int blocksize_y, int thread_idy, float dt,
-                                                float* x_thread, float* xdot_thread) {
+    template<class DYN_T>
+    __device__ void incrementStateAllRollouts(DYN_T* dynamics, float dt, float* x_thread, float* xdot_thread) {
         // The prior loop already guarantees that the global index is less than the number of rollouts
-        //Implementing simple first order Euler for now, more complex scheme can be added later
-        // TODO should use updateState and let dynamics choose how to parallelize
-        for (int i = thread_idy; i < state_dim; i += blocksize_y) {
-            x_thread[i] += xdot_thread[i] * dt;
-            xdot_thread[i] = 0; // Reset the derivative to zero
-        }
+        // dynamics implements first order Euler by default
+        dynamics->updateState(x_thread, xdot_thread, dt);
+        /*
+      for (int i = threadIdx.y; i < DYN_T::STATE_DIM; i += blockDim.y) {
+        x_thread[i] += xdot_thread[i] * dt;
+        xdot_thread[i] = 0; // Reset the derivative to zero
+      }
+         */
     }
 
     template<class COST_T>
