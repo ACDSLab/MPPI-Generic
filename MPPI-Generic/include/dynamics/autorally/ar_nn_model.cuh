@@ -107,7 +107,8 @@ public:
 
 private:
 
-  // TODO convert to std::array
+  // packed by all weights that connect layer 1 to layer 2 neuron 1, bias for all connections from layer 1 to layer 2
+  // then layer 2 neuron 2, etc
   float theta_[NUM_PARAMS]; ///< structure parameter array. i.e. the actual weights
   //[neurons in layer 1, neurons in layer 2, ...]
   int net_structure_[NUM_LAYERS] = {layer_args...}; ///< structure for keeping track of the neural net structure. neurons per layer

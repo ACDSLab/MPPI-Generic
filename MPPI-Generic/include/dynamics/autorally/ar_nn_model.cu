@@ -164,6 +164,8 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(Eigen::Matr
   //Finish the backprop loop
   ip_delta = ( ((weights_[0]).transpose())*ip_delta).eval();
   jac.bottomRightCorner(DYNAMICS_DIM, DYNAMICS_DIM + C_DIM) += ip_delta.transpose();
+  A = jac.leftCols(S_DIM);
+  B = jac.rightCols(C_DIM);
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>

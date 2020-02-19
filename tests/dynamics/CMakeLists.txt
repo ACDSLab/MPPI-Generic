@@ -21,15 +21,15 @@ if(BUILD_TESTS)
   message("")
   find_package(PythonInterp)
   # Set location of test map
-  set(TEST_NETWORK_FILE "${PROJECT_BINARY_DIR}/test_network.npz")
+  set(TEST_NETWORK_FOLDER "${PROJECT_BINARY_DIR}")
 
   # Create neural network map
   execute_process(COMMAND ${PYTHON_EXECUTABLE}
           ${PROJECT_SOURCE_DIR}/scripts/autorally/test/generateTestNetwork.py
-          -o ${TEST_NETWORK_FILE}
+          -o ${TEST_NETWORK_FOLDER}
           OUTPUT_FILE /dev/null
           )
-  message(STATUS "Created ${TEST_NETWORK_FILE}")
+  message(STATUS "Created ${TEST_NETWORK_FOLDER}/*.npz")
 
   # Create header file pointing to test neural network
   set(TEST_NETWORK_HEADER_FILE ${PROJECT_BINARY_DIR}/include/autorally_test_network.h)
