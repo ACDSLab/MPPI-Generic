@@ -132,6 +132,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B) {
+  // TODO results are not returned
   Eigen::Matrix<float, S_DIM, S_DIM + C_DIM> jac;
   jac.setZero();
 
