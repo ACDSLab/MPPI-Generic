@@ -22,7 +22,7 @@ class VanillaMPPIController : public Controller<DYN_T, COST_T,
                                                 BDIM_X,
                                                 BDIM_Y> {
 public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     // need control_array = ... so that we can initialize
     // Eigen::Matrix with Eigen::Matrix::Zero();
     using control_array = typename Controller<DYN_T, COST_T,

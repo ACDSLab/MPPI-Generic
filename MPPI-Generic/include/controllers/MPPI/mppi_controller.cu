@@ -13,12 +13,11 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost,
                                    const control_array& control_variance,
                                    const control_trajectory& init_control_traj,
                                    cudaStream_t stream) :
-dt_(dt), num_iters_(max_iter), gamma_(gamma),
-control_variance_(control_variance), stream_(stream) {
+dt_(dt), num_iters_(max_iter), gamma_(gamma), stream_(stream) {
     this->model_ = model;
     this->cost_ = cost;
 
-
+    control_variance_ = control_variance;
     nominal_control_ = init_control_traj;
     setNumTimesteps(num_timesteps);
 
