@@ -32,6 +32,7 @@ add_executable(ddp_tests
 target_link_libraries(ddp_tests gtest
         gmock
         gtest_main
+        cartpole_mppi
         cnpy
         ${Boost_LIBRARIES})
 add_test(NAME ddp_tests COMMAND ddp_tests)
