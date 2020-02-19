@@ -23,6 +23,7 @@ template<class CLASS_T, class PARAMS_T>
 class Cost : public Managed
 {
 public:
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   /**
      * typedefs for access to templated class from outside classes
      */

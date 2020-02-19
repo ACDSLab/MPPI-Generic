@@ -21,7 +21,7 @@ typedef struct {
 
 class CartpoleQuadraticCost : public Cost<CartpoleQuadraticCost, cartpoleQuadraticCostParams> {
 public:
-
+//    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     /**
      * Constructor

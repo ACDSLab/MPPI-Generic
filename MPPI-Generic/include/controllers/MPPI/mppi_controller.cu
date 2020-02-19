@@ -13,12 +13,12 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost,
                                    const control_array& control_variance,
                                    const control_trajectory& init_control_traj,
                                    cudaStream_t stream) :
-dt_(dt), num_iters_(max_iter), gamma_(gamma),
-control_variance_(control_variance),
-nominal_control_(init_control_traj), stream_(stream) {
+dt_(dt), num_iters_(max_iter), gamma_(gamma), stream_(stream) {
     this->model_ = model;
     this->cost_ = cost;
 
+    control_variance_ = control_variance;
+    nominal_control_ = init_control_traj;
     setNumTimesteps(num_timesteps);
 
     // Create the random number generator
@@ -52,7 +52,7 @@ VanillaMPPI::~VanillaMPPIController() {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void VanillaMPPI::computeControl(state_array state) {
+void VanillaMPPI::computeControl(const state_array& state) {
 
     // Send the initial condition to the device
     HANDLE_ERROR( cudaMemcpyAsync(initial_state_d_, state.data(),

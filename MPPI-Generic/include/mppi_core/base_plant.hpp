@@ -73,6 +73,7 @@ private:
   std::vector<int> modelDescription;
   std::vector<float> modelData;
 public:
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   basePlant() = default;
   /**
@@ -118,9 +119,9 @@ public:
   // TODO should publish to a topic not a static window
   virtual void setDebugImage(cv::Mat debug_img) = 0;
 
-  virtual void setSolution(s_traj state_seq,
-                           c_traj control_seq,
-                           K_mat feedback_gains,
+  virtual void setSolution(const s_traj& state_seq,
+                           const c_traj& control_seq,
+                           const K_mat& feedback_gains,
                            double timestamp,
                            double loop_speed) = 0;
 
@@ -224,24 +225,21 @@ public:
 
     //Set the loop rate
     std::chrono::milliseconds ms{(int)(optimization_stride*1000.0/hz_)};
-
     if (!debug_mode_){
       while(last_pose_update == getLastPoseTime() && is_alive->load()){ //Wait until we receive a pose estimate
         usleep(50);
       }
     }
-
     controller->resetControls();
     controller->computeFeedbackGains(state);
-
     //Start the control loop.
     while (is_alive->load()) {
       std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
       setTimingInfo(avgOptimizeLoopTime_ms, avgOptimizeTickTime_ms, avgSleepTime_ms);
       num_iter ++;
 
-      if (debug_mode_ && controller->costs_->getDebugDisplayEnabled()) { //Display the debug window.
-        cv::Mat debug_img = controller->costs_->getDebugDisplay(state.data());
+      if (debug_mode_ && controller->cost_->getDebugDisplayEnabled()) { //Display the debug window.
+        cv::Mat debug_img = controller->cost_->getDebugDisplay(state.data());
         setDebugImage(debug_img);
       }
       //Update the state estimate
@@ -253,28 +251,28 @@ public:
       //Update the cost parameters
       if (hasNewDynRcfg()) {
         // TODO resolve issue with typename coming from the plant
-        //controller->costs_->TEMPLATED_PARAMS = getParams();
-        // controller->costs_->updateParams_dcfg(getDynRcfgParams());
-        //controller->costs_->setParams(params);
+        //controller->cost_->TEMPLATED_PARAMS = getParams();
+        // controller->cost_->updateParams_dcfg(getDynRcfgParams());
+        //controller->cost_->setParams(params);
       }
       //Update any obstacles
       /*
       TODO should this exist at all?
       if (hasNewObstacles()){
         getNewObstacles(obstacleDescription, obstacleData);
-        controller->costs_->updateObstacles(obstacleDescription, obstacleData);
+        controller->cost_->updateObstacles(obstacleDescription, obstacleData);
       }
        */
       //Update the costmap
       if (hasNewCostmap()){
         getNewCostmap(costmapDescription, costmapData);
-        controller->costs_->updateCostmap(costmapDescription, costmapData);
+        controller->cost_->updateCostmap(costmapDescription, costmapData);
       }
       //Update dynamics model
       if (hasNewModel()){
         // TODO define generic
         getNewModel(modelDescription, modelData);
-        controller->model_->updateModel(modelDescription, modelData);
+        // controller->model_->updateModel(modelDescription, modelData);
       }
 
       //Figure out how many controls have been published since we were last here and slide the
@@ -286,7 +284,6 @@ public:
       if (stride >= 0 && stride < num_timesteps){
         controller->slideControlSequence(stride);
       }
-
       //Compute a new control sequence
       controller->computeControl(state); //Compute the control
       if (use_feedback_gains_){
@@ -307,15 +304,15 @@ public:
       status = checkStatus();
 
       //Increment the state if debug mode is set to true
-      if (status != 0 && debug_mode_){
-        for (int t = 0; t < optimization_stride; t++){
-          int control_dim = CONTROLLER_T::TEMPLATED_DYNAMICS::CONTROL_DIM;
-          for (int i = 0; i < control_dim; i++) {
-            u[i] = control_traj[control_dim * t + i];
-          }
-          controller->model_->updateState(state, u);
-        }
-      }
+      // if (status != 0 && debug_mode_){
+      //   for (int t = 0; t < optimization_stride; t++){
+      //     int control_dim = CONTROLLER_T::TEMPLATED_DYNAMICS::CONTROL_DIM;
+      //     for (int i = 0; i < control_dim; i++) {
+      //       u[i] = control_traj[control_dim * t + i];
+      //     }
+      //     controller->model_->updateState(state, u);
+      //   }
+      // }
 
       //Sleep for any leftover time in the control loop
       std::chrono::duration<double, std::milli> fp_ms =

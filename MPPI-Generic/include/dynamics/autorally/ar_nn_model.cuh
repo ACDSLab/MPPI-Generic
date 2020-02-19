@@ -43,7 +43,7 @@ using namespace MPPI_internal;
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 class NeuralNetModel : public Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM> {
 public:
-
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
   static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
   static const int PRIME_PADDING = 1; ///< Extra padding to largest layer to avoid shared mem bank conflicts
