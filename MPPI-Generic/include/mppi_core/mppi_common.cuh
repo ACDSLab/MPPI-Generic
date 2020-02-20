@@ -80,66 +80,6 @@ namespace mppi_common {
                                        float* u_thread,
                                        float* du_thread);
 
-    /*
-     * computeRunningCostAllRollouts
-     * Compute the running cost for each rollout
-     *
-     * Args:
-     * costs: cost function class
-     * x_thread: Current state for the given rollout
-     * u_thread: Current control for the given rollout,
-     * running_cost: Running cost for the given rollout
-     */
-    template<class COST_T>
-    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt,
-                                                  float* x_thread,
-                                                  float* u_thread,
-                                                  float* du_thread,
-                                                  float* sigma_thread,
-                                                  float& running_cost,
-                                                  int timestep);
-
-    /**
-     * applies the enforceConstraints method in the dynamics to all threads, see dyanmics.cuh for details
-     * @tparam DYN_T the dynamics class
-     * @param dynamics
-     * @param x
-     * @param u
-     */
-    template<class DYN_T>
-    __device__ void applyDynamicsConstraints(DYN_T* dynamics, float* x, float* u);
-
-    /*
-     * computeRunningCostAllRollouts
-     * Compute the running cost for each rollout
-     *
-     * Args:
-     * dynamics: dynamics function class
-     * x_thread: Current state for the given rollout
-     * u_thread: Current control for the given rollout,
-     * xdot_thread: State derivative for the given rollout
-     * theta_s: shared memory to combine answers in a block
-     */
-    template<class DYN_T>
-    __device__ void computeStateDerivAllRollouts(DYN_T* dynamics, float* x_thread, float* u_thread, float* xdot_thread, float* theta_s);
-
-    /*
-     * incrementStateAllRollouts
-     * Increment the state using the forward Euler method
-     *
-     * Args:
-     * state_dim: Number of states, defined in DYN_T
-     * blocksize_y: Y dimension of each block of threads
-     * thread_idy: Current y index of block dimension.
-     * dt: Timestep size
-     * x_thread: Current state for the given rollout
-     * xdot_thread: State derivative for the given rollout
-     */
-    template<class DYN_T>
-    __device__ void incrementStateAllRollouts(DYN_T* dynamics, float dt, float* x_thread, float* xdot_thread);
-
-
-
     template<class COST_T>
     __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* x_thread,
                                        float running_cost, float* cost_rollouts_device);
