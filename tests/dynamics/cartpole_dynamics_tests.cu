@@ -20,16 +20,16 @@ TEST(CartPole, ControlDim) {
 TEST(CartPole, Equilibrium) {
     auto CP = CartpoleDynamics(1, 1, 1);
 
-    Eigen::MatrixXf state(CartpoleDynamics::STATE_DIM,1);
+    CartpoleDynamics::state_array state;
     state << 0,0,0,0;
 
-    Eigen::MatrixXf control(CartpoleDynamics::CONTROL_DIM,1);
+    CartpoleDynamics::control_array control;
     control << 0;
 
-    Eigen::MatrixXf state_dot_compute(CartpoleDynamics::STATE_DIM,1);
+    CartpoleDynamics::state_array state_dot_compute;
     state_dot_compute << 1,1,1,1;
 
-    Eigen::MatrixXf state_dot_known(CartpoleDynamics::STATE_DIM,1);
+    CartpoleDynamics::state_array state_dot_known;
     state_dot_known << 0,0,0,0;
 
     CP.computeDynamics(state, control, state_dot_compute);
@@ -145,15 +145,16 @@ TEST(CartPole, TestDynamicsGPU) {
     auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
     CP_host->setParams(params);
 
-    Eigen::MatrixXf state = Eigen::MatrixXf::Zero(CartpoleDynamics::STATE_DIM, 1);
+    CartpoleDynamics::state_array state;
     state(0) = 0.1;
     state(1) = 0.3;
     state(2) = 0.23;
     state(3) = 0.334;
-    Eigen::MatrixXf control = Eigen::MatrixXf::Ones(CartpoleDynamics::CONTROL_DIM, 1);
+    CartpoleDynamics::control_array control;
+    control(0) = 0.654;
 
     // These variables will be changed so initialized to the right size only
-    Eigen::MatrixXf state_der_cpu = Eigen::MatrixXf::Zero(CartpoleDynamics::STATE_DIM, 1);
+    CartpoleDynamics::state_array state_der_cpu = CartpoleDynamics::state_array::Zero();
 
     float state_der_gpu[CartpoleDynamics::STATE_DIM];
 

@@ -32,9 +32,9 @@ public:
      * @param control   input of currrent control, passed by reference
      * @param state_der output of new state derivative, passed by reference
      */
-    void computeDynamics(Eigen::MatrixXf &state,
-                         Eigen::MatrixXf &control,
-                         Eigen::MatrixXf &state_der);
+    void computeDynamics(const state_array &state,
+                         const control_array &control,
+                         state_array &state_der);
 
     /**
      * compute the Jacobians with respect to state and control
@@ -43,19 +43,33 @@ public:
      * @param control input of currrent control, passed by reference
 
      */
-    void computeGrad(const Eigen::MatrixXf& state,
-                     const Eigen::MatrixXf& control,
-                     Eigen::MatrixXf& A,
-                     Eigen::MatrixXf& B);
+    void computeGrad(const state_array & state,
+                     const control_array& control,
+                     dfdx& A,
+                     dfdu& B);
 
     __host__ __device__ float getCartMass() {return this->params_.cart_mass;};
     __host__ __device__ float getPoleMass() {return this->params_.pole_mass;};
     __host__ __device__ float getPoleLength() {return this->params_.pole_length;};
     __host__ __device__ float getGravity() {return gravity_;}
 
-    void printState(Eigen::MatrixXf state);
+    void printState(const state_array& state);
     void printState(float* state);
     void printParams();
+
+    void computeStateDeriv(const state_array& state,
+                           const control_array& control,
+                           state_array& state_der);
+
+    // TODO Figure out why this method is required for mppi_common to use this
+    // rather than the Eigen version
+    __device__ void computeStateDeriv(float* state,
+                                      float* control,
+                                      float* state_der,
+                                      float* theta_s) {
+        Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>::computeStateDeriv(
+            state, control, state_der, theta_s);
+    }
 
     __device__ void computeDynamics(float* state,
                                     float* control,

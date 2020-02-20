@@ -131,7 +131,8 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B) {
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const state_array &state,
+        const control_array &control, dfdx &A, dfdu &B) {
   // TODO results are not returned
   Eigen::Matrix<float, S_DIM, S_DIM + C_DIM> jac;
   jac.setZero();
@@ -169,14 +170,14 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(Eigen::Matr
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &state_der) {
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(const state_array &state, state_array &state_der) {
   state_der(0) = cosf(state(2))*state(4) - sinf(state(2))*state(5);
   state_der(1) = sinf(state(2))*state(4) + cosf(state(2))*state(5);
   state_der(2) = -state(6); //Pose estimate actually gives the negative yaw derivative
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der) {
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(const state_array& state, const control_array& control, state_array& state_der) {
   int i,j;
   Eigen::MatrixXf acts(net_structure_[0], 1);
   for (i = 0; i < DYNAMICS_DIM; i++){

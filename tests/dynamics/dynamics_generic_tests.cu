@@ -14,17 +14,21 @@ struct DynamicsTesterParams {
 template<int STATE_DIM = 1, int CONTROL_DIM = 1>
 class DynamicsTester : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM> {
 public:
+
+    using state_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>::state_array;
+    using control_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>::control_array;
+
   DynamicsTester(cudaStream_t stream=0)
     : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(stream) {}
 
   DynamicsTester(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream=0)
     : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(control_rngs, stream) {}
 
-  void computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der) {
+  void computeDynamics(const state_array& state, const control_array& control, state_array& state_der) {
     state_der(1) = control(0);
   }
 
-  void computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der) {
+  void computeKinematics(const state_array &state, state_array &s_der) {
     s_der(0) = state(0) + state(1);
   };
 
@@ -216,8 +220,8 @@ TEST(Dynamics, enforceConstraintsCPU) {
   tester_ranges[0].y = 5;
   DynamicsTester<> tester(tester_ranges);
 
-  Eigen::MatrixXf s(1,1);
-  Eigen::MatrixXf u(1,1);
+  DynamicsTester<>::state_array s(1,1);
+  DynamicsTester<>::control_array u(1,1);
 
   u(0) = 100;
   tester.enforceConstraints(s, u);
@@ -312,8 +316,8 @@ TEST(Dynamics, enforceConstraintsGPU) {
 
 TEST(Dynamics, updateStateCPU) {
   DynamicsTester<> tester;
-  Eigen::MatrixXf s(1,1);
-  Eigen::MatrixXf s_der(1,1);
+  DynamicsTester<>::state_array s;
+  DynamicsTester<>::state_array s_der;
 
   s(0) = 5;
   s_der(0) = 10;
@@ -366,9 +370,9 @@ TEST(Dynamics, updateStateGPU) {
 
 TEST(Dynamics, computeStateDerivCPU) {
   DynamicsTester<2, 1> tester;
-  Eigen::MatrixXf s(2,1);
-  Eigen::MatrixXf s_der(2,1);
-  Eigen::MatrixXf u(1,1);
+  DynamicsTester<2, 1>::state_array s;
+  DynamicsTester<2, 1>::state_array s_der;
+  DynamicsTester<2, 1>::control_array u;
 
   s(0) = 5;
   s(1) = 10;

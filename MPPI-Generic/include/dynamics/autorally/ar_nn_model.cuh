@@ -44,6 +44,13 @@ template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 class NeuralNetModel : public Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM> {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  // Define Eigen fixed size matrices
+  using state_array = typename Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>::state_array;
+  using control_array = typename Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>::control_array;
+  using dfdx = typename Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>::dfdx;
+  using dfdu = typename Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>::dfdu;
+
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
   static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
   static const int PRIME_PADDING = 1; ///< Extra padding to largest layer to avoid shared mem bank conflicts
@@ -96,10 +103,13 @@ public:
 
   void updateModel(std::vector<int> description, std::vector<float> data);
 
-  void computeGrad(Eigen::MatrixXf &state, Eigen::MatrixXf &control, Eigen::MatrixXf &A, Eigen::MatrixXf &B);
+  void computeGrad(const state_array & state,
+                   const control_array& control,
+                   dfdx& A,
+                   dfdu& B);
 
-  void computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
-  void computeKinematics(Eigen::MatrixXf &state, Eigen::MatrixXf &s_der);
+  void computeDynamics(const state_array & state, const control_array& control, state_array& state_der);
+  void computeKinematics(const state_array &state, state_array &s_der);
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);

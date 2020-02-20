@@ -8,10 +8,11 @@ CartpoleDynamics::CartpoleDynamics(float cart_mass, float pole_mass, float pole_
 CartpoleDynamics::~CartpoleDynamics() {
 }
 
-void CartpoleDynamics::computeGrad(const Eigen::MatrixXf &state,
-                                   const Eigen::MatrixXf &control,
-                                   Eigen::MatrixXf& A,
-                                   Eigen::MatrixXf& B) {
+
+void CartpoleDynamics::computeGrad(const state_array &state,
+                                   const control_array &control,
+                                   dfdx& A,
+                                   dfdu& B) {
   float theta = state(2);
   float theta_dot = state(3);
   float force = control(0);
@@ -29,9 +30,9 @@ void CartpoleDynamics::computeGrad(const Eigen::MatrixXf &state,
   B(3,0) = -cosf(theta)/(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)));
 }
 
-void CartpoleDynamics::computeDynamics(Eigen::MatrixXf &state,
-                                       Eigen::MatrixXf &control,
-                                       Eigen::MatrixXf &state_der) {
+void CartpoleDynamics::computeDynamics(const state_array &state,
+                                       const control_array &control,
+                                       state_array &state_der) {
   float theta = state(2);
   float theta_dot = state(3);
   float force = control(0);
@@ -59,7 +60,7 @@ void CartpoleDynamics::freeCudaMem()
   Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>::freeCudaMem();
 }
 
-void CartpoleDynamics::printState(Eigen::MatrixXf state)
+void CartpoleDynamics::printState(const state_array& state)
 {
   printf("Cart position: %f; Cart velocity: %f; Pole angle: %f; Pole rate: %f \n", state(0), state(1), state(2), state(3)); //Needs to be completed
 }

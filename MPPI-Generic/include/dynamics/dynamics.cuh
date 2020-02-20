@@ -158,17 +158,17 @@ public:
    * @param A       output Jacobian wrt state, passed by reference
    * @param B       output Jacobian wrt control, passed by reference
    */
-  void computeGrad(const Eigen::MatrixXf& state,
-                   const Eigen::MatrixXf& control,
-                   Eigen::MatrixXf& A,
-                   Eigen::MatrixXf& B);
+  void computeGrad(const state_array& state,
+                   const control_array& control,
+                   dfdx& A,
+                   dfdu& B);
 
   /**
    * enforces control constraints
    * @param state
    * @param control
    */
-  void enforceConstraints(Eigen::MatrixXf &state, Eigen::MatrixXf &control) {
+  void enforceConstraints(state_array &state, control_array &control) {
     for(int i = 0; i < C_DIM; i++) {
       //printf("enforceConstraints %f, min = %f, max = %f\n", control(i), control_rngs_[i].x, control_rngs_[i].y);
       if(control(i) < control_rngs_[i].x) {
@@ -184,7 +184,7 @@ public:
    * @param s state
    * @param s_der
    */
-  void updateState(Eigen::MatrixXf& state, Eigen::MatrixXf& s_der, float dt) {
+  void updateState(state_array& state, state_array& s_der, float dt) {
     state += s_der*dt;
     s_der.setZero();
   }
@@ -195,14 +195,14 @@ public:
    * @param control
    * @param state_der
    */
-  void computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der);
+  void computeDynamics(const state_array& state, const control_array& control, state_array& state_der);
 
   /**
    * computes the parts of the state that are based off of kinematics
    * @param s state
    * @param s_der
    */
-  void computeKinematics(Eigen::MatrixXf& state, Eigen::MatrixXf& s_der) {};
+  void computeKinematics(const state_array& state, state_array& s_der) {};
 
   /**
    * computes the full state derivative by calling computeKinematics then computeDynamics
@@ -210,7 +210,7 @@ public:
    * @param control
    * @param state_der
    */
-  void computeStateDeriv(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der) {
+  void computeStateDeriv(const state_array& state, const control_array& control, state_array& state_der) {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     derived->computeKinematics(state, state_der);
     derived->computeDynamics(state, control, state_der);
