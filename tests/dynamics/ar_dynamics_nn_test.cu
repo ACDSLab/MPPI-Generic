@@ -16,6 +16,10 @@
 __device__ __constant__ float NNET_PARAMS[param_counter(6,32,32,4)];
 #endif
 
+/**
+ * Note: the analytical solution for the test NN is outlined in the python script
+ */
+
 TEST(ARNeuralNetDynamics, verifyTemplateParamters) {
   int state_dim = NeuralNetModel<7,2,3,6,32,32,4>::STATE_DIM;
   EXPECT_EQ(state_dim, 7);
@@ -216,7 +220,7 @@ TEST(ARNeuralNetDynamics, LoadModelTest) {
   model.GPUSetup();
 
   // TODO procedurally generate a NN in python and save and run like costs
-  std::string path = mppi::tests::test_nn_file;
+  std::string path = mppi::tests::test_load_nn_file;
   model.loadParams(path);
 
   // check CPU
@@ -345,7 +349,117 @@ TEST(ARNeuralNetDynamics, updateStateGPUTest) {
 
 }
 
-// TODO computeDynamics CPU
+/**
+ *
+ * @tparam CLASS_T
+ * @param model
+ * @param s
+ * @param ds
+ * @param u
+ * @param du
+ */
+template <class CLASS_T>
+void compareFiniteDifferenceGradient(CLASS_T& model, Eigen::MatrixXf& s, Eigen::MatrixXf& ds, Eigen::MatrixXf& u, Eigen::MatrixXf& du) {
+  Eigen::MatrixXf s_2(7, 1);
+  s_2 = s + ds;
+  Eigen::MatrixXf u_2(2,1);
+  u_2 = u + du;
+  Eigen::MatrixXf s_der(7, 1);
+  Eigen::MatrixXf s_der_2(7, 1);
+  s_der.setZero();
+  s_der_2.setZero();
+
+  Eigen::MatrixXf calculated_A(7,7);
+  Eigen::MatrixXf calculated_B(7,2);
+
+  model.computeDynamics(s_2, u_2, s_der_2);
+  model.computeDynamics(s, u, s_der);
+  std::cout << "s_der\n" << s_der << std::endl;
+  std::cout << "s_der_2\n" << s_der_2 << std::endl;
+  std::cout << "s_der_2 - s_der\n" << (s_der_2 - s_der) << std::endl;
+
+  Eigen::MatrixXf A(7,7);
+  Eigen::MatrixXf B(7,2);
+
+  model.computeGrad(s, u, A, B);
+  std::cout << "A = \n" << A << std::endl;
+  std::cout << "B = \n" << B << std::endl;
+
+  // compare A
+  for(int i = 0; i < 7; i++) {
+    for(int j = 0; j < 7; j++) {
+      EXPECT_NEAR(calculated_A(i,j), A(i,j), 0.01) << "failed at index = " << i << ", " << j;
+    }
+  }
+
+  // compare B
+  for(int i = 0; i < 7; i++) {
+    for(int j = 0; j < 2; j++) {
+      EXPECT_NEAR(calculated_B(i,j), B(i,j), 0.01) << "failed at index = " << i << ", " << j;
+    }
+  }
+}
+
+// Note math for analytical solution is in the python script
+TEST(ARNeuralNetDynamics, computeGrad) {
+  GTEST_SKIP();
+  NeuralNetModel<7,2,3,6,32,32,4> model;
+
+  Eigen::MatrixXf s(7, 1);
+  Eigen::MatrixXf ds(7, 1);
+  Eigen::MatrixXf u(2, 1);
+  Eigen::MatrixXf du(2, 1);
+  s.setZero();
+  ds.setZero();
+  u.setZero();
+  du.setZero();
+  ds << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+
+  std::vector<float> theta(1412);
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  compareFiniteDifferenceGradient(model, s, ds, u, du);
+
+}
+
+TEST(ARNeuralNetDynamics, computeDynamicsCPU) {
+  NeuralNetModel<7,2,3,6,32,32,4> model;
+
+  Eigen::MatrixXf s(7, 1);
+  Eigen::MatrixXf u(2, 1);
+  Eigen::MatrixXf s_der(7, 1);
+  s.setZero();
+  s_der.setZero();
+  u << 1, -1;
+
+  std::vector<float> theta(1412);
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  model.computeDynamics(s, u, s_der);
+
+  EXPECT_FLOAT_EQ(s(0), 0);
+  EXPECT_FLOAT_EQ(s(1), 0);
+  EXPECT_FLOAT_EQ(s(2), 0);
+  EXPECT_FLOAT_EQ(s(3), 0);
+  EXPECT_FLOAT_EQ(s(4), 0);
+  EXPECT_FLOAT_EQ(s(5), 0);
+  EXPECT_FLOAT_EQ(s(6), 0);
+
+  EXPECT_FLOAT_EQ(s_der(0), 0);
+  EXPECT_FLOAT_EQ(s_der(1), 0);
+  EXPECT_FLOAT_EQ(s_der(2), 0);
+  EXPECT_FLOAT_EQ(s_der(3), 33);
+  EXPECT_FLOAT_EQ(s_der(4), 33);
+  EXPECT_FLOAT_EQ(s_der(5), 33);
+  EXPECT_FLOAT_EQ(s_der(6), 33);
+
+  EXPECT_FLOAT_EQ(u(0), 1.0);
+  EXPECT_FLOAT_EQ(u(1), -1.0);
+}
 
 TEST(ARNeuralNetDynamics, computeDynamicsGPU) {
   NeuralNetModel<7,2,3,6,32,32,4> model;
@@ -394,6 +508,9 @@ TEST(ARNeuralNetDynamics, computeDynamicsGPU) {
 }
 
 // TODO compute state deriv CPU
+TEST(ARNeuralNetDynamics, computeStateDerivCPU) {
+
+}
 
 TEST(ARNeuralNetDynamics, computeStateDerivGPU) {
   NeuralNetModel<7,2,3,6,32,32,4> model;

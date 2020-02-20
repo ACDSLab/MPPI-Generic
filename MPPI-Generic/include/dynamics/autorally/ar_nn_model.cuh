@@ -107,13 +107,18 @@ public:
 
 private:
 
-  // TODO convert to std::array
+  // packed by all weights that connect layer 1 to layer 2 neuron 1, bias for all connections from layer 1 to layer 2
+  // then layer 2 neuron 2, etc
   float theta_[NUM_PARAMS]; ///< structure parameter array. i.e. the actual weights
   //[neurons in layer 1, neurons in layer 2, ...]
   int net_structure_[NUM_LAYERS] = {layer_args...}; ///< structure for keeping track of the neural net structure. neurons per layer
   // index into theta for weights and bias (layer 0 weights start, no bias in input layer, layer 1 weights start, layer1 bias start...
   int stride_idcs_[(NUM_LAYERS - 1) * 2] = {0}; ///< structure for keeping track of parameter strides.
   int test[(NUM_LAYERS - 1) * 2] = {0}; ///< structure for keeping track of parameter strides.
+
+  Eigen::MatrixXf* weighted_in_ = nullptr;
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* weights_ = nullptr;
+  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* biases_ = nullptr;
 };
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
