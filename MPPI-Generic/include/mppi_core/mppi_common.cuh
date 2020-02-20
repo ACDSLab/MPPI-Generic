@@ -99,6 +99,16 @@ namespace mppi_common {
                                                   float& running_cost,
                                                   int timestep);
 
+    /**
+     * applies the enforceConstraints method in the dynamics to all threads, see dyanmics.cuh for details
+     * @tparam DYN_T the dynamics class
+     * @param dynamics
+     * @param x
+     * @param u
+     */
+    template<class DYN_T>
+    __device__ void applyDynamicsConstraints(DYN_T* dynamics, float* x, float* u);
+
     /*
      * computeRunningCostAllRollouts
      * Compute the running cost for each rollout
@@ -125,8 +135,10 @@ namespace mppi_common {
      * x_thread: Current state for the given rollout
      * xdot_thread: State derivative for the given rollout
      */
-    __device__ void incrementStateAllRollouts(int state_dim, int blocksize_y, int thread_idy, float dt,
-                                                     float* x_thread, float* xdot_thread);
+    template<class DYN_T>
+    __device__ void incrementStateAllRollouts(DYN_T* dynamics, float dt, float* x_thread, float* xdot_thread);
+
+
 
     template<class COST_T>
     __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* x_thread,

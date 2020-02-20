@@ -8,17 +8,17 @@
 #include <cuda_runtime.h>
 
 TEST(CartPole, StateDim) {
-    auto CP = CartpoleDynamics(0.1, 1, 1, 1);
+    auto CP = CartpoleDynamics(1, 1, 1);
     EXPECT_EQ(4, CartpoleDynamics::STATE_DIM);
 }
 
 TEST(CartPole, ControlDim) {
-    auto CP = CartpoleDynamics(0.1, 1, 1, 1);
+    auto CP = CartpoleDynamics(1, 1, 1);
     EXPECT_EQ(1, CartpoleDynamics::CONTROL_DIM);
 }
 
 TEST(CartPole, Equilibrium) {
-    auto CP = CartpoleDynamics(0.1, 1, 1, 1);
+    auto CP = CartpoleDynamics(1, 1, 1);
 
     Eigen::MatrixXf state(CartpoleDynamics::STATE_DIM,1);
     state << 0,0,0,0;
@@ -43,7 +43,7 @@ TEST(CartPole, BindStream) {
 
     HANDLE_ERROR(cudaStreamCreate(&stream));
 
-    auto CP = CartpoleDynamics(0.1, 1, 1, 2, stream);
+    auto CP = CartpoleDynamics(1, 1, 2, stream);
 
     EXPECT_EQ(CP.stream_, stream) << "Stream binding failure.";
 
@@ -52,7 +52,7 @@ TEST(CartPole, BindStream) {
 
 TEST(CartPole, SetGetParamsHost) {
     auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
-    auto CP = CartpoleDynamics(0.1, 1, 1, 2);
+    auto CP = CartpoleDynamics(1, 1, 2);
 
     CP.setParams(params);
     auto CP_params = CP.getParams();
@@ -64,7 +64,7 @@ TEST(CartPole, SetGetParamsHost) {
 
 
 TEST(CartPole, CartPole_GPUSetup_Test) {
-    auto CP_host = new CartpoleDynamics(0.1, 1, 2, 2);
+    auto CP_host = new CartpoleDynamics(1, 2, 2);
     CP_host->GPUSetup();
     // float mass;
     // launchParameterTestKernel(*CP_host, mass);
@@ -75,7 +75,7 @@ TEST(CartPole, CartPole_GPUSetup_Test) {
 }
 
 TEST(CartPole, GetCartMassFromGPU) {
-    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(1, 1, 2);
     CP_host->GPUSetup();
 
     auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
@@ -91,7 +91,7 @@ TEST(CartPole, GetCartMassFromGPU) {
 }
 
 TEST(CartPole, GetPoleMassFromGPU) {
-    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(1, 1, 2);
     CP_host->GPUSetup();
 
     auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
@@ -107,7 +107,7 @@ TEST(CartPole, GetPoleMassFromGPU) {
 }
 
 TEST(CartPole, GetPoleLengthFromGPU) {
-    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(1, 1, 2);
     CP_host->GPUSetup();
 
     auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
@@ -123,7 +123,7 @@ TEST(CartPole, GetPoleLengthFromGPU) {
 }
 
 TEST(CartPole, GetGravityFromGPU) {
-    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(1, 1, 2);
     CP_host->GPUSetup();
 
     auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
@@ -139,7 +139,7 @@ TEST(CartPole, GetGravityFromGPU) {
 }
 
 TEST(CartPole, TestDynamicsGPU) {
-    auto CP_host = new CartpoleDynamics(0.1, 1, 1, 2);
+    auto CP_host = new CartpoleDynamics(1, 1, 2);
     CP_host->GPUSetup();
 
     auto params = CartpoleDynamicsParams(2.0, 3.0, 4.0);
