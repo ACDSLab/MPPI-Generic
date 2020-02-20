@@ -368,7 +368,8 @@ __global__ void incrementStateAllRollouts_KernelTest(DYN_T* dynamics, int state_
 //        }
         //mppi_common::incrementStateAllRollouts(state_dim, blocksize_y, thread_idy, dt,
         //        &x_trajectory_d[state_dim * tid],&xdot_trajectory_d[state_dim * tid]);
-        mppi_common::incrementStateAllRollouts<DYN_T>(dynamics, dt, x_trajectory_d, xdot_trajectory_d);
+        mppi_common::incrementStateAllRollouts<DYN_T>(dynamics, dt, x_trajectory_d + (state_dim * tid),
+                xdot_trajectory_d + (state_dim * tid));
 //        if (tid == 1) {
 //            printf("Post increment state [%f, %f, %f, %f]\n", x_trajectory_d[state_dim * tid],
 //                   x_trajectory_d[state_dim * tid + 1], x_trajectory_d[state_dim * tid + 2],

@@ -269,6 +269,7 @@ public:
     int i;
     int tdy = threadIdx.y;
     //Add the state derivative time dt to the current state.
+    //printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
     for (i = tdy; i < this->STATE_DIM; i+=blockDim.y){
       state[i] += state_der[i]*dt;
       state_der[i] = 0; //Important: reset the state derivative to zero.
@@ -279,7 +280,6 @@ public:
    * enforces control constraints
    */
   __device__ void enforceConstraints(float* state, float* control) {
-    // TODO make sure paralleized works
     // TODO should control_rngs_ be a constant memory parameter
     int i;
     int tdy = threadIdx.y;
