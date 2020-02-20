@@ -3,7 +3,7 @@
 #include <chrono>
 
 int main(int argc, char** argv) {
-    auto model = new CartpoleDynamics(0.01, 1.0, 1.0, 1.0);
+    auto model = new CartpoleDynamics(1.0, 1.0, 1.0);
     auto cost = new CartpoleQuadraticCost;
 
     cartpoleQuadraticCostParams new_params;

@@ -65,20 +65,21 @@ namespace mppi_common {
                                    t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
                 __syncthreads();
 
-                //Accumulate running cost
-                // TODO pull dt from dynamics
-                computeRunningCostAllRollouts(costs, dt, x, u, du, sigma_u, running_cost, t);
+                // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
+                // usually just control clamping
+                dynamics->enforceConstraints(x, u);
                 __syncthreads();
 
-                // TODO apply constraints kernel
+                //Accumulate running cost
+                running_cost += costs->computeRunningCost(x, u, du, sigma_u, t)*dt;
+                __syncthreads();
 
                 //Compute state derivatives
-                computeStateDerivAllRollouts(dynamics, x, u, xdot, theta_s);
+                dynamics->computeStateDeriv(x, u, xdot, theta_s);
                 __syncthreads();
 
                 //Increment states
-                // TODO remove dt, it is inside dynamics
-                incrementStateAllRollouts(DYN_T::STATE_DIM, BLOCKSIZE_Y, thread_idy, dt, x, xdot);
+                dynamics->updateState(x, xdot, dt);
                 __syncthreads();
             }
         }
@@ -191,41 +192,6 @@ namespace mppi_common {
                 u_thread[i] = u_traj_device[current_timestep * control_dim + i] + du_thread[i];
             }
             ep_v_device[control_dim*num_timesteps*global_idx + control_dim*current_timestep + i] = u_thread[i];
-        }
-    }
-
-    template<class COST_T>
-    __device__ void computeRunningCostAllRollouts(COST_T* costs, float dt,
-                                                  float* x_thread,
-                                                  float* u_thread,
-                                                  float* du_thread,
-                                                  float* sigma_thread,
-                                                  float& running_cost,
-                                                  int timestep) {
-        // The prior loop already guarantees that the global index is less than the number of rollouts
-        running_cost += costs->computeRunningCost(x_thread,
-                                                  u_thread,
-                                                  du_thread,
-                                                  sigma_thread,
-                                                  timestep)*dt;
-    }
-
-    template<class DYN_T>
-    __device__ void computeStateDerivAllRollouts(DYN_T* dynamics, float* x_thread, float* u_thread, float* xdot_thread, float* theta_s) {
-        // The prior loop already guarantees that the global index is less than the number of rollouts
-        // TODO pass through theta_s
-        dynamics->computeStateDeriv(x_thread, u_thread, xdot_thread, theta_s);
-    }
-
-    // TODO this should pass blocksize or thread number
-    __device__ void incrementStateAllRollouts(int state_dim, int blocksize_y, int thread_idy, float dt,
-                                                float* x_thread, float* xdot_thread) {
-        // The prior loop already guarantees that the global index is less than the number of rollouts
-        //Implementing simple first order Euler for now, more complex scheme can be added later
-        // TODO should use updateState and let dynamics choose how to parallelize
-        for (int i = thread_idy; i < state_dim; i += blocksize_y) {
-            x_thread[i] += xdot_thread[i] * dt;
-            xdot_thread[i] = 0; // Reset the derivative to zero
         }
     }
 

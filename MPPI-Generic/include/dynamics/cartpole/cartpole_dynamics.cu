@@ -1,6 +1,6 @@
 #include <dynamics/cartpole/cartpole_dynamics.cuh>
 
-CartpoleDynamics::CartpoleDynamics(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream) : Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>(stream)
+CartpoleDynamics::CartpoleDynamics(float cart_mass, float pole_mass, float pole_length, cudaStream_t stream) : Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>(stream)
 {
     this->params_ = CartpoleDynamicsParams(cart_mass, pole_mass, pole_length);
 }

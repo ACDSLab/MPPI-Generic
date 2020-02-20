@@ -20,7 +20,7 @@ class CartpoleDynamics : public Dynamics<CartpoleDynamics, CartpoleDynamicsParam
 {
 public:
 //    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    CartpoleDynamics(float delta_t, float cart_mass, float pole_mass,
+    CartpoleDynamics(float cart_mass, float pole_mass,
                      float pole_length, cudaStream_t stream=0);
     ~CartpoleDynamics();
 

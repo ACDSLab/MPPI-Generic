@@ -4,7 +4,7 @@
 
 class Cartpole_VanillaMPPI: public ::testing::Test {
 public:
-    CartpoleDynamics model = CartpoleDynamics(0.1, 1.0, 1.0, 1.0);
+    CartpoleDynamics model = CartpoleDynamics(1.0, 1.0, 1.0);
     CartpoleQuadraticCost cost;
     float dt = 0.01;
     int max_iter = 10;
