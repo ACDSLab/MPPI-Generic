@@ -23,6 +23,7 @@ class TubeMPPIController: public VanillaMPPIController<DYN_T, COST_T,
                                                        BDIM_X, BDIM_Y> {
 
 public:
+//    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     /**
      * Set up useful types
      */
@@ -71,7 +72,7 @@ public:
                        const control_trajectory& init_control_traj = control_trajectory(),
                        cudaStream_t stream= nullptr);
 
-    void computeControl(state_array state) override;
+    void computeControl(const state_array& state) override;
 
     /**
      * returns the current control sequence

@@ -21,7 +21,7 @@ typedef struct {
 
 class CartpoleQuadraticCost : public Cost<CartpoleQuadraticCost, cartpoleQuadraticCostParams> {
 public:
-
+//    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     /**
      * Constructor
@@ -34,11 +34,6 @@ public:
      *
      */
     ~CartpoleQuadraticCost();
-
-    /**
-     * allocates all the extra cuda memory
-     */
-    void GPUSetup();
 
     /**
      * Deallocates the allocated cuda memory for an object

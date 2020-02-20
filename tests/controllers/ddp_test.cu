@@ -171,43 +171,43 @@ TEST(DDPSolver_Test, CartpoleSwingUp) {
     Eigen::MatrixXf current_state = CartpoleDynamics::state_array::Zero();
     // Compute the control
     controller.computeControl(current_state);
-    nominal_state = controller.get
+//    nominal_state = controller.get
     // END MPPI CONTROLLER
 
 
-    util::DefaultLogger logger;
-    bool verbose = false;
-    int num_iterations = 5;
-    Eigen::MatrixXf Q;
-    Eigen::MatrixXf R;
-    Eigen::MatrixXf QR;
-    Q = Eigen::MatrixXf::Identity(CartpoleDynamics::STATE_DIM,CartpoleDynamics::STATE_DIM);
-    R = Eigen::MatrixXf::Identity(CartpoleDynamics::CONTROL_DIM,CartpoleDynamics::CONTROL_DIM);
-    QR = Eigen::MatrixXf(CartpoleDynamics::STATE_DIM+ CartpoleDynamics::CONTROL_DIM,
-                         CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM);
-    QR.template topLeftCorner<CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM>() = Q;
-    QR.template bottomRightCorner<CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM>() = R;
-
-
-    std::shared_ptr<ModelWrapperDDP<CartpoleDynamics>> ddp_model = std::make_shared<ModelWrapperDDP<CartpoleDynamics>>(&model);
-
-    std::shared_ptr<DDP<ModelWrapperDDP<CartpoleDynamics>>> ddp_solver_ =
-            std::make_shared<DDP<ModelWrapperDDP<CartpoleDynamics>>>(dt, num_timesteps, num_iterations, &logger, verbose);
-
-    std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>> tracking_cost =
-            std::make_shared<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>>(Q,R,num_timesteps);
-
-    std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>> terminal_cost =
-            std::make_shared<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>>(QR);
-
-    tracking_cost->setTargets(nominal_state, nominal_control, num_timesteps);
-
-    Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, 1> s;
-    s << 0.0, 0.0, 0.0, 0.0;
-
-    Eigen::MatrixXf control_traj = Eigen::MatrixXf::Zero(CartpoleDynamics::CONTROL_DIM, num_timesteps);
-
-    OptimizerResult<ModelWrapperDDP<CartpoleDynamics>> result_ = ddp_solver_->run(s, control_traj,
-                                                                       *ddp_model, *tracking_cost, *terminal_cost);
+//    util::DefaultLogger logger;
+//    bool verbose = false;
+//    int num_iterations = 5;
+//    Eigen::MatrixXf Q;
+//    Eigen::MatrixXf R;
+//    Eigen::MatrixXf QR;
+//    Q = Eigen::MatrixXf::Identity(CartpoleDynamics::STATE_DIM,CartpoleDynamics::STATE_DIM);
+//    R = Eigen::MatrixXf::Identity(CartpoleDynamics::CONTROL_DIM,CartpoleDynamics::CONTROL_DIM);
+//    QR = Eigen::MatrixXf(CartpoleDynamics::STATE_DIM+ CartpoleDynamics::CONTROL_DIM,
+//                         CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM);
+//    QR.template topLeftCorner<CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM>() = Q;
+//    QR.template bottomRightCorner<CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM>() = R;
+//
+//
+//    std::shared_ptr<ModelWrapperDDP<CartpoleDynamics>> ddp_model = std::make_shared<ModelWrapperDDP<CartpoleDynamics>>(&model);
+//
+//    std::shared_ptr<DDP<ModelWrapperDDP<CartpoleDynamics>>> ddp_solver_ =
+//            std::make_shared<DDP<ModelWrapperDDP<CartpoleDynamics>>>(dt, num_timesteps, num_iterations, &logger, verbose);
+//
+//    std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>> tracking_cost =
+//            std::make_shared<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>>(Q,R,num_timesteps);
+//
+//    std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>> terminal_cost =
+//            std::make_shared<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>>(QR);
+//
+//    tracking_cost->setTargets(nominal_state, nominal_control, num_timesteps);
+//
+//    Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, 1> s;
+//    s << 0.0, 0.0, 0.0, 0.0;
+//
+//    Eigen::MatrixXf control_traj = Eigen::MatrixXf::Zero(CartpoleDynamics::CONTROL_DIM, num_timesteps);
+//
+//    OptimizerResult<ModelWrapperDDP<CartpoleDynamics>> result_ = ddp_solver_->run(s, control_traj,
+//                                                                       *ddp_model, *tracking_cost, *terminal_cost);
 }
 

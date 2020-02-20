@@ -201,7 +201,7 @@ TEST(RolloutKernel, computeStateDerivAllRollouts_Cartpole) {
     }
 
     // Compute the dynamics on the GPU
-    launchComputeStateDerivAllRollouts_KernelTest<CartpoleDynamics, num_rollouts>(model, x_traj, u_traj, xdot_traj_compute);
+    launchComputeStateDerivAllRollouts_KernelTest<CartpoleDynamics, num_rollouts, 1>(model, x_traj, u_traj, xdot_traj_compute);
 
 
     array_assert_float_near<num_rollouts * CartpoleDynamics::STATE_DIM>(xdot_traj_known, xdot_traj_compute, 1e-1);

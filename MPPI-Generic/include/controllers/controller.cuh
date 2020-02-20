@@ -13,8 +13,13 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 class Controller {
 public:
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   Controller() = default;
-  ~Controller() = default;
+  /**
+   * Destructor must be virtual so that children are properly
+   * destroyed when called from a basePlant reference
+   */
+  virtual ~Controller() = default;
   /**
    * typedefs for access to templated class from outside classes
    */
@@ -52,7 +57,7 @@ public:
    * @param state - the current state from which we would like to calculate
    * a control sequence
    */
-  virtual void computeControl(state_array state) = 0;
+  virtual void computeControl(const state_array& state) = 0;
 
   /**
    * Calculate new feedback gains
@@ -82,7 +87,7 @@ public:
    * Return control feedback gains
    */
   K_matrix getFeedbackGains() {
-      K_matrix empty_feedback_gain = {{0}};
+      K_matrix empty_feedback_gain;
       return empty_feedback_gain;
   };
 

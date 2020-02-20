@@ -1,24 +1,12 @@
 #include <dynamics/cartpole/cartpole_dynamics.cuh>
 
-CartpoleDynamics::CartpoleDynamics(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream)
+CartpoleDynamics::CartpoleDynamics(float delta_t, float cart_mass, float pole_mass, float pole_length, cudaStream_t stream) : Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>(stream)
 {
     this->params_ = CartpoleDynamicsParams(cart_mass, pole_mass, pole_length);
-
-    bindToStream(stream);
 }
 
 CartpoleDynamics::~CartpoleDynamics() {
 }
-
-/*
-void CartpoleDynamics::GPUSetup() {
-    if (!GPUMemStatus_) {
-        model_d_ = Managed::GPUSetup(this);
-    } else {
-        std::cout << "GPU Memory already set." << std::endl;
-    }
-}
- */
 
 void CartpoleDynamics::computeGrad(const Eigen::MatrixXf &state,
                                    const Eigen::MatrixXf &control,
@@ -39,12 +27,6 @@ void CartpoleDynamics::computeGrad(const Eigen::MatrixXf &state,
 
   B(1,0) = 1/(this->params_.cart_mass+this->params_.pole_mass*powf(theta,2.0));
   B(3,0) = -cosf(theta)/(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)));
-}
-
-void CartpoleDynamics::computeStateDeriv(Eigen::MatrixXf& state,
-                                         Eigen::MatrixXf& control,
-                                         Eigen::MatrixXf& state_der) {
-  computeDynamics(state, control, state_der);
 }
 
 void CartpoleDynamics::computeDynamics(Eigen::MatrixXf &state,
@@ -74,7 +56,7 @@ void CartpoleDynamics::paramsToDevice()
 
 void CartpoleDynamics::freeCudaMem()
 {
-    cudaFree(model_d_);
+  Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>::freeCudaMem();
 }
 
 void CartpoleDynamics::printState(Eigen::MatrixXf state)

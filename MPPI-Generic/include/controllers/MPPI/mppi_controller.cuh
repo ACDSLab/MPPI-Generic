@@ -22,6 +22,7 @@ class VanillaMPPIController : public Controller<DYN_T, COST_T,
                                                 BDIM_X,
                                                 BDIM_Y> {
 public:
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     // need control_array = ... so that we can initialize
     // Eigen::Matrix with Eigen::Matrix::Zero();
     using control_array = typename Controller<DYN_T, COST_T,
@@ -61,7 +62,7 @@ public:
     VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
                           float gamma, int num_timesteps,
                           const control_array& control_variance,
-                          const control_trajectory& init_control_traj = control_trajectory(),
+                          const control_trajectory& init_control_traj = control_trajectory::Zero(),
                           cudaStream_t stream= nullptr);
     // Empty Constructor used in inheritance
     VanillaMPPIController() {};
@@ -78,7 +79,7 @@ public:
 
     float getBaselineCost() {return baseline_;};
 
-    void computeControl(state_array state) override;
+    void computeControl(const state_array& state) override;
 
     /**
      * returns the current control sequence

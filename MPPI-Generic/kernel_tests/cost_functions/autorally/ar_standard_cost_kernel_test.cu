@@ -13,7 +13,6 @@ __global__ void parameterTestKernel(const COST_T* cost, PARAMS_T& params, int& w
 
 template<typename COST_T, typename PARAMS_T>
 void launchParameterTestKernel(const COST_T& cost, PARAMS_T& params, int& width, int& height) {
-  // Allocate memory on the CPU for checking the mass
   PARAMS_T* params_d;
   int* width_d;
   int* height_d;

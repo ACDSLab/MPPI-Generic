@@ -303,14 +303,14 @@ void launchComputeRunningCostAllRollouts_KernelTest(const COST_T& cost,
     HANDLE_ERROR(cudaMemcpy(cost_allrollouts.data(), cost_allrollouts_d, sizeof(float)*cost_allrollouts.size(), cudaMemcpyDeviceToHost));
 }
 
-template<class DYN_T, int NUM_ROLLOUTS>
+template<class DYN_T, int NUM_ROLLOUTS, int BLOCKSIZE_X>
 __global__ void computeStateDerivAllRollouts_KernelTest(DYN_T* dynamics_d, float* x_trajectory_d, float* u_trajectory_d, float* xdot_trajectory_d) {
     int tid = blockDim.x*blockIdx.x + threadIdx.x; // index on rollouts
   //Create a shared array for the dynamics model to use
   // TODO this is needed since 0 size is a compile error
   // __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X + 1];
   // TODO Figure out how to incorporate BLOCKSIZE_X
-  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK + 1];
+  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
   if (tid < NUM_ROLLOUTS) {
             mppi_common::computeStateDerivAllRollouts(dynamics_d, &x_trajectory_d[DYN_T::STATE_DIM*tid],
                                                        &u_trajectory_d[DYN_T::CONTROL_DIM*tid],
@@ -319,7 +319,7 @@ __global__ void computeStateDerivAllRollouts_KernelTest(DYN_T* dynamics_d, float
     }
 }
 
-template<class DYN_T, int NUM_ROLLOUTS>
+template<class DYN_T, int NUM_ROLLOUTS, int BLOCKSIZE_X>
 void launchComputeStateDerivAllRollouts_KernelTest(const DYN_T& dynamics,
                                                    const std::array<float, DYN_T::STATE_DIM*NUM_ROLLOUTS>& x_trajectory,
                                                    const std::array<float, DYN_T::CONTROL_DIM*NUM_ROLLOUTS>& u_trajectory,
@@ -342,7 +342,7 @@ void launchComputeStateDerivAllRollouts_KernelTest(const DYN_T& dynamics,
 
 
     // Launch the test kernel
-    computeStateDerivAllRollouts_KernelTest<DYN_T, NUM_ROLLOUTS><<<1,NUM_ROLLOUTS>>>(dynamics.model_d_, x_traj_d, u_traj_d, xdot_traj_d);
+    computeStateDerivAllRollouts_KernelTest<DYN_T, NUM_ROLLOUTS, BLOCKSIZE_X><<<1,NUM_ROLLOUTS>>>(dynamics.model_d_, x_traj_d, u_traj_d, xdot_traj_d);
     CudaCheckError();
 
     // Copy the result back to the host
@@ -482,7 +482,7 @@ template void launchComputeRunningCostAllRollouts_KernelTest<CartpoleQuadraticCo
  * Cartpole Compute State Derivative Template Instantiations
  **********************************************************************************************************************/
  const int num_rollouts_sd = 1000;
-template void launchComputeStateDerivAllRollouts_KernelTest<CartpoleDynamics, num_rollouts_sd>(const CartpoleDynamics& dynamics,
+template void launchComputeStateDerivAllRollouts_KernelTest<CartpoleDynamics, num_rollouts_sd, 1>(const CartpoleDynamics& dynamics,
                                                    const std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_sd>& x_trajectory,
                                                    const std::array<float, CartpoleDynamics::CONTROL_DIM*num_rollouts_sd>& u_trajectory,
                                                    std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_sd>& xdot_trajectory);

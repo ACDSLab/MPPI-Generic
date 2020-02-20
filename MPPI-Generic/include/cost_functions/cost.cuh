@@ -23,13 +23,18 @@ template<class CLASS_T, class PARAMS_T>
 class Cost : public Managed
 {
 public:
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   /**
      * typedefs for access to templated class from outside classes
      */
   typedef PARAMS_T TEMPLATED_PARAMS;
 
   Cost() = default;
-  ~Cost() = default;
+  /**
+   * Destructor must be virtual so that children are properly
+   * destroyed when called from a basePlant reference
+   */
+  virtual ~Cost() = default;
 
   void GPUSetup() {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
@@ -86,6 +91,7 @@ public:
   void freeCudaMem() {
     if(GPUMemStatus_) {
       cudaFree(cost_d_);
+      this->GPUMemStatus_ = false;
       cost_d_ = nullptr;
     }
   }

@@ -60,6 +60,10 @@ public:
   // true when allocated
   bool GPUMemStatus_ = false;
 
+  Managed(cudaStream_t stream = 0) {
+    this->bindToStream(stream);
+  }
+
   /**
   @brief Sets the stream and synchronizes the device.
   @param stream is the CUDA stream that the object is assigned too.

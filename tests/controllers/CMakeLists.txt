@@ -1,14 +1,16 @@
 cmake_minimum_required(VERSION 3.8)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 
 add_executable(vanilla_mppi_tests
                ../test_main.cpp
-               vanilla_mppi_test.cu)
+               vanilla_mppi_test.cpp)
+
 target_link_libraries(vanilla_mppi_tests gtest
                       gmock
                       gtest_main
                       cartpole_mppi
+                      ${CUDA_LIBRARIES}
                       cnpy)
 add_test(NAME vanilla_mppi_tests COMMAND vanilla_mppi_tests)
 set_target_properties(vanilla_mppi_tests PROPERTIES FOLDER test)
