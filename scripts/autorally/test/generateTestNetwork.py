@@ -22,7 +22,18 @@ def genLoadNetworkDataTest(args):
         params += inc
     print(param_dict)
 
-    np.savez(args.output, **param_dict)
+    np.savez(args.output+"/neuralNetLoadTest.npz", **param_dict)
+
+def genComputationNetworkTest(args):
+    param_dict = {}
+
+    net_structure = [4, 3, 4]
+    for i in range(1, len(net_structure)):
+        param_dict["dynamics_W" + str(i)] = 1
+        param_dict["dynamics_b" + str(i)] = 1
+    print(param_dict)
+
+    np.savez(args.output+"/neuralNetComputeTest.npz", **param_dict)
 
 
 if __name__ == "__main__":
@@ -33,6 +44,7 @@ if __name__ == "__main__":
     #                     default="display_image.jpg")
     parser.add_argument("-o", "--output", type = str,
                         help = "File to save map to",
-                        default = "../../../test_nn.npz")
+                        default = "../../../resource/autorally/test/")
     args = parser.parse_args()
     genLoadNetworkDataTest(args)
+    genComputationNetworkTest(args)

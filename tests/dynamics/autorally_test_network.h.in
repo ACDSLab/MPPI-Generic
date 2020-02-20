@@ -5,7 +5,8 @@
 
 namespace mppi {
 namespace tests {
-	const std::string test_nn_file = "@TEST_NETWORK_FILE@";
+	const std::string test_load_nn_file = "@TEST_NETWORK_FOLDER@/neuralNetLoadTest.npz";
+	const std::string test_compute_nn_file = "@TEST_NETWORK_FOLDER@/neuralNetComputeTest.npz";
 }
 }
 #endif // TESTS_COST_FUNCTIONS_AUTORALLY_TEST_MAP_H_
