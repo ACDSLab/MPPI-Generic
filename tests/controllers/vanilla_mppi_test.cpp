@@ -79,7 +79,6 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
   //float xdot[CartpoleDynamics::STATE_DIM];
   CartpoleDynamics::state_array xdot(4, 1);
 
-  auto time_start = std::chrono::system_clock::now();
   for (int i =0; i < time_horizon; ++i) {
     if (i % 50 == 0) {
       printf("Current Time: %f    ", i * dt);

@@ -9,10 +9,10 @@ CartpoleDynamics::~CartpoleDynamics() {
 }
 
 
-void CartpoleDynamics::computeGrad(const state_array &state,
-                                   const control_array &control,
-                                   dfdx& A,
-                                   dfdu& B) {
+void CartpoleDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
+                                   const Eigen::Ref<const control_array>& control,
+                                   Eigen::Ref<dfdx> A,
+                                   Eigen::Ref<dfdu> B) {
   float theta = state(2);
   float theta_dot = state(3);
   float force = control(0);
@@ -30,9 +30,9 @@ void CartpoleDynamics::computeGrad(const state_array &state,
   B(3,0) = -cosf(theta)/(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)));
 }
 
-void CartpoleDynamics::computeDynamics(const state_array &state,
-                                       const control_array &control,
-                                       state_array &state_der) {
+void CartpoleDynamics::computeDynamics(const Eigen::Ref<const state_array> &state,
+                                       const Eigen::Ref<const control_array> &control,
+                                       Eigen::Ref<state_array> state_der) {
   float theta = state(2);
   float theta_dot = state(3);
   float force = control(0);
@@ -60,7 +60,7 @@ void CartpoleDynamics::freeCudaMem()
   Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>::freeCudaMem();
 }
 
-void CartpoleDynamics::printState(const state_array& state)
+void CartpoleDynamics::printState(const Eigen::Ref<const state_array>& state)
 {
   printf("Cart position: %f; Cart velocity: %f; Pole angle: %f; Pole rate: %f \n", state(0), state(1), state(2), state(3)); //Needs to be completed
 }
@@ -89,3 +89,7 @@ __device__ void CartpoleDynamics::computeDynamics(float* state, float* control,
   state_der[2] = state[3];
   state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity_*sinf(theta));
 }
+
+//void CartpoleDynamics::computeStateDeriv(const state_array &state, const control_array &control, state_array &state_der) {
+//  computeDynamics(state, control, state_der);
+//}

@@ -24,11 +24,11 @@ public:
   DynamicsTester(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream=0)
     : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(control_rngs, stream) {}
 
-  void computeDynamics(const state_array& state, const control_array& control, state_array& state_der) {
+  void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der) {
     state_der(1) = control(0);
   }
 
-  void computeKinematics(const state_array &state, state_array &s_der) {
+  void computeKinematics(const Eigen::Ref<const state_array> &state, Eigen::Ref<state_array> s_der) {
     s_der(0) = state(0) + state(1);
   };
 

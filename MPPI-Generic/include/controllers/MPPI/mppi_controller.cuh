@@ -22,124 +22,124 @@ class VanillaMPPIController : public Controller<DYN_T, COST_T,
                                                 BDIM_X,
                                                 BDIM_Y> {
 public:
-//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    // need control_array = ... so that we can initialize
-    // Eigen::Matrix with Eigen::Matrix::Zero();
-    using control_array = typename Controller<DYN_T, COST_T,
-                              MAX_TIMESTEPS,
-                              NUM_ROLLOUTS,
-                              BDIM_X,
-                              BDIM_Y>::control_array;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  // need control_array = ... so that we can initialize
+  // Eigen::Matrix with Eigen::Matrix::Zero();
+  using control_array = typename Controller<DYN_T, COST_T,
+                            MAX_TIMESTEPS,
+                            NUM_ROLLOUTS,
+                            BDIM_X,
+                            BDIM_Y>::control_array;
 
-    using control_trajectory = typename Controller<DYN_T, COST_T,
-                              MAX_TIMESTEPS,
-                              NUM_ROLLOUTS,
-                              BDIM_X,
-                              BDIM_Y>::control_trajectory;
+  using control_trajectory = typename Controller<DYN_T, COST_T,
+                            MAX_TIMESTEPS,
+                            NUM_ROLLOUTS,
+                            BDIM_X,
+                            BDIM_Y>::control_trajectory;
 
-    using state_trajectory = typename Controller<DYN_T, COST_T,
-                              MAX_TIMESTEPS,
-                              NUM_ROLLOUTS,
-                              BDIM_X,
-                              BDIM_Y>::state_trajectory;
+  using state_trajectory = typename Controller<DYN_T, COST_T,
+                            MAX_TIMESTEPS,
+                            NUM_ROLLOUTS,
+                            BDIM_X,
+                            BDIM_Y>::state_trajectory;
 
-    using state_array = typename Controller<DYN_T, COST_T,
-                              MAX_TIMESTEPS,
-                              NUM_ROLLOUTS,
-                              BDIM_X,
-                              BDIM_Y>::state_array;
+  using state_array = typename Controller<DYN_T, COST_T,
+                            MAX_TIMESTEPS,
+                            NUM_ROLLOUTS,
+                            BDIM_X,
+                            BDIM_Y>::state_array;
 
-    using typename Controller<DYN_T, COST_T,
-                              MAX_TIMESTEPS,
-                              NUM_ROLLOUTS,
-                              BDIM_X,
-                              BDIM_Y>::sampled_cost_traj;
-    /**
-     *
-     * Public member functions
-     */
-    // Constructor
-    VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
-                          float gamma, int num_timesteps,
-                          const control_array& control_variance,
-                          const control_trajectory& init_control_traj = control_trajectory::Zero(),
-                          cudaStream_t stream= nullptr);
-    // Empty Constructor used in inheritance
-    VanillaMPPIController() {};
+  using typename Controller<DYN_T, COST_T,
+                            MAX_TIMESTEPS,
+                            NUM_ROLLOUTS,
+                            BDIM_X,
+                            BDIM_Y>::sampled_cost_traj;
+  /**
+   *
+   * Public member functions
+   */
+  // Constructor
+  VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+                        float gamma, int num_timesteps,
+                        const control_array& control_variance,
+                        const control_trajectory& init_control_traj = control_trajectory::Zero(),
+                        cudaStream_t stream= nullptr);
+  // Empty Constructor used in inheritance
+  VanillaMPPIController() {};
 
-    // Destructor
-    ~VanillaMPPIController();
+  // Destructor
+  ~VanillaMPPIController();
 
 
-    void computeNominalStateTrajectory(const state_array& x0);
+  void computeNominalStateTrajectory(const state_array& x0);
 
-    void updateControlNoiseVariance(const control_array& sigma_u);
+  void updateControlNoiseVariance(const control_array& sigma_u);
 
-    control_array getControlVariance() { return control_variance_;};
+  control_array getControlVariance() { return control_variance_;};
 
-    float getBaselineCost() {return baseline_;};
+  float getBaselineCost() {return baseline_;};
 
-    void computeControl(const state_array& state) override;
+  void computeControl(const state_array& state) override;
 
-    /**
-     * returns the current control sequence
-     */
-    control_trajectory getControlSeq() override { return nominal_control_;};
+  /**
+   * returns the current control sequence
+   */
+  control_trajectory getControlSeq() override { return nominal_control_;};
 
-    /**
-     * returns the current state sequence
-     */
-    state_trajectory getStateSeq() override {return nominal_state_;};
+  /**
+   * returns the current state sequence
+   */
+  state_trajectory getStateSeq() override {return nominal_state_;};
 
-    /**
-     * Slide the control sequence back n steps
-     */
-    void slideControlSequence(int steps) override;
+  /**
+   * Slide the control sequence back n steps
+   */
+  void slideControlSequence(int steps) override;
 
-    cudaStream_t stream_;
+  cudaStream_t stream_;
 
 private:
-    int num_iters_;  // Number of optimization iterations
+  int num_iters_;  // Number of optimization iterations
 
-    float gamma_; // Value of the temperature in the softmax.
-    float normalizer_; // Variable for the normalizing term from sampling.
-    float baseline_; // Baseline cost of the system.
-    float dt_;
+  float gamma_; // Value of the temperature in the softmax.
+  float normalizer_; // Variable for the normalizing term from sampling.
+  float baseline_; // Baseline cost of the system.
+  float dt_;
 
-    control_trajectory nominal_control_ = control_trajectory::Zero();
-    state_trajectory nominal_state_ = state_trajectory::Zero();
-    sampled_cost_traj trajectory_costs_ = {{0}};
+  control_trajectory nominal_control_ = control_trajectory::Zero();
+  state_trajectory nominal_state_ = state_trajectory::Zero();
+  sampled_cost_traj trajectory_costs_ = {{0}};
 
-    float* initial_state_d_;
-    float* nominal_control_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
-    float* nominal_state_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
-    float* trajectory_costs_d_; // Array of size NUM_ROLLOUTS
-    float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS
+  float* initial_state_d_;
+  float* nominal_control_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
+  float* nominal_state_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
+  float* trajectory_costs_d_; // Array of size NUM_ROLLOUTS
+  float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS
 
 
-    void copyNominalControlToDevice();
+  void copyNominalControlToDevice();
 protected:
-    int num_timesteps_;
-    curandGenerator_t gen_;
+  int num_timesteps_;
+  curandGenerator_t gen_;
 
 
-    control_array control_variance_ = control_array::Zero();
-    float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
-    // WARNING This method is private because it is only called once in the constructor. Logic is required
-    // so that CUDA memory is properly reallocated when the number of timesteps changes.
-    void setNumTimesteps(int num_timesteps);
+  control_array control_variance_ = control_array::Zero();
+  float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
+  // WARNING This method is private because it is only called once in the constructor. Logic is required
+  // so that CUDA memory is properly reallocated when the number of timesteps changes.
+  void setNumTimesteps(int num_timesteps);
 
-    void createAndSeedCUDARandomNumberGen();
+  void createAndSeedCUDARandomNumberGen();
 
-    void setCUDAStream(cudaStream_t stream);
+  void setCUDAStream(cudaStream_t stream);
 
-    // Allocate CUDA memory for the controller
-    virtual void allocateCUDAMemory();
+  // Allocate CUDA memory for the controller
+  virtual void allocateCUDAMemory();
 
-    // Free CUDA memory for the controller
-    virtual void deallocateCUDAMemory();
+  // Free CUDA memory for the controller
+  virtual void deallocateCUDAMemory();
 
-    void copyControlVarianceToDevice();
+  void copyControlVarianceToDevice();
 
 };
 
