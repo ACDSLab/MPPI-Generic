@@ -95,8 +95,11 @@ struct TrackingTerminalCost: public TerminalCostFunction<DynamicsT>
     using StateCostWeight = Eigen::Matrix<Scalar, N, N>;
 
 public:
-    TrackingTerminalCost(const Eigen::Ref<const StateCostWeight> &Qf)
-    : Qf_(Qf) {}
+    TrackingTerminalCost(const Eigen::Ref<const StateCostWeight> &Qf,
+            const Eigen::Ref<const State> &xf = State::Zero())
+    : Qf_(Qf) {
+      this->target() = xf; // Initialize the target to zero
+    }
 
     Scalar c(const Eigen::Ref<const State> &x)
     {
