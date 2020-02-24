@@ -177,14 +177,14 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
 void VanillaMPPI::computeNominalStateTrajectory(const state_array &x0) {
   nominal_state_.col(0) = x0;
   state_array xdot;
-//  for (int i =0; i < num_timesteps_ - 1; ++i) {
-//    nominal_state_.col(i+1) = nominal_state_.col(i);
-//    state_array state = nominal_state_.col(i+1);
-//    control_array control = nominal_control_.col(i);
-//    this->model_->computeStateDeriv(state, control, xdot);
-//    this->model_->updateState(state, xdot, dt_);
-//    nominal_state_.col(i+1) = state;
-//    }
+  for (int i =0; i < num_timesteps_ - 1; ++i) {
+    nominal_state_.col(i+1) = nominal_state_.col(i);
+    state_array state = nominal_state_.col(i+1);
+    control_array control = nominal_control_.col(i);
+    this->model_->computeStateDeriv(state, control, xdot);
+    this->model_->updateState(state, xdot, dt_);
+    nominal_state_.col(i+1) = state;
+    }
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,

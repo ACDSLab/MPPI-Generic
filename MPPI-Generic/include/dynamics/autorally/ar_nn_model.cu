@@ -131,8 +131,10 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const state_array &state,
-        const control_array &control, dfdx &A, dfdu &B) {
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const Eigen::Ref<const state_array>& state,
+                                                                     const Eigen::Ref<const control_array>& control,
+                                                                     Eigen::Ref<dfdx> A,
+                                                                     Eigen::Ref<dfdu> B) {
   // TODO results are not returned
   Eigen::Matrix<float, S_DIM, S_DIM + C_DIM> jac;
   jac.setZero();
@@ -170,14 +172,16 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const state
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(const state_array &state, state_array &state_der) {
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(const Eigen::Ref<const state_array>& state,
+        Eigen::Ref<state_array> state_der) {
   state_der(0) = cosf(state(2))*state(4) - sinf(state(2))*state(5);
   state_der(1) = sinf(state(2))*state(4) + cosf(state(2))*state(5);
   state_der(2) = -state(6); //Pose estimate actually gives the negative yaw derivative
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(const state_array& state, const control_array& control, state_array& state_der) {
+void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(const Eigen::Ref<const state_array>& state,
+        const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der) {
   int i,j;
   Eigen::MatrixXf acts(net_structure_[0], 1);
   for (i = 0; i < DYNAMICS_DIM; i++){
@@ -276,16 +280,16 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   __syncthreads();
 }
 
-template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeStateDeriv(float* state, float* control, float* state_der, float* theta_s) {
-  // only propagate a single state, i.e. thread.y = 0
-  // find the change in x,y,theta based off of the rest of the state
-  if (threadIdx.y == 0){
-    //printf("state at 0 before kin: %f\n", state[0]);
-    computeKinematics(state, state_der);
-    //printf("state at 0 after kin: %f\n", state[0]);
-  }
-  computeDynamics(state, control, state_der, theta_s);
-  //printf("state at 0 after dyn: %f\n", state[0]);
-}
+//template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+//__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeStateDeriv(float* state, float* control, float* state_der, float* theta_s) {
+//  // only propagate a single state, i.e. thread.y = 0
+//  // find the change in x,y,theta based off of the rest of the state
+//  if (threadIdx.y == 0){
+//    //printf("state at 0 before kin: %f\n", state[0]);
+//    computeKinematics(state, state_der);
+//    //printf("state at 0 after kin: %f\n", state[0]);
+//  }
+//  computeDynamics(state, control, state_der, theta_s);
+//  //printf("state at 0 after dyn: %f\n", state[0]);
+//}
 

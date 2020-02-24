@@ -103,17 +103,18 @@ public:
 
   void updateModel(std::vector<int> description, std::vector<float> data);
 
-  void computeGrad(const state_array & state,
-                   const control_array& control,
-                   dfdx& A,
-                   dfdu& B);
+  void computeGrad(const Eigen::Ref<const state_array>& state,
+                   const Eigen::Ref<const control_array>& control,
+                   Eigen::Ref<dfdx> A,
+                   Eigen::Ref<dfdu> B);
 
-  void computeDynamics(const state_array & state, const control_array& control, state_array& state_der);
-  void computeKinematics(const state_array &state, state_array &s_der);
+  void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+          Eigen::Ref<state_array> state_der);
+  void computeKinematics(const Eigen::Ref<const state_array>& state, Eigen::Ref<state_array> s_der);
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
-  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
+//  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
 
 private:
 
