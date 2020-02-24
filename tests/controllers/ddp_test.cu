@@ -102,7 +102,7 @@ TEST_F(TrackingCosts_Test, ComputeCostGradient) {
   control << 5;
   known_result.block(0,0,4,1) = state;
   known_result.block(4,0,1,1) = control;
-  std::cout << known_result << std::endl;
+//  std::cout << known_result << std::endl;
   int timestep = 0;
   ASSERT_EQ(QR*known_result, tracking_cost->dc(state, control, timestep)) << "Known:\n" << QR*known_result
   << "\nTracking cost: \n" << tracking_cost->dc(state, control, timestep);
@@ -118,7 +118,7 @@ TEST_F(TrackingCosts_Test, ComputeCostHessian) {
     ASSERT_EQ(Q, terminal_cost->d2c(state));
 }
 
-TEST(DDPSolver_Test, Cartpole_Passing) {
+TEST(DDPSolver_Test, Cartpole_Tracking) {
 
   // SETUP THE MPPI CONTROLLER
   CartpoleDynamics model = CartpoleDynamics(1.0, 1.0, 1.0);
@@ -142,7 +142,7 @@ TEST(DDPSolver_Test, Cartpole_Passing) {
   float dt = 0.01;
   int max_iter = 100;
   float gamma = 0.25;
-  const int num_timesteps = 500;
+  const int num_timesteps = 100;
 
   CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
 
@@ -153,7 +153,7 @@ TEST(DDPSolver_Test, Cartpole_Passing) {
   controller.computeControl(current_state);
   auto nominal_state = controller.getStateSeq();
   auto nominal_control = controller.getControlSeq();
-  std::cout << nominal_state << std::endl;
+//  std::cout << nominal_state << std::endl;
   // END MPPI CONTROLLER
 
 
@@ -193,7 +193,10 @@ TEST(DDPSolver_Test, Cartpole_Passing) {
   OptimizerResult<ModelWrapperDDP<CartpoleDynamics>> result_ = ddp_solver_->run(s, control_traj,
                                                                      *ddp_model, *tracking_cost, *terminal_cost);
 
-  std::cout << result_.state_trajectory << std::endl;
-    // IF we made it this far, this means that all the pieces are at least running!
+//  std::cout << result_.state_trajectory << std::endl;
+
+  for (int i = 0; i < num_timesteps; ++i) {
+    ASSERT_NEAR((nominal_state.col(i) - result_.state_trajectory.col(i)).norm(), 0.0f, 1e-2) << "Failed on timestep: " << i;
+  }
 }
 

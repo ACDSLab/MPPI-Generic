@@ -42,7 +42,6 @@ nominal_control_(init_control_traj), stream_(stream) {
     // Copy the noise variance to the device
     this->copyControlVarianceToDevice();
 
-    // TODO: CREATE DDP STUFF HERE
     initDDP(Q, Qf, R);
 }
 
