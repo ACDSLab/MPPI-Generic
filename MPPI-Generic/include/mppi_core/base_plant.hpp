@@ -96,7 +96,7 @@ public:
 
   // virtual typename CONTROLLER_T::TEMPLATED_COSTS::TEMPLATED_PARAMS getDynRcfgParams();
 
-  void getOptimizationStride() {return optimization_stride;};
+  int getOptimizationStride() {return optimization_stride;};
 
   virtual void getNewObstacles(std::vector<int>& obs_description,
                                std::vector<float>& obs_data) {};
