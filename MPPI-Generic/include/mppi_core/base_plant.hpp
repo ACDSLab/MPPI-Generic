@@ -26,18 +26,27 @@ protected:
   using s_traj = typename CONTROLLER_T::state_trajectory;
   using K_mat = typename CONTROLLER_T::K_matrix;
 
+  using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
+  using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
+  using COST_T = typename CONTROLLER_T::TEMPLATED_COSTS;
+  using COST_PARAMS_T = typename COST_T::COST_PARAMS_T;
 
   bool use_feedback_gains_ = false;
   int hz_ = 0; // Frequency of control publisher
   bool debug_mode_ = false;
+
+  DYN_PARAMS_T dynamics_params_;
+  COST_PARAMS_T cost_params_;
+
+  bool hasNewDynamicsParams_ = false;
+  bool hasNewCostParams_ = false;
+
 /**
  * TODO: figure out what values in private should not be touched by
  * a wrapper class and which can be moved into protected
  */
 private:
   // from SystemParams * params
-
-
   int num_timesteps = 0;
 
   // Values needed
@@ -94,8 +103,6 @@ public:
    */
   virtual s_array getState() = 0;
 
-  // virtual typename CONTROLLER_T::TEMPLATED_COSTS::TEMPLATED_PARAMS getDynRcfgParams();
-
   int getOptimizationStride() {return optimization_stride;};
 
   virtual void getNewObstacles(std::vector<int>& obs_description,
@@ -104,6 +111,7 @@ public:
   virtual void getNewCostmap(std::vector<int>& costmap_description,
                              std::vector<float>& costmap_data) {};
 
+  // TODO should I keep this or not?
   virtual void getNewModel(std::vector<int>& model_description,
                            std::vector<float>& model_data) {};
 
@@ -123,6 +131,10 @@ public:
                              double avg_sleep_time) = 0;
 
   // TODO should publish to a topic not a static window
+  /**
+   * sets a debug image to be published at hz rate
+   * @param debug_img
+   */
   virtual void setDebugImage(cv::Mat debug_img) = 0;
 
   virtual void setSolution(const s_traj& state_seq,
@@ -133,8 +145,27 @@ public:
 
 
 
+  virtual bool hasNewDynamicsParams() {return hasNewDynamicsParams_;};
+  virtual bool hasNewCostParams() {return hasNewCostParams_;};
 
-  virtual bool hasNewDynRcfg() { return false;};
+  virtual DYN_PARAMS_T getNewDynamicsParams() {
+    hasNewDynamicsParams_ = false;
+    return dynamics_params_;
+  }
+  virtual COST_PARAMS_T getNewCostParams() {
+    hasNewCostParams_ = false;
+    return cost_params_;
+  }
+
+  virtual void setDynamicsParams(DYN_PARAMS_T params) {
+    dynamics_params_ = params;
+    hasNewDynamicsParams_ = true;
+  }
+  virtual void setCostParams(COST_PARAMS_T params) {
+    cost_params_ = params;
+    hasNewCostParams_ = true;
+  }
+
   virtual bool hasNewObstacles() { return false;};
   virtual bool hasNewCostmap() { return false;};
   virtual bool hasNewModel() { return false;};
@@ -271,6 +302,7 @@ public:
        */
       //Update the costmap
       if (hasNewCostmap()){
+        // TODO define generic
         getNewCostmap(costmapDescription, costmapData);
         controller->cost_->updateCostmap(costmapDescription, costmapData);
       }
@@ -285,6 +317,8 @@ public:
       //control sequence by that much.
       int stride = round(optimizeLoopTime * hz_);
       // std::cout << "Stride: " << stride << "," << optimizeLoopTime << std::endl;
+
+      // TODO wat?
       if (status != 0){
         stride = optimization_stride;
       }
