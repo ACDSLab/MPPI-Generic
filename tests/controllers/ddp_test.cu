@@ -118,76 +118,82 @@ TEST_F(TrackingCosts_Test, ComputeCostHessian) {
     ASSERT_EQ(Q, terminal_cost->d2c(state));
 }
 
-TEST(DDPSolver_Test, CartpoleSwingUp) {
+TEST(DDPSolver_Test, Cartpole_Passing) {
 
-    // SETUP THE MPPI CONTROLLER
-    CartpoleDynamics model = CartpoleDynamics(1.0, 1.0, 1.0);
-    CartpoleQuadraticCost cost;
+  // SETUP THE MPPI CONTROLLER
+  CartpoleDynamics model = CartpoleDynamics(1.0, 1.0, 1.0);
+  CartpoleQuadraticCost cost;
 
-    cartpoleQuadraticCostParams new_params;
-    new_params.cart_position_coeff = 100;
-    new_params.pole_angle_coeff = 200;
-    new_params.cart_velocity_coeff = 10;
-    new_params.pole_angular_velocity_coeff = 20;
-    new_params.control_force_coeff = 1;
-    new_params.terminal_cost_coeff = 0;
-    new_params.desired_terminal_state[0] = -20;
-    new_params.desired_terminal_state[1] = 0;
-    new_params.desired_terminal_state[2] = M_PI;
-    new_params.desired_terminal_state[3] = 0;
+  cartpoleQuadraticCostParams new_params;
+  new_params.cart_position_coeff = 100;
+  new_params.pole_angle_coeff = 200;
+  new_params.cart_velocity_coeff = 10;
+  new_params.pole_angular_velocity_coeff = 20;
+  new_params.control_force_coeff = 1;
+  new_params.terminal_cost_coeff = 0;
+  new_params.desired_terminal_state[0] = 0;
+  new_params.desired_terminal_state[1] = 0;
+  new_params.desired_terminal_state[2] = M_PI;
+  new_params.desired_terminal_state[3] = 0;
 
-    cost.setParams(new_params);
-
-
-    float dt = 0.01;
-    int max_iter = 1;
-    float gamma = 0.25;
-    const int num_timesteps = 100;
-
-    CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
-
-    auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, 2048, 64, 8>(&model, &cost,
-                                                                                                       dt, max_iter, gamma, num_timesteps, control_var);
-    CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
-    // Compute the control
-    controller.computeControl(current_state);
-//    nominal_state = controller.get
-    // END MPPI CONTROLLER
+  cost.setParams(new_params);
 
 
-//    util::DefaultLogger logger;
-//    bool verbose = false;
-//    int num_iterations = 5;
-//    Eigen::MatrixXf Q;
-//    Eigen::MatrixXf R;
-//    Eigen::MatrixXf QR;
-//    Q = Eigen::MatrixXf::Identity(CartpoleDynamics::STATE_DIM,CartpoleDynamics::STATE_DIM);
-//    R = Eigen::MatrixXf::Identity(CartpoleDynamics::CONTROL_DIM,CartpoleDynamics::CONTROL_DIM);
-//    QR = Eigen::MatrixXf(CartpoleDynamics::STATE_DIM+ CartpoleDynamics::CONTROL_DIM,
-//                         CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM);
-//    QR.template topLeftCorner<CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM>() = Q;
-//    QR.template bottomRightCorner<CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM>() = R;
-//
-//
-//    std::shared_ptr<ModelWrapperDDP<CartpoleDynamics>> ddp_model = std::make_shared<ModelWrapperDDP<CartpoleDynamics>>(&model);
-//
-//    std::shared_ptr<DDP<ModelWrapperDDP<CartpoleDynamics>>> ddp_solver_ =
-//            std::make_shared<DDP<ModelWrapperDDP<CartpoleDynamics>>>(dt, num_timesteps, num_iterations, &logger, verbose);
-//
-//    std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>> tracking_cost =
-//            std::make_shared<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>>(Q,R,num_timesteps);
-//
-//    std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>> terminal_cost =
-//            std::make_shared<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>>(QR);
-//
-//    tracking_cost->setTargets(nominal_state, nominal_control, num_timesteps);
-//
-//    Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, 1> s;
-//    s << 0.0, 0.0, 0.0, 0.0;
-//
-//    Eigen::MatrixXf control_traj = Eigen::MatrixXf::Zero(CartpoleDynamics::CONTROL_DIM, num_timesteps);
-//
-//    OptimizerResult<ModelWrapperDDP<CartpoleDynamics>> result_ = ddp_solver_->run(s, control_traj,
-//                                                                       *ddp_model, *tracking_cost, *terminal_cost);
+  float dt = 0.01;
+  int max_iter = 100;
+  float gamma = 0.25;
+  const int num_timesteps = 500;
+
+  CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
+
+  auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, 2048, 64, 8>(&model, &cost,
+                                                                                                     dt, max_iter, gamma, num_timesteps, control_var);
+  CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
+  // Compute the control
+  controller.computeControl(current_state);
+  auto nominal_state = controller.getStateSeq();
+  auto nominal_control = controller.getControlSeq();
+  std::cout << nominal_state << std::endl;
+  // END MPPI CONTROLLER
+
+
+  util::DefaultLogger logger;
+  bool verbose = false;
+  int num_iterations = 20;
+  Eigen::MatrixXf Q;
+  Eigen::MatrixXf R;
+  Eigen::MatrixXf QR;
+  Q = 100*Eigen::MatrixXf::Identity(CartpoleDynamics::STATE_DIM,CartpoleDynamics::STATE_DIM);
+  R = Eigen::MatrixXf::Identity(CartpoleDynamics::CONTROL_DIM,CartpoleDynamics::CONTROL_DIM);
+  QR = Eigen::MatrixXf(CartpoleDynamics::STATE_DIM+ CartpoleDynamics::CONTROL_DIM,
+                       CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM);
+  QR.template topLeftCorner<CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM>() = Q;
+  QR.template bottomRightCorner<CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM>() = R;
+
+
+  std::shared_ptr<ModelWrapperDDP<CartpoleDynamics>> ddp_model = std::make_shared<ModelWrapperDDP<CartpoleDynamics>>(&model);
+
+  std::shared_ptr<DDP<ModelWrapperDDP<CartpoleDynamics>>> ddp_solver_ =
+          std::make_shared<DDP<ModelWrapperDDP<CartpoleDynamics>>>(dt, num_timesteps, num_iterations, &logger, verbose);
+
+  std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>> tracking_cost =
+          std::make_shared<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>>(Q,R,num_timesteps);
+
+  std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>> terminal_cost =
+          std::make_shared<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>>(Q);
+
+  tracking_cost->setTargets(nominal_state.data(), nominal_control.data(), num_timesteps);
+  terminal_cost->xf = tracking_cost->traj_target_x_.col(num_timesteps - 1);
+
+  Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, 1> s;
+  s << 0.0, 0.0, 0.0, 0.0;
+
+  Eigen::MatrixXf control_traj = Eigen::MatrixXf::Zero(CartpoleDynamics::CONTROL_DIM, num_timesteps);
+
+  OptimizerResult<ModelWrapperDDP<CartpoleDynamics>> result_ = ddp_solver_->run(s, control_traj,
+                                                                     *ddp_model, *tracking_cost, *terminal_cost);
+
+  std::cout << result_.state_trajectory << std::endl;
+    // IF we made it this far, this means that all the pieces are at least running!
 }
 

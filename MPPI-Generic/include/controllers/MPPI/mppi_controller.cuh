@@ -71,8 +71,6 @@ public:
   ~VanillaMPPIController();
 
 
-  void computeNominalStateTrajectory(const state_array& x0);
-
   void updateControlNoiseVariance(const control_array& sigma_u);
 
   control_array getControlVariance() { return control_variance_;};
@@ -115,6 +113,9 @@ private:
   float* nominal_state_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
   float* trajectory_costs_d_; // Array of size NUM_ROLLOUTS
   float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS
+
+  void computeNominalStateTrajectory(const state_array& x0);
+
 
 
   void copyNominalControlToDevice();
