@@ -1,5 +1,6 @@
 #include "tube_mppi_controller.cuh"
 #include <mppi_core/mppi_common.cuh>
+#include <algorithm>
 
 #define TubeMPPI TubeMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 //#define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
@@ -213,6 +214,18 @@ void TubeMPPI::deallocateCUDAMemory() {
     cudaFree(trajectory_costs_d_);
     cudaFree(this->control_variance_d_);
     cudaFree(control_noise_d_);
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+         int BDIM_X, int BDIM_Y>
+void TubeMPPI::slideControlSequence(int steps) {
+    for (int i = 0; i < this->num_timesteps_; ++i) {
+        for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
+            int ind = std::min(i + steps, this->num_timesteps_ - 1);
+            nominal_control_(j,i) = nominal_control_(j, ind);
+            actual_control_(j,i) = actual_control_(j, ind);
+        }
+    }
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,

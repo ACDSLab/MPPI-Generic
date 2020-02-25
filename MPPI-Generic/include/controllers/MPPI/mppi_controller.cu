@@ -1,5 +1,6 @@
 #include <controllers/MPPI/mppi_controller.cuh>
 #include <mppi_core/mppi_common.cuh>
+#include <algorithm>
 
 #define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
@@ -214,11 +215,8 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
 void VanillaMPPI::slideControlSequence(int steps) {
     for (int i = 0; i < num_timesteps_; ++i) {
         for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
-            if (i + steps < num_timesteps_) {
-                nominal_control_(j,i) = nominal_control_(j,i + steps);
-            } else {
-                nominal_control_(j,i) = nominal_control_(j,num_timesteps_-1);
-            }
+            int ind = std::min(i + steps, num_timesteps_ - 1);
+            nominal_control_(j,i) = nominal_control_(j, ind);
         }
     }
 }

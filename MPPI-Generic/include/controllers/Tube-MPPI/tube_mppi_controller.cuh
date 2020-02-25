@@ -87,7 +87,7 @@ public:
     /**
      * Slide the control sequence back n steps
      */
-    void slideControlSequence(int steps) override {};
+    void slideControlSequence(int steps) override;
 
     void initDDP(const StateCostWeight& q_mat,
                  const Hessian& q_f_mat,
