@@ -35,10 +35,6 @@ public:
      */
     ~CartpoleQuadraticCost();
 
-    /**
-     * Deallocates the allocated cuda memory for an object
-     */
-    void freeCudaMem();
 
     /**
      * Copies the parameters to the GPU object

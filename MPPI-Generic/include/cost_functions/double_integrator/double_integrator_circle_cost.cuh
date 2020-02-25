@@ -16,7 +16,7 @@ class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost, Doubl
 public:
   DoubleIntegratorCircleCost(cudaStream_t stream = 0);
 
-  ~DoubleIntegratorCircleCost();
+  ~DoubleIntegratorCircleCost() = default;
 
   void freeCudaMem();
 
