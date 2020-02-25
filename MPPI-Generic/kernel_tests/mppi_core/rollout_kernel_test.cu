@@ -88,7 +88,7 @@ void launchGlobalToShared_KernelTest(const std::vector<float>& x0_host,const std
     HANDLE_ERROR(cudaMalloc((void**)&du_thread_device, sizeof(float)*CONTROL_DIM));
     HANDLE_ERROR(cudaMalloc((void**)&sigma_u_thread_device, sizeof(float)*CONTROL_DIM));
 
-    dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y);
+    dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 2);
     dim3 dimGrid(2048);
 
     loadGlobalToShared_KernelTest<<<dimGrid,dimBlock>>>(x0_device, u_var_device,
