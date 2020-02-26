@@ -74,6 +74,7 @@ void VanillaMPPI::computeControl(const state_array& state) {
         initial_state_d_, nominal_control_d_, control_noise_d_,
         control_variance_d_, trajectory_costs_d_, stream_);
 
+
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_.data(),
         trajectory_costs_d_,

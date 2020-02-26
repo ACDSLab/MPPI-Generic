@@ -47,14 +47,6 @@ void CartpoleDynamics::computeDynamics(const Eigen::Ref<const state_array> &stat
   state_der(3) = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity_*sinf(theta));
 }
 
-//void CartpoleDynamics::paramsToDevice()
-//{
-//    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->params_.pole_mass, &this->params_.pole_mass, sizeof(float), cudaMemcpyHostToDevice, stream_));
-//    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->params_.cart_mass, &this->params_.cart_mass, sizeof(float), cudaMemcpyHostToDevice, stream_));
-//    HANDLE_ERROR( cudaMemcpyAsync(&model_d_->params_.pole_length, &this->params_.pole_length, sizeof(float), cudaMemcpyHostToDevice, stream_));
-//    HANDLE_ERROR( cudaStreamSynchronize(stream_));
-//}
-
 void CartpoleDynamics::freeCudaMem()
 {
   Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>::freeCudaMem();

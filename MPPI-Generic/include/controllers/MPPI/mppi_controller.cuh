@@ -97,16 +97,16 @@ public:
   cudaStream_t stream_;
 
 private:
+  control_trajectory nominal_control_ = control_trajectory::Zero();
+  state_trajectory nominal_state_ = state_trajectory::Zero();
+  sampled_cost_traj trajectory_costs_ = {{0}};
+
   int num_iters_;  // Number of optimization iterations
 
   float gamma_; // Value of the temperature in the softmax.
   float normalizer_; // Variable for the normalizing term from sampling.
   float baseline_; // Baseline cost of the system.
   float dt_;
-
-  control_trajectory nominal_control_ = control_trajectory::Zero();
-  state_trajectory nominal_state_ = state_trajectory::Zero();
-  sampled_cost_traj trajectory_costs_ = {{0}};
 
   float* initial_state_d_;
   float* nominal_control_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS

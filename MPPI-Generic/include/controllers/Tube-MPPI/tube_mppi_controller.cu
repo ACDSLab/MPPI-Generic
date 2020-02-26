@@ -152,6 +152,8 @@ void TubeMPPI::computeControl(const state_array& state) {
                 cudaMemcpyDeviceToHost, stream_));
         cudaStreamSynchronize(stream_);
 
+        // Compute the nominal and actual state trajectories
+
         if (baseline_actual_ < baseline_nominal_ + nominal_threshold_) {
             use_nominal_state_ = false;
             // reset nominal to actual
