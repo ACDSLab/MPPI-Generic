@@ -18,7 +18,7 @@ class DoubleIntegratorDynamics : public Dynamics<DoubleIntegratorDynamics, Doubl
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  DoubleIntegratorDynamics(float system_noise = 1, cudaStream_t stream = 0);
+  DoubleIntegratorDynamics(float system_noise = 1, cudaStream_t stream = nullptr);
   ~DoubleIntegratorDynamics();
 
   void computeDynamics(const Eigen::Ref<const state_array> &state,
@@ -37,7 +37,7 @@ public:
                                   float* state_der,
                                   float* theta = nullptr);
 
-  void paramsToDevice();
+//  void paramsToDevice();
 
 };
 

@@ -26,6 +26,11 @@ void DoubleIntegratorDynamics::computeGrad(const Eigen::Ref<const state_array> &
   B(3,1) = 1;
 }
 
+
+//void DoubleIntegratorDynamics::paramsToDevice() {
+//  HANDLE_ERROR(cudaMemcpyAsync(&model_d_->params_, &params_, sizeof(DoubleIntegratorParams), cudaMemcpyHostToDevice, stream_));
+//}
+
 void DoubleIntegratorDynamics::printState(float *state) {
   printf("X position: %f; Y position: %f; X velocity: %f; Y velocity: %f \n", state[0], state[1], state[2], state[3]);
 }

@@ -68,7 +68,7 @@ public:
 
     void freeCudaMem();
 
-    void paramsToDevice();
+//    void paramsToDevice();
 
 protected:
     const float gravity_ = 9.81;

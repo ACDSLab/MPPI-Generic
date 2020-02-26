@@ -260,7 +260,7 @@ void TubeMPPI::computeFeedbackGains(const state_array& state) {
   // replace with transpose?
   for (int t = 0; t < this->num_timesteps_; t++){
     for (int i = 0; i < DYN_T::CONTROL_DIM; i++){
-      control_traj(i,t) = nominal_control_[DYN_T::CONTROL_DIM*t + i];
+      control_traj(i,t) = nominal_control_(DYN_T::CONTROL_DIM*t + i);
     }
   }
   run_cost_->setTargets(nominal_state_.data(), nominal_control_.data(),

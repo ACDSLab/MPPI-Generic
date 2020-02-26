@@ -18,11 +18,11 @@ set_target_properties(vanilla_mppi_tests PROPERTIES FOLDER test)
 
 add_executable(tube_mppi_tests
         ../test_main.cpp
-        tube_mppi_test.cu)
+        tube_mppi_test.cpp)
 target_link_libraries(tube_mppi_tests gtest
         gmock
         gtest_main
-        cartpole_mppi
+        double_integrator_mppi
         cnpy
         ${Boost_LIBRARIES})
 add_test(NAME tube_mppi_tests COMMAND tube_mppi_tests)
