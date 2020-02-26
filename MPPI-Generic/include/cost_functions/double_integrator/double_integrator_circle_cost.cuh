@@ -14,11 +14,9 @@ typedef struct {
 
 class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost, DoubleIntegratorCircleCostParams> {
 public:
-  DoubleIntegratorCircleCost(cudaStream_t stream = 0);
+  DoubleIntegratorCircleCost(cudaStream_t stream = nullptr);
 
-  ~DoubleIntegratorCircleCost() = default;
-
-  void freeCudaMem();
+  ~DoubleIntegratorCircleCost();
 
   void paramsToDevice();
 

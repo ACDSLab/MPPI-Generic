@@ -4,6 +4,13 @@ DoubleIntegratorCircleCost::DoubleIntegratorCircleCost(cudaStream_t stream) {
   bindToStream(stream);
 }
 
+DoubleIntegratorCircleCost::~DoubleIntegratorCircleCost() {
+  if (!GPUMemStatus_) {
+    freeCudaMem();
+    GPUMemStatus_ = false;
+  }
+}
+
 void DoubleIntegratorCircleCost::paramsToDevice() {
   HANDLE_ERROR(cudaMemcpyAsync(&cost_d_->params_, &params_, sizeof(DoubleIntegratorCircleCostParams), cudaMemcpyHostToDevice, stream_));
 }
