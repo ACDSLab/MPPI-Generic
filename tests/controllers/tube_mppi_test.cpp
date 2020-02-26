@@ -25,4 +25,16 @@ TEST(TubeMPPITest, Construction) {
                                       512, 64, 8>(&model, &cost, dt, max_iter,
                                                    gamma, num_timesteps, Q, Q, R, control_var);
 
+  // This controller needs the ancillary controller running separately for base plant reasons.
+
+
+
+}
+
+TEST(TubeMPPITest, VanillaMPPINominalVariance) {
+  // Noise enters the system during the "true" state propagation.
+}
+
+TEST(TubeMPPITest, VanillaMPPILargeVariance) {
+
 }
