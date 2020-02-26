@@ -6,8 +6,12 @@ int main(int argc, char** argv) {
   auto model = new CartpoleDynamics(1.0, 1.0, 1.0);
   auto cost = new CartpoleQuadraticCost;
 
+  model->control_rngs_->x = -10;
+  model->control_rngs_->y = 10;
+
+
   cartpoleQuadraticCostParams new_params;
-  new_params.cart_position_coeff = 100;
+  new_params.cart_position_coeff = 50;
   new_params.pole_angle_coeff = 200;
   new_params.cart_velocity_coeff = 10;
   new_params.pole_angular_velocity_coeff = 20;
@@ -34,7 +38,7 @@ int main(int argc, char** argv) {
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
 
-  int time_horizon = 1000;
+  int time_horizon = 2000;
 
   CartpoleDynamics::state_array xdot = CartpoleDynamics::state_array::Zero();
 
