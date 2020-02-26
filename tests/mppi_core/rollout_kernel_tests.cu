@@ -30,6 +30,50 @@ TEST(RolloutKernel, loadGlobalToShared) {
     array_assert_float_eq(sigma_u_thread_host, u_var_host, CONTROL_DIM);
 }
 
+TEST(RolloutKernel, loadGlobalToSharedNominalAndActualState) {
+  const int STATE_DIM = 12;
+  const int CONTROL_DIM = 3;
+  std::vector<float> x0_host_act = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+                                    1.0, 1.1, 1.2};
+
+  std::vector<float> x0_host_nom = {1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9,
+                                    2.0, 2.1, 2.2};
+  std::vector<float> u_var_host = {0.8, 0.9, 1.0};
+
+  std::vector<float> x_thread_host_act(STATE_DIM, 0.f);
+  std::vector<float> x_thread_host_nom(STATE_DIM, 0.f);
+  std::vector<float> xdot_thread_host_act(STATE_DIM, 2.f);
+  std::vector<float> xdot_thread_host_nom(STATE_DIM, 2.f);
+
+  std::vector<float> u_thread_host_act(CONTROL_DIM, 3.f);
+  std::vector<float> u_thread_host_nom(CONTROL_DIM, 3.f);
+  std::vector<float> du_thread_host_act(CONTROL_DIM, 4.f);
+  std::vector<float> du_thread_host_nom(CONTROL_DIM, 4.f);
+  std::vector<float> sigma_u_thread_host(CONTROL_DIM, 0.f);
+
+  launchGlobalToShared_KernelTest_nom_act(x0_host_act, u_var_host,
+                                          x_thread_host_act, xdot_thread_host_act,
+                                          u_thread_host_act, du_thread_host_act,
+                                          x0_host_nom, x_thread_host_nom,
+                                          xdot_thread_host_nom,
+                                          u_thread_host_nom, du_thread_host_nom,
+                                          sigma_u_thread_host);
+
+  std::cout << "Testing actual x0" << std::endl;
+  array_assert_float_eq(x0_host_act, x_thread_host_act, STATE_DIM);
+  std::cout << "Testing nom x0" << std::endl;
+  array_assert_float_eq(x0_host_nom, x_thread_host_nom, STATE_DIM);
+  std::cout << "Testing empty" << std::endl;
+  array_assert_float_eq(0.f, xdot_thread_host_act, STATE_DIM);
+  array_assert_float_eq(0.f, xdot_thread_host_nom, STATE_DIM);
+  array_assert_float_eq(0.f, u_thread_host_act, CONTROL_DIM);
+  array_assert_float_eq(0.f, u_thread_host_nom, CONTROL_DIM);
+  array_assert_float_eq(0.f, du_thread_host_act, CONTROL_DIM);
+  array_assert_float_eq(0.f, du_thread_host_nom, CONTROL_DIM);
+  std::cout << "Testing act sigma" << std::endl;
+  array_assert_float_eq(sigma_u_thread_host, u_var_host, CONTROL_DIM);
+}
+
 TEST(RolloutKernel, injectControlNoiseOnce) {
     const int NUM_ROLLOUTS = 1000;
     const int CONTROL_DIM = 3;
