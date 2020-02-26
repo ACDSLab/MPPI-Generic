@@ -42,6 +42,7 @@ namespace mppi_common {
                                        int blocksize_y,
                                        int global_idx,
                                        int thread_idy,
+                                       int thread_idz,
                                        const float* x0_device,
                                        const float* sigma_u_device,
                                        float* x_thread,

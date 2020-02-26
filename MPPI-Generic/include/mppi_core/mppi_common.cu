@@ -53,13 +53,13 @@ namespace mppi_common {
         }
         __syncthreads();
         loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
-                           BLOCKSIZE_Y,global_idx, thread_idy, x_d, sigma_u_d,
-                           x, xdot, u, du, sigma_u);
+                           BLOCKSIZE_Y, global_idx, thread_idy,
+                           thread_idz, x_d, sigma_u_d, x, xdot, u, du, sigma_u);
         __syncthreads();
 
         /*<----Start of simulation loop-----> */
         for (int t = 0; t < num_timesteps; t++) {
-            if (global_idx < NUM_ROLLOUTS * BLOCKSIZE_Z) {
+            if (global_idx < NUM_ROLLOUTS) {
                 //Load noise trajectories scaled by the exploration factor
                 injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
                                    t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
@@ -85,7 +85,8 @@ namespace mppi_common {
         }
 
         //Compute terminal cost and the final cost for each thread
-        computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost, trajectory_costs_d);
+        computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost,
+                           trajectory_costs_d + thread_idz * NUM_ROLLOUTS);
         __syncthreads();
     }
 
@@ -142,6 +143,7 @@ namespace mppi_common {
     __device__ void loadGlobalToShared(int state_dim, int control_dim,
                                        int num_rollouts, int blocksize_y,
                                        int global_idx, int thread_idy,
+                                       int thread_idz,
                                        const float* x_device,
                                        const float* sigma_u_device,
                                        float* x_thread,
@@ -153,7 +155,7 @@ namespace mppi_common {
         int i;
         if (global_idx < num_rollouts) {
             for (i = thread_idy; i < state_dim; i += blocksize_y) {
-                x_thread[i] = x_device[i];
+                x_thread[i] = x_device[i + state_dim * thread_idz];
                 xdot_thread[i] = 0;
             }
             for (i = thread_idy; i < control_dim; i += blocksize_y) {

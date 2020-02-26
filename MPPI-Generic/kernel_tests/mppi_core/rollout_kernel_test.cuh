@@ -10,12 +10,41 @@
 
 // Declare some sizes for the kernel parameters
 
+template<int BLOCKSIZE_Z = 1>
 __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_device,
                                               float* x_thread, float* xdot_thread, float* u_thread, float* du_thread, float* sigma_u_thread);
 
-void launchGlobalToShared_KernelTest(const std::vector<float>& x0_host,const std::vector<float>& u_var_host,
-                                     std::vector<float>& x_thread_host, std::vector<float>& xdot_thread_host,
-                                     std::vector<float>& u_thread_host, std::vector<float>& du_thread_host, std::vector<float>& sigma_u_thread_host );
+void launchGlobalToShared_KernelTest(const std::vector<float>& x0_host,const
+                                     std::vector<float>& u_var_host,
+                                     std::vector<float>& x_thread_host,
+                                     std::vector<float>& xdot_thread_host,
+                                     std::vector<float>& u_thread_host,
+                                     std::vector<float>& du_thread_host,
+                                     std::vector<float>& sigma_u_thread_host);
+
+void launchGlobalToShared_KernelTest_nom_act(const std::vector<float>& x0_host_act,
+                                             const std::vector<float>& u_var_host,
+                                             std::vector<float>& x_thread_host_act,
+                                             std::vector<float>& xdot_thread_host_act,
+                                             std::vector<float>& u_thread_host_act,
+                                             std::vector<float>& du_thread_host_act,
+                                             const std::vector<float>& x0_host_nom,
+                                             std::vector<float>& x_thread_host_nom,
+                                             std::vector<float>& xdot_thread_host_nom,
+                                             std::vector<float>& u_thread_host_nom,
+                                             std::vector<float>& du_thread_host_nom,
+                                             std::vector<float>& sigma_u_thread_host);
+
+template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
+void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
+                                 float dt,
+                                 int num_timesteps,
+                                 const std::vector<float>& x0,
+                                 const std::vector<float>& sigma_u,
+                                 const std::vector<float>& nom_control_seq,
+                                 std::vector<float>& trajectory_costs_act,
+                                 std::vector<float>& trajectory_costs_nom,
+                                 cudaStream_t stream);
 
 __global__ void injectControlNoiseOnce_KernelTest(int num_rollouts, int num_timesteps, int timestep, float* u_traj_device,
                                                   float* ep_v_device, float* sigma_u_device, float* control_compute_device);
