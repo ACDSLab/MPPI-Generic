@@ -94,6 +94,11 @@ public:
    */
   virtual s_array getState() = 0;
 
+  /**
+   * Set optimization stride
+   */
+  void setOptimizationStride(int stride) {optimization_stride = stride;};
+
   // virtual typename CONTROLLER_T::TEMPLATED_COSTS::TEMPLATED_PARAMS getDynRcfgParams();
 
   virtual void getNewObstacles(std::vector<int>& obs_description,
