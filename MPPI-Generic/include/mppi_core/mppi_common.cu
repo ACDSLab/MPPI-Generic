@@ -29,7 +29,7 @@ namespace mppi_common {
     __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
     __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
-    __shared__ float sigma_u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
+    __shared__ float sigma_u[DYN_T::CONTROL_DIM];
 
   //Create a shared array for the dynamics model to use
   __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
@@ -39,7 +39,7 @@ namespace mppi_common {
     float* xdot;
     float* u;
     float* du;
-    float* sigma_u;
+    // float* sigma_u;
 
     //Initialize running cost and total cost
     float running_cost = 0;
@@ -49,7 +49,7 @@ namespace mppi_common {
       xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
       u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
       du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
-      sigma_u = &sigma_u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+      // sigma_u = &sigma_u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
     }
     __syncthreads();
     loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
@@ -57,9 +57,10 @@ namespace mppi_common {
                        thread_idz, x_d, sigma_u_d, x, xdot, u, du, sigma_u);
     __syncthreads();
 
-  /*<----Start of simulation loop-----> */
-  for (int t = 0; t < num_timesteps; t++) {
-    if (global_idx < NUM_ROLLOUTS) {
+
+  if (global_idx < NUM_ROLLOUTS) {
+    /*<----Start of simulation loop-----> */
+    for (int t = 0; t < num_timesteps; t++) {
       //Load noise trajectories scaled by the exploration factor
       injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
                          t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
@@ -84,11 +85,11 @@ namespace mppi_common {
       dynamics->updateState(x, xdot, dt);
       __syncthreads();
     }
-  }
-
     //Compute terminal cost and the final cost for each thread
     computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost,
                        trajectory_costs_d + thread_idz * NUM_ROLLOUTS);
+  }
+
     __syncthreads();
   }
 
@@ -157,19 +158,28 @@ namespace mppi_common {
                                        float* u_thread,
                                        float* du_thread,
                                        float* sigma_u_thread) {
-        //Transfer to shared memory
-        int i;
-        if (global_idx < num_rollouts) {
-            for (i = thread_idy; i < state_dim; i += blocksize_y) {
-                x_thread[i] = x_device[i + state_dim * thread_idz];
-                xdot_thread[i] = 0;
-            }
-            for (i = thread_idy; i < control_dim; i += blocksize_y) {
-                u_thread[i] = 0;
-                du_thread[i] = 0;
-                sigma_u_thread[i] = sigma_u_device[i];
-            }
+      //Transfer to shared memory
+      int i;
+      if (global_idx < num_rollouts) {
+        for (i = thread_idy; i < state_dim; i += blocksize_y) {
+          x_thread[i] = x_device[i + state_dim * thread_idz];
+          xdot_thread[i] = 0;
         }
+        for (i = thread_idy; i < control_dim; i += blocksize_y) {
+          u_thread[i] = 0;
+          du_thread[i] = 0;
+          // Only do in threadIdx.x and parallelize along threadIdx.y
+          // sigma_u_thread[i] = sigma_u_device[i];
+        }
+      }
+      if (threadIdx.x == 0 /*&& threadIdx.z == 0*/) {
+        for(i = thread_idy; i < control_dim; i +=blocksize_y){
+          sigma_u_thread[i] = sigma_u_device[i];
+        }
+      }
+      // for (i = blockDim.y*blockDim.x*threadIdx.z + blockDim.x*threadIdx.y + threadIdx.x; i < control_dim; i+= blockDim.z*blockDim.x*blockDim.y){
+
+      // }
     }
 
     __device__ void injectControlNoise(int control_dim,
@@ -290,16 +300,19 @@ namespace mppi_common {
     /*******************************************************************************************************************
      * Launch Functions
     *******************************************************************************************************************/
-    template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
-    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d,
-            float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream) {
-        const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
-        dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
-        dim3 dimGrid(gridsize_x, 1, 1);
-        rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
-                num_timesteps, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
-        CudaCheckError();
-        HANDLE_ERROR( cudaStreamSynchronize(stream) );
+    template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
+             int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
+                             int num_timesteps, float* x_d, float* u_d,
+                             float* du_d, float* sigma_u_d,
+                             float* trajectory_costs, cudaStream_t stream) {
+      const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
+      dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
+      dim3 dimGrid(gridsize_x, 1, 1);
+      rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
+              num_timesteps, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
+      CudaCheckError();
+      HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
     void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float baseline, cudaStream_t stream) {

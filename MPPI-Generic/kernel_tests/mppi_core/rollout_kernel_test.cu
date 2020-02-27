@@ -27,21 +27,19 @@ __global__ void loadGlobalToShared_KernelTest(float* x0_device,
   __shared__ float xdot_shared[BLOCKSIZE_X * STATE_DIM * BLOCKSIZE_Z];
   __shared__ float u_shared[BLOCKSIZE_X * CONTROL_DIM * BLOCKSIZE_Z];
   __shared__ float du_shared[BLOCKSIZE_X * CONTROL_DIM * BLOCKSIZE_Z];
-  __shared__ float sigma_u_shared[BLOCKSIZE_X * CONTROL_DIM * BLOCKSIZE_Z];
+  __shared__ float sigma_u_thread[CONTROL_DIM];
 
   float* x_thread;
   float* xdot_thread;
 
   float* u_thread;
   float* du_thread;
-  float* sigma_u_thread;
 
   if (global_idx < NUM_ROLLOUTS) {
     x_thread = &x_shared[(blockDim.x * thread_idz + thread_idx) * STATE_DIM];
     xdot_thread = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * STATE_DIM];
     u_thread = &u_shared[(blockDim.x * thread_idz + thread_idx) * CONTROL_DIM];
     du_thread = &du_shared[(blockDim.x * thread_idz + thread_idx) * CONTROL_DIM];
-    sigma_u_thread = &sigma_u_shared[(blockDim.x * thread_idz + thread_idx) * CONTROL_DIM];
   }
   __syncthreads();
   mppi_common::loadGlobalToShared(STATE_DIM, CONTROL_DIM, NUM_ROLLOUTS,
@@ -52,26 +50,24 @@ __global__ void loadGlobalToShared_KernelTest(float* x0_device,
   __syncthreads();
 
   // Check if on the first rollout the correct values were coped over
-  if (global_idx == 1 && thread_idz == 0) {
-    for (int j = 0; j < BLOCKSIZE_Z; ++j) {
-      for (int i = 0; i < STATE_DIM; ++i) {
-        int ind = i + j * STATE_DIM;
-        int ind_thread = i + j * STATE_DIM * blockDim.x;
-        x_thread_device[ind] = x_thread[ind_thread];
-        xdot_thread_device[ind] = xdot_thread[ind_thread];
-      }
+  // Prevent y threads from all writing to the same memory
+  if (global_idx == 1 && thread_idy == 0) {
+    for (int i = 0; i < STATE_DIM; ++i) {
+      int ind = i + thread_idz * STATE_DIM;
+      int ind_thread = i + thread_idz * STATE_DIM * blockDim.x;
+      x_thread_device[ind] = x_shared[ind_thread];
+      xdot_thread_device[ind] = xdot_shared[ind_thread];
     }
 
-
-    for (int j = 0; j < BLOCKSIZE_Z; ++j) {
-      for (int i = 0; i < CONTROL_DIM; ++i) {
-        int ind = i + j * CONTROL_DIM;
-        int ind_thread = i + j * CONTROL_DIM * blockDim.x;
-        u_thread_device[ind] = u_thread[ind_thread];
-        du_thread_device[ind] = du_thread[ind_thread];
-        sigma_u_thread_device[ind] = sigma_u_thread[ind_thread];
-      }
+    for (int i = 0; i < CONTROL_DIM; ++i) {
+      int ind = i + thread_idz * CONTROL_DIM;
+      int ind_thread = i + thread_idz * CONTROL_DIM * blockDim.x;
+      u_thread_device[ind] = u_shared[ind_thread];
+      du_thread_device[ind] = du_shared[ind_thread];
+      // There is only control_dim
+      sigma_u_thread_device[i] = sigma_u_thread[i];
     }
+    __syncthreads();
   }
 
 
@@ -402,27 +398,30 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
                                  std::vector<float>& trajectory_costs_nom,
                                  cudaStream_t stream) {
   float * initial_state_d;
-  float * initial_control_d;
-  float * state_traj_d;
   float * trajectory_costs_d;
   float * control_noise_d; // du
   float * control_variance_d;
   float * control_d;
-  float * state_d;
+
+  /**
+   * Ensure dynamics and costs exist on GPU
+   */
+  dynamics->bindToStream(stream);
+  costs->bindToStream(stream);
+  // Call the GPU setup functions of the model and cost
+  dynamics->GPUSetup();
+  costs->GPUSetup();
+
+  int control_noise_size = NUM_ROLLOUTS * num_timesteps * DYN_T::CONTROL_DIM;
   // Create x init cuda array
   HANDLE_ERROR(cudaMalloc((void**)&initial_state_d,
                           sizeof(float) * DYN_T::STATE_DIM * 2));
   // Create control variance cuda array
   HANDLE_ERROR(cudaMalloc((void**)&control_variance_d,
                           sizeof(float) * DYN_T::CONTROL_DIM));
-
   // create control u trajectory cuda array
   HANDLE_ERROR(cudaMalloc((void**)&control_d,
                           sizeof(float) * DYN_T::CONTROL_DIM *
-                          num_timesteps * 2));
-  // create state trajectory cuda array
-  HANDLE_ERROR(cudaMalloc((void**)&state_d,
-                          sizeof(float) * DYN_T::STATE_DIM *
                           num_timesteps * 2));
   // Create cost trajectory cuda array
   HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d,
@@ -431,36 +430,62 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   HANDLE_ERROR(cudaMalloc((void**)&control_noise_d,
                           sizeof(float) * DYN_T::CONTROL_DIM *
                           num_timesteps * NUM_ROLLOUTS * 2));
-
+  // Create random noise generator
   curandGenerator_t gen;
   curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT);
 
-  // Fill in values
+  /**
+   * Fill in GPU arrays
+   */
   HANDLE_ERROR(cudaMemcpyAsync(initial_state_d, x0.data(),
-                          sizeof(float) * DYN_T::STATE_DIM,
-                          cudaMemcpyHostToDevice, stream));
-  HANDLE_ERROR(cudaMemcpyAsync(initial_state_d + STATE_DIM, x0.data(),
-                          sizeof(float) * DYN_T::STATE_DIM,
-                          cudaMemcpyHostToDevice, stream));
+                               sizeof(float) * DYN_T::STATE_DIM,
+                               cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(initial_state_d + DYN_T::STATE_DIM, x0.data(),
+                               sizeof(float) * DYN_T::STATE_DIM,
+                               cudaMemcpyHostToDevice, stream));
 
   HANDLE_ERROR(cudaMemcpyAsync(control_variance_d, sigma_u.data(),
-                          sizeof(float) * DYN_T::CONTROL_DIM,
-                          cudaMemcpyHostToDevice, stream));
-  // TODO Fill in control_d with nom_control_seq twice
+                               sizeof(float) * DYN_T::CONTROL_DIM,
+                               cudaMemcpyHostToDevice, stream));
 
-  curandGenerateNormal(gen, control_noise_d,
-                       NUM_ROLLOUTS * num_timesteps * DYN_T::CONTROL_DIM,
-                       0.0, 1.0);
-  int control_noise_size = NUM_ROLLOUTS * num_timesteps * DYN_T::CONTROL_DIM;
-  HANDLE_ERROR(cudaMemcpyAsync(control_noise_d + control_noise_size, control_noise_d,
-                          control_noise_size * sizeof(float),  cudaMemcpyDeviceToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(control_d, nom_control_seq.data(),
+                               sizeof(float) * DYN_T::CONTROL_DIM * num_timesteps,
+                               cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(control_d + num_timesteps * DYN_T::CONTROL_DIM,
+                               nom_control_seq.data(),
+                               sizeof(float) * DYN_T::CONTROL_DIM * num_timesteps,
+                               cudaMemcpyHostToDevice, stream));
 
+  curandGenerateNormal(gen, control_noise_d, control_noise_size, 0.0, 1.0);
+  HANDLE_ERROR(cudaMemcpyAsync(control_noise_d + control_noise_size,
+                               control_noise_d,
+                               control_noise_size * sizeof(float),
+                               cudaMemcpyDeviceToDevice, stream));
+  // Ensure copying finishes?
+  HANDLE_ERROR(cudaStreamSynchronize(stream));
   // Launch rollout kernel
-  mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, 64, 8, 2>(dynamics, costs,
-    dt, num_timesteps, initial_state_d, control_d, control_noise_d, control_variance_d,
-    trajectory_costs_d, stream);
+  mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
+    BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps,
+                    initial_state_d, control_d, control_noise_d,
+                    control_variance_d, trajectory_costs_d, stream);
 
-  // Get out trajectory costs for actual and nominal
+  // Copy the costs back to the host
+  HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_act.data(),
+                               trajectory_costs_d,
+                               NUM_ROLLOUTS * sizeof(float),
+                               cudaMemcpyDeviceToHost, stream));
+
+  HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_nom.data(),
+                               trajectory_costs_d + NUM_ROLLOUTS,
+                               NUM_ROLLOUTS * sizeof(float),
+                               cudaMemcpyDeviceToHost, stream));
+  HANDLE_ERROR(cudaStreamSynchronize(stream));
+
+  cudaFree(initial_state_d);
+  cudaFree(control_variance_d);
+  cudaFree(control_d);
+  cudaFree(trajectory_costs_d);
+  cudaFree(control_noise_d);
 }
 
 /**

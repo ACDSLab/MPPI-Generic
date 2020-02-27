@@ -44,7 +44,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
                                  const std::vector<float>& nom_control_seq,
                                  std::vector<float>& trajectory_costs_act,
                                  std::vector<float>& trajectory_costs_nom,
-                                 cudaStream_t stream);
+                                 cudaStream_t stream = 0);
 
 __global__ void injectControlNoiseOnce_KernelTest(int num_rollouts, int num_timesteps, int timestep, float* u_traj_device,
                                                   float* ep_v_device, float* sigma_u_device, float* control_compute_device);

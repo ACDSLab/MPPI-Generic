@@ -74,6 +74,45 @@ TEST(RolloutKernel, loadGlobalToSharedNominalAndActualState) {
   array_assert_float_eq(sigma_u_thread_host, u_var_host, CONTROL_DIM);
 }
 
+TEST(RolloutKernel, runRolloutKernelOnMultipleSystems) {
+  CartpoleDynamics dynamics(1, 1, 1);
+  CartpoleQuadraticCost cost;
+
+  cartpoleQuadraticCostParams new_params;
+  new_params.cart_position_coeff = 100;
+  new_params.pole_angle_coeff = 200;
+  new_params.cart_velocity_coeff = 10;
+  new_params.pole_angular_velocity_coeff = 20;
+  new_params.control_force_coeff = 1;
+  new_params.terminal_cost_coeff = 0;
+  new_params.desired_terminal_state[0] = -20;
+  new_params.desired_terminal_state[1] = 0;
+  new_params.desired_terminal_state[2] = M_PI;
+  new_params.desired_terminal_state[3] = 0;
+
+  cost.setParams(new_params);
+
+  cudaStream_t stream1;
+  cudaStreamCreate(&stream1);
+  float dt = 0.01;
+  int num_timesteps = 100;
+  const int NUM_ROLLOUTS = 2048; // Must be a multiple of 32
+  // Create variables to pass to rolloutKernel
+  std::vector<float> x0(CartpoleDynamics::STATE_DIM);
+  std::vector<float> control_variance(CartpoleDynamics::CONTROL_DIM, 0.4);
+  std::vector<float> nominal_control_seq(CartpoleDynamics::CONTROL_DIM * num_timesteps);
+  std::vector<float> trajectory_costs_act(NUM_ROLLOUTS);
+  std::vector<float> trajectory_costs_nom(NUM_ROLLOUTS);
+  for (size_t i = 0; i < x0.size(); i++) {
+    x0[i] = i * 0.1 + 0.2;
+  }
+
+  launchRolloutKernel_nom_act<CartpoleDynamics, CartpoleQuadraticCost, NUM_ROLLOUTS>(
+    &dynamics, &cost, dt, num_timesteps, x0, control_variance,
+    nominal_control_seq, trajectory_costs_act, trajectory_costs_nom);
+  array_assert_float_eq(trajectory_costs_act, trajectory_costs_nom, NUM_ROLLOUTS);
+}
+
 TEST(RolloutKernel, injectControlNoiseOnce) {
     const int NUM_ROLLOUTS = 1000;
     const int CONTROL_DIM = 3;
