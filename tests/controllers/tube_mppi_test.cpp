@@ -21,9 +21,15 @@ TEST(TubeMPPITest, Construction) {
   Q = 100*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
   R = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
 
+  auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
+                                      512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-                                      512, 64, 8>(&model, &cost, dt, max_iter,
-                                                   gamma, num_timesteps, Q, Q, R, control_var);
+                                        512, 64, 8>();
+
+//  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
+//                                      512, 64, 8>(&model, &cost, dt, max_iter,
+//                                                   gamma, num_timesteps, Q, Q, R, control_var);
 
   // This controller needs the ancillary controller running separately for base plant reasons.
 

@@ -49,11 +49,13 @@ public:
                             BDIM_X,
                             BDIM_Y>::state_array;
 
-  using typename Controller<DYN_T, COST_T,
+  using sampled_cost_traj = typename Controller<DYN_T, COST_T,
                             MAX_TIMESTEPS,
                             NUM_ROLLOUTS,
                             BDIM_X,
                             BDIM_Y>::sampled_cost_traj;
+
+
   /**
    *
    * Public member functions
@@ -61,23 +63,21 @@ public:
   // Constructor
   VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
                         float gamma, int num_timesteps,
-                        const control_array& control_variance,
-                        const control_trajectory& init_control_traj = control_trajectory::Zero(),
+                        const Eigen::Ref<const control_array>& control_variance,
+                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                         cudaStream_t stream= nullptr);
-  // Empty Constructor used in inheritance
-  VanillaMPPIController() {};
 
   // Destructor
   ~VanillaMPPIController();
 
 
-  void updateControlNoiseVariance(const control_array& sigma_u);
+  void updateControlNoiseVariance(const Eigen::Ref<const control_array>& sigma_u);
 
   control_array getControlVariance() { return control_variance_;};
 
   float getBaselineCost() {return baseline_;};
 
-  void computeControl(const state_array& state) override;
+  void computeControl(const Eigen::Ref<const state_array>& state) override;
 
   /**
    * returns the current control sequence
@@ -95,11 +95,12 @@ public:
   void slideControlSequence(int steps) override;
 
   cudaStream_t stream_;
+  control_array control_variance_ = control_array::Zero();
 
 private:
   control_trajectory nominal_control_ = control_trajectory::Zero();
   state_trajectory nominal_state_ = state_trajectory::Zero();
-  sampled_cost_traj trajectory_costs_ = {{0}};
+  sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
 
   int num_iters_;  // Number of optimization iterations
 
@@ -114,7 +115,7 @@ private:
   float* trajectory_costs_d_; // Array of size NUM_ROLLOUTS
   float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS
 
-  void computeNominalStateTrajectory(const state_array& x0);
+  void computeNominalStateTrajectory(const Eigen::Ref<const state_array>& x0);
 
 
 
@@ -124,7 +125,6 @@ protected:
   curandGenerator_t gen_;
 
 
-  control_array control_variance_ = control_array::Zero();
   float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
   // WARNING This method is private because it is only called once in the constructor. Logic is required
   // so that CUDA memory is properly reallocated when the number of timesteps changes.
@@ -135,10 +135,10 @@ protected:
   void setCUDAStream(cudaStream_t stream);
 
   // Allocate CUDA memory for the controller
-  virtual void allocateCUDAMemory();
+  void allocateCUDAMemory();
 
   // Free CUDA memory for the controller
-  virtual void deallocateCUDAMemory();
+  void deallocateCUDAMemory();
 
   void copyControlVarianceToDevice();
 

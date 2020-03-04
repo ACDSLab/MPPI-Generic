@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
     // Increment the state
     CartpoleDynamics::control_array control;
     control = CartpoleController->getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
-//    model->enforceConstraints(current_state, control);
+    model->enforceConstraints(current_state, control);
     model->computeStateDeriv(current_state, control, xdot);
     model->updateState(current_state, xdot, dt);
 

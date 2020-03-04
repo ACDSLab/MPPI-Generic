@@ -45,12 +45,16 @@ bool getGrad(T* model, typename DDP_structures::Dynamics<float, T::STATE_DIM, T:
 template <class DYNAMICS_T>
 struct ModelWrapperDDP: public DDP_structures::Dynamics<float, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>
 {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   using Scalar = float;
-  using State = typename DYNAMICS_T::state_array;
-  using Control = typename DYNAMICS_T::control_array;
-//  using State = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::State;
-//  using Control = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::Control;
+//  using State = typename DYNAMICS_T::state_array;
+//  using Control = typename DYNAMICS_T::control_array;
+  using State = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::State;
+  using Control = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::Control;
   using Jacobian = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::Jacobian;
+  using StateTrajectory   = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::StateTrajectory;
+  using ControlTrajectory = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::ControlTrajectory;
+
 
   State state;
   Control control;

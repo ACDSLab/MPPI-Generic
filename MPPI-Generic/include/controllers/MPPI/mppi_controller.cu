@@ -1,6 +1,7 @@
 #include <controllers/MPPI/mppi_controller.cuh>
 #include <mppi_core/mppi_common.cuh>
 #include <algorithm>
+#include <iostream>
 
 #define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
@@ -11,8 +12,8 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost,
                                    int max_iter,
                                    float gamma,
                                    int num_timesteps,
-                                   const control_array& control_variance,
-                                   const control_trajectory& init_control_traj,
+                                   const Eigen::Ref<const control_array>& control_variance,
+                                   const Eigen::Ref<const control_trajectory>& init_control_traj,
                                    cudaStream_t stream) :
 dt_(dt), num_iters_(max_iter), gamma_(gamma), stream_(stream) {
     this->model_ = model;
@@ -53,7 +54,7 @@ VanillaMPPI::~VanillaMPPIController() {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void VanillaMPPI::computeControl(const state_array& state) {
+void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
   // Send the initial condition to the device
   HANDLE_ERROR( cudaMemcpyAsync(initial_state_d_, state.data(),
@@ -155,8 +156,10 @@ VanillaMPPI::setCUDAStream(cudaStream_t stream) {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void VanillaMPPI::updateControlNoiseVariance(const control_array &sigma_u) {
+void VanillaMPPI::updateControlNoiseVariance(const Eigen::Ref<const control_array>& sigma_u) {
+  std::cout << control_variance_ << std::endl;
   control_variance_ = sigma_u;
+  std::cout << control_variance_ << std::endl;
   copyControlVarianceToDevice();
 }
 
@@ -176,7 +179,7 @@ void VanillaMPPI::copyNominalControlToDevice() {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void VanillaMPPI::computeNominalStateTrajectory(const state_array &x0) {
+void VanillaMPPI::computeNominalStateTrajectory(const Eigen::Ref<const state_array>& x0) {
   nominal_state_.col(0) = x0;
   state_array xdot;
   for (int i =0; i < num_timesteps_ - 1; ++i) {
@@ -221,22 +224,5 @@ void VanillaMPPI::slideControlSequence(int steps) {
         }
     }
 }
-
-//template<class DYN_T, class COST_T, int NUM_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-//void
-//VanillaMPPI::computeNominalStateTrajectory(const state_array& x0) {
-//    // Increment the system forward
-//    for (int i = 0; i < DYN_T::STATE_DIM; i++) {
-//        nominal_state_[i] = x0[i];
-//    }
-//    for (int i = 1; i < NUM_TIMESTEPS; i++) {
-//        for (int j = 0; j < DYN_T::STATE_DIM; j++) {
-//            nominal_state_[i*DYN_T::STATE_DIM + j] = model_
-//        }
-//
-//    }
-//
-//}
-
 
 #undef VanillaMPPI

@@ -19,57 +19,57 @@ using namespace MPPI_internal;
 class CartpoleDynamics : public Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>
 {
 public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    CartpoleDynamics(float cart_mass, float pole_mass,
-                     float pole_length, cudaStream_t stream=0);
-    ~CartpoleDynamics();
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  CartpoleDynamics(float cart_mass, float pole_mass,
+                   float pole_length, cudaStream_t stream=0);
+  ~CartpoleDynamics();
 
-    /**
-     * runs dynamics using state and control and sets it to state
-     * derivative. Everything is Eigen Matrices, not Eigen Vectors!
-     *
-     * @param state     input of current state, passed by reference
-     * @param control   input of currrent control, passed by reference
-     * @param state_der output of new state derivative, passed by reference
-     */
-    void computeDynamics(const Eigen::Ref<const state_array> &state,
-                         const Eigen::Ref<const control_array> &control,
-                         Eigen::Ref<state_array> state_der);
+  /**
+   * runs dynamics using state and control and sets it to state
+   * derivative. Everything is Eigen Matrices, not Eigen Vectors!
+   *
+   * @param state     input of current state, passed by reference
+   * @param control   input of currrent control, passed by reference
+   * @param state_der output of new state derivative, passed by reference
+   */
+  void computeDynamics(const Eigen::Ref<const state_array> &state,
+                       const Eigen::Ref<const control_array> &control,
+                       Eigen::Ref<state_array> state_der);
 
-    /**
-     * compute the Jacobians with respect to state and control
-     *
-     * @param state   input of current state, passed by reference
-     * @param control input of currrent control, passed by reference
+  /**
+   * compute the Jacobians with respect to state and control
+   *
+   * @param state   input of current state, passed by reference
+   * @param control input of currrent control, passed by reference
 
-     */
-    void computeGrad(const Eigen::Ref<const state_array> & state,
-                     const Eigen::Ref<const control_array>& control,
-                     Eigen::Ref<dfdx> A,
-                     Eigen::Ref<dfdu> B);
+   */
+  void computeGrad(const Eigen::Ref<const state_array> & state,
+                   const Eigen::Ref<const control_array>& control,
+                   Eigen::Ref<dfdx> A,
+                   Eigen::Ref<dfdu> B);
 
-    __host__ __device__ float getCartMass() {return this->params_.cart_mass;};
-    __host__ __device__ float getPoleMass() {return this->params_.pole_mass;};
-    __host__ __device__ float getPoleLength() {return this->params_.pole_length;};
-    __host__ __device__ float getGravity() {return gravity_;}
+  __host__ __device__ float getCartMass() {return this->params_.cart_mass;};
+  __host__ __device__ float getPoleMass() {return this->params_.pole_mass;};
+  __host__ __device__ float getPoleLength() {return this->params_.pole_length;};
+  __host__ __device__ float getGravity() {return gravity_;}
 
-    void printState(const Eigen::Ref<const state_array>& state);
-    void printState(float* state);
-    void printParams();
+  void printState(const Eigen::Ref<const state_array>& state);
+  void printState(float* state);
+  void printParams();
 
 
-    // void computeKinematics(const Eigen::Ref<const state_array>&,
-    //                        Eigen::Ref<state_array>& state_der) {};
+  // void computeKinematics(const Eigen::Ref<const state_array>&,
+  //                        Eigen::Ref<state_array>& state_der) {};
 
-    __device__ void computeDynamics(float* state,
-                                    float* control,
-                                    float* state_der,
-                                    float* theta = nullptr);
+  __device__ void computeDynamics(float* state,
+                                  float* control,
+                                  float* state_der,
+                                  float* theta = nullptr);
 
-    void freeCudaMem();
+  void freeCudaMem();
 
 protected:
-    const float gravity_ = 9.81;
+  const float gravity_ = 9.81;
 
 
 

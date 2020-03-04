@@ -28,7 +28,7 @@ include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
 
 # REQUIRED for CUDA to correctly align Eigen member variables inside structures/classes
 # https://listengine.tuxfamily.org/lists.tuxfamily.org/eigen/2016/06/msg00006.html
-add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=32)
+#add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=0)
 
 # Find OpenCV
 find_package(OpenCV REQUIRED)

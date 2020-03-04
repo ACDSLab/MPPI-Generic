@@ -14,6 +14,7 @@ typedef struct {
 
 class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost, DoubleIntegratorCircleCostParams> {
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   DoubleIntegratorCircleCost(cudaStream_t stream = nullptr);
 
   ~DoubleIntegratorCircleCost();

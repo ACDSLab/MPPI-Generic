@@ -21,46 +21,46 @@ typedef struct {
 
 class CartpoleQuadraticCost : public Cost<CartpoleQuadraticCost, cartpoleQuadraticCostParams> {
 public:
-//    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    /**
-     * Constructor
-     * @param width
-     * @param height
-     */
-    CartpoleQuadraticCost(cudaStream_t stream=0);
+  /**
+   * Constructor
+   * @param width
+   * @param height
+   */
+  CartpoleQuadraticCost(cudaStream_t stream=0);
 
-    /**
-     *
-     */
-    ~CartpoleQuadraticCost();
-
-
-    /**
-     * Copies the parameters to the GPU object
-     */
-    void paramsToDevice();
-
-    /**
-     * @brief Compute the control cost
-     */
-    __host__ __device__ float getControlCost(float* u, float* du, float* vars);
-
-    /**
-     * @brief Compute the state cost
-     */
-    __host__ __device__ float getStateCost(float* s);
+  /**
+   *
+   */
+  ~CartpoleQuadraticCost();
 
 
-    /**
-     * @brief Compute all of the individual cost terms and adds them together.
-     */
-    __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
+  /**
+   * Copies the parameters to the GPU object
+   */
+  void paramsToDevice();
 
-    /**
-     * @brief Compute the terminal cost of the system
-     */
-     __host__ __device__ float terminalCost(float *s);
+  /**
+   * @brief Compute the control cost
+   */
+  __host__ __device__ float getControlCost(float* u, float* du, float* vars);
+
+  /**
+   * @brief Compute the state cost
+   */
+  __host__ __device__ float getStateCost(float* s);
+
+
+  /**
+   * @brief Compute all of the individual cost terms and adds them together.
+   */
+  __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
+
+  /**
+   * @brief Compute the terminal cost of the system
+   */
+   __host__ __device__ float terminalCost(float *s);
 
 protected:
 

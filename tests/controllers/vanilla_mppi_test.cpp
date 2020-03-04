@@ -4,50 +4,56 @@
 
 class Cartpole_VanillaMPPI: public ::testing::Test {
 public:
-    CartpoleDynamics model = CartpoleDynamics(1.0, 1.0, 1.0);
-    CartpoleQuadraticCost cost;
-    float dt = 0.01;
-    int max_iter = 10;
-    float gamma = 0.5;
+  CartpoleDynamics model = CartpoleDynamics(1.0, 1.0, 1.0);
+  CartpoleQuadraticCost cost;
+  float dt = 0.01;
+  int max_iter = 10;
+  float gamma = 0.5;
 };
 
 
 
 TEST_F(Cartpole_VanillaMPPI, BindToStream) {
-    const int num_timesteps = 100;
-    const int num_rollouts = 256;
+  const int num_timesteps = 100;
+  const int num_rollouts = 256;
 
-    CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(2.5);
-    Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps> init_control = Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps>::Constant(0);
-    cudaStream_t stream;
+  CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(2.5);
+  Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps> init_control = Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps>::Constant(0);
+  cudaStream_t stream;
 
-    HANDLE_ERROR(cudaStreamCreate(&stream));
+  HANDLE_ERROR(cudaStreamCreate(&stream));
 
-    auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
-                                                                                                                                 dt, max_iter, gamma, num_timesteps, control_var, init_control, stream);
+  auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
+                                                                                                                               dt, max_iter, gamma, num_timesteps, control_var, init_control, stream);
 
-    EXPECT_EQ(CartpoleController->stream_, CartpoleController->model_->stream_)
-                        << "Stream bind to dynamics failure";
-    EXPECT_EQ(CartpoleController->stream_, CartpoleController->cost_->stream_)
-                        << "Stream bind to cost failure";
-    HANDLE_ERROR(cudaStreamDestroy(stream));
+  EXPECT_EQ(CartpoleController->stream_, CartpoleController->model_->stream_)
+                      << "Stream bind to dynamics failure";
+  EXPECT_EQ(CartpoleController->stream_, CartpoleController->cost_->stream_)
+                      << "Stream bind to cost failure";
+  HANDLE_ERROR(cudaStreamDestroy(stream));
 
-    delete(CartpoleController);
+  delete(CartpoleController);
 }
 
 TEST_F(Cartpole_VanillaMPPI, UpdateNoiseVariance) {
-    const int num_timesteps = 150;
-    const int num_rollouts = 512;
-    CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(1.5);
-    CartpoleDynamics::control_array new_control_var = CartpoleDynamics::control_array::Constant(3.5);
+  const int num_timesteps = 150;
+  const int num_rollouts = 512;
+  CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(1.5);
+  CartpoleDynamics::control_array new_control_var = CartpoleDynamics::control_array::Constant(3.5);
 
-    auto CartpoleController = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
+  auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
                                                                                                                                  dt, max_iter, gamma, num_timesteps, control_var);
+  std::cout << sizeof(*CartpoleController) << std::endl;
 
-    CartpoleController.updateControlNoiseVariance(new_control_var);
+  std::cout << CartpoleController->getControlVariance() << std::endl;
 
-    EXPECT_FLOAT_EQ(new_control_var[0], CartpoleController.getControlVariance()[0]);
+  CartpoleController->updateControlNoiseVariance(new_control_var);
+
+  std::cout << CartpoleController->getControlVariance() << std::endl;
+
+  EXPECT_FLOAT_EQ(new_control_var[0], CartpoleController->getControlVariance()[0]);
 }
+
 
 TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
   cartpoleQuadraticCostParams new_params;
