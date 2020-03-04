@@ -7,6 +7,7 @@
 
 #include <array>
 #include <Eigen/Core>
+#include <ddp/util.h>
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
@@ -32,7 +33,7 @@ public:
   using control_array = typename DYN_T::control_array;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, MAX_TIMESTEPS> control_trajectory; // A control trajectory
 //  typedef util::NamedEigenAlignedVector<control_trajectory> sampled_control_traj;
-//  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> K_matrix;
+  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> K_matrix;
 
   // State
   using state_array = typename DYN_T::state_array;

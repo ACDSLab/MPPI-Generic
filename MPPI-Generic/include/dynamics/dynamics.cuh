@@ -29,11 +29,6 @@ public:
 
   /**
    * useful typedefs
-   * TODO: figure out how to ensure matrices passed in to various functions
-   * match these types. These values can't be passed in to methods with MatrixXf
-   * parameters
-   * and MatrixXfs can't be passed into methods with these types because
-   * Eigen::Matrix<float, 4, 4> =/= Eigen::MatrixXf(4, 4)!
    */
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array; // Control at a time t
   typedef Eigen::Matrix<float, STATE_DIM, 1> state_array; // State at a time t
@@ -241,9 +236,6 @@ public:
   __device__ void computeKinematics(float* state, float* state_der) {};
 
   /**
-   * TODO Figure out why this doesn't actually work. Needs to be redefined in
-   * derived class
-   * computes the full state derivative by calling computeKinematics then computeDynamics
    * @param state
    * @param control
    * @param state_der
