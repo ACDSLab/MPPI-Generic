@@ -24,6 +24,8 @@ public:
   static const int CONTROL_DIM = C_DIM;
   static const int SHARED_MEM_REQUEST_GRD = 1; //TODO set to one to prevent array of size 0 error
   static const int SHARED_MEM_REQUEST_BLK = 0;
+  typedef CLASS_T DYN_T;
+  typedef PARAMS_T DYN_PARAMS_T;
 
   /**
    * useful typedefs
@@ -126,6 +128,7 @@ public:
   /**
    *
    */
+   // TODO should not assume it is going to cout, pass in stream
   void printParams();
 
   /**

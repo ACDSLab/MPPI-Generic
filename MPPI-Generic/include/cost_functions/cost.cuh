@@ -26,7 +26,8 @@ public:
   /**
      * typedefs for access to templated class from outside classes
      */
-  typedef PARAMS_T TEMPLATED_PARAMS;
+  typedef CLASS_T COST_T;
+  typedef PARAMS_T COST_PARAMS_T;
 
   Cost() = default;
   /**

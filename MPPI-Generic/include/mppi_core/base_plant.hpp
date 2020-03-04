@@ -14,11 +14,12 @@
 #include <array>
 #include <chrono>
 #include <atomic>
+#include <cv.hpp>
 
 // TODO Figure out template here
 template <class CONTROLLER_T>
 class basePlant {
-protected:
+public:
   using c_array = typename CONTROLLER_T::control_array;
   using c_traj = typename CONTROLLER_T::control_trajectory;
 
@@ -26,52 +27,57 @@ protected:
   using s_traj = typename CONTROLLER_T::state_trajectory;
   using K_mat = typename CONTROLLER_T::K_matrix;
 
+  using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
+  using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
+  using COST_T = typename CONTROLLER_T::TEMPLATED_COSTS;
+  using COST_PARAMS_T = typename COST_T::COST_PARAMS_T;
+protected:
 
   bool use_feedback_gains_ = false;
   int hz_ = 0; // Frequency of control publisher
   bool debug_mode_ = false;
-/**
- * TODO: figure out what values in private should not be touched by
- * a wrapper class and which can be moved into protected
- */
-private:
+
+  DYN_PARAMS_T dynamics_params_;
+  COST_PARAMS_T cost_params_;
+
+  bool hasNewDynamicsParams_ = false;
+  bool hasNewCostParams_ = false;
+
   // from SystemParams * params
-
-
-  int num_timesteps = 0;
+  int num_timesteps_ = 0;
 
   // Values needed
   s_array init_state_ = s_array::Zero();
   c_array init_u_ = c_array::Zero();
 
   // Values updated at every time step
-  s_array state;
-  c_array u;
-  s_traj state_traj;
-  c_traj control_traj;
+  s_array state_;
+  c_array u_;
+  s_traj state_traj_;
+  c_traj control_traj_;
 
   // from ROSHandle mppi_node
-  int optimization_stride = 0;
+  int optimization_stride_ = 0;
 
   /**
    * From before while loop
    */
-  double last_pose_update = 0;
-  double optimizeLoopTime = 0; // duration of optimization loop (seconds)
-  double avgOptimizeLoopTime_ms = 0; //Average time between pose estimates
-  double avgOptimizeTickTime_ms = 0; //Avg. time it takes to get to the sleep at end of loop
-  double avgSleepTime_ms = 0; //Average time spent sleeping
+  double last_pose_update_ = 0;
+  double optimizeLoopTime_ = 0; // duration of optimization loop (seconds)
+  double avgOptimizeLoopTime_ms_ = 0; //Average time between pose estimates
+  double avgOptimizeTickTime_ms_ = 0; //Avg. time it takes to get to the sleep at end of loop
+  double avgSleepTime_ms_ = 0; //Average time spent sleeping
   //Counter, timing, and stride variables.
-  int num_iter = 0;
-  int status = 1;
+  int num_iter_ = 0;
+  int status_ = 1;
 
   //Obstacle and map parameters
-  std::vector<int> obstacleDescription;
-  std::vector<float> obstacleData;
-  std::vector<int> costmapDescription;
-  std::vector<float> costmapData;
-  std::vector<int> modelDescription;
-  std::vector<float> modelData;
+  std::vector<int> obstacleDescription_;
+  std::vector<float> obstacleData_;
+  std::vector<int> costmapDescription_;
+  std::vector<float> costmapData_;
+  std::vector<int> modelDescription_;
+  std::vector<float> modelData_;
 public:
 //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -92,16 +98,12 @@ public:
    * Return the latest state received
    * @return the latest state
    */
-  virtual s_array getState() = 0;
+  virtual s_array getState() {return state_;};
 
-  /**
-   * Set optimization stride
-   */
-  void setOptimizationStride(int stride) {optimization_stride = stride;};
+  virtual void setState(s_array state) {state_ = state;}
 
-  // virtual typename CONTROLLER_T::TEMPLATED_COSTS::TEMPLATED_PARAMS getDynRcfgParams();
-
-  void getOptimizationStride() {return optimization_stride;};
+  int getOptimizationStride() {return optimization_stride_;};
+  void setOptimizationStride(int new_val) {optimization_stride_ = new_val;}
 
   virtual void getNewObstacles(std::vector<int>& obs_description,
                                std::vector<float>& obs_data) {};
@@ -109,12 +111,10 @@ public:
   virtual void getNewCostmap(std::vector<int>& costmap_description,
                              std::vector<float>& costmap_data) {};
 
+  // TODO should I keep this or not?
   virtual void getNewModel(std::vector<int>& model_description,
                            std::vector<float>& model_data) {};
 
-  void setOptimizationStride(int new_val) {
-    optimization_stride = new_val;
-  }
 
   /**
    * Receives timing info from control loop and can be overwritten
@@ -128,6 +128,10 @@ public:
                              double avg_sleep_time) = 0;
 
   // TODO should publish to a topic not a static window
+  /**
+   * sets a debug image to be published at hz rate
+   * @param debug_img
+   */
   virtual void setDebugImage(cv::Mat debug_img) = 0;
 
   virtual void setSolution(const s_traj& state_seq,
@@ -138,8 +142,28 @@ public:
 
 
 
+  virtual bool hasNewDynamicsParams() {return hasNewDynamicsParams_;};
+  virtual bool hasNewCostParams() {return hasNewCostParams_;};
 
-  virtual bool hasNewDynRcfg() { return false;};
+  virtual DYN_PARAMS_T getNewDynamicsParams() {
+    hasNewDynamicsParams_ = false;
+    return dynamics_params_;
+
+  }
+  virtual COST_PARAMS_T getNewCostParams() {
+    hasNewCostParams_ = false;
+    return cost_params_;
+  }
+
+  virtual void setDynamicsParams(DYN_PARAMS_T params) {
+    dynamics_params_ = params;
+    hasNewDynamicsParams_ = true;
+  }
+  virtual void setCostParams(COST_PARAMS_T params) {
+    cost_params_ = params;
+    hasNewCostParams_ = true;
+  }
+
   virtual bool hasNewObstacles() { return false;};
   virtual bool hasNewCostmap() { return false;};
   virtual bool hasNewModel() { return false;};
@@ -226,45 +250,47 @@ public:
   void runControlLoop(CONTROLLER_T* controller,
                       std::atomic<bool>* is_alive) {
     //Initial condition of the robot
-    state = init_state_;
+    state_ = init_state_;
 
     //Initial control value
-    u = init_u_;
+    u_ = init_u_;
 
-    last_pose_update = getLastPoseTime();
-    optimizeLoopTime = optimization_stride / (1.0 * hz_);
+    last_pose_update_ = getLastPoseTime();
+    optimizeLoopTime_ = optimization_stride_ / (1.0 * hz_);
 
     //Set the loop rate
-    std::chrono::milliseconds ms{(int)(optimization_stride*1000.0/hz_)};
+    std::chrono::milliseconds ms{(int)(optimization_stride_*1000.0/hz_)};
     if (!debug_mode_){
-      while(last_pose_update == getLastPoseTime() && is_alive->load()){ //Wait until we receive a pose estimate
+      while(last_pose_update_ == getLastPoseTime() && is_alive->load()){ //Wait until we receive a pose estimate
         usleep(50);
       }
     }
     controller->resetControls();
-    controller->computeFeedbackGains(state);
+    controller->computeFeedbackGains(state_);
     //Start the control loop.
     while (is_alive->load()) {
       std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
-      setTimingInfo(avgOptimizeLoopTime_ms, avgOptimizeTickTime_ms, avgSleepTime_ms);
-      num_iter ++;
+      setTimingInfo(avgOptimizeLoopTime_ms_, avgOptimizeTickTime_ms_, avgSleepTime_ms_);
+      num_iter_ ++;
 
       if (debug_mode_ && controller->cost_->getDebugDisplayEnabled()) { //Display the debug window.
-        cv::Mat debug_img = controller->cost_->getDebugDisplay(state.data());
+        cv::Mat debug_img = controller->cost_->getDebugDisplay(state_.data());
         setDebugImage(debug_img);
       }
       //Update the state estimate
-      if (last_pose_update != getLastPoseTime()){
-        optimizeLoopTime = getLastPoseTime() - last_pose_update;
-        last_pose_update = getLastPoseTime();
-        state = getState(); //Get the new state.
+      if (last_pose_update_ != getLastPoseTime()){
+        optimizeLoopTime_ = getLastPoseTime() - last_pose_update_;
+        last_pose_update_ = getLastPoseTime();
+        state_ = getState(); //Get the new state.
       }
       //Update the cost parameters
-      if (hasNewDynRcfg()) {
-        // TODO resolve issue with typename coming from the plant
-        //controller->cost_->TEMPLATED_PARAMS = getParams();
-        // controller->cost_->updateParams_dcfg(getDynRcfgParams());
-        //controller->cost_->setParams(params);
+      if(hasNewCostParams_) {
+        COST_PARAMS_T cost_params = getNewCostParams();
+        controller->cost_->setParams(cost_params);
+      }
+      if (hasNewDynamicsParams_) {
+        DYN_PARAMS_T dyn_params = getNewDynamicsParams();
+        controller->dynamics_->setParams(dyn_params);
       }
       //Update any obstacles
       /*
@@ -276,48 +302,51 @@ public:
        */
       //Update the costmap
       if (hasNewCostmap()){
-        getNewCostmap(costmapDescription, costmapData);
-        controller->cost_->updateCostmap(costmapDescription, costmapData);
+        // TODO define generic
+        getNewCostmap(costmapDescription_, costmapData_);
+        controller->cost_->updateCostmap(costmapDescription_, costmapData_);
       }
       //Update dynamics model
       if (hasNewModel()){
         // TODO define generic
-        getNewModel(modelDescription, modelData);
+        getNewModel(modelDescription_, modelData_);
         // controller->model_->updateModel(modelDescription, modelData);
       }
 
       //Figure out how many controls have been published since we were last here and slide the
       //control sequence by that much.
-      int stride = round(optimizeLoopTime * hz_);
+      int stride = round(optimizeLoopTime_ * hz_);
       // std::cout << "Stride: " << stride << "," << optimizeLoopTime << std::endl;
-      if (status != 0){
-        stride = optimization_stride;
+
+      // TODO wat?
+      if (status_ != 0){
+        stride = optimization_stride_;
       }
-      if (stride >= 0 && stride < num_timesteps){
+      if (stride >= 0 && stride < num_timesteps_){
         controller->slideControlSequence(stride);
       }
       //Compute a new control sequence
       // std::cout << "BasePlant State: " << state.transpose() << std::endl;
-      controller->computeControl(state); //Compute the control
+      controller->computeControl(state_); //Compute the control
       if (use_feedback_gains_){
-        controller->computeFeedbackGains(state);
+        controller->computeFeedbackGains(state_);
       }
-      control_traj = controller->getControlSeq();
-      state_traj = controller->getStateSeq();
+      control_traj_ = controller->getControlSeq();
+      state_traj_ = controller->getStateSeq();
       K_mat feedback_gain = controller->getFeedbackGains();
 
       // std::cout << "Cost: " << controller->getBaselineCost() << std::endl;
       // std::cout << "BasePlant u(t = " << last_pose_update << ")\n" << control_traj << std::endl;
 
       //Set the updated solution for execution
-      setSolution(state_traj,
-                  control_traj,
+      setSolution(state_traj_,
+                  control_traj_,
                   feedback_gain,
-                  last_pose_update,
-                  avgOptimizeLoopTime_ms);
+                  last_pose_update_,
+                  avgOptimizeLoopTime_ms_);
 
       //Check the robots status
-      status = checkStatus();
+      status_ = checkStatus();
 
       //Increment the state if debug mode is set to true
       // if (status != 0 && debug_mode_){
@@ -340,7 +369,7 @@ public:
       double time_int = 1.0/hz_ - 0.0025;
       while(is_alive->load() &&
             (fp_ms < ms ||
-              ((getLastPoseTime() - last_pose_update) < time_int && status == 0))) {
+              ((getLastPoseTime() - last_pose_update_) < time_int && status_ == 0))) {
         usleep(50);
         fp_ms = std::chrono::steady_clock::now() - loop_start;
         count++;
@@ -348,16 +377,16 @@ public:
       double sleepTime_ms = fp_ms.count() - optimizeTickTime_ms;
 
       // Update the average loop time data
-      double prev_iter_percent = (num_iter - 1.0) / num_iter;
+      double prev_iter_percent = (num_iter_ - 1.0) / num_iter_;
 
-      avgOptimizeLoopTime_ms = prev_iter_percent * avgOptimizeLoopTime_ms +
-       1000.0 * optimizeLoopTime / num_iter;
+      avgOptimizeLoopTime_ms_ = prev_iter_percent * avgOptimizeLoopTime_ms_ +
+       1000.0 * optimizeLoopTime_ / num_iter_;
 
-      avgOptimizeTickTime_ms = prev_iter_percent * avgOptimizeTickTime_ms +
-        optimizeTickTime_ms / num_iter;
+      avgOptimizeTickTime_ms_ = prev_iter_percent * avgOptimizeTickTime_ms_ +
+        optimizeTickTime_ms / num_iter_;
 
-      avgSleepTime_ms = prev_iter_percent * avgSleepTime_ms +
-        sleepTime_ms / num_iter;
+      avgSleepTime_ms_ = prev_iter_percent * avgSleepTime_ms_ +
+        sleepTime_ms / num_iter_;
     }
   }
 };
