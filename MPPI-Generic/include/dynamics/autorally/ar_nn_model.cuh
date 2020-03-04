@@ -19,7 +19,6 @@
 #define MPPI_NNET_NONLINEARITY(ans) tanh(ans)
 #define MPPI_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
 
-// TODO create templated value here
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 struct NNDynamicsParams {
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
