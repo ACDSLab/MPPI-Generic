@@ -128,6 +128,7 @@ public:
   /**
    *
    */
+   // TODO should not assume it is going to cout, pass in stream
   void printParams();
 
   /**

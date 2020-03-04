@@ -1,12 +1,12 @@
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream)
-                  : Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>(control_rngs, stream) {
+                  : Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams<S_DIM, C_DIM, K_DIM, layer_args...>, S_DIM, C_DIM>(control_rngs, stream) {
   CPUSetup();
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t stream)
-                  : Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>(stream) {
+                  : Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams<S_DIM, C_DIM, K_DIM, layer_args...>, S_DIM, C_DIM>(stream) {
   CPUSetup();
 }
 
@@ -28,29 +28,20 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel() {
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem() {
-  Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams, S_DIM, C_DIM>::freeCudaMem();
+  Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams<S_DIM, C_DIM, K_DIM, layer_args...>, S_DIM, C_DIM>::freeCudaMem();
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::CPUSetup() {
-  // setup the stride_idcs_ variable since it does not change in this template instantiation
-  int stride = 0;
-  for(int i = 0; i < NUM_LAYERS - 1; i++) {
-    stride_idcs_[2 * i] = stride;
-    stride += net_structure_[i+1] * net_structure_[i];
-    stride_idcs_[2*i + 1] = stride;
-    stride += net_structure_[i+1];
-  }
-  stride_idcs_[(NUM_LAYERS - 1)*2] = stride;
-
+  // setup the CPU side values
   weights_ = new Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>[NUM_LAYERS-1];
   biases_ = new Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>[NUM_LAYERS-1];
 
   weighted_in_ = new Eigen::MatrixXf[NUM_LAYERS - 1];
   for(int i = 1; i < NUM_LAYERS; i++) {
-    weighted_in_[i-1] = Eigen::MatrixXf::Zero(net_structure_[i], 1);
-    weights_[i-1] = Eigen::MatrixXf::Zero(net_structure_[i], net_structure_[i-1]);
-    biases_[i-1] = Eigen::MatrixXf::Zero(net_structure_[i], 1);
+    weighted_in_[i-1] = Eigen::MatrixXf::Zero(this->params_.net_structure[i], 1);
+    weights_[i-1] = Eigen::MatrixXf::Zero(this->params_.net_structure[i], this->params_.net_structure[i-1]);
+    biases_[i-1] = Eigen::MatrixXf::Zero(this->params_.net_structure[i], 1);
   }
 }
 
@@ -58,23 +49,23 @@ template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector<int> description,
         std::vector<float> data) {
   for(int i = 0; i < description.size(); i++) {
-    if(description[i] != net_structure_[i]) {
+    if(description[i] != this->params_.net_structure[i]) {
       std::cerr << "Invalid model trying to to be set for NN" << std::endl;
       exit(0);
     }
   }
   for (int i = 0; i < NUM_LAYERS - 1; i++){
-    for (int j = 0; j < net_structure_[i+1]; j++){
-      for (int k = 0; k < net_structure_[i]; k++){
-        weights_[i](j,k) = data[stride_idcs_[2*i] + j*net_structure_[i] + k];
-        theta_[stride_idcs_[2*i] + j*net_structure_[i] + k] = data[stride_idcs_[2*i] + j*net_structure_[i] + k];
+    for (int j = 0; j < this->params_.net_structure[i+1]; j++){
+      for (int k = 0; k < this->params_.net_structure[i]; k++){
+        weights_[i](j,k) = data[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k];
+        this->params_.theta[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k] = data[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k];
       }
     }
   }
   for (int i = 0; i < NUM_LAYERS - 1; i++){
-    for (int j = 0; j < net_structure_[i+1]; j++){
-      biases_[i](j,0) = data[stride_idcs_[2*i + 1] + j];
-      theta_[stride_idcs_[2*i + 1] + j] = data[stride_idcs_[2*i + 1] + j];
+    for (int j = 0; j < this->params_.net_structure[i+1]; j++){
+      biases_[i](j,0) = data[this->params_.stride_idcs[2*i + 1] + j];
+      this->params_.theta[this->params_.stride_idcs[2*i + 1] + j] = data[this->params_.stride_idcs[2*i + 1] + j];
     }
   }
   if(this->GPUMemStatus_) {
@@ -86,7 +77,7 @@ template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice() {
   // TODO copy to constant memory
   HANDLE_ERROR( cudaMemcpy(this->model_d_->control_rngs_, this->control_rngs_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
-  HANDLE_ERROR( cudaMemcpy(this->model_d_->theta_, theta_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
+  HANDLE_ERROR( cudaMemcpy(this->model_d_->params_.theta, this->params_.theta, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
 
 #if defined(MPPI_NNET_USING_CONSTANT_MEM___) //Use constant memory.
   HANDLE_ERROR( cudaMemcpyToSymbol(NNET_PARAMS, theta_d_, NUM_PARAMS*sizeof(float)) );
@@ -114,15 +105,15 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
     double* weight_i = weight_i_raw.data<double>();
     double* bias_i = bias_i_raw.data<double>();
 
-    for (j = 0; j < net_structure_[i + 1]; j++){
-      for (k = 0; k < net_structure_[i]; k++){
+    for (j = 0; j < this->params_.net_structure[i + 1]; j++){
+      for (k = 0; k < this->params_.net_structure[i]; k++){
         // TODO why i - 1?
-        theta_[stride_idcs_[2*i] + j*net_structure_[i] + k] = (float)weight_i[j*net_structure_[i] + k];
-        weights_[i](j,k) = (float)weight_i[j*net_structure_[i] + k];
+        this->params_.theta[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k] = (float)weight_i[j*this->params_.net_structure[i] + k];
+        weights_[i](j,k) = (float)weight_i[j*this->params_.net_structure[i] + k];
       }
     }
-    for (j = 0; j < net_structure_[i+1]; j++){
-      theta_[stride_idcs_[2*i + 1] + j] = (float)bias_i[j];
+    for (j = 0; j < this->params_.net_structure[i+1]; j++){
+      this->params_.theta[this->params_.stride_idcs[2*i + 1] + j] = (float)bias_i[j];
       biases_[i](j,0) = (float)bias_i[j];
     }
   }
@@ -153,7 +144,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(Eigen::Matr
   //Main backprop loop
   for (int i = NUM_LAYERS-2; i > 0; i--){
     Eigen::MatrixXf zp = weighted_in_[i-1];
-    for (int j = 0; j < net_structure_[i]; j++){
+    for (int j = 0; j < this->params_.net_structure[i]; j++){
       zp(j) = MPPI_NNET_NONLINEARITY_DERIV(zp(j));
     }
     ip_delta =  ( (weights_[i]).transpose()*ip_delta).eval();
@@ -178,7 +169,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(Eigen
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(Eigen::MatrixXf& state, Eigen::MatrixXf& control, Eigen::MatrixXf& state_der) {
   int i,j;
-  Eigen::MatrixXf acts(net_structure_[0], 1);
+  Eigen::MatrixXf acts(this->params_.net_structure[0], 1);
   for (i = 0; i < DYNAMICS_DIM; i++){
     acts(i) = state(i + (S_DIM - DYNAMICS_DIM));
   }
@@ -187,14 +178,14 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(Eigen::
   }
   for (i = 0; i < NUM_LAYERS - 1; i++){
     weighted_in_[i] = (weights_[i]*acts + biases_[i]).eval();
-    acts = Eigen::MatrixXf::Zero(net_structure_[i+1], 1);
+    acts = Eigen::MatrixXf::Zero(this->params_.net_structure[i+1], 1);
     if (i < NUM_LAYERS - 2) { //Last layer doesn't apply any non-linearity
-      for (j = 0; j < net_structure_[i+1]; j++){
+      for (j = 0; j < this->params_.net_structure[i+1]; j++){
         acts(j) = MPPI_NNET_NONLINEARITY( (weighted_in_[i])(j) ); //Nonlinear component.
       }
     }
     else {
-      for (j = 0; j < net_structure_[i+1]; j++){
+      for (j = 0; j < this->params_.net_structure[i+1]; j++){
         acts(j) = (weighted_in_[i])(j) ;
       }
     }
@@ -240,20 +231,20 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   for (i = 0; i < NUM_LAYERS - 1; i++){
     //Conditional compilation depending on if we're using a global constant memory array or not.
 #if defined(MPPI_NNET_USING_CONSTANT_MEM___) //Use constant memory.
-    W = &NNET_PARAMS[stride_idcs_[2*i]]; // weights
-    b = &NNET_PARAMS[stride_idcs_[2*i + 1]]; // biases
+    W = &NNET_PARAMS[this->params_.stride_idcs[2*i]]; // weights
+    b = &NNET_PARAMS[this->params_.stride_idcs[2*i + 1]]; // biases
 #else //Use (slow) global memory.
-    W = &theta_[stride_idcs_[2*i]]; // weights
-    b = &theta_[stride_idcs_[2*i + 1]]; // biases
+    W = &this->params_.theta[this->params_.stride_idcs[2*i]]; // weights
+    b = &this->params_.theta[this->params_.stride_idcs[2*i + 1]]; // biases
 #endif
     // for first non input layer until last layer this thread deals with
     // calculates the next activation based on current
-    for (j = tdy; j < net_structure_[i+1]; j += blockDim.y) {
+    for (j = tdy; j < this->params_.net_structure[i+1]; j += blockDim.y) {
       tmp = 0;
       // apply each neuron activation from current layer
-      for (k = 0; k < net_structure_[i]; k++) {
+      for (k = 0; k < this->params_.net_structure[i]; k++) {
         //No atomic add necessary.
-        tmp += W[j*net_structure_[i] + k]*curr_act[k];
+        tmp += W[j*this->params_.net_structure[i] + k]*curr_act[k];
       }
       // add bias from next layer and neuron
       tmp += b[j];
