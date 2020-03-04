@@ -79,6 +79,7 @@ TEST(BasePlant, getSetOptimizationStride) {
   EXPECT_EQ(optimization_stride, 0);
 
   plant.setOptimizationStride(5);
+  optimization_stride = plant.getOptimizationStride();
 
   EXPECT_EQ(optimization_stride, 5);
 }
