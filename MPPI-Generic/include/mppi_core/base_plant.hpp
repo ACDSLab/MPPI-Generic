@@ -101,6 +101,8 @@ public:
 
   // virtual typename CONTROLLER_T::TEMPLATED_COSTS::TEMPLATED_PARAMS getDynRcfgParams();
 
+  void getOptimizationStride() {return optimization_stride;};
+
   virtual void getNewObstacles(std::vector<int>& obs_description,
                                std::vector<float>& obs_data) {};
 
@@ -109,6 +111,10 @@ public:
 
   virtual void getNewModel(std::vector<int>& model_description,
                            std::vector<float>& model_data) {};
+
+  void setOptimizationStride(int new_val) {
+    optimization_stride = new_val;
+  }
 
   /**
    * Receives timing info from control loop and can be overwritten
@@ -283,6 +289,7 @@ public:
       //Figure out how many controls have been published since we were last here and slide the
       //control sequence by that much.
       int stride = round(optimizeLoopTime * hz_);
+      // std::cout << "Stride: " << stride << "," << optimizeLoopTime << std::endl;
       if (status != 0){
         stride = optimization_stride;
       }
@@ -290,6 +297,7 @@ public:
         controller->slideControlSequence(stride);
       }
       //Compute a new control sequence
+      // std::cout << "BasePlant State: " << state.transpose() << std::endl;
       controller->computeControl(state); //Compute the control
       if (use_feedback_gains_){
         controller->computeFeedbackGains(state);
@@ -297,6 +305,9 @@ public:
       control_traj = controller->getControlSeq();
       state_traj = controller->getStateSeq();
       K_mat feedback_gain = controller->getFeedbackGains();
+
+      // std::cout << "Cost: " << controller->getBaselineCost() << std::endl;
+      // std::cout << "BasePlant u(t = " << last_pose_update << ")\n" << control_traj << std::endl;
 
       //Set the updated solution for execution
       setSolution(state_traj,
