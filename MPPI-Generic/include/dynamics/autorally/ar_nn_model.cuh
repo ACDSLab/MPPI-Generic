@@ -52,7 +52,6 @@ struct NNDynamicsParams {
       stride_idcs[2*i + 1] = stride;
       stride += net_structure[i+1];
     }
-    stride_idcs[(NUM_LAYERS - 1)*2] = stride;
   }
 
 };

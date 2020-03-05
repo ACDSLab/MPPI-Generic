@@ -77,6 +77,7 @@ template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice() {
   // TODO copy to constant memory
   HANDLE_ERROR( cudaMemcpy(this->model_d_->control_rngs_, this->control_rngs_, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
+  // TODO should be if else
   HANDLE_ERROR( cudaMemcpy(this->model_d_->params_.theta, this->params_.theta, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
 
 #if defined(MPPI_NNET_USING_CONSTANT_MEM___) //Use constant memory.
