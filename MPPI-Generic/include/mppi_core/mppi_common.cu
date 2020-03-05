@@ -192,6 +192,7 @@ namespace mppi_common {
                                        float* ep_v_device,
                                        const float* sigma_u_thread,
                                        float* u_thread, float* du_thread) {
+        int control_index = global_idx*control_dim*num_timesteps + current_timestep * control_dim;
         //Load the noise trajectory scaled by the exploration factor
         // The prior loop already guarantees that the global index is less than the number of rollouts
         for (int i = thread_idy; i < control_dim; i += blocksize_y) {
@@ -202,15 +203,15 @@ namespace mppi_common {
             }
             //Generate 1% zero control trajectory
             else if (global_idx >= 0.99*num_rollouts) {
-                du_thread[i] = ep_v_device[global_idx*control_dim*num_timesteps + current_timestep * control_dim + i] * sigma_u_thread[i];
+                du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
                 u_thread[i] = du_thread[i];
             }
             else {
-                du_thread[i] = ep_v_device[global_idx*control_dim*num_timesteps + current_timestep * control_dim + i] * sigma_u_thread[i];
+                du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
                 u_thread[i] = u_traj_device[current_timestep * control_dim + i] + du_thread[i];
             }
             // Saves the control but doesn't clamp it.
-            ep_v_device[control_dim*num_timesteps*global_idx + control_dim*current_timestep + i] = u_thread[i];
+            ep_v_device[control_index + i] = u_thread[i];
         }
     }
 
