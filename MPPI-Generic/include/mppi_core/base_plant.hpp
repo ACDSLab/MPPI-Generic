@@ -51,8 +51,8 @@ protected:
   c_array init_u_ = c_array::Zero();
 
   // Values updated at every time step
-  s_array state_;
-  c_array u_;
+  s_array state_ = s_array::Zero();
+  c_array u_ = c_array::Zero();
   s_traj state_traj_;
   c_traj control_traj_;
 
