@@ -14,7 +14,7 @@
 #include <array>
 #include <chrono>
 #include <atomic>
-#include <cv.hpp>
+#include <opencv2/opencv.hpp>
 
 // TODO Figure out template here
 template <class CONTROLLER_T>
