@@ -17,7 +17,7 @@ using namespace MPPI_internal;
 class DoubleIntegratorDynamics : public Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams, 4, 2>
 {
 public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   DoubleIntegratorDynamics(float system_noise = 1, cudaStream_t stream = nullptr);
   ~DoubleIntegratorDynamics();
 

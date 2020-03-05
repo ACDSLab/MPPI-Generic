@@ -20,4 +20,4 @@ void launchDynamicsTestKernel(const CartpoleDynamics&, float* state_cpu,
 
 #include "cartpole_dynamics_kernel_test.cu"
 
-#endif // !KERNEL_TESTS_DYNAMICS_CARTPOLE_CARTPOLE_KERNEL_TEST_CUH_
+#endif //!KERNEL_TESTS_DYNAMICS_CARTPOLE_CARTPOLE_KERNEL_TEST_CUH_

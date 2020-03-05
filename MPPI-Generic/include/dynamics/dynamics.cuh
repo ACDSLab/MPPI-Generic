@@ -19,7 +19,7 @@ template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 class Dynamics : public Managed
 {
 public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static const int STATE_DIM = S_DIM;
   static const int CONTROL_DIM = C_DIM;
   static const int SHARED_MEM_REQUEST_GRD = 1; //TODO set to one to prevent array of size 0 error

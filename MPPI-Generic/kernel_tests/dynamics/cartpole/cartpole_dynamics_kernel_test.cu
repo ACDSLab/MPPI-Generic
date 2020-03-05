@@ -4,6 +4,7 @@
 /**
  * Kernels to test device functions
  */
+#include "cartpole_dynamics_kernel_test.cuh"
 
 __global__ void CartMassTestKernel(CartpoleDynamics* CP, float& mass_check) {
     int tid = blockIdx.x*blockDim.x + threadIdx.x;
