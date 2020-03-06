@@ -400,6 +400,7 @@ void compareFiniteDifferenceGradient(CLASS_T& model, Eigen::MatrixXf& s, Eigen::
   }
 }
 
+/*
 // Note math for analytical solution is in the python script
 TEST(ARNeuralNetDynamics, computeGrad) {
   GTEST_SKIP();
@@ -423,6 +424,7 @@ TEST(ARNeuralNetDynamics, computeGrad) {
   compareFiniteDifferenceGradient(model, s, ds, u, du);
 
 }
+ */
 
 TEST(ARNeuralNetDynamics, computeDynamicsCPU) {
   NeuralNetModel<7,2,3,6,32,32,4> model;

@@ -290,7 +290,7 @@ public:
       }
       if (hasNewDynamicsParams_) {
         DYN_PARAMS_T dyn_params = getNewDynamicsParams();
-        controller->dynamics_->setParams(dyn_params);
+        controller->model_->setParams(dyn_params);
       }
       //Update any obstacles
       /*
