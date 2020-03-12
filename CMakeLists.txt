@@ -68,7 +68,16 @@ set(
         -w;
 )
 
-add_subdirectory(MPPI-Generic)
+include_directories(${PROJECT_SOURCE_DIR}/include)
+# Install all library header files
+install(
+        DIRECTORY ${PROJECT_SOURCE_DIR}/include
+        DESTINATION include
+        FILES_MATCHING PATTERN "*.h"
+)
+
+add_subdirectory(src)
+add_subdirectory(examples)
 
 # Add custom cmake finds
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
