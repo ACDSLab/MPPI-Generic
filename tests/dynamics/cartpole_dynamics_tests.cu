@@ -4,7 +4,7 @@
 
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
-#include <dynamics/cartpole/cartpole_dynamics_kernel_test.cuh>
+#include <mppi/dynamics/cartpole/cartpole_dynamics_kernel_test.cuh>
 #include <cuda_runtime.h>
 
 TEST(CartPole, StateDim) {

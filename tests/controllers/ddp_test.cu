@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include <ddp/ddp_model_wrapper.h>
-#include <ddp/ddp_tracking_costs.h>
-#include <ddp/ddp.h>
+#include <mppi/ddp/ddp_model_wrapper.h>
+#include <mppi/ddp/ddp_tracking_costs.h>
+#include <mppi/ddp/ddp.h>
 #include <eigen3/Eigen/Dense>
-#include <instantiations/cartpole_mppi/cartpole_mppi.cuh>
+#include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
 
 class ModelWrapper_Test : public testing::Test {
 public:
@@ -199,4 +199,3 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
     ASSERT_NEAR((nominal_state.col(i) - result_.state_trajectory.col(i)).norm(), 0.0f, 1e-2) << "Failed on timestep: " << i;
   }
 }
-

@@ -1,4 +1,4 @@
-#include <instantiations/autorally_mppi/autorally_mppi.cuh>
+#include <mppi/instantiations/autorally_mppi/autorally_mppi.cuh>
 
 /*
  * This file contains the instantiations of the controller for the cart pole.

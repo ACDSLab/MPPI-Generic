@@ -1,4 +1,4 @@
-#include <instantiations/cartpole_mppi/cartpole_mppi.cuh>
+#include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
 #include <iostream>
 #include <chrono>
 

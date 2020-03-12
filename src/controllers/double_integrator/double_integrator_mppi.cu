@@ -1,4 +1,4 @@
-#include <instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
+#include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
 
 /*
  * This file contains the instantiations of the controller for the cart pole.

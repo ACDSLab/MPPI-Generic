@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include <mppi_core/weightedreduction_kernel_test.cuh>
-#include <utils/test_helper.h>
+#include <mppi/core/weightedreduction_kernel_test.cuh>
+#include <mppi/utils/test_helper.h>
 #include <random>
 
 TEST(WeightedReductionKernel, setInitialControlToZero) {
@@ -117,4 +117,3 @@ TEST(WeightedReductionKernel, rolloutWeightReductionAndSaveControl) {
 
 
 }
-

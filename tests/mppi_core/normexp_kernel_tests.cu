@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include <mppi_core/normexp_kernel_test.cuh>
-#include <utils/test_helper.h>
+#include <mppi/core/normexp_kernel_test.cuh>
+#include <mppi/utils/test_helper.h>
 #include <random>
 #include <algorithm>
 #include <numeric>

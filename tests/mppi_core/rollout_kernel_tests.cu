@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
-#include <dynamics/cartpole/cartpole_dynamics.cuh>
-#include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>
-#include <mppi_core/rollout_kernel_test.cuh>
-#include <utils/test_helper.h>
+#include <mppi/dynamics/cartpole/cartpole_dynamics.cuh>
+#include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
+#include <mppi/core/rollout_kernel_test.cuh>
+#include <mppi/utils/test_helper.h>
 #include <random>
 /*
  * Here we will test various device functions that are related to cuda kernel things.
@@ -246,4 +246,3 @@ TEST(RolloutKernel, computeAndSaveCostAllRollouts) {
 
     array_assert_float_eq<num_rollouts>(cost_known, cost_compute);
 }
-
