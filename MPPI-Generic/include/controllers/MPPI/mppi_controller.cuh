@@ -95,12 +95,12 @@ public:
   void slideControlSequence(int steps) override;
 
   cudaStream_t stream_;
-  control_array control_variance_ = control_array::Zero();
 
 private:
   control_trajectory nominal_control_ = control_trajectory::Zero();
   state_trajectory nominal_state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
+
 
   int num_iters_;  // Number of optimization iterations
 
@@ -123,6 +123,7 @@ private:
 protected:
   int num_timesteps_;
   curandGenerator_t gen_;
+  control_array control_variance_ = control_array::Zero();
 
 
   float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
