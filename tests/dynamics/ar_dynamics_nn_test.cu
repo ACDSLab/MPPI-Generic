@@ -358,71 +358,73 @@ TEST(ARNeuralNetDynamics, updateStateGPUTest) {
  * @param u
  * @param du
  */
-//template <class CLASS_T>
-//void compareFiniteDifferenceGradient(CLASS_T& model, Eigen::MatrixXf& s, Eigen::MatrixXf& ds, Eigen::MatrixXf& u, Eigen::MatrixXf& du) {
-//  CLASS_T::state_array s_2(7, 1);
-//  s_2 = s + ds;
-//  Eigen::MatrixXf u_2(2,1);
-//  u_2 = u + du;
-//  Eigen::MatrixXf s_der(7, 1);
-//  Eigen::MatrixXf s_der_2(7, 1);
-//  s_der.setZero();
-//  s_der_2.setZero();
-//
-//  Eigen::MatrixXf calculated_A(7,7);
-//  Eigen::MatrixXf calculated_B(7,2);
-//
-//  model.computeDynamics(s_2, u_2, s_der_2);
-//  model.computeDynamics(s, u, s_der);
-//  std::cout << "s_der\n" << s_der << std::endl;
-//  std::cout << "s_der_2\n" << s_der_2 << std::endl;
-//  std::cout << "s_der_2 - s_der\n" << (s_der_2 - s_der) << std::endl;
-//
-//  Eigen::MatrixXf A(7,7);
-//  Eigen::MatrixXf B(7,2);
-//
-//  model.computeGrad(s, u, A, B);
-//  std::cout << "A = \n" << A << std::endl;
-//  std::cout << "B = \n" << B << std::endl;
-//
-//  // compare A
-//  for(int i = 0; i < 7; i++) {
-//    for(int j = 0; j < 7; j++) {
-//      EXPECT_NEAR(calculated_A(i,j), A(i,j), 0.01) << "failed at index = " << i << ", " << j;
-//    }
-//  }
-//
-//  // compare B
-//  for(int i = 0; i < 7; i++) {
-//    for(int j = 0; j < 2; j++) {
-//      EXPECT_NEAR(calculated_B(i,j), B(i,j), 0.01) << "failed at index = " << i << ", " << j;
-//    }
-//  }
-//}
+template <class CLASS_T>
+void compareFiniteDifferenceGradient(CLASS_T& model, Eigen::MatrixXf& s, Eigen::MatrixXf& ds, Eigen::MatrixXf& u, Eigen::MatrixXf& du) {
+  Eigen::MatrixXf s_2(7, 1);
+  s_2 = s + ds;
+  Eigen::MatrixXf u_2(2,1);
+  u_2 = u + du;
+  Eigen::MatrixXf s_der(7, 1);
+  Eigen::MatrixXf s_der_2(7, 1);
+  s_der.setZero();
+  s_der_2.setZero();
 
-//// Note math for analytical solution is in the python script
-//TEST(ARNeuralNetDynamics, computeGrad) {
-//  GTEST_SKIP();
-//  NeuralNetModel<7,2,3,6,32,32,4> model;
-//
-//  Eigen::MatrixXf s(7, 1);
-//  Eigen::MatrixXf ds(7, 1);
-//  Eigen::MatrixXf u(2, 1);
-//  Eigen::MatrixXf du(2, 1);
-//  s.setZero();
-//  ds.setZero();
-//  u.setZero();
-//  du.setZero();
-//  ds << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
-//
-//  std::vector<float> theta(1412);
-//
-//  std::fill(theta.begin(), theta.end(), 1);
-//  model.updateModel({6, 32, 32, 4}, theta);
-//
-//  compareFiniteDifferenceGradient(model, s, ds, u, du);
-//
-//}
+  Eigen::MatrixXf calculated_A(7,7);
+  Eigen::MatrixXf calculated_B(7,2);
+
+  model.computeDynamics(s_2, u_2, s_der_2);
+  model.computeDynamics(s, u, s_der);
+  std::cout << "s_der\n" << s_der << std::endl;
+  std::cout << "s_der_2\n" << s_der_2 << std::endl;
+  std::cout << "s_der_2 - s_der\n" << (s_der_2 - s_der) << std::endl;
+
+  Eigen::MatrixXf A(7,7);
+  Eigen::MatrixXf B(7,2);
+
+  model.computeGrad(s, u, A, B);
+  std::cout << "A = \n" << A << std::endl;
+  std::cout << "B = \n" << B << std::endl;
+
+  // compare A
+  for(int i = 0; i < 7; i++) {
+    for(int j = 0; j < 7; j++) {
+      EXPECT_NEAR(calculated_A(i,j), A(i,j), 0.01) << "failed at index = " << i << ", " << j;
+    }
+  }
+
+  // compare B
+  for(int i = 0; i < 7; i++) {
+    for(int j = 0; j < 2; j++) {
+      EXPECT_NEAR(calculated_B(i,j), B(i,j), 0.01) << "failed at index = " << i << ", " << j;
+    }
+  }
+}
+
+/*
+// Note math for analytical solution is in the python script
+TEST(ARNeuralNetDynamics, computeGrad) {
+  GTEST_SKIP();
+  NeuralNetModel<7,2,3,6,32,32,4> model;
+
+  Eigen::MatrixXf s(7, 1);
+  Eigen::MatrixXf ds(7, 1);
+  Eigen::MatrixXf u(2, 1);
+  Eigen::MatrixXf du(2, 1);
+  s.setZero();
+  ds.setZero();
+  u.setZero();
+  du.setZero();
+  ds << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+
+  std::vector<float> theta(1412);
+
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({6, 32, 32, 4}, theta);
+
+  compareFiniteDifferenceGradient(model, s, ds, u, du);
+
+}
+ */
 
 TEST(ARNeuralNetDynamics, computeDynamicsCPU) {
   NeuralNetModel<7,2,3,6,32,32,4> model;

@@ -14,7 +14,7 @@
 #include <array>
 #include <chrono>
 #include <atomic>
-#include <cv.hpp>
+#include <opencv2/opencv.hpp>
 
 // TODO Figure out template here
 template <class CONTROLLER_T>
@@ -51,8 +51,8 @@ protected:
   c_array init_u_ = c_array::Zero();
 
   // Values updated at every time step
-  s_array state_;
-  c_array u_;
+  s_array state_ = s_array::Zero();
+  c_array u_ = c_array::Zero();
   s_traj state_traj_;
   c_traj control_traj_;
 
@@ -290,7 +290,7 @@ public:
       }
       if (hasNewDynamicsParams_) {
         DYN_PARAMS_T dyn_params = getNewDynamicsParams();
-        controller->dynamics_->setParams(dyn_params);
+        controller->model_->setParams(dyn_params);
       }
       //Update any obstacles
       /*
