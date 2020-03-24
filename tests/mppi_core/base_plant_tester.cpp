@@ -4,6 +4,7 @@
 
 
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include <utils/test_helper.h>
 #include <random>
 #include <algorithm>
@@ -38,8 +39,11 @@ class TestPlant : public basePlant<cartpole_mppi_controller> {
   int checkStatus() override {
     return 1;
   }
+};
 
-
+class MockTestPlant : TestPlant {
+public:
+  MOCK_METHOD0(checkStatus, int());
 };
 
 
@@ -118,6 +122,20 @@ TEST(BasePlant, getSetCostParams) {
   auto new_params = plant.getNewCostParams();
   EXPECT_EQ(plant.hasNewCostParams(), false);
   EXPECT_EQ(params.cart_position_coeff, new_params.cart_position_coeff);
+}
+
+TEST(BasePlant, runControlLoopTest) {
+  MockTestPlant mockPlant;
+
+  EXPECT_CALL(mockPlant, checkStatus()).Times(1).WillOnce(testing::Return(10));
+
+  EXPECT_EQ(mockPlant.checkStatus(), 5);
+
+  // TODO look into mocking the dynamics and controller class
+}
+
+TEST(BasePlant, runControlIterationTest) {
+  // TODO look into mocking the dynamics and controller class
 }
 
 
