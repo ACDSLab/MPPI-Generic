@@ -4,13 +4,13 @@
 
 
 #include <gtest/gtest.h>
-#include <utils/test_helper.h>
+#include <mppi/utils/test_helper.h>
 #include <random>
 #include <algorithm>
 #include <numeric>
 
-#include <mppi_core/base_plant.hpp>
-#include <instantiations/cartpole_mppi/cartpole_mppi.cuh>
+#include <mppi/core/base_plant.hpp>
+#include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
 
 typedef VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8> cartpole_mppi_controller;
 
@@ -119,7 +119,3 @@ TEST(BasePlant, getSetCostParams) {
   EXPECT_EQ(plant.hasNewCostParams(), false);
   EXPECT_EQ(params.cart_position_coeff, new_params.cart_position_coeff);
 }
-
-
-
-

@@ -3,7 +3,7 @@
 #ifndef KERNEL_TESTS_DYNAMICS_DOUBLE_INTEGRATOR_DI_KERNEL_TEST_CUH_
 #define KERNEL_TESTS_DYNAMICS_DOUBLE_INTEGRATOR_DI_KERNEL_TEST_CUH_
 
-#include <dynamics/double_integrator/di_dynamics.cuh>
+#include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 
 __global__ void CheckModelSize(DoubleIntegratorDynamics* DI, long* model_size_check);
 

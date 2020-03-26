@@ -3,8 +3,8 @@
 //
 
 #include <gtest/gtest.h>
-#include <cost_functions/autorally/ar_standard_cost.cuh>
-#include <cost_functions/autorally/ar_standard_cost_kernel_test.cuh>
+#include <mppi/cost_functions/autorally/ar_standard_cost.cuh>
+#include <mppi/cost_functions/autorally/ar_standard_cost_kernel_test.cuh>
 
 // Auto-generated header file
 #include <autorally_test_map.h>

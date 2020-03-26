@@ -3,8 +3,8 @@
 //
 
 #include <gtest/gtest.h>
-#include <dynamics/autorally/ar_nn_model.cuh>
-#include <dynamics/autorally/ar_nn_dynamics_kernel_test.cuh>
+#include <mppi/dynamics/autorally/ar_nn_model.cuh>
+#include <mppi/dynamics/autorally/ar_nn_dynamics_kernel_test.cuh>
 #include <stdio.h>
 #include <math.h>
 
@@ -639,4 +639,3 @@ TEST(ARNeuralNetDynamics, full) {
     EXPECT_FLOAT_EQ(u[0][1], -2.0);
   }
 }
-

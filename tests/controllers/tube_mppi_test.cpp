@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
+#include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
 
 TEST(TubeMPPITest, Construction) {
   // Define the model and cost

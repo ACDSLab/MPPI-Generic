@@ -1,9 +1,9 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
 #include <cuda_runtime.h>
-#include <dynamics/dynamics.cuh>
+#include <mppi/dynamics/dynamics.cuh>
 
-#include <dynamics/dynamics_generic_kernel_tests.cuh>
+#include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 
 struct DynamicsTesterParams {
   int var_1 = 1;
@@ -412,4 +412,3 @@ TEST(Dynamics, computeStateDerivGPU) {
 
   }
 }
-
