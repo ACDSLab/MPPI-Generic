@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>
-#include <cost_functions/cartpole/cartpole_quadratic_cost_kernel_test.cuh>
+#include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
+#include <mppi/cost_functions/cartpole/cartpole_quadratic_cost_kernel_test.cuh>
 #include <array>
 
 TEST(CartpoleQuadraticCost, Constructor) {
@@ -158,4 +158,3 @@ TEST(CartpoleQuadraticCost, ComputeTerminalCost) {
                         cost.getParams().terminal_cost_coeff;
     ASSERT_EQ(cost_known, cost_compute);
 }
-

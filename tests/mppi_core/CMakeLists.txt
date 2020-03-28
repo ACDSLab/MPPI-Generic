@@ -41,7 +41,9 @@ set(PLANT_TARGET_NAME base_plant_tests)
 add_executable(${PLANT_TARGET_NAME} ../test_main.cpp base_plant_tester.cpp)
 target_link_libraries(${PLANT_TARGET_NAME} gtest
         gmock
-        gtest_main)
+        gtest_main
+        ${OpenCV_LIBRARIES}
+        )
 
 add_test(NAME ${PLANT_TARGET_NAME} COMMAND base_plant_tests)
 set_target_properties(${PLANT_TARGET_NAME} PROPERTIES FOLDER test)
