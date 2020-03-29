@@ -22,7 +22,7 @@ endif()
 # Find Eigen
 find_package(Eigen3 REQUIRED)
 # TODO not generic
-#include_directories(/home/jason/.local/include/eigen3)
+#include_directories(SYSTEM /home/jason/.local/include/eigen3)
 include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
 #message(STATUS "Eigen loc: ${EIGEN3_INCLUDE_DIR}")
 
@@ -39,7 +39,7 @@ find_package(yaml-cpp REQUIRED)
 include_directories(${YAML_CPP_INCLUDE_DIR})
 
 # Find boost -> required for Tube MPPI
-find_package(Boost REQUIRED)
+find_package (Boost 1.55.0 REQUIRED COMPONENTS system filesystem thread chrono date_time atomic)
 include_directories(SYSTEM ${Boost_LIBRARY_DIRS})
 
 # set up cnpy

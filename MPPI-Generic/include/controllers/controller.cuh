@@ -25,6 +25,7 @@ public:
    */
   typedef DYN_T TEMPLATED_DYNAMICS;
   typedef COST_T TEMPLATED_COSTS;
+  const static int num_timesteps_ = MAX_TIMESTEPS;
 
   /**
    * Aliases

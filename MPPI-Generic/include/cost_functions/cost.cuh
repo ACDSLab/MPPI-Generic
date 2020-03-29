@@ -19,6 +19,8 @@ typedef struct {
 } CostParams;
  */
 
+// removing PARAMS_T is probably impossible
+// https://cboard.cprogramming.com/cplusplus-programming/122412-crtp-how-pass-type.html
 template<class CLASS_T, class PARAMS_T>
 class Cost : public Managed
 {
