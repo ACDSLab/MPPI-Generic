@@ -73,7 +73,7 @@ public:
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                      cudaStream_t stream = nullptr);
 
-  TubeMPPIController() = default;
+//  TubeMPPIController() = default;
 
   ~TubeMPPIController();
 

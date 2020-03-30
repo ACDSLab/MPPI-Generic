@@ -7,7 +7,7 @@ Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams, 4, 2>(stream) {
   // Seed the RNG and initialize the system noise distribution
   std::random_device rd;
   gen.seed(rd()); // Seed the RNG with a random number
-  normal_distribution = std::normal_distribution<float>(0, system_noise);
+  normal_distribution = std::normal_distribution<float>(0, sqrtf(system_noise));
 }
 
 DoubleIntegratorDynamics::~DoubleIntegratorDynamics() = default;;

@@ -16,31 +16,31 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
 dt_(dt), num_iters_(max_iter), gamma_(gamma),
 actual_control_trajectory(init_control_traj),
 nominal_control_trajectory(init_control_traj), stream_(stream) {
-    this->model_ = model;
-    this->cost_ = cost;
+  this->model_ = model;
+  this->cost_ = cost;
 
-    control_variance_ = control_variance;
+  control_variance_ = control_variance;
   nominal_control_trajectory = init_control_traj;
-    setNumTimesteps(num_timesteps);
+  setNumTimesteps(num_timesteps);
 
-    // Create the random number generator
-    createAndSeedCUDARandomNumberGen();
+  // Create the random number generator
+  createAndSeedCUDARandomNumberGen();
 
-    // Bind the model and control to the given stream
-    setCUDAStream(stream);
+  // Bind the model and control to the given stream
+  setCUDAStream(stream);
 
-    // Call the GPU setup functions of the model and cost
-    this->model_->GPUSetup();
-    this->cost_->GPUSetup();
+  // Call the GPU setup functions of the model and cost
+  this->model_->GPUSetup();
+  this->cost_->GPUSetup();
 
 
-    // Allocate CUDA memory for the controller
-    allocateCUDAMemory();
+  // Allocate CUDA memory for the controller
+  allocateCUDAMemory();
 
-    // Copy the noise variance to the device
-    copyControlVarianceToDevice();
+  // Copy the noise variance to the device
+  copyControlVarianceToDevice();
 
-    initDDP(Q, Qf, R);
+  initDDP(Q, Qf, R);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
@@ -290,13 +290,13 @@ void TubeMPPI::computeFeedbackGains(const Eigen::Ref<const state_array>& state) 
   }
   run_cost_->setTargets(nominal_state_trajectory.data(), nominal_control_trajectory.data(),
                         this->num_timesteps_);
-  // Convert state_array to eigen
-  Eigen::Matrix<float, DYN_T::STATE_DIM, 1> s;
-  for (int i = 0; i < DYN_T::STATE_DIM; i++) {
-    s(i) = state[i];
-  }
+//  // Convert state_array to eigen
+//  Eigen::Matrix<float, DYN_T::STATE_DIM, 1> s;
+//  for (int i = 0; i < DYN_T::STATE_DIM; i++) {
+//    s(i) = state[i];
+//  }
   terminal_cost_->xf = run_cost_->traj_target_x_.col(this->num_timesteps_ - 1);
-  result_ = ddp_solver_->run(s, control_traj,
+  result_ = ddp_solver_->run(state, control_traj,
                              *ddp_model_, *run_cost_, *terminal_cost_,
                              control_min_, control_max_);
 }
