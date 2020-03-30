@@ -6,6 +6,7 @@
 #include "di_dynamics_kernel_tests.cuh"
 #include <memory>
 #include <random>
+#include <Eigen/Dense>
 
 TEST(Miscellaneous, CompareModelSize) {
   auto model = std::make_shared<DoubleIntegratorDynamics>();
@@ -43,5 +44,14 @@ TEST(Miscellaneous, CompareModelSize) {
 }
 
 TEST(Miscellaneous, EigenNormalRandomVector) {
+  std::random_device rd;
+  std::mt19937 gen(rd());  //here you could also set a seed
+  std::normal_distribution<float> dis(1, 2);
 
+//generate a matrix expression
+  Eigen::MatrixXd M = Eigen::MatrixXd::NullaryExpr(100, 100, [&]() { return dis(gen); });
+
+  EXPECT_NEAR(M.mean(), 1, 1e-1);
+
+  EXPECT_NEAR(sqrtf((M.array()*M.array()).mean() - M.mean()*M.mean()), 2, 1e-1);
 }
