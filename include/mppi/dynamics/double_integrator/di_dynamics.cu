@@ -3,6 +3,11 @@
 DoubleIntegratorDynamics::DoubleIntegratorDynamics(float system_noise, cudaStream_t stream) :
 Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams, 4, 2>(stream) {
   this->params_ = DoubleIntegratorParams(system_noise);
+
+  // Seed the RNG and initialize the system noise distribution
+  std::random_device rd;
+  gen.seed(rd()); // Seed the RNG with a random number
+  normal_distribution = std::normal_distribution<float>(0, system_noise);
 }
 
 DoubleIntegratorDynamics::~DoubleIntegratorDynamics() = default;;
@@ -42,4 +47,12 @@ __device__ void DoubleIntegratorDynamics::computeDynamics(float* state, float* c
   state_der[1] = state[3]; // ydot;
   state_der[2] = control[0]; // x_force;
   state_der[3] = control[1]; // y_force
+}
+
+void DoubleIntegratorDynamics::computeStateDisturbance(float dt, Eigen::Ref<state_array> state)
+{
+  // TODO fix compiler warning about host function call
+  // Generate system noise
+  state_array system_noise = state_array::NullaryExpr([&]() { return normal_distribution(gen); });
+  state += system_noise*dt;
 }

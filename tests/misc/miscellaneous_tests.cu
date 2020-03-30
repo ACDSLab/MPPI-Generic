@@ -48,10 +48,24 @@ TEST(Miscellaneous, EigenNormalRandomVector) {
   std::mt19937 gen(rd());  //here you could also set a seed
   std::normal_distribution<float> dis(1, 2);
 
-//generate a matrix expression
+  //generate a matrix expression
   Eigen::MatrixXd M = Eigen::MatrixXd::NullaryExpr(100, 100, [&]() { return dis(gen); });
 
   EXPECT_NEAR(M.mean(), 1, 1e-1);
 
   EXPECT_NEAR(sqrtf((M.array()*M.array()).mean() - M.mean()*M.mean()), 2, 1e-1);
+}
+
+TEST(Miscellaneous, CreateRandomStateArray) {
+  DoubleIntegratorDynamics::state_array X;
+  DoubleIntegratorDynamics::state_array temp = DoubleIntegratorDynamics::state_array::Zero();
+
+  std::random_device rd;
+  std::mt19937 gen(rd());  //here you could also set a seed
+  std::normal_distribution<float> dis(1, 2);
+
+  //generate a matrix expression
+  X = DoubleIntegratorDynamics::state_array::NullaryExpr([&]() { return dis(gen); });
+
+  std::cout << temp + X*0.01 << std::endl;
 }

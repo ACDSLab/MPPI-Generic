@@ -4,6 +4,7 @@
 #define DOUBLE_INTEGRATOR_CUH_
 
 #include <mppi/dynamics/dynamics.cuh>
+#include <random>
 
 struct DoubleIntegratorParams{
   float system_noise = 1;
@@ -30,14 +31,18 @@ public:
                    Eigen::Ref<dfdx> A,
                    Eigen::Ref<dfdu> B);
 
+  void computeStateDisturbance(float dt, Eigen::Ref<state_array> state);
+
   void printState(float* state);
 
   __device__ void computeDynamics(float* state,
                                   float* control,
                                   float* state_der,
                                   float* theta = nullptr);
-
-//  void paramsToDevice();
+private:
+  // Random number generator for system noise
+  std::mt19937 gen;  // Standard mersenne_twister_engine which will be seeded
+  std::normal_distribution<float> normal_distribution;
 
 };
 
