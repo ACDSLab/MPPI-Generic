@@ -141,7 +141,6 @@ private:
 
   // Check to see if nominal state has been initialized
   bool nominalStateInit_ = false;
-  bool use_nominal_state_ = false;
 
   float* initial_state_d_;
   // Each of these device arrays are twice as large as in MPPI to hold
@@ -153,7 +152,7 @@ private:
 
 
 
-  void computeNominalStateTrajectory(const Eigen::Ref<const state_array>& x0);
+  void computeStateTrajectory(const Eigen::Ref<const state_array>& x0_actual);
 
 protected:
   int num_timesteps_;

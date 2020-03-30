@@ -167,21 +167,22 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     // Compute the nominal and actual state trajectories
 
-    if (baseline_actual_ < baseline_nominal_ + nominal_threshold_) {
-      use_nominal_state_ = false;
-      // reset nominal to actual
+    computeStateTrajectory(state); // Input is the actual state
 
-        // std::copy(actual_state_trajectory.begin(), actual_state_trajectory.end(), nominal_state_trajectory.begin());
-        // std::copy(actual_control_trajectory.begin(), actual_control_trajectory.end(), nominal_control_trajectory.begin());
+    if (baseline_actual_ < baseline_nominal_ + nominal_threshold_) {
+      // In this case, the disturbance the made the nominal and actual states differ improved the cost.
+      // std::copy(actual_state_trajectory.begin(), actual_state_trajectory.end(), nominal_state_trajectory.begin());
+      // std::copy(actual_control_trajectory.begin(), actual_control_trajectory.end(), nominal_control_trajectory.begin());
       nominal_state_trajectory = actual_state_trajectory;
       nominal_control_trajectory = actual_control_trajectory;
     }
 
-
+    // Outside of this loop, we will utilize the nominal state trajectory and the nominal control trajectory to compute
+    // the optimal feedback gains using our ancillary controller, then apply feedback inside our main while loop at the
+    // same rate as our state estimator.
 
     // TODO Add SavitskyGolay?
 
-    // TODO Add nominal state computation
 
   }
 
@@ -301,16 +302,25 @@ void TubeMPPI::computeFeedbackGains(const Eigen::Ref<const state_array>& state) 
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void TubeMPPI::computeNominalStateTrajectory(const Eigen::Ref<const state_array>& x0) {
-  nominal_state_trajectory.col(0) = x0;
+void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_actual) {
+  actual_state_trajectory.col(0) = x0_actual;
   state_array xdot;
   for (int i =0; i < num_timesteps_ - 1; ++i) {
+    // Update the nominal state
     nominal_state_trajectory.col(i + 1) = nominal_state_trajectory.col(i);
     state_array state = nominal_state_trajectory.col(i + 1);
     control_array control = nominal_control_trajectory.col(i);
     this->model_->computeStateDeriv(state, control, xdot);
     this->model_->updateState(state, xdot, dt_);
     nominal_state_trajectory.col(i + 1) = state;
+
+    // Update the actual state
+    actual_state_trajectory.col(i + 1) = actual_state_trajectory.col(i);
+    state = actual_state_trajectory.col(i + 1);
+    control = actual_control_trajectory.col(i);
+    this->model_->computeStateDeriv(state, control, xdot);
+    this->model_->updateState(state, xdot, dt_);
+    actual_state_trajectory.col(i + 1) = state;
   }
 }
 

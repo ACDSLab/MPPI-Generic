@@ -112,7 +112,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     // TODO Add SavitskyGolay?
 
-    computeNominalStateTrajectory(state);
+    computeStateTrajectory(state);
     }
 
 }
@@ -179,7 +179,7 @@ void VanillaMPPI::copyNominalControlToDevice() {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void VanillaMPPI::computeNominalStateTrajectory(const Eigen::Ref<const state_array>& x0) {
+void VanillaMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0) {
   nominal_state_.col(0) = x0;
   state_array xdot;
   for (int i =0; i < num_timesteps_ - 1; ++i) {

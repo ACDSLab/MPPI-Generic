@@ -115,7 +115,7 @@ private:
   float* trajectory_costs_d_; // Array of size NUM_ROLLOUTS
   float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS
 
-  void computeNominalStateTrajectory(const Eigen::Ref<const state_array>& x0);
+  void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
 
 
 
