@@ -5,8 +5,9 @@
 #include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 #include "di_dynamics_kernel_tests.cuh"
 #include <memory>
+#include <random>
 
-TEST(DI_Dynamics, CompareModelSize) {
+TEST(Miscellaneous, CompareModelSize) {
   auto model = std::make_shared<DoubleIntegratorDynamics>();
 
   model->GPUSetup();
@@ -38,5 +39,9 @@ TEST(DI_Dynamics, CompareModelSize) {
   std::cout << "Size of the stream: " << sizeof(model->stream_) << std::endl;
 
   std::cout << "Size of GPU Memstatus: " << sizeof(model->GPUMemStatus_) << std::endl;
+
+}
+
+TEST(Miscellaneous, EigenNormalRandomVector) {
 
 }
