@@ -52,7 +52,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 0;
+  x << 2, 0, 0, 1;
 
   DoubleIntegratorDynamics::state_array xdot;
 
@@ -68,7 +68,16 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    model.printState(x.data());
+    if (t % 50 == 0) {
+      float current_cost = cost.getStateCost(x.data());
+      printf("Current Time: %f    ", t * dt);
+      printf("Current State Cost: %f    ", current_cost);
+      model.printState(x.data());
+
+      if (current_cost > 1000) {
+        FAIL();
+      }
+    }
 
     // Compute the control
     vanilla_controller.computeControl(x);
@@ -100,7 +109,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 0;
+  x << 2, 0, 0, 1;
 
   DoubleIntegratorDynamics::state_array xdot;
 
@@ -116,7 +125,12 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    model.printState(x.data());
+    if (t % 50 == 0) {
+      float current_cost = cost.getStateCost(x.data());
+      printf("Current Time: %f    ", t * dt);
+      printf("Current State Cost: %f    ", current_cost);
+      model.printState(x.data());
+    }
 
     // Compute the control
     vanilla_controller.computeControl(x);
@@ -147,7 +161,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 0;
+  x << 2, 0, 0, 2;
 
   DoubleIntegratorDynamics::state_array xdot;
 
@@ -160,7 +174,9 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   Eigen::MatrixXf R;
 
   Q = 100*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
-  R = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
+  Q(2,2) = 1;
+  Q(3,3) = 1;
+  R = 0.001*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
 
   // Initialize the tube MPPI controller
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
@@ -169,7 +185,16 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    model.printState(x.data());
+    if (t % 50 == 0) {
+      float current_cost = cost.getStateCost(x.data());
+      printf("Current Time: %f    ", t * dt);
+      printf("Current State Cost: %f    ", current_cost);
+      model.printState(x.data());
+
+      if (current_cost > 1000) {
+        FAIL();
+      }
+    }
 
     // Compute the control
     controller.computeControl(x);
