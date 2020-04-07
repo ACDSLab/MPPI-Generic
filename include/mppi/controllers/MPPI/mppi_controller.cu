@@ -60,6 +60,8 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
   HANDLE_ERROR( cudaMemcpyAsync(initial_state_d_, state.data(),
       DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, stream_));
 
+  float baseline_prev = 1e4;
+
   for (int opt_iter = 0; opt_iter < num_iters_; opt_iter++) {
     // Send the nominal control to the device
     copyNominalControlToDevice();
@@ -86,6 +88,13 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     baseline_ = mppi_common::computeBaselineCost(trajectory_costs_.data(),
         NUM_ROLLOUTS);
 
+    if (baseline_ > baseline_prev + 1) {
+      std::cout << "Previous Baseline: " << baseline_prev << std::endl;
+      std::cout << "         Baseline: " << baseline_ << std::endl;
+    }
+
+    baseline_prev = baseline_;
+
     // Launch the norm exponential kernel
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
         trajectory_costs_d_, gamma_, baseline_, stream_);
@@ -110,10 +119,9 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
             cudaMemcpyDeviceToHost, stream_));
     cudaStreamSynchronize(stream_);
 
-    // TODO Add SavitskyGolay?
-
-    computeStateTrajectory(state);
     }
+  smoothControlTrajectory();
+  computeStateTrajectory(state);
 
 }
 
@@ -217,12 +225,48 @@ VanillaMPPI::createAndSeedCUDARandomNumberGen() {
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void VanillaMPPI::slideControlSequence(int steps) {
-    for (int i = 0; i < num_timesteps_; ++i) {
-        for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
-            int ind = std::min(i + steps, num_timesteps_ - 1);
-            nominal_control_(j,i) = nominal_control_(j, ind);
-        }
+
+  // Save the control history
+  if (steps > 1) {
+    control_history_.row(0) = nominal_control_.col(steps - 2).transpose();
+    control_history_.row(1) = nominal_control_.col(steps - 1).transpose();
+  } else { //
+    control_history_.row(0) = control_history_.row(1); // Slide control history forward
+    control_history_.row(1) = nominal_control_.col(0).transpose(); // Save the control at time 0
+  }
+
+  for (int i = 0; i < num_timesteps_; ++i) {
+    for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
+      int ind = std::min(i + steps, num_timesteps_ - 1);
+      nominal_control_(j,i) = nominal_control_(j, ind);
     }
+  }
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void VanillaMPPI::smoothControlTrajectory() {
+  // Create the filter coefficients
+  Eigen::Matrix<float, 1, 5> filter_coefficients;
+  filter_coefficients << -3, 12, 17, 12, -3;
+  filter_coefficients /= 35.0;
+
+  // Create and fill a control buffer that we can apply the convolution filter
+  Eigen::Matrix<float, MAX_TIMESTEPS+4, DYN_T::CONTROL_DIM> control_buffer;
+
+  // Fill the first two timesteps with the control history
+  control_buffer.topRows(2) = control_history_;
+
+  // Fill the center timesteps with the current nominal trajectory
+  control_buffer.middleRows(2, MAX_TIMESTEPS) = nominal_control_.transpose();
+
+  // Fill the last two timesteps with the end of the current nominal control trajectory
+  control_buffer.row(MAX_TIMESTEPS+2) = nominal_control_.transpose().row(MAX_TIMESTEPS-1);
+  control_buffer.row(MAX_TIMESTEPS+3) = control_buffer.row(MAX_TIMESTEPS+2);
+
+  // Apply convolutional filter to each timestep
+  for (int i = 0; i < MAX_TIMESTEPS; ++i) {
+    nominal_control_.col(i) = (filter_coefficients*control_buffer.middleRows(i,5)).transpose();
+  }
 }
 
 #undef VanillaMPPI

@@ -101,6 +101,9 @@ private:
   state_trajectory nominal_state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
 
+  // Control history
+  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
+
 
   int num_iters_;  // Number of optimization iterations
 
@@ -117,9 +120,9 @@ private:
 
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
 
-
-
   void copyNominalControlToDevice();
+
+  void smoothControlTrajectory();
 protected:
   int num_timesteps_;
   curandGenerator_t gen_;
