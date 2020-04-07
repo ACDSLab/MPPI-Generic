@@ -28,7 +28,7 @@ include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
 
 # REQUIRED for CUDA to correctly align Eigen member variables inside structures/classes
 # https://listengine.tuxfamily.org/lists.tuxfamily.org/eigen/2016/06/msg00006.html
-add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=32)
+add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=0)
 
 # Find OpenCV
 find_package(OpenCV REQUIRED)
@@ -68,7 +68,16 @@ set(
         -w;
 )
 
-add_subdirectory(MPPI-Generic)
+include_directories(${PROJECT_SOURCE_DIR}/include)
+# Install all library header files
+install(
+        DIRECTORY ${PROJECT_SOURCE_DIR}/include
+        DESTINATION include
+        FILES_MATCHING PATTERN "*.h"
+)
+
+add_subdirectory(src)
+add_subdirectory(examples)
 
 # Add custom cmake finds
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")

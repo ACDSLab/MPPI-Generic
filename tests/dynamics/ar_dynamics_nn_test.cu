@@ -3,8 +3,8 @@
 //
 
 #include <gtest/gtest.h>
-#include <dynamics/autorally/ar_nn_model.cuh>
-#include <dynamics/autorally/ar_nn_dynamics_kernel_test.cuh>
+#include <mppi/dynamics/autorally/ar_nn_model.cuh>
+#include <mppi/dynamics/autorally/ar_nn_dynamics_kernel_test.cuh>
 #include <stdio.h>
 #include <math.h>
 
@@ -244,8 +244,8 @@ TEST(ARNeuralNetDynamics, LoadModelTest) {
 TEST(ARNeuralNetDynamics, computeKinematicsTestCPU) {
   NeuralNetModel<7,2,3,6,32,32,4> model;
 
-  Eigen::MatrixXf s(7, 1);
-  Eigen::MatrixXf s_der(7, 1);
+  NeuralNetModel<7,2,3,6,32,32,4>::state_array s(7, 1);
+  NeuralNetModel<7,2,3,6,32,32,4>::state_array s_der(7, 1);
 
   s(2) = 0.0; // yaw
   s(4) = 1.0; // body frame vx
@@ -400,6 +400,7 @@ void compareFiniteDifferenceGradient(CLASS_T& model, Eigen::MatrixXf& s, Eigen::
   }
 }
 
+/*
 // Note math for analytical solution is in the python script
 TEST(ARNeuralNetDynamics, computeGrad) {
   GTEST_SKIP();
@@ -423,13 +424,14 @@ TEST(ARNeuralNetDynamics, computeGrad) {
   compareFiniteDifferenceGradient(model, s, ds, u, du);
 
 }
+ */
 
 TEST(ARNeuralNetDynamics, computeDynamicsCPU) {
   NeuralNetModel<7,2,3,6,32,32,4> model;
 
-  Eigen::MatrixXf s(7, 1);
-  Eigen::MatrixXf u(2, 1);
-  Eigen::MatrixXf s_der(7, 1);
+  NeuralNetModel<7,2,3,6,32,32,4>::state_array s;
+  NeuralNetModel<7,2,3,6,32,32,4>::control_array u;
+  NeuralNetModel<7,2,3,6,32,32,4>::state_array s_der;
   s.setZero();
   s_der.setZero();
   u << 1, -1;
@@ -637,4 +639,3 @@ TEST(ARNeuralNetDynamics, full) {
     EXPECT_FLOAT_EQ(u[0][1], -2.0);
   }
 }
-

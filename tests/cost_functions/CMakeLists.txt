@@ -13,6 +13,18 @@ target_link_libraries(cp_quadratic_cost_tests gtest
 add_test(NAME cp_quadratic_cost_tests COMMAND cp_quadratic_cost_tests)
 set_target_properties(cp_quadratic_cost_tests PROPERTIES FOLDER test)
 
+add_executable(di_circle_cost_tests
+        ../test_main.cpp
+        double_integrator_circle_cost_test.cu)
+
+target_link_libraries(di_circle_cost_tests gtest
+        gmock
+        gtest_main
+        cnpy)
+
+add_test(NAME di_circle_cost_tests COMMAND di_circle_cost_tests)
+set_target_properties(di_circle_cost_tests PROPERTIES FOLDER test)
+
 if(BUILD_TESTS)
     message("")
     find_package(PythonInterp)
