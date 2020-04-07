@@ -34,6 +34,7 @@ public:
   void computeStateDisturbance(float dt, Eigen::Ref<state_array> state);
 
   void printState(float* state);
+  void printState(const float* state);
 
   __device__ void computeDynamics(float* state,
                                   float* control,

@@ -40,6 +40,10 @@ void DoubleIntegratorDynamics::printState(float *state) {
   printf("X position: %f; Y position: %f; X velocity: %f; Y velocity: %f \n", state[0], state[1], state[2], state[3]);
 }
 
+void DoubleIntegratorDynamics::printState(const float *state) {
+  printf("X position: %f; Y position: %f; X velocity: %f; Y velocity: %f \n", state[0], state[1], state[2], state[3]);
+}
+
 __device__ void DoubleIntegratorDynamics::computeDynamics(float* state, float* control,
                                                   float* state_der, float* theta_s)
 {
