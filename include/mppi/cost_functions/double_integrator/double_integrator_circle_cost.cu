@@ -33,7 +33,7 @@ __host__ __device__ float DoubleIntegratorCircleCost::getControlCost(float *u, f
 }
 
 __host__ __device__ float DoubleIntegratorCircleCost::computeRunningCost(float *s, float *u, float *du, float *vars, int timestep) {
-  return getStateCost(s) + getControlCost(u, du, vars);
+  return getStateCost(s);
 }
 
 __host__ __device__ float DoubleIntegratorCircleCost::terminalCost(float *state) {
