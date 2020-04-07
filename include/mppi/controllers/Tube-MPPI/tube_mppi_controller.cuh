@@ -130,9 +130,6 @@ private:
   float dt_;
   float nominal_threshold_ = 100; // How much worse the actual system has to be compared to the nominal
 
-  float trajectory_cost_actual = 0.0;
-  float trajectory_cost_nominal = 0.0;
-
   control_trajectory nominal_control_trajectory = control_trajectory::Zero();
   control_trajectory actual_control_trajectory = control_trajectory::Zero();
   state_trajectory nominal_state_trajectory = state_trajectory::Zero();
@@ -160,7 +157,6 @@ private:
   float* state_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS * 2
   float* trajectory_costs_d_; // Array of size NUM_ROLLOUTS * 2
   float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS * 2
-
 
 
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0_actual);

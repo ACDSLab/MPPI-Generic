@@ -189,13 +189,8 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     computeStateTrajectory(state); // Input is the actual state
 
-//    std::cout << "Baseline actual: " << baseline_actual_ << std::endl;
-//    std::cout << "Baseline nominal: " << baseline_nominal_ << std::endl;
-//
-//    std::cout << "Trajectory cost actual: " << trajectory_cost_actual << std::endl;
-//    std::cout << "Trajectory cost nominal: " << trajectory_cost_nominal << std::endl;
 
-    if (trajectory_cost_actual < trajectory_cost_nominal + nominal_threshold_) {
+    if (baseline_actual_ < baseline_nominal_ + nominal_threshold_) {
       // In this case, the disturbance the made the nominal and actual states differ improved the cost.
       // std::copy(actual_state_trajectory.begin(), actual_state_trajectory.end(), nominal_state_trajectory.begin());
       // std::copy(actual_control_trajectory.begin(), actual_control_trajectory.end(), nominal_control_trajectory.begin());
@@ -359,15 +354,11 @@ void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_ac
   actual_state_trajectory.col(0) = x0_actual;
   state_array xdot;
 
-  trajectory_cost_actual = 0;
-  trajectory_cost_nominal = 0;
-
   for (int i =0; i < num_timesteps_ - 1; ++i) {
     // Update the nominal state
     nominal_state_trajectory.col(i + 1) = nominal_state_trajectory.col(i);
     state_array state = nominal_state_trajectory.col(i + 1);
     control_array control = nominal_control_trajectory.col(i);
-    trajectory_cost_nominal += this->cost_->getStateCost(state.data())*dt_; // TODO return to baseline comparison
     this->model_->computeStateDeriv(state, control, xdot);
     this->model_->updateState(state, xdot, dt_);
     nominal_state_trajectory.col(i + 1) = state;
@@ -376,7 +367,6 @@ void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_ac
     actual_state_trajectory.col(i + 1) = actual_state_trajectory.col(i);
     state = actual_state_trajectory.col(i + 1);
     control = actual_control_trajectory.col(i);
-    trajectory_cost_actual += this->cost_->getStateCost(state.data())*dt_;
     this->model_->computeStateDeriv(state, control, xdot);
     this->model_->updateState(state, xdot, dt_);
     actual_state_trajectory.col(i + 1) = state;
