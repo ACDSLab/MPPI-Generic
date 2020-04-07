@@ -69,3 +69,41 @@ TEST(Miscellaneous, CreateRandomStateArray) {
 
   std::cout << temp + X*0.01 << std::endl;
 }
+
+TEST(Miscellaneous, Smoothing) {
+
+  Eigen::Matrix<float, 1, 5> filter_coefficients;
+  filter_coefficients << -3, 12, 17, 12, -3;
+  filter_coefficients /= 35.0;
+
+  Eigen::Matrix<float, 14, 3> control_buffer = Eigen::Matrix<float, 14, 3>::Ones();
+
+  std::cout << "previous control buffer" << std::endl;
+  std::cout << control_buffer << std::endl;
+
+  Eigen::Matrix<float, 2, 3> control_history;
+  control_history << 1, 2, 3, 4, 5, 6;
+
+  control_buffer.topRows<2>() = control_history;
+
+  Eigen::Matrix<float, 3, 10> nominal_control = 5*Eigen::Matrix<float, 3, 10>::Ones();
+
+
+  // Fill the last two timesteps with the end of the current nominal control trajectory
+  nominal_control.col(9) << 10, 10, 10;
+  control_buffer.middleRows(2, 10) = nominal_control.transpose();
+
+  control_buffer.row(10+2) = nominal_control.transpose().row(10-1);
+  control_buffer.row(10+3) = nominal_control.transpose().row(10-1);
+
+  std::cout << "current control buffer" << std::endl;
+  std::cout << control_buffer << std::endl;
+
+  // Apply convolutional filter to each timestep
+  for (int i = 0; i < 10; ++i) {
+    nominal_control.col(i) = (filter_coefficients*control_buffer.middleRows(i,5)).transpose();
+  }
+
+  std::cout << nominal_control << std::endl;
+
+}

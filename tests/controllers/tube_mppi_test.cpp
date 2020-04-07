@@ -1,6 +1,17 @@
 #include <gtest/gtest.h>
 #include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
 
+bool tubeFailure(float *s) {
+  float inner_path_radius2 = 1.675*1.675;
+  float outer_path_radius2 = 2.325*2.325;
+  float radial_position = s[0]*s[0] + s[1]*s[1];
+  if ((radial_position < inner_path_radius2) || (radial_position > outer_path_radius2)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 TEST(TubeMPPITest, Construction) {
   // Define the model and cost
   DoubleIntegratorDynamics model;
@@ -45,14 +56,14 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   DoubleIntegratorCircleCost cost;
   float dt = 0.01; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float gamma = 0.5; // Learning rate parameter
+  float gamma = 0.25; // Learning rate parameter
   const int num_timesteps = 100;  // Optimization time horizon
 
   int total_time_horizon = 1000; // Problem time horizon
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 1;
+  x << 2, 0, 0, 0;
 
   DoubleIntegratorDynamics::state_array xdot;
 
@@ -68,15 +79,15 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    if (t % 50 == 0) {
-      float current_cost = cost.getStateCost(x.data());
+    if (t % 25 == 0) {
+//      float current_cost = cost.getStateCost(x.data());
       printf("Current Time: %f    ", t * dt);
-      printf("Current State Cost: %f    ", current_cost);
+//      printf("Current State Cost: %f    ", current_cost);
       model.printState(x.data());
+    }
 
-      if (current_cost > 1000) {
-        FAIL();
-      }
+    if (tubeFailure(x.data())) {
+      FAIL();
     }
 
     // Compute the control
@@ -102,14 +113,14 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   DoubleIntegratorCircleCost cost;
   float dt = 0.01; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float gamma = 0.5; // Learning rate parameter
+  float gamma = 0.25; // Learning rate parameter
   const int num_timesteps = 100;  // Optimization time horizon
 
   int total_time_horizon = 1000; // Problem time horizon
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 1;
+  x << 2, 0, 0, 0;
 
   DoubleIntegratorDynamics::state_array xdot;
 
@@ -121,15 +132,19 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
           512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
 
-
+  bool success = false;
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
     if (t % 50 == 0) {
-      float current_cost = cost.getStateCost(x.data());
+//      float current_cost = cost.getStateCost(x.data());
       printf("Current Time: %f    ", t * dt);
-      printf("Current State Cost: %f    ", current_cost);
+//      printf("Current State Cost: %f    ", current_cost);
       model.printState(x.data());
+    }
+
+    if (tubeFailure(x.data())) {
+      success = true;
     }
 
     // Compute the control
@@ -144,6 +159,12 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 
     // Slide the control sequence
     vanilla_controller.slideControlSequence(1);
+    if (success) {
+      break;
+    }
+  }
+  if (not success) {
+    FAIL();
   }
 }
 
@@ -161,7 +182,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 2;
+  x << 2, 0, 0, 0;
 
   DoubleIntegratorDynamics::state_array xdot;
 
@@ -171,29 +192,32 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   // DDP cost parameters
   Eigen::MatrixXf Q;
+  Eigen::MatrixXf Qf;
   Eigen::MatrixXf R;
 
-  Q = 100*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
-  Q(2,2) = 1;
-  Q(3,3) = 1;
-  R = 0.001*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
+  Q = 500*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
+  Q(2,2) = 100;
+  Q(3,3) = 100;
+  R = 1*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
+
+  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
 
   // Initialize the tube MPPI controller
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, 0*Q, R, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Qf, R, control_var);
 
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    if (t % 50 == 0) {
+    if (t % 25 == 0) {
       float current_cost = cost.getStateCost(x.data());
       printf("Current Time: %f    ", t * dt);
       printf("Current State Cost: %f    ", current_cost);
       model.printState(x.data());
+    }
 
-      if (current_cost > 1000) {
-        FAIL();
-      }
+    if (tubeFailure(x.data())) {
+      FAIL();
     }
 
     // Compute the control
@@ -204,13 +228,21 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
     // Get the open loop control
     DoubleIntegratorDynamics::control_array current_control = controller.getControlSeq().col(0);
+//    std::cout << current_control << std::endl;
+
 
     // Apply the feedback given the current state
     current_control += controller.getFeedbackGains()[0]*(x - controller.getStateSeq().col(0));
 
+//    std::cout << "Current State: " << x.transpose() << std::endl;
+//    std::cout << "Nominal State: " << controller.getStateSeq().col(0).transpose()  << std::endl;
+
+
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
     model.updateState(x, xdot, dt);
+
+    controller.updateNominalState(controller.getControlSeq().col(0));
 
     // Add the "true" noise of the system
     model.computeStateDisturbance(dt, x);
