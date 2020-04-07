@@ -14,6 +14,7 @@
 #include <mppi/ddp/ddp.h>
 #include <chrono>
 #include <memory>
+#include <iostream>
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
         int BDIM_X, int BDIM_Y>
@@ -105,6 +106,10 @@ public:
 
   FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
 
+  void smoothControlTrajectory();
+
+  void updateNominalState(const Eigen::Ref<const control_array>& u);
+
   StateCostWeight Q_;
   Hessian Qf_;
   ControlCostWeight R_;
@@ -123,12 +128,18 @@ private:
   float baseline_actual_; // Baseline cost of the system.
   float baseline_nominal_; // Baseline cost of the system.
   float dt_;
-  float nominal_threshold_; // How much worse the actual system has to be compared to the nominal
+  float nominal_threshold_ = 100; // How much worse the actual system has to be compared to the nominal
+
+  float trajectory_cost_actual = 0.0;
+  float trajectory_cost_nominal = 0.0;
 
   control_trajectory nominal_control_trajectory = control_trajectory::Zero();
   control_trajectory actual_control_trajectory = control_trajectory::Zero();
   state_trajectory nominal_state_trajectory = state_trajectory::Zero();
   state_trajectory actual_state_trajectory = state_trajectory::Zero();
+
+  // Control history
+  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
 
 
   control_array control_min_;

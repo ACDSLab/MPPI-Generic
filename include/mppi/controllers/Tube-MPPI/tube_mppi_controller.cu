@@ -63,11 +63,15 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
   if (!nominalStateInit_){
-    for (int i = 0; i < DYN_T::STATE_DIM; i++){
-      nominal_state_trajectory(i, 0) = state(i);
-    }
+//    for (int i = 0; i < DYN_T::STATE_DIM; i++){
+//      nominal_state_trajectory(i, 0) = state(i);
+//    }
+    nominal_state_trajectory.col(0) = state;
     nominalStateInit_ = true;
   }
+
+  std::cout << "Post disturbance Actual State: "; this->model_->printState(state.data());
+  std::cout << "                Nominal State: "; this->model_->printState(nominal_state_trajectory.col(0).data());
 
   // Handy reference pointers
   float * trajectory_costs_nominal_d = trajectory_costs_d_ + NUM_ROLLOUTS;
@@ -77,15 +81,15 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
                                     this->num_timesteps_ * DYN_T::CONTROL_DIM;
   float * control_nominal_d = control_d_ + this->num_timesteps_ * DYN_T::CONTROL_DIM;
 
-  // Send the initial condition to the device
-
-  HANDLE_ERROR( cudaMemcpyAsync(initial_state_d_, state.data(),
-      DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, stream_));
-
-  HANDLE_ERROR( cudaMemcpyAsync(initial_state_nominal_d, nominal_state_trajectory.data(),
-      DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, stream_));
-
   for (int opt_iter = 0; opt_iter < num_iters_; opt_iter++) {
+    // Send the initial condition to the device
+
+    HANDLE_ERROR( cudaMemcpyAsync(initial_state_d_, state.data(),
+                                  DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, stream_));
+
+    HANDLE_ERROR( cudaMemcpyAsync(initial_state_nominal_d, nominal_state_trajectory.data(),
+                                  DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, stream_));
+
     // Send the nominal control to the device
     copyControlToDevice();
 
@@ -93,10 +97,14 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     curandGenerateNormal(this->gen_, control_noise_d_,
                          NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
                          0.0, 1.0);
-    HANDLE_ERROR( cudaMemcpyAsync(control_noise_nominal_d, control_noise_d_,
-                 NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM * sizeof(float),
-                 cudaMemcpyDeviceToDevice,
-                 stream_) );
+
+    curandGenerateNormal(this->gen_, control_noise_nominal_d,
+                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
+                         0.0, 1.0);
+//    HANDLE_ERROR( cudaMemcpyAsync(control_noise_nominal_d, control_noise_d_,
+//                 NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM * sizeof(float),
+//                 cudaMemcpyDeviceToDevice,
+//                 stream_) );
 
     //Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 2>(
@@ -169,6 +177,9 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     computeStateTrajectory(state); // Input is the actual state
 
+    std::cout << "Baseline actual: " << baseline_actual_ << std::endl;
+    std::cout << "Baseline nominal: " << baseline_nominal_ << std::endl;
+
     if (baseline_actual_ < baseline_nominal_ + nominal_threshold_) {
       // In this case, the disturbance the made the nominal and actual states differ improved the cost.
       // std::copy(actual_state_trajectory.begin(), actual_state_trajectory.end(), nominal_state_trajectory.begin());
@@ -181,10 +192,9 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     // the optimal feedback gains using our ancillary controller, then apply feedback inside our main while loop at the
     // same rate as our state estimator.
 
-    // TODO Add SavitskyGolay?
-
-
   }
+  smoothControlTrajectory();
+  computeStateTrajectory(state); // Input is the actual state
 
 }
 
@@ -242,15 +252,50 @@ void TubeMPPI::setCUDAStream(cudaStream_t stream) {
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+        int BDIM_X, int BDIM_Y>
 void TubeMPPI::slideControlSequence(int steps) {
-    for (int i = 0; i < this->num_timesteps_; ++i) {
-        for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
-            int ind = std::min(i + steps, this->num_timesteps_ - 1);
-          nominal_control_trajectory(j, i) = nominal_control_trajectory(j, ind);
-          actual_control_trajectory(j, i) = actual_control_trajectory(j, ind);
-        }
+
+  // Save the control history
+  if (steps > 1) {
+    control_history_.row(0) = nominal_control_trajectory.col(steps - 2).transpose();
+    control_history_.row(1) = nominal_control_trajectory.col(steps - 1).transpose();
+  } else { //
+    control_history_.row(0) = control_history_.row(1); // Slide control history forward
+    control_history_.row(1) = nominal_control_trajectory.col(0).transpose(); // Save the control at time 0
+  }
+
+  for (int i = 0; i < num_timesteps_; ++i) {
+    for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
+      int ind = std::min(i + steps, num_timesteps_ - 1);
+      nominal_control_trajectory(j,i) = nominal_control_trajectory(j, ind);
     }
+  }
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void TubeMPPI::smoothControlTrajectory() {
+  // Create the filter coefficients
+  Eigen::Matrix<float, 1, 5> filter_coefficients;
+  filter_coefficients << -3, 12, 17, 12, -3;
+  filter_coefficients /= 35.0;
+
+  // Create and fill a control buffer that we can apply the convolution filter
+  Eigen::Matrix<float, MAX_TIMESTEPS+4, DYN_T::CONTROL_DIM> control_buffer;
+
+  // Fill the first two timesteps with the control history
+  control_buffer.topRows(2) = control_history_;
+
+  // Fill the center timesteps with the current nominal trajectory
+  control_buffer.middleRows(2, MAX_TIMESTEPS) = nominal_control_trajectory.transpose();
+
+  // Fill the last two timesteps with the end of the current nominal control trajectory
+  control_buffer.row(MAX_TIMESTEPS+2) = nominal_control_trajectory.transpose().row(MAX_TIMESTEPS-1);
+  control_buffer.row(MAX_TIMESTEPS+3) = control_buffer.row(MAX_TIMESTEPS+2);
+
+  // Apply convolutional filter to each timestep
+  for (int i = 0; i < MAX_TIMESTEPS; ++i) {
+    nominal_control_trajectory.col(i) = (filter_coefficients*control_buffer.middleRows(i,5)).transpose();
+  }
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
@@ -280,14 +325,7 @@ void TubeMPPI::initDDP(const StateCostWeight& q_mat,
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void TubeMPPI::computeFeedbackGains(const Eigen::Ref<const state_array>& state) {
-  Eigen::MatrixXf control_traj = Eigen::MatrixXf::Zero(DYN_T::CONTROL_DIM,
-                                                       this->num_timesteps_);
-  // replace with transpose?
-  for (int t = 0; t < this->num_timesteps_; t++){
-    for (int i = 0; i < DYN_T::CONTROL_DIM; i++){
-      control_traj(i,t) = nominal_control_trajectory(DYN_T::CONTROL_DIM * t + i);
-    }
-  }
+
   run_cost_->setTargets(nominal_state_trajectory.data(), nominal_control_trajectory.data(),
                         this->num_timesteps_);
 //  // Convert state_array to eigen
@@ -296,7 +334,7 @@ void TubeMPPI::computeFeedbackGains(const Eigen::Ref<const state_array>& state) 
 //    s(i) = state[i];
 //  }
   terminal_cost_->xf = run_cost_->traj_target_x_.col(this->num_timesteps_ - 1);
-  result_ = ddp_solver_->run(state, control_traj,
+  result_ = ddp_solver_->run(state, actual_control_trajectory,
                              *ddp_model_, *run_cost_, *terminal_cost_,
                              control_min_, control_max_);
 }
@@ -305,11 +343,16 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDI
 void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_actual) {
   actual_state_trajectory.col(0) = x0_actual;
   state_array xdot;
+
+  trajectory_cost_actual = 0;
+  trajectory_cost_nominal = 0;
+
   for (int i =0; i < num_timesteps_ - 1; ++i) {
     // Update the nominal state
     nominal_state_trajectory.col(i + 1) = nominal_state_trajectory.col(i);
     state_array state = nominal_state_trajectory.col(i + 1);
     control_array control = nominal_control_trajectory.col(i);
+    trajectory_cost_nominal += this->cost_->getStateCost(state.data())*dt_;
     this->model_->computeStateDeriv(state, control, xdot);
     this->model_->updateState(state, xdot, dt_);
     nominal_state_trajectory.col(i + 1) = state;
@@ -318,6 +361,7 @@ void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_ac
     actual_state_trajectory.col(i + 1) = actual_state_trajectory.col(i);
     state = actual_state_trajectory.col(i + 1);
     control = actual_control_trajectory.col(i);
+    trajectory_cost_actual += this->cost_->getStateCost(state.data())*dt_;
     this->model_->computeStateDeriv(state, control, xdot);
     this->model_->updateState(state, xdot, dt_);
     actual_state_trajectory.col(i + 1) = state;
@@ -345,3 +389,12 @@ void TubeMPPI::copyControlVarianceToDevice() {
   HANDLE_ERROR(cudaMemcpyAsync(control_variance_d_, control_variance_.data(), sizeof(float)*control_variance_.size(), cudaMemcpyHostToDevice, stream_));
   cudaStreamSynchronize(stream_);
 }
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void TubeMPPI::updateNominalState(const Eigen::Ref<const control_array> &u) {
+  state_array xdot;
+  state_array state;
+  this->model_->computeDynamics(nominal_state_trajectory.col(0), u, xdot);
+  this->model_->updateState(nominal_state_trajectory.col(0), xdot, dt_);
+}
+
