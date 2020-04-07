@@ -2,8 +2,8 @@
 #include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
 
 bool tubeFailure(float *s) {
-  float inner_path_radius2 = 1.675*1.675;
-  float outer_path_radius2 = 2.325*2.325;
+  float inner_path_radius2 = 1.775*1.775;
+  float outer_path_radius2 = 2.225*2.225;
   float radial_position = s[0]*s[0] + s[1]*s[1];
   if ((radial_position < inner_path_radius2) || (radial_position > outer_path_radius2)) {
     return true;
@@ -55,7 +55,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   DoubleIntegratorDynamics model;
   DoubleIntegratorCircleCost cost;
   float dt = 0.01; // Timestep of dynamics propagation
-  int max_iter = 3; // Maximum running iterations of optimization
+  int max_iter = 1; // Maximum running iterations of optimization
   float gamma = 0.25; // Learning rate parameter
   const int num_timesteps = 100;  // Optimization time horizon
 
@@ -79,7 +79,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    if (t % 25 == 0) {
+    if (t % 50 == 0) {
 //      float current_cost = cost.getStateCost(x.data());
       printf("Current Time: %f    ", t * dt);
 //      printf("Current State Cost: %f    ", current_cost);
@@ -109,10 +109,10 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 // Noise enters the system during the "true" state propagation. In this case the noise is nominal
 
   // Initialize the double integrator dynamics and cost
-  DoubleIntegratorDynamics model(10);
+  DoubleIntegratorDynamics model(100);
   DoubleIntegratorCircleCost cost;
   float dt = 0.01; // Timestep of dynamics propagation
-  int max_iter = 3; // Maximum running iterations of optimization
+  int max_iter = 1; // Maximum running iterations of optimization
   float gamma = 0.25; // Learning rate parameter
   const int num_timesteps = 100;  // Optimization time horizon
 
@@ -170,11 +170,11 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 
 TEST(TubeMPPITest, TubeMPPILargeVariance) {
   // Noise enters the system during the "true" state propagation. In this case the noise is nominal
-  DoubleIntegratorDynamics model(10);  // Initialize the double integrator dynamics
+  DoubleIntegratorDynamics model(100);  // Initialize the double integrator dynamics
   DoubleIntegratorCircleCost cost;  // Initialize the cost function
   float dt = 0.01; // Timestep of dynamics propagation
-  int max_iter = 3; // Maximum running iterations of optimization
-  float gamma = 0.5; // Learning rate parameter
+  int max_iter = 1; // Maximum running iterations of optimization
+  float gamma = 0.25; // Learning rate parameter
   const int num_timesteps = 100;  // Optimization time horizon
 
   int total_time_horizon = 1000; // Problem time horizon
@@ -204,12 +204,12 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   // Initialize the tube MPPI controller
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Qf, R, control_var);
+          512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Qf, R, control_var);
 
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    if (t % 25 == 0) {
+    if (t % 50 == 0) {
       float current_cost = cost.getStateCost(x.data());
       printf("Current Time: %f    ", t * dt);
       printf("Current State Cost: %f    ", current_cost);
