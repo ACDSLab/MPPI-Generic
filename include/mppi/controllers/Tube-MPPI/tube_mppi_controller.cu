@@ -70,8 +70,8 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     nominalStateInit_ = true;
   }
 
-  std::cout << "Post disturbance Actual State: "; this->model_->printState(state.data());
-  std::cout << "                Nominal State: "; this->model_->printState(nominal_state_trajectory.col(0).data());
+//  std::cout << "Post disturbance Actual State: "; this->model_->printState(state.data());
+//  std::cout << "                Nominal State: "; this->model_->printState(nominal_state_trajectory.col(0).data());
 
   // Handy reference pointers
   float * trajectory_costs_nominal_d = trajectory_costs_d_ + NUM_ROLLOUTS;
@@ -98,6 +98,8 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
                          NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
                          0.0, 1.0);
 
+    cudaDeviceSynchronize();
+
     curandGenerateNormal(this->gen_, control_noise_nominal_d,
                          NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
                          0.0, 1.0);
@@ -107,10 +109,15 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 //                 stream_) );
 
     //Launch the rollout kernel
-    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 2>(
+    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, dt_, this->num_timesteps_,
         initial_state_d_, control_d_, control_noise_d_,
         this->control_variance_d_, trajectory_costs_d_, stream_);
+
+    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+            this->model_->model_d_, this->cost_->cost_d_, dt_, this->num_timesteps_,
+            initial_state_nominal_d, control_nominal_d, control_noise_nominal_d,
+            this->control_variance_d_, trajectory_costs_nominal_d, stream_);
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_actual_.data(),
@@ -177,10 +184,13 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     computeStateTrajectory(state); // Input is the actual state
 
-    std::cout << "Baseline actual: " << baseline_actual_ << std::endl;
-    std::cout << "Baseline nominal: " << baseline_nominal_ << std::endl;
+//    std::cout << "Baseline actual: " << baseline_actual_ << std::endl;
+//    std::cout << "Baseline nominal: " << baseline_nominal_ << std::endl;
+//
+//    std::cout << "Trajectory cost actual: " << trajectory_cost_actual << std::endl;
+//    std::cout << "Trajectory cost nominal: " << trajectory_cost_nominal << std::endl;
 
-    if (baseline_actual_ < baseline_nominal_ + nominal_threshold_) {
+    if (trajectory_cost_actual < trajectory_cost_nominal + nominal_threshold_) {
       // In this case, the disturbance the made the nominal and actual states differ improved the cost.
       // std::copy(actual_state_trajectory.begin(), actual_state_trajectory.end(), nominal_state_trajectory.begin());
       // std::copy(actual_control_trajectory.begin(), actual_control_trajectory.end(), nominal_control_trajectory.begin());
@@ -268,6 +278,8 @@ void TubeMPPI::slideControlSequence(int steps) {
     for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
       int ind = std::min(i + steps, num_timesteps_ - 1);
       nominal_control_trajectory(j,i) = nominal_control_trajectory(j, ind);
+      actual_control_trajectory(j,i) = actual_control_trajectory(j, ind);
+
     }
   }
 }

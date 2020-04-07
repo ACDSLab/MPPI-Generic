@@ -58,5 +58,7 @@ void DoubleIntegratorDynamics::computeStateDisturbance(float dt, Eigen::Ref<stat
   // TODO fix compiler warning about host function call
   // Generate system noise
   state_array system_noise = state_array::NullaryExpr([&]() { return normal_distribution(gen); });
+  system_noise(0) = 0.0;
+  system_noise(1) = 0.0;
   state += system_noise*dt;
 }
