@@ -108,11 +108,16 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 //                 cudaMemcpyDeviceToDevice,
 //                 stream_) );
 
-    //Launch the rollout kernel
+    //Launch the rollout kernel TODO fix the rollout kernel
+//    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 2>(
+//        this->model_->model_d_, this->cost_->cost_d_, dt_, this->num_timesteps_,
+//        initial_state_d_, control_d_, control_noise_d_,
+//        this->control_variance_d_, trajectory_costs_d_, stream_);
+
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        this->model_->model_d_, this->cost_->cost_d_, dt_, this->num_timesteps_,
-        initial_state_d_, control_d_, control_noise_d_,
-        this->control_variance_d_, trajectory_costs_d_, stream_);
+            this->model_->model_d_, this->cost_->cost_d_, dt_, this->num_timesteps_,
+            initial_state_d_, control_d_, control_noise_d_,
+            this->control_variance_d_, trajectory_costs_d_, stream_);
 
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
             this->model_->model_d_, this->cost_->cost_d_, dt_, this->num_timesteps_,
@@ -205,7 +210,6 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
   }
   smoothControlTrajectory();
   computeStateTrajectory(state); // Input is the actual state
-
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
@@ -279,7 +283,6 @@ void TubeMPPI::slideControlSequence(int steps) {
       int ind = std::min(i + steps, num_timesteps_ - 1);
       nominal_control_trajectory(j,i) = nominal_control_trajectory(j, ind);
       actual_control_trajectory(j,i) = actual_control_trajectory(j, ind);
-
     }
   }
 }
@@ -364,7 +367,7 @@ void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_ac
     nominal_state_trajectory.col(i + 1) = nominal_state_trajectory.col(i);
     state_array state = nominal_state_trajectory.col(i + 1);
     control_array control = nominal_control_trajectory.col(i);
-    trajectory_cost_nominal += this->cost_->getStateCost(state.data())*dt_;
+    trajectory_cost_nominal += this->cost_->getStateCost(state.data())*dt_; // TODO return to baseline comparison
     this->model_->computeStateDeriv(state, control, xdot);
     this->model_->updateState(state, xdot, dt_);
     nominal_state_trajectory.col(i + 1) = state;

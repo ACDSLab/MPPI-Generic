@@ -2,8 +2,8 @@
 #include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
 
 bool tubeFailure(float *s) {
-  float inner_path_radius2 = 1.775*1.775;
-  float outer_path_radius2 = 2.225*2.225;
+  float inner_path_radius2 = 1.675*1.675;
+  float outer_path_radius2 = 2.325*2.325;
   float radial_position = s[0]*s[0] + s[1]*s[1];
   if ((radial_position < inner_path_radius2) || (radial_position > outer_path_radius2)) {
     return true;
@@ -63,7 +63,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 0;
+  x << 2, 0, 0, 1;
 
   DoubleIntegratorDynamics::state_array xdot;
 
@@ -75,15 +75,19 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
           512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
 
-
+  int fail_count = 0;
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    if (t % 50 == 0) {
-//      float current_cost = cost.getStateCost(x.data());
-      printf("Current Time: %f    ", t * dt);
-//      printf("Current State Cost: %f    ", current_cost);
-      model.printState(x.data());
+//    if (t % 100 == 0) {
+////      float current_cost = cost.getStateCost(x.data());
+//      printf("Current Time: %f    ", t * dt);
+////      printf("Current State Cost: %f    ", current_cost);
+//      model.printState(x.data());
+//    }
+
+    if (cost.getStateCost(x.data()) > 1000) {
+      fail_count++;
     }
 
     if (tubeFailure(x.data())) {
@@ -103,6 +107,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
     // Slide the control sequence
     vanilla_controller.slideControlSequence(1);
   }
+//  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
 }
 
 TEST(TubeMPPITest, VanillaMPPILargeVariance) {
@@ -120,7 +125,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 0;
+  x << 2, 0, 0, 1;
 
   DoubleIntegratorDynamics::state_array xdot;
 
@@ -133,14 +138,21 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
           512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
 
   bool success = false;
+  int fail_count = 0;
+
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    if (t % 50 == 0) {
+//    if (t % 100 == 0) {
 //      float current_cost = cost.getStateCost(x.data());
-      printf("Current Time: %f    ", t * dt);
+//      printf("Current Time: %f    ", t * dt);
 //      printf("Current State Cost: %f    ", current_cost);
-      model.printState(x.data());
+//      model.printState(x.data());
+//    }
+
+    if (cost.getStateCost(x.data()) > 1000) {
+      fail_count++;
+      success = true;
     }
 
     if (tubeFailure(x.data())) {
@@ -163,6 +175,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
       break;
     }
   }
+//  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
   if (not success) {
     FAIL();
   }
@@ -182,7 +195,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 0;
+  x << 2, 0, 0, 1;
 
   DoubleIntegratorDynamics::state_array xdot;
 
@@ -206,14 +219,20 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
           512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Qf, R, control_var);
 
+  int fail_count = 0;
+
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    if (t % 50 == 0) {
-      float current_cost = cost.getStateCost(x.data());
-      printf("Current Time: %f    ", t * dt);
-      printf("Current State Cost: %f    ", current_cost);
-      model.printState(x.data());
+//    if (t % 100 == 0) {
+//      float current_cost = cost.getStateCost(x.data());
+//      printf("Current Time: %f    ", t * dt);
+//      printf("Current State Cost: %f    ", current_cost);
+//      model.printState(x.data());
+//    }
+
+    if (cost.getStateCost(x.data()) > 1000) {
+      fail_count++;
     }
 
     if (tubeFailure(x.data())) {
@@ -250,5 +269,4 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     // Slide the control sequence
     controller.slideControlSequence(1);
   }
-
 }
