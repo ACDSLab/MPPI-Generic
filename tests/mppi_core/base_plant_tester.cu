@@ -5,14 +5,14 @@
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <utils/test_helper.h>
+#include <mppi/utils/test_helper.h>
 #include <random>
 #include <algorithm>
 #include <numeric>
 #include <boost/thread.hpp>
 
-#include <mppi_core/base_plant.hpp>
-#include <instantiations/cartpole_mppi/cartpole_mppi.cuh>
+#include <mppi/core/base_plant.hpp>
+#include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
 
 
 // ===== mock cost ====
@@ -43,9 +43,9 @@ public:
 class MockController : public Controller<MockDynamics, MockCost, 100, 500, 32, 2> {
 public:
   MOCK_METHOD0(resetControls, void());
-  MOCK_METHOD1(computeFeedbackGains, void(const state_array& state));
+  MOCK_METHOD1(computeFeedbackGains, void(const Eigen::Ref<const state_array>& state));
   MOCK_METHOD1(slideControlSequence, void(int stride));
-  MOCK_METHOD1(computeControl, void(const state_array& state));
+  MOCK_METHOD1(computeControl, void(const Eigen::Ref<const state_array>& state));
   MOCK_METHOD0(getControlSeq, control_trajectory());
   MOCK_METHOD0(getStateSeq, state_trajectory());
   MOCK_METHOD0(getFeedbackGains, K_matrix());
