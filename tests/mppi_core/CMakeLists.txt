@@ -1,5 +1,3 @@
-cmake_minimum_required(VERSION 3.8)
-set(CMAKE_CXX_STANDARD 11)
 # Rollout kernel test suite
 set(ROLLOUT_TARGET_NAME rollout_kernel_tests)
 
@@ -27,7 +25,8 @@ set_target_properties(${NORMEXP_TARGET_NAME} PROPERTIES FOLDER test)
 # Weighted Reduction Kernel Test Suite
 set(WEIGHTRED_TARGET_NAME weightedreduction_kernel_tests)
 
-add_executable(${WEIGHTRED_TARGET_NAME} ../test_main.cpp weightedreduction_kernel_tests.cu)
+add_executable(${WEIGHTRED_TARGET_NAME} ../test_main.cpp
+               weightedreduction_kernel_tests.cu)
 target_link_libraries(${WEIGHTRED_TARGET_NAME} gtest
         gmock
         gtest_main

@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
-#include <dynamics/cartpole/cartpole_dynamics.cuh>
-#include <cost_functions/cartpole/cartpole_quadratic_cost.cuh>
-#include <mppi_core/rollout_kernel_test.cuh>
-#include <utils/test_helper.h>
+#include <mppi/dynamics/cartpole/cartpole_dynamics.cuh>
+#include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
+#include <mppi/core/rollout_kernel_test.cuh>
+#include <mppi/utils/test_helper.h>
 #include <random>
 /*
  * Here we will test various device functions that are related to cuda kernel things.
@@ -28,6 +28,89 @@ TEST(RolloutKernel, loadGlobalToShared) {
     array_assert_float_eq(0.f, u_thread_host, CONTROL_DIM);
     array_assert_float_eq(0.f, du_thread_host, CONTROL_DIM);
     array_assert_float_eq(sigma_u_thread_host, u_var_host, CONTROL_DIM);
+}
+
+TEST(RolloutKernel, loadGlobalToSharedNominalAndActualState) {
+  const int STATE_DIM = 12;
+  const int CONTROL_DIM = 3;
+  std::vector<float> x0_host_act = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+                                    1.0, 1.1, 1.2};
+
+  std::vector<float> x0_host_nom = {1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9,
+                                    2.0, 2.1, 2.2};
+  std::vector<float> u_var_host = {0.8, 0.9, 1.0};
+
+  std::vector<float> x_thread_host_act(STATE_DIM, 0.f);
+  std::vector<float> x_thread_host_nom(STATE_DIM, 0.f);
+  std::vector<float> xdot_thread_host_act(STATE_DIM, 2.f);
+  std::vector<float> xdot_thread_host_nom(STATE_DIM, 2.f);
+
+  std::vector<float> u_thread_host_act(CONTROL_DIM, 3.f);
+  std::vector<float> u_thread_host_nom(CONTROL_DIM, 3.f);
+  std::vector<float> du_thread_host_act(CONTROL_DIM, 4.f);
+  std::vector<float> du_thread_host_nom(CONTROL_DIM, 4.f);
+  std::vector<float> sigma_u_thread_host(CONTROL_DIM, 0.f);
+
+  launchGlobalToShared_KernelTest_nom_act(x0_host_act, u_var_host,
+                                          x_thread_host_act, xdot_thread_host_act,
+                                          u_thread_host_act, du_thread_host_act,
+                                          x0_host_nom, x_thread_host_nom,
+                                          xdot_thread_host_nom,
+                                          u_thread_host_nom, du_thread_host_nom,
+                                          sigma_u_thread_host);
+
+  std::cout << "Testing actual x0" << std::endl;
+  array_assert_float_eq(x0_host_act, x_thread_host_act, STATE_DIM);
+  std::cout << "Testing nom x0" << std::endl;
+  array_assert_float_eq(x0_host_nom, x_thread_host_nom, STATE_DIM);
+  std::cout << "Testing empty" << std::endl;
+  array_assert_float_eq(0.f, xdot_thread_host_act, STATE_DIM);
+  array_assert_float_eq(0.f, xdot_thread_host_nom, STATE_DIM);
+  array_assert_float_eq(0.f, u_thread_host_act, CONTROL_DIM);
+  array_assert_float_eq(0.f, u_thread_host_nom, CONTROL_DIM);
+  array_assert_float_eq(0.f, du_thread_host_act, CONTROL_DIM);
+  array_assert_float_eq(0.f, du_thread_host_nom, CONTROL_DIM);
+  std::cout << "Testing act sigma" << std::endl;
+  array_assert_float_eq(sigma_u_thread_host, u_var_host, CONTROL_DIM);
+}
+
+TEST(RolloutKernel, runRolloutKernelOnMultipleSystems) {
+  CartpoleDynamics dynamics(1, 1, 1);
+  CartpoleQuadraticCost cost;
+
+  cartpoleQuadraticCostParams new_params;
+  new_params.cart_position_coeff = 100;
+  new_params.pole_angle_coeff = 200;
+  new_params.cart_velocity_coeff = 10;
+  new_params.pole_angular_velocity_coeff = 20;
+  new_params.control_force_coeff = 1;
+  new_params.terminal_cost_coeff = 0;
+  new_params.desired_terminal_state[0] = -20;
+  new_params.desired_terminal_state[1] = 0;
+  new_params.desired_terminal_state[2] = M_PI;
+  new_params.desired_terminal_state[3] = 0;
+
+  cost.setParams(new_params);
+
+  cudaStream_t stream1;
+  cudaStreamCreate(&stream1);
+  float dt = 0.01;
+  int num_timesteps = 100;
+  const int NUM_ROLLOUTS = 2048; // Must be a multiple of 32
+  // Create variables to pass to rolloutKernel
+  std::vector<float> x0(CartpoleDynamics::STATE_DIM);
+  std::vector<float> control_variance(CartpoleDynamics::CONTROL_DIM, 0.4);
+  std::vector<float> nominal_control_seq(CartpoleDynamics::CONTROL_DIM * num_timesteps);
+  std::vector<float> trajectory_costs_act(NUM_ROLLOUTS);
+  std::vector<float> trajectory_costs_nom(NUM_ROLLOUTS);
+  for (size_t i = 0; i < x0.size(); i++) {
+    x0[i] = i * 0.1 + 0.2;
+  }
+
+  launchRolloutKernel_nom_act<CartpoleDynamics, CartpoleQuadraticCost, NUM_ROLLOUTS>(
+    &dynamics, &cost, dt, num_timesteps, x0, control_variance,
+    nominal_control_seq, trajectory_costs_act, trajectory_costs_nom);
+  array_assert_float_eq(trajectory_costs_act, trajectory_costs_nom, NUM_ROLLOUTS);
 }
 
 TEST(RolloutKernel, injectControlNoiseOnce) {
@@ -163,4 +246,3 @@ TEST(RolloutKernel, computeAndSaveCostAllRollouts) {
 
     array_assert_float_eq<num_rollouts>(cost_known, cost_compute);
 }
-

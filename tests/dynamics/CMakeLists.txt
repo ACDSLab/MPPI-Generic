@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 set(CMAKE_CXX_STANDARD 11)
 
+# Generic dynamics test
 set(TARGET_NAME dynamics_generic_tests)
 
 add_executable(${TARGET_NAME} ../test_main.cpp dynamics_generic_tests.cu)
@@ -9,6 +10,7 @@ target_link_libraries(${TARGET_NAME} gtest gmock gtest_main)
 add_test(NAME ${TARGET_NAME} COMMAND cartpole_dynamics_tests)
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER test)
 
+# Cartpole dynamics tests
 set(TARGET_NAME cartpole_dynamics_tests)
 
 add_executable(${TARGET_NAME} ../test_main.cpp cartpole_dynamics_tests.cu)
