@@ -38,10 +38,12 @@ set_target_properties(${WEIGHTRED_TARGET_NAME} PROPERTIES FOLDER test)
 # Base Plant test cases
 set(PLANT_TARGET_NAME base_plant_tests)
 
-add_executable(${PLANT_TARGET_NAME} ../test_main.cpp base_plant_tester.cpp)
+#message("===BOOST=== |${Boost_LIBRARIES}|${Boost_INCLUDE_DIRS}")
+add_executable(${PLANT_TARGET_NAME} ../test_main.cpp base_plant_tester.cu)
 target_link_libraries(${PLANT_TARGET_NAME} gtest
         gmock
         gtest_main
+        ${Boost_LIBRARIES}
         ${OpenCV_LIBRARIES}
         )
 
