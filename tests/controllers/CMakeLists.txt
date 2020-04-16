@@ -15,6 +15,18 @@ target_link_libraries(vanilla_mppi_tests gtest
 add_test(NAME vanilla_mppi_tests COMMAND vanilla_mppi_tests)
 set_target_properties(vanilla_mppi_tests PROPERTIES FOLDER test)
 
+add_executable(controller_generic_tests
+        ../test_main.cpp
+        controller_generic_tests.cu)
+
+target_link_libraries(controller_generic_tests gtest
+        gmock
+        gtest_main
+        ${CUDA_LIBRARIES}
+        cnpy)
+add_test(NAME controller_generic_tests COMMAND controller_generic_tests)
+set_target_properties(controller_generic_tests PROPERTIES FOLDER test)
+
 
 add_executable(tube_mppi_tests
         ../test_main.cpp
