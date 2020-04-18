@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
+#include <cnpy.h>
 
 bool tubeFailure(float *s) {
   float inner_path_radius2 = 1.675*1.675;
@@ -11,6 +12,8 @@ bool tubeFailure(float *s) {
     return false;
   }
 }
+
+const int total_time_horizon = 2500;
 
 TEST(TubeMPPITest, Construction) {
   // Define the model and cost
@@ -54,12 +57,12 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   // Initialize the double integrator dynamics and cost
   DoubleIntegratorDynamics model;
   DoubleIntegratorCircleCost cost;
-  float dt = 0.01; // Timestep of dynamics propagation
-  int max_iter = 1; // Maximum running iterations of optimization
+  float dt = 0.02; // Timestep of dynamics propagation
+  int max_iter = 3; // Maximum running iterations of optimization
   float gamma = 0.25; // Learning rate parameter
-  const int num_timesteps = 100;  // Optimization time horizon
+  const int num_timesteps = 50;  // Optimization time horizon
 
-  int total_time_horizon = 1000; // Problem time horizon
+  std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
@@ -73,7 +76,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
 
   int fail_count = 0;
   // Start the while loop
@@ -97,6 +100,16 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
     // Compute the control
     vanilla_controller.computeControl(x);
 
+    // Save the nominal trajectory
+    auto nominal_trajectory = vanilla_controller.getStateSeq();
+
+    for (int i = 0; i < num_timesteps; i++) {
+      for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
+        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+        i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
+      }
+    }
+
     // Propagate the state forward
     model.computeDynamics(x, vanilla_controller.getControlSeq().col(0), xdot);
     model.updateState(x, xdot, dt);
@@ -108,6 +121,9 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
     vanilla_controller.slideControlSequence(1);
   }
 //  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
+//save it to file
+  cnpy::npy_save("vanilla_nominal.npy",nominal_trajectory_save.data(),
+          {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 }
 
 TEST(TubeMPPITest, VanillaMPPILargeVariance) {
@@ -116,12 +132,13 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   // Initialize the double integrator dynamics and cost
   DoubleIntegratorDynamics model(100);
   DoubleIntegratorCircleCost cost;
-  float dt = 0.01; // Timestep of dynamics propagation
-  int max_iter = 1; // Maximum running iterations of optimization
+  float dt = 0.02; // Timestep of dynamics propagation
+  int max_iter = 3; // Maximum running iterations of optimization
   float gamma = 0.25; // Learning rate parameter
-  const int num_timesteps = 100;  // Optimization time horizon
+  const int num_timesteps = 50;  // Optimization time horizon
 
-  int total_time_horizon = 1000; // Problem time horizon
+  std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
+
 
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
@@ -135,7 +152,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
 
   bool success = false;
   int fail_count = 0;
@@ -150,17 +167,26 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 //      model.printState(x.data());
 //    }
 
-    if (cost.getStateCost(x.data()) > 1000) {
+    if (tubeFailure(x.data()))  {
+      success = true;
       fail_count++;
-      success = true;
     }
 
-    if (tubeFailure(x.data())) {
-      success = true;
+    if (fail_count > 50) {
+      break;
     }
-
     // Compute the control
     vanilla_controller.computeControl(x);
+
+    // Save the nominal trajectory
+    auto nominal_trajectory = vanilla_controller.getStateSeq();
+
+    for (int i = 0; i < num_timesteps; i++) {
+      for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
+        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+                                i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
+      }
+    }
 
     // Propagate the state forward
     model.computeDynamics(x, vanilla_controller.getControlSeq().col(0), xdot);
@@ -171,10 +197,13 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 
     // Slide the control sequence
     vanilla_controller.slideControlSequence(1);
-    if (success) {
-      break;
-    }
+//    if (success) {
+//      break;
+//    }
   }
+
+  cnpy::npy_save("vanilla_large.npy",nominal_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 //  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
   if (not success) {
     FAIL();
@@ -185,12 +214,13 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   // Noise enters the system during the "true" state propagation. In this case the noise is nominal
   DoubleIntegratorDynamics model(100);  // Initialize the double integrator dynamics
   DoubleIntegratorCircleCost cost;  // Initialize the cost function
-  float dt = 0.01; // Timestep of dynamics propagation
-  int max_iter = 1; // Maximum running iterations of optimization
+  float dt = 0.02; // Timestep of dynamics propagation
+  int max_iter = 3; // Maximum running iterations of optimization
   float gamma = 0.25; // Learning rate parameter
-  const int num_timesteps = 100;  // Optimization time horizon
+  const int num_timesteps = 50;  // Optimization time horizon
 
-  int total_time_horizon = 1000; // Problem time horizon
+  std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
+  std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
 
 
   // Set the initial state
@@ -217,7 +247,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   // Initialize the tube MPPI controller
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Qf, R, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Qf, R, control_var);
 
   int fail_count = 0;
 
@@ -236,14 +266,33 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     }
 
     if (tubeFailure(x.data())) {
+      cnpy::npy_save("tube_large.npy",nominal_trajectory_save.data(),
+                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+      cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
+                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       FAIL();
     }
 
     // Compute the control
     controller.computeControl(x);
 
+    // Save the nominal trajectory
+    auto nominal_trajectory = controller.getStateSeq();
+
     // Get the feedback gains associated with the nominal state and control trajectory
     controller.computeFeedbackGains(x);
+
+    // Save the ancillary trajectory
+    auto ancillary_trajectory = controller.getAncillaryStateSeq();
+
+    for (int i = 0; i < num_timesteps; i++) {
+      for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
+        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+                                i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
+        ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+                                i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
+      }
+    }
 
     // Get the open loop control
     DoubleIntegratorDynamics::control_array current_control = controller.getControlSeq().col(0);
@@ -269,4 +318,9 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     // Slide the control sequence
     controller.slideControlSequence(1);
   }
+
+  cnpy::npy_save("tube_large.npy",nominal_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 }

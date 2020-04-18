@@ -106,6 +106,8 @@ public:
 
   FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
 
+  state_trajectory getAncillaryStateSeq() {return result_.state_trajectory;};
+
   void smoothControlTrajectory();
 
   void updateNominalState(const Eigen::Ref<const control_array>& u);

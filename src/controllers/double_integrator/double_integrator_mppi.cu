@@ -7,7 +7,8 @@
  */
 // Num_timesteps, num_rollouts, blockdim x, blockdim y
 template class VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 512, 64, 8>;
-template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 512, 64, 8>;
+template class VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 50, 1024, 64, 8>;
 
+template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 512, 64, 8>;
 template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 50, 1024, 64, 8>;
 template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 1024, 64, 8>;
