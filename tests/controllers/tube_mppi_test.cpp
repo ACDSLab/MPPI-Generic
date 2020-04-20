@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
 #include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
 #include <cnpy.h>
+#include <mppi/ddp/ddp_model_wrapper.h>
+#include <mppi/ddp/ddp_tracking_costs.h>
+#include <mppi/ddp/ddp.h>
 
 bool tubeFailure(float *s) {
   float inner_path_radius2 = 1.675*1.675;
@@ -203,6 +206,128 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   }
 
   cnpy::npy_save("vanilla_large.npy",nominal_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+//  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
+  if (not success) {
+    FAIL();
+  }
+}
+
+TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
+// Noise enters the system during the "true" state propagation. In this case the noise is nominal
+
+  // Initialize the double integrator dynamics and cost
+  DoubleIntegratorDynamics model(100);
+  DoubleIntegratorCircleCost cost;
+  float dt = 0.02; // Timestep of dynamics propagation
+  int max_iter = 3; // Maximum running iterations of optimization
+  float gamma = 0.25; // Learning rate parameter
+  const int num_timesteps = 50;  // Optimization time horizon
+
+  std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
+
+
+  // Set the initial state
+  DoubleIntegratorDynamics::state_array x;
+  x << 2, 0, 0, 1;
+
+  DoubleIntegratorDynamics::state_array xdot;
+
+  // control variance
+  DoubleIntegratorDynamics::control_array control_var;
+  control_var << 1, 1;
+
+  // Initialize the vanilla MPPI controller
+  auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
+          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+
+  // Initialize the DDP tracking controller
+util::DefaultLogger logger;
+  bool verbose = false;
+  auto ddp_model_  = std::make_shared<ModelWrapperDDP<DoubleIntegratorDynamics>>(&model);
+  auto ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DoubleIntegratorDynamics>>>(dt,
+          num_timesteps, 1, &logger, verbose);
+
+  // DDP cost parameters
+  Eigen::MatrixXf Q;
+  Eigen::MatrixXf Qf;
+  Eigen::MatrixXf R;
+
+  Q = 500*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
+  Q(2,2) = 100;
+  Q(3,3) = 100;
+  R = 1*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
+
+  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
+
+  auto run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DoubleIntegratorDynamics>>>(Q,
+                                                                        R, num_timesteps);
+  auto terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DoubleIntegratorDynamics>>>(Qf);
+
+  bool success = false;
+  int fail_count = 0;
+
+  // Start the while loop
+  for (int t = 0; t < total_time_horizon; ++t) {
+    // Print the system state
+//    if (t % 100 == 0) {
+//      float current_cost = cost.getStateCost(x.data());
+//      printf("Current Time: %f    ", t * dt);
+//      printf("Current State Cost: %f    ", current_cost);
+//      model.printState(x.data());
+//    }
+
+    if (tubeFailure(x.data()))  {
+      success = true;
+      fail_count++;
+    }
+
+    if (fail_count > 50) {
+      break;
+    }
+    // Compute the control
+    vanilla_controller.computeControl(x);
+
+    // Save the nominal trajectory
+    auto nominal_trajectory = vanilla_controller.getStateSeq();
+    auto nominal_control = vanilla_controller.getControlSeq();
+
+    for (int i = 0; i < num_timesteps; i++) {
+      for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
+        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+                                i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
+      }
+    }
+
+    // Compute the feedback gains
+    run_cost_->setTargets(nominal_trajectory.data(), nominal_control.data(), num_timesteps);
+    terminal_cost_->xf = run_cost_->traj_target_x_.col(num_timesteps - 1);
+    auto result = ddp_solver_->run(x, nominal_control,
+                               *ddp_model_, *run_cost_, *terminal_cost_);
+
+    // Get the open loop control
+    DoubleIntegratorDynamics::control_array current_control = nominal_control.col(0);
+    //    std::cout << current_control << std::endl;
+
+
+    // Apply the feedback given the current state
+    current_control += result.feedback_gain[0]*(x - nominal_trajectory.col(0));
+
+    // Propagate the state forward
+    model.computeDynamics(x, current_control, xdot);
+    model.updateState(x, xdot, dt);
+
+    // Add the "true" noise of the system
+    model.computeStateDisturbance(dt, x);
+
+    // Slide the control sequence
+    vanilla_controller.slideControlSequence(1);
+//    if (success) {
+//      break;
+//    }
+  }
+
+  cnpy::npy_save("vanilla_large_track.npy",nominal_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 //  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
   if (not success) {
