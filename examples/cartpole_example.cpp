@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
   control_var = CartpoleDynamics::control_array::Constant(1.0);
 
   auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(model, cost,
-                                                                                                             dt, max_iter, gamma, num_timesteps, control_var);
+                                                                                                             dt, max_iter, gamma, control_var);
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
 

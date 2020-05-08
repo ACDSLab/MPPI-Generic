@@ -23,6 +23,8 @@ target_link_libraries(controller_generic_tests gtest
         gmock
         gtest_main
         ${CUDA_LIBRARIES}
+        ${OpenCV_LIBRARIES}
+        curand
         cnpy)
 add_test(NAME controller_generic_tests COMMAND controller_generic_tests)
 set_target_properties(controller_generic_tests PROPERTIES FOLDER test)
@@ -35,6 +37,7 @@ target_link_libraries(tube_mppi_tests gtest
         gmock
         gtest_main
         double_integrator_mppi
+        ${CUDA_LIBRARIES}
         cnpy
         ${Boost_LIBRARIES})
 add_test(NAME tube_mppi_tests COMMAND tube_mppi_tests)

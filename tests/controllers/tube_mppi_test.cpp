@@ -33,10 +33,10 @@ TEST(TubeMPPITest, Construction) {
   R = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
 
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-                                      512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+                                      512, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
 
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-                                        512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Q, R, control_var);
+                                        512, 64, 8>(&model, &cost, dt, max_iter, gamma, Q, Q, R, control_var);
 
 //  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
 //                                      512, 64, 8>(&model, &cost, dt, max_iter,
@@ -73,7 +73,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+          512, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
 
   int fail_count = 0;
   // Start the while loop
@@ -135,7 +135,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+          512, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
 
   bool success = false;
   int fail_count = 0;
@@ -217,7 +217,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   // Initialize the tube MPPI controller
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Qf, R, control_var);
+          512, 64, 8>(&model, &cost, dt, max_iter, gamma, Q, Qf, R, control_var);
 
   int fail_count = 0;
 

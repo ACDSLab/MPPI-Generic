@@ -14,10 +14,11 @@ typedef struct {
   int test = 2;
 } mockDynamicsParams;
 
-class MockDynamics : public Dynamics<MockDynamics, mockDynamicsParams, 1, 1> {
+class MockDynamics : public MPPI_internal::Dynamics<MockDynamics, mockDynamicsParams, 1, 1> {
 public:
   MOCK_METHOD1(bindToStream, void(cudaStream_t stream));
   MOCK_METHOD1(setParams, void(mockDynamicsParams params));
+  MOCK_METHOD0(GPUSetup, void());
 };
 
 #endif //MPPIGENERIC_MOCK_DYNAMICS_H

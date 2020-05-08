@@ -21,5 +21,6 @@ public:
   MOCK_METHOD1(getDebugDisplay, cv::Mat(float* array));
   MOCK_METHOD1(setParams, void(mockCostParams params));
   MOCK_METHOD2(updateCostmap, void(std::vector<int> desc, std::vector<float> data));
+  MOCK_METHOD0(GPUSetup, void());
 };
 #endif //MPPIGENERIC_MOCK_COSTS_H
