@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(vanilla_mppi_tests
                ../test_main.cpp
-               vanilla_mppi_test.cpp)
+        vanilla_mppi_test.cu)
 
 target_link_libraries(vanilla_mppi_tests gtest
                       gmock
@@ -32,7 +32,7 @@ set_target_properties(controller_generic_tests PROPERTIES FOLDER test)
 
 add_executable(tube_mppi_tests
         ../test_main.cpp
-        tube_mppi_test.cpp)
+        tube_mppi_test.cu)
 target_link_libraries(tube_mppi_tests gtest
         gmock
         gtest_main

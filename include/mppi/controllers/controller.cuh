@@ -138,13 +138,14 @@ public:
    * Gets the state sequence of the nominal trajectory
    */
   virtual state_trajectory getStateSeq() {
-    return state_trajectory();
+    return state_;
   }
 
   /**
    * Return the current minimal cost sequence
    */
   virtual cost_trajectory getCostSeq() {
+    // TODO
     return cost_trajectory();
   };
 
@@ -152,7 +153,7 @@ public:
    * Return all the sampled costs sequences
    */
   virtual sampled_cost_traj getSampledCostSeq() {
-    return sampled_cost_traj();
+    return trajectory_costs_;
   };
 
   /**
@@ -207,7 +208,6 @@ public:
     copyControlVarianceToDevice();
   }
 
-  // TODO set in constructor
   /**
    * Public data members
    */
