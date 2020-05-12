@@ -25,7 +25,7 @@ public:
 
   using s_array = typename CONTROLLER_T::state_array;
   using s_traj = typename CONTROLLER_T::state_trajectory;
-  using K_mat = typename CONTROLLER_T::K_matrix;
+  using K_traj = typename CONTROLLER_T::feedback_gain_trajectory;
 
   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
@@ -55,7 +55,7 @@ protected:
 
   // values sometime updated
   // TODO init to zero?
-  K_mat feedback_gain_;
+  K_traj feedback_gain_;
 
   // from ROSHandle mppi_node
   int optimization_stride_ = 1;
@@ -149,7 +149,7 @@ public:
 
   virtual void setSolution(const s_traj& state_seq,
                            const c_traj& control_seq,
-                           const K_mat& feedback_gains,
+                           const K_traj& feedback_gains,
                            double timestamp,
                            double loop_speed) = 0;
 
@@ -228,7 +228,7 @@ public:
   //                                     const c_traj& control_seq,
   //                                     const s_traj& state_seq,
   //                                     const s_array& curr_state,
-  //                                     const K_mat& K) {
+  //                                     const K_traj& K) {
   //   int lower_idx = (int) (t / dt);
   //   int upper_idx = lower_idx + 1;
   //   double alpha = (t - lower_idx * dt) / dt;

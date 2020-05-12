@@ -33,6 +33,7 @@ dt_(dt), num_iters_(max_iter), gamma_(gamma), stream_(stream) {
     this->model_->GPUSetup();
     this->cost_->GPUSetup();
 
+    control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
 
     // Allocate CUDA memory for the controller
     allocateCUDAMemory();

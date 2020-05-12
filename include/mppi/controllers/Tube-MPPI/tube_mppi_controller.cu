@@ -33,6 +33,7 @@ nominal_control_trajectory(init_control_traj), stream_(stream) {
   this->model_->GPUSetup();
   this->cost_->GPUSetup();
 
+  control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
 
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();

@@ -18,7 +18,7 @@ ARStandardCost<CLASS_T, PARAMS_T>::~ARStandardCost() {
 template <class CLASS_T, class PARAMS_T>
 void ARStandardCost<CLASS_T, PARAMS_T>::freeCudaMem() {
   // TODO free everything
-  Cost<ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T>::freeCudaMem();
+  Cost<ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T, 7, 2>::freeCudaMem();
 }
 
 template <class CLASS_T, class PARAMS_T>

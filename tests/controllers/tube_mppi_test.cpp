@@ -240,7 +240,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
           1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
 
   // Initialize the DDP tracking controller
-util::DefaultLogger logger;
+  util::DefaultLogger logger;
   bool verbose = false;
   auto ddp_model_  = std::make_shared<ModelWrapperDDP<DoubleIntegratorDynamics>>(&model);
   auto ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DoubleIntegratorDynamics>>>(dt,

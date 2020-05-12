@@ -20,7 +20,7 @@ typedef struct {
   int test = 1;
 } mockCostParams;
 
-class MockCost : public Cost<MockCost, mockCostParams> {
+class MockCost : public Cost<MockCost, mockCostParams, 1, 1> {
 public:
   MOCK_METHOD1(bindToStream, void(cudaStream_t stream));
   MOCK_METHOD0(getDebugDisplayEnabled, bool());
@@ -48,7 +48,7 @@ public:
   MOCK_METHOD1(computeControl, void(const Eigen::Ref<const state_array>& state));
   MOCK_METHOD0(getControlSeq, control_trajectory());
   MOCK_METHOD0(getStateSeq, state_trajectory());
-  MOCK_METHOD0(getFeedbackGains, K_matrix());
+  MOCK_METHOD0(getFeedbackGains, feedback_gain_trajectory());
 };
 
 template <class CONTROLLER_T>
@@ -63,7 +63,7 @@ public:
 
   typename CONTROLLER_T::state_trajectory state_seq_;
   typename CONTROLLER_T::control_trajectory control_seq_;
-  typename CONTROLLER_T::K_matrix feedback_gains_;
+  typename CONTROLLER_T::feedback_gain_trajectory feedback_gains_;
   double timestamp_;
   double loop_speed_;
 
@@ -88,7 +88,7 @@ public:
 
   void setSolution(const typename CONTROLLER_T::state_trajectory& state_seq,
                            const typename CONTROLLER_T::control_trajectory& control_seq,
-                           const typename CONTROLLER_T::K_matrix& feedback_gains,
+                           const typename CONTROLLER_T::feedback_gain_trajectory& feedback_gains,
                            double timestamp,
                            double loop_speed) override {
     state_seq_ = state_seq;

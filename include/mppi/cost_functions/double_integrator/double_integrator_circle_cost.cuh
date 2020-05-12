@@ -13,7 +13,8 @@ typedef struct {
   float angular_momentum_desired = 2*velocity_desired; // Enforces the system travels counter clockwise
 } DoubleIntegratorCircleCostParams;
 
-class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost, DoubleIntegratorCircleCostParams> {
+class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost,
+                                               DoubleIntegratorCircleCostParams, 4, 2> {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   DoubleIntegratorCircleCost(cudaStream_t stream = nullptr);

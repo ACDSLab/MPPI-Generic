@@ -138,7 +138,7 @@ private:
   state_trajectory actual_state_trajectory = state_trajectory::Zero();
 
   // Control history
-  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
+  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_; // = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
 
 
   control_array control_min_;

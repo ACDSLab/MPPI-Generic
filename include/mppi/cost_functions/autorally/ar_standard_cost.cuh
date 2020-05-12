@@ -38,7 +38,7 @@ typedef struct {
 } ARStandardCostParams;
 
 template <class CLASS_T = void, class PARAMS_T = ARStandardCostParams>
-class ARStandardCost : public Cost< ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T> {
+class ARStandardCost : public Cost< ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T, 7, 2> {
 public:
 //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static constexpr float MAX_COST_VALUE = 1e16;
