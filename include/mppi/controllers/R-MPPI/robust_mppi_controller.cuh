@@ -41,11 +41,11 @@
 #include <mppi/ddp/ddp_tracking_costs.h>
 #include <mppi/ddp/ddp.h>
 
-template <class DYN_T, class COST_T, int MAX_TIMESTEPS, int ROLLOUTS = 2560,
+template <class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
           int BDIM_X = 64, int BDIM_Y = 1>
-class RefMPPIController : public Controller<DYN_T, COST_T,
-                                            MAX_TIMESEPS,
-                                            ROLLOUTS,
+class RobustMPPIController : public Controller<DYN_T, COST_T,
+                                            MAX_TIMESTEPS,
+                                            NUM_ROLLOUTS,
                                             BDIM_X,
                                             BDIM_Y> {
 
@@ -92,7 +92,7 @@ public:
 
   static const int BLOCKSIZE_WRX = 64;
   //NUM_ROLLOUTS has to be divisible by BLOCKSIZE_WRX
-  static const int NUM_ROLLOUTS = (ROLLOUTS/BLOCKSIZE_WRX)*BLOCKSIZE_WRX;
+//  static const int NUM_ROLLOUTS = (NUM_ROLLOUTS/BLOCKSIZE_WRX)*BLOCKSIZE_WRX;
   static const int BLOCKSIZE_X = BDIM_X;
   static const int BLOCKSIZE_Y = BDIM_Y;
   static const int STATE_DIM = DYN_T::STATE_DIM;
@@ -133,16 +133,17 @@ public:
   * @param cost An MppiCost object.
   * @param mppi_node Handle to a ros node with mppi parameters available as ros params.
   */
-  RefMPPIController(DYN_T* model, COST_T* cost, int num_timesteps,
-                    int hz, float gamma,
-                    float* exploration_var, float* init_control,
-                    int num_optimization_iters = 1,
-                    int opt_stride = 1, cudaStream_t = 0);
+//  RobustMPPIController(DYN_T* model, COST_T* cost, int num_timesteps,
+//                       int hz, float gamma,
+//                       float* exploration_var, float* init_control,
+//                       int num_optimization_iters = 1,
+//                       int opt_stride = 1, cudaStream_t = 0);
+  RobustMPPIController(DYN_T* model, COST_T* cost) {}
 
   /**
   * @brief Destructor for mppi controller class.
   */
-  ~RefMPPIController();
+  ~RobustMPPIController() {};
 
   void setCudaStream(cudaStream_t stream);
 
@@ -160,71 +161,80 @@ public:
                const Hessian& q_f_mat,
                const ControlCostWeight& r_mat);
 
-  void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
+//  void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
 
   FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
 
   /*
   * @brief Resets the control commands to there initial values.
   */
-  void resetControls();
+//  void resetControls();
 
-  void cutThrottle();
+//  void cutThrottle();
 
-  void savitskyGolay();
+//  void savitskyGolay();
 
-  void computeNominalTraj(const Eigen::Ref<const state_array>& state);
+//  void computeNominalTraj(const Eigen::Ref<const state_array>& state);
 
   /*void slideControlSeq(int stride);*/
 
-  void updateImportanceSampler(const Eigen::Ref<const state_array>& state, int stride);
+//  void updateImportanceSampler(const Eigen::Ref<const state_array>& state, int stride);
 
   /**
   * @brief Compute the control given the current state of the system.
   * @param state The current state of the autorally system.
   */
-  void computeControl(const Eigen::Ref<const state_array>& state) override;
+  void computeControl(const Eigen::Ref<const state_array>& state) override {};
 
-  control_trajectory getControlSeq() override;
+  control_trajectory getControlSeq() override {return nominal_control_trajectory;};
 
-  state_trajectory getStateSeq() override;
+  state_trajectory getStateSeq() override {return nominal_state_trajectory;};
+
+  void slideControlSequence(int steps) override {};
 
   // TubeDiagnostics getTubeDiagnostics();
 
-private:
-  int num_iters_;
+protected:
+  int num_iters_ = 10;
   float gamma_; ///< Value of the temperature in the softmax.
   float normalizer_, nominal_normalizer_; ///< Variable for the normalizing term from sampling.
 
   OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
   OptimizerResult<ModelWrapperDDP<DYN_T>> last_result_;
 
-  TubeDiagnostics status_;
+//  TubeDiagnostics status_;
 
   curandGenerator_t gen_;
 
-  std::vector<float> U_;
-  std::vector<float> U_optimal_;
-  std::vector<float> augmented_nominal_costs_; ///< Array of the trajectory costs.
-  std::vector<float> augmented_real_costs_; ///< Array of the trajectory costs.
-  std::vector<float> pure_real_costs_; ///< Array of the trajectory costs.
+  // Storage classes
+  control_trajectory nominal_control_trajectory = control_trajectory::Zero();
+  state_trajectory nominal_state_trajectory = state_trajectory::Zero();
 
-  std::vector<float> state_solution_; ///< Host array for keeping track of the nomimal trajectory.
-  std::vector<float> control_solution_;
-  std::vector<float> importance_hist_;
-  std::vector<float> optimal_control_hist_;
-  std::vector<float> du_; ///< Host array for computing the optimal control update.
-  std::vector<float> nu_;
-  std::vector<float> init_u_;
-  std::vector<float> feedback_gains_;
+//  // Previous storage classes
+//  std::vector<float> U_;
+//  std::vector<float> U_optimal_;
+//  std::vector<float> augmented_nominal_costs_; ///< Array of the trajectory costs.
+//  std::vector<float> augmented_real_costs_; ///< Array of the trajectory costs.
+//  std::vector<float> pure_real_costs_; ///< Array of the trajectory costs.
+//
+//  std::vector<float> state_solution_; ///< Host array for keeping track of the nomimal trajectory.
+//  std::vector<float> control_solution_;
+//  std::vector<float> importance_hist_;
+//  std::vector<float> optimal_control_hist_;
+//  std::vector<float> du_; ///< Host array for computing the optimal control update.
+//  std::vector<float> nu_;
+//  std::vector<float> init_u_;
+//  std::vector<float> feedback_gains_;
+//
+//  float* feedback_gains_d_;
+//  float *augmented_nominal_costs_d_, *augmented_real_costs_d_, *pure_real_costs_d_;
+//  float *state_d_, *nominal_state_d_;
+//  float *U_d_;
+//  float *nu_d_;
+//  float *du_d_;
+//  float *dx_d_;
 
-  float* feedback_gains_d_;
-  float *augmented_nominal_costs_d_, *augmented_real_costs_d_, *pure_real_costs_d_;
-  float *state_d_, *nominal_state_d_;
-  float *U_d_;
-  float *nu_d_;
-  float *du_d_;
-  float *dx_d_;
+// Private methods for init eval
 };
 
 #if __CUDACC__

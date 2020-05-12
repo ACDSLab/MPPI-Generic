@@ -65,6 +65,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   float gamma = 0.25; // Learning rate parameter
   const int num_timesteps = 50;  // Optimization time horizon
 
+
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
 
   // Set the initial state
@@ -396,6 +397,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
       cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       FAIL();
+
     }
 
     // Compute the control
