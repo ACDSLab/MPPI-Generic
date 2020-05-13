@@ -148,20 +148,6 @@ public:
   */
   ~RobustMPPIController();
 
-  void setCudaStream(cudaStream_t stream);
-
-  /**
-  * @brief Allocates cuda memory for all of the controller's device array fields.
-  */
-  void allocateCUDAMemory();
-
-  /**
-  * @brief Frees the cuda memory allocated by allocateCudaMem()
-  */
-  void deallocateCudaMemory();
-
-  void deallocateNominalStateCandidateMemory();
-
   void initDDP(const StateCostWeight& q_mat,
                const Hessian& q_f_mat,
                const ControlCostWeight& r_mat);
@@ -221,27 +207,45 @@ protected:
   Eigen::MatrixXf line_search_weights; // At minimum there must be 3 candidates
   Eigen::MatrixXi importance_sampler_strides; // Time index where control trajectory starts for each nominal state candidate
 
+  void setCudaStream(cudaStream_t stream);
+
+  void allocateCUDAMemory();
+
+  void deallocateCudaMemory();
+
+  void deallocateNominalStateCandidateMemory();
+
   // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
   // and allocates the associated CUDA memory
   void updateNumCandidates(int new_num_candidates);
 
   void resetCandidateCudaMem();
 
-   void getInitNominalStateCandidates(
-          const Eigen::Ref<const state_array>& nominal_x_k,
-          const Eigen::Ref<const state_array>& nominal_x_kp1,
-          const Eigen::Ref<const state_array>& real_x_kp1);
+  void getInitNominalStateCandidates(
+        const Eigen::Ref<const state_array>& nominal_x_k,
+        const Eigen::Ref<const state_array>& nominal_x_kp1,
+        const Eigen::Ref<const state_array>& real_x_kp1);
 
-   // compute the line search weights
-   void computeLineSearchWeights();
+  // compute the line search weights
+  void computeLineSearchWeights();
 
-   // compute the importance sampler strides
-   void computeImportanceSamplerStride(int stride);
+  // compute the importance sampler strides
+  void computeImportanceSamplerStride(int stride);
 
-   // CUDA Memory
-   float* importance_sampling_states_d_;
-   float* importance_sampling_costs_d_;
-   float* importance_sampling_strides_d_;
+  // CUDA Memory
+  float* importance_sampling_states_d_;
+  float* importance_sampling_costs_d_;
+  float* importance_sampling_strides_d_;
+
+  float* initial_state_d_;
+  float* control_d_;
+  float* state_d_;
+  float* nominal_state_d_;
+  float* trajectory_costs_d_;
+  float* control_variance_d_;
+  float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS * 2
+  // control_noise_d_ is also used to hold the rollout noise for the quick estimate free energy.
+  // Here num_candidates*num_samples_per_condition < 2*num_rollouts. -> we should enforce this
 
   //  // Previous storage classes
 //  std::vector<float> U_;

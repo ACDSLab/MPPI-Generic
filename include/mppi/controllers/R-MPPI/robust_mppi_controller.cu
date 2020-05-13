@@ -107,6 +107,23 @@ void RobustMPPI::computeImportanceSamplerStride(int stride) {
 
 }
 
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void RobustMPPI::setCudaStream(cudaStream_t stream) {
+
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void RobustMPPI::allocateCUDAMemory() {
+// Allocate memory for the control noise
+  HANDLE_ERROR( cudaMalloc((void**)&control_noise_d_, 2*NUM_ROLLOUTS*MAX_TIMESTEPS*CONTROL_DIM*sizeof(float)));
+
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void RobustMPPI::deallocateCudaMemory() {
+
+}
+
 /******************************************************************************
 //MPPI Kernel Implementations and helper launch files
 *******************************************************************************/
