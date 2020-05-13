@@ -19,7 +19,13 @@ class TestRobust: public RobustMPPIController<
   TestRobust(DoubleIntegratorDynamics *model, DoubleIntegratorCircleCost *cost) :
   RobustMPPIController(model, cost) {}
 
-  int accessNumIters() {return num_iters_;};
+  auto getCandidates(
+          const Eigen::Ref<const state_array>& nominal_x_k,
+          const Eigen::Ref<const state_array>& nominal_x_kp1,
+          const Eigen::Ref<const state_array>& real_x_kp1) {
+    getInitNominalStateCandidates(nominal_x_k, nominal_x_kp1, real_x_kp1);
+    return candidate_nominal_states;
+  };
  };
 
 TEST(RMPPITest, InitEvalSelection_Weights) {
@@ -46,8 +52,9 @@ TEST(RMPPITest, InitEvalSelection_Weights) {
 
   // Create the controller so we can test functions from it -> this should be a fixture
   auto controller = TestRobust(&model, &cost);
+  auto candidates = controller.getCandidates(x_star_k, x_star_kp1, x_kp1);
 
-  std::cout << controller.accessNumIters() << std::endl;
+  std::cout << candidates[0] << std::endl;
 
 
 }

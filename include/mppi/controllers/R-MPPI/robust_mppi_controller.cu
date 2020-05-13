@@ -1,35 +1,32 @@
-/*
-* Software License Agreement (BSD License)
-* Copyright (c) 2013, Georgia Institute of Technology
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions are met:
-*
-* 1. Redistributions of source code must retain the above copyright notice, this
-* list of conditions and the following disclaimer.
-* 2. Redistributions in binary form must reproduce the above copyright notice,
-* this list of conditions and the following disclaimer in the documentation
-* and/or other materials provided with the distribution.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-* AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-* DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
-* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-* SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-* CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-* OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-* OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
-/**********************************************
- * @file mppi_controller.cu
- * @author Grady Williams <gradyrw@gmail.com>
- * @date May 24, 2017
- * @copyright 2017 Georgia Institute of Technology
- * @brief Implementation of the mppi_controller class.
- ***********************************************/
+#include "robust_mppi_controller.cuh"
+#include <exception>
+
+#define RobustMPPI RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void RobustMPPI::getInitNominalStateCandidates(
+        const Eigen::Ref<const state_array>& nominal_x_k,
+        const Eigen::Ref<const state_array>& nominal_x_kp1,
+        const Eigen::Ref<const state_array>& real_x_kp1) {
+
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void RobustMPPI::allocateCandidateCudaMem() {
+  if (importance_sampling_cuda_mem_init) {
+    HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
+    HANDLE_ERROR(cudaFree(importance_sampling_costs_d_));
+    HANDLE_ERROR(cudaFree(importance_sampling_strides_d_));
+    importance_sampling_cuda_mem_init = false;
+  }
+  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_states_d_,
+          sizeof(float)*DYN_T::STATE_DIM*num_candidate_nominal_states));
+  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_costs_d_,
+                          sizeof(float)*num_candidate_nominal_states));
+  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_strides_d_,
+                          sizeof(float)*num_candidate_nominal_states));
+}
 
 /******************************************************************************
 //MPPI Kernel Implementations and helper launch files

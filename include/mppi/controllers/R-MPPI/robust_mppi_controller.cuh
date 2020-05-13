@@ -89,6 +89,7 @@ public:
   using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
+  using NominalCandidateVector = typename util::NamedEigenAlignedVector<state_array>;
 
   static const int BLOCKSIZE_WRX = 64;
   //NUM_ROLLOUTS has to be divisible by BLOCKSIZE_WRX
@@ -138,7 +139,8 @@ public:
 //                       float* exploration_var, float* init_control,
 //                       int num_optimization_iters = 1,
 //                       int opt_stride = 1, cudaStream_t = 0);
-  RobustMPPIController(DYN_T* model, COST_T* cost) {}
+  RobustMPPIController(DYN_T* model, COST_T* cost) {
+  }
 
   /**
   * @brief Destructor for mppi controller class.
@@ -195,6 +197,8 @@ public:
   // TubeDiagnostics getTubeDiagnostics();
 
 protected:
+  bool importance_sampling_cuda_mem_init = false;
+  int num_candidate_nominal_states = 9;
   int num_iters_ = 10;
   float gamma_; ///< Value of the temperature in the softmax.
   float normalizer_, nominal_normalizer_; ///< Variable for the normalizing term from sampling.
@@ -210,7 +214,32 @@ protected:
   control_trajectory nominal_control_trajectory = control_trajectory::Zero();
   state_trajectory nominal_state_trajectory = state_trajectory::Zero();
 
-//  // Previous storage classes
+  NominalCandidateVector candidate_nominal_states = {state_array::Zero()};
+  Eigen::MatrixXf line_search_weights; // At minimum there must be 3 candidates
+
+  // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
+  // and allocates the associated CUDA memory
+  void initCandidateMembers();
+
+  void updateNumCandidates();
+
+  void allocateCandidateCudaMem();
+
+  // Storage for the number of candidates
+   void getInitNominalStateCandidates(
+          const Eigen::Ref<const state_array>& nominal_x_k,
+          const Eigen::Ref<const state_array>& nominal_x_kp1,
+          const Eigen::Ref<const state_array>& real_x_kp1);
+
+   // compute the line search weights
+   void computeLineSearchWeights();
+
+   // CUDA Memory
+   float* importance_sampling_states_d_;
+   float* importance_sampling_costs_d_;
+   float* importance_sampling_strides_d_;
+
+  //  // Previous storage classes
 //  std::vector<float> U_;
 //  std::vector<float> U_optimal_;
 //  std::vector<float> augmented_nominal_costs_; ///< Array of the trajectory costs.
@@ -234,8 +263,9 @@ protected:
 //  float *du_d_;
 //  float *dx_d_;
 
-// Private methods for init eval
 };
+
+
 
 #if __CUDACC__
 #include "robust_mppi_controller.cu"
