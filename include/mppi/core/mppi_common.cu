@@ -68,10 +68,11 @@ namespace mppi_common {
 
       // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
       // usually just control clamping
+      // Clamp the control in both the importance sampling sequence and the disturbed sequence. TODO remove extraneous call?
       dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]);
       dynamics->enforceConstraints(x, u);
 
-    __syncthreads();
+      __syncthreads();
 
       //Accumulate running cost
       running_cost += costs->computeRunningCost(x, u, du, sigma_u, t)*dt;
