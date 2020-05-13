@@ -209,9 +209,6 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   cnpy::npy_save("vanilla_large.npy",nominal_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 //  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
-  if (not success) {
-    FAIL();
-  }
 }
 
 TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
@@ -323,17 +320,11 @@ util::DefaultLogger logger;
 
     // Slide the control sequence
     vanilla_controller.slideControlSequence(1);
-//    if (success) {
-//      break;
-//    }
   }
 
   cnpy::npy_save("vanilla_large_track.npy",nominal_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 //  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
-  if (not success) {
-    FAIL();
-  }
 }
 
 TEST(TubeMPPITest, TubeMPPILargeVariance) {
@@ -396,7 +387,8 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-      FAIL();
+      FAIL() << "Visualize the trajectories by running scripts/double_integrator/plot_DI_test_trajectories; "
+                "the argument to this python file is the build directory of MPPI-Generic";
 
     }
 
