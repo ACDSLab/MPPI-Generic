@@ -30,6 +30,10 @@ class TestRobust: public RobustMPPIController<
     return candidate_nominal_states;
   };
 
+  auto getWeights() {
+    return line_search_weights;
+  };
+
   void updateCandidates(int value) {
     updateNumCandidates(value);
   }
@@ -114,6 +118,19 @@ TEST_F(RMPPINominalStateSelection, CudaMemoryReset) {
   ASSERT_TRUE(test_controller->getCudaMemStatus());
 }
 
+TEST_F(RMPPINominalStateSelection, LineSearchWeights_9) {
+  test_controller->updateCandidates(9);
+  auto controller_weights = test_controller->getWeights();
+  Eigen::MatrixXf known_weights(3,9);
+  known_weights << 1, 3.0/4, 1.0/2, 1.0/4, 0, 0, 0, 0, 0,
+                 0, 1.0/4, 1.0/2, 3.0/4, 1, 3.0/4, 1.0/2, 1.0/4, 0,
+                 0, 0, 0, 0, 0, 1.0/4, 1.0/2, 3.0/4, 1;
+//  std::cout << controller_weights << std::endl;
+//  std::cout << known_weights << std::endl;
+  ASSERT_TRUE(controller_weights == known_weights)
+  << "Known Weights: \n" << known_weights << "\nComputed Weights: \n" << controller_weights;
+}
+
 TEST_F(RMPPINominalStateSelection, InitEvalSelection_Weights) {
   /*
    * This test will ensure that the line search process to select the
@@ -121,20 +138,24 @@ TEST_F(RMPPINominalStateSelection, InitEvalSelection_Weights) {
    */
   dynamics::state_array x_star_k, x_star_kp1, x_kp1;
   x_star_k << -4 , 0, 0, 0;
-  x_star_kp1 << 4, 0, 0, 0;
+  x_star_kp1 << 0, 4, 0, 0;
   x_kp1 << 4, 4, 0, 0;
 
   const int num_candidates = 9;
+  test_controller->updateCandidates(num_candidates);
 
-  Eigen::Matrix<float, 2, num_candidates> known_candidates;
-  known_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4;
-
-  std::cout << known_candidates << std::endl;
+  Eigen::Matrix<float, 4, num_candidates> known_candidates;
+  known_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4,
+                        0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
   // Create the controller so we can test functions from it -> this should be a fixture
   auto candidates = test_controller->getCandidates(x_star_k, x_star_kp1, x_kp1);
 
-  std::cout << candidates[0] << std::endl;
-
+  for (int i = 0; i < num_candidates; ++i) {
+    ASSERT_TRUE(candidates[i] == known_candidates.col(i))
+      << "Index: " << i
+      << "\nKnown Point: \n" << known_candidates.col(i)
+      << "\nComputed Point: \n" << candidates[i];
+  }
 
 }

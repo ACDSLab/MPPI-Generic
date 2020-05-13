@@ -14,6 +14,13 @@ void RobustMPPI::getInitNominalStateCandidates(
         const Eigen::Ref<const state_array>& nominal_x_kp1,
         const Eigen::Ref<const state_array>& real_x_kp1) {
 
+  Eigen::MatrixXf points(DYN_T::STATE_DIM, 3);
+  points << nominal_x_k, nominal_x_kp1 , real_x_kp1;
+  auto candidates = points*line_search_weights;
+  for (int i = 0; i < num_candidate_nominal_states; ++i) {
+    candidate_nominal_states[i] = candidates.col(i);
+  }
+
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
@@ -73,7 +80,18 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDI
 void RobustMPPI::computeLineSearchWeights() {
   line_search_weights.resize(3, num_candidate_nominal_states);
 
-
+  // For a given setup, this never changes.... why recompute every time?
+  int num_candid_over_2 = num_candidate_nominal_states/2;
+  for (int i = 0; i < num_candid_over_2 + 1; i++){
+    line_search_weights(0, i) = 1 - i/float(num_candid_over_2);
+    line_search_weights(1, i) = i/float(num_candid_over_2);
+    line_search_weights(2, i) = 0.0;
+  }
+  for (int i = 1; i < num_candid_over_2 + 1; i++){
+    line_search_weights(0, num_candid_over_2 + i) = 0.0;
+    line_search_weights(1, num_candid_over_2 + i) = 1 - i/float(num_candid_over_2);
+    line_search_weights(2, num_candid_over_2 + i) = i/float(num_candid_over_2);
+  }
 }
 
 /******************************************************************************
