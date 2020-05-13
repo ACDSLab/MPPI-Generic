@@ -140,12 +140,13 @@ public:
 //                       int num_optimization_iters = 1,
 //                       int opt_stride = 1, cudaStream_t = 0);
   RobustMPPIController(DYN_T* model, COST_T* cost) {
+    updateNumCandidates(num_candidate_nominal_states);
   }
 
   /**
   * @brief Destructor for mppi controller class.
   */
-  ~RobustMPPIController() {};
+  ~RobustMPPIController();
 
   void setCudaStream(cudaStream_t stream);
 
@@ -158,6 +159,8 @@ public:
   * @brief Frees the cuda memory allocated by allocateCudaMem()
   */
   void deallocateCudaMemory();
+
+  void deallocateNominalStateCandidateMemory();
 
   void initDDP(const StateCostWeight& q_mat,
                const Hessian& q_f_mat,
@@ -198,7 +201,7 @@ public:
 
 protected:
   bool importance_sampling_cuda_mem_init = false;
-  int num_candidate_nominal_states = 9;
+  int num_candidate_nominal_states = 9; // TODO should the initialization be a parameter?
   int num_iters_ = 10;
   float gamma_; ///< Value of the temperature in the softmax.
   float normalizer_, nominal_normalizer_; ///< Variable for the normalizing term from sampling.
@@ -219,11 +222,9 @@ protected:
 
   // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
   // and allocates the associated CUDA memory
-  void initCandidateMembers();
+  void updateNumCandidates(int new_num_candidates);
 
-  void updateNumCandidates();
-
-  void allocateCandidateCudaMem();
+  void resetCandidateCudaMem();
 
   // Storage for the number of candidates
    void getInitNominalStateCandidates(

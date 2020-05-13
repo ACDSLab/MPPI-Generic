@@ -3,6 +3,10 @@
 
 #define RobustMPPI RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+RobustMPPI::~RobustMPPIController() {
+  deallocateNominalStateCandidateMemory();
+}
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void RobustMPPI::getInitNominalStateCandidates(
@@ -13,19 +17,63 @@ void RobustMPPI::getInitNominalStateCandidates(
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void RobustMPPI::allocateCandidateCudaMem() {
-  if (importance_sampling_cuda_mem_init) {
-    HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
-    HANDLE_ERROR(cudaFree(importance_sampling_costs_d_));
-    HANDLE_ERROR(cudaFree(importance_sampling_strides_d_));
-    importance_sampling_cuda_mem_init = false;
-  }
+void RobustMPPI::resetCandidateCudaMem() {
+  deallocateNominalStateCandidateMemory();
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_states_d_,
           sizeof(float)*DYN_T::STATE_DIM*num_candidate_nominal_states));
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_costs_d_,
                           sizeof(float)*num_candidate_nominal_states));
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_strides_d_,
                           sizeof(float)*num_candidate_nominal_states));
+
+  // Set flag so that the we know cudamemory is allocated
+  importance_sampling_cuda_mem_init = true;
+}
+
+
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void RobustMPPI::deallocateNominalStateCandidateMemory() {
+  if (importance_sampling_cuda_mem_init) {
+    HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
+    HANDLE_ERROR(cudaFree(importance_sampling_costs_d_));
+    HANDLE_ERROR(cudaFree(importance_sampling_strides_d_));
+
+    // Set flag so that we know cudamemory has been freed
+    importance_sampling_cuda_mem_init = false;
+  }
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void RobustMPPI::updateNumCandidates(int new_num_candidates) {
+
+  // New number must be odd and greater than 3
+  if (new_num_candidates < 3) {
+    std::cerr << "ERROR: number of candidates must be greater or equal to 3\n";
+    std::terminate();
+  }
+  if (new_num_candidates % 2 == 0) {
+    std::cerr << "ERROR: number of candidates must be odd\n";
+    std::terminate();
+  }
+  // Set the new value of the number of candidates
+  num_candidate_nominal_states = new_num_candidates;
+
+  // Resize the vector holding the candidate nominal states
+  candidate_nominal_states.resize(num_candidate_nominal_states);
+
+  // Deallocate and reallocate cuda memory
+  resetCandidateCudaMem();
+
+  // Recompute the line search weights based on the number of candidates
+  computeLineSearchWeights();
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void RobustMPPI::computeLineSearchWeights() {
+  line_search_weights.resize(3, num_candidate_nominal_states);
+
+
 }
 
 /******************************************************************************
