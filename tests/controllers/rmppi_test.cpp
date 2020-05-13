@@ -50,6 +50,11 @@ class TestRobust: public RobustMPPIController<
     resetCandidateCudaMem();
   }
 
+  auto getStrideIS(int stride) {
+    computeImportanceSamplerStride(stride);
+    return importance_sampler_strides;
+  }
+
  };
 
 // Text fixture for nominal state selection
@@ -125,10 +130,31 @@ TEST_F(RMPPINominalStateSelection, LineSearchWeights_9) {
   known_weights << 1, 3.0/4, 1.0/2, 1.0/4, 0, 0, 0, 0, 0,
                  0, 1.0/4, 1.0/2, 3.0/4, 1, 3.0/4, 1.0/2, 1.0/4, 0,
                  0, 0, 0, 0, 0, 1.0/4, 1.0/2, 3.0/4, 1;
+
 //  std::cout << controller_weights << std::endl;
 //  std::cout << known_weights << std::endl;
   ASSERT_TRUE(controller_weights == known_weights)
   << "Known Weights: \n" << known_weights << "\nComputed Weights: \n" << controller_weights;
+}
+
+TEST_F(RMPPINominalStateSelection, ImportanceSampler_Stride_2) {
+  int stride = 2;
+  test_controller->updateCandidates(9);
+  Eigen::MatrixXi known_stride(1,9);
+  known_stride << 0, 1, 1, 2, 2, 2, 2, 2, 2;
+  auto compute_stride = test_controller->getStrideIS(stride);
+  ASSERT_TRUE(known_stride == compute_stride)
+    << "Known Stride: \n" << known_stride << "\nComputed Stride: \n" << compute_stride;
+}
+
+TEST_F(RMPPINominalStateSelection, ImportanceSampler_Stride_4) {
+  int stride = 4;
+  test_controller->updateCandidates(9);
+  Eigen::MatrixXi known_stride(1,9);
+  known_stride << 0, 1, 2, 3, 4, 4, 4, 4, 4;
+  auto compute_stride = test_controller->getStrideIS(stride);
+  ASSERT_TRUE(known_stride == compute_stride)
+                        << "Known Stride: \n" << known_stride << "\nComputed Stride: \n" << compute_stride;
 }
 
 TEST_F(RMPPINominalStateSelection, InitEvalSelection_Weights) {

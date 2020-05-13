@@ -20,7 +20,6 @@ void RobustMPPI::getInitNominalStateCandidates(
   for (int i = 0; i < num_candidate_nominal_states; ++i) {
     candidate_nominal_states[i] = candidates.col(i);
   }
-
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
@@ -69,6 +68,9 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
   // Resize the vector holding the candidate nominal states
   candidate_nominal_states.resize(num_candidate_nominal_states);
 
+  // Resize the matrix holding the importance sampler strides
+  importance_sampler_strides.resize(1, num_candidate_nominal_states);
+
   // Deallocate and reallocate cuda memory
   resetCandidateCudaMem();
 
@@ -92,6 +94,17 @@ void RobustMPPI::computeLineSearchWeights() {
     line_search_weights(1, num_candid_over_2 + i) = 1 - i/float(num_candid_over_2);
     line_search_weights(2, num_candid_over_2 + i) = i/float(num_candid_over_2);
   }
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void RobustMPPI::computeImportanceSamplerStride(int stride) {
+  Eigen::MatrixXf stride_vec(1,3);
+  stride_vec << 0, stride, stride;
+
+  // Perform matrix multiplication, convert to array so that we can round the floats to the nearest
+  // integer. Then cast the resultant float array to an int array. Then set equal to our int matrix.
+  importance_sampler_strides = (stride_vec*line_search_weights).array().round().template cast<int>();
+
 }
 
 /******************************************************************************

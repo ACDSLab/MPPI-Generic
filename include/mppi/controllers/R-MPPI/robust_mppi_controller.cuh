@@ -219,6 +219,7 @@ protected:
 
   NominalCandidateVector candidate_nominal_states = {state_array::Zero()};
   Eigen::MatrixXf line_search_weights; // At minimum there must be 3 candidates
+  Eigen::MatrixXi importance_sampler_strides; // Time index where control trajectory starts for each nominal state candidate
 
   // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
   // and allocates the associated CUDA memory
@@ -226,7 +227,6 @@ protected:
 
   void resetCandidateCudaMem();
 
-  // Storage for the number of candidates
    void getInitNominalStateCandidates(
           const Eigen::Ref<const state_array>& nominal_x_k,
           const Eigen::Ref<const state_array>& nominal_x_kp1,
@@ -234,6 +234,9 @@ protected:
 
    // compute the line search weights
    void computeLineSearchWeights();
+
+   // compute the importance sampler strides
+   void computeImportanceSamplerStride(int stride);
 
    // CUDA Memory
    float* importance_sampling_states_d_;
