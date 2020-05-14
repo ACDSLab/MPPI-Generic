@@ -110,12 +110,23 @@ public:
   /**
    * Computes the control cost on CPU
    */
-  float computeFeeedbackCost(const Eigen::Ref<const control_array> ff_u,
-                             const Eigen::Ref<const control_array> noise,
-                             const Eigen::Ref<const control_array> fb_u,
-                             const Eigen::Ref<const control_matrix> variance) {
+  float computeFeedbackCost(const Eigen::Ref<const control_array> ff_u,
+                            const Eigen::Ref<const control_array> noise,
+                            const Eigen::Ref<const control_array> fb_u,
+                            const Eigen::Ref<const control_matrix> variance,
+                            const float lambda = 1.0) {
     control_array u = ff_u + noise + fb_u;
-    return u.transpose() * variance.inverse() * u;
+    return 0.5 * lambda * u.transpose() * variance.inverse() * u;
+  }
+
+  /**
+   * Computes the control cost on CPU
+   */
+  float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u,
+                                   const Eigen::Ref<const control_array> noise,
+                                   const Eigen::Ref<const control_matrix> variance,
+                                   const float lambda = 1.0) {
+    return 0.5 * lambda * u.transpose() * variance.inverse() * (u + 2 * noise);
   }
 
   /**
@@ -123,6 +134,13 @@ public:
    */
   float computeStateCost(const Eigen::Ref<const state_array> s) {
     throw std::logic_error("SubClass did not implement computeStateCost");
+  }
+
+  /**
+   * Computes the state cost on the CPU. Should be implemented in subclasses
+   */
+  float terminalCost(const Eigen::Ref<const state_array> s) {
+    throw std::logic_error("SubClass did not implement terminalCost");
   }
 
   /**

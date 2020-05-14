@@ -1,83 +1,131 @@
 #include <gtest/gtest.h>
 #include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
+#include <random> // Used to generate random noise for control trajectories
 
 TEST(RMPPITest, CPURolloutKernel) {
-  DoubleIntegratorDynamics model;
-  DoubleIntegratorCircleCost cost;
+  using DYN = DoubleIntegratorDynamics;
+  using COST = DoubleIntegratorCircleCost;
+  DYN model;
+  COST cost;
 
-  const int state_dim = DoubleIntegratorDynamics::STATE_DIM;
-  const int control_dim = DoubleIntegratorDynamics::CONTROL_DIM;
-  typedef Eigen::Matrix<float, control_dim, state_dim> K_M;
+  const int state_dim = DYN::STATE_DIM;
+  const int control_dim = DYN::CONTROL_DIM;
 
   float dt = 0.01;
   int max_iter = 10;
   float gamma = 0.5;
-  const int num_timesteps = 100;
+  const int num_timesteps = 7;
   const int num_rollouts = 5;
 
   float x[num_rollouts * state_dim * 2];
   float x_dot[num_rollouts * state_dim * 2];
   float u[num_rollouts * control_dim * 2];
   float du[num_rollouts * control_dim * 2];
-  float sigma_u[control_dim]; // variance to sample noise from
+  float sigma_u[control_dim] = {0.5, 0.4}; // variance to sample noise from
   float fb_u[num_rollouts * control_dim];
 
-  // Generate control noise
-  float noisey_sample[num_rollouts * num_timesteps * control_dim * 2];
-  // Initial control trajectory
-  float u_traj[num_rollouts * num_timesteps * control_dim * 2];
+  DYN::state_array x_init_act;
+  x_init_act << 0, 0, 0, 0;
+  DYN::state_array x_init_nom;
 
-  VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 512, 64, 8>::feedback_gain_trajectory feedback_gains;
-  for (int i = 0; i < 10; i++) {
-    feedback_gains.push_back(K_M::Random());
+  // Generate control noise
+  float sampled_noise[num_rollouts * num_timesteps * control_dim * 2];
+  std::mt19937 rng_gen;
+  std::vector<std::normal_distribution<float>> control_dist;
+  for (int i = 0; i < control_dim; i++) {
+    control_dist.push_back(std::normal_distribution<float>(0, sigma_u[i]));
   }
 
-  float feedback_array[num_rollouts * num_timesteps * control_dim * state_dim * 2];
+  for (int n = 0; n < num_rollouts; n++) {
+    int n_ind = n * num_timesteps * control_dim;
+    for (int t = 0; t < num_timesteps; t++) {
+      int t_ind = t * control_dim;
+      for (int j = 0; j < control_dim; j++) {
+        sampled_noise[n_ind + t_ind + j] = control_dist[j](rng_gen);
+      }
+    }
+  }
+  // TODO: Figure out nonzero Initial control trajectory
+  float u_traj[num_rollouts * num_timesteps * control_dim * 2] = {0};
+
+  // TODO: fill the variance in with more reasonable numbers
+  COST::control_matrix cost_variance = COST::control_matrix::Identity();
+
+  // TODO: Generate feedback gain trajectories
+  VanillaMPPIController<DYN, COST, 100, 512, 64, 8>::feedback_gain_trajectory feedback_gains;
+  for (int i = 0; i < num_timesteps; i++) {
+    feedback_gains.push_back(DYN::feedback_matrix::Random());
+  }
+
+  // Copy Feedback Gains into an array
+  float feedback_array[num_timesteps * control_dim * state_dim];
   for (size_t i = 0; i < feedback_gains.size(); i++) {
-    std::cout << "Matrix " << i << ":\n";
-    std::cout << feedback_gains[i] << std::endl;
+    // std::cout << "Matrix " << i << ":\n";
+    // std::cout << feedback_gains[i] << std::endl;
+    int i_index = i * control_dim * state_dim;
+
+    for (size_t j = 0; j < control_dim * state_dim; j++) {
+      feedback_array[i_index + j] = feedback_gains[i].data()[j];
+    }
   }
 
   for (int traj_i = 0; traj_i < num_rollouts; traj_i++)  {
     float cost_real_w_tracking = 0; // S^(V, x_0, x*_0) in Grady Thesis (8.24)
-    float cost_real = 0; // S(V, x_0) with knowledge of tracking controller
-    float cost_nom = 0; // S(V, x*_0)
+    float total_cost_real = 0; // S(V, x_0) with knowledge of tracking controller
+    float state_cost_nom = 0; // S(V, x*_0)
 
     int traj_index = traj_i * num_rollouts;
 
      // Get all relevant values at time t in rollout i
-    DoubleIntegratorDynamics::state_array x_t_nom;
-    DoubleIntegratorDynamics::state_array x_t_act;
-    // Eigen::Map<DoubleIntegratorDynamics::state_array> x_t_act(x + traj_index * state_dim);
+    DYN::state_array x_t_nom = x_init_nom;
+    DYN::state_array x_t_act = x_init_act;
+    // Eigen::Map<DYN::state_array> x_t_act(x + traj_index * state_dim);
     for (int state_i = 0; state_i < state_dim; state_i++) {
       x_t_act(state_i, 0) = x[traj_index * state_dim + state_i];
       x_t_nom(state_i, 0) = x[(traj_index + num_rollouts) * state_dim + state_i];
     }
 
-    for (int control_i = 0; control_i < control_dim; ) {
-
-    }
     for (int t = 0; t < num_timesteps - 1; t++){
       // Controls are read only so I can use Eigen::Map
-      Eigen::Map<DoubleIntegratorDynamics::control_array>
-        u_t(u_traj + (traj_index + num_timesteps) * control_dim); // trajectory u at time t
-      Eigen::Map<DoubleIntegratorDynamics::control_array>
-        eps_t(noisey_sample + (traj_index + num_timesteps) * control_dim); // Noise at time t
-      Eigen::Matrix<float, control_dim, state_dim> feedback_gains_t; // Feedback gains at time t
+      Eigen::Map<const DYN::control_array>
+        u_t(u_traj + (traj_index * num_timesteps + t) * control_dim); // trajectory u at time t
+      Eigen::Map<const DYN::control_array>
+        eps_t(sampled_noise + (traj_index * num_timesteps + t) * control_dim); // Noise at time t
+      Eigen::Map<const DYN::feedback_matrix>
+        feedback_gains_t(feedback_array + t * control_dim * state_dim); // Feedback gains at time t
 
       // Create newly calculated values at time t in rollout i
-      DoubleIntegratorDynamics::state_array x_dot_t_nom;
-      DoubleIntegratorDynamics::state_array x_dot_t_act;
-      DoubleIntegratorDynamics::control_array u_nom = u_t + eps_t;
-      DoubleIntegratorDynamics::control_array fb_u_t = feedback_gains_t * (x_t_nom - x_t_act);
-      DoubleIntegratorDynamics::control_array u_act = u_nom + fb_u_t;
+      DYN::state_array x_dot_t_nom;
+      DYN::state_array x_dot_t_act;
+      DYN::control_array u_nom = u_t + eps_t;
+      DYN::control_array fb_u_t = feedback_gains_t * (x_t_nom - x_t_act);
+      DYN::control_array u_act = u_nom + fb_u_t;
       // Dyanamics Update
       model.computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
       model.computeStateDeriv(x_t_act, u_act, x_dot_t_act);
 
+      x_t_act += x_dot_t_act * dt;
+      x_t_nom += x_dot_t_nom * dt;
       // Cost update
-      // cost_real_w_tracking += cost->computeRunningCost(x_t_act.data(), u_t.data(), u_nom_t.data(),);
-
+      DYN::control_array zero_u = DYN::control_array::Zero();
+      cost_real_w_tracking += cost.computeStateCost(x_t_act) +
+        cost.computeFeedbackCost(zero_u, zero_u, fb_u_t, cost_variance);
+      state_cost_nom += cost.computeStateCost(x_t_nom);
+      total_cost_real += cost.computeStateCost(x_t_act) +
+        cost.computeFeedbackCost(u_t, eps_t, fb_u_t, cost_variance);
+    }
+    // cost_real_w_tracking += TERMINAL_COST(x_t_act);
+    // state_cost_nom += TERMINAL_COST(x_t_nom);
+    // total_cost_real += += TERMINAL_COST(x_t_act);
+    // TODO Choose alpha better
+    float alpha = 0.5;
+    float cost_nom = 0.5 * state_cost_nom + 0.5 * std::max(std::min(cost_real_w_tracking, alpha), state_cost_nom);
+    for (int t = 0; t < num_timesteps - 1; t++) {
+      Eigen::Map<DYN::control_array>
+        u_t(u_traj + (traj_index + num_timesteps) * control_dim); // trajectory u at time t
+      Eigen::Map<DYN::control_array>
+        eps_t(sampled_noise + (traj_index + num_timesteps) * control_dim); // Noise at time t
+      cost_nom += cost.computeLikelihoodRatioCost(u_t, eps_t, cost_variance);
     }
   }
 }

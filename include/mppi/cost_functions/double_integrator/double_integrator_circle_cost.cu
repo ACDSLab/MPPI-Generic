@@ -27,7 +27,20 @@ __host__ __device__ float DoubleIntegratorCircleCost::getStateCost(float *s) {
   cost += params_.velocity_cost*(current_velocity - params_.velocity_desired)*(current_velocity - params_.velocity_desired);
   cost += params_.velocity_cost*(current_angular_momentum - params_.angular_momentum_desired)*(current_angular_momentum - params_.angular_momentum_desired);
   return cost;
+}
 
+float DoubleIntegratorCircleCost::computeStateCost(const Eigen::Ref<const state_array> s) {
+  float radial_position = s[0]*s[0] + s[1]*s[1];
+  float current_velocity = sqrtf(s[2]*s[2] + s[3]*s[3]);
+  float current_angular_momentum = s[0]*s[3] - s[1]*s[2];
+
+  float cost = 0;
+  if ((radial_position < params_.inner_path_radius2) || (radial_position > params_.outer_path_radius2)) {
+    cost += params_.crash_cost;
+  }
+  cost += params_.velocity_cost*(current_velocity - params_.velocity_desired)*(current_velocity - params_.velocity_desired);
+  cost += params_.velocity_cost*(current_angular_momentum - params_.angular_momentum_desired)*(current_angular_momentum - params_.angular_momentum_desired);
+  return cost;
 }
 
 __host__ __device__ float DoubleIntegratorCircleCost::getControlCost(float *u, float *du, float *vars) {
@@ -36,6 +49,10 @@ __host__ __device__ float DoubleIntegratorCircleCost::getControlCost(float *u, f
 
 __host__ __device__ float DoubleIntegratorCircleCost::computeRunningCost(float *s, float *u, float *du, float *vars, int timestep) {
   return getStateCost(s);
+}
+
+float DoubleIntegratorCircleCost::terminalCost(const Eigen::Ref<const state_array> s) {
+  return 0;
 }
 
 __host__ __device__ float DoubleIntegratorCircleCost::terminalCost(float *state) {
