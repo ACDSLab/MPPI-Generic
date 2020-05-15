@@ -13,16 +13,16 @@ TEST(RMPPITest, CPURolloutKernel) {
 
   float dt = 0.01;
   int max_iter = 10;
-  float gamma = 0.5;
+  float lambda = 0.5;
   const int num_timesteps = 7;
   const int num_rollouts = 5;
 
-  float x[num_rollouts * state_dim * 2];
-  float x_dot[num_rollouts * state_dim * 2];
-  float u[num_rollouts * control_dim * 2];
-  float du[num_rollouts * control_dim * 2];
+  // float x[num_rollouts * state_dim * 2];
+  // float x_dot[num_rollouts * state_dim * 2];
+  // float u[num_rollouts * control_dim * 2];
+  // float du[num_rollouts * control_dim * 2];
   float sigma_u[control_dim] = {0.5, 0.4}; // variance to sample noise from
-  float fb_u[num_rollouts * control_dim];
+  // float fb_u[num_rollouts * control_dim * state_dim];
 
   DYN::state_array x_init_act;
   x_init_act << 0, 0, 0, 0;
@@ -80,19 +80,23 @@ TEST(RMPPITest, CPURolloutKernel) {
     DYN::state_array x_t_nom = x_init_nom;
     DYN::state_array x_t_act = x_init_act;
     // Eigen::Map<DYN::state_array> x_t_act(x + traj_index * state_dim);
-    for (int state_i = 0; state_i < state_dim; state_i++) {
-      x_t_act(state_i, 0) = x[traj_index * state_dim + state_i];
-      x_t_nom(state_i, 0) = x[(traj_index + num_rollouts) * state_dim + state_i];
-    }
+    // for (int state_i = 0; state_i < state_dim; state_i++) {
+    //   x_t_act(state_i, 0) = x[traj_index * state_dim + state_i];
+    //   x_t_nom(state_i, 0) = x[(traj_index + num_rollouts) * state_dim + state_i];
+    // }
 
     for (int t = 0; t < num_timesteps - 1; t++){
-      // Controls are read only so I can use Eigen::Map
+      // Controls are read only so I can use Eigen::Map<const...>
       Eigen::Map<const DYN::control_array>
         u_t(u_traj + (traj_index * num_timesteps + t) * control_dim); // trajectory u at time t
       Eigen::Map<const DYN::control_array>
         eps_t(sampled_noise + (traj_index * num_timesteps + t) * control_dim); // Noise at time t
       Eigen::Map<const DYN::feedback_matrix>
         feedback_gains_t(feedback_array + t * control_dim * state_dim); // Feedback gains at time t
+      // if (traj_i == 0) {
+      //   std::cout << "feedback_gains_t " << traj_i << ", " << t << "s:\n" << feedback_gains_t << std::endl;
+      // }
+
 
       // Create newly calculated values at time t in rollout i
       DYN::state_array x_dot_t_nom;
@@ -100,19 +104,23 @@ TEST(RMPPITest, CPURolloutKernel) {
       DYN::control_array u_nom = u_t + eps_t;
       DYN::control_array fb_u_t = feedback_gains_t * (x_t_nom - x_t_act);
       DYN::control_array u_act = u_nom + fb_u_t;
+
+      // Cost update
+      DYN::control_array zero_u = DYN::control_array::Zero();
+      state_cost_nom += cost.computeStateCost(x_t_nom);
+      float state_cost_act = cost.computeStateCost(x_t_act);
+      cost_real_w_tracking +=  state_cost_act +
+        cost.computeFeedbackCost(zero_u, zero_u, fb_u_t, cost_variance, lambda);
+
+      total_cost_real += state_cost_act +
+        cost.computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_variance, lambda);
+
       // Dyanamics Update
       model.computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
       model.computeStateDeriv(x_t_act, u_act, x_dot_t_act);
 
-      x_t_act += x_dot_t_act * dt;
-      x_t_nom += x_dot_t_nom * dt;
-      // Cost update
-      DYN::control_array zero_u = DYN::control_array::Zero();
-      cost_real_w_tracking += cost.computeStateCost(x_t_act) +
-        cost.computeFeedbackCost(zero_u, zero_u, fb_u_t, cost_variance);
-      state_cost_nom += cost.computeStateCost(x_t_nom);
-      total_cost_real += cost.computeStateCost(x_t_act) +
-        cost.computeFeedbackCost(u_t, eps_t, fb_u_t, cost_variance);
+      model.updateState(x_t_act, x_dot_t_act, dt);
+      model.updateState(x_t_nom, x_dot_t_nom, dt);
     }
     // cost_real_w_tracking += TERMINAL_COST(x_t_act);
     // state_cost_nom += TERMINAL_COST(x_t_nom);
@@ -120,6 +128,7 @@ TEST(RMPPITest, CPURolloutKernel) {
     // TODO Choose alpha better
     float alpha = 0.5;
     float cost_nom = 0.5 * state_cost_nom + 0.5 * std::max(std::min(cost_real_w_tracking, alpha), state_cost_nom);
+    // std::cout << "for loop problems, I feel bad for you son" << std::endl;
     for (int t = 0; t < num_timesteps - 1; t++) {
       Eigen::Map<DYN::control_array>
         u_t(u_traj + (traj_index + num_timesteps) * control_dim); // trajectory u at time t

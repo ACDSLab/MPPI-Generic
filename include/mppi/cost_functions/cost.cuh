@@ -108,7 +108,7 @@ public:
   }
 
   /**
-   * Computes the control cost on CPU
+   * Computes the feedback control cost on CPU for RMPPI
    */
   float computeFeedbackCost(const Eigen::Ref<const control_array> ff_u,
                             const Eigen::Ref<const control_array> noise,
@@ -120,7 +120,8 @@ public:
   }
 
   /**
-   * Computes the control cost on CPU
+   * Computes the control cost on CPU. This is the normal control cost calculation
+   * in MPPI and Tube-MPPI
    */
   float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u,
                                    const Eigen::Ref<const control_array> noise,
@@ -144,18 +145,34 @@ public:
   }
 
   /**
-   * Computes the control cost on GPU. There is an assumption that we are
-   * provided std_dev and the covriance matrix is diagonal
+   * Computes the feedback control cost on GPU used in RMPPI. There is an
+   * assumption that we are provided std_dev and the covriance matrix is
+   * diagonal.
    */
   __device__ float computeFeedbackCost(float* u, float* noise, float* fb_u,
-                                       float* std_dev) {
+                                       float* std_dev, float lambda = 1.0) {
     float cost = 0;
     float tmp_var = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
       tmp_var = ((u[i] + noise[i] + fb_u[i]) / std_dev[i]);
       cost += tmp_var * tmp_var;
     }
-    return cost;
+    return 0.5 * lambda * cost;
+  }
+
+  /**
+   * Computes the normal control cost for MPPI and Tube-MPPI
+   * 1/2 u^T * \Sigma^{-1} * (u + 2 * noise)
+   */
+  __device__ float computeLikelihoodRatioCost(float* u,
+                                              float* noise,
+                                              float* std_dev,
+                                              float lambda = 1.0) {
+    float cost = 0;
+    for (int i = 0; i < CONTROL_DIM; i++) {
+      cost += (u[i]) / (powf(std_dev[i], 2)) * (u[i] + 2 * noise[i]);
+    }
+    return 0.5 * lambda * cost;
   }
 
   inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
