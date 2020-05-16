@@ -39,7 +39,6 @@ namespace mppi_common {
     float* xdot;
     float* u;
     float* du;
-    // float* sigma_u;
 
     //Initialize running cost and total cost
     float running_cost = 0;
@@ -49,33 +48,32 @@ namespace mppi_common {
       xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
       u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
       du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
-      // sigma_u = &sigma_u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
     }
-    __syncthreads();
+    //__syncthreads();
     loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
                        BLOCKSIZE_Y, global_idx, thread_idy,
                        thread_idz, x_d, sigma_u_d, x, xdot, u, du, sigma_u);
     __syncthreads();
 
-
-  if (global_idx < NUM_ROLLOUTS) {
+    if (global_idx < NUM_ROLLOUTS) {
     /*<----Start of simulation loop-----> */
     for (int t = 0; t < num_timesteps; t++) {
       //Load noise trajectories scaled by the exploration factor
       injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
                          t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
+      // du_d is now v
       __syncthreads();
 
       // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
       // usually just control clamping
+      // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
       dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]);
       dynamics->enforceConstraints(x, u);
-
-    __syncthreads();
+      __syncthreads();
 
       //Accumulate running cost
       running_cost += costs->computeRunningCost(x, u, du, sigma_u, t)*dt;
-      __syncthreads();
+      //__syncthreads();
 
       //Compute state derivatives
       dynamics->computeStateDeriv(x, u, xdot, theta_s);
@@ -86,11 +84,8 @@ namespace mppi_common {
       __syncthreads();
     }
     //Compute terminal cost and the final cost for each thread
-    computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost,
-                       trajectory_costs_d + thread_idz * NUM_ROLLOUTS);
+    computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost, trajectory_costs_d);
   }
-
-    __syncthreads();
   }
 
     __global__ void normExpKernel(int num_rollouts,
@@ -177,9 +172,6 @@ namespace mppi_common {
           sigma_u_thread[i] = sigma_u_device[i];
         }
       }
-      // for (i = blockDim.y*blockDim.x*threadIdx.z + blockDim.x*threadIdx.y + threadIdx.x; i < control_dim; i+= blockDim.z*blockDim.x*blockDim.y){
-
-      // }
     }
 
     __device__ void injectControlNoise(int control_dim,
@@ -192,7 +184,10 @@ namespace mppi_common {
                                        float* ep_v_device,
                                        const float* sigma_u_thread,
                                        float* u_thread, float* du_thread) {
-        int control_index = global_idx*control_dim*num_timesteps + current_timestep * control_dim;
+
+      // this is a global index
+        int control_index = num_rollouts*control_dim*num_timesteps*threadIdx.z + // z part
+                global_idx*control_dim*num_timesteps + current_timestep * control_dim; // normal part
         //Load the noise trajectory scaled by the exploration factor
         // The prior loop already guarantees that the global index is less than the number of rollouts
         for (int i = thread_idy; i < control_dim; i += blocksize_y) {
@@ -218,8 +213,9 @@ namespace mppi_common {
     template<class COST_T>
     __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* x_thread,
                                         float running_cost, float* cost_rollouts_device) {
-        if (global_idx < num_rollouts) {
-            cost_rollouts_device[global_idx] = running_cost + costs->terminalCost(x_thread);
+        // only want to save 1 cost per trajectory
+        if (threadIdx.y == 0 && global_idx < num_rollouts) {
+            cost_rollouts_device[global_idx + num_rollouts*threadIdx.z] = running_cost + costs->terminalCost(x_thread);
         }
     }
 

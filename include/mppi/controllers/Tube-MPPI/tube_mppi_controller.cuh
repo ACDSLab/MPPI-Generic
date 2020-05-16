@@ -80,12 +80,22 @@ public:
   /**
    * returns the current control sequence
    */
-  control_trajectory getNominalControlSeq() { return nominal_control_trajectory_;};
+  control_trajectory getControlSeq() override { return nominal_control_trajectory_;};
 
   /**
    * returns the current state sequence
    */
-  state_trajectory getNominalStateSeq() {return nominal_state_trajectory_;};
+  state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
+
+  /**
+   * returns the current control sequence
+   */
+  control_trajectory getActualControlSeq() { return this->control_;};
+
+  /**
+   * returns the current state sequence
+   */
+  state_trajectory getActualStateSeq() {return this->state_;};
 
   /**
    * Slide the control sequence back n steps

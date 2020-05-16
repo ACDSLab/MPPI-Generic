@@ -62,7 +62,6 @@ public:
 
     control_variance_ = control_variance;
     control_ = init_control_traj;
-    // TODO set num timesteps
 
     // Create the random number generator
     createAndSeedCUDARandomNumberGen();
@@ -190,6 +189,7 @@ public:
   virtual void resetControls() {};
 
   void setNumTimesteps(int num_timesteps) {
+    // TODO fix the tracking controller as well
     if ((num_timesteps <= MAX_TIMESTEPS) && (num_timesteps > 0)) {
       num_timesteps_ = num_timesteps;
     } else {
@@ -248,7 +248,7 @@ protected:
   float* control_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*N
   float* state_d_; // Array of size DYN_T::STATE_DIM*NUM_ROLLOUTS*N
   float* trajectory_costs_d_; // Array of size NUM_ROLLOUTS*N
-  float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS
+  float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS*N
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
@@ -281,7 +281,7 @@ protected:
    * Allocates CUDA memory for actual states and nominal states if needed
    * @param nominal_size if only actual this should be 0
    */
-  void allocateCUDAMemoryHelper(int nominal_size = 0) {
+  void allocateCUDAMemoryHelper(int nominal_size = 0, bool allocate_double_noise = true) {
     if(nominal_size < 0) {
       nominal_size = 1;
       // TODO throw exception
@@ -300,7 +300,7 @@ protected:
     HANDLE_ERROR(cudaMalloc((void**)&this->control_variance_d_,
                             sizeof(float)*DYN_T::CONTROL_DIM));
     HANDLE_ERROR(cudaMalloc((void**)&this->control_noise_d_,
-                            sizeof(float)*DYN_T::CONTROL_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS));
+                            sizeof(float)*DYN_T::CONTROL_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS* (allocate_double_noise ? nominal_size : 1)));
   }
 
   // TODO all the copy to device functions to streamline process

@@ -17,7 +17,6 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
                                      control_variance, num_timesteps, init_control_traj, stream) {
 
   nominal_control_trajectory_ = init_control_traj;
-  // TODO copy to GPU
 
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
@@ -25,17 +24,15 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
   // Copy the noise variance to the device
   this->copyControlVarianceToDevice();
 
+  // init the tracking controller
   initDDP(Q, Qf, R);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
-  // TODO
   if (!nominalStateInit_){
-//    for (int i = 0; i < DYN_T::STATE_DIM; i++){
-//      nominal_state_trajectory_(i, 0) = state(i);
-//    }
+    // set the nominal state to the actual state
     nominal_state_trajectory_.col(0) = state;
     nominalStateInit_ = true;
   }
@@ -43,20 +40,18 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 //  std::cout << "Post disturbance Actual State: "; this->model_->printState(state.data());
 //  std::cout << "                Nominal State: "; this->model_->printState(nominal_state_trajectory_.col(0).data());
 
-  // Handy reference pointers
+  // Handy reference pointers to the nominal state
   float * trajectory_costs_nominal_d = this->trajectory_costs_d_ + NUM_ROLLOUTS;
   float * initial_state_nominal_d = this->initial_state_d_ + DYN_T::STATE_DIM;
 
-  float * control_noise_nominal_d = this->control_noise_d_ + NUM_ROLLOUTS *
-                                    this->num_timesteps_ * DYN_T::CONTROL_DIM;
+  float * control_noise_nominal_d = this->control_noise_d_ + NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM;
   float * control_nominal_d = this->control_d_ + this->num_timesteps_ * DYN_T::CONTROL_DIM;
 
   for (int opt_iter = 0; opt_iter < this->num_iters_; opt_iter++) {
-    // Send the initial condition to the device
 
+    // Send the initial condition to the device
     HANDLE_ERROR( cudaMemcpyAsync(this->initial_state_d_, state.data(),
                                   DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-
     HANDLE_ERROR( cudaMemcpyAsync(initial_state_nominal_d, nominal_state_trajectory_.data(),
                                   DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, this->stream_));
 
@@ -65,34 +60,16 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     //Generate noise data
     curandGenerateNormal(this->gen_, this->control_noise_d_,
-                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
+                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM*2,
                          0.0, 1.0);
 
     cudaDeviceSynchronize();
 
-    curandGenerateNormal(this->gen_, control_noise_nominal_d,
-                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
-                         0.0, 1.0);
-//    HANDLE_ERROR( cudaMemcpyAsync(control_noise_nominal_d, control_noise_d_,
-//                 NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM * sizeof(float),
-//                 cudaMemcpyDeviceToDevice,
-//                 stream_) );
-
-    //Launch the rollout kernel TODO fix the rollout kernel
-//    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 2>(
-//        this->model_->model_d_, this->cost_->cost_d_, dt_, this->num_timesteps_,
-//        initial_state_d_, control_d_, control_noise_d_,
-//        this->control_variance_d_, trajectory_costs_d_, stream_);
-
-    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+    // call rollout kernel with z = 2 since we have a nominal state
+    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 2>(
             this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
             this->initial_state_d_, this->control_d_, this->control_noise_d_,
             this->control_variance_d_, this->trajectory_costs_d_, this->stream_);
-
-    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-            this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
-            initial_state_nominal_d, control_nominal_d, control_noise_nominal_d,
-            this->control_variance_d_, trajectory_costs_nominal_d, this->stream_);
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
@@ -156,7 +133,6 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     cudaStreamSynchronize(this->stream_);
 
     // Compute the nominal and actual state trajectories
-
     computeStateTrajectory(state); // Input is the actual state
 
 
