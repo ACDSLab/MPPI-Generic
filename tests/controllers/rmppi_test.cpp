@@ -314,3 +314,38 @@ TEST_F(RMPPINominalStateSelection, InitEvalSelection_Weights) {
   }
 
 }
+
+TEST_F(RMPPINominalStateSelection, InitEvalRollout) {
+  // Given the initial states, we need to roll out the number of samples.
+  // 1.)  Generate the noise used to evaluate each sample.
+  //
+  Eigen::Matrix<float, 4, 9> x0_candidates;
+  x0_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4,
+                       0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+
+  // For each candidate, we want to estimate the free energy using a set number of samples.
+  const int num_samples = 64;
+
+  // We are going to propagate a trajectory for a given number of timesteps
+  const int num_timesteps = 100;
+
+  // We need to generate a nominal trajectory for the control
+  auto nominal_control = Eigen::MatrixXf::Random(2,100); 
+  
+  // Let us make temporary variables to hold the states and state derivatives and controls
+  dynamics::state_array x_current, x_dot_current;
+  dynamics::control_array u_current;
+  float current_cost = 0.0f;
+  for (int i = 0; i < 9; ++i) { // Iterate through each candidate
+    for (int j = 0; j < num_samples; ++j) {
+      x_current = x0_candidates.col(i);  // The initial state of the rollout
+      for (int k = 0; i < num_timesteps; ++k) {
+        // compute the cost
+	// get the control plus a disturbance
+	// compute the next state_dot
+	// update the state to the next
+      }
+      // compute the terminal cost -> this is the free energy estimate, save it!
+    }
+  }
+}
