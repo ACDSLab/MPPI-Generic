@@ -330,22 +330,32 @@ TEST_F(RMPPINominalStateSelection, InitEvalRollout) {
   const int num_timesteps = 100;
 
   // We need to generate a nominal trajectory for the control
-  auto nominal_control = Eigen::MatrixXf::Random(2,100); 
+  auto nominal_control = Eigen::MatrixXf::Random(dynamics::CONTROL_DIM, num_timesteps);
   
   // Let us make temporary variables to hold the states and state derivatives and controls
   dynamics::state_array x_current, x_dot_current;
   dynamics::control_array u_current;
-  float current_cost = 0.0f;
+
+  Eigen::Matrix<float, 1, num_samples*9> cost_vector;
+
+  float cost_current = 0.0;
   for (int i = 0; i < 9; ++i) { // Iterate through each candidate
     for (int j = 0; j < num_samples; ++j) {
       x_current = x0_candidates.col(i);  // The initial state of the rollout
-      for (int k = 0; i < num_timesteps; ++k) {
+      for (int k = 0; k < num_timesteps; ++k) {
         // compute the cost
-	// get the control plus a disturbance
-	// compute the next state_dot
-	// update the state to the next
+        cost_current += cost->computeStateCost(x_current);
+	      // get the control plus a disturbance
+	      u_current = nominal_control.col(k) + Eigen::MatrixXf::Random(dynamics::CONTROL_DIM, 1);
+      	// compute the next state_dot
+      	model->computeDynamics(x_current, u_current, x_dot_current);
+	      // update the state to the next
+	      model->updateState(x_current, x_dot_current, 0.01);
       }
       // compute the terminal cost -> this is the free energy estimate, save it!
+      cost_current += cost->terminalCost(x_current);
+      cost_vector.col(i*num_samples + j) << cost_current;
     }
   }
+  std::cout << cost_vector << std::endl;
 }
