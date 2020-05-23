@@ -59,44 +59,48 @@ public:
           BDIM_X,
           BDIM_Y>::sampled_cost_traj;
 
-//  using m_dyn = typename ModelWrapperDDP<DYN_T>::Scalar;
   using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
   using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
-  TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
-                     float gamma, int num_timesteps,
+  TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
                      const Eigen::Ref<const StateCostWeight>& Q,
                      const Eigen::Ref<const Hessian>& Qf,
                      const Eigen::Ref<const ControlCostWeight>& R,
                      const Eigen::Ref<const control_array>& control_variance,
+                     int num_timesteps = MAX_TIMESTEPS,
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                      cudaStream_t stream = nullptr);
 
 //  TubeMPPIController() = default;
-
-  ~TubeMPPIController();
 
   void computeControl(const Eigen::Ref<const state_array>& state) override;
 
   /**
    * returns the current control sequence
    */
-  control_trajectory getControlSeq() override { return nominal_control_trajectory;};
+  control_trajectory getControlSeq() override { return nominal_control_trajectory_;};
 
   /**
    * returns the current state sequence
    */
-  state_trajectory getStateSeq() override {return nominal_state_trajectory;};
+  state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
+
+  /**
+   * returns the current control sequence
+   */
+  control_trajectory getActualControlSeq() { return this->control_;};
+
+  /**
+   * returns the current state sequence
+   */
+  state_trajectory getActualStateSeq() {return this->state_;};
 
   /**
    * Slide the control sequence back n steps
    */
   void slideControlSequence(int steps) override;
-
-  void updateControlNoiseVariance(const Eigen::Ref<const control_array>& sigma_u);
-
 
   void initDDP(const StateCostWeight& q_mat,
                const Hessian& q_f_mat,
@@ -104,7 +108,7 @@ public:
 
   void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
 
-  FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
+  FeedbackGainTrajectory getFeedbackGains() override { return result_.feedback_gain;};
 
   state_trajectory getAncillaryStateSeq() {return result_.state_trajectory;};
 
@@ -120,74 +124,39 @@ public:
   std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
   std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
   std::shared_ptr<DDP<ModelWrapperDDP<DYN_T>>> ddp_solver_;
-  cudaStream_t stream_;
 
 private:
-  int num_iters_;  // Number of optimization iterations
-  float gamma_; // Value of the temperature in the softmax.
-  float normalizer_actual_; // Variable for the normalizing term from sampling.
   float normalizer_nominal_; // Variable for the normalizing term from sampling.
-  float baseline_actual_; // Baseline cost of the system.
   float baseline_nominal_; // Baseline cost of the system.
-  float dt_;
   float nominal_threshold_ = 100; // How much worse the actual system has to be compared to the nominal
 
-  control_trajectory nominal_control_trajectory = control_trajectory::Zero();
-  control_trajectory actual_control_trajectory = control_trajectory::Zero();
-  state_trajectory nominal_state_trajectory = state_trajectory::Zero();
-  state_trajectory actual_state_trajectory = state_trajectory::Zero();
+  float* initial_state_nominal_d_; // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 
-  // Control history
-  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
+  control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
+  state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
 
-
+  // for DDP
   control_array control_min_;
   control_array control_max_;
 
   OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
 
   sampled_cost_traj trajectory_costs_nominal_ = sampled_cost_traj::Zero();
-  sampled_cost_traj trajectory_costs_actual_ = sampled_cost_traj::Zero();
 
   // Check to see if nominal state has been initialized
   bool nominalStateInit_ = false;
 
-  float* initial_state_d_;
-  // Each of these device arrays are twice as large as in MPPI to hold
-  // both the nominal and actual values.
-  float* control_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS * 2
-  float* state_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS * 2
-  float* trajectory_costs_d_; // Array of size NUM_ROLLOUTS * 2
-  float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS * 2
-
-
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0_actual);
 
 protected:
-  int num_timesteps_;
-  curandGenerator_t gen_;
 
-  control_array control_variance_ = control_array::Zero();
-  float* control_variance_d_;
-
-  // WARNING This method is private because it is only called once in the constructor. Logic is required
-  // so that CUDA memory is properly reallocated when the number of timesteps changes.
-  void setNumTimesteps(int num_timesteps);
-
-  void createAndSeedCUDARandomNumberGen();
-
-  void setCUDAStream(cudaStream_t stream);
-
-
-  // Allocate CUDA memory for the controller
-  void allocateCUDAMemory();
-
-  // Free CUDA memory for the controller
-  void deallocateCUDAMemory();
-
+  // TODO move up and generalize, pass in what to copy and initial location
   void copyControlToDevice();
 
-  void copyControlVarianceToDevice();
+private:
+  // ======== PURE VIRTUAL =========
+  void allocateCUDAMemory();
+  // ======== PURE VIRTUAL END =====
 };
 
 

@@ -39,10 +39,10 @@ TEST(TubeMPPITest, Construction) {
   R = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
 
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-                                      512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+                                      512, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
 
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-                                        512, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Q, R, control_var);
+                                        512, 64, 8>(&model, &cost, dt, max_iter, gamma, Q, Q, R, control_var);
 
 //  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
 //                                      512, 64, 8>(&model, &cost, dt, max_iter,
@@ -79,7 +79,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
 
   int fail_count = 0;
   // Start the while loop
@@ -155,7 +155,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
 
   bool success = false;
   int fail_count = 0;
@@ -239,7 +239,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
 
   // Initialize the DDP tracking controller
 util::DefaultLogger logger;
@@ -344,6 +344,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   float gamma = 0.25; // Learning rate parameter
   const int num_timesteps = 50;  // Optimization time horizon
 
+  std::vector<float> actual_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
   std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
 
@@ -363,16 +364,29 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   Eigen::MatrixXf Qf;
   Eigen::MatrixXf R;
 
+  /**
+   * Q =
+   * [500, 0, 0, 0
+   *  0, 500, 0, 0
+   *  0, 0, 100, 0
+   *  0, 0, 0, 100]
+   */
   Q = 500*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
   Q(2,2) = 100;
   Q(3,3) = 100;
+  /**
+   * R = I
+   */
   R = 1*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
 
+  /**
+   * Qf = I
+   */
   Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
 
   // Initialize the tube MPPI controller
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, Q, Qf, R, control_var);
+          1024, 64, 1>(&model, &cost, dt, max_iter, gamma, Q, Qf, R, control_var);
 
   int fail_count = 0;
 
@@ -391,9 +405,11 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     }
 
     if (tubeFailure(x.data())) {
-      cnpy::npy_save("tube_large.npy",nominal_trajectory_save.data(),
+      cnpy::npy_save("tube_large_actual.npy",actual_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
+                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+      cnpy::npy_save("tube_large_nominal.npy",nominal_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       FAIL();
     }
@@ -401,8 +417,9 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     // Compute the control
     controller.computeControl(x);
 
-    // Save the nominal trajectory
+    // Save the trajectory from the nominal state
     auto nominal_trajectory = controller.getStateSeq();
+    auto actual_trajectory = controller.getActualStateSeq();
 
     // Get the feedback gains associated with the nominal state and control trajectory
     controller.computeFeedbackGains(x);
@@ -412,15 +429,17 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
     for (int i = 0; i < num_timesteps; i++) {
       for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
-        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
-                                i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
+        actual_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+                                i*DoubleIntegratorDynamics::STATE_DIM + j] = actual_trajectory(j, i);
         ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
                                 i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
+        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+                               i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
       }
     }
 
     // Get the open loop control
-    DoubleIntegratorDynamics::control_array current_control = controller.getControlSeq().col(0);
+    DoubleIntegratorDynamics::control_array current_control = controller.getActualControlSeq().col(0);
 //    std::cout << current_control << std::endl;
 
 
@@ -444,8 +463,10 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     controller.slideControlSequence(1);
   }
 
-  cnpy::npy_save("tube_large.npy",nominal_trajectory_save.data(),
+  cnpy::npy_save("tube_large_actual.npy",actual_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
   cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save("tube_large_nominal.npy",nominal_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 }

@@ -11,45 +11,25 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost,
                                    float dt,
                                    int max_iter,
                                    float gamma,
-                                   int num_timesteps,
                                    const Eigen::Ref<const control_array>& control_variance,
+                                   int num_timesteps,
                                    const Eigen::Ref<const control_trajectory>& init_control_traj,
                                    cudaStream_t stream) :
-dt_(dt), num_iters_(max_iter), gamma_(gamma), stream_(stream) {
-    this->model_ = model;
-    this->cost_ = cost;
+Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(model, cost, dt, max_iter, gamma,
+        control_variance, num_timesteps, init_control_traj, stream) {
+  // Allocate CUDA memory for the controller
+  allocateCUDAMemory();
 
-    control_variance_ = control_variance;
-    nominal_control_ = init_control_traj;
-    setNumTimesteps(num_timesteps);
+  // Copy the noise variance to the device
+  this->copyControlVarianceToDevice();
 
-    // Create the random number generator
-    createAndSeedCUDARandomNumberGen();
-
-    // Bind the model and control to the given stream
-    setCUDAStream(stream);
-
-    // Call the GPU setup functions of the model and cost
-    this->model_->GPUSetup();
-    this->cost_->GPUSetup();
-
-
-    // Allocate CUDA memory for the controller
-    allocateCUDAMemory();
-
-    // Copy the noise variance to the device
-    copyControlVarianceToDevice();
+  // TODO copy the nominal trajectory from the first half to second half on device to set nominal the same as actual
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 VanillaMPPI::~VanillaMPPIController() {
-    // Free the CUDA memory of every object
-    this->model_->freeCudaMem();
-    this->cost_->freeCudaMem();
-
-    // Free the CUDA memory of the controller
-    deallocateCUDAMemory();
+  // all implemented in standard controller
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
@@ -57,67 +37,68 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
 void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
   // Send the initial condition to the device
-  HANDLE_ERROR( cudaMemcpyAsync(initial_state_d_, state.data(),
-      DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, stream_));
+  HANDLE_ERROR( cudaMemcpyAsync(this->initial_state_d_, state.data(),
+      DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, this->stream_));
 
   float baseline_prev = 1e4;
 
-  for (int opt_iter = 0; opt_iter < num_iters_; opt_iter++) {
+  for (int opt_iter = 0; opt_iter < this->num_iters_; opt_iter++) {
     // Send the nominal control to the device
-    copyNominalControlToDevice();
+    this->copyNominalControlToDevice();
 
     //Generate noise data
-    curandGenerateNormal(gen_, control_noise_d_,
-                         NUM_ROLLOUTS*num_timesteps_*DYN_T::CONTROL_DIM,
+    curandGenerateNormal(this->gen_, this->control_noise_d_,
+                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
                          0.0, 1.0);
 
     //Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        this->model_->model_d_, this->cost_->cost_d_, dt_, num_timesteps_,
-        initial_state_d_, nominal_control_d_, control_noise_d_,
-        control_variance_d_, trajectory_costs_d_, stream_);
+        this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
+        this->initial_state_d_, this->control_d_, this->control_noise_d_,
+        this->control_variance_d_, this->trajectory_costs_d_, this->stream_);
 
 
     // Copy the costs back to the host
-    HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_.data(),
-        trajectory_costs_d_,
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
+        this->trajectory_costs_d_,
         NUM_ROLLOUTS*sizeof(float),
-        cudaMemcpyDeviceToHost, stream_));
-    HANDLE_ERROR( cudaStreamSynchronize(stream_) );
+        cudaMemcpyDeviceToHost, this->stream_));
+    HANDLE_ERROR( cudaStreamSynchronize(this->stream_) );
 
-    baseline_ = mppi_common::computeBaselineCost(trajectory_costs_.data(),
+    this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(),
         NUM_ROLLOUTS);
 
-    if (baseline_ > baseline_prev + 1) {
+    if (this->baseline_ > baseline_prev + 1) {
+      // TODO handle printing
       std::cout << "Previous Baseline: " << baseline_prev << std::endl;
-      std::cout << "         Baseline: " << baseline_ << std::endl;
+      std::cout << "         Baseline: " << this->baseline_ << std::endl;
     }
 
-    baseline_prev = baseline_;
+    baseline_prev = this->baseline_;
 
     // Launch the norm exponential kernel
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-        trajectory_costs_d_, gamma_, baseline_, stream_);
-    HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_.data(),
-        trajectory_costs_d_,
+        this->trajectory_costs_d_, this->gamma_, this->baseline_, this->stream_);
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
+        this->trajectory_costs_d_,
         NUM_ROLLOUTS*sizeof(float),
-        cudaMemcpyDeviceToHost, stream_));
-    HANDLE_ERROR(cudaStreamSynchronize(stream_));
+        cudaMemcpyDeviceToHost, this->stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Compute the normalizer
-    normalizer_ = mppi_common::computeNormalizer(trajectory_costs_.data(),
+    this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(),
         NUM_ROLLOUTS);
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
-        trajectory_costs_d_, control_noise_d_, nominal_control_d_,
-        normalizer_, num_timesteps_, stream_);
+            this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,
+            this->normalizer_, this->num_timesteps_, this->stream_);
 
     // Transfer the new control to the host
-    HANDLE_ERROR( cudaMemcpyAsync(nominal_control_.data(), nominal_control_d_,
-            sizeof(float)*num_timesteps_*DYN_T::CONTROL_DIM,
-            cudaMemcpyDeviceToHost, stream_));
-    cudaStreamSynchronize(stream_);
+    HANDLE_ERROR( cudaMemcpyAsync(this->control_.data(), this->control_d_,
+            sizeof(float)*this->num_timesteps_*DYN_T::CONTROL_DIM,
+            cudaMemcpyDeviceToHost, this->stream_));
+    cudaStreamSynchronize(this->stream_);
 
     }
   smoothControlTrajectory();
@@ -128,124 +109,51 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void VanillaMPPI::allocateCUDAMemory() {
-  HANDLE_ERROR(cudaMalloc((void**)&initial_state_d_,
-                          sizeof(float)*DYN_T::STATE_DIM));
-  HANDLE_ERROR(cudaMalloc((void**)&nominal_control_d_,
-                          sizeof(float)*DYN_T::CONTROL_DIM*num_timesteps_));
-  HANDLE_ERROR(cudaMalloc((void**)&nominal_state_d_,
-                          sizeof(float)*DYN_T::STATE_DIM*num_timesteps_));
-  HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d_,
-                          sizeof(float)*NUM_ROLLOUTS));
-  HANDLE_ERROR(cudaMalloc((void**)&control_variance_d_,
-                          sizeof(float)*DYN_T::CONTROL_DIM));
-  HANDLE_ERROR(cudaMalloc((void**)&control_noise_d_,
-                          sizeof(float)*DYN_T::CONTROL_DIM*num_timesteps_*NUM_ROLLOUTS));
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
-void VanillaMPPI::deallocateCUDAMemory() {
-  cudaFree(nominal_control_d_);
-  cudaFree(nominal_state_d_);
-  cudaFree(trajectory_costs_d_);
-  cudaFree(control_variance_d_);
-  cudaFree(control_noise_d_);
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
-void
-VanillaMPPI::setCUDAStream(cudaStream_t stream) {
-  stream_ = stream;
-  this->model_->bindToStream(stream);
-  this->cost_->bindToStream(stream);
-  curandSetStream(gen_, stream); // requires the generator to be created!
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
-void VanillaMPPI::updateControlNoiseVariance(const Eigen::Ref<const control_array>& sigma_u) {
-  std::cout << control_variance_ << std::endl;
-  control_variance_ = sigma_u;
-  std::cout << control_variance_ << std::endl;
-  copyControlVarianceToDevice();
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
-void VanillaMPPI::copyControlVarianceToDevice() {
-  HANDLE_ERROR(cudaMemcpyAsync(control_variance_d_, control_variance_.data(), sizeof(float)*control_variance_.size(), cudaMemcpyHostToDevice, stream_));
-  cudaStreamSynchronize(stream_);
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
-void VanillaMPPI::copyNominalControlToDevice() {
-  HANDLE_ERROR(cudaMemcpyAsync(nominal_control_d_, nominal_control_.data(), sizeof(float)*nominal_control_.size(), cudaMemcpyHostToDevice, stream_));
-  HANDLE_ERROR(cudaStreamSynchronize(stream_));
+  Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper();
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void VanillaMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0) {
-  nominal_state_.col(0) = x0;
+  this->state_.col(0) = x0;
   state_array xdot;
-  for (int i =0; i < num_timesteps_ - 1; ++i) {
-    nominal_state_.col(i+1) = nominal_state_.col(i);
-    state_array state = nominal_state_.col(i+1);
-    control_array control = nominal_control_.col(i);
+  for (int i =0; i < this->num_timesteps_ - 1; ++i) {
+    this->state_.col(i+1) = this->state_.col(i);
+    state_array state = this->state_.col(i+1);
+    control_array control = this->control_.col(i);
     this->model_->computeStateDeriv(state, control, xdot);
-    this->model_->updateState(state, xdot, dt_);
-    nominal_state_.col(i+1) = state;
+    this->model_->updateState(state, xdot, this->dt_);
+    this->state_.col(i+1) = state;
     }
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
-void
-VanillaMPPI::setNumTimesteps(int num_timesteps) {
-    if ((num_timesteps <= MAX_TIMESTEPS) && (num_timesteps > 0)) {
-        num_timesteps_ = num_timesteps;
-    } else {
-        num_timesteps_ = MAX_TIMESTEPS;
-        printf("You must give a number of timesteps between [0, %d]\n", MAX_TIMESTEPS);
-    }
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
-void
-VanillaMPPI::createAndSeedCUDARandomNumberGen() {
-    // Seed the PseudoRandomGenerator with the CPU time.
-    curandCreateGenerator(&gen_, CURAND_RNG_PSEUDO_DEFAULT);
-    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    curandSetPseudoRandomGeneratorSeed(gen_, seed);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void VanillaMPPI::slideControlSequence(int steps) {
+  // TODO does the logic of handling control history reasonable?
 
   // Save the control history
   if (steps > 1) {
-    control_history_.row(0) = nominal_control_.col(steps - 2).transpose();
-    control_history_.row(1) = nominal_control_.col(steps - 1).transpose();
+    this->control_history_.row(0) = this->control_.col(steps - 2).transpose();
+    this->control_history_.row(1) = this->control_.col(steps - 1).transpose();
   } else { //
-    control_history_.row(0) = control_history_.row(1); // Slide control history forward
-    control_history_.row(1) = nominal_control_.col(0).transpose(); // Save the control at time 0
+    this->control_history_.row(0) = this->control_history_.row(1); // Slide control history forward
+    this->control_history_.row(1) = this->control_.col(0).transpose(); // Save the control at time 0
   }
 
-  for (int i = 0; i < num_timesteps_; ++i) {
+  for (int i = 0; i < this->num_timesteps_; ++i) {
     for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
-      int ind = std::min(i + steps, num_timesteps_ - 1);
-      nominal_control_(j,i) = nominal_control_(j, ind);
+      int ind = std::min(i + steps, this->num_timesteps_ - 1);
+      this->control_(j,i) = this->control_(j, ind);
     }
   }
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void VanillaMPPI::smoothControlTrajectory() {
-  // Create the filter coefficients
+  // TODO generalize to any size filter
+  // TODO does the logic of handling control history reasonable?
+  // Create the filter coefficients, pulled from table on wikipedia
   Eigen::Matrix<float, 1, 5> filter_coefficients;
   filter_coefficients << -3, 12, 17, 12, -3;
   filter_coefficients /= 35.0;
@@ -254,18 +162,18 @@ void VanillaMPPI::smoothControlTrajectory() {
   Eigen::Matrix<float, MAX_TIMESTEPS+4, DYN_T::CONTROL_DIM> control_buffer;
 
   // Fill the first two timesteps with the control history
-  control_buffer.topRows(2) = control_history_;
+  control_buffer.topRows(2) = this->control_history_;
 
   // Fill the center timesteps with the current nominal trajectory
-  control_buffer.middleRows(2, MAX_TIMESTEPS) = nominal_control_.transpose();
+  control_buffer.middleRows(2, MAX_TIMESTEPS) = this->control_.transpose();
 
   // Fill the last two timesteps with the end of the current nominal control trajectory
-  control_buffer.row(MAX_TIMESTEPS+2) = nominal_control_.transpose().row(MAX_TIMESTEPS-1);
+  control_buffer.row(MAX_TIMESTEPS+2) = this->control_.transpose().row(MAX_TIMESTEPS-1);
   control_buffer.row(MAX_TIMESTEPS+3) = control_buffer.row(MAX_TIMESTEPS+2);
 
   // Apply convolutional filter to each timestep
   for (int i = 0; i < MAX_TIMESTEPS; ++i) {
-    nominal_control_.col(i) = (filter_coefficients*control_buffer.middleRows(i,5)).transpose();
+    this->control_.col(i) = (filter_coefficients*control_buffer.middleRows(i,5)).transpose();
   }
 }
 
