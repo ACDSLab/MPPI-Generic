@@ -141,14 +141,6 @@ public:
   }
 
   /**
-   * Return the current minimal cost sequence
-   */
-  virtual cost_trajectory getCostSeq() {
-    // TODO
-    return cost_trajectory();
-  };
-
-  /**
    * Return all the sampled costs sequences
    */
   virtual sampled_cost_traj getSampledCostSeq() {
@@ -224,7 +216,6 @@ protected:
     cudaFree(control_variance_d_);
     cudaFree(control_noise_d_);
   };
-  // TODO smoothControlTrajectory
 
 
   int num_iters_;  // Number of optimization iterations
@@ -284,7 +275,8 @@ protected:
   void allocateCUDAMemoryHelper(int nominal_size = 0, bool allocate_double_noise = true) {
     if(nominal_size < 0) {
       nominal_size = 1;
-      // TODO throw exception
+      std::cerr << "nominal size cannot be below 0 when allocateCudaMemoryHelper is called" << std::endl;
+      std::exit(-1);
     } else {
       // increment by 1 since actual is not included
       ++nominal_size;
