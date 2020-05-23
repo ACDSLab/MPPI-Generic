@@ -273,7 +273,17 @@ protected:
 
 };
 
-
+template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
+         int NUM_ROLLOUTS, int BLOCKSIZE_Z>
+__global__ void rmppi_rollout_kernel(DYN_T * dynamics, COST_T* costs,
+                                     float dt,
+                                     int num_timesteps,
+                                     float* x_d,
+                                     float* u_d,
+                                     float* du_d,
+                                     float* sigma_u_d,
+                                     float* trajectory_costs_d,
+                                     float* feedback_gains_d);
 
 #if __CUDACC__
 #include "robust_mppi_controller.cu"

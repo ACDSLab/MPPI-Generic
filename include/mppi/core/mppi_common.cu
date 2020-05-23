@@ -17,24 +17,24 @@ namespace mppi_common {
                                float* du_d,
                                float* sigma_u_d,
                                float* trajectory_costs_d) {
-    //Get thread and block id
+    // Get thread and block id
     int thread_idx = threadIdx.x;
     int thread_idy = threadIdx.y;
     int thread_idz = threadIdx.z;
     int block_idx = blockIdx.x;
     int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
 
-    //Create shared state and control arrays
+    // Create shared state and control arrays
     __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
     __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
     __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float sigma_u[DYN_T::CONTROL_DIM];
 
-  //Create a shared array for the dynamics model to use
-  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+    // Create a shared array for the dynamics model to use
+    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
 
-    //Create local state, state dot and controls
+    // Create local state, state dot and controls
     float* x;
     float* xdot;
     float* u;
