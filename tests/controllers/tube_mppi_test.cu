@@ -241,13 +241,6 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
           1024, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
 
-  // Initialize the DDP tracking controller
-util::DefaultLogger logger;
-  bool verbose = false;
-  auto ddp_model_  = std::make_shared<ModelWrapperDDP<DoubleIntegratorDynamics>>(&model);
-  auto ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DoubleIntegratorDynamics>>>(dt,
-          num_timesteps, 1, &logger, verbose);
-
   // DDP cost parameters
   Eigen::MatrixXf Q;
   Eigen::MatrixXf Qf;
@@ -260,9 +253,7 @@ util::DefaultLogger logger;
 
   Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
 
-  auto run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DoubleIntegratorDynamics>>>(Q,
-                                                                        R, num_timesteps);
-  auto terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DoubleIntegratorDynamics>>>(Qf);
+  vanilla_controller.initDDP(Q, Qf, R);
 
   bool success = false;
   int fail_count = 0;
@@ -300,18 +291,14 @@ util::DefaultLogger logger;
     }
 
     // Compute the feedback gains
-    run_cost_->setTargets(nominal_trajectory.data(), nominal_control.data(), num_timesteps);
-    terminal_cost_->xf = run_cost_->traj_target_x_.col(num_timesteps - 1);
-    auto result = ddp_solver_->run(x, nominal_control,
-                               *ddp_model_, *run_cost_, *terminal_cost_);
+    vanilla_controller.computeFeedbackGains(x);
 
     // Get the open loop control
     DoubleIntegratorDynamics::control_array current_control = nominal_control.col(0);
     //    std::cout << current_control << std::endl;
 
-
     // Apply the feedback given the current state
-    current_control += result.feedback_gain[0]*(x - nominal_trajectory.col(0));
+    current_control += vanilla_controller.getFeedbackGains()[0]*(x - nominal_trajectory.col(0));
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
