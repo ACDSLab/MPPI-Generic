@@ -9,9 +9,6 @@
 #include <curand.h>
 #include <mppi/controllers/controller.cuh>
 #include <mppi/core/mppi_common.cuh>
-#include <mppi/ddp/ddp_model_wrapper.h>
-#include <mppi/ddp/ddp_tracking_costs.h>
-#include <mppi/ddp/ddp.h>
 #include <chrono>
 #include <memory>
 #include <iostream>
@@ -73,8 +70,6 @@ public:
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                      cudaStream_t stream = nullptr);
 
-//  TubeMPPIController() = default;
-
   void computeControl(const Eigen::Ref<const state_array>& state) override;
 
   /**
@@ -102,45 +97,19 @@ public:
    */
   void slideControlSequence(int steps) override;
 
-  void initDDP(const StateCostWeight& q_mat,
-               const Hessian& q_f_mat,
-               const ControlCostWeight& r_mat);
-
-  void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
-
-  FeedbackGainTrajectory getFeedbackGains() override { return result_.feedback_gain;};
-
-  state_trajectory getAncillaryStateSeq() {return result_.state_trajectory;};
-
   void smoothControlTrajectory();
 
   void updateNominalState(const Eigen::Ref<const control_array>& u);
 
-  StateCostWeight Q_;
-  Hessian Qf_;
-  ControlCostWeight R_;
-
-  std::shared_ptr<ModelWrapperDDP<DYN_T>> ddp_model_;
-  std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
-  std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
-  std::shared_ptr<DDP<ModelWrapperDDP<DYN_T>>> ddp_solver_;
 
 private:
   float normalizer_nominal_; // Variable for the normalizing term from sampling.
   float baseline_nominal_; // Baseline cost of the system.
   float nominal_threshold_ = 100; // How much worse the actual system has to be compared to the nominal
 
-  float* initial_state_nominal_d_; // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
-
+  // nominal state CPU side copies
   control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
   state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
-
-  // for DDP
-  control_array control_min_;
-  control_array control_max_;
-
-  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
-
   sampled_cost_traj trajectory_costs_nominal_ = sampled_cost_traj::Zero();
 
   // Check to see if nominal state has been initialized

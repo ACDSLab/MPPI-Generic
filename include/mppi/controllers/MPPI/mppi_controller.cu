@@ -22,8 +22,6 @@ Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(model, co
 
   // Copy the noise variance to the device
   this->copyControlVarianceToDevice();
-
-  // TODO copy the nominal trajectory from the first half to second half on device to set nominal the same as actual
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
@@ -115,16 +113,7 @@ void VanillaMPPI::allocateCUDAMemory() {
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void VanillaMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0) {
-  this->state_.col(0) = x0;
-  state_array xdot;
-  for (int i =0; i < this->num_timesteps_ - 1; ++i) {
-    this->state_.col(i+1) = this->state_.col(i);
-    state_array state = this->state_.col(i+1);
-    control_array control = this->control_.col(i);
-    this->model_->computeStateDeriv(state, control, xdot);
-    this->model_->updateState(state, xdot, this->dt_);
-    this->state_.col(i+1) = state;
-    }
+  this->computeStateTrajectoryHelper(this->state_, x0, this->control_);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
@@ -141,40 +130,12 @@ void VanillaMPPI::slideControlSequence(int steps) {
     this->control_history_.row(1) = this->control_.col(0).transpose(); // Save the control at time 0
   }
 
-  for (int i = 0; i < this->num_timesteps_; ++i) {
-    for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
-      int ind = std::min(i + steps, this->num_timesteps_ - 1);
-      this->control_(j,i) = this->control_(j, ind);
-    }
-  }
+  this->slideControlSequenceHelper(steps, this->control_);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void VanillaMPPI::smoothControlTrajectory() {
-  // TODO generalize to any size filter
-  // TODO does the logic of handling control history reasonable?
-  // Create the filter coefficients, pulled from table on wikipedia
-  Eigen::Matrix<float, 1, 5> filter_coefficients;
-  filter_coefficients << -3, 12, 17, 12, -3;
-  filter_coefficients /= 35.0;
-
-  // Create and fill a control buffer that we can apply the convolution filter
-  Eigen::Matrix<float, MAX_TIMESTEPS+4, DYN_T::CONTROL_DIM> control_buffer;
-
-  // Fill the first two timesteps with the control history
-  control_buffer.topRows(2) = this->control_history_;
-
-  // Fill the center timesteps with the current nominal trajectory
-  control_buffer.middleRows(2, MAX_TIMESTEPS) = this->control_.transpose();
-
-  // Fill the last two timesteps with the end of the current nominal control trajectory
-  control_buffer.row(MAX_TIMESTEPS+2) = this->control_.transpose().row(MAX_TIMESTEPS-1);
-  control_buffer.row(MAX_TIMESTEPS+3) = control_buffer.row(MAX_TIMESTEPS+2);
-
-  // Apply convolutional filter to each timestep
-  for (int i = 0; i < MAX_TIMESTEPS; ++i) {
-    this->control_.col(i) = (filter_coefficients*control_buffer.middleRows(i,5)).transpose();
-  }
+  this->smoothControlTrajectoryHelper(this->control_);
 }
 
 #undef VanillaMPPI

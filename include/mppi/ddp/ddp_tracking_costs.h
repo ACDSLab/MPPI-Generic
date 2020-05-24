@@ -103,7 +103,7 @@ public:
 
   Scalar c(const Eigen::Ref<const State> &x)
   {
-    return (x - this->target()).transpose() * Qf_ * (x - this->target());
+    return ((x - this->target()).transpose() * Qf_ * (x - this->target())).value();
   }
 
   Gradient dc(const Eigen::Ref<const State> &x)

@@ -30,10 +30,6 @@ public:
 
   }
 
-  virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& state) override {
-
-  }
-
   virtual void slideControlSequence(int steps) override {
 
   }
@@ -148,3 +144,14 @@ TEST(Controller, updateControlNoiseVariance) {
   // TODO verify copied to GPU correctly
 }
 
+TEST(Controller, smoothControlSequenceHelper) {
+
+}
+
+TEST(Controller, slideControlSequenceHelper) {
+
+}
+
+TEST(Controller, getTrackingControllerSolution) {
+
+}

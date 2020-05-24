@@ -136,7 +136,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const Eigen
   jac.row(1) << 0, 0, cos(state(2))*state(4) - sin(state(2))*state(5), 0, sin(state(2)), cos(state(2)), 0, 0, 0;
   jac.row(2) << 0, 0, 0, 0, 0, 0, -1, 0, 0;
 
-  Eigen::MatrixXf state_der(S_DIM, 1);
+  state_array state_der;
 
   //First do the forward pass
   computeDynamics(state, control, state_der);

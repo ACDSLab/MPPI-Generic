@@ -24,8 +24,7 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
   // Copy the noise variance to the device
   this->copyControlVarianceToDevice();
 
-  // init the tracking controller
-  initDDP(Q, Qf, R);
+  this->initDDP(Q, Qf, R);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
@@ -186,104 +185,20 @@ void TubeMPPI::slideControlSequence(int steps) {
     this->control_history_.row(1) = nominal_control_trajectory_.col(0).transpose(); // Save the control at time 0
   }
 
-  for (int i = 0; i < this->num_timesteps_; ++i) {
-    for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
-      int ind = std::min(i + steps, this->num_timesteps_ - 1);
-      nominal_control_trajectory_(j,i) = nominal_control_trajectory_(j, ind);
-      this->control_(j,i) = this->control_(j, ind);
-    }
-  }
+  this->slideControlSequenceHelper(steps, nominal_control_trajectory_);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void TubeMPPI::smoothControlTrajectory() {
-  // Create the filter coefficients
-  Eigen::Matrix<float, 1, 5> filter_coefficients;
-  filter_coefficients << -3, 12, 17, 12, -3;
-  filter_coefficients /= 35.0;
-
-  // Create and fill a control buffer that we can apply the convolution filter
-  Eigen::Matrix<float, MAX_TIMESTEPS+4, DYN_T::CONTROL_DIM> control_buffer;
-
-  // Fill the first two timesteps with the control history
-  control_buffer.topRows(2) = this->control_history_;
-
-  // Fill the center timesteps with the current nominal trajectory
-  control_buffer.middleRows(2, MAX_TIMESTEPS) = nominal_control_trajectory_.transpose();
-
-  // Fill the last two timesteps with the end of the current nominal control trajectory
-  control_buffer.row(MAX_TIMESTEPS+2) = nominal_control_trajectory_.transpose().row(MAX_TIMESTEPS-1);
-  control_buffer.row(MAX_TIMESTEPS+3) = control_buffer.row(MAX_TIMESTEPS+2);
-
-  // Apply convolutional filter to each timestep
-  for (int i = 0; i < MAX_TIMESTEPS; ++i) {
-    nominal_control_trajectory_.col(i) = (filter_coefficients*control_buffer.middleRows(i,5)).transpose();
-  }
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
-void TubeMPPI::initDDP(const StateCostWeight& q_mat,
-                       const Hessian& q_f_mat,
-                       const ControlCostWeight& r_mat) {
-    util::DefaultLogger logger;
-    bool verbose = false;
-    ddp_model_  = std::make_shared<ModelWrapperDDP<DYN_T>>(this->model_);
-    ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DYN_T>>>(this->dt_,
-            this->num_timesteps_, 1, &logger, verbose);
-    Q_ = q_mat;
-    Qf_ = q_f_mat;
-    R_ = r_mat;
-
-    for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
-        control_min_(i) = this->model_->control_rngs_[i].x;
-        control_max_(i) = this->model_->control_rngs_[i].y;
-    }
-
-    run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(Q_,
-        R_, this->num_timesteps_);
-    terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(Qf_);
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
-void TubeMPPI::computeFeedbackGains(const Eigen::Ref<const state_array>& state) {
-
-  run_cost_->setTargets(nominal_state_trajectory_.data(), nominal_control_trajectory_.data(),
-                        this->num_timesteps_);
-//  // Convert state_array to eigen
-//  Eigen::Matrix<float, DYN_T::STATE_DIM, 1> s;
-//  for (int i = 0; i < DYN_T::STATE_DIM; i++) {
-//    s(i) = state[i];
-//  }
-  terminal_cost_->xf = run_cost_->traj_target_x_.col(this->num_timesteps_ - 1);
-  result_ = ddp_solver_->run(state, this->control_,
-                             *ddp_model_, *run_cost_, *terminal_cost_,
-                             control_min_, control_max_);
+  this->smoothControlTrajectoryHelper(nominal_control_trajectory_);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_actual) {
-  this->state_.col(0) = x0_actual;
-  state_array xdot;
-
-  for (int i =0; i < this->num_timesteps_ - 1; ++i) {
-    // Update the nominal state
-    nominal_state_trajectory_.col(i + 1) = nominal_state_trajectory_.col(i);
-    state_array state = nominal_state_trajectory_.col(i + 1);
-    control_array control = nominal_control_trajectory_.col(i);
-    this->model_->computeStateDeriv(state, control, xdot);
-    this->model_->updateState(state, xdot, this->dt_);
-    nominal_state_trajectory_.col(i + 1) = state;
-
-    // Update the actual state
-    this->state_.col(i + 1) = this->state_.col(i);
-    state = this->state_.col(i + 1);
-    control = this->control_.col(i);
-    this->model_->computeStateDeriv(state, control, xdot);
-    this->model_->updateState(state, xdot, this->dt_);
-    this->state_.col(i + 1) = state;
-  }
+  // update the nominal state
+  this->computeStateTrajectoryHelper(nominal_state_trajectory_, nominal_state_trajectory_.col(0), nominal_control_trajectory_);
+  // update the actual state
+  this->computeStateTrajectoryHelper(this->state_, x0_actual, this->control_);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
