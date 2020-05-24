@@ -273,6 +273,7 @@ protected:
 
 };
 
+<<<<<<< HEAD
 //template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
 //__global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, float dt,
 //    int num_timesteps, float* init_states_d, float* strides_d,
@@ -286,6 +287,19 @@ protected:
 
 
 
+=======
+template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
+         int NUM_ROLLOUTS, int BLOCKSIZE_Z>
+__global__ void rmppi_rollout_kernel(DYN_T * dynamics, COST_T* costs,
+                                     float dt,
+                                     int num_timesteps,
+                                     float* x_d,
+                                     float* u_d,
+                                     float* du_d,
+                                     float* sigma_u_d,
+                                     float* trajectory_costs_d,
+                                     float* feedback_gains_d);
+>>>>>>> 46ac6abf92a695cb4466d7d0c93e494def5c49d9
 
 #if __CUDACC__
 #include "robust_mppi_controller.cu"

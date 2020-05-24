@@ -17,24 +17,24 @@ namespace mppi_common {
                                float* du_d,
                                float* sigma_u_d,
                                float* trajectory_costs_d) {
-    //Get thread and block id
+    // Get thread and block id
     int thread_idx = threadIdx.x;
     int thread_idy = threadIdx.y;
     int thread_idz = threadIdx.z;
     int block_idx = blockIdx.x;
     int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
 
-    //Create shared state and control arrays
+    // Create shared state and control arrays
     __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
     __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
     __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float sigma_u[DYN_T::CONTROL_DIM];
 
-  //Create a shared array for the dynamics model to use
-  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+    // Create a shared array for the dynamics model to use
+    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
 
-    //Create local state, state dot and controls
+    // Create local state, state dot and controls
     float* x;
     float* xdot;
     float* u;
@@ -377,5 +377,123 @@ namespace rmppi_kernels {
     dim3 dimGrid(GRIDSIZE_X, 1, 1);
     initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y><<<dimGrid, dimBlock, 0>>>();
 
+  }
+
+  // Newly Written
+  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
+      int NUM_ROLLOUTS, int BLOCKSIZE_Z>
+  __global__ void rmppi_rollout_kernel(DYN_T * dynamics, COST_T* costs,
+                                       float dt,
+                                       int num_timesteps,
+                                       float* x_d,
+                                       float* u_d,
+                                       float* du_d,
+                                       float* sigma_u_d,
+                                       float* trajectory_costs_d,
+                                       float* feedback_gains_d) {
+    int thread_idx = threadIdx.x;
+    int thread_idy = threadIdx.y;
+    int thread_idz = threadIdx.z;
+    int block_idx = blockIdx.x;
+    int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
+
+    // Create shared memory for state and control
+    __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+    __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+    __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
+    __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
+    __shared__ float feedback_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * DYN_T::STATE_DIM];
+    __shared__ float sigma_u[DYN_T::CONTROL_DIM];
+
+    // Create a shared array for the dynamics model to use
+    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+
+    // Create local state, state dot and controls
+    float* x;
+    float* x_other;
+    float* xdot;
+    float* u;
+    float* du;
+    float* fb_gain;
+    // The array to hold K(x,x*)
+    float* fb_control[DYN_T::CONTROL_DIM];
+
+    int t = 0;
+    int i = 0;
+    int j = 0;
+
+    // Initialize running costs
+    float running_cost_real = 0;
+    float running_state_cost_nom = 0;
+    float running_tracking_cost_real = 0;
+
+    // Load global array into shared memory
+    if (global_idx < NUM_ROLLOUTS) {
+      // Actual or nominal
+      x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+      // The opposite state from above
+      x_other = &x_shared[(blockDim.x * (1 - thread_idz) + thread_idx) * DYN_T::STATE_DIM];
+      xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+      // Base trajectory
+      u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+      // Noise added to trajectory
+      du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+      // Feedback Gain
+      fb_gain = &feedback_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_T * DYN_T::CONTROL_DIM];
+    }
+
+    __syncthreads();
+    // Load memory into appropriate arrays
+    loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
+                       BLOCKSIZE_Y, global_idx, thread_idy,
+                       thread_idz, x_d, sigma_u_d, x, xdot, u, du, sigma_u);
+    __syncthreads();
+    //TODO: Need to load feedback gains as well
+    for (t = 0; t < num_timesteps; t++) {
+      injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
+                         t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
+      // Now find feedback control
+      float e;
+      for (i = 0; i < DYN_T::CONTROL_DIM; i++) {
+        fb_control[i] = 0;
+      }
+      // Don't enter for loop if in nominal states (thread_idz == 1)
+      for (i = 0; i < DYN_T::STATE_DIM * (1 - thread_idz); i++) {
+        // Find difference between nominal and actual
+        e = (x - x_other);
+        for (j = 0; j < DYN_T::CONTROL_DIM; j++) {
+          // Assuming row major storage atm. TODO Double check storage option
+          fb_control[j] += fb_gain[j * DYN_T::STATE_DIM + i] * e;
+        }
+      }
+      for (i = 0; i < DYN_T::CONTROL_DIM; i++) {
+        u[i] += fb_control[i];
+      }
+
+      __syncthreads();
+      // Clamp the control in both the importance sampling sequence and the disturbed sequence. TODO remove extraneous call?
+      dynamics->enforceConstraints(x, du);
+      dynamics->enforceConstraints(x, u);
+
+      __syncthreads();
+      // Calculate All the costs
+      float curr_state_cost =  costs->computeStateCost(x);
+
+      // Nominal system is where thread_idz == 1
+      running_state_cost_nom += curr_state_cost * thread_idz;
+      // Real system cost update when thread_idz == 0
+      running_cost_real += (1 - thread_idz) * (curr_state_cost +
+                                               costs->computeLikelihoodRatioCost(u, du, sigma_u, t));
+
+      running_tracking_cost_real += (1 - thread_idz) * (curr_state_cost +
+                                                        costs->computeFeedbackCost(fb_control, sigma_u));
+
+      __syncthreads();
+      // dynamics update
+      dynamics->computeStateDeriv(x, u, xdot, theta_s);
+      __syncthreads();
+      dynamics->updateState(x, xdot, dt);
+      __syncthreads();
+    }
   }
 }
