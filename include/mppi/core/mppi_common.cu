@@ -382,7 +382,7 @@ namespace rmppi_kernels {
   // Newly Written
   template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
       int NUM_ROLLOUTS, int BLOCKSIZE_Z>
-  __global__ void rmppi_rollout_kernel(DYN_T * dynamics, COST_T* costs,
+  __global__ void rmppiRolloutKernel(DYN_T * dynamics, COST_T* costs,
                                        float dt,
                                        int num_timesteps,
                                        float* x_d,
