@@ -118,6 +118,14 @@ namespace mppi_common {
     void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps, cudaStream_t stream);
 
 }
+
+namespace rmppi_kernels {
+  template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
+  __global__ void initEvalKernel();
+
+  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+  void launchInitEvalKernel();
+}
 #if __CUDACC__
 #include "mppi_common.cu"
 #endif

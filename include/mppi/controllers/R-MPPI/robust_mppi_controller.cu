@@ -124,6 +124,7 @@ void RobustMPPI::deallocateCudaMemory() {
 
 }
 
+
 /******************************************************************************
 //MPPI Kernel Implementations and helper launch files
 *******************************************************************************/
@@ -251,135 +252,135 @@ void RobustMPPI::deallocateCudaMemory() {
 //    __syncthreads();
 //  }
 //
-//// template<class DYNAMICS_T, class COSTS_T, int ROLLOUTS, int BDIM_X, int BDIM_Y>
-//// __global__ void rolloutKernel(int num_timesteps, float* state_d, float* feedback_gains_d, float* U_d, float* du_d, float* nu_d,
-////                               float* augmented_nominal_costs_d, float* augmented_real_costs_d, float* pure_real_costs_d,
-////                               DYNAMICS_T dynamics_model, COSTS_T mppi_costs, int lambda, int opt_delay)
-//// {
-////   int i,j;
-////   int tdx = threadIdx.x;
-////   int tdy = threadIdx.y;
-////   int tdz = threadIdx.z;
-////   int bdx = blockIdx.x;
-//
-////   //Initialize the local state, controls, and noise
-////   float* s;
-////   float* s_der;
-////   float* u;
-////   float* du;
-////   int* crash;
-//
-////   //Create shared arrays for holding state and control data.
-////   __shared__ float state_shared[BLOCKSIZE_X*BLOCKSIZE_Z*STATE_DIM];
-////   __shared__ float state_der_shared[BLOCKSIZE_X*BLOCKSIZE_Z*STATE_DIM];
-////   __shared__ float control_shared[BLOCKSIZE_X*BLOCKSIZE_Z*CONTROL_DIM];
-////   __shared__ float control_var_shared[BLOCKSIZE_X*BLOCKSIZE_Z*CONTROL_DIM];
-////   __shared__ int crash_status[BLOCKSIZE_Z*BLOCKSIZE_X];
-////   //Create a shared array for the dynamics model to use
-////   __shared__ float theta[SHARED_MEM_REQUEST_GRD + SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
-//
-////   //Every thread uses the same shared exploration variance
-////   __shared__ float nu[CONTROL_DIM];
-//
-////   //Initialize trajectory cost
-////   float running_cost = 0;
-////   float pure_real_unbiased_cost = 0;
-//
-////   //Initialize the dynamics model.
-////   dynamics_model.cudaInit(theta);
-//
-////   int global_idx = BLOCKSIZE_X*bdx + tdx;
-//
-////   //Initialize shared and local variables
-////   s = &state_shared[blockDim.x*STATE_DIM*tdz + tdx*STATE_DIM];
-////   s_der = &state_der_shared[blockDim.x*STATE_DIM*tdz + tdx*STATE_DIM];
-////   u = &control_shared[blockDim.x*CONTROL_DIM*tdz + tdx*CONTROL_DIM];
-////   du = &control_var_shared[blockDim.x*CONTROL_DIM*tdz + tdx*CONTROL_DIM];
-////   crash = &crash_status[tdz*blockDim.x + tdx];
-//
-////   //Load the initial state, nu, and zero the noise
-////   for (i = tdy; i < STATE_DIM; i+= blockDim.y) {
-////     s[i] = state_d[STATE_DIM*tdz + i];
-////     s_der[i] = 0;
-////   }
-////   //Load nu
-////   for (i = tdy; i < CONTROL_DIM; i+= blockDim.y) {
-////     u[i] = 0;
-////     du[i] = 0;
-////   }
-////   for (i = blockDim.y*blockDim.x*tdz + blockDim.x*tdy + tdx; i < CONTROL_DIM; i+= blockDim.z*blockDim.x*blockDim.y){
-////     nu[i] = nu_d[i];
-////   }
-//
-////   float delta_steering = 0;
-////   float delta_throttle = 0;
-////   crash[0] = 0;
-////   __syncthreads();
-//
-////   /*<----Start of simulation loop-----> */
-////   for (i = 0; i < num_timesteps; i++) {
-//
-////     //Sample the control to apply
-////     for (j = tdy; j < CONTROL_DIM; j+= blockDim.y) {
-////       //Noise free rollout
-////       if (global_idx == 0 || i < opt_delay) { //Don't optimize variables that are already being executed
-////         du[j] = 0.0;
-////         u[j] = U_d[i*CONTROL_DIM + j];
-////       }
-////       else {
-////         du[j] = du_d[(tdz*NUM_ROLLOUTS*num_timesteps*CONTROL_DIM) + CONTROL_DIM*num_timesteps*(BLOCKSIZE_X*bdx + tdx) + i*CONTROL_DIM + j]*nu[j];
-////         u[j] = U_d[i*CONTROL_DIM + j] + du[j];
-////       }
-////       du_d[(tdz*NUM_ROLLOUTS*num_timesteps*CONTROL_DIM) + CONTROL_DIM*num_timesteps*(BLOCKSIZE_X*bdx + tdx) + i*CONTROL_DIM + j] = u[j];
-////     }
-////     __syncthreads();
-////     if (tdy == 0){
-////       delta_steering = 0;
-////       delta_throttle = 0;
-////       float e;
-////       for (int k = 0; k < STATE_DIM; k++){
-////         e = (state_shared[tdx*STATE_DIM + k] - state_shared[blockDim.x*STATE_DIM + tdx*STATE_DIM + k]);
-////         delta_steering += feedback_gains_d[i*STATE_DIM*CONTROL_DIM + k]*e;
-////         delta_throttle += feedback_gains_d[i*STATE_DIM*CONTROL_DIM + STATE_DIM + k]*e;
-////       }
-////       if (tdz == 0){
-////         u[0] += delta_steering;
-////         u[1] += delta_throttle;
-////       }
-////     }
-////     __syncthreads();
-////     //Enforce control and state constraints
-////     if (tdy == 0){
-////        dynamics_model.enforceConstraints(s, u);
-////     }
-////     __syncthreads();
-////     //Compute the cost of the being in the current state
-////     if (tdy == 0 && i > 0 && crash[0] != -1) {
-////       //Running average formula
-////       float curr_cost = mppi_costs.computeCost(s, u, du, nu, crash, i);
-////       if (tdz == 0){ //Compute the control cost with the base distribution as the nominal control
-////         curr_cost += lambda*(delta_steering*delta_steering/(nu[0]*nu[0]) + delta_throttle*delta_throttle/(nu[1]*nu[1]));
-////         float unbiasing_term = lambda*(delta_steering*du[0]/(nu[0]*nu[0]) + delta_throttle*du[1]/(nu[1]*nu[1]));
-////         pure_real_unbiased_cost += (curr_cost + unbiasing_term - pure_real_unbiased_cost)/(1.0*i);
-////       }
-////       running_cost += (curr_cost - running_cost)/(1.0*i);
-////     }
-////     //Compute the dynamics
-////     dynamics_model.computeStateDeriv(s, u, s_der, theta);
-////     __syncthreads();
-////     //Update the state
-////     dynamics_model.incrementState(s, s_der);
-////   }
-////   /* <------- End of the simulation loop ----------> */
-////   //Write cost results back to global memory.
-////   if (global_idx < NUM_ROLLOUTS && tdy == 0 && tdz == 0) {
-////     augmented_real_costs_d[BLOCKSIZE_X*bdx + tdx] = running_cost;
-////     pure_real_costs_d[BLOCKSIZE_X*bdx + tdx] = pure_real_unbiased_cost;
-////   }
-////   if (global_idx < NUM_ROLLOUTS && tdy == 0 && tdz == 1) {
-////     augmented_nominal_costs_d[BLOCKSIZE_X*bdx + tdx] = running_cost;
-////   }
-//// }
+// template<class DYNAMICS_T, class COSTS_T, int ROLLOUTS, int BDIM_X, int BDIM_Y>
+// __global__ void rolloutKernel(int num_timesteps, float* state_d, float* feedback_gains_d, float* U_d, float* du_d, float* nu_d,
+//                               float* augmented_nominal_costs_d, float* augmented_real_costs_d, float* pure_real_costs_d,
+//                               DYNAMICS_T dynamics_model, COSTS_T mppi_costs, int lambda, int opt_delay)
+// {
+//   int i,j;
+//   int tdx = threadIdx.x;
+//   int tdy = threadIdx.y;
+//   int tdz = threadIdx.z;
+//   int bdx = blockIdx.x;
+
+//   //Initialize the local state, controls, and noise
+//   float* s;
+//   float* s_der;
+//   float* u;
+//   float* du;
+//   int* crash;
+
+//   //Create shared arrays for holding state and control data.
+//   __shared__ float state_shared[BLOCKSIZE_X*BLOCKSIZE_Z*STATE_DIM];
+//   __shared__ float state_der_shared[BLOCKSIZE_X*BLOCKSIZE_Z*STATE_DIM];
+//   __shared__ float control_shared[BLOCKSIZE_X*BLOCKSIZE_Z*CONTROL_DIM];
+//   __shared__ float control_var_shared[BLOCKSIZE_X*BLOCKSIZE_Z*CONTROL_DIM];
+//   __shared__ int crash_status[BLOCKSIZE_Z*BLOCKSIZE_X];
+//   //Create a shared array for the dynamics model to use
+//   __shared__ float theta[SHARED_MEM_REQUEST_GRD + SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
+
+//   //Every thread uses the same shared exploration variance
+//   __shared__ float nu[CONTROL_DIM];
+
+//   //Initialize trajectory cost
+//   float running_cost = 0;
+//   float pure_real_unbiased_cost = 0;
+
+//   //Initialize the dynamics model.
+//   dynamics_model.cudaInit(theta);
+
+//   int global_idx = BLOCKSIZE_X*bdx + tdx;
+
+//   //Initialize shared and local variables
+//   s = &state_shared[blockDim.x*STATE_DIM*tdz + tdx*STATE_DIM];
+//   s_der = &state_der_shared[blockDim.x*STATE_DIM*tdz + tdx*STATE_DIM];
+//   u = &control_shared[blockDim.x*CONTROL_DIM*tdz + tdx*CONTROL_DIM];
+//   du = &control_var_shared[blockDim.x*CONTROL_DIM*tdz + tdx*CONTROL_DIM];
+//   crash = &crash_status[tdz*blockDim.x + tdx];
+
+//   //Load the initial state, nu, and zero the noise
+//   for (i = tdy; i < STATE_DIM; i+= blockDim.y) {
+//     s[i] = state_d[STATE_DIM*tdz + i];
+//     s_der[i] = 0;
+//   }
+//   //Load nu
+//   for (i = tdy; i < CONTROL_DIM; i+= blockDim.y) {
+//     u[i] = 0;
+//     du[i] = 0;
+//   }
+//   for (i = blockDim.y*blockDim.x*tdz + blockDim.x*tdy + tdx; i < CONTROL_DIM; i+= blockDim.z*blockDim.x*blockDim.y){
+//     nu[i] = nu_d[i];
+//   }
+
+//   float delta_steering = 0;
+//   float delta_throttle = 0;
+//   crash[0] = 0;
+//   __syncthreads();
+
+//   /*<----Start of simulation loop-----> */
+//   for (i = 0; i < num_timesteps; i++) {
+
+//     //Sample the control to apply
+//     for (j = tdy; j < CONTROL_DIM; j+= blockDim.y) {
+//       //Noise free rollout
+//       if (global_idx == 0 || i < opt_delay) { //Don't optimize variables that are already being executed
+//         du[j] = 0.0;
+//         u[j] = U_d[i*CONTROL_DIM + j];
+//       }
+//       else {
+//         du[j] = du_d[(tdz*NUM_ROLLOUTS*num_timesteps*CONTROL_DIM) + CONTROL_DIM*num_timesteps*(BLOCKSIZE_X*bdx + tdx) + i*CONTROL_DIM + j]*nu[j];
+//         u[j] = U_d[i*CONTROL_DIM + j] + du[j];
+//       }
+//       du_d[(tdz*NUM_ROLLOUTS*num_timesteps*CONTROL_DIM) + CONTROL_DIM*num_timesteps*(BLOCKSIZE_X*bdx + tdx) + i*CONTROL_DIM + j] = u[j];
+//     }
+//     __syncthreads();
+//     if (tdy == 0){
+//       delta_steering = 0;
+//       delta_throttle = 0;
+//       float e;
+//       for (int k = 0; k < STATE_DIM; k++){
+//         e = (state_shared[tdx*STATE_DIM + k] - state_shared[blockDim.x*STATE_DIM + tdx*STATE_DIM + k]);
+//         delta_steering += feedback_gains_d[i*STATE_DIM*CONTROL_DIM + k]*e;
+//         delta_throttle += feedback_gains_d[i*STATE_DIM*CONTROL_DIM + STATE_DIM + k]*e;
+//       }
+//       if (tdz == 0){
+//         u[0] += delta_steering;
+//         u[1] += delta_throttle;
+//       }
+//     }
+//     __syncthreads();
+//     //Enforce control and state constraints
+//     if (tdy == 0){
+//        dynamics_model.enforceConstraints(s, u);
+//     }
+//     __syncthreads();
+//     //Compute the cost of the being in the current state
+//     if (tdy == 0 && i > 0 && crash[0] != -1) {
+//       //Running average formula
+//       float curr_cost = mppi_costs.computeCost(s, u, du, nu, crash, i);
+//       if (tdz == 0){ //Compute the control cost with the base distribution as the nominal control
+//         curr_cost += lambda*(delta_steering*delta_steering/(nu[0]*nu[0]) + delta_throttle*delta_throttle/(nu[1]*nu[1]));
+//         float unbiasing_term = lambda*(delta_steering*du[0]/(nu[0]*nu[0]) + delta_throttle*du[1]/(nu[1]*nu[1]));
+//         pure_real_unbiased_cost += (curr_cost + unbiasing_term - pure_real_unbiased_cost)/(1.0*i);
+//       }
+//       running_cost += (curr_cost - running_cost)/(1.0*i);
+//     }
+//     //Compute the dynamics
+//     dynamics_model.computeStateDeriv(s, u, s_der, theta);
+//     __syncthreads();
+//     //Update the state
+//     dynamics_model.incrementState(s, s_der);
+//   }
+//   /* <------- End of the simulation loop ----------> */
+//   //Write cost results back to global memory.
+//   if (global_idx < NUM_ROLLOUTS && tdy == 0 && tdz == 0) {
+//     augmented_real_costs_d[BLOCKSIZE_X*bdx + tdx] = running_cost;
+//     pure_real_costs_d[BLOCKSIZE_X*bdx + tdx] = pure_real_unbiased_cost;
+//   }
+//   if (global_idx < NUM_ROLLOUTS && tdy == 0 && tdz == 1) {
+//     augmented_nominal_costs_d[BLOCKSIZE_X*bdx + tdx] = running_cost;
+//   }
+// }
 //
 //template<class DYNAMICS_T, class COSTS_T, int ROLLOUTS, int BDIM_X, int BDIM_Y>
 //__global__ void initEvalKernel(int num_timesteps, float* states_d, int* strides_d, float* U_d, float* du_d, float* nu_d,

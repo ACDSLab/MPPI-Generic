@@ -336,6 +336,46 @@ namespace mppi_common {
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
+}
 
+namespace rmppi_kernels {
+  template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+  __global__ void initEvalKernel() {
+    int i,j;
+    int tdx = threadIdx.x;
+    int tdy = threadIdx.y;
+    int bdx = blockIdx.x;
 
+    //Initialize the local state, controls, and noise
+    float* s;
+    float* s_der;
+    float* u;
+    float* nu;
+    float* du;
+    int* crash;
+
+    //Create shared arrays for holding state and control data.
+    __shared__ float state_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
+    __shared__ float state_der_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
+    __shared__ float control_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
+    __shared__ float control_var_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
+    __shared__ float exploration_variance[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
+    __shared__ int crash_status[BLOCKSIZE_X];
+    //Create a shared array for the dynamics model to use
+    __shared__ float theta[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+
+    //Initialize trajectory cost
+    float running_cost = 0;
+
+  }
+
+  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+  void launchInitEvalKernel() {
+
+    int GRIDSIZE_X = 9 * 64 / BLOCKSIZE_X;
+    dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+    dim3 dimGrid(GRIDSIZE_X, 1, 1);
+    initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y><<<dimGrid, dimBlock, 0>>>();
+
+  }
 }
