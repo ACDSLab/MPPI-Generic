@@ -123,8 +123,6 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDI
 void RobustMPPI::deallocateCudaMemory() {
 
 }
-
-
 /******************************************************************************
 //MPPI Kernel Implementations and helper launch files
 *******************************************************************************/

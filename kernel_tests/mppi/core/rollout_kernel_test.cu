@@ -2,6 +2,7 @@
 
 #include <mppi/dynamics/cartpole/cartpole_dynamics.cuh>
 #include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
+
 const int STATE_DIM = 12;
 const int CONTROL_DIM = 3;
 const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is

@@ -149,13 +149,12 @@ public:
    * assumption that we are provided std_dev and the covriance matrix is
    * diagonal.
    */
-  __device__ float computeFeedbackCost(float* u, float* noise, float* fb_u,
-                                       float* std_dev, float lambda = 1.0) {
+  __device__ float computeFeedbackCost(float* fb_u, float* std_dev,
+                                       float lambda = 1.0) {
     float cost = 0;
     float tmp_var = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      tmp_var = ((u[i] + noise[i] + fb_u[i]) / std_dev[i]);
-      cost += tmp_var * tmp_var;
+      cost += powf(fb_u[i] / std_dev[i], 2);
     }
     return 0.5 * lambda * cost;
   }
@@ -170,7 +169,7 @@ public:
                                               float lambda = 1.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += (u[i]) / (powf(std_dev[i], 2)) * (u[i] + 2 * noise[i]);
+      cost += (u[i]) * (u[i] + 2 * noise[i]) / (powf(std_dev[i], 2));
     }
     return 0.5 * lambda * cost;
   }

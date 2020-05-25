@@ -127,16 +127,31 @@ namespace rmppi_kernels {
   void launchInitEvalKernel();
 
   template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
-      int NUM_ROLLOUTS, int BLOCKSIZE_Z>
-  __global__ void rmppi_rollout_kernel(DYN_T * dynamics, COST_T* costs,
-                                       float dt,
-                                       int num_timesteps,
-                                       float* x_d,
-                                       float* u_d,
-                                       float* du_d,
-                                       float* sigma_u_d,
-                                       float* trajectory_costs_d,
-                                       float* feedback_gains_d);
+      int NUM_ROLLOUTS, int BLOCKSIZE_Z = 2>
+  __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
+                                     float dt,
+                                     int num_timesteps,
+                                     float* x_d,
+                                     float* u_d,
+                                     float* du_d,
+                                     float* feedback_gains_d,
+                                     float* sigma_u_d,
+                                     float* trajectory_costs_d,
+                                     float lambda);
+
+  template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
+           int BLOCKSIZE_Y, int BLOCKSIZE_Z = 2>
+  void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
+                                float dt,
+                                int num_timesteps,
+                                float* x_d,
+                                float* u_d,
+                                float* du_d,
+                                float* feedback_gains_d,
+                                float* sigma_u_d,
+                                float* trajectory_costs,
+                                float lambda,
+                                cudaStream_t stream);
 }
 #if __CUDACC__
 #include "mppi_common.cu"
