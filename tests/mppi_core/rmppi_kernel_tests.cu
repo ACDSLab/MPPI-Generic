@@ -71,7 +71,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   }
 
   // Run the GPU test kernel of the init eval kernel and get the output data
-  rmppi_kernels::launchInitEvalKernel<dynamics, cost_function, 64, 8>();
+  // rmppi_kernels::launchInitEvalKernel<dynamics, cost_function, 64, 8>();
   // Compare with the CPU version
   FAIL();
 }
