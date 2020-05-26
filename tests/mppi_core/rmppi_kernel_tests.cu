@@ -31,7 +31,12 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // Given the initial states, we need to roll out the number of samples.
   // 1.)  Generate the noise used to evaluate each sample.
   //
-  Eigen::Matrix<float, 4, 9> x0_candidates;
+
+  const int num_candidates = 9;
+
+  float dt = 0.01;
+
+  Eigen::Matrix<float, 4, num_candidates> x0_candidates;
   x0_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4,
   0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
@@ -39,10 +44,68 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   const int num_samples = 64;
 
   // We are going to propagate a trajectory for a given number of timesteps
-  const int num_timesteps = 100;
+  const int num_timesteps = 20;
+
+  // Call the GPU setup functions of the model and cost
+  model->GPUSetup();
+  cost->GPUSetup();
+
+  // Allocate and deallocate the CUDA memory
+  int* strides_d;
+  float* exploration_var_d;
+  float* states_d;
+  float* control_d;
+  float* control_noise_d;
+  float* costs_d;
+  HANDLE_ERROR(cudaMalloc((void**)&strides_d, sizeof(int)*num_candidates));
+  HANDLE_ERROR(cudaMalloc((void**)&exploration_var_d, sizeof(float)*dynamics::CONTROL_DIM));
+  HANDLE_ERROR(cudaMalloc((void**)&states_d, sizeof(float)*dynamics::STATE_DIM*num_candidates));
+  HANDLE_ERROR(cudaMalloc((void**)&control_d, sizeof(float)*dynamics::CONTROL_DIM*num_timesteps));
+  HANDLE_ERROR(cudaMalloc((void**)&control_noise_d, sizeof(float)*dynamics::CONTROL_DIM*num_candidates*num_timesteps*num_samples));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float)*num_samples*num_candidates));
 
   // We need to generate a nominal trajectory for the control
-  auto nominal_control = Eigen::MatrixXf::Random(dynamics::CONTROL_DIM, num_timesteps);
+  Eigen::Matrix<float, dynamics::CONTROL_DIM, num_timesteps> nominal_control = Eigen::MatrixXf::Random(dynamics::CONTROL_DIM, num_timesteps);
+
+//  std::cout << "Nominal Control" << nominal_control << std::endl;
+
+  // Exploration variance
+  Eigen::Matrix<float, dynamics::CONTROL_DIM, 1> exploration_var;
+  exploration_var << 2, 2;
+
+//  std::cout << exploration_var << std::endl;
+
+  // Generate noise to perturb the nominal control
+  // Seed the PseudoRandomGenerator with the CPU time.
+  curandGenerator_t gen_;
+  curandCreateGenerator(&gen_, CURAND_RNG_PSEUDO_DEFAULT);
+  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  curandSetPseudoRandomGeneratorSeed(gen_, seed);
+  curandGenerateNormal(gen_, control_noise_d,
+                       num_samples*num_candidates*num_timesteps*dynamics::CONTROL_DIM,
+                       0.0, 1.0);
+
+  // Copy the noise back to the CPU so we can use it!
+  Eigen::Matrix<float, dynamics::CONTROL_DIM, num_samples*num_candidates*num_timesteps> control_noise;
+
+  std::vector<float> control_noise_data(num_samples*num_candidates*num_timesteps*dynamics::CONTROL_DIM);
+
+  HANDLE_ERROR(cudaMemcpy(control_noise_data.data(), control_noise_d, sizeof(float)*num_candidates*num_samples*num_timesteps*dynamics::CONTROL_DIM, cudaMemcpyDeviceToHost));
+
+  control_noise =  Eigen::Map<Eigen::Matrix<float,dynamics::CONTROL_DIM, num_candidates*num_samples*num_timesteps>>(control_noise_data.data());
+
+//    for (int i = 0; i < num_samples; ++i) {
+//    for (int j = 0; j < num_timesteps; ++j) {
+//      for (int k = 0; k < dynamics::CONTROL_DIM; ++k) {
+//        std::cout << control_noise_data[i*num_timesteps*dynamics::CONTROL_DIM + j*dynamics::CONTROL_DIM + k] << std::endl;
+//        control_noise(k, i*num_timesteps + j) = control_noise_data[i*num_timesteps*dynamics::CONTROL_DIM + j*dynamics::CONTROL_DIM + k];
+//      }
+//    }
+//  }
+
+//   std::cout << "Control Noise\n" << control_noise.col(num_samples*num_timesteps).cwiseProduct(exploration_var).transpose() << std::endl;
+
+
 
   // Let us make temporary variables to hold the states and state derivatives and controls
   dynamics::state_array x_current, x_dot_current;
@@ -52,28 +115,72 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
 
   float cost_current = 0.0;
   for (int i = 0; i < 9; ++i) { // Iterate through each candidate
-  for (int j = 0; j < num_samples; ++j) {
-  x_current = x0_candidates.col(i);  // The initial state of the rollout
-  for (int k = 0; k < num_timesteps; ++k) {
-  // compute the cost
-  cost_current += cost->computeStateCost(x_current);
-  // get the control plus a disturbance
-  u_current = nominal_control.col(k) + Eigen::MatrixXf::Random(dynamics::CONTROL_DIM, 1);
-  // compute the next state_dot
-  model->computeDynamics(x_current, u_current, x_dot_current);
-  // update the state to the next
-  model->updateState(x_current, x_dot_current, 0.01);
+    for (int j = 0; j < num_samples; ++j) {
+      x_current = x0_candidates.col(i);  // The initial state of the rollout
+      for (int k = 0; k < num_timesteps; ++k) {
+        // compute the cost
+        if (k > 0) {
+          cost_current += (cost->computeStateCost(x_current) * dt - cost_current) / (1.0*k);
+        }
+        // get the control plus a disturbance
+        if (j == 0) { // First sample should always be noise free
+          u_current = nominal_control.col(k);
+        } else {
+          u_current = nominal_control.col(k) +
+                      control_noise.col(i * num_samples * num_timesteps + j * num_timesteps + k).cwiseProduct(
+                              exploration_var);
+        }
+//        if (i == 1 && j == 1) {
+//          std::cout << "Current control: " << u_current.transpose() << std::endl;
+//        }
+        // compute the next state_dot
+        model->computeDynamics(x_current, u_current, x_dot_current);
+        // update the state to the next
+        model->updateState(x_current, x_dot_current, dt);
+        }
+      // compute the terminal cost -> this is the free energy estimate, save it!
+//      cost_current += cost->terminalCost(x_current);
+      cost_vector.col(i*num_samples + j) << cost_current;
+      cost_current = 0.0;
+    }
   }
-  // compute the terminal cost -> this is the free energy estimate, save it!
-  cost_current += cost->terminalCost(x_current);
-  cost_vector.col(i*num_samples + j) << cost_current;
-  }
-  }
+  int ctrl_stride = 0; // TODO implement the stride as we see all
+
+  Eigen::Matrix<int, 1, 9> strides;
+  strides << 0, 0, 0, 0, 0, 0, 0, 0, 0;
+
+//  std::cout << "Eigen strides: " << strides << std::endl;
+
+
+  // Copy the state candidates to GPU
+  HANDLE_ERROR(cudaMemcpy(states_d, x0_candidates.data(), sizeof(float)*dynamics::STATE_DIM*num_candidates, cudaMemcpyHostToDevice));
+
+  // Copy the control to the GPU
+  HANDLE_ERROR(cudaMemcpy(control_d, nominal_control.data(), sizeof(float)*dynamics::CONTROL_DIM*num_timesteps, cudaMemcpyHostToDevice));
+
+  // Copy the strides to the GPU
+  HANDLE_ERROR(cudaMemcpy(strides_d, strides.data(), sizeof(int)*num_candidates, cudaMemcpyHostToDevice));
+
+  // Copy exploration variance to GPU
+  HANDLE_ERROR(cudaMemcpy(exploration_var_d, exploration_var.data(), sizeof(float)*dynamics::CONTROL_DIM, cudaMemcpyHostToDevice));
 
   // Run the GPU test kernel of the init eval kernel and get the output data
-  // rmppi_kernels::launchInitEvalKernel<dynamics, cost_function, 64, 8>();
+  // ();
+  rmppi_kernels::launchInitEvalKernel<dynamics, cost_function, 64, 8, num_samples>(model->model_d_, cost->cost_d_,
+          num_candidates, num_timesteps, ctrl_stride, dt,
+          strides_d, exploration_var_d, states_d, control_d, control_noise_d, costs_d);
+  CudaCheckError();
+
+  Eigen::Matrix<float, 1, num_samples*num_candidates> cost_vector_GPU;
   // Compare with the CPU version
-  FAIL();
+  HANDLE_ERROR(cudaMemcpy(cost_vector_GPU.data(), costs_d, sizeof(float)*num_samples*num_candidates, cudaMemcpyDeviceToHost));
+
+//  std::cout <<  "Cost Vector CPU\n" << cost_vector.col(65) << std::endl;
+//  std::cout << "Cost Vector GPU\n" << cost_vector_GPU.col(65) << std::endl;
+
+  std::cout << (cost_vector - cost_vector_GPU).transpose() << std::endl;
+
+  EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 1e-4);
 }
 
 TEST(RMPPITest, CPURolloutKernel) {
@@ -86,7 +193,7 @@ TEST(RMPPITest, CPURolloutKernel) {
   const int control_dim = DYN::CONTROL_DIM;
 
   float dt = 0.01;
-  int max_iter = 10;
+  // int max_iter = 10;
   float lambda = 0.5;
   const int num_timesteps = 7;
   const int num_rollouts = 5;

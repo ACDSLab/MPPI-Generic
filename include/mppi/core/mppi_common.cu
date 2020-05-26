@@ -337,10 +337,9 @@ namespace mppi_common {
 }
 
 namespace rmppi_kernels {
-  template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+  template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
   __global__ void initEvalKernel(DYN_T* dynamics,
                                  COST_T* costs,
-                                 int samples_per_condition,
                                  int num_timesteps,
                                  int ctrl_stride,
                                  float dt,
@@ -362,7 +361,6 @@ namespace rmppi_kernels {
     float* control_noise;  // du
     float* exploration_var;  //nu
 
-
     //Create shared arrays for holding state and control data.
     __shared__ float state_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
     __shared__ float state_der_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
@@ -377,13 +375,24 @@ namespace rmppi_kernels {
     float running_cost = 0;  //Initialize trajectory cost
 
     int global_idx = BLOCKSIZE_X*bdx + tdx;  // Set the global index for CUDA threads
-    int condition_idx = global_idx / samples_per_condition; // Set the index for our candidate
+    int condition_idx = global_idx / SAMPLES_PER_CONDITION; // Set the index for our candidate
     int stride = strides_d[condition_idx];  // Each candidate can have a different starting stride
+
+//    if (global_idx == 0 && tdy == 0) {
+//      printf("Current condition idx: [%i]\n", condition_idx);
+//      printf("Current stride: [%i]\n", stride);
+//    }
+//    if (global_idx == 0 && tdy == 0) {
+//      for (i = 0; i < num_timesteps; ++i) {
+//        printf("Global control %i: [%f, %f]\n", i, control_d[2*i], control_d[2*i+1]);
+//      }
+//    }
+
 
     // Get the pointer that belongs to the current thread with respect to the shared arrays
     state = &state_shared[tdx*DYN_T::STATE_DIM];
     state_der = &state_der_shared[tdx*DYN_T::STATE_DIM];
-    control = &control[tdx*DYN_T::CONTROL_DIM];
+    control = &control_shared[tdx*DYN_T::CONTROL_DIM];
     control_noise = &control_noise_shared[tdx*DYN_T::CONTROL_DIM];
     exploration_var = &exploration_variance[tdx*DYN_T::CONTROL_DIM];
 
@@ -394,8 +403,8 @@ namespace rmppi_kernels {
 
     // Copy the exploration noise to the thread
     for (i = tdy; i < DYN_T::CONTROL_DIM; i += blockDim.y) {
-      control[i] = 0;
-      control_noise[i] = 0;
+      control[i] = 0.0;
+      control_noise[i] = 0.0;
       exploration_var[i] = exploration_var_d[i];
     }
 
@@ -404,14 +413,22 @@ namespace rmppi_kernels {
     for (i = 0; i < num_timesteps; ++i) { // Outer loop iterates on timesteps
       // Inject the control noise
       for (j = tdy; j < DYN_T::CONTROL_DIM; j += blockDim.y) {
-        if (i + stride >= num_timesteps) {  // Pad the end of the controls with the last control
+        if ((i + stride) >= num_timesteps) {  // Pad the end of the controls with the last control
           control[j] = control_d[num_timesteps*DYN_T::CONTROL_DIM + j];
+//          if (global_idx == 0) {
+//            printf("Current index: [%i]\n", num_timesteps * DYN_T::CONTROL_DIM + j);
+//            printf("Current control: [%f]\n", control_d[num_timesteps * DYN_T::CONTROL_DIM + j]);
+//          }
         } else {
           control[j] = control_d[(i + stride)*DYN_T::CONTROL_DIM + j];
+//          if (global_idx == 0) {
+//            printf("Current index: [%i]\n", (i + stride) * DYN_T::CONTROL_DIM + j);
+//            printf("Current control: [%f]\n", control_d[(i + stride) * DYN_T::CONTROL_DIM + j]);
+//          }
         }
 
         // First rollout is noise free
-        if (global_idx % samples_per_condition == 0 || i < ctrl_stride) {
+        if (global_idx % SAMPLES_PER_CONDITION == 0 || i < ctrl_stride) {
           control_noise[j] = 0.0;
         } else {
           control_noise[j] = control_noise_d[num_timesteps*DYN_T::CONTROL_DIM*global_idx +
@@ -423,16 +440,23 @@ namespace rmppi_kernels {
       } // End inject control noise
 
       __syncthreads();
-      if (tdy == 0) {
-        dynamics->enforceConstraints(state, &control_noise_d[num_timesteps*DYN_T::CONTROL_DIM*global_idx +
-                                                             i*DYN_T::CONTROL_DIM]);
-        dynamics->enforceConstraints(state, control);
-      }
+//      if (global_idx == 0 && tdy == 0) {
+//        printf("Current local: [%f, %f]\n", control[0], control[1]);
+//        printf("Current global: [%i, %i]\n", control_d[(i + stride) * DYN_T::CONTROL_DIM],
+//               control_d[(i + stride) * DYN_T::CONTROL_DIM + 1]);
+//      }
 
+//      if (global_idx == 65 && tdy == 0) {
+//        printf("Current state: [%f, %f, %f, %f]\n", state[0], state[1], state[2], state[3]);
+//        printf("Current control: [%f, %f]\n", control[0], control[1]);
+//        printf("Current noise: [%f, %f]\n", control_noise[0], control_noise[1]);
+//      }
+
+      dynamics->enforceConstraints(state, control);
       __syncthreads();
-      if (tdy == 0) { // Only compute once per global index.
+      if (tdy == 0 && i > 0) { // Only compute once per global index, make sure that we don't divide by zero
         running_cost +=
-                (costs->computeCost(state, control, control_noise, exploration_var, i) * dt - running_cost) / (1.0 * i);
+                (costs->computeRunningCost(state, control, control_noise, exploration_var, i) * dt - running_cost) / (1.0 * i);
       }
       __syncthreads();
 
@@ -451,10 +475,9 @@ namespace rmppi_kernels {
     }
   }
 
-  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
   void launchInitEvalKernel(DYN_T* dynamics,
                             COST_T* costs,
-                            int samples_per_condition,
                             int num_candidates,
                             int num_timesteps,
                             int ctrl_stride,
@@ -466,11 +489,12 @@ namespace rmppi_kernels {
                             float* control_noise_d,
                             float* costs_d) {
 
-    int GRIDSIZE_X = num_candidates * samples_per_condition / BLOCKSIZE_X;
+    int GRIDSIZE_X = num_candidates * SAMPLES_PER_CONDITION / BLOCKSIZE_X;
     dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
     dim3 dimGrid(GRIDSIZE_X, 1, 1);
-    initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y><<<dimGrid, dimBlock, 0>>>(dynamics, costs,
-            samples_per_condition, num_timesteps, ctrl_stride, dt, strides_d, exploration_var_d, states_d,
+    initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
+            <<<dimGrid, dimBlock, 0>>>(dynamics, costs,
+            num_timesteps, ctrl_stride, dt, strides_d, exploration_var_d, states_d,
             control_d, control_noise_d, costs_d);
 
   }

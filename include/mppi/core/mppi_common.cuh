@@ -121,10 +121,31 @@ namespace mppi_common {
 
 namespace rmppi_kernels {
   template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
-  __global__ void initEvalKernel();
+  __global__ void initEvalKernel(DYN_T* dynamics,
+                                 COST_T* costs,
+                                 int num_timesteps,
+                                 int ctrl_stride,
+                                 float dt,
+                                 int* strides_d,
+                                 float* exploration_var_d,
+                                 float* states_d,
+                                 float* control_d,
+                                 float* control_noise_d,
+                                 float* costs_d);
 
-  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y>
-  void launchInitEvalKernel();
+  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
+  void launchInitEvalKernel(DYN_T* dynamics,
+                            COST_T* costs,
+                            int num_candidates,
+                            int num_timesteps,
+                            int ctrl_stride,
+                            float dt,
+                            int* strides_d,
+                            float* exploration_var_d,
+                            float* states_d,
+                            float* control_d,
+                            float* control_noise_d,
+                            float* costs_d);
 
   template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
       int NUM_ROLLOUTS, int BLOCKSIZE_Z = 2>
