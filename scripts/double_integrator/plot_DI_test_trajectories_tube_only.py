@@ -22,7 +22,10 @@ actual = None
 axs = None
 
 def callback(event):
-    ''' this function gets called if we hit the left button'''
+    global actual, acillary, nominal
+    global axs
+
+    ''' this function gets called if we hit a key'''
     #print('you pressed', event.key)
     plt.cla()
     plot_boundaries(axs)
@@ -34,17 +37,20 @@ def callback(event):
         if cur_timestep > 0:
             cur_timestep -= 1
 
-    global actual, acillary, nominal
-    global axs
+
+    # only plot the last n states
+    states = 100
+    min_index = max(cur_timestep - states, 0)
+
     # plot actual trajectory
-    axs.plot(actual[cur_timestep,:,0], actual[cur_timestep,:,1], 'b', linewidth=2.0, label='final trajectory')
-    axs.plot(actual[:cur_timestep,0,0], actual[:cur_timestep,0,1], 'bx', label='actual state')
+    axs.plot(actual[cur_timestep,:,0], actual[cur_timestep,:,1], 'b', linewidth=2.0, label='actual trajectory')
+    axs.plot(actual[min_index:cur_timestep,0,0], actual[min_index:cur_timestep,0,1], 'bx', label='actual state')
 
     axs.plot(ancillary[cur_timestep,:,0], ancillary[cur_timestep,:,1], 'k', linewidth=2.0, label='ancillary trajectory')
 
-    # TODO nominal stae
+    # plt nominal state
     axs.plot(nominal[cur_timestep,:,0], nominal[cur_timestep,:,1], 'g', linewidth=2.0, label='nominal trajectory')
-    axs.plot(nominal[:cur_timestep,0,0], nominal[:cur_timestep,0,1], 'g+', label='nominal state')
+    axs.plot(nominal[min_index:cur_timestep,0,0], nominal[min_index:cur_timestep,0,1], 'g+', label='nominal state')
     # fix legend
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 

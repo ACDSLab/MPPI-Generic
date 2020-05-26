@@ -134,7 +134,6 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     // Compute the nominal and actual state trajectories
     computeStateTrajectory(state); // Input is the actual state
 
-
     if (this->baseline_ < baseline_nominal_ + nominal_threshold_) {
       // In this case, the disturbance the made the nominal and actual states differ improved the cost.
       // std::copy(state_trajectory.begin(), state_trajectory.end(), nominal_state_trajectory_.begin());
@@ -184,8 +183,8 @@ void TubeMPPI::slideControlSequence(int steps) {
     this->control_history_.row(0) = this->control_history_.row(1); // Slide control history forward
     this->control_history_.row(1) = nominal_control_trajectory_.col(0).transpose(); // Save the control at time 0
   }
-
   this->slideControlSequenceHelper(steps, nominal_control_trajectory_);
+  this->slideControlSequenceHelper(steps, this->control_);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
