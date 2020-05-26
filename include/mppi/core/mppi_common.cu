@@ -414,10 +414,10 @@ namespace rmppi_kernels {
       // Inject the control noise
       for (j = tdy; j < DYN_T::CONTROL_DIM; j += blockDim.y) {
         if ((i + stride) >= num_timesteps) {  // Pad the end of the controls with the last control
-          control[j] = control_d[num_timesteps*DYN_T::CONTROL_DIM + j];
+          control[j] = control_d[(num_timesteps-1)*DYN_T::CONTROL_DIM + j];
 //          if (global_idx == 0) {
-//            printf("Current index: [%i]\n", num_timesteps * DYN_T::CONTROL_DIM + j);
-//            printf("Current control: [%f]\n", control_d[num_timesteps * DYN_T::CONTROL_DIM + j]);
+//            printf("Current index: [%i]\n", (num_timesteps-1) * DYN_T::CONTROL_DIM + j);
+//            printf("Current control: [%f]\n", control_d[(num_timesteps-1) * DYN_T::CONTROL_DIM + j]);
 //          }
         } else {
           control[j] = control_d[(i + stride)*DYN_T::CONTROL_DIM + j];
@@ -442,7 +442,7 @@ namespace rmppi_kernels {
       __syncthreads();
 //      if (global_idx == 0 && tdy == 0) {
 //        printf("Current local: [%f, %f]\n", control[0], control[1]);
-//        printf("Current global: [%i, %i]\n", control_d[(i + stride) * DYN_T::CONTROL_DIM],
+//        printf("Current global: [%f, %f]\n", control_d[(i + stride) * DYN_T::CONTROL_DIM],
 //               control_d[(i + stride) * DYN_T::CONTROL_DIM + 1]);
 //      }
 

@@ -44,7 +44,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   const int num_samples = 64;
 
   // We are going to propagate a trajectory for a given number of timesteps
-  const int num_timesteps = 20;
+  const int num_timesteps = 5;
 
   // Call the GPU setup functions of the model and cost
   model->GPUSetup();
@@ -94,17 +94,11 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
 
   control_noise =  Eigen::Map<Eigen::Matrix<float,dynamics::CONTROL_DIM, num_candidates*num_samples*num_timesteps>>(control_noise_data.data());
 
-//    for (int i = 0; i < num_samples; ++i) {
-//    for (int j = 0; j < num_timesteps; ++j) {
-//      for (int k = 0; k < dynamics::CONTROL_DIM; ++k) {
-//        std::cout << control_noise_data[i*num_timesteps*dynamics::CONTROL_DIM + j*dynamics::CONTROL_DIM + k] << std::endl;
-//        control_noise(k, i*num_timesteps + j) = control_noise_data[i*num_timesteps*dynamics::CONTROL_DIM + j*dynamics::CONTROL_DIM + k];
-//      }
-//    }
-//  }
-
 //   std::cout << "Control Noise\n" << control_noise.col(num_samples*num_timesteps).cwiseProduct(exploration_var).transpose() << std::endl;
+  int ctrl_stride = 2;
 
+  Eigen::Matrix<int, 1, 9> strides;
+  strides << 1, 2, 3, 4, 4, 4, 4, 4, 4;
 
 
   // Let us make temporary variables to hold the states and state derivatives and controls
@@ -115,6 +109,19 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
 
   float cost_current = 0.0;
   for (int i = 0; i < 9; ++i) { // Iterate through each candidate
+    Eigen::Matrix<float, dynamics::CONTROL_DIM, num_timesteps> candidate_nominal_control;
+    // For each candidate we want to slide the controls according to their own stride.
+    for (int k = 0; k < num_timesteps; ++k) {
+      if (k + strides(i) >= num_timesteps) {
+        candidate_nominal_control.col(k) = nominal_control.col(num_timesteps-1);
+      } else {
+        candidate_nominal_control.col(k) = nominal_control.col(k+strides(i));
+      }
+    }
+//    if (i == 0) {
+//      std::cout << "Nominal_control:\n" << nominal_control << std::endl;
+//      std::cout << "Candidate_control:\n" << candidate_nominal_control << std::endl;
+//    }
     for (int j = 0; j < num_samples; ++j) {
       x_current = x0_candidates.col(i);  // The initial state of the rollout
       for (int k = 0; k < num_timesteps; ++k) {
@@ -123,31 +130,25 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
           cost_current += (cost->computeStateCost(x_current) * dt - cost_current) / (1.0*k);
         }
         // get the control plus a disturbance
-        if (j == 0) { // First sample should always be noise free
-          u_current = nominal_control.col(k);
+        if (j == 0 || k < ctrl_stride) { // First sample should always be noise free as should any timesteps that are below the control stride
+          u_current = candidate_nominal_control.col(k);
         } else {
-          u_current = nominal_control.col(k) +
+          u_current = candidate_nominal_control.col(k) +
                       control_noise.col(i * num_samples * num_timesteps + j * num_timesteps + k).cwiseProduct(
                               exploration_var);
         }
-//        if (i == 1 && j == 1) {
-//          std::cout << "Current control: " << u_current.transpose() << std::endl;
-//        }
+
         // compute the next state_dot
         model->computeDynamics(x_current, u_current, x_dot_current);
         // update the state to the next
         model->updateState(x_current, x_dot_current, dt);
         }
       // compute the terminal cost -> this is the free energy estimate, save it!
-//      cost_current += cost->terminalCost(x_current);
       cost_vector.col(i*num_samples + j) << cost_current;
       cost_current = 0.0;
     }
   }
-  int ctrl_stride = 0; // TODO implement the stride as we see all
 
-  Eigen::Matrix<int, 1, 9> strides;
-  strides << 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
 //  std::cout << "Eigen strides: " << strides << std::endl;
 
