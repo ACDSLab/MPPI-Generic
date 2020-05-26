@@ -178,7 +178,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
 //  std::cout <<  "Cost Vector CPU\n" << cost_vector.col(65) << std::endl;
 //  std::cout << "Cost Vector GPU\n" << cost_vector_GPU.col(65) << std::endl;
 
-  std::cout << (cost_vector - cost_vector_GPU).transpose() << std::endl;
+//  std::cout << (cost_vector - cost_vector_GPU).transpose() << std::endl;
 
   EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 1e-4);
 }

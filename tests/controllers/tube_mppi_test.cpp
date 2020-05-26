@@ -93,7 +93,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
 //      model.printState(x.data());
 //    }
 
-    if (cost.getStateCost(x.data()) > 1000) {
+    if (cost.computeStateCost(x) > 1000) {
       fail_count++;
     }
 
@@ -158,7 +158,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
           1024, 64, 8>(&model, &cost, dt, max_iter, gamma, num_timesteps, control_var);
 
-  bool success = false;
+  //bool success = false;
   int fail_count = 0;
 
   // Start the while loop
@@ -172,7 +172,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 //    }
 
     if (tubeFailure(x.data()))  {
-      success = true;
+      //success = true;
       fail_count++;
     }
 
@@ -262,7 +262,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
                                                                         R, num_timesteps);
   auto terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DoubleIntegratorDynamics>>>(Qf);
 
-  bool success = false;
+  //bool success = false;
   int fail_count = 0;
 
   // Start the while loop
@@ -276,7 +276,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
 //    }
 
     if (tubeFailure(x.data()))  {
-      success = true;
+      //success = true;
       fail_count++;
     }
 
@@ -309,6 +309,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
 
 
     // Apply the feedback given the current state
+//    std::cout << (x - nominal_trajectory.col(0)) << std::endl;
     current_control += result.feedback_gain[0]*(x - nominal_trajectory.col(0));
 
     // Propagate the state forward
@@ -378,7 +379,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 //      model.printState(x.data());
 //    }
 
-    if (cost.getStateCost(x.data()) > 1000) {
+    if (cost.computeStateCost(x) > 1000) {
       fail_count++;
     }
 
