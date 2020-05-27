@@ -27,7 +27,7 @@ public:
 
   __device__ float getControlCost(float* u, float* du, float* variance);
 
-  __device__ float getStateCost(float* s);
+  __device__ float computeStateCost(float* s);
 
   __device__ float computeRunningCost(float* s, float* u, float* du, float* variance, int timestep);
 

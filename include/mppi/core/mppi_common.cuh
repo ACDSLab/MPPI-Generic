@@ -152,26 +152,28 @@ namespace rmppi_kernels {
   __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
                                      float dt,
                                      int num_timesteps,
+                                     float lambda,
+                                     float value_func_threshold,
                                      float* x_d,
                                      float* u_d,
                                      float* du_d,
                                      float* feedback_gains_d,
                                      float* sigma_u_d,
-                                     float* trajectory_costs_d,
-                                     float lambda);
+                                     float* trajectory_costs_d);
 
   template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
            int BLOCKSIZE_Y, int BLOCKSIZE_Z = 2>
   void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
                                 float dt,
                                 int num_timesteps,
+                                float lambda,
+                                float value_func_threshold,
                                 float* x_d,
                                 float* u_d,
                                 float* du_d,
                                 float* feedback_gains_d,
                                 float* sigma_u_d,
                                 float* trajectory_costs,
-                                float lambda,
                                 cudaStream_t stream);
 }
 #if __CUDACC__

@@ -72,6 +72,7 @@ public:
 
     control_variance_ = control_variance;
     control_ = init_control_traj;
+    control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
 
     // Create the random number generator
     createAndSeedCUDARandomNumberGen();
@@ -324,7 +325,7 @@ protected:
   float* initial_state_d_; // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 
   // Control history
-  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
+  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_; // = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
 
   // one array of this size is allocated for each state we care about,
   // so it can be the size*N for N nominal states

@@ -184,28 +184,29 @@ namespace mppi_common {
                                        float* u_thread, float* du_thread) {
 
       // this is a global index
-        int control_index = num_rollouts*control_dim*num_timesteps*threadIdx.z + // z part
-                global_idx*control_dim*num_timesteps + current_timestep * control_dim; // normal part
-        //Load the noise trajectory scaled by the exploration factor
-        // The prior loop already guarantees that the global index is less than the number of rollouts
-        for (int i = thread_idy; i < control_dim; i += blocksize_y) {
-            //Keep one noise free trajectory
-            if (global_idx == 0){
-                du_thread[i] = 0;
-                u_thread[i] = u_traj_device[current_timestep * control_dim + i];
-            }
-            //Generate 1% zero control trajectory
-            else if (global_idx >= 0.99*num_rollouts) {
-                du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
-                u_thread[i] = du_thread[i];
-            }
-            else {
-                du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
-                u_thread[i] = u_traj_device[current_timestep * control_dim + i] + du_thread[i];
-            }
-            // Saves the control but doesn't clamp it.
-            ep_v_device[control_index + i] = u_thread[i];
-        }
+      int control_index = (num_rollouts * num_timesteps * threadIdx.z + // z part
+                           global_idx * num_timesteps + current_timestep) * control_dim; // normal part
+      //Load the noise trajectory scaled by the exploration factor
+      // The prior loop already guarantees that the global index is less than the number of rollouts
+
+      for (int i = thread_idy; i < control_dim; i += blocksize_y) {
+          //Keep one noise free trajectory
+          if (global_idx == 0){
+              du_thread[i] = 0;
+              u_thread[i] = u_traj_device[current_timestep * control_dim + i];
+          }
+          //Generate 1% zero control trajectory
+          else if (global_idx >= 0.99*num_rollouts) {
+              du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
+              u_thread[i] = du_thread[i];
+          }
+          else {
+              du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
+              u_thread[i] = u_traj_device[current_timestep * control_dim + i] + du_thread[i];
+          }
+          // Saves the control but doesn't clamp it.
+          ep_v_device[control_index + i] = u_thread[i];
+      }
     }
 
     template<class COST_T>
@@ -499,13 +500,14 @@ namespace rmppi_kernels {
   __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
                                      float dt,
                                      int num_timesteps,
+                                     float lambda,
+                                     float value_func_threshold,
                                      float* x_d,
                                      float* u_d,
                                      float* du_d,
                                      float* feedback_gains_d,
                                      float* sigma_u_d,
-                                     float* trajectory_costs_d,
-                                     float lambda) {
+                                     float* trajectory_costs_d) {
     int thread_idx = threadIdx.x;
     int thread_idy = threadIdx.y;
     int thread_idz = threadIdx.z;
@@ -521,6 +523,7 @@ namespace rmppi_kernels {
 
     // Create a shared array for the nominal costs calculations
     __shared__ float running_state_cost_nom_shared[BLOCKSIZE_X];
+    __shared__ float running_control_cost_nom_shared[BLOCKSIZE_X];
 
     // Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
@@ -533,16 +536,18 @@ namespace rmppi_kernels {
     float* du;
     float* fb_gain;
     // The array to hold K(x,x*)
-    float* fb_control[DYN_T::CONTROL_DIM];
+    float fb_control[DYN_T::CONTROL_DIM];
 
     int t = 0;
     int i = 0;
     int j = 0;
 
     // Initialize running costs
-    float running_cost_real = 0;
+    float running_state_cost_real = 0;
+    float running_control_cost_real = 0;
     float* running_state_cost_nom;
     float running_tracking_cost_real = 0;
+    float* running_control_cost_nom;
 
     // Load global array into shared memory
     if (global_idx < NUM_ROLLOUTS) {
@@ -557,107 +562,134 @@ namespace rmppi_kernels {
       du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
       // Nominal State Cost
       running_state_cost_nom = &running_state_cost_nom_shared[thread_idx];
-    }
+      running_control_cost_nom = &running_control_cost_nom_shared[thread_idx];
 
-    *running_state_cost_nom = 0;
-
-    __syncthreads();
-    // Load memory into appropriate arrays
-    loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
-                      BLOCKSIZE_Y, global_idx, thread_idy,
-                      thread_idz, x_d, sigma_u_d, x, xdot, u, du, sigma_u);
-    __syncthreads();
-    //TODO: Need to load feedback gains as well
-    for (t = 0; t < num_timesteps; t++) {
-      injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
-                        t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
-      // Now find feedback control
-      float e;
-      // Feedback gains at time t
-      fb_gain = &feedback_gains_d[t * DYN_T::CONTROL_DIM * DYN_T::STATE_DIM];
-      for (i = 0; i < DYN_T::CONTROL_DIM; i++) {
-        fb_control[i] = 0;
-      }
-      // Don't enter for loop if in nominal states (thread_idz == 1)
-      for (i = 0; i < DYN_T::STATE_DIM * (1 - thread_idz); i++) {
-        // Find difference between nominal and actual
-        e = (x - x_other);
-        for (j = 0; j < DYN_T::CONTROL_DIM; j++) {
-          // Assuming column major storage atm. TODO Double check storage option
-          fb_control[j] += fb_gain[i * DYN_T::CONTROL_DIM + j] * e;
-        }
-      }
-      for (i = 0; i < DYN_T::CONTROL_DIM; i++) {
-        u[i] += fb_control[i];
-      }
-
+      // Load memory into appropriate arrays
+      mppi_common::loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
+                                      BLOCKSIZE_Y, global_idx, thread_idy,
+                                      thread_idz, x_d, sigma_u_d, x, xdot, u, du, sigma_u);
       __syncthreads();
-      // Clamp the control in both the importance sampling sequence and the disturbed sequence. TODO remove extraneous call?
-      dynamics->enforceConstraints(x, du);
-      dynamics->enforceConstraints(x, u);
-
-      __syncthreads();
-      // Calculate All the costs
-      float curr_state_cost =  costs->computeStateCost(x);
-
-      // Nominal system is where thread_idz == 1
-      if (thread_idz == 1) {
-        *running_state_cost_nom += curr_state_cost;
-      }
-      // Real system cost update when thread_idz == 0
-      if (thread_idz == 0) {
-        running_cost_real += (curr_state_cost +
-          costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda));
-
-        running_tracking_cost_real += (curr_state_cost +
-          costs->computeFeedbackCost(fb_control, sigma_u, lambda));
-      }
-
-      // Non if statement version
-      // running_cost_real += (1 - thread_idz) * (curr_state_cost +
-      //   costs->computeLikelihoodRatioCost(u, du, sigma_u, t));
-      // running_tracking_cost_real += (1 - thread_idz) * (curr_state_cost +
-      //   costs->computeFeedbackCost(fb_control, sigma_u));
-
-      __syncthreads();
-      // dynamics update
-      dynamics->computeStateDeriv(x, u, xdot, theta_s);
-      __syncthreads();
-      dynamics->updateState(x, xdot, dt);
-      __syncthreads();
-    }
-    // Choose which cost to use for nominal cost
-    // TODO: Replace with parameter passed in
-    float value_func_threshold_ = 10;
-    /** TODO: This will not work in current setup because running_state_cost_nom
-    * and running_tracking_cost_real are calculated by different threads (thread_z 1 or 0)
-    * Need to create shared memory for some parts of it
-    **/
-    float running_cost_nom  = 0;
-    if (thread_idz == 0) {
-      running_cost_nom = 0.5 * (*running_state_cost_nom) + 0.5 *
-        fmaxf(fminf(running_tracking_cost_real, value_func_threshold_), *running_state_cost_nom);
-
-      for(t = 0; t < num_timesteps - 1; t++) {
-        // Get u(t) and noise at time t
-        injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
-          t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
+      *running_state_cost_nom = 0;
+      *running_control_cost_nom = 0;
+      for (t = 0; t < num_timesteps; t++) {
+        mppi_common::injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y,
+                                        NUM_ROLLOUTS, num_timesteps,
+                                        t, global_idx, thread_idy, u_d, du_d,
+                                        sigma_u, u, du);
         __syncthreads();
-        running_cost_nom += costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda);
+
+        // Now find feedback control
+        float e;
+        // Feedback gains at time t
+        fb_gain = &feedback_gains_d[t * DYN_T::CONTROL_DIM * DYN_T::STATE_DIM];
+
+        for (i = 0; i < DYN_T::CONTROL_DIM; i++) {
+          fb_control[i] = 0;
+        }
+        // Don't enter for loop if in nominal states (thread_idz == 1)
+        for (i = 0; i < DYN_T::STATE_DIM * (1 - thread_idz); i++) {
+          // Find difference between nominal and actual
+          e = x[i] - x_other[i];
+          for (j = 0; j < DYN_T::CONTROL_DIM; j++) {
+            // Assuming column major storage atm.
+            fb_control[j] += fb_gain[i * DYN_T::CONTROL_DIM + j] * e;
+          }
+        }
+
+        for (i = thread_idy; i < DYN_T::CONTROL_DIM; i+= BLOCKSIZE_Y) {
+          u[i] += fb_control[i];
+        }
+
+        __syncthreads();
+        // Clamp the control in both the importance sampling sequence and the disturbed sequence.
+        dynamics->enforceConstraints(x, du);
+        dynamics->enforceConstraints(x, u);
+
+        __syncthreads();
+        // Calculate All the costs
+        float curr_state_cost = costs->computeStateCost(x);
+
+        // Nominal system is where thread_idz == 1
+        if (thread_idz == 1 && thread_idy == 0) {
+          // This memory is shared in the y direction so limit which threads can write to it
+          *running_state_cost_nom += curr_state_cost;
+          *running_control_cost_nom += costs->computeLikelihoodRatioCost(u,
+              du, sigma_u, lambda);
+        }
+        // Real system cost update when thread_idz == 0
+        if (thread_idz == 0) {
+          running_state_cost_real += curr_state_cost;
+          running_control_cost_real +=
+            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda);
+
+          running_tracking_cost_real += (curr_state_cost +
+            costs->computeFeedbackCost(fb_control, sigma_u, lambda));
+        }
+        __syncthreads();
+        // dynamics update
+        dynamics->computeStateDeriv(x, u, xdot, theta_s);
+        __syncthreads();
+
+        // if (t == 10 && global_idx == 0 && thread_idz == 1 && thread_idy == 0) {
+        //   printf("Final u GPU at t = %d, rollout %d\n", t, global_idx);
+        //   for (i = 0; i < DYN_T::CONTROL_DIM; i++){
+        //     printf("%d: %10.7f\n", i, u[i]);
+        //   }
+        //   printf("GPU  x at time %d\n", t);
+        //   for (i = 0; i < DYN_T::STATE_DIM; i++){
+        //     printf("%d: %f\n", i, x[i]);
+        //   }
+        //   printf("State Cost: %f\n", curr_state_cost);
+        //   printf("Control Cost: %f\n", costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda));
+        //   // printf("Cumulavtive State Cost at time %d: %f\n", t, running_state_cost_real);
+        //   // printf("Cumulative Control Cost at time %d: %f\n", t, running_control_cost_real);
+        //   // printf("Cumulative Total Cost at time %d: %f\n", t, running_control_cost_real + running_state_cost_real);
+        //   // printf("Cumulative Total Cost added together at time %d: %f\n", t, running_cost_real);
+        //   printf("GPU  xdot at time %d\n", t);
+        //   for (i = 0; i < DYN_T::STATE_DIM; i++){
+        //     printf("%d: %f\n", i, xdot[i]);
+        //   }
+        //   // printf("Control Range GPU:\n");
+        //   // for(int i = 0; i < DYN_T::CONTROL_DIM; i++) {
+        //   //   printf("%f, %f\n", dynamics->control_rngs_[i].x, dynamics->control_rngs_[i].y);
+        //   // }
+        // }
+        // __syncthreads();
+        // if (t == 10 && global_idx == 0 && thread_idz == 0 && thread_idy == 0) {
+        //   // printf("Cumulavtive State Cost at time %d: %f\n", t, running_state_cost_real);
+        //   // printf("Cumulative Control Cost at time %d: %f\n", t, running_control_cost_real);
+        //   printf("Cumulative Total Cost at time %d: %f\n", t, running_control_cost_real + running_state_cost_real);
+        // }
+        __syncthreads();
+        dynamics->updateState(x, xdot, dt);
+        __syncthreads();
       }
-    }
-    __syncthreads();
-    // Copy costs over to correct locations
-    /** TODO: Right now copying can only occur from the real system threads
-    * We can leave it as is or we could copy the nominal trajectory costs
-    * into a shared memory location so that we could try to use computeAndSaveCost
-    */
-    if (thread_idz == 0) {
-      // Only the threadds running the actual system have the final running costs for both
-      // real and nominal
-      if (global_idx < NUM_ROLLOUTS) {
+      // calculate terminal costs
+      if (thread_idz == 1 && thread_idy == 0) { //Thread y required to prevent double addition
+        *running_control_cost_nom += costs->terminalCost(x);
+      }
+
+      if (thread_idz == 0) {
+        running_state_cost_real += costs->terminalCost(x);
+        running_tracking_cost_real += costs->terminalCost(x);
+      }
+
+      // Figure out final form of nominal cost
+      float running_cost_nom  = 0;
+      if (thread_idz == 0) {
+        running_cost_nom = 0.5 * (*running_state_cost_nom) + 0.5 *
+          fmaxf(fminf(running_tracking_cost_real, value_func_threshold),
+                *running_state_cost_nom);
+
+        // if (global_idx == 0 && thread_idy == 0) {
+        //   printf("Nominal Cost GPU at rollout %d: %f\n", global_idx, running_cost_nom);
+        //   printf("Nominal control cost GPU at rollout %d: %f\n", global_idx, *running_control_cost_nom);
+        // }
+        running_cost_nom += *running_control_cost_nom;
+
+        // Copy costs over to global memory
         // Actual System cost
-        trajectory_costs_d[global_idx] = running_cost_real;
+        trajectory_costs_d[global_idx] = running_state_cost_real + running_control_cost_real;
         // Nominal System Cost - Again this is actaully only  known on real system threads
         trajectory_costs_d[global_idx + NUM_ROLLOUTS] = running_cost_nom;
       }
@@ -673,21 +705,23 @@ namespace rmppi_kernels {
   void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
                                 float dt,
                                 int num_timesteps,
+                                float lambda,
+                                float value_func_threshold,
                                 float* x_d,
                                 float* u_d,
                                 float* du_d,
                                 float* feedback_gains_d,
                                 float* sigma_u_d,
                                 float* trajectory_costs,
-                                float lambda,
                                 cudaStream_t stream) {
     const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
     dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
     dim3 dimGrid(gridsize_x, 1, 1);
     RMPPIRolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
                       BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
-                        dynamics, costs, dt, num_timesteps, x_d, u_d, du_d,
-                        feedback_gains_d, sigma_u_d, trajectory_costs, lambda);
+                        dynamics, costs, dt, num_timesteps, lambda,
+                        value_func_threshold, x_d, u_d, du_d,
+                        feedback_gains_d, sigma_u_d, trajectory_costs);
     CudaCheckError();
     HANDLE_ERROR( cudaStreamSynchronize(stream) );
   }

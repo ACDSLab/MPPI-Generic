@@ -110,13 +110,15 @@ public:
   /**
    * Computes the feedback control cost on CPU for RMPPI
    */
-  float computeFeedbackCost(const Eigen::Ref<const control_array> ff_u,
-                            const Eigen::Ref<const control_array> noise,
-                            const Eigen::Ref<const control_array> fb_u,
-                            const Eigen::Ref<const control_matrix> variance,
+  float computeFeedbackCost(const Eigen::Ref<const control_array> fb_u,
+                            const Eigen::Ref<const control_array> std_dev,
                             const float lambda = 1.0) {
-    control_array u = ff_u + noise + fb_u;
-    return 0.5 * lambda * u.transpose() * variance.inverse() * u;
+    float cost = 0;
+    for (int i = 0; i < CONTROL_DIM; i++) {
+      cost += control_cost_coef[i] * fb_u(i) * fb_u(i) / powf(std_dev(i), 2);
+    }
+
+    return 0.5 * lambda * cost;
   }
 
   /**
@@ -125,9 +127,14 @@ public:
    */
   float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u,
                                    const Eigen::Ref<const control_array> noise,
-                                   const Eigen::Ref<const control_matrix> variance,
+                                   const Eigen::Ref<const control_array> std_dev,
                                    const float lambda = 1.0) {
-    return 0.5 * lambda * u.transpose() * variance.inverse() * (u + 2 * noise);
+    float cost = 0;
+    for (int i = 0; i < CONTROL_DIM; i++) {
+      cost += control_cost_coef[i] * u(i) * (u(i) + 2 * noise(i)) /
+        (std_dev(i) * std_dev(i));
+    }
+    return 0.5 * lambda * cost;
   }
 
   /**
@@ -152,16 +159,18 @@ public:
   __device__ float computeFeedbackCost(float* fb_u, float* std_dev,
                                        float lambda = 1.0) {
     float cost = 0;
-    float tmp_var = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += powf(fb_u[i] / std_dev[i], 2);
+      cost += control_cost_coef[i] * powf(fb_u[i] / std_dev[i], 2);
     }
     return 0.5 * lambda * cost;
   }
 
   /**
    * Computes the normal control cost for MPPI and Tube-MPPI
-   * 1/2 u^T * \Sigma^{-1} * (u + 2 * noise)
+   * 0.5 * lambda * (u*^T \Sigma^{-1} u*^T + 2 * u*^T \Sigma^{-1} (u*^T + noise))
+   * On the GPU, u = u* + noise already, so we need the following to create
+   * the original cost:
+   * 0.5 * lambda * (u - noise)^T \Sigma^{-1} (u + noise)
    */
   __device__ float computeLikelihoodRatioCost(float* u,
                                               float* noise,
@@ -169,9 +178,14 @@ public:
                                               float lambda = 1.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += (u[i]) * (u[i] + 2 * noise[i]) / (powf(std_dev[i], 2));
+      cost += control_cost_coef[i] * (u[i] - noise[i]) * (u[i] + noise[i]) /
+        (std_dev[i] * std_dev[i]);
     }
     return 0.5 * lambda * cost;
+  }
+
+  __device__ float computeStateCost(float* s) {
+    throw std::logic_error("SubClass did not implement computeStateCost");
   }
 
   inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
@@ -182,7 +196,8 @@ public:
   CLASS_T* cost_d_ = nullptr;
 protected:
   PARAMS_T params_;
-
+  // Not an Eigen control_array as it needs to exist on both CPU and GPU
+  float control_cost_coef[CONTROL_DIM] = {1};
 };
 
 #endif // COSTS_CUH_

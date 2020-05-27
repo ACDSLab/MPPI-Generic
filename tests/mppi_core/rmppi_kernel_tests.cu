@@ -195,27 +195,32 @@ TEST(RMPPITest, CPURolloutKernel) {
 
   float dt = 0.01;
   // int max_iter = 10;
-  float lambda = 0.5;
-  const int num_timesteps = 7;
-  const int num_rollouts = 5;
+  float lambda = 0.1;
+  const int num_timesteps = 50;
+  const int num_rollouts = 64;
 
   // float x[num_rollouts * state_dim * 2];
   // float x_dot[num_rollouts * state_dim * 2];
   // float u[num_rollouts * control_dim * 2];
   // float du[num_rollouts * control_dim * 2];
-  float sigma_u[control_dim] = {0.5, 0.4}; // variance to sample noise from
+  float sigma_u[control_dim] = {0.5, 0.05}; // variance to sample noise from
+  COST::control_matrix cost_variance = COST::control_matrix::Identity();
+  for(int i = 0; i < control_dim; i++) {
+    cost_variance(i, i) = sigma_u[i];
+  }
   // float fb_u[num_rollouts * control_dim * state_dim];
 
   DYN::state_array x_init_act;
   x_init_act << 0, 0, 0, 0;
   DYN::state_array x_init_nom;
+  x_init_nom << 0, 0, 0.1, 0;
 
   // Generate control noise
-  float sampled_noise[num_rollouts * num_timesteps * control_dim * 2];
+  float sampled_noise[num_rollouts * num_timesteps * control_dim];
   std::mt19937 rng_gen;
   std::vector<std::normal_distribution<float>> control_dist;
   for (int i = 0; i < control_dim; i++) {
-    control_dist.push_back(std::normal_distribution<float>(0, sigma_u[i]));
+    control_dist.push_back(std::normal_distribution<float>(0, 1));
   }
 
   for (int n = 0; n < num_rollouts; n++) {
@@ -228,15 +233,20 @@ TEST(RMPPITest, CPURolloutKernel) {
     }
   }
   // TODO: Figure out nonzero Initial control trajectory
-  float u_traj[num_rollouts * num_timesteps * control_dim * 2] = {0};
+  float u_traj[num_timesteps * control_dim] = {0};
+  u_traj[0] = 1;
+  u_traj[1] = 0.5;
 
-  // TODO: fill the variance in with more reasonable numbers
-  COST::control_matrix cost_variance = COST::control_matrix::Identity();
+  u_traj[10] = 1;
+  u_traj[11] = 0.5;
+
+  u_traj[14] = -1;
+  u_traj[15] = 0.5;
 
   // TODO: Generate feedback gain trajectories
   VanillaMPPIController<DYN, COST, 100, 512, 64, 8>::K_matrix feedback_gains;
   for (int i = 0; i < num_timesteps; i++) {
-    feedback_gains.push_back(DYN::feedback_matrix::Random());
+    feedback_gains.push_back(DYN::feedback_matrix::Constant(-15));
   }
 
   // Copy Feedback Gains into an array
@@ -250,73 +260,56 @@ TEST(RMPPITest, CPURolloutKernel) {
       feedback_array[i_index + j] = feedback_gains[i].data()[j];
     }
   }
+  /**
+   * Create vectors of data for GPU/CPU test
+   */
+  std::vector<float> x_init_act_vec, x_init_nom_vec, sigma_u_vec, u_traj_vec;
+  x_init_act_vec.assign(x_init_act.data(), x_init_act.data() + state_dim);
+  x_init_nom_vec.assign(x_init_nom.data(), x_init_nom.data() + state_dim);
+  sigma_u_vec.assign(sigma_u, sigma_u + control_dim);
+  u_traj_vec.assign(u_traj, u_traj + num_timesteps * control_dim);
+  std::vector<float> feedback_gains_seq_vec, sampled_noise_vec;
+  feedback_gains_seq_vec.assign(feedback_array, feedback_array +
+    num_timesteps * control_dim * state_dim);
+  sampled_noise_vec.assign(sampled_noise, sampled_noise +
+    num_rollouts * num_timesteps * control_dim);
 
-  for (int traj_i = 0; traj_i < num_rollouts; traj_i++)  {
-    float cost_real_w_tracking = 0; // S^(V, x_0, x*_0) in Grady Thesis (8.24)
-    float total_cost_real = 0; // S(V, x_0) with knowledge of tracking controller
-    float state_cost_nom = 0; // S(V, x*_0)
+  float value_func_threshold = 50000;
 
-    int traj_index = traj_i * num_rollouts;
+  // Output Trajectory Costs
+  std::array<float, num_rollouts> costs_act_GPU, costs_nom_GPU;
+  std::array<float, num_rollouts> costs_act_CPU, costs_nom_CPU;
+  launchRMPPIRolloutKernelGPU<DYN, COST, num_rollouts>(&model, &cost, dt,
+    num_timesteps, lambda, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
+    costs_act_GPU, costs_nom_GPU);
+  launchRMPPIRolloutKernelCPU<DYN, COST, num_rollouts>(&model, &cost, dt,
+    num_timesteps, lambda, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
+    costs_act_CPU, costs_nom_CPU);
 
-    // Get all relevant values at time t in rollout i
-    DYN::state_array x_t_nom = x_init_nom;
-    DYN::state_array x_t_act = x_init_act;
-    // Eigen::Map<DYN::state_array> x_t_act(x + traj_index * state_dim);
-    // for (int state_i = 0; state_i < state_dim; state_i++) {
-    //   x_t_act(state_i, 0) = x[traj_index * state_dim + state_i];
-    //   x_t_nom(state_i, 0) = x[(traj_index + num_rollouts) * state_dim + state_i];
-    // }
-
-    for (int t = 0; t < num_timesteps - 1; t++){
-      // Controls are read only so I can use Eigen::Map<const...>
-      Eigen::Map<const DYN::control_array>
-          u_t(u_traj + (traj_index * num_timesteps + t) * control_dim); // trajectory u at time t
-      Eigen::Map<const DYN::control_array>
-          eps_t(sampled_noise + (traj_index * num_timesteps + t) * control_dim); // Noise at time t
-      Eigen::Map<const DYN::feedback_matrix>
-          feedback_gains_t(feedback_array + t * control_dim * state_dim); // Feedback gains at time t
-      // if (traj_i == 0) {
-      //   std::cout << "feedback_gains_t " << traj_i << ", " << t << "s:\n" << feedback_gains_t << std::endl;
-      // }
-
-
-      // Create newly calculated values at time t in rollout i
-      DYN::state_array x_dot_t_nom;
-      DYN::state_array x_dot_t_act;
-      DYN::control_array u_nom = u_t + eps_t;
-      DYN::control_array fb_u_t = feedback_gains_t * (x_t_nom - x_t_act);
-      DYN::control_array u_act = u_nom + fb_u_t;
-
-      // Cost update
-      DYN::control_array zero_u = DYN::control_array::Zero();
-      state_cost_nom += cost.computeStateCost(x_t_nom);
-      float state_cost_act = cost.computeStateCost(x_t_act);
-      cost_real_w_tracking +=  state_cost_act +
-                               cost.computeFeedbackCost(zero_u, zero_u, fb_u_t, cost_variance, lambda);
-
-      total_cost_real += state_cost_act +
-                         cost.computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_variance, lambda);
-
-      // Dyanamics Update
-      model.computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
-      model.computeStateDeriv(x_t_act, u_act, x_dot_t_act);
-
-      model.updateState(x_t_act, x_dot_t_act, dt);
-      model.updateState(x_t_nom, x_dot_t_nom, dt);
+  float max_diff_nom = -100;
+  float max_diff_act = -100;
+  int diff_nom_ind = -1;
+  int diff_act_ind = -1;
+  for (int i = 0; i < num_rollouts; i++) {
+    // std::cout << i << ": GPU Nom: " << costs_nom_GPU[i] << ", CPU Nom: " << costs_nom_CPU[i] << std::endl;
+    float diff_nom  = std::abs(costs_nom_CPU[i] - costs_nom_GPU[i]);
+    float diff_act  = std::abs(costs_act_CPU[i] - costs_act_GPU[i]);
+    if (diff_nom > max_diff_nom) {
+      max_diff_nom = diff_nom;
+      diff_nom_ind = i;
     }
-    // cost_real_w_tracking += TERMINAL_COST(x_t_act);
-    // state_cost_nom += TERMINAL_COST(x_t_nom);
-    // total_cost_real += += TERMINAL_COST(x_t_act);
-    // TODO Choose alpha better
-    float alpha = 0.5;
-    float cost_nom = 0.5 * state_cost_nom + 0.5 * std::max(std::min(cost_real_w_tracking, alpha), state_cost_nom);
-    // std::cout << "for loop problems, I feel bad for you son" << std::endl;
-    for (int t = 0; t < num_timesteps - 1; t++) {
-      Eigen::Map<DYN::control_array>
-          u_t(u_traj + (traj_index + num_timesteps) * control_dim); // trajectory u at time t
-      Eigen::Map<DYN::control_array>
-          eps_t(sampled_noise + (traj_index + num_timesteps) * control_dim); // Noise at time t
-      cost_nom += cost.computeLikelihoodRatioCost(u_t, eps_t, cost_variance);
+    if (diff_act > max_diff_act) {
+      max_diff_act = diff_act;
+      diff_act_ind = i;
     }
   }
+  std::cout << "Max Real Difference between CPU and GPU rollout "<< diff_act_ind
+            << ": " << max_diff_act << std::endl;
+  std::cout << "Max Nominal Difference between CPU and GPU rollout "<< diff_nom_ind
+            << ": " << max_diff_nom << std::endl;
+  array_assert_float_eq<num_rollouts>(costs_act_GPU, costs_act_CPU);
+  std::cout << "Checking nominal systems differences between CPU and GPU" << std::endl;
+  array_assert_float_eq<num_rollouts>(costs_nom_GPU, costs_nom_CPU);
 }

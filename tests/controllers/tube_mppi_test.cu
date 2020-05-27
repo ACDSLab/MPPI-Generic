@@ -89,7 +89,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
 //    if (t % 100 == 0) {
-////      float current_cost = cost.getStateCost(x.data());
+////      float current_cost = cost.computeStateCost(x.data());
 //      printf("Current Time: %f    ", t * dt);
 ////      printf("Current State Cost: %f    ", current_cost);
 //      model.printState(x.data());
@@ -167,7 +167,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
 //    if (t % 100 == 0) {
-//      float current_cost = cost.getStateCost(x.data());
+//      float current_cost = cost.computeStateCost(x.data());
 //      printf("Current Time: %f    ", t * dt);
 //      printf("Current State Cost: %f    ", current_cost);
 //      model.printState(x.data());
@@ -262,7 +262,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
 //    if (t % 100 == 0) {
-//      float current_cost = cost.getStateCost(x.data());
+//      float current_cost = cost.computeStateCost(x.data());
 //      printf("Current Time: %f    ", t * dt);
 //      printf("Current State Cost: %f    ", current_cost);
 //      model.printState(x.data());
@@ -375,7 +375,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
 //    if (t % 100 == 0) {
-//      float current_cost = cost.getStateCost(x.data());
+//      float current_cost = cost.computeStateCost(x.data());
 //      printf("Current Time: %f    ", t * dt);
 //      printf("Current State Cost: %f    ", current_cost);
 //      model.printState(x.data());
