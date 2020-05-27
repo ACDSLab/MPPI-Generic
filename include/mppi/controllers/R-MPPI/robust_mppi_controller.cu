@@ -3,6 +3,19 @@
 
 #define RobustMPPI RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+                     const Eigen::Ref<const control_array>& control_variance,
+                     int num_timesteps,
+                     const Eigen::Ref<const control_trajectory>& init_control_traj,
+                     cudaStream_t stream) : Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+        model, cost, dt, max_iter, gamma,
+        control_variance, num_timesteps, init_control_traj, stream)  {
+  updateNumCandidates(num_candidate_nominal_states);
+}
+
+
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 RobustMPPI::~RobustMPPIController() {
   deallocateNominalStateCandidateMemory();
@@ -108,21 +121,10 @@ void RobustMPPI::computeImportanceSamplerStride(int stride) {
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void RobustMPPI::setCudaStream(cudaStream_t stream) {
-
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void RobustMPPI::allocateCUDAMemory() {
-// Allocate memory for the control noise
-  HANDLE_ERROR( cudaMalloc((void**)&control_noise_d_, 2*NUM_ROLLOUTS*MAX_TIMESTEPS*CONTROL_DIM*sizeof(float)));
-
+  Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void RobustMPPI::deallocateCudaMemory() {
-
-}
 /******************************************************************************
 //MPPI Kernel Implementations and helper launch files
 *******************************************************************************/

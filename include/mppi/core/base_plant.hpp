@@ -25,7 +25,7 @@ public:
 
   using s_array = typename CONTROLLER_T::state_array;
   using s_traj = typename CONTROLLER_T::state_trajectory;
-  using K_traj = typename CONTROLLER_T::feedback_gain_trajectory;
+  using K_traj = typename CONTROLLER_T::K_matrix;
 
   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;

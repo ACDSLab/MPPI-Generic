@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
-#include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
+#include <mppi/dynamics/double_integrator/di_dynamics.cuh>
+#include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
+#include <mppi/controllers/R-MPPI/robust_mppi_controller.cuh>
+#include <cnpy.h>
 #include <random> // Used to generate random noise for control trajectories
 
 
@@ -10,13 +13,19 @@
 class TestRobust: public RobustMPPIController<
          DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 512, 64, 8>{
  public:
-  TestRobust(DoubleIntegratorDynamics *model, DoubleIntegratorCircleCost *cost) :
-  RobustMPPIController(model, cost) {}
+  TestRobust(DoubleIntegratorDynamics *model,
+          DoubleIntegratorCircleCost *cost,
+          float dt, int max_iter, float gamma,
+          const Eigen::Ref<const control_array>& control_variance,
+          int num_timesteps,
+          const Eigen::Ref<const control_trajectory>& init_control_traj,
+          cudaStream_t stream) :
+  RobustMPPIController(model, cost, dt,  max_iter,  gamma, control_variance, num_timesteps, init_control_traj, stream) {}
 
 
   // Test to make sure that its nonzero
   // Test to make sure that cuda memory is allocated
-  auto getCandidates(
+  NominalCandidateVector getCandidates(
           const Eigen::Ref<const state_array>& nominal_x_k,
           const Eigen::Ref<const state_array>& nominal_x_kp1,
           const Eigen::Ref<const state_array>& real_x_kp1) {
@@ -24,7 +33,7 @@ class TestRobust: public RobustMPPIController<
     return candidate_nominal_states;
   };
 
-  auto getWeights() {
+  Eigen::MatrixXf getWeights() {
     return line_search_weights;
   };
 
@@ -44,7 +53,7 @@ class TestRobust: public RobustMPPIController<
     resetCandidateCudaMem();
   }
 
-  auto getStrideIS(int stride) {
+  Eigen::MatrixXi getStrideIS(int stride) {
     computeImportanceSamplerStride(stride);
     return importance_sampler_strides;
   }
@@ -61,7 +70,7 @@ protected:
   void SetUp() override {
     model = new dynamics(10);  // Initialize the double integrator dynamics
     cost = new cost_function;  // Initialize the cost function
-    test_controller = new TestRobust(model, cost);
+    test_controller = new TestRobust(model, cost, dt, 3, gamma, control_variance, 100, init_control_traj, 0);
   }
 
   void TearDown() override {
@@ -73,6 +82,10 @@ protected:
   dynamics* model;
   cost_function* cost;
   TestRobust* test_controller;
+  dynamics::control_array control_variance;
+  TestRobust::control_trajectory init_control_traj;
+  float dt = 0.01;
+  float gamma = 0.5;
 };
 
 TEST_F(RMPPINominalStateSelection, UpdateNumCandidates_LessThan3) {

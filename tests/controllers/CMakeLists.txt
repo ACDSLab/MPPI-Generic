@@ -36,7 +36,7 @@ add_executable(tube_mppi_tests
 target_link_libraries(tube_mppi_tests gtest
         gmock
         gtest_main
-        double_integrator_mppi
+        curand
         ${CUDA_LIBRARIES}
         cnpy
         ${Boost_LIBRARIES})
@@ -57,11 +57,12 @@ set_target_properties(ddp_tests PROPERTIES FOLDER test)
 
 add_executable(rmppi_tests
         ../test_main.cpp
-        rmppi_test.cpp)
+        rmppi_test.cu)
 target_link_libraries(rmppi_tests gtest
         gmock
         gtest_main
-        double_integrator_mppi
+        curand
+        ${CUDA_LIBRARIES}
         cnpy
         ${Boost_LIBRARIES})
 add_test(NAME rmppi_tests COMMAND rmppi_tests)

@@ -37,9 +37,6 @@
 #include <curand.h>
 #include <mppi/controllers/controller.cuh>
 #include <mppi/core/mppi_common.cuh>
-#include <mppi/ddp/ddp_model_wrapper.h>
-#include <mppi/ddp/ddp_tracking_costs.h>
-#include <mppi/ddp/ddp.h>
 
 template <class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
           int BDIM_X = 64, int BDIM_Y = 1>
@@ -139,18 +136,16 @@ public:
 //                       float* exploration_var, float* init_control,
 //                       int num_optimization_iters = 1,
 //                       int opt_stride = 1, cudaStream_t = 0);
-  RobustMPPIController(DYN_T* model, COST_T* cost) {
-    updateNumCandidates(num_candidate_nominal_states);
-  }
+  RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+                       const Eigen::Ref<const control_array>& control_variance,
+                       int num_timesteps,
+                       const Eigen::Ref<const control_trajectory>& init_control_traj,
+                       cudaStream_t stream);
 
   /**
   * @brief Destructor for mppi controller class.
   */
   ~RobustMPPIController();
-
-  void initDDP(const StateCostWeight& q_mat,
-               const Hessian& q_f_mat,
-               const ControlCostWeight& r_mat);
 
 //  void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
 
@@ -207,11 +202,7 @@ protected:
   Eigen::MatrixXf line_search_weights; // At minimum there must be 3 candidates
   Eigen::MatrixXi importance_sampler_strides; // Time index where control trajectory starts for each nominal state candidate
 
-  void setCudaStream(cudaStream_t stream);
-
   void allocateCUDAMemory();
-
-  void deallocateCudaMemory();
 
   void deallocateNominalStateCandidateMemory();
 

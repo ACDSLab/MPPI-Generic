@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
-#include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
+#include <mppi/dynamics/double_integrator/di_dynamics.cuh>
+#include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
+#include <mppi/controllers/MPPI/mppi_controller.cuh>
+#include <mppi/controllers/Tube-MPPI/tube_mppi_controller.cuh>
+#include <mppi/core/mppi_common.cuh>
 #include <cnpy.h>
-#include <mppi/ddp/ddp_model_wrapper.h>
-#include <mppi/ddp/ddp_tracking_costs.h>
-#include <mppi/ddp/ddp.h>
+
 
 bool tubeFailure(float *s) {
   float inner_path_radius2 = 1.675*1.675;

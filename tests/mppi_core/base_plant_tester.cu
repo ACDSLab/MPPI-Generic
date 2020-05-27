@@ -29,7 +29,7 @@ public:
 
   typename CONTROLLER_T::state_trajectory state_seq_;
   typename CONTROLLER_T::control_trajectory control_seq_;
-  typename CONTROLLER_T::feedback_gain_trajectory feedback_gains_;
+  typename CONTROLLER_T::K_matrix feedback_gains_;
   double timestamp_;
   double loop_speed_;
 
@@ -54,7 +54,7 @@ public:
 
   void setSolution(const typename CONTROLLER_T::state_trajectory& state_seq,
                            const typename CONTROLLER_T::control_trajectory& control_seq,
-                           const typename CONTROLLER_T::feedback_gain_trajectory& feedback_gains,
+                           const typename CONTROLLER_T::K_matrix& feedback_gains,
                            double timestamp,
                            double loop_speed) override {
     state_seq_ = state_seq;
