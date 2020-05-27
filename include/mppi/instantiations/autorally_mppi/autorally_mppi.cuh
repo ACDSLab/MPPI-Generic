@@ -12,7 +12,7 @@ const int BLOCKSIZE_X = 8;
 const int BLOCKSIZE_Y = 16;
 const int NUM_TIMESTEPS = 150;
 typedef NeuralNetModel<7,2,3,6,32,32,4> DynamicsModel;
-typedef ARStandardCost<> CostFunction;
+typedef ARStandardCost<> CostFunctionClass;
 // #elif USE_BASIS_FUNC_MODEL__ /*Use the basis function model* */
 // const int MPPI_NUM_ROLLOUTS__ = 2560;
 // const int BLOCKSIZE_X = 16;

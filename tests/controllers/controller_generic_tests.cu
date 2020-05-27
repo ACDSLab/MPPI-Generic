@@ -30,10 +30,6 @@ public:
 
   }
 
-  virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& state) override {
-
-  }
-
   virtual void slideControlSequence(int steps) override {
 
   }
@@ -148,3 +144,81 @@ TEST(Controller, updateControlNoiseVariance) {
   // TODO verify copied to GPU correctly
 }
 
+TEST(Controller, slideControlSequenceHelper) {
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+
+  float dt = 0.1;
+  int max_iter = 1;
+  float gamma = 1.2;
+  MockDynamics::control_array control_var;
+  control_var = MockDynamics::control_array::Constant(1.0);
+
+  // expect double check rebind
+  EXPECT_CALL(mockCost, bindToStream(testing::_)).Times(1);
+  EXPECT_CALL(mockDynamics, bindToStream(testing::_)).Times(1);
+
+  // expect GPU setup called again
+  EXPECT_CALL(mockCost, GPUSetup()).Times(1);
+  EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
+
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController::control_trajectory u;
+  for(int i = 0; i < controller.num_timesteps_; i++) {
+    TestController::control_array control = TestController::control_array::Ones();
+    control = control * i;
+    u.col(i) = control.transpose();
+  }
+
+  controller.slideControlSequenceHelper(1, u);
+  for(int i = 0; i < controller.num_timesteps_; i++) {
+    for(int j = 0; j < MockDynamics::CONTROL_DIM; j++) {
+      int val = std::min(i + 1, controller.num_timesteps_ - 1);
+      EXPECT_FLOAT_EQ(u(j, i), val);
+    }
+  }
+
+  controller.slideControlSequenceHelper(10, u);
+  for(int i = 0; i < controller.num_timesteps_; i++) {
+    for(int j = 0; j < MockDynamics::CONTROL_DIM; j++) {
+      int val = std::min(i + 11, controller.num_timesteps_ - 1);
+      EXPECT_FLOAT_EQ(u(j, i), val);
+    }
+  }
+}
+
+TEST(Controller, computeStateTrajectoryHelper) {
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+
+  float dt = 0.1;
+  int max_iter = 1;
+  float gamma = 1.2;
+  MockDynamics::control_array control_var;
+  control_var = MockDynamics::control_array::Constant(1.0);
+
+  // expect double check rebind
+  EXPECT_CALL(mockCost, bindToStream(testing::_)).Times(1);
+  EXPECT_CALL(mockDynamics, bindToStream(testing::_)).Times(1);
+
+  // expect GPU setup called again
+  EXPECT_CALL(mockCost, GPUSetup()).Times(1);
+  EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
+
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+
+  TestController::state_array x = TestController::state_array::Ones();
+  TestController::state_array xdot = TestController::state_array::Ones();
+  EXPECT_CALL(mockDynamics, computeStateDeriv(testing::_, testing::_, testing::_)).Times(controller.num_timesteps_ - 1);
+  EXPECT_CALL(mockDynamics, updateState(testing::_, testing::_, dt)).Times(controller.num_timesteps_ - 1);
+  
+  TestController::state_trajectory result = TestController::state_trajectory::Ones();
+  TestController::control_trajectory u = TestController::control_trajectory::Zero();
+  controller.computeStateTrajectoryHelper(result, x, u);
+
+  for(int i = 0; i < controller.num_timesteps_; i++) {
+    for(int j = 0; j < MockDynamics::STATE_DIM; j++){
+      EXPECT_FLOAT_EQ(result(j, i), 1.0);
+    }
+  }
+}

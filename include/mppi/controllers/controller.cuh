@@ -13,11 +13,15 @@
 
 #include <mppi/core/mppi_common.cuh>
 
+#include <mppi/ddp/ddp_model_wrapper.h>
+#include <mppi/ddp/ddp_tracking_costs.h>
+#include <mppi/ddp/ddp.h>
+
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 class Controller {
 public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  //EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /**
    * typedefs for access to templated class from outside classes
@@ -48,6 +52,12 @@ public:
 //  typedef std::array<float, MAX_TIMESTEPS> cost_trajectory; // A cost trajectory
 //  typedef std::array<float, NUM_ROLLOUTS> sampled_cost_traj; // All costs sampled for all rollouts
 
+  // tracking controller typedefs
+  using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
+  using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
+  using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
+  using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
+
   Controller(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
           const Eigen::Ref<const control_array>& control_variance,
           int num_timesteps = MAX_TIMESTEPS,
@@ -77,6 +87,7 @@ public:
      * When implementing your own version make sure to write your own allocateCUDAMemroy and call it from the constructor
      * along with any other methods to copy memory to the device and back
      */
+     // TODO pass function pointer?
   }
 
   // TODO should be private with test as a friend to ensure it is only used in testing
@@ -106,12 +117,8 @@ public:
   virtual void computeControl(const Eigen::Ref<const state_array>& state) = 0;
 
   /**
-   * Calculate new feedback gains
-   */
-  virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& state) = 0;
-
-  /**
-   * Slide the control sequence back
+   * @param steps dt's to slide control sequence forward
+   * Slide the control sequence forwards steps steps
    */
   virtual void slideControlSequence(int steps) = 0;
 
@@ -150,35 +157,116 @@ public:
   /**
    * Return control feedback gains
    */
- virtual K_matrix getFeedbackGains() {
-     K_matrix empty_feedback_gain;
-     return empty_feedback_gain;
- };
+  virtual K_matrix getFeedbackGains() {
+    if(enable_feedback_) {
+      return result_.feedback_gain;
+    } else {
+      return K_matrix();
+    }
+  };
 
   control_array getControlVariance() { return control_variance_;};
 
   float getBaselineCost() {return baseline_;};
   float getNormalizerCost() {return normalizer_;};
 
-  /**
-   * return the entire sample of control sequences
-   */
-//  virtual sampled_control_traj getSampledControlSeq() {
-//    return sampled_control_traj();
-//  };
+  // TODO is this what we want?
+  state_trajectory getAncillaryStateSeq() {return result_.state_trajectory;};
 
-  /**
-   * Return all the sampled states sequences
-   */
-//  virtual sampled_state_traj getSampledStateSeq() {
-//    return sampled_state_traj();
-//  };
+  virtual void initDDP(const StateCostWeight& q_mat,
+                         const Hessian& q_f_mat,
+                         const ControlCostWeight& r_mat) {
+    enable_feedback_ = true;
 
+    util::DefaultLogger logger;
+    bool verbose = false;
+    ddp_model_  = std::make_shared<ModelWrapperDDP<DYN_T>>(model_);
+    ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DYN_T>>>(dt_,
+            num_timesteps_, 1, &logger, verbose);
+    Q_ = q_mat;
+    Qf_ = q_f_mat;
+    R_ = r_mat;
+
+    for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
+      control_min_(i) = model_->control_rngs_[i].x;
+      control_max_(i) = model_->control_rngs_[i].y;
+    }
+
+    run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(Q_,
+            R_, num_timesteps_);
+    terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(Qf_);
+  }
+
+  virtual void computeFeedbackGains(const state_array& state) {
+    if(!enable_feedback_) {
+      return;
+    }
+
+    run_cost_->setTargets(getStateSeq().data(), getControlSeq().data(),
+                          num_timesteps_);
+
+    terminal_cost_->xf = run_cost_->traj_target_x_.col(num_timesteps_ - 1);
+    result_ = ddp_solver_->run(state, control_,
+                               *ddp_model_, *run_cost_, *terminal_cost_,
+                               control_min_, control_max_);
+  }
+
+  void smoothControlTrajectoryHelper(control_trajectory& u) {
+    // TODO generalize to any size filter
+    // TODO does the logic of handling control history reasonable?
+
+    // Create the filter coefficients
+    Eigen::Matrix<float, 1, 5> filter_coefficients;
+    filter_coefficients << -3, 12, 17, 12, -3;
+    filter_coefficients /= 35.0;
+
+    // Create and fill a control buffer that we can apply the convolution filter
+    Eigen::Matrix<float, MAX_TIMESTEPS+4, DYN_T::CONTROL_DIM> control_buffer;
+
+    // Fill the first two timesteps with the control history
+    control_buffer.topRows(2) = control_history_;
+
+    // Fill the center timesteps with the current nominal trajectory
+    control_buffer.middleRows(2, MAX_TIMESTEPS) = u.transpose();
+
+    // Fill the last two timesteps with the end of the current nominal control trajectory
+    control_buffer.row(MAX_TIMESTEPS+2) = u.transpose().row(MAX_TIMESTEPS-1);
+    control_buffer.row(MAX_TIMESTEPS+3) = u.transpose().row(MAX_TIMESTEPS-1);
+
+    // Apply convolutional filter to each timestep
+    for (int i = 0; i < MAX_TIMESTEPS; ++i) {
+      u.col(i) = (filter_coefficients*control_buffer.middleRows(i,5)).transpose();
+    }
+  }
+
+  virtual void slideControlSequenceHelper(int steps, control_trajectory& u) {
+    for (int i = 0; i < num_timesteps_; ++i) {
+      for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
+        int ind = std::min(i + steps, num_timesteps_ - 1);
+        u(j,i) = u(j, ind);
+      }
+    }
+  }
 
   /**
    * Reset Controls
    */
-  virtual void resetControls() {};
+  virtual void resetControls() {
+    // TODO
+  };
+
+  virtual void computeStateTrajectoryHelper(state_trajectory& result, const Eigen::Ref<const state_array>& x0,
+          const control_trajectory& u) {
+    result.col(0) = x0;
+    state_array xdot;
+    state_array state;
+    for (int i =0; i < num_timesteps_ - 1; ++i) {
+      state = result.col(i);
+      model_->computeStateDeriv(state, u.col(i), xdot);
+      model_->updateState(state, xdot, dt_);
+      result.col(i+1) = state;
+    }
+  }
 
   void setNumTimesteps(int num_timesteps) {
     // TODO fix the tracking controller as well
@@ -200,6 +288,10 @@ public:
     copyControlVarianceToDevice();
   }
 
+  void setFeedbackController(bool enable_feedback) {
+    enable_feedback_ = enable_feedback;
+  }
+
   /**
    * Public data members
    */
@@ -217,6 +309,7 @@ protected:
     cudaFree(control_noise_d_);
   };
 
+  // TODO get raw pointers for different things
 
   int num_iters_;  // Number of optimization iterations
   float dt_;
@@ -243,6 +336,23 @@ protected:
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
+
+  // tracking controller variables
+  StateCostWeight Q_;
+  Hessian Qf_;
+  ControlCostWeight R_;
+  bool enable_feedback_ = false;
+
+  std::shared_ptr<ModelWrapperDDP<DYN_T>> ddp_model_;
+  std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
+  std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
+  std::shared_ptr<DDP<ModelWrapperDDP<DYN_T>>> ddp_solver_;
+
+  // for DDP
+  control_array control_min_;
+  control_array control_max_;
+
+  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
 
   void copyControlVarianceToDevice() {
     HANDLE_ERROR(cudaMemcpyAsync(control_variance_d_, control_variance_.data(), sizeof(float)*control_variance_.size(), cudaMemcpyHostToDevice, stream_));

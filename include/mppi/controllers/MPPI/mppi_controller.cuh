@@ -77,8 +77,6 @@ public:
    */
   void slideControlSequence(int steps) override;
 
-  void computeFeedbackGains(const Eigen::Ref<const state_array>& state) {/* TODO */};
-
 protected:
 
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
