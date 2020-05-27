@@ -13,43 +13,9 @@
 
 #include <mppi/core/base_plant.hpp>
 #include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
-
-
-// ===== mock cost ====
-typedef struct {
-  int test = 1;
-} mockCostParams;
-
-class MockCost : public Cost<MockCost, mockCostParams, 1, 1> {
-public:
-  MOCK_METHOD1(bindToStream, void(cudaStream_t stream));
-  MOCK_METHOD0(getDebugDisplayEnabled, bool());
-  MOCK_METHOD1(getDebugDisplay, cv::Mat(float* array));
-  MOCK_METHOD1(setParams, void(mockCostParams params));
-  MOCK_METHOD2(updateCostmap, void(std::vector<int> desc, std::vector<float> data));
-};
-
-// ===== mock dynamics ====
-typedef struct {
-  int test = 2;
-} mockDynamicsParams;
-
-class MockDynamics : public Dynamics<MockDynamics, mockDynamicsParams, 1, 1> {
-public:
-  MOCK_METHOD1(setParams, void(mockDynamicsParams params));
-};
-
-// ===== mock controller ====
-class MockController : public Controller<MockDynamics, MockCost, 100, 500, 32, 2> {
-public:
-  MOCK_METHOD0(resetControls, void());
-  MOCK_METHOD1(computeFeedbackGains, void(const Eigen::Ref<const state_array>& state));
-  MOCK_METHOD1(slideControlSequence, void(int stride));
-  MOCK_METHOD1(computeControl, void(const Eigen::Ref<const state_array>& state));
-  MOCK_METHOD0(getControlSeq, control_trajectory());
-  MOCK_METHOD0(getStateSeq, state_trajectory());
-  MOCK_METHOD0(getFeedbackGains, feedback_gain_trajectory());
-};
+#include <mppi_test/mock_classes/mock_dynamics.h>
+#include <mppi_test/mock_classes/mock_controller.h>
+#include <mppi_test/mock_classes/mock_costs.h>
 
 template <class CONTROLLER_T>
 class TestPlant : public BasePlant<CONTROLLER_T> {

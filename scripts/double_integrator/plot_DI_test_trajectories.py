@@ -52,7 +52,7 @@ def main(args):
     plot_trajectories(axs[1,0], 'Vanilla MPPI Large Disturbance + Tracking', vanilla_large_track)
 
     # Tube MPPI with large noise
-    tube_large = np.load(data_dir + 'tube_large.npy')
+    tube_large = np.load(data_dir + 'tube_large_actual.npy')
     plot_trajectories(axs[1,1], 'Tube MPPI Large Disturbance', tube_large)
 
     # # Tube MPPI ancillary trajectories

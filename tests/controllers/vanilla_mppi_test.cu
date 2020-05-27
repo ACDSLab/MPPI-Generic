@@ -23,8 +23,8 @@ TEST_F(Cartpole_VanillaMPPI, BindToStream) {
 
   HANDLE_ERROR(cudaStreamCreate(&stream));
 
-  auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
-                                                                                                                               dt, max_iter, gamma, num_timesteps, control_var, init_control, stream);
+  auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>
+          (&model, &cost, dt, max_iter, gamma, control_var, num_timesteps, init_control, stream);
 
   EXPECT_EQ(CartpoleController->stream_, CartpoleController->model_->stream_)
                       << "Stream bind to dynamics failure";
@@ -42,7 +42,7 @@ TEST_F(Cartpole_VanillaMPPI, UpdateNoiseVariance) {
   CartpoleDynamics::control_array new_control_var = CartpoleDynamics::control_array::Constant(3.5);
 
   auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
-                                                                                                                                 dt, max_iter, gamma, num_timesteps, control_var);
+          dt, max_iter, gamma, control_var);
   std::cout << sizeof(*CartpoleController) << std::endl;
 
   std::cout << CartpoleController->getControlVariance() << std::endl;
@@ -73,12 +73,11 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
   float dt = 0.01;
   int max_iter = 1;
   float gamma = 0.25;
-  int num_timesteps = 100;
 
   CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
 
   auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
-                                                                                                     dt, max_iter, gamma, num_timesteps, control_var);
+                                                                                                     dt, max_iter, gamma, control_var);
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
   int time_horizon = 1000;
 
@@ -111,10 +110,9 @@ TEST_F(Cartpole_VanillaMPPI, ConstructWithNew) {
   float dt = 0.01;
   int max_iter = 1;
   float gamma = 0.25;
-  int num_timesteps = 100;
   CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
   auto controller = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
-                                                                                                     dt, max_iter, gamma, num_timesteps, control_var);
+                                                                                                     dt, max_iter, gamma, control_var);
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
 

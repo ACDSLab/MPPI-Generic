@@ -147,7 +147,7 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
   CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
 
   auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, 2048, 64, 8>(&model, &cost,
-                                                                                                     dt, max_iter, gamma, num_timesteps, control_var);
+                                                                                                     dt, max_iter, gamma, control_var);
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
   // Compute the control
   controller.computeControl(current_state);

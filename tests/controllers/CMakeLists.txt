@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(vanilla_mppi_tests
                ../test_main.cpp
-               vanilla_mppi_test.cpp)
+        vanilla_mppi_test.cu)
 
 target_link_libraries(vanilla_mppi_tests gtest
                       gmock
@@ -15,14 +15,29 @@ target_link_libraries(vanilla_mppi_tests gtest
 add_test(NAME vanilla_mppi_tests COMMAND vanilla_mppi_tests)
 set_target_properties(vanilla_mppi_tests PROPERTIES FOLDER test)
 
+add_executable(controller_generic_tests
+        ../test_main.cpp
+        controller_generic_tests.cu)
+
+target_link_libraries(controller_generic_tests gtest
+        gmock
+        gtest_main
+        ${CUDA_LIBRARIES}
+        ${OpenCV_LIBRARIES}
+        curand
+        cnpy)
+add_test(NAME controller_generic_tests COMMAND controller_generic_tests)
+set_target_properties(controller_generic_tests PROPERTIES FOLDER test)
+
 
 add_executable(tube_mppi_tests
         ../test_main.cpp
-        tube_mppi_test.cpp)
+        tube_mppi_test.cu)
 target_link_libraries(tube_mppi_tests gtest
         gmock
         gtest_main
         double_integrator_mppi
+        ${CUDA_LIBRARIES}
         cnpy
         ${Boost_LIBRARIES})
 add_test(NAME tube_mppi_tests COMMAND tube_mppi_tests)
@@ -51,3 +66,4 @@ target_link_libraries(rmppi_tests gtest
         ${Boost_LIBRARIES})
 add_test(NAME rmppi_tests COMMAND rmppi_tests)
 set_target_properties(rmppi_tests PROPERTIES FOLDER test)
+

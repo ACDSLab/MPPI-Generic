@@ -2,6 +2,9 @@
 include_directories(${PROJECT_SOURCE_DIR}/kernel_tests/
         ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
+#include test utils
+include_directories(include)
+
 add_subdirectory(dynamics)
 add_subdirectory(cost_functions)
 add_subdirectory(mppi_core)
