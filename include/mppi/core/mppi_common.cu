@@ -373,17 +373,6 @@ namespace rmppi_kernels {
     int condition_idx = global_idx / SAMPLES_PER_CONDITION; // Set the index for our candidate
     int stride = strides_d[condition_idx];  // Each candidate can have a different starting stride
 
-//    if (global_idx == 0 && tdy == 0) {
-//      printf("Current condition idx: [%i]\n", condition_idx);
-//      printf("Current stride: [%i]\n", stride);
-//    }
-//    if (global_idx == 0 && tdy == 0) {
-//      for (i = 0; i < num_timesteps; ++i) {
-//        printf("Global control %i: [%f, %f]\n", i, control_d[2*i], control_d[2*i+1]);
-//      }
-//    }
-
-
     // Get the pointer that belongs to the current thread with respect to the shared arrays
     state = &state_shared[tdx*DYN_T::STATE_DIM];
     state_der = &state_der_shared[tdx*DYN_T::STATE_DIM];
@@ -410,16 +399,10 @@ namespace rmppi_kernels {
       for (j = tdy; j < DYN_T::CONTROL_DIM; j += blockDim.y) {
         if ((i + stride) >= num_timesteps) {  // Pad the end of the controls with the last control
           control[j] = control_d[(num_timesteps-1)*DYN_T::CONTROL_DIM + j];
-//          if (global_idx == 0) {
-//            printf("Current index: [%i]\n", (num_timesteps-1) * DYN_T::CONTROL_DIM + j);
-//            printf("Current control: [%f]\n", control_d[(num_timesteps-1) * DYN_T::CONTROL_DIM + j]);
-//          }
+
         } else {
           control[j] = control_d[(i + stride)*DYN_T::CONTROL_DIM + j];
-//          if (global_idx == 0) {
-//            printf("Current index: [%i]\n", (i + stride) * DYN_T::CONTROL_DIM + j);
-//            printf("Current control: [%f]\n", control_d[(i + stride) * DYN_T::CONTROL_DIM + j]);
-//          }
+
         }
 
         // First rollout is noise free
@@ -435,17 +418,6 @@ namespace rmppi_kernels {
       } // End inject control noise
 
       __syncthreads();
-//      if (global_idx == 0 && tdy == 0) {
-//        printf("Current local: [%f, %f]\n", control[0], control[1]);
-//        printf("Current global: [%f, %f]\n", control_d[(i + stride) * DYN_T::CONTROL_DIM],
-//               control_d[(i + stride) * DYN_T::CONTROL_DIM + 1]);
-//      }
-
-//      if (global_idx == 65 && tdy == 0) {
-//        printf("Current state: [%f, %f, %f, %f]\n", state[0], state[1], state[2], state[3]);
-//        printf("Current control: [%f, %f]\n", control[0], control[1]);
-//        printf("Current noise: [%f, %f]\n", control_noise[0], control_noise[1]);
-//      }
 
       dynamics->enforceConstraints(state, control);
       __syncthreads();
