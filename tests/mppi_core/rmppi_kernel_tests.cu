@@ -244,7 +244,7 @@ TEST(RMPPITest, CPURolloutKernel) {
   u_traj[15] = 0.5;
 
   // TODO: Generate feedback gain trajectories
-  VanillaMPPIController<DYN, COST, 100, 512, 64, 8>::K_matrix feedback_gains;
+  VanillaMPPIController<DYN, COST, 100, 512, 64, 8>::feedback_gain_trajectory feedback_gains;
   for (int i = 0; i < num_timesteps; i++) {
     feedback_gains.push_back(DYN::feedback_matrix::Constant(-15));
   }

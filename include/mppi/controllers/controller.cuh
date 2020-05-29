@@ -39,7 +39,7 @@ public:
   using control_array = typename DYN_T::control_array;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, MAX_TIMESTEPS> control_trajectory; // A control trajectory
 //  typedef util::NamedEigenAlignedVector<control_trajectory> sampled_control_traj;
-  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> K_matrix;
+  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
 
   // State typedefs
   using state_array = typename DYN_T::state_array;
@@ -157,11 +157,11 @@ public:
   /**
    * Return control feedback gains
    */
-  virtual K_matrix getFeedbackGains() {
+  virtual feedback_gain_trajectory getFeedbackGains() {
     if(enable_feedback_) {
       return result_.feedback_gain;
     } else {
-      return K_matrix();
+      return feedback_gain_trajectory();
     }
   };
 
