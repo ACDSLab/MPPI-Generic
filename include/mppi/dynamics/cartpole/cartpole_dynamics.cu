@@ -9,7 +9,7 @@ CartpoleDynamics::~CartpoleDynamics() {
 }
 
 
-void CartpoleDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
+bool CartpoleDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
                                    const Eigen::Ref<const control_array>& control,
                                    Eigen::Ref<dfdx> A,
                                    Eigen::Ref<dfdu> B) {
@@ -28,6 +28,7 @@ void CartpoleDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
 
   B(1,0) = 1/(this->params_.cart_mass+this->params_.pole_mass*powf(theta,2.0));
   B(3,0) = -cosf(theta)/(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)));
+  return true;
 }
 
 void CartpoleDynamics::computeDynamics(const Eigen::Ref<const state_array> &state,

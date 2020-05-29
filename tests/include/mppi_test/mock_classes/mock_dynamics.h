@@ -31,7 +31,7 @@ public:
           Eigen::Ref<state_array>));
   MOCK_METHOD3(updateState, void(Eigen::Ref<state_array>, Eigen::Ref<state_array>, float));
   MOCK_METHOD2(enforceConstraints, void(Eigen::Ref<state_array>, Eigen::Ref<control_array>));
-  MOCK_METHOD4(computeGrad, void(const Eigen::Ref<const state_array>&,
+  MOCK_METHOD4(computeGrad, bool(const Eigen::Ref<const state_array>&,
           const Eigen::Ref<const control_array>,
                   Eigen::Ref<dfdx>,
                   Eigen::Ref<dfdu>));

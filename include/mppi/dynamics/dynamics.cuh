@@ -156,11 +156,10 @@ public:
    * @param A       output Jacobian wrt state, passed by reference
    * @param B       output Jacobian wrt control, passed by reference
    */
-  void computeGrad(const Eigen::Ref<const state_array>& state,
-                   const Eigen::Ref<const control_array>& control,
-                   Eigen::Ref<dfdx> A,
-                   Eigen::Ref<dfdu> B);
-
+  bool computeGrad(const Eigen::Ref<const state_array>& state = state_array(),
+                   const Eigen::Ref<const control_array>& control = control_array(),
+                   Eigen::Ref<dfdx> A = dfdx(),
+                   Eigen::Ref<dfdu> B = dfdu()) {return false;}
   /**
    * enforces control constraints
    * @param state

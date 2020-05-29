@@ -15,15 +15,17 @@ struct HasAnalyticGrad
 };
 
 template<typename T>
-bool getGrad(T* model, typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Jacobian &jac,
+bool getGrad(T* model,
+             typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Jacobian &jac,
              typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::State &x,
-             typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Control &u, std::true_type)
+             typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Control &u,
+             std::true_type)
 {
     // T::dfdx A;
     // T::dfdu B;
   Eigen::Matrix<float, T::STATE_DIM, T::STATE_DIM> A = Eigen::Matrix<float, T::STATE_DIM, T::STATE_DIM>::Zero();
   Eigen::Matrix<float, T::STATE_DIM, T::CONTROL_DIM> B = Eigen::Matrix<float, T::STATE_DIM, T::CONTROL_DIM>::Zero();
-  model->computeGrad(x, u, A, B);
+  bool exists = model->computeGrad(x, u, A, B);
   jac.block(0,0, T::STATE_DIM, T::STATE_DIM) = A;
   jac.block(0, T::STATE_DIM, T::STATE_DIM, T::CONTROL_DIM) = B;
   // for (int i = 0; i < T::STATE_DIM; i++){
@@ -31,13 +33,15 @@ bool getGrad(T* model, typename DDP_structures::Dynamics<float, T::STATE_DIM, T:
   //         jac(i,j) = A(i,j);
   //     }
   // }
-    return true;
+    return exists;
 }
 
 template<typename T>
-bool getGrad(T* model, typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Jacobian &jac,
+bool getGrad(T* model,
+             typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Jacobian &jac,
              typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::State &x,
-             typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Control &u, std::false_type)
+             typename DDP_structures::Dynamics<float, T::STATE_DIM, T::CONTROL_DIM>::Control &u,
+             std::false_type)
 {
     return false;
 }
