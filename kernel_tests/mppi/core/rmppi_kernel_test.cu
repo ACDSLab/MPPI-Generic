@@ -223,26 +223,6 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       model->computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
       model->computeStateDeriv(x_t_act, u_act, x_dot_t_act);
 
-      // if (t == 10 && traj_i == 0) {
-      //   // std::cout << "Final u CPU at time " << t << ", rollout "
-      //   //           << traj_i << ":\n" << u_act << std::endl;
-      //   printf("Final u CPU at t = %d, rollout %d\n", t, traj_i);
-      //   for (int i = 0; i < control_dim; i++) {
-      //     printf("%f\n", u_nom(i));
-      //   }
-      //   std::cout << "x CPU:\n" << x_t_nom << std::endl;
-      //   printf("State Cost CPU: %f\n", costs->computeStateCost(x_t_nom));
-      //   printf("Control Cost: %f\n", costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda));
-      //   printf("Cumulative Total Cost at time %d: %f\n", t, running_state_cost_real + running_control_cost_real);
-      //   // printf("Cumulative Total Cost added together at time %d: %f\n", t, total_cost_real);
-      //   std::cout << "x_dot CPU:\n" << x_dot_t_nom << std::endl;
-      //   // std::cout << "Control Range CPU:\n";
-      //   // for(int i = 0; i < control_dim; i++) {
-      //   //   printf("%f, %f\n", model->control_rngs_[i].x, model->control_rngs_[i].y);
-      //   // }
-      //   // std::cout << std::endl;
-      // }
-
       model->updateState(x_t_act, x_dot_t_act, dt);
       model->updateState(x_t_nom, x_dot_t_nom, dt);
     }
@@ -269,10 +249,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       }
       cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda);
     }
-    // if (traj_i == 0) {
-    //   printf("Nominal Cost CPU at rollout %d: %f\n", traj_i, cost_nom);
-    //   printf("Nominal control cost GPU at rollout %d: %f\n", traj_i, cost_nom_control);
-    // }
+
     cost_nom += cost_nom_control;
     trajectory_costs_nom[traj_i] = cost_nom;
     trajectory_costs_act[traj_i] = running_state_cost_real + running_control_cost_real;

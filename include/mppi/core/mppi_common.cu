@@ -601,37 +601,6 @@ namespace rmppi_kernels {
         // dynamics update
         dynamics->computeStateDeriv(x, u, xdot, theta_s);
         __syncthreads();
-
-        // if (t == 10 && global_idx == 0 && thread_idz == 1 && thread_idy == 0) {
-        //   printf("Final u GPU at t = %d, rollout %d\n", t, global_idx);
-        //   for (i = 0; i < DYN_T::CONTROL_DIM; i++){
-        //     printf("%d: %10.7f\n", i, u[i]);
-        //   }
-        //   printf("GPU  x at time %d\n", t);
-        //   for (i = 0; i < DYN_T::STATE_DIM; i++){
-        //     printf("%d: %f\n", i, x[i]);
-        //   }
-        //   printf("State Cost: %f\n", curr_state_cost);
-        //   printf("Control Cost: %f\n", costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda));
-        //   // printf("Cumulavtive State Cost at time %d: %f\n", t, running_state_cost_real);
-        //   // printf("Cumulative Control Cost at time %d: %f\n", t, running_control_cost_real);
-        //   // printf("Cumulative Total Cost at time %d: %f\n", t, running_control_cost_real + running_state_cost_real);
-        //   // printf("Cumulative Total Cost added together at time %d: %f\n", t, running_cost_real);
-        //   printf("GPU  xdot at time %d\n", t);
-        //   for (i = 0; i < DYN_T::STATE_DIM; i++){
-        //     printf("%d: %f\n", i, xdot[i]);
-        //   }
-        //   // printf("Control Range GPU:\n");
-        //   // for(int i = 0; i < DYN_T::CONTROL_DIM; i++) {
-        //   //   printf("%f, %f\n", dynamics->control_rngs_[i].x, dynamics->control_rngs_[i].y);
-        //   // }
-        // }
-        // __syncthreads();
-        // if (t == 10 && global_idx == 0 && thread_idz == 0 && thread_idy == 0) {
-        //   // printf("Cumulavtive State Cost at time %d: %f\n", t, running_state_cost_real);
-        //   // printf("Cumulative Control Cost at time %d: %f\n", t, running_control_cost_real);
-        //   printf("Cumulative Total Cost at time %d: %f\n", t, running_control_cost_real + running_state_cost_real);
-        // }
         __syncthreads();
         dynamics->updateState(x, xdot, dt);
         __syncthreads();
@@ -653,10 +622,6 @@ namespace rmppi_kernels {
           fmaxf(fminf(running_tracking_cost_real, value_func_threshold),
                 *running_state_cost_nom);
 
-        // if (global_idx == 0 && thread_idy == 0) {
-        //   printf("Nominal Cost GPU at rollout %d: %f\n", global_idx, running_cost_nom);
-        //   printf("Nominal control cost GPU at rollout %d: %f\n", global_idx, *running_control_cost_nom);
-        // }
         running_cost_nom += *running_control_cost_nom;
 
         // Copy costs over to global memory
