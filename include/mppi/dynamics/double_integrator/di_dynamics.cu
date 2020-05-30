@@ -55,10 +55,8 @@ __device__ void DoubleIntegratorDynamics::computeDynamics(float* state, float* c
 
 void DoubleIntegratorDynamics::computeStateDisturbance(float dt, Eigen::Ref<state_array> state)
 {
-  // TODO fix compiler warning about host function call
   // Generate system noise
-  state_array system_noise = state_array::NullaryExpr([&]() { return normal_distribution(gen); });
-  system_noise(0) = 0.0;
-  system_noise(1) = 0.0;
+  state_array system_noise;
+  system_noise << 0.0, 0.0, normal_distribution(gen), normal_distribution(gen);
   state += system_noise*dt;
 }
