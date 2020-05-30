@@ -26,7 +26,7 @@ bool CartpoleDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
   +(2*this->params_.pole_mass*cosf(theta)*sinf(theta)*(this->params_.pole_length*this->params_.pole_mass*cosf(theta)*sinf(theta)*powf(theta_dot,2.0)+force*cosf(theta)+gravity_*sinf(theta)*(this->params_.pole_mass+this->params_.cart_mass)))/powf(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)),2.0);
   A(3,3) = -(2*this->params_.pole_mass*theta_dot*cosf(theta)*sinf(theta))/(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0));
 
-  B(1,0) = 1/(this->params_.cart_mass+this->params_.pole_mass*powf(sin(theta),2.0));
+  B(1,0) = 1/(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0));
   B(3,0) = -cosf(theta)/(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)));
   return true;
 }
