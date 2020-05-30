@@ -26,7 +26,7 @@ void CartpoleDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
   +(2*this->params_.pole_mass*cosf(theta)*sinf(theta)*(this->params_.pole_length*this->params_.pole_mass*cosf(theta)*sinf(theta)*powf(theta_dot,2.0)+force*cosf(theta)+gravity_*sinf(theta)*(this->params_.pole_mass+this->params_.cart_mass)))/powf(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)),2.0);
   A(3,3) = -(2*this->params_.pole_mass*theta_dot*cosf(theta)*sinf(theta))/(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0));
 
-  B(1,0) = 1/(this->params_.cart_mass+this->params_.pole_mass*powf(theta,2.0));
+  B(1,0) = 1/(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0));
   B(3,0) = -cosf(theta)/(this->params_.pole_length*(this->params_.cart_mass+this->params_.pole_mass*powf(sinf(theta),2.0)));
 }
 
@@ -82,6 +82,6 @@ __device__ void CartpoleDynamics::computeDynamics(float* state, float* control,
   state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity_*sinf(theta));
 }
 
-//void CartpoleDynamics::computeStateDeriv(const state_array &state, const control_array &control, state_array &state_der) {
-//  computeDynamics(state, control, state_der);
-//}
+void CartpoleDynamics::computeStateDeriv(const state_array &state, const control_array &control, state_array &state_der) {
+  computeDynamics(state, control, state_der);
+}
