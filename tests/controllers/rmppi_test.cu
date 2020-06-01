@@ -58,10 +58,15 @@ class TestRobust: public RobustMPPIController<
     return importance_sampler_strides;
   }
 
+  float getComputeCandidateBaseline(const Eigen::Ref<const Eigen::MatrixXf>& traj_costs_in) {
+    trajectory_costs = traj_costs_in;
+    return computeCandidateBaseline();
+  }
+
  };
 
 // Text fixture for nominal state selection
-class RMPPINominalStateSelection : public ::testing::Test {
+class RMPPINominalStateCandidates : public ::testing::Test {
 public:
   using dynamics = DoubleIntegratorDynamics;
   using cost_function = DoubleIntegratorCircleCost;
@@ -88,22 +93,22 @@ protected:
   float gamma = 0.5;
 };
 
-TEST_F(RMPPINominalStateSelection, UpdateNumCandidates_LessThan3) {
+TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_LessThan3) {
   ::testing::FLAGS_gtest_death_test_style = "threadsafe";
   ASSERT_DEATH(test_controller->updateCandidates(1) , "ERROR: number of candidates must be greater or equal to 3\n");
 }
 
-TEST_F(RMPPINominalStateSelection, UpdateNumCandidates_Negative) {
+TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_Negative) {
   ::testing::FLAGS_gtest_death_test_style = "threadsafe";
   ASSERT_DEATH(test_controller->updateCandidates(-1) , "ERROR: number of candidates must be greater or equal to 3\n");
 }
 
-TEST_F(RMPPINominalStateSelection, UpdateNumCandidates_Even) {
+TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_Even) {
   ::testing::FLAGS_gtest_death_test_style = "threadsafe";
   ASSERT_DEATH(test_controller->updateCandidates(4) , "ERROR: number of candidates must be odd\n");
 }
 
-TEST_F(RMPPINominalStateSelection, CandidateVectorSizeNonzero) {
+TEST_F(RMPPINominalStateCandidates, CandidateVectorSizeNonzero) {
   dynamics::state_array x_star_k, x_star_kp1, x_kp1;
   x_star_k << -4 , 0, 0, 0;
   x_star_kp1 << 4, 0, 0, 0;
@@ -112,16 +117,16 @@ TEST_F(RMPPINominalStateSelection, CandidateVectorSizeNonzero) {
   ASSERT_TRUE(candidates.size() > 0);
 }
 
-TEST_F(RMPPINominalStateSelection, CudaMemoryInitialized) {
+TEST_F(RMPPINominalStateCandidates, CudaMemoryInitialized) {
   ASSERT_TRUE(test_controller->getCudaMemStatus());
 }
 
-TEST_F(RMPPINominalStateSelection, CudaMemoryRemoved) {
+TEST_F(RMPPINominalStateCandidates, CudaMemoryRemoved) {
   test_controller->deallocateNSCMemory();
   ASSERT_FALSE(test_controller->getCudaMemStatus());
 }
 
-TEST_F(RMPPINominalStateSelection, CudaMemoryReset) {
+TEST_F(RMPPINominalStateCandidates, CudaMemoryReset) {
   test_controller->deallocateNSCMemory(); // Remove memory
   ASSERT_FALSE(test_controller->getCudaMemStatus());
   test_controller->resetNSCMemory(); // Should allocate
@@ -130,7 +135,7 @@ TEST_F(RMPPINominalStateSelection, CudaMemoryReset) {
   ASSERT_TRUE(test_controller->getCudaMemStatus());
 }
 
-TEST_F(RMPPINominalStateSelection, LineSearchWeights_9) {
+TEST_F(RMPPINominalStateCandidates, LineSearchWeights_9) {
   test_controller->updateCandidates(9);
   auto controller_weights = test_controller->getWeights();
   Eigen::MatrixXf known_weights(3,9);
@@ -144,7 +149,7 @@ TEST_F(RMPPINominalStateSelection, LineSearchWeights_9) {
   << "Known Weights: \n" << known_weights << "\nComputed Weights: \n" << controller_weights;
 }
 
-TEST_F(RMPPINominalStateSelection, ImportanceSampler_Stride_2) {
+TEST_F(RMPPINominalStateCandidates, ImportanceSampler_Stride_2) {
   int stride = 2;
   test_controller->updateCandidates(9);
   Eigen::MatrixXi known_stride(1,9);
@@ -154,7 +159,7 @@ TEST_F(RMPPINominalStateSelection, ImportanceSampler_Stride_2) {
     << "Known Stride: \n" << known_stride << "\nComputed Stride: \n" << compute_stride;
 }
 
-TEST_F(RMPPINominalStateSelection, ImportanceSampler_Stride_4) {
+TEST_F(RMPPINominalStateCandidates, ImportanceSampler_Stride_4) {
   int stride = 4;
   test_controller->updateCandidates(9);
   Eigen::MatrixXi known_stride(1,9);
@@ -164,7 +169,7 @@ TEST_F(RMPPINominalStateSelection, ImportanceSampler_Stride_4) {
                         << "Known Stride: \n" << known_stride << "\nComputed Stride: \n" << compute_stride;
 }
 
-TEST_F(RMPPINominalStateSelection, InitEvalSelection_Weights) {
+TEST_F(RMPPINominalStateCandidates, InitEvalSelection_Weights) {
   /*
    * This test will ensure that the line search process to select the
    * number of points for free energy evaluation is correct.
@@ -193,4 +198,54 @@ TEST_F(RMPPINominalStateSelection, InitEvalSelection_Weights) {
 
 }
 
+class RMPPINominalStateSelection : public ::testing::Test {
+public:
+  using dynamics = DoubleIntegratorDynamics;
+  using cost_function = DoubleIntegratorCircleCost;
+  int num_samples = 64;
+  int num_candidates = 9;
+  Eigen::MatrixXf trajectory_costs;
+protected:
+  void SetUp() override {
+    model = new dynamics(10);  // Initialize the double integrator dynamics
+    cost = new cost_function;  // Initialize the cost function
+    test_controller = new TestRobust(model, cost, dt, 3, gamma, control_variance, 100, init_control_traj, 0);
+
+    // Set the size of the trajectory costs function
+    trajectory_costs.resize(num_samples*num_candidates, 1);
+
+    // Fill the trajectory costs with random costs
+    trajectory_costs = Eigen::MatrixXf::Random(num_samples*num_candidates, 1);
+  }
+
+  void TearDown() override {
+    delete model;
+    delete cost;
+    delete test_controller;
+  }
+
+  dynamics* model;
+  cost_function* cost;
+  TestRobust* test_controller;
+  dynamics::control_array control_variance;
+  TestRobust::control_trajectory init_control_traj;
+  float dt = 0.01;
+  float gamma = 0.5;
+
+};
+
+TEST_F(RMPPINominalStateSelection, GetCandidateBaseline) {
+  // Compute baseline
+  float baseline = trajectory_costs(0);
+  for (int i = 0; i < num_samples; i++){
+    if (trajectory_costs(i) < baseline){
+      baseline = trajectory_costs(i);
+    }
+  }
+
+  //
+  float compute_baseline = test_controller->getComputeCandidateBaseline(trajectory_costs);
+
+  ASSERT_FLOAT_EQ(baseline, compute_baseline);
+}
 

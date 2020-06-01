@@ -1,10 +1,10 @@
 #include "robust_mppi_controller.cuh"
 #include <exception>
 
-#define RobustMPPI RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+#define RobustMPPI RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, SAMPLES_PER_CONDITION_MULTIPLIER>
 
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
                      const Eigen::Ref<const control_array>& control_variance,
                      int num_timesteps,
@@ -12,16 +12,17 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
                      cudaStream_t stream) : Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         model, cost, dt, max_iter, gamma,
         control_variance, num_timesteps, init_control_traj, stream)  {
+  // Initial setting of the number of candidates
   updateNumCandidates(num_candidate_nominal_states);
 }
 
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 RobustMPPI::~RobustMPPIController() {
   deallocateNominalStateCandidateMemory();
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::getInitNominalStateCandidates(
         const Eigen::Ref<const state_array>& nominal_x_k,
         const Eigen::Ref<const state_array>& nominal_x_kp1,
@@ -35,7 +36,7 @@ void RobustMPPI::getInitNominalStateCandidates(
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::resetCandidateCudaMem() {
   deallocateNominalStateCandidateMemory();
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_states_d_,
@@ -44,6 +45,8 @@ void RobustMPPI::resetCandidateCudaMem() {
                           sizeof(float)*num_candidate_nominal_states));
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_strides_d_,
                           sizeof(float)*num_candidate_nominal_states));
+  HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d_,
+                          sizeof(float)*num_candidate_nominal_states*SAMPLES_PER_CONDITION));
 
   // Set flag so that the we know cudamemory is allocated
   importance_sampling_cuda_mem_init = true;
@@ -51,19 +54,20 @@ void RobustMPPI::resetCandidateCudaMem() {
 
 
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::deallocateNominalStateCandidateMemory() {
   if (importance_sampling_cuda_mem_init) {
     HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
     HANDLE_ERROR(cudaFree(importance_sampling_costs_d_));
     HANDLE_ERROR(cudaFree(importance_sampling_strides_d_));
+    HANDLE_ERROR(cudaFree(trajectory_costs_d_));
 
     // Set flag so that we know cudamemory has been freed
     importance_sampling_cuda_mem_init = false;
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::updateNumCandidates(int new_num_candidates) {
 
   // New number must be odd and greater than 3
@@ -84,6 +88,9 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
   // Resize the matrix holding the importance sampler strides
   importance_sampler_strides.resize(1, num_candidate_nominal_states);
 
+  // Resize the trajectory costs matrix
+  trajectory_costs.resize(num_candidate_nominal_states*SAMPLES_PER_CONDITION, 1);
+
   // Deallocate and reallocate cuda memory
   resetCandidateCudaMem();
 
@@ -91,7 +98,7 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
   computeLineSearchWeights();
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeLineSearchWeights() {
   line_search_weights.resize(3, num_candidate_nominal_states);
 
@@ -109,7 +116,7 @@ void RobustMPPI::computeLineSearchWeights() {
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeImportanceSamplerStride(int stride) {
   Eigen::MatrixXf stride_vec(1,3);
   stride_vec << 0, stride, stride;
@@ -120,9 +127,20 @@ void RobustMPPI::computeImportanceSamplerStride(int stride) {
 
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::allocateCUDAMemory() {
   Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+float RobustMPPI::computeCandidateBaseline() {
+  float baseline = trajectory_costs(0);
+  for (int i = 0; i < SAMPLES_PER_CONDITION; i++){ // TODO What is the reasoning behind only using the first condition to get the baseline?
+    if (trajectory_costs(i) < baseline){
+      baseline = trajectory_costs(i);
+    }
+  }
+  return baseline;
 }
 
 /******************************************************************************

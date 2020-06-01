@@ -39,7 +39,7 @@
 #include <mppi/core/mppi_common.cuh>
 
 template <class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
-          int BDIM_X = 64, int BDIM_Y = 1>
+          int BDIM_X = 64, int BDIM_Y = 1, int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
 class RobustMPPIController : public Controller<DYN_T, COST_T,
                                             MAX_TIMESTEPS,
                                             NUM_ROLLOUTS,
@@ -96,9 +96,8 @@ public:
   static const int STATE_DIM = DYN_T::STATE_DIM;
   static const int CONTROL_DIM = DYN_T::CONTROL_DIM;
 
-  //Constants for the safe importance sampler updates
-  static const int SAMPLES_PER_CONDITION = 64; //Must be multiple of BDIM_X
-  static const int NUM_CANDIDATES = 9; //Must be odd
+  // Number of samples per condition must be a multiple of the blockDIM
+  static const int SAMPLES_PER_CONDITION = BDIM_X*SAMPLES_PER_CONDITION_MULTIPLIER;
 
   float value_func_threshold_ = 1000.0;
 
@@ -201,6 +200,8 @@ protected:
   NominalCandidateVector candidate_nominal_states = {state_array::Zero()};
   Eigen::MatrixXf line_search_weights; // At minimum there must be 3 candidates
   Eigen::MatrixXi importance_sampler_strides; // Time index where control trajectory starts for each nominal state candidate
+  Eigen::MatrixXf trajectory_costs;
+
 
   void allocateCUDAMemory();
 
@@ -223,16 +224,20 @@ protected:
   // compute the importance sampler strides
   void computeImportanceSamplerStride(int stride);
 
+  // Compute the baseline of the candidates
+  float computeCandidateBaseline();
+
   // CUDA Memory
   float* importance_sampling_states_d_;
   float* importance_sampling_costs_d_;
   float* importance_sampling_strides_d_;
+  float* trajectory_costs_d_;
+
 
   float* initial_state_d_;
   float* control_d_;
   float* state_d_;
   float* nominal_state_d_;
-  float* trajectory_costs_d_;
   float* control_variance_d_;
   float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS * 2
   // control_noise_d_ is also used to hold the rollout noise for the quick estimate free energy.
