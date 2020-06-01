@@ -101,8 +101,6 @@ public:
 
   float value_func_threshold_ = 1000.0;
 
-  cudaStream_t stream_;
-
   bool nominalStateInit_ = false;
   int numTimesteps_;
   int hz_;
@@ -182,16 +180,13 @@ public:
 protected:
   bool importance_sampling_cuda_mem_init = false;
   int num_candidate_nominal_states = 9; // TODO should the initialization be a parameter?
-  int num_iters_ = 10;
-  float gamma_; ///< Value of the temperature in the softmax.
+  int best_index = 0;
   float normalizer_, nominal_normalizer_; ///< Variable for the normalizing term from sampling.
 
   OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
   OptimizerResult<ModelWrapperDDP<DYN_T>> last_result_;
 
 //  TubeDiagnostics status_;
-
-  curandGenerator_t gen_;
 
   // Storage classes
   control_trajectory nominal_control_trajectory = control_trajectory::Zero();
@@ -200,7 +195,8 @@ protected:
   NominalCandidateVector candidate_nominal_states = {state_array::Zero()};
   Eigen::MatrixXf line_search_weights; // At minimum there must be 3 candidates
   Eigen::MatrixXi importance_sampler_strides; // Time index where control trajectory starts for each nominal state candidate
-  Eigen::MatrixXf trajectory_costs;
+  Eigen::MatrixXf candidate_trajectory_costs;
+  Eigen::MatrixXf candidate_free_energy;
 
 
   void allocateCUDAMemory();
@@ -226,6 +222,9 @@ protected:
 
   // Compute the baseline of the candidates
   float computeCandidateBaseline();
+
+  // Get the best index based on the candidate free energy
+  void computeBestIndex();
 
   // CUDA Memory
   float* importance_sampling_states_d_;
@@ -277,7 +276,7 @@ protected:
 //template<class DYN_T, class COST_T>
 //void launchInitEvalKernel(DYN_T* dynamics, COST_T* costs, float dt,
 //    int num_timesteps, float* x_d, float* u_d, float* du_d,
-//    float* sigma_u_d, float* trajectory_costs, cudaStream_t stream);
+//    float* sigma_u_d, float* candidate_trajectory_costs, cudaStream_t stream);
 
 #if __CUDACC__
 #include "robust_mppi_controller.cu"

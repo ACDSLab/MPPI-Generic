@@ -89,7 +89,12 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
   importance_sampler_strides.resize(1, num_candidate_nominal_states);
 
   // Resize the trajectory costs matrix
-  trajectory_costs.resize(num_candidate_nominal_states*SAMPLES_PER_CONDITION, 1);
+  candidate_trajectory_costs.resize(num_candidate_nominal_states*SAMPLES_PER_CONDITION, 1);
+  candidate_trajectory_costs.setZero();
+
+  // Resize the free energy costs matrix
+  candidate_free_energy.resize(num_candidate_nominal_states, 1);
+  candidate_free_energy.setZero();
 
   // Deallocate and reallocate cuda memory
   resetCandidateCudaMem();
@@ -134,13 +139,31 @@ void RobustMPPI::allocateCUDAMemory() {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 float RobustMPPI::computeCandidateBaseline() {
-  float baseline = trajectory_costs(0);
+  float baseline = candidate_trajectory_costs(0);
   for (int i = 0; i < SAMPLES_PER_CONDITION; i++){ // TODO What is the reasoning behind only using the first condition to get the baseline?
-    if (trajectory_costs(i) < baseline){
-      baseline = trajectory_costs(i);
+    if (candidate_trajectory_costs(i) < baseline){
+      baseline = candidate_trajectory_costs(i);
     }
   }
   return baseline;
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+void RobustMPPI::computeBestIndex() {
+  candidate_free_energy.setZero();
+  float baseline = computeCandidateBaseline();
+  for (int i = 0; i < num_candidate_nominal_states; i++){
+    for (int j = 0; j < SAMPLES_PER_CONDITION; j++){
+      candidate_free_energy(i) += expf(-this->gamma_*(candidate_trajectory_costs(i*SAMPLES_PER_CONDITION + j) - baseline));
+    }
+    candidate_free_energy(i) /= (1.0*SAMPLES_PER_CONDITION);
+    candidate_free_energy(i) = -1.0/this->gamma_ *logf(candidate_free_energy(i)) + baseline;
+
+    if (candidate_free_energy(i) < value_func_threshold_){
+      best_index = i;
+    }
+  }
+
 }
 
 /******************************************************************************

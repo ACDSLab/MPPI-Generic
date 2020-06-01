@@ -59,8 +59,14 @@ class TestRobust: public RobustMPPIController<
   }
 
   float getComputeCandidateBaseline(const Eigen::Ref<const Eigen::MatrixXf>& traj_costs_in) {
-    trajectory_costs = traj_costs_in;
+    candidate_trajectory_costs = traj_costs_in;
     return computeCandidateBaseline();
+  }
+
+  int getComputeBestIndex(const Eigen::Ref<const Eigen::MatrixXf>& traj_costs_in) {
+    candidate_trajectory_costs = traj_costs_in;
+    computeBestIndex();
+    return best_index;
   }
 
  };
@@ -247,5 +253,44 @@ TEST_F(RMPPINominalStateSelection, GetCandidateBaseline) {
   float compute_baseline = test_controller->getComputeCandidateBaseline(trajectory_costs);
 
   ASSERT_FLOAT_EQ(baseline, compute_baseline);
+}
+
+TEST_F(RMPPINominalStateSelection, ComputeBestCandidate) {
+  float baseline = trajectory_costs(0);
+  for (int i = 0; i < num_samples; i++){
+    if (trajectory_costs(i) < baseline){
+      baseline = trajectory_costs(i);
+    }
+  }
+  float value_func_threshold_ = 1000.0;
+
+  Eigen::MatrixXf candidate_free_energy;
+  candidate_free_energy.resize(num_candidates, 1);
+  candidate_free_energy.setZero();
+  // Should probably be in a cuda kernel? Will have to profile.
+  for (int i = 0; i < num_candidates; i++){
+    for (int j = 0; j < num_samples; j++){
+      candidate_free_energy(i) += expf(-gamma*(trajectory_costs(i*num_samples + j) - baseline));
+    }
+  }
+  for (int i = 0; i < num_candidates; i++){
+    candidate_free_energy(i) /= (1.0*num_samples);
+  }
+
+  for (int i = 0; i < num_candidates; i++){
+    candidate_free_energy(i) = -1.0/gamma*logf(candidate_free_energy(i)) + baseline;
+  }
+
+  //Now get the closest initial condition that is above the threshold.
+  int bestIdx = 0;
+  for (int i = 1; i < num_candidates; i++){
+    if (candidate_free_energy(i) < value_func_threshold_){
+      bestIdx = i;
+    }
+  }
+
+  int best_index_compute = test_controller->getComputeBestIndex(trajectory_costs);
+
+  ASSERT_EQ(bestIdx, best_index_compute);
 }
 
