@@ -21,10 +21,7 @@ endif()
 
 # Find Eigen
 find_package(Eigen3 REQUIRED)
-# TODO not generic
-#include_directories(SYSTEM /home/jason/.local/include/eigen3)
 include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
-#message(STATUS "Eigen loc: ${EIGEN3_INCLUDE_DIR}")
 
 # REQUIRED for CUDA to correctly align Eigen member variables inside structures/classes
 # https://listengine.tuxfamily.org/lists.tuxfamily.org/eigen/2016/06/msg00006.html

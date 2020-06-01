@@ -5,6 +5,7 @@
 #ifndef MPPIGENERIC_CONTROLLER_CUH
 #define MPPIGENERIC_CONTROLLER_CUH
 
+#include <mppi/utils/gpu_err_chk.cuh>
 #include <array>
 #include <Eigen/Core>
 #include <chrono>
@@ -299,6 +300,8 @@ public:
   COST_T* cost_;
   cudaStream_t stream_;
 
+  float getDt() {return dt_;}
+
 protected:
   // no default protected members
   void deallocateCUDAMemory() {
@@ -356,7 +359,7 @@ protected:
 
   void copyControlVarianceToDevice() {
     HANDLE_ERROR(cudaMemcpyAsync(control_variance_d_, control_variance_.data(), sizeof(float)*control_variance_.size(), cudaMemcpyHostToDevice, stream_));
-    cudaStreamSynchronize(stream_);
+    HANDLE_ERROR(cudaStreamSynchronize(stream_));
   }
 
   void copyNominalControlToDevice() {
