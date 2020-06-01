@@ -116,10 +116,10 @@ public:
   * @param max_iter number of times to repeat control sequence calculations
   * @param gamma
   * @param num_timesteps The number of timesteps to look ahead for.
-  * TOOD Finish this description
+  * TODO Finish this description
   */
   RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
-                       const Eigen::Ref<const control_array>& control_variance,
+                       const Eigen::Ref<const control_array>& control_std_dev,
                        int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                        cudaStream_t stream = nullptr);
@@ -215,7 +215,7 @@ protected:
   float* state_d_;
   float* nominal_state_d_;
   float* trajectory_costs_d_;
-  float* control_variance_d_;
+  float* control_std_dev_d_;
   float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS * 2
   // control_noise_d_ is also used to hold the rollout noise for the quick estimate free energy.
   // Here num_candidates*num_samples_per_condition < 2*num_rollouts. -> we should enforce this

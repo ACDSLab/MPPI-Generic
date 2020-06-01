@@ -401,7 +401,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   float * initial_state_d;
   float * trajectory_costs_d;
   float * control_noise_d; // du
-  float * control_variance_d;
+  float * control_std_dev_d;
   float * control_d;
 
   /**
@@ -418,7 +418,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   HANDLE_ERROR(cudaMalloc((void**)&initial_state_d,
                           sizeof(float) * DYN_T::STATE_DIM * 2));
   // Create control variance cuda array
-  HANDLE_ERROR(cudaMalloc((void**)&control_variance_d,
+  HANDLE_ERROR(cudaMalloc((void**)&control_std_dev_d,
                           sizeof(float) * DYN_T::CONTROL_DIM));
   // create control u trajectory cuda array
   HANDLE_ERROR(cudaMalloc((void**)&control_d,
@@ -445,7 +445,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
                                sizeof(float) * DYN_T::STATE_DIM,
                                cudaMemcpyHostToDevice, stream));
 
-  HANDLE_ERROR(cudaMemcpyAsync(control_variance_d, sigma_u.data(),
+  HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d, sigma_u.data(),
                                sizeof(float) * DYN_T::CONTROL_DIM,
                                cudaMemcpyHostToDevice, stream));
 
@@ -468,7 +468,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
     BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps,
                     initial_state_d, control_d, control_noise_d,
-                    control_variance_d, trajectory_costs_d, stream);
+                    control_std_dev_d, trajectory_costs_d, stream);
 
   // Copy the costs back to the host
   HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_act.data(),
@@ -483,7 +483,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   HANDLE_ERROR(cudaStreamSynchronize(stream));
 
   cudaFree(initial_state_d);
-  cudaFree(control_variance_d);
+  cudaFree(control_std_dev_d);
   cudaFree(control_d);
   cudaFree(trajectory_costs_d);
   cudaFree(control_noise_d);

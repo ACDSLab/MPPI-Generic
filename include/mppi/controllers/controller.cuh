@@ -59,7 +59,7 @@ public:
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
   Controller(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
-          const Eigen::Ref<const control_array>& control_variance,
+          const Eigen::Ref<const control_array>& control_std_dev,
           int num_timesteps = MAX_TIMESTEPS,
           const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
           cudaStream_t stream = nullptr) {
@@ -70,7 +70,7 @@ public:
     gamma_ = gamma;
     num_timesteps_ = num_timesteps;
 
-    control_variance_ = control_variance;
+    control_std_dev_ = control_std_dev;
     control_ = init_control_traj;
     control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
 
@@ -166,7 +166,7 @@ public:
     }
   };
 
-  control_array getControlVariance() { return control_variance_;};
+  control_array getControlStdDev() { return control_std_dev_;};
 
   float getBaselineCost() {return baseline_;};
   float getNormalizerCost() {return normalizer_;};
@@ -282,11 +282,11 @@ public:
   /**
    * updates the scaling factor of noise for sampling around the nominal trajectory
    */
-  void updateControlNoiseVariance(const Eigen::Ref<const control_array>& sigma_u) {
-    //std::cout << control_variance_ << std::endl;
-    control_variance_ = sigma_u;
-    //std::cout << control_variance_ << std::endl;
-    copyControlVarianceToDevice();
+  void updateControlNoiseStdDev(const Eigen::Ref<const control_array>& sigma_u) {
+    //std::cout << control_std_dev_ << std::endl;
+    control_std_dev_ = sigma_u;
+    //std::cout << control_std_dev_ << std::endl;
+    copyControlStdDevToDevice();
   }
 
   void setFeedbackController(bool enable_feedback) {
@@ -306,7 +306,7 @@ protected:
     cudaFree(control_d_);
     cudaFree(state_d_);
     cudaFree(trajectory_costs_d_);
-    cudaFree(control_variance_d_);
+    cudaFree(control_std_dev_d_);
     cudaFree(control_noise_d_);
   };
 
@@ -320,8 +320,8 @@ protected:
   float baseline_; // Baseline cost of the system.
 
   curandGenerator_t gen_;
-  control_array control_variance_ = control_array::Zero();
-  float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
+  control_array control_std_dev_ = control_array::Zero();
+  float* control_std_dev_d_; // Array of size DYN_T::CONTROL_DIM
   float* initial_state_d_; // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 
   // Control history
@@ -355,8 +355,8 @@ protected:
 
   OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
 
-  void copyControlVarianceToDevice() {
-    HANDLE_ERROR(cudaMemcpyAsync(control_variance_d_, control_variance_.data(), sizeof(float)*control_variance_.size(), cudaMemcpyHostToDevice, stream_));
+  void copyControlStdDevToDevice() {
+    HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, control_std_dev_.data(), sizeof(float)*control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
     cudaStreamSynchronize(stream_);
   }
 
@@ -400,7 +400,7 @@ protected:
                             sizeof(float)*DYN_T::STATE_DIM*MAX_TIMESTEPS*nominal_size));
     HANDLE_ERROR(cudaMalloc((void**)&this->trajectory_costs_d_,
                             sizeof(float)*NUM_ROLLOUTS*nominal_size));
-    HANDLE_ERROR(cudaMalloc((void**)&this->control_variance_d_,
+    HANDLE_ERROR(cudaMalloc((void**)&this->control_std_dev_d_,
                             sizeof(float)*DYN_T::CONTROL_DIM));
     HANDLE_ERROR(cudaMalloc((void**)&this->control_noise_d_,
                             sizeof(float)*DYN_T::CONTROL_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS* (allocate_double_noise ? nominal_size : 1)));

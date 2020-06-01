@@ -65,7 +65,7 @@ public:
                      const Eigen::Ref<const StateCostWeight>& Q,
                      const Eigen::Ref<const Hessian>& Qf,
                      const Eigen::Ref<const ControlCostWeight>& R,
-                     const Eigen::Ref<const control_array>& control_variance,
+                     const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps = MAX_TIMESTEPS,
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                      cudaStream_t stream = nullptr);

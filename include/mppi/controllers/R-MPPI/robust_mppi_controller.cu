@@ -6,12 +6,12 @@
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
-                     const Eigen::Ref<const control_array>& control_variance,
+                     const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps,
                      const Eigen::Ref<const control_trajectory>& init_control_traj,
                      cudaStream_t stream) : Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         model, cost, dt, max_iter, gamma,
-        control_variance, num_timesteps, init_control_traj, stream)  {
+        control_std_dev, num_timesteps, init_control_traj, stream)  {
   updateNumCandidates(num_candidate_nominal_states);
 }
 
