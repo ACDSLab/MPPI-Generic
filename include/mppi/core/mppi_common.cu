@@ -601,7 +601,6 @@ namespace rmppi_kernels {
         // dynamics update
         dynamics->computeStateDeriv(x, u, xdot, theta_s);
         __syncthreads();
-        __syncthreads();
         dynamics->updateState(x, xdot, dt);
         __syncthreads();
       }
