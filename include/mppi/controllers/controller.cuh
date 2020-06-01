@@ -16,6 +16,7 @@
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <mppi/ddp/ddp_tracking_costs.h>
 #include <mppi/ddp/ddp.h>
+#include <mppi/utils/math_utils.h>
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
@@ -387,13 +388,14 @@ protected:
   void copySampledControlFromDevice() {
     int num_sampled_trajectories = perc_sampled_control_trajectories * NUM_ROLLOUTS;
     int control_trajectory_size = control_trajectory().size();
+    // Create sample list without replacement
+    std::vector<int> samples = sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
     int sample_i = 0;
     // Ensure that sampled_controls_ has enough space for the trajectories
     sampled_controls_.resize(num_sampled_trajectories);
     for(int i = 0; i < num_sampled_trajectories; i++) {
-      sample_i = rand() % (num_sampled_trajectories + 1);
       HANDLE_ERROR(cudaMemcpyAsync(sampled_controls_[i].data(),
-                                   control_noise_d_ + sample_i * control_trajectory_size,
+                                   control_noise_d_ + samples[i] * control_trajectory_size,
                                    sizeof(float) * control_trajectory_size,
                                    cudaMemcpyDeviceToHost,
                                    stream_));
