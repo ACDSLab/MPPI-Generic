@@ -102,45 +102,27 @@ public:
 
   float value_func_threshold_ = 1000.0;
 
-  cudaStream_t stream_;
-
   bool nominalStateInit_ = false;
   int numTimesteps_;
-  int hz_;
   int optimizationStride_;
-
-
-  //Define DDP optimizer for computing feedback gains around MPPI solution
-  std::shared_ptr<ModelWrapperDDP<DYN_T>> ddp_model_;
-  std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
-  std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
-  std::shared_ptr<DDP<ModelWrapperDDP<DYN_T>>> ddp_solver_;
-  StateCostWeight Q_;
-  Hessian Qf_;
-  ControlCostWeight R_;
-  control_array U_MIN_; // Moved to Dynamics
-  control_array U_MAX_; // Moved to Dynamics
 
   state_array nominal_state_;
 
   /**
-  * @brief Constructor for mppi controller class.
-  * @param num_timesteps The number of timesteps to look ahead for.
-  * @param dt The time increment. horizon = num_timesteps*dt
+  * @brief Constructor for mppi controller class
   * @param model A basis function model of the system dynamics.
   * @param cost An MppiCost object.
-  * @param mppi_node Handle to a ros node with mppi parameters available as ros params.
+  * @param dt The time increment. horizon = num_timesteps*dt
+  * @param max_iter number of times to repeat control sequence calculations
+  * @param gamma
+  * @param num_timesteps The number of timesteps to look ahead for.
+  * TOOD Finish this description
   */
-//  RobustMPPIController(DYN_T* model, COST_T* cost, int num_timesteps,
-//                       int hz, float gamma,
-//                       float* exploration_var, float* init_control,
-//                       int num_optimization_iters = 1,
-//                       int opt_stride = 1, cudaStream_t = 0);
   RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
                        const Eigen::Ref<const control_array>& control_variance,
-                       int num_timesteps,
-                       const Eigen::Ref<const control_trajectory>& init_control_traj,
-                       cudaStream_t stream);
+                       int num_timesteps = MAX_TIMESTEPS,
+                       const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
+                       cudaStream_t stream = nullptr);
 
   /**
   * @brief Destructor for mppi controller class.
