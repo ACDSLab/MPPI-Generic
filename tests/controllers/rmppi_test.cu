@@ -30,11 +30,11 @@ class TestRobust: public RobustMPPIController<
           const Eigen::Ref<const state_array>& nominal_x_kp1,
           const Eigen::Ref<const state_array>& real_x_kp1) {
     getInitNominalStateCandidates(nominal_x_k, nominal_x_kp1, real_x_kp1);
-    return candidate_nominal_states;
+    return candidate_nominal_states_;
   };
 
   Eigen::MatrixXf getWeights() {
-    return line_search_weights;
+    return line_search_weights_;
   };
 
   void updateCandidates(int value) {
@@ -42,7 +42,7 @@ class TestRobust: public RobustMPPIController<
   }
 
   bool getCudaMemStatus() {
-    return importance_sampling_cuda_mem_init;
+    return importance_sampling_cuda_mem_init_;
   }
 
   void deallocateNSCMemory() {
@@ -55,7 +55,7 @@ class TestRobust: public RobustMPPIController<
 
   Eigen::MatrixXi getStrideIS(int stride) {
     computeImportanceSamplerStride(stride);
-    return importance_sampler_strides;
+    return importance_sampler_strides_;
   }
 
  };

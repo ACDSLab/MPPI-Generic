@@ -12,7 +12,7 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
                      cudaStream_t stream) : Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         model, cost, dt, max_iter, gamma,
         control_std_dev, num_timesteps, init_control_traj, stream)  {
-  updateNumCandidates(num_candidate_nominal_states);
+  updateNumCandidates(num_candidate_nominal_states_);
 }
 
 
@@ -29,9 +29,9 @@ void RobustMPPI::getInitNominalStateCandidates(
 
   Eigen::MatrixXf points(DYN_T::STATE_DIM, 3);
   points << nominal_x_k, nominal_x_kp1 , real_x_kp1;
-  auto candidates = points*line_search_weights;
-  for (int i = 0; i < num_candidate_nominal_states; ++i) {
-    candidate_nominal_states[i] = candidates.col(i);
+  auto candidates = points * line_search_weights_;
+  for (int i = 0; i < num_candidate_nominal_states_; ++i) {
+    candidate_nominal_states_[i] = candidates.col(i);
   }
 }
 
@@ -39,27 +39,27 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDI
 void RobustMPPI::resetCandidateCudaMem() {
   deallocateNominalStateCandidateMemory();
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_states_d_,
-          sizeof(float)*DYN_T::STATE_DIM*num_candidate_nominal_states));
+          sizeof(float)*DYN_T::STATE_DIM*num_candidate_nominal_states_));
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_costs_d_,
-                          sizeof(float)*num_candidate_nominal_states));
+                          sizeof(float)*num_candidate_nominal_states_));
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_strides_d_,
-                          sizeof(float)*num_candidate_nominal_states));
+                          sizeof(float)*num_candidate_nominal_states_));
 
   // Set flag so that the we know cudamemory is allocated
-  importance_sampling_cuda_mem_init = true;
+  importance_sampling_cuda_mem_init_ = true;
 }
 
 
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void RobustMPPI::deallocateNominalStateCandidateMemory() {
-  if (importance_sampling_cuda_mem_init) {
+  if (importance_sampling_cuda_mem_init_) {
     HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
     HANDLE_ERROR(cudaFree(importance_sampling_costs_d_));
     HANDLE_ERROR(cudaFree(importance_sampling_strides_d_));
 
     // Set flag so that we know cudamemory has been freed
-    importance_sampling_cuda_mem_init = false;
+    importance_sampling_cuda_mem_init_ = false;
   }
 }
 
@@ -76,13 +76,13 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
     std::terminate();
   }
   // Set the new value of the number of candidates
-  num_candidate_nominal_states = new_num_candidates;
+  num_candidate_nominal_states_ = new_num_candidates;
 
   // Resize the vector holding the candidate nominal states
-  candidate_nominal_states.resize(num_candidate_nominal_states);
+  candidate_nominal_states_.resize(num_candidate_nominal_states_);
 
   // Resize the matrix holding the importance sampler strides
-  importance_sampler_strides.resize(1, num_candidate_nominal_states);
+  importance_sampler_strides_.resize(1, num_candidate_nominal_states_);
 
   // Deallocate and reallocate cuda memory
   resetCandidateCudaMem();
@@ -93,19 +93,19 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void RobustMPPI::computeLineSearchWeights() {
-  line_search_weights.resize(3, num_candidate_nominal_states);
+  line_search_weights_.resize(3, num_candidate_nominal_states_);
 
   // For a given setup, this never changes.... why recompute every time?
-  int num_candid_over_2 = num_candidate_nominal_states/2;
+  int num_candid_over_2 = num_candidate_nominal_states_/2;
   for (int i = 0; i < num_candid_over_2 + 1; i++){
-    line_search_weights(0, i) = 1 - i/float(num_candid_over_2);
-    line_search_weights(1, i) = i/float(num_candid_over_2);
-    line_search_weights(2, i) = 0.0;
+    line_search_weights_(0, i) = 1 - i/float(num_candid_over_2);
+    line_search_weights_(1, i) = i/float(num_candid_over_2);
+    line_search_weights_(2, i) = 0.0;
   }
   for (int i = 1; i < num_candid_over_2 + 1; i++){
-    line_search_weights(0, num_candid_over_2 + i) = 0.0;
-    line_search_weights(1, num_candid_over_2 + i) = 1 - i/float(num_candid_over_2);
-    line_search_weights(2, num_candid_over_2 + i) = i/float(num_candid_over_2);
+    line_search_weights_(0, num_candid_over_2 + i) = 0.0;
+    line_search_weights_(1, num_candid_over_2 + i) = 1 - i/float(num_candid_over_2);
+    line_search_weights_(2, num_candid_over_2 + i) = i/float(num_candid_over_2);
   }
 }
 
@@ -116,7 +116,7 @@ void RobustMPPI::computeImportanceSamplerStride(int stride) {
 
   // Perform matrix multiplication, convert to array so that we can round the floats to the nearest
   // integer. Then cast the resultant float array to an int array. Then set equal to our int matrix.
-  importance_sampler_strides = (stride_vec*line_search_weights).array().round().template cast<int>();
+  importance_sampler_strides_ = (stride_vec*line_search_weights_).array().round().template cast<int>();
 
 }
 

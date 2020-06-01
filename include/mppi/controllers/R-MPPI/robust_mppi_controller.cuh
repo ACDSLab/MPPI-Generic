@@ -82,7 +82,7 @@ public:
                                                 BDIM_Y>::sampled_cost_traj;
 
   // using m_dyn = typename ModelWrapperDDP<DYN_T>::Scalar;
-  using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
+  // using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
   using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
@@ -131,7 +131,11 @@ public:
 
 //  void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
 
-  FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
+  /**
+   * TODO Enable this when the K_Matrix -> feedback_gain_trajectory commit is added
+   * Right now this doesn't see the result_ variable from controller.cuh for some reason
+   */
+  // FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
 
   /*
   * @brief Resets the control commands to there initial values.
@@ -154,35 +158,30 @@ public:
   */
   void computeControl(const Eigen::Ref<const state_array>& state) override {};
 
-  control_trajectory getControlSeq() override {return nominal_control_trajectory;};
+  control_trajectory getControlSeq() override {return nominal_control_trajectory_;};
 
-  state_trajectory getStateSeq() override {return nominal_state_trajectory;};
+  state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
 
   void slideControlSequence(int steps) override {};
 
   // TubeDiagnostics getTubeDiagnostics();
 
 protected:
-  bool importance_sampling_cuda_mem_init = false;
-  int num_candidate_nominal_states = 9; // TODO should the initialization be a parameter?
-  int num_iters_ = 10;
-  float gamma_; ///< Value of the temperature in the softmax.
-  float normalizer_, nominal_normalizer_; ///< Variable for the normalizing term from sampling.
+  bool importance_sampling_cuda_mem_init_ = false;
+  int num_candidate_nominal_states_ = 9; // TODO should the initialization be a parameter?
+  float nominal_normalizer_; ///< Variable for the normalizing term from sampling.
 
-  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
   OptimizerResult<ModelWrapperDDP<DYN_T>> last_result_;
 
 //  TubeDiagnostics status_;
 
-  curandGenerator_t gen_;
-
   // Storage classes
-  control_trajectory nominal_control_trajectory = control_trajectory::Zero();
-  state_trajectory nominal_state_trajectory = state_trajectory::Zero();
+  control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
+  state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
 
-  NominalCandidateVector candidate_nominal_states = {state_array::Zero()};
-  Eigen::MatrixXf line_search_weights; // At minimum there must be 3 candidates
-  Eigen::MatrixXi importance_sampler_strides; // Time index where control trajectory starts for each nominal state candidate
+  NominalCandidateVector candidate_nominal_states_ = {state_array::Zero()};
+  Eigen::MatrixXf line_search_weights_; // At minimum there must be 3 candidates
+  Eigen::MatrixXi importance_sampler_strides_; // Time index where control trajectory starts for each nominal state candidate
 
   void allocateCUDAMemory();
 
@@ -210,14 +209,7 @@ protected:
   float* importance_sampling_costs_d_;
   float* importance_sampling_strides_d_;
 
-  float* initial_state_d_;
-  float* control_d_;
-  float* state_d_;
   float* nominal_state_d_;
-  float* trajectory_costs_d_;
-  float* control_std_dev_d_;
-  float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS * 2
-  // control_noise_d_ is also used to hold the rollout noise for the quick estimate free energy.
   // Here num_candidates*num_samples_per_condition < 2*num_rollouts. -> we should enforce this
 
   //  // Previous storage classes
