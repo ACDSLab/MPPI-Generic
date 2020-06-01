@@ -284,4 +284,3 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
 //  computeDynamics(state, control, state_der, theta_s);
 //  //printf("state at 0 after dyn: %f\n", state[0]);
 //}
-

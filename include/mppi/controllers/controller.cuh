@@ -390,7 +390,6 @@ protected:
     int control_trajectory_size = control_trajectory().size();
     // Create sample list without replacement
     std::vector<int> samples = sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
-    int sample_i = 0;
     // Ensure that sampled_controls_ has enough space for the trajectories
     sampled_controls_.resize(num_sampled_trajectories);
     for(int i = 0; i < num_sampled_trajectories; i++) {
