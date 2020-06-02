@@ -70,6 +70,9 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
             this->initial_state_d_, this->control_d_, this->control_noise_d_,
             this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
 
+    // Copy back sampled trajectories
+    this->copySampledControlFromDevice();
+
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
         this->trajectory_costs_d_,

@@ -16,6 +16,7 @@
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <mppi/ddp/ddp_tracking_costs.h>
 #include <mppi/ddp/ddp.h>
+#include <mppi/utils/math_utils.h>
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
@@ -39,7 +40,7 @@ public:
   using control_array = typename DYN_T::control_array;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, MAX_TIMESTEPS> control_trajectory; // A control trajectory
 //  typedef util::NamedEigenAlignedVector<control_trajectory> sampled_control_traj;
-  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> K_matrix;
+  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
 
   // State typedefs
   using state_array = typename DYN_T::state_array;
@@ -157,11 +158,11 @@ public:
   /**
    * Return control feedback gains
    */
-  virtual K_matrix getFeedbackGains() {
+  virtual feedback_gain_trajectory getFeedbackGains() {
     if(enable_feedback_) {
       return result_.feedback_gain;
     } else {
-      return K_matrix();
+      return feedback_gain_trajectory();
     }
   };
 
@@ -174,8 +175,8 @@ public:
   state_trajectory getAncillaryStateSeq() {return result_.state_trajectory;};
 
   virtual void initDDP(const StateCostWeight& q_mat,
-                         const Hessian& q_f_mat,
-                         const ControlCostWeight& r_mat) {
+                       const Hessian& q_f_mat,
+                       const ControlCostWeight& r_mat) {
     enable_feedback_ = true;
 
     util::DefaultLogger logger;
@@ -293,6 +294,19 @@ public:
   }
 
   /**
+   * Set the percentage of sample control trajectories to copy
+   * back from the GPU
+   */
+  void setPercentageSampledControlTrajectories(float new_perc) {
+    perc_sampled_control_trajectories = new_perc;
+  }
+
+  /**
+   * Return a percentage of sampled control trajectories from the latest rollout
+   */
+  std::vector<control_trajectory> getSampledControlSeq() {return sampled_controls_;}
+
+  /**
    * Public data members
    */
   DYN_T* model_;
@@ -317,6 +331,7 @@ protected:
 
   float normalizer_; // Variable for the normalizing term from sampling.
   float baseline_; // Baseline cost of the system.
+  float perc_sampled_control_trajectories = 0; // Percentage of sampled trajectories to return
 
   curandGenerator_t gen_;
   control_array control_std_dev_ = control_array::Zero();
@@ -336,6 +351,7 @@ protected:
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
+  std::vector<control_trajectory> sampled_controls_; // Sampled control trajectories from rollout kernel
 
   // tracking controller variables
   StateCostWeight Q_;
@@ -361,6 +377,28 @@ protected:
 
   void copyNominalControlToDevice() {
     HANDLE_ERROR(cudaMemcpyAsync(control_d_, control_.data(), sizeof(float)*control_.size(), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(stream_));
+  }
+
+  /**
+   * Saves the sampled controls from the GPU back to the CPU
+   * Must be called after the rolloutKernel as that is when
+   * du_d becomes the sampled controls
+   */
+  void copySampledControlFromDevice() {
+    int num_sampled_trajectories = perc_sampled_control_trajectories * NUM_ROLLOUTS;
+    int control_trajectory_size = control_trajectory().size();
+    // Create sample list without replacement
+    std::vector<int> samples = sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
+    // Ensure that sampled_controls_ has enough space for the trajectories
+    sampled_controls_.resize(num_sampled_trajectories);
+    for(int i = 0; i < num_sampled_trajectories; i++) {
+      HANDLE_ERROR(cudaMemcpyAsync(sampled_controls_[i].data(),
+                                   control_noise_d_ + samples[i] * control_trajectory_size,
+                                   sizeof(float) * control_trajectory_size,
+                                   cudaMemcpyDeviceToHost,
+                                   stream_));
+    }
     HANDLE_ERROR(cudaStreamSynchronize(stream_));
   }
 
