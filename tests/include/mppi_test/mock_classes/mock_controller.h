@@ -20,7 +20,7 @@ public:
   MOCK_METHOD1(computeControl, void(const Eigen::Ref<const state_array>& state));
   MOCK_METHOD0(getControlSeq, control_trajectory());
   MOCK_METHOD0(getStateSeq, state_trajectory());
-  MOCK_METHOD0(getFeedbackGains, K_matrix());
+  MOCK_METHOD0(getFeedbackGains, feedback_gain_trajectory());
   MOCK_METHOD1(updateImportanceSampler, void(const Eigen::Ref<const control_trajectory>& nominal_control));
   MOCK_METHOD0(allocateCUDAMemory, void());
 };

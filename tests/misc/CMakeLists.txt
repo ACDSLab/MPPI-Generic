@@ -7,6 +7,6 @@ set(TARGET_NAME miscellaneous_tests)
 add_executable(${TARGET_NAME} ../test_main.cpp miscellaneous_tests.cu)
 target_link_libraries(${TARGET_NAME} gtest gmock gtest_main double_integrator_mppi)
 
-add_test(NAME ${TARGET_NAME} COMMAND double_integrator_dynamics_tests)
+add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME} --gtest_color=yes)
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER test)
 

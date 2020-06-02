@@ -65,7 +65,7 @@ public:
                      const Eigen::Ref<const StateCostWeight>& Q,
                      const Eigen::Ref<const Hessian>& Qf,
                      const Eigen::Ref<const ControlCostWeight>& R,
-                     const Eigen::Ref<const control_array>& control_variance,
+                     const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps = MAX_TIMESTEPS,
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                      cudaStream_t stream = nullptr);
@@ -106,6 +106,7 @@ private:
   float normalizer_nominal_; // Variable for the normalizing term from sampling.
   float baseline_nominal_; // Baseline cost of the system.
   float nominal_threshold_ = 100; // How much worse the actual system has to be compared to the nominal
+
 
   // nominal state CPU side copies
   control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();

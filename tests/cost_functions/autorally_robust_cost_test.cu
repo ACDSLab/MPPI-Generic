@@ -156,11 +156,6 @@ TEST(ARRobustCost, getCostmapCostSpeedMapTest) {
   params.speed_coeff = 10;
   params.heading_coeff = 20;
   cost.setParams(params);
-  float s[7];
-  s[0] = 0.0;
-  s[1] = 0.0;
-  s[2] = 0.0;
-  s[4] = 10.0;
 
   cost.GPUSetup();
   cost.loadTrackData(mppi::tests::robust_test_map_file);
@@ -196,11 +191,6 @@ TEST(ARRobustCost, getCostmapCostSpeedNoMapTest) {
   params.speed_coeff = 10;
   params.heading_coeff = 20;
   cost.setParams(params);
-  float s[7];
-  s[0] = 0.0;
-  s[1] = 0.0;
-  s[2] = 0.0;
-  s[4] = 10.0;
 
   cost.GPUSetup();
   cost.loadTrackData(mppi::tests::robust_test_map_file);
@@ -236,11 +226,6 @@ TEST(ARRobustCost, computeCostTest) {
   params.speed_coeff = 10;
   params.heading_coeff = 20;
   cost.setParams(params);
-  float s[7];
-  s[0] = 0.0;
-  s[1] = 0.0;
-  s[2] = 0.0;
-  s[4] = 10.0;
 
   cost.GPUSetup();
   cost.loadTrackData(mppi::tests::robust_test_map_file);

@@ -34,6 +34,7 @@ public:
   typedef Eigen::Matrix<float, STATE_DIM, 1> state_array; // State at a time t
   typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM> dfdx; // Jacobian wrt x
   typedef Eigen::Matrix<float, STATE_DIM, CONTROL_DIM> dfdu; // Jacobian wrt u
+  typedef Eigen::Matrix<float, CONTROL_DIM, STATE_DIM> feedback_matrix; // Feedback matrix
   typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM + CONTROL_DIM> Jacobian; // Jacobian of x and u
 
   // protected constructor prevent anyone from trying to construct a Dynamics
@@ -156,11 +157,10 @@ public:
    * @param A       output Jacobian wrt state, passed by reference
    * @param B       output Jacobian wrt control, passed by reference
    */
-  void computeGrad(const Eigen::Ref<const state_array>& state,
-                   const Eigen::Ref<const control_array>& control,
-                   Eigen::Ref<dfdx> A,
-                   Eigen::Ref<dfdu> B);
-
+  bool computeGrad(const Eigen::Ref<const state_array>& state = state_array(),
+                   const Eigen::Ref<const control_array>& control = control_array(),
+                   Eigen::Ref<dfdx> A = dfdx(),
+                   Eigen::Ref<dfdu> B = dfdu()) {return false;}
   /**
    * enforces control constraints
    * @param state
