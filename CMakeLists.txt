@@ -71,9 +71,8 @@ set(
 include_directories(${PROJECT_SOURCE_DIR}/include)
 # Install all library header files
 install(
-        DIRECTORY ${PROJECT_SOURCE_DIR}/include
+        DIRECTORY ${PROJECT_SOURCE_DIR}/include/mppi
         DESTINATION include
-        FILES_MATCHING PATTERN "*.h"
 )
 
 add_subdirectory(src)
