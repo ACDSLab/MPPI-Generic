@@ -127,11 +127,12 @@ public:
    * Used to update the importance sampler
    * @param nominal_control the new nominal control sequence to sample around
    */
+   // TODO The function to update the importance sampler is only explicitly used in RMPPI, why is it in the base class?
   virtual void updateImportanceSampler(const Eigen::Ref<const control_trajectory>& nominal_control) {
     // TODO copy to device new control sequence
   }
 
-  // ================ END OF MNETHODS WITH NO DEFAULT =============
+  // ================ END OF METHODS WITH NO DEFAULT =============
   // ======== PURE VIRTUAL END =====
 
   /**

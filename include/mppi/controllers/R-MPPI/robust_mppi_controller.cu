@@ -9,10 +9,12 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
                      const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps,
                      const Eigen::Ref<const control_trajectory>& init_control_traj,
+                     int optimization_stride,
                      cudaStream_t stream) : Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        model, cost, dt, max_iter, gamma,
-        control_std_dev, num_timesteps, init_control_traj, stream)  {
+        model, cost, dt, max_iter, gamma, control_std_dev, num_timesteps, init_control_traj, stream)  {
+
   updateNumCandidates(num_candidate_nominal_states_);
+  optimization_stride_ = optimization_stride;
 }
 
 
@@ -41,11 +43,9 @@ void RobustMPPI::resetCandidateCudaMem() {
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_states_d_,
           sizeof(float)*DYN_T::STATE_DIM*num_candidate_nominal_states_));
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_costs_d_,
-                          sizeof(float)*num_candidate_nominal_states_));
-  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_strides_d_,
-                          sizeof(float)*num_candidate_nominal_states_));
-  HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d_,
                           sizeof(float)*num_candidate_nominal_states_*SAMPLES_PER_CONDITION));
+  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_strides_d_,
+                          sizeof(int)*num_candidate_nominal_states_));
 
   // Set flag so that the we know cudamemory is allocated
   importance_sampling_cuda_mem_init_ = true;
@@ -59,7 +59,6 @@ void RobustMPPI::deallocateNominalStateCandidateMemory() {
     HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
     HANDLE_ERROR(cudaFree(importance_sampling_costs_d_));
     HANDLE_ERROR(cudaFree(importance_sampling_strides_d_));
-    HANDLE_ERROR(cudaFree(trajectory_costs_d_));
 
     // Set flag so that we know cudamemory has been freed
     importance_sampling_cuda_mem_init_ = false;
@@ -78,6 +77,12 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
     std::cerr << "ERROR: number of candidates must be odd\n";
     std::terminate();
   }
+
+  if ((new_num_candidates * SAMPLES_PER_CONDITION) > NUM_ROLLOUTS) {
+    std::cerr << "ERROR: (number of candidates) * (SAMPLES_PER_CONDITION) cannot exceed NUM_ROLLOUTS\n";
+    std::terminate();
+  }
+
   // Set the new value of the number of candidates
   num_candidate_nominal_states_ = new_num_candidates;
 
@@ -161,6 +166,64 @@ void RobustMPPI::computeBestIndex() {
     if (candidate_free_energy(i) < value_func_threshold_){
       best_index_ = i;
     }
+  }
+
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+void RobustMPPI::updateImportanceSampler(const Eigen::Ref<const state_array> &state, int stride) {
+  // (Controller Frequency)*(Optimization Time) corresponds to how many timesteps occurred in the last optimization
+  int real_stride = stride;
+
+  computeNominalStateAndStride(state, stride); // Launches the init eval kernel
+
+  // Save the importance sampler history
+
+  // Slide the control sequence.
+
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array> &state, int stride) {
+  if (!nominalStateInit_){
+    nominal_state_ = state;
+    nominalStateInit_ = true;
+    nominal_stride_ = 0;
+  } else {
+    getInitNominalStateCandidates(nominal_state_trajectory_.col(0), nominal_state_trajectory_.col(1), state);
+    computeImportanceSamplerStride(stride);
+
+    // Send the nominal state candidates to the GPU
+    HANDLE_ERROR( cudaMemcpyAsync(importance_sampling_states_d_, candidate_nominal_states_.data(),
+                                  sizeof(float)*DYN_T::STATE_DIM*num_candidate_nominal_states_,
+                                  cudaMemcpyHostToDevice, this->stream_));
+    // Send the importance sampler strides to the GPU
+    HANDLE_ERROR( cudaMemcpyAsync(importance_sampling_strides_d_, importance_sampler_strides_.data(),
+                                  sizeof(int)*num_candidate_nominal_states_,
+                                  cudaMemcpyHostToDevice, this->stream_));
+    // Send the nominal control to the GPU
+    this->copyNominalControlToDevice();
+
+    // Generate noise for the samples
+    curandGenerateNormal(this->gen_, this->control_noise_d_,
+            SAMPLES_PER_CONDITION*this->num_timesteps_*DYN_T::CONTROL_DIM, 0.0, 1.0);
+
+    // Launch the init eval kernel
+    rmppi_kernels::launchInitEvalKernel<DYN_T, COST_T, BDIM_X, BDIM_Y, SAMPLES_PER_CONDITION>(
+            this->model_->model_d_, this->cost_->cost_d_, num_candidate_nominal_states_, this->num_timesteps_,
+            optimization_stride_, this->dt_, importance_sampling_strides_d_, this->control_std_dev_d_,
+            importance_sampling_states_d_, this->control_d_, this->control_noise_d_, this->control_noise_d_,
+            importance_sampling_costs_d_, this->stream_);
+
+    HANDLE_ERROR( cudaMemcpyAsync(candidate_trajectory_costs.data(), importance_sampling_costs_d_,
+            sizeof(float)*num_candidate_nominal_states_*SAMPLES_PER_CONDITION, cudaMemcpyDeviceToHost, this->stream_));
+    cudaStreamSynchronize(this->stream_);
+
+    // Compute the best nominal state candidate from the rollouts
+    computeBestIndex();
+
+    nominal_stride_ = importance_sampler_strides_(best_index_);
+    nominal_state_ = candidate_nominal_states_[best_index_];
   }
 
 }

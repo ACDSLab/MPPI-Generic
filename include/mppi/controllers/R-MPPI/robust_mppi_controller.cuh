@@ -110,7 +110,7 @@ public:
   int numTimesteps_;
   int optimizationStride_;
 
-  state_array nominal_state_;
+  state_array nominal_state_ = state_array::Zero();
 
   /**
   * @brief Constructor for mppi controller class
@@ -126,6 +126,7 @@ public:
                        const Eigen::Ref<const control_array>& control_std_dev,
                        int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
+                       int optimization_stride = 1,
                        cudaStream_t stream = nullptr);
 
   /**
@@ -133,11 +134,13 @@ public:
   */
   ~RobustMPPIController();
 
-//  void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
-
   feedback_gain_trajectory getFeedbackGains() override {
     return this->result_.feedback_gain;
   };
+
+  // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
+  // and allocates the associated CUDA memory
+  void updateNumCandidates(int new_num_candidates);
 
   /*
   * @brief Resets the control commands to there initial values.
@@ -152,7 +155,8 @@ public:
 
   /*void slideControlSeq(int stride);*/
 
-//  void updateImportanceSampler(const Eigen::Ref<const state_array>& state, int stride);
+// Update the importance sampler prior to calling computeControl
+  void updateImportanceSampler(const Eigen::Ref<const state_array> &state, int stride);
 
   /**
   * @brief Compute the control given the current state of the system.
@@ -173,6 +177,8 @@ protected:
   int num_candidate_nominal_states_ = 9; // TODO should the initialization be a parameter?
   int best_index_ = 0;
   float nominal_normalizer_; ///< Variable for the normalizing term from sampling.
+  int optimization_stride_; // Number of timesteps to apply the optimal control (== 1 for true MPC)
+  int nominal_stride_ = 0; // Stride for the chosen nominal state of the importance sampler
 
   OptimizerResult<ModelWrapperDDP<DYN_T>> last_result_;
 
@@ -188,14 +194,9 @@ protected:
   Eigen::MatrixXf candidate_trajectory_costs;
   Eigen::MatrixXf candidate_free_energy;
 
-
   void allocateCUDAMemory();
 
   void deallocateNominalStateCandidateMemory();
-
-  // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
-  // and allocates the associated CUDA memory
-  void updateNumCandidates(int new_num_candidates);
 
   void resetCandidateCudaMem();
 
@@ -206,6 +207,8 @@ protected:
 
   // compute the line search weights
   void computeLineSearchWeights();
+
+  void computeNominalStateAndStride(const Eigen::Ref<const state_array> &state, int stride);
 
   // compute the importance sampler strides
   void computeImportanceSamplerStride(int stride);
@@ -220,12 +223,9 @@ protected:
   float* importance_sampling_states_d_;
   float* importance_sampling_costs_d_;
   float* importance_sampling_strides_d_;
-  float* trajectory_costs_d_;
-
 
   float* nominal_state_d_;
-  float* control_variance_d_;
-  float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS * 2
+
   // control_noise_d_ is also used to hold the rollout noise for the quick estimate free energy.
   // Here num_candidates*num_samples_per_condition < 2*num_rollouts. -> we should enforce this
 

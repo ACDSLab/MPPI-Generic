@@ -11,7 +11,7 @@
  * Test class for RobustControllerPrivateMethods
  ******************************************************************************/
 class TestRobust: public RobustMPPIController<
-         DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 512, 64, 8>{
+         DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 2048, 64, 8>{
  public:
   TestRobust(DoubleIntegratorDynamics *model,
           DoubleIntegratorCircleCost *cost,
@@ -20,7 +20,7 @@ class TestRobust: public RobustMPPIController<
           int num_timesteps,
           const Eigen::Ref<const control_trajectory>& init_control_traj,
           cudaStream_t stream) :
-  RobustMPPIController(model, cost, dt,  max_iter,  gamma, control_std_dev, num_timesteps, init_control_traj, stream) {}
+  RobustMPPIController(model, cost, dt,  max_iter,  gamma, control_std_dev, num_timesteps, init_control_traj, 1, stream) {}
 
 
   // Test to make sure that its nonzero
@@ -112,6 +112,11 @@ TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_Negative) {
 TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_Even) {
   ::testing::FLAGS_gtest_death_test_style = "threadsafe";
   ASSERT_DEATH(test_controller->updateCandidates(4) , "ERROR: number of candidates must be odd\n");
+}
+
+TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_TooManyCandidates) {
+  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+  ASSERT_DEATH(test_controller->updateCandidates(99) , "ERROR: (number of candidates) * (SAMPLES_PER_CONDITION) cannot exceed NUM_ROLLOUTS\n");
 }
 
 TEST_F(RMPPINominalStateCandidates, CandidateVectorSizeNonzero) {
