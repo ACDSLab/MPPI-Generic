@@ -82,10 +82,3 @@ __device__ void CartpoleDynamics::computeDynamics(float* state, float* control,
   state_der[2] = state[3];
   state_der[3] = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity_*sinf(theta));
 }
-<<<<<<< HEAD
-
-void CartpoleDynamics::computeStateDeriv(const state_array &state, const control_array &control, state_array &state_der) {
-  computeDynamics(state, control, state_der);
-}
-=======
->>>>>>> a063a379f1c3f5230ccaf23cbb0389b6bdd0d2a6
