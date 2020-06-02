@@ -82,7 +82,7 @@ public:
                                                 BDIM_Y>::sampled_cost_traj;
 
   // using m_dyn = typename ModelWrapperDDP<DYN_T>::Scalar;
-  using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
+  // using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
   using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
@@ -103,41 +103,25 @@ public:
 
   bool nominalStateInit_ = false;
   int numTimesteps_;
-  int hz_;
   int optimizationStride_;
-
-
-  //Define DDP optimizer for computing feedback gains around MPPI solution
-  std::shared_ptr<ModelWrapperDDP<DYN_T>> ddp_model_;
-  std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
-  std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
-  std::shared_ptr<DDP<ModelWrapperDDP<DYN_T>>> ddp_solver_;
-  StateCostWeight Q_;
-  Hessian Qf_;
-  ControlCostWeight R_;
-  control_array U_MIN_; // Moved to Dynamics
-  control_array U_MAX_; // Moved to Dynamics
 
   state_array nominal_state_;
 
   /**
-  * @brief Constructor for mppi controller class.
-  * @param num_timesteps The number of timesteps to look ahead for.
-  * @param dt The time increment. horizon = num_timesteps*dt
+  * @brief Constructor for mppi controller class
   * @param model A basis function model of the system dynamics.
   * @param cost An MppiCost object.
-  * @param mppi_node Handle to a ros node with mppi parameters available as ros params.
+  * @param dt The time increment. horizon = num_timesteps*dt
+  * @param max_iter number of times to repeat control sequence calculations
+  * @param gamma
+  * @param num_timesteps The number of timesteps to look ahead for.
+  * TODO Finish this description
   */
-//  RobustMPPIController(DYN_T* model, COST_T* cost, int num_timesteps,
-//                       int hz, float gamma,
-//                       float* exploration_var, float* init_control,
-//                       int num_optimization_iters = 1,
-//                       int opt_stride = 1, cudaStream_t = 0);
   RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
-                       const Eigen::Ref<const control_array>& control_variance,
-                       int num_timesteps,
-                       const Eigen::Ref<const control_trajectory>& init_control_traj,
-                       cudaStream_t stream);
+                       const Eigen::Ref<const control_array>& control_std_dev,
+                       int num_timesteps = MAX_TIMESTEPS,
+                       const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
+                       cudaStream_t stream = nullptr);
 
   /**
   * @brief Destructor for mppi controller class.
@@ -146,7 +130,11 @@ public:
 
 //  void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
 
-  FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
+  /**
+   * TODO Enable this when the K_Matrix -> feedback_gain_trajectory commit is added
+   * Right now this doesn't see the result_ variable from controller.cuh for some reason
+   */
+  // FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
 
   /*
   * @brief Resets the control commands to there initial values.
@@ -169,32 +157,31 @@ public:
   */
   void computeControl(const Eigen::Ref<const state_array>& state) override {};
 
-  control_trajectory getControlSeq() override {return nominal_control_trajectory;};
+  control_trajectory getControlSeq() override {return nominal_control_trajectory_;};
 
-  state_trajectory getStateSeq() override {return nominal_state_trajectory;};
+  state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
 
   void slideControlSequence(int steps) override {};
 
   // TubeDiagnostics getTubeDiagnostics();
 
 protected:
-  bool importance_sampling_cuda_mem_init = false;
-  int num_candidate_nominal_states = 9; // TODO should the initialization be a parameter?
-  int best_index = 0;
-  float normalizer_, nominal_normalizer_; ///< Variable for the normalizing term from sampling.
+  bool importance_sampling_cuda_mem_init_ = false;
+  int num_candidate_nominal_states_ = 9; // TODO should the initialization be a parameter?
+  int best_index_ = 0;
+  float nominal_normalizer_; ///< Variable for the normalizing term from sampling.
 
-  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
   OptimizerResult<ModelWrapperDDP<DYN_T>> last_result_;
 
 //  TubeDiagnostics status_;
 
   // Storage classes
-  control_trajectory nominal_control_trajectory = control_trajectory::Zero();
-  state_trajectory nominal_state_trajectory = state_trajectory::Zero();
+  control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
+  state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
 
-  NominalCandidateVector candidate_nominal_states = {state_array::Zero()};
-  Eigen::MatrixXf line_search_weights; // At minimum there must be 3 candidates
-  Eigen::MatrixXi importance_sampler_strides; // Time index where control trajectory starts for each nominal state candidate
+  NominalCandidateVector candidate_nominal_states_ = {state_array::Zero()};
+  Eigen::MatrixXf line_search_weights_; // At minimum there must be 3 candidates
+  Eigen::MatrixXi importance_sampler_strides_; // Time index where control trajectory starts for each nominal state candidate
   Eigen::MatrixXf candidate_trajectory_costs;
   Eigen::MatrixXf candidate_free_energy;
 
@@ -233,9 +220,6 @@ protected:
   float* trajectory_costs_d_;
 
 
-  float* initial_state_d_;
-  float* control_d_;
-  float* state_d_;
   float* nominal_state_d_;
   float* control_variance_d_;
   float* control_noise_d_; // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS * 2

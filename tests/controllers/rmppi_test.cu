@@ -16,11 +16,11 @@ class TestRobust: public RobustMPPIController<
   TestRobust(DoubleIntegratorDynamics *model,
           DoubleIntegratorCircleCost *cost,
           float dt, int max_iter, float gamma,
-          const Eigen::Ref<const control_array>& control_variance,
+          const Eigen::Ref<const control_array>& control_std_dev,
           int num_timesteps,
           const Eigen::Ref<const control_trajectory>& init_control_traj,
           cudaStream_t stream) :
-  RobustMPPIController(model, cost, dt,  max_iter,  gamma, control_variance, num_timesteps, init_control_traj, stream) {}
+  RobustMPPIController(model, cost, dt,  max_iter,  gamma, control_std_dev, num_timesteps, init_control_traj, stream) {}
 
 
   // Test to make sure that its nonzero
@@ -30,11 +30,11 @@ class TestRobust: public RobustMPPIController<
           const Eigen::Ref<const state_array>& nominal_x_kp1,
           const Eigen::Ref<const state_array>& real_x_kp1) {
     getInitNominalStateCandidates(nominal_x_k, nominal_x_kp1, real_x_kp1);
-    return candidate_nominal_states;
+    return candidate_nominal_states_;
   };
 
   Eigen::MatrixXf getWeights() {
-    return line_search_weights;
+    return line_search_weights_;
   };
 
   void updateCandidates(int value) {
@@ -42,7 +42,7 @@ class TestRobust: public RobustMPPIController<
   }
 
   bool getCudaMemStatus() {
-    return importance_sampling_cuda_mem_init;
+    return importance_sampling_cuda_mem_init_;
   }
 
   void deallocateNSCMemory() {
@@ -55,7 +55,7 @@ class TestRobust: public RobustMPPIController<
 
   Eigen::MatrixXi getStrideIS(int stride) {
     computeImportanceSamplerStride(stride);
-    return importance_sampler_strides;
+    return importance_sampler_strides_;
   }
 
   float getComputeCandidateBaseline(const Eigen::Ref<const Eigen::MatrixXf>& traj_costs_in) {
@@ -66,7 +66,7 @@ class TestRobust: public RobustMPPIController<
   int getComputeBestIndex(const Eigen::Ref<const Eigen::MatrixXf>& traj_costs_in) {
     candidate_trajectory_costs = traj_costs_in;
     computeBestIndex();
-    return best_index;
+    return best_index_;
   }
 
  };
@@ -81,7 +81,7 @@ protected:
   void SetUp() override {
     model = new dynamics(10);  // Initialize the double integrator dynamics
     cost = new cost_function;  // Initialize the cost function
-    test_controller = new TestRobust(model, cost, dt, 3, gamma, control_variance, 100, init_control_traj, 0);
+    test_controller = new TestRobust(model, cost, dt, 3, gamma, control_std_dev, 100, init_control_traj, 0);
   }
 
   void TearDown() override {
@@ -93,7 +93,7 @@ protected:
   dynamics* model;
   cost_function* cost;
   TestRobust* test_controller;
-  dynamics::control_array control_variance;
+  dynamics::control_array control_std_dev;
   TestRobust::control_trajectory init_control_traj;
   float dt = 0.01;
   float gamma = 0.5;
