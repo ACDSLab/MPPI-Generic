@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include <mppi/dynamics/cartpole/cartpole_dynamics_kernel_test.cuh>
 #include <cuda_runtime.h>
+#include <mppi/ddp/ddp_model_wrapper.h>
 
 TEST(CartPole, StateDim) {
     auto CP = CartpoleDynamics(1, 1, 1);
@@ -170,4 +171,41 @@ TEST(CartPole, TestDynamicsGPU) {
 
     CP_host->freeCudaMem();
     delete(CP_host);
+}
+
+class CartpoleDummy : public CartpoleDynamics {
+public:
+  CartpoleDummy(float cartMass, float poleMass, float poleLength, cudaStream_t stream=0) : CartpoleDynamics(cartMass, poleMass, poleLength, stream) {};
+  bool computeGrad(const Eigen::Ref<const state_array> & state,
+                   const Eigen::Ref<const control_array>& control,
+                   Eigen::Ref<dfdx> A,
+                   Eigen::Ref<dfdu> B) {
+    return false;
+  };
+};
+
+TEST(CartPole, TestComputeGradComputation) {
+  Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM> numeric_jac;
+  Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM> analytic_jac;
+  CartpoleDynamics::state_array state;
+  state << 1, 2, 3, 4;
+  CartpoleDynamics::control_array control;
+  control << 5;
+
+  auto analytic_grad_model = CartpoleDynamics(1,1,1);
+
+  CartpoleDynamics::dfdx A_analytic = CartpoleDynamics::dfdx::Zero();
+  CartpoleDynamics::dfdu B_analytic = CartpoleDynamics::dfdu::Zero();
+
+  analytic_grad_model.computeGrad(state, control, A_analytic, B_analytic);
+
+  auto numerical_grad_model = CartpoleDummy(1,1,1);
+
+  std::shared_ptr<ModelWrapperDDP<CartpoleDummy>> ddp_model = std::make_shared<ModelWrapperDDP<CartpoleDummy>>(&numerical_grad_model);
+
+  analytic_jac.leftCols<CartpoleDynamics::STATE_DIM>() = A_analytic;
+  analytic_jac.rightCols<CartpoleDynamics::CONTROL_DIM>() = B_analytic;
+  numeric_jac = ddp_model->df(state, control);
+
+  ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n" << numeric_jac << "\nAnalytic Jacobian\n" << analytic_jac;
 }

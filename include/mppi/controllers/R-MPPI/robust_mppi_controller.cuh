@@ -81,8 +81,13 @@ public:
                                                 BDIM_X,
                                                 BDIM_Y>::sampled_cost_traj;
 
+  using feedback_gain_trajectory = typename Controller<DYN_T, COST_T,
+                                                MAX_TIMESTEPS,
+                                                NUM_ROLLOUTS,
+                                                BDIM_X,
+                                                BDIM_Y>::feedback_gain_trajectory;
+
   // using m_dyn = typename ModelWrapperDDP<DYN_T>::Scalar;
-  // using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
   using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
@@ -130,11 +135,9 @@ public:
 
 //  void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
 
-  /**
-   * TODO Enable this when the K_Matrix -> feedback_gain_trajectory commit is added
-   * Right now this doesn't see the result_ variable from controller.cuh for some reason
-   */
-  // FeedbackGainTrajectory getFeedbackGains() { return result_.feedback_gain;};
+  feedback_gain_trajectory getFeedbackGains() override {
+    return this->result_.feedback_gain;
+  };
 
   /*
   * @brief Resets the control commands to there initial values.

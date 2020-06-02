@@ -26,7 +26,7 @@ public:
                        const Eigen::Ref<const control_array> &control,
                        Eigen::Ref<state_array> state_der);
 
-  void computeGrad(const Eigen::Ref<const state_array> & state,
+  bool computeGrad(const Eigen::Ref<const state_array> & state,
                    const Eigen::Ref<const control_array>& control,
                    Eigen::Ref<dfdx> A,
                    Eigen::Ref<dfdu> B);

@@ -123,7 +123,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const Eigen::Ref<const state_array>& state,
+bool NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const Eigen::Ref<const state_array>& state,
                                                                      const Eigen::Ref<const control_array>& control,
                                                                      Eigen::Ref<dfdx> A,
                                                                      Eigen::Ref<dfdu> B) {
@@ -161,6 +161,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const Eigen
   jac.bottomRightCorner(DYNAMICS_DIM, DYNAMICS_DIM + C_DIM) += ip_delta.transpose();
   A = jac.leftCols(S_DIM);
   B = jac.rightCols(C_DIM);
+  return true;
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>

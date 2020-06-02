@@ -198,7 +198,7 @@ public:
     terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(Qf_);
   }
 
-  virtual void computeFeedbackGains(const state_array& state) {
+  virtual void computeFeedbackGains(const Eigen::Ref<const state_array> state) {
     if(!enable_feedback_) {
       return;
     }
