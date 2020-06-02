@@ -20,7 +20,7 @@ class TestRobust: public RobustMPPIController<
           int num_timesteps,
           const Eigen::Ref<const control_trajectory>& init_control_traj,
           cudaStream_t stream) :
-  RobustMPPIController(model, cost, dt,  max_iter,  gamma, control_std_dev, num_timesteps, init_control_traj, 1, stream) {}
+  RobustMPPIController(model, cost, dt,  max_iter,  gamma, control_std_dev, num_timesteps, init_control_traj, 1, stream) {};
 
 
   // Test to make sure that its nonzero
@@ -59,14 +59,25 @@ class TestRobust: public RobustMPPIController<
   }
 
   float getComputeCandidateBaseline(const Eigen::Ref<const Eigen::MatrixXf>& traj_costs_in) {
-    candidate_trajectory_costs = traj_costs_in;
+    candidate_trajectory_costs_ = traj_costs_in;
     return computeCandidateBaseline();
   }
 
   int getComputeBestIndex(const Eigen::Ref<const Eigen::MatrixXf>& traj_costs_in) {
-    candidate_trajectory_costs = traj_costs_in;
+    candidate_trajectory_costs_ = traj_costs_in;
     computeBestIndex();
     return best_index_;
+  }
+
+  state_array getNominalStateFromOptimization(const Eigen::Ref<const state_array>& nominal_x_k,
+                                              const Eigen::Ref<const state_array>& nominal_x_kp1,
+                                              const Eigen::Ref<const state_array>& real_x_kp1,
+                                              bool nominal_state_init) {
+    nominal_state_trajectory_.col(0) = nominal_x_k;
+    nominal_state_trajectory_.col(1) = nominal_x_kp1;
+    nominal_state_init_ = nominal_state_init;
+    computeNominalStateAndStride(real_x_kp1, 1); // Default the stride to 1
+    return nominal_state_;
   }
 
  };
@@ -81,6 +92,8 @@ protected:
   void SetUp() override {
     model = new dynamics(10);  // Initialize the double integrator dynamics
     cost = new cost_function;  // Initialize the cost function
+    control_std_dev << 0.0001, 0.0001;
+    init_control_traj.setZero();
     test_controller = new TestRobust(model, cost, dt, 3, gamma, control_std_dev, 100, init_control_traj, 0);
   }
 
@@ -116,7 +129,7 @@ TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_Even) {
 
 TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_TooManyCandidates) {
   ::testing::FLAGS_gtest_death_test_style = "threadsafe";
-  ASSERT_DEATH(test_controller->updateCandidates(99) , "ERROR: (number of candidates) * (SAMPLES_PER_CONDITION) cannot exceed NUM_ROLLOUTS\n");
+  ASSERT_DEATH(test_controller->updateCandidates(99), "cannot exceed");
 }
 
 TEST_F(RMPPINominalStateCandidates, CandidateVectorSizeNonzero) {
@@ -194,8 +207,10 @@ TEST_F(RMPPINominalStateCandidates, InitEvalSelection_Weights) {
   test_controller->updateCandidates(num_candidates);
 
   Eigen::Matrix<float, 4, num_candidates> known_candidates;
-  known_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4,
-                        0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
+  known_candidates << -4, -3, -2, -1, 0, 1, 2, 3, 4,
+                       0,  1,  2,  3, 4, 4, 4, 4, 4,
+                       0,  0,  0,  0, 0, 0, 0, 0, 0,
+                       0,  0,  0,  0, 0, 0, 0, 0, 0;
 
   // Create the controller so we can test functions from it -> this should be a fixture
   auto candidates = test_controller->getCandidates(x_star_k, x_star_kp1, x_kp1);
@@ -220,7 +235,10 @@ protected:
   void SetUp() override {
     model = new dynamics(10);  // Initialize the double integrator dynamics
     cost = new cost_function;  // Initialize the cost function
-    test_controller = new TestRobust(model, cost, dt, 3, gamma, control_variance, 100, init_control_traj, 0);
+    control_std_dev << 0.0001, 0.0001;
+    init_control_traj.setZero();
+    test_controller = new TestRobust(model, cost, dt, 3, gamma, control_std_dev, 100, init_control_traj, 0);
+    test_controller->value_func_threshold_ = 10.0;
 
     // Set the size of the trajectory costs function
     trajectory_costs.resize(num_samples*num_candidates, 1);
@@ -238,7 +256,7 @@ protected:
   dynamics* model;
   cost_function* cost;
   TestRobust* test_controller;
-  dynamics::control_array control_variance;
+  dynamics::control_array control_std_dev;
   TestRobust::control_trajectory init_control_traj;
   float dt = 0.01;
   float gamma = 0.5;
@@ -297,5 +315,97 @@ TEST_F(RMPPINominalStateSelection, ComputeBestCandidate) {
   int best_index_compute = test_controller->getComputeBestIndex(trajectory_costs);
 
   ASSERT_EQ(bestIdx, best_index_compute);
+}
+
+TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_InitFalse) {
+  // Set the number of candidates to 3
+  const int num_candidates = 3;
+  test_controller->updateCandidates(num_candidates);
+
+  // We know that the cost penalizes any trajectory that exists our donut which
+  // is centered around the origin with radius 2. Set the 3 relevant points of
+  // the system such that x_k_star (the previous nominal state) is the best
+  // free energy candidate.
+  dynamics::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
+  nominal_x_k << 2, 0, 0, 0;
+  nominal_x_kp1 << 5, 0, 0, 0;
+  real_x_kp1 << 5, 0, 0, 0;
+
+  bool nominal_state_init = false;
+
+  auto nominal_state =  test_controller->getNominalStateFromOptimization(nominal_x_k,
+          nominal_x_kp1, real_x_kp1, nominal_state_init);
+
+  // Since nominal state init is false, this should be the real state
+  ASSERT_EQ(real_x_kp1, nominal_state) << "\nExpected state << \n" << real_x_kp1 << "\nComputed state: \n" << nominal_state;
+}
+
+TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_PreviousNominal) {
+  // Set the number of candidates to 3
+  const int num_candidates = 3;
+  test_controller->updateCandidates(num_candidates);
+
+  // We know that the cost penalizes any trajectory that exists our donut which
+  // is centered around the origin with radius 2. Set the 3 relevant points of
+  // the system such that x_k_star (the previous nominal state) is the best
+  // free energy candidate.
+  dynamics::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
+  nominal_x_k << 2, 0, 0, 0;
+  nominal_x_kp1 << 15, 0, 0, 0;
+  real_x_kp1 << 15, 0, 0, 0;
+
+  bool nominal_state_init = true;
+
+  auto nominal_state =  test_controller->getNominalStateFromOptimization(nominal_x_k,
+                                                                         nominal_x_kp1, real_x_kp1, nominal_state_init);
+
+  // Since nominal state init is false, this should be the real state
+  ASSERT_EQ(nominal_x_k, nominal_state) << "\nExpected state << \n" << nominal_x_k << "\nComputed state: \n" << nominal_state;
+}
+
+TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_CurrentNominal) {
+  // Set the number of candidates to 3
+  const int num_candidates = 3;
+  test_controller->updateCandidates(num_candidates);
+
+  // We know that the cost penalizes any trajectory that exists our donut which
+  // is centered around the origin with radius 2. Set the 3 relevant points of
+  // the system such that x_k_star (the previous nominal state) is the best
+  // free energy candidate.
+  dynamics::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
+  nominal_x_k << -100, 0, 0, 0;
+  nominal_x_kp1 << 2, 0, 0, 0;
+  real_x_kp1 << 100, 0, 0, 0;
+
+  bool nominal_state_init = true;
+
+  auto nominal_state =  test_controller->getNominalStateFromOptimization(nominal_x_k,
+                                                                         nominal_x_kp1, real_x_kp1, nominal_state_init);
+
+  // Since nominal state init is false, this should be the real state
+  ASSERT_EQ(nominal_x_kp1, nominal_state) << "\nExpected state << \n" << nominal_x_kp1 << "\nComputed state: \n" << nominal_state;
+}
+
+TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_CurrentReal) {
+  // Set the number of candidates to 3
+  const int num_candidates = 3;
+  test_controller->updateCandidates(num_candidates);
+
+  // We know that the cost penalizes any trajectory that exists our donut which
+  // is centered around the origin with radius 2. Set the 3 relevant points of
+  // the system such that x_k_star (the previous nominal state) is the best
+  // free energy candidate.
+  dynamics::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
+  nominal_x_k << -100, 0, 0, 0;
+  nominal_x_kp1 << -100, 0, 0, 0;
+  real_x_kp1 << 2, 0, 0, 0;
+
+  bool nominal_state_init = true;
+
+  auto nominal_state =  test_controller->getNominalStateFromOptimization(nominal_x_k,
+                                                                         nominal_x_kp1, real_x_kp1, nominal_state_init);
+
+  // Since nominal state init is false, this should be the real state
+  ASSERT_EQ(real_x_kp1, nominal_state) << "\nExpected state << \n" << real_x_kp1 << "\nComputed state: \n" << nominal_state;
 }
 

@@ -106,7 +106,6 @@ public:
 
   float value_func_threshold_ = 1000.0;
 
-  bool nominalStateInit_ = false;
   int numTimesteps_;
   int optimizationStride_;
 
@@ -179,6 +178,8 @@ protected:
   float nominal_normalizer_; ///< Variable for the normalizing term from sampling.
   int optimization_stride_; // Number of timesteps to apply the optimal control (== 1 for true MPC)
   int nominal_stride_ = 0; // Stride for the chosen nominal state of the importance sampler
+  bool nominal_state_init_ = false;
+
 
   OptimizerResult<ModelWrapperDDP<DYN_T>> last_result_;
 
@@ -191,8 +192,8 @@ protected:
   NominalCandidateVector candidate_nominal_states_ = {state_array::Zero()};
   Eigen::MatrixXf line_search_weights_; // At minimum there must be 3 candidates
   Eigen::MatrixXi importance_sampler_strides_; // Time index where control trajectory starts for each nominal state candidate
-  Eigen::MatrixXf candidate_trajectory_costs;
-  Eigen::MatrixXf candidate_free_energy;
+  Eigen::MatrixXf candidate_trajectory_costs_;
+  Eigen::MatrixXf candidate_free_energy_;
 
   void allocateCUDAMemory();
 
@@ -222,7 +223,7 @@ protected:
   // CUDA Memory
   float* importance_sampling_states_d_;
   float* importance_sampling_costs_d_;
-  float* importance_sampling_strides_d_;
+  int* importance_sampling_strides_d_;
 
   float* nominal_state_d_;
 
