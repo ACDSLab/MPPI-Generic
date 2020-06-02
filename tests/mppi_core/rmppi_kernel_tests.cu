@@ -169,7 +169,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // ();
   rmppi_kernels::launchInitEvalKernel<dynamics, cost_function, 64, 8, num_samples>(model->model_d_, cost->cost_d_,
           num_candidates, num_timesteps, ctrl_stride, dt,
-          strides_d, exploration_var_d, states_d, control_d, control_noise_d, costs_d);
+          strides_d, exploration_var_d, states_d, control_d, control_noise_d, costs_d, 0);
   CudaCheckError();
 
   Eigen::Matrix<float, 1, num_samples*num_candidates> cost_vector_GPU;

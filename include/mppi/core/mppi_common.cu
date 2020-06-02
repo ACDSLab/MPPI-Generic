@@ -452,13 +452,14 @@ namespace rmppi_kernels {
                             float* states_d,
                             float* control_d,
                             float* control_noise_d,
-                            float* costs_d) {
+                            float* costs_d,
+                            cudaStream_t stream) {
 
     int GRIDSIZE_X = num_candidates * SAMPLES_PER_CONDITION / BLOCKSIZE_X;
     dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
     dim3 dimGrid(GRIDSIZE_X, 1, 1);
     initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
-            <<<dimGrid, dimBlock, 0>>>(dynamics, costs,
+            <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs,
             num_timesteps, ctrl_stride, dt, strides_d, exploration_std_dev_d, states_d,
             control_d, control_noise_d, costs_d);
 
