@@ -184,7 +184,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 1e-4);
 }
 
-TEST(RMPPITest, CPURolloutKernel) {
+TEST(RMPPITest, RMPPIRolloutKernel) {
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
   DYN model;
