@@ -19,7 +19,8 @@ typedef struct {
   float desired_terminal_state[4] = {0, 0, M_PI, 0};
 } cartpoleQuadraticCostParams;
 
-class CartpoleQuadraticCost : public Cost<CartpoleQuadraticCost, cartpoleQuadraticCostParams> {
+class CartpoleQuadraticCost : public Cost<CartpoleQuadraticCost,
+                                          cartpoleQuadraticCostParams, 4 , 1> {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -51,6 +52,10 @@ public:
    */
   __host__ __device__ float getStateCost(float* s);
 
+  /**
+   * @brief Compute the state cost on the CPU
+   */
+  float computeStateCost(const Eigen::Ref<const state_array> s);
 
   /**
    * @brief Compute all of the individual cost terms and adds them together.

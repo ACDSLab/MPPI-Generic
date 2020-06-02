@@ -16,6 +16,7 @@
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <mppi/ddp/ddp_tracking_costs.h>
 #include <mppi/ddp/ddp.h>
+#include <mppi/utils/math_utils.h>
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
@@ -39,7 +40,7 @@ public:
   using control_array = typename DYN_T::control_array;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, MAX_TIMESTEPS> control_trajectory; // A control trajectory
 //  typedef util::NamedEigenAlignedVector<control_trajectory> sampled_control_traj;
-  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> K_matrix;
+  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
 
   // State typedefs
   using state_array = typename DYN_T::state_array;
@@ -53,13 +54,12 @@ public:
 //  typedef std::array<float, NUM_ROLLOUTS> sampled_cost_traj; // All costs sampled for all rollouts
 
   // tracking controller typedefs
-  using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
   using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
   Controller(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
-          const Eigen::Ref<const control_array>& control_variance,
+          const Eigen::Ref<const control_array>& control_std_dev,
           int num_timesteps = MAX_TIMESTEPS,
           const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
           cudaStream_t stream = nullptr) {
@@ -70,8 +70,9 @@ public:
     gamma_ = gamma;
     num_timesteps_ = num_timesteps;
 
-    control_variance_ = control_variance;
+    control_std_dev_ = control_std_dev;
     control_ = init_control_traj;
+    control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
 
     // Create the random number generator
     createAndSeedCUDARandomNumberGen();
@@ -157,15 +158,15 @@ public:
   /**
    * Return control feedback gains
    */
-  virtual K_matrix getFeedbackGains() {
+  virtual feedback_gain_trajectory getFeedbackGains() {
     if(enable_feedback_) {
       return result_.feedback_gain;
     } else {
-      return K_matrix();
+      return feedback_gain_trajectory();
     }
   };
 
-  control_array getControlVariance() { return control_variance_;};
+  control_array getControlStdDev() { return control_std_dev_;};
 
   float getBaselineCost() {return baseline_;};
   float getNormalizerCost() {return normalizer_;};
@@ -174,8 +175,8 @@ public:
   state_trajectory getAncillaryStateSeq() {return result_.state_trajectory;};
 
   virtual void initDDP(const StateCostWeight& q_mat,
-                         const Hessian& q_f_mat,
-                         const ControlCostWeight& r_mat) {
+                       const Hessian& q_f_mat,
+                       const ControlCostWeight& r_mat) {
     enable_feedback_ = true;
 
     util::DefaultLogger logger;
@@ -281,16 +282,29 @@ public:
   /**
    * updates the scaling factor of noise for sampling around the nominal trajectory
    */
-  void updateControlNoiseVariance(const Eigen::Ref<const control_array>& sigma_u) {
-    //std::cout << control_variance_ << std::endl;
-    control_variance_ = sigma_u;
-    //std::cout << control_variance_ << std::endl;
-    copyControlVarianceToDevice();
+  void updateControlNoiseStdDev(const Eigen::Ref<const control_array>& sigma_u) {
+    //std::cout << control_std_dev_ << std::endl;
+    control_std_dev_ = sigma_u;
+    //std::cout << control_std_dev_ << std::endl;
+    copyControlStdDevToDevice();
   }
 
   void setFeedbackController(bool enable_feedback) {
     enable_feedback_ = enable_feedback;
   }
+
+  /**
+   * Set the percentage of sample control trajectories to copy
+   * back from the GPU
+   */
+  void setPercentageSampledControlTrajectories(float new_perc) {
+    perc_sampled_control_trajectories = new_perc;
+  }
+
+  /**
+   * Return a percentage of sampled control trajectories from the latest rollout
+   */
+  std::vector<control_trajectory> getSampledControlSeq() {return sampled_controls_;}
 
   /**
    * Public data members
@@ -305,7 +319,7 @@ protected:
     cudaFree(control_d_);
     cudaFree(state_d_);
     cudaFree(trajectory_costs_d_);
-    cudaFree(control_variance_d_);
+    cudaFree(control_std_dev_d_);
     cudaFree(control_noise_d_);
   };
 
@@ -317,14 +331,15 @@ protected:
 
   float normalizer_; // Variable for the normalizing term from sampling.
   float baseline_; // Baseline cost of the system.
+  float perc_sampled_control_trajectories = 0; // Percentage of sampled trajectories to return
 
   curandGenerator_t gen_;
-  control_array control_variance_ = control_array::Zero();
-  float* control_variance_d_; // Array of size DYN_T::CONTROL_DIM
+  control_array control_std_dev_ = control_array::Zero();
+  float* control_std_dev_d_; // Array of size DYN_T::CONTROL_DIM
   float* initial_state_d_; // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 
   // Control history
-  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
+  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_; // = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
 
   // one array of this size is allocated for each state we care about,
   // so it can be the size*N for N nominal states
@@ -336,6 +351,7 @@ protected:
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
+  std::vector<control_trajectory> sampled_controls_; // Sampled control trajectories from rollout kernel
 
   // tracking controller variables
   StateCostWeight Q_;
@@ -354,13 +370,35 @@ protected:
 
   OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
 
-  void copyControlVarianceToDevice() {
-    HANDLE_ERROR(cudaMemcpyAsync(control_variance_d_, control_variance_.data(), sizeof(float)*control_variance_.size(), cudaMemcpyHostToDevice, stream_));
+  void copyControlStdDevToDevice() {
+    HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, control_std_dev_.data(), sizeof(float)*control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
     cudaStreamSynchronize(stream_);
   }
 
   void copyNominalControlToDevice() {
     HANDLE_ERROR(cudaMemcpyAsync(control_d_, control_.data(), sizeof(float)*control_.size(), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(stream_));
+  }
+
+  /**
+   * Saves the sampled controls from the GPU back to the CPU
+   * Must be called after the rolloutKernel as that is when
+   * du_d becomes the sampled controls
+   */
+  void copySampledControlFromDevice() {
+    int num_sampled_trajectories = perc_sampled_control_trajectories * NUM_ROLLOUTS;
+    int control_trajectory_size = control_trajectory().size();
+    // Create sample list without replacement
+    std::vector<int> samples = sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
+    // Ensure that sampled_controls_ has enough space for the trajectories
+    sampled_controls_.resize(num_sampled_trajectories);
+    for(int i = 0; i < num_sampled_trajectories; i++) {
+      HANDLE_ERROR(cudaMemcpyAsync(sampled_controls_[i].data(),
+                                   control_noise_d_ + samples[i] * control_trajectory_size,
+                                   sizeof(float) * control_trajectory_size,
+                                   cudaMemcpyDeviceToHost,
+                                   stream_));
+    }
     HANDLE_ERROR(cudaStreamSynchronize(stream_));
   }
 
@@ -399,7 +437,7 @@ protected:
                             sizeof(float)*DYN_T::STATE_DIM*MAX_TIMESTEPS*nominal_size));
     HANDLE_ERROR(cudaMalloc((void**)&this->trajectory_costs_d_,
                             sizeof(float)*NUM_ROLLOUTS*nominal_size));
-    HANDLE_ERROR(cudaMalloc((void**)&this->control_variance_d_,
+    HANDLE_ERROR(cudaMalloc((void**)&this->control_std_dev_d_,
                             sizeof(float)*DYN_T::CONTROL_DIM));
     HANDLE_ERROR(cudaMalloc((void**)&this->control_noise_d_,
                             sizeof(float)*DYN_T::CONTROL_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS* (allocate_double_noise ? nominal_size : 1)));

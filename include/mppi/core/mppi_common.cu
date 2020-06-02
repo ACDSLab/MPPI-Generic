@@ -17,24 +17,24 @@ namespace mppi_common {
                                float* du_d,
                                float* sigma_u_d,
                                float* trajectory_costs_d) {
-    //Get thread and block id
+    // Get thread and block id
     int thread_idx = threadIdx.x;
     int thread_idy = threadIdx.y;
     int thread_idz = threadIdx.z;
     int block_idx = blockIdx.x;
     int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
 
-    //Create shared state and control arrays
+    // Create shared state and control arrays
     __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
     __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
     __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float sigma_u[DYN_T::CONTROL_DIM];
 
-  //Create a shared array for the dynamics model to use
-  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+    // Create a shared array for the dynamics model to use
+    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
 
-    //Create local state, state dot and controls
+    // Create local state, state dot and controls
     float* x;
     float* xdot;
     float* u;
@@ -57,49 +57,49 @@ namespace mppi_common {
 
     if (global_idx < NUM_ROLLOUTS) {
     /*<----Start of simulation loop-----> */
-    for (int t = 0; t < num_timesteps; t++) {
-      //Load noise trajectories scaled by the exploration factor
-      injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
-                         t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
-      // du_d is now v
-      __syncthreads();
+      for (int t = 0; t < num_timesteps; t++) {
+        //Load noise trajectories scaled by the exploration factor
+        injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
+                           t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
+        // du_d is now v
+        __syncthreads();
 
-      // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
-      // usually just control clamping
-      // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
-      dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]);
-      dynamics->enforceConstraints(x, u);
-      __syncthreads();
+        // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
+        // usually just control clamping
+        // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
+        dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]);
+        dynamics->enforceConstraints(x, u);
+        __syncthreads();
 
-      //Accumulate running cost
-      running_cost += costs->computeRunningCost(x, u, du, sigma_u, t)*dt;
-      //__syncthreads();
+        //Accumulate running cost
+        running_cost += costs->computeRunningCost(x, u, du, sigma_u, t)*dt;
+        //__syncthreads();
 
-      //Compute state derivatives
-      dynamics->computeStateDeriv(x, u, xdot, theta_s);
-      __syncthreads();
+        //Compute state derivatives
+        dynamics->computeStateDeriv(x, u, xdot, theta_s);
+        __syncthreads();
 
-      //Increment states
-      dynamics->updateState(x, xdot, dt);
-      __syncthreads();
+        //Increment states
+        dynamics->updateState(x, xdot, dt);
+        __syncthreads();
+      }
+      //Compute terminal cost and the final cost for each thread
+      computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost, trajectory_costs_d);
     }
-    //Compute terminal cost and the final cost for each thread
-    computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost, trajectory_costs_d);
-  }
   }
 
-    __global__ void normExpKernel(int num_rollouts,
-                                  float* trajectory_costs_d,
-                                  float gamma,
-                                  float baseline) {
-        int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + \
-            threadIdx.z;
+  __global__ void normExpKernel(int num_rollouts,
+                                float* trajectory_costs_d,
+                                float gamma,
+                                float baseline) {
+    int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + \
+      threadIdx.z;
 
-        if (global_idx < num_rollouts * blockDim.z) {
-            float cost_dif = trajectory_costs_d[global_idx] - baseline;
-            trajectory_costs_d[global_idx] = expf(-gamma*cost_dif);
-        }
+    if (global_idx < num_rollouts * blockDim.z) {
+      float cost_dif = trajectory_costs_d[global_idx] - baseline;
+      trajectory_costs_d[global_idx] = expf(-gamma*cost_dif);
     }
+  }
 
   template<int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE>
   __global__ void weightedReductionKernel(float*  exp_costs_d,
@@ -133,10 +133,8 @@ namespace mppi_common {
                                          CONTROL_DIM, SUM_STRIDE,
                                          u, u_intermediate, du_new_d);
 
-  __syncthreads();
-
-
-}
+    __syncthreads();
+  }
 
 
     /*******************************************************************************************************************
@@ -186,28 +184,29 @@ namespace mppi_common {
                                        float* u_thread, float* du_thread) {
 
       // this is a global index
-        int control_index = num_rollouts*control_dim*num_timesteps*threadIdx.z + // z part
-                global_idx*control_dim*num_timesteps + current_timestep * control_dim; // normal part
-        //Load the noise trajectory scaled by the exploration factor
-        // The prior loop already guarantees that the global index is less than the number of rollouts
-        for (int i = thread_idy; i < control_dim; i += blocksize_y) {
-            //Keep one noise free trajectory
-            if (global_idx == 0){
-                du_thread[i] = 0;
-                u_thread[i] = u_traj_device[current_timestep * control_dim + i];
-            }
-            //Generate 1% zero control trajectory
-            else if (global_idx >= 0.99*num_rollouts) {
-                du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
-                u_thread[i] = du_thread[i];
-            }
-            else {
-                du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
-                u_thread[i] = u_traj_device[current_timestep * control_dim + i] + du_thread[i];
-            }
-            // Saves the control but doesn't clamp it.
-            ep_v_device[control_index + i] = u_thread[i];
-        }
+      int control_index = (num_rollouts * num_timesteps * threadIdx.z + // z part
+                           global_idx * num_timesteps + current_timestep) * control_dim; // normal part
+      //Load the noise trajectory scaled by the exploration factor
+      // The prior loop already guarantees that the global index is less than the number of rollouts
+
+      for (int i = thread_idy; i < control_dim; i += blocksize_y) {
+          //Keep one noise free trajectory
+          if (global_idx == 0){
+              du_thread[i] = 0;
+              u_thread[i] = u_traj_device[current_timestep * control_dim + i];
+          }
+          //Generate 1% zero control trajectory
+          else if (global_idx >= 0.99*num_rollouts) {
+              du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
+              u_thread[i] = du_thread[i];
+          }
+          else {
+              du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
+              u_thread[i] = u_traj_device[current_timestep * control_dim + i] + du_thread[i];
+          }
+          // Saves the control but doesn't clamp it.
+          ep_v_device[control_index + i] = u_thread[i];
+      }
     }
 
     template<class COST_T>
@@ -330,8 +329,334 @@ namespace mppi_common {
         CudaCheckError();
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
+}
+
+namespace rmppi_kernels {
+  template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
+  __global__ void initEvalKernel(DYN_T* dynamics,
+                                 COST_T* costs,
+                                 int num_timesteps,
+                                 int ctrl_stride,
+                                 float dt,
+                                 int* strides_d,
+                                 float* exploration_std_dev_d,
+                                 float* states_d,
+                                 float* control_d,
+                                 float* control_noise_d,
+                                 float* costs_d) {
+    int i,j;
+    int tdx = threadIdx.x;
+    int tdy = threadIdx.y;
+    int bdx = blockIdx.x;
+
+    //Initialize the local state, controls, and noise
+    float* state;
+    float* state_der;
+    float* control;
+    float* control_noise;  // du
+
+    //Create shared arrays for holding state and control data.
+    __shared__ float state_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
+    __shared__ float state_der_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
+    __shared__ float control_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
+    __shared__ float control_noise_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
+    __shared__ float exploration_std_dev[DYN_T::CONTROL_DIM]; // Each thread only reads
+
+    //Create a shared array for the dynamics model to use
+    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+
+
+    float running_cost = 0;  //Initialize trajectory cost
+
+    int global_idx = BLOCKSIZE_X*bdx + tdx;  // Set the global index for CUDA threads
+    int condition_idx = global_idx / SAMPLES_PER_CONDITION; // Set the index for our candidate
+    int stride = strides_d[condition_idx];  // Each candidate can have a different starting stride
+
+    // Get the pointer that belongs to the current thread with respect to the shared arrays
+    state = &state_shared[tdx*DYN_T::STATE_DIM];
+    state_der = &state_der_shared[tdx*DYN_T::STATE_DIM];
+    control = &control_shared[tdx*DYN_T::CONTROL_DIM];
+    control_noise = &control_noise_shared[tdx*DYN_T::CONTROL_DIM];
+
+    // Copy the state to the thread
+    for (i = tdy; i < DYN_T::STATE_DIM; i+= blockDim.y) {
+      state[i] = states_d[condition_idx*DYN_T::STATE_DIM + i]; // states_d holds each condition
+    }
+
+    // Copy the exploration noise std_dev to the thread
+    for (i = tdy; i < DYN_T::CONTROL_DIM; i += blockDim.y) {
+      control[i] = 0.0;
+      control_noise[i] = 0.0;
+      exploration_std_dev[i] = exploration_std_dev_d[i];
+    }
+
+    __syncthreads();
+
+    for (i = 0; i < num_timesteps; ++i) { // Outer loop iterates on timesteps
+      // Inject the control noise
+      for (j = tdy; j < DYN_T::CONTROL_DIM; j += blockDim.y) {
+        if ((i + stride) >= num_timesteps) {  // Pad the end of the controls with the last control
+          control[j] = control_d[(num_timesteps-1)*DYN_T::CONTROL_DIM + j];
+
+        } else {
+          control[j] = control_d[(i + stride)*DYN_T::CONTROL_DIM + j];
+
+        }
+
+        // First rollout is noise free
+        if (global_idx % SAMPLES_PER_CONDITION == 0 || i < ctrl_stride) {
+          control_noise[j] = 0.0;
+        } else {
+          control_noise[j] = control_noise_d[num_timesteps*DYN_T::CONTROL_DIM*global_idx +
+                                             i*DYN_T::CONTROL_DIM + j]*exploration_std_dev[j];
+        }
+
+        // Sum the control and the noise
+        control[j] += control_noise[j];
+      } // End inject control noise
+
+      __syncthreads();
+
+      dynamics->enforceConstraints(state, control);
+      __syncthreads();
+      if (tdy == 0 && i > 0) { // Only compute once per global index, make sure that we don't divide by zero
+        running_cost +=
+                (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, i) * dt - running_cost) / (1.0 * i);
+      }
+      __syncthreads();
+
+      //Compute state derivatives
+      dynamics->computeStateDeriv(state, control, state_der, theta_s);
+      __syncthreads();
+
+      //Increment states
+      dynamics->updateState(state, state_der, dt);
+      __syncthreads();
+      }
+    // End loop outer loop on timesteps
+
+    if (tdy == 0) {  // Only save the costs once per global idx (thread y is only for parallelization)
+      costs_d[global_idx] = running_cost; // This is the running average of the costs along the trajectory
+    }
+  }
+
+  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
+  void launchInitEvalKernel(DYN_T* dynamics,
+                            COST_T* costs,
+                            int num_candidates,
+                            int num_timesteps,
+                            int ctrl_stride,
+                            float dt,
+                            int* strides_d,
+                            float* exploration_std_dev_d,
+                            float* states_d,
+                            float* control_d,
+                            float* control_noise_d,
+                            float* costs_d) {
+
+    int GRIDSIZE_X = num_candidates * SAMPLES_PER_CONDITION / BLOCKSIZE_X;
+    dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+    dim3 dimGrid(GRIDSIZE_X, 1, 1);
+    initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
+            <<<dimGrid, dimBlock, 0>>>(dynamics, costs,
+            num_timesteps, ctrl_stride, dt, strides_d, exploration_std_dev_d, states_d,
+            control_d, control_noise_d, costs_d);
+
+  }
+
+  // Newly Written
+  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
+         int NUM_ROLLOUTS, int BLOCKSIZE_Z>
+  __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
+                                     float dt,
+                                     int num_timesteps,
+                                     float lambda,
+                                     float value_func_threshold,
+                                     float* x_d,
+                                     float* u_d,
+                                     float* du_d,
+                                     float* feedback_gains_d,
+                                     float* sigma_u_d,
+                                     float* trajectory_costs_d) {
+    int thread_idx = threadIdx.x;
+    int thread_idy = threadIdx.y;
+    int thread_idz = threadIdx.z;
+    int block_idx = blockIdx.x;
+    int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
+
+    // Create shared memory for state and control
+    __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+    __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+    __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
+    __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
+    __shared__ float sigma_u[DYN_T::CONTROL_DIM];
+
+    // Create a shared array for the nominal costs calculations
+    __shared__ float running_state_cost_nom_shared[BLOCKSIZE_X];
+    __shared__ float running_control_cost_nom_shared[BLOCKSIZE_X];
+
+    // Create a shared array for the dynamics model to use
+    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+
+    // Create local state, state dot and controls
+    float* x;
+    float* x_other;
+    float* xdot;
+    float* u;
+    float* du;
+    float* fb_gain;
+    // The array to hold K(x,x*)
+    float fb_control[DYN_T::CONTROL_DIM];
+
+    int t = 0;
+    int i = 0;
+    int j = 0;
+
+    // Initialize running costs
+    float running_state_cost_real = 0;
+    float running_control_cost_real = 0;
+    float* running_state_cost_nom;
+    float running_tracking_cost_real = 0;
+    float* running_control_cost_nom;
+
+    // Load global array into shared memory
+    if (global_idx < NUM_ROLLOUTS) {
+      // Actual or nominal
+      x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+      // The opposite state from above
+      x_other = &x_shared[(blockDim.x * (1 - thread_idz) + thread_idx) * DYN_T::STATE_DIM];
+      xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+      // Base trajectory
+      u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+      // Noise added to trajectory
+      du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+      // Nominal State Cost
+      running_state_cost_nom = &running_state_cost_nom_shared[thread_idx];
+      running_control_cost_nom = &running_control_cost_nom_shared[thread_idx];
+
+      // Load memory into appropriate arrays
+      mppi_common::loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
+                                      BLOCKSIZE_Y, global_idx, thread_idy,
+                                      thread_idz, x_d, sigma_u_d, x, xdot, u, du, sigma_u);
+      __syncthreads();
+      *running_state_cost_nom = 0;
+      *running_control_cost_nom = 0;
+      for (t = 0; t < num_timesteps; t++) {
+        mppi_common::injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y,
+                                        NUM_ROLLOUTS, num_timesteps,
+                                        t, global_idx, thread_idy, u_d, du_d,
+                                        sigma_u, u, du);
+        __syncthreads();
+
+        // Now find feedback control
+        float e;
+        // Feedback gains at time t
+        fb_gain = &feedback_gains_d[t * DYN_T::CONTROL_DIM * DYN_T::STATE_DIM];
+
+        for (i = 0; i < DYN_T::CONTROL_DIM; i++) {
+          fb_control[i] = 0;
+        }
+        // Don't enter for loop if in nominal states (thread_idz == 1)
+        for (i = 0; i < DYN_T::STATE_DIM * (1 - thread_idz); i++) {
+          // Find difference between nominal and actual
+          e = x[i] - x_other[i];
+          for (j = 0; j < DYN_T::CONTROL_DIM; j++) {
+            // Assuming column major storage atm.
+            fb_control[j] += fb_gain[i * DYN_T::CONTROL_DIM + j] * e;
+          }
+        }
+
+        for (i = thread_idy; i < DYN_T::CONTROL_DIM; i+= BLOCKSIZE_Y) {
+          u[i] += fb_control[i];
+        }
+
+        __syncthreads();
+        // Clamp the control in both the importance sampling sequence and the disturbed sequence.
+        dynamics->enforceConstraints(x, du);
+        dynamics->enforceConstraints(x, u);
+
+        __syncthreads();
+        // Calculate All the costs
+        float curr_state_cost = costs->computeStateCost(x);
+
+        // Nominal system is where thread_idz == 1
+        if (thread_idz == 1 && thread_idy == 0) {
+          // This memory is shared in the y direction so limit which threads can write to it
+          *running_state_cost_nom += curr_state_cost;
+          *running_control_cost_nom += costs->computeLikelihoodRatioCost(u,
+              du, sigma_u, lambda);
+        }
+        // Real system cost update when thread_idz == 0
+        if (thread_idz == 0) {
+          running_state_cost_real += curr_state_cost;
+          running_control_cost_real +=
+            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda);
+
+          running_tracking_cost_real += (curr_state_cost +
+            costs->computeFeedbackCost(fb_control, sigma_u, lambda));
+        }
+        __syncthreads();
+        // dynamics update
+        dynamics->computeStateDeriv(x, u, xdot, theta_s);
+        __syncthreads();
+        dynamics->updateState(x, xdot, dt);
+        __syncthreads();
+      }
+      // calculate terminal costs
+      if (thread_idz == 1 && thread_idy == 0) { //Thread y required to prevent double addition
+        *running_control_cost_nom += costs->terminalCost(x);
+      }
+
+      if (thread_idz == 0) {
+        running_state_cost_real += costs->terminalCost(x);
+        running_tracking_cost_real += costs->terminalCost(x);
+      }
+
+      // Figure out final form of nominal cost
+      float running_cost_nom  = 0;
+      if (thread_idz == 0) {
+        running_cost_nom = 0.5 * (*running_state_cost_nom) + 0.5 *
+          fmaxf(fminf(running_tracking_cost_real, value_func_threshold),
+                *running_state_cost_nom);
+
+        running_cost_nom += *running_control_cost_nom;
+
+        // Copy costs over to global memory
+        // Actual System cost
+        trajectory_costs_d[global_idx] = running_state_cost_real + running_control_cost_real;
+        // Nominal System Cost - Again this is actaully only  known on real system threads
+        trajectory_costs_d[global_idx + NUM_ROLLOUTS] = running_cost_nom;
+      }
+    }
+    __syncthreads();
+  }
 
   /*******************************************************************************************************************
-   * CPU Helper Functions
-  *******************************************************************************************************************/
+   * Launch Functions
+   *******************************************************************************************************************/
+  template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
+            int BLOCKSIZE_Y, int BLOCKSIZE_Z>
+  void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
+                                float dt,
+                                int num_timesteps,
+                                float lambda,
+                                float value_func_threshold,
+                                float* x_d,
+                                float* u_d,
+                                float* du_d,
+                                float* feedback_gains_d,
+                                float* sigma_u_d,
+                                float* trajectory_costs,
+                                cudaStream_t stream) {
+    const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
+    dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
+    dim3 dimGrid(gridsize_x, 1, 1);
+    RMPPIRolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
+                      BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
+                        dynamics, costs, dt, num_timesteps, lambda,
+                        value_func_threshold, x_d, u_d, du_d,
+                        feedback_gains_d, sigma_u_d, trajectory_costs);
+    CudaCheckError();
+    HANDLE_ERROR( cudaStreamSynchronize(stream) );
+  }
 }

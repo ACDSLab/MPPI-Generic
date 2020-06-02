@@ -34,6 +34,7 @@ public:
   typedef Eigen::Matrix<float, STATE_DIM, 1> state_array; // State at a time t
   typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM> dfdx; // Jacobian wrt x
   typedef Eigen::Matrix<float, STATE_DIM, CONTROL_DIM> dfdu; // Jacobian wrt u
+  typedef Eigen::Matrix<float, CONTROL_DIM, STATE_DIM> feedback_matrix; // Feedback matrix
   typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM + CONTROL_DIM> Jacobian; // Jacobian of x and u
 
   // protected constructor prevent anyone from trying to construct a Dynamics

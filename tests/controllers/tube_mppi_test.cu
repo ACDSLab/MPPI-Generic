@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
-#include <mppi/instantiations/double_integrator_mppi/double_integrator_mppi.cuh>
+#include <mppi/dynamics/double_integrator/di_dynamics.cuh>
+#include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
+#include <mppi/controllers/MPPI/mppi_controller.cuh>
+#include <mppi/controllers/Tube-MPPI/tube_mppi_controller.cuh>
+#include <mppi/core/mppi_common.cuh>
 #include <cnpy.h>
-#include <mppi/ddp/ddp_model_wrapper.h>
-#include <mppi/ddp/ddp_tracking_costs.h>
-#include <mppi/ddp/ddp.h>
+
 
 bool tubeFailure(float *s) {
   float inner_path_radius2 = 1.675*1.675;
@@ -65,6 +67,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   float gamma = 0.25; // Learning rate parameter
   const int num_timesteps = 50;  // Optimization time horizon
 
+
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
 
   // Set the initial state
@@ -86,13 +89,13 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
 //    if (t % 100 == 0) {
-////      float current_cost = cost.getStateCost(x.data());
+////      float current_cost = cost.computeStateCost(x.data());
 //      printf("Current Time: %f    ", t * dt);
 ////      printf("Current State Cost: %f    ", current_cost);
 //      model.printState(x.data());
 //    }
 
-    if (cost.getStateCost(x.data()) > 1000) {
+    if (cost.computeStateCost(x) > 1000) {
       fail_count++;
     }
 
@@ -157,21 +160,21 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
           1024, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
 
-  bool success = false;
+  //bool success = false;
   int fail_count = 0;
 
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
 //    if (t % 100 == 0) {
-//      float current_cost = cost.getStateCost(x.data());
+//      float current_cost = cost.computeStateCost(x.data());
 //      printf("Current Time: %f    ", t * dt);
 //      printf("Current State Cost: %f    ", current_cost);
 //      model.printState(x.data());
 //    }
 
     if (tubeFailure(x.data()))  {
-      success = true;
+      //success = true;
       fail_count++;
     }
 
@@ -208,9 +211,6 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   cnpy::npy_save("vanilla_large.npy",nominal_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 //  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
-  if (not success) {
-    FAIL();
-  }
 }
 
 TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
@@ -255,21 +255,21 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
 
   vanilla_controller.initDDP(Q, Qf, R);
 
-  bool success = false;
+  //bool success = false;
   int fail_count = 0;
 
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
 //    if (t % 100 == 0) {
-//      float current_cost = cost.getStateCost(x.data());
+//      float current_cost = cost.computeStateCost(x.data());
 //      printf("Current Time: %f    ", t * dt);
 //      printf("Current State Cost: %f    ", current_cost);
 //      model.printState(x.data());
 //    }
 
     if (tubeFailure(x.data()))  {
-      success = true;
+      //success = true;
       fail_count++;
     }
 
@@ -309,17 +309,11 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
 
     // Slide the control sequence
     vanilla_controller.slideControlSequence(1);
-//    if (success) {
-//      break;
-//    }
   }
 
   cnpy::npy_save("vanilla_large_track.npy",nominal_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 //  std::cout << "Number of times constraints were violated: " << fail_count << std::endl;
-  if (not success) {
-    FAIL();
-  }
 }
 
 TEST(TubeMPPITest, TubeMPPILargeVariance) {
@@ -381,24 +375,25 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
 //    if (t % 100 == 0) {
-//      float current_cost = cost.getStateCost(x.data());
+//      float current_cost = cost.computeStateCost(x.data());
 //      printf("Current Time: %f    ", t * dt);
 //      printf("Current State Cost: %f    ", current_cost);
 //      model.printState(x.data());
 //    }
 
-    if (cost.getStateCost(x.data()) > 1000) {
+    if (cost.computeStateCost(x) > 1000) {
       fail_count++;
     }
 
     if (tubeFailure(x.data())) {
-      cnpy::npy_save("tube_large_actual.npy",actual_trajectory_save.data(),
+      cnpy::npy_save("tube_large_actual.npy", actual_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-      cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
+      cnpy::npy_save("tube_ancillary.npy", ancillary_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       cnpy::npy_save("tube_large_nominal.npy",nominal_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-      FAIL();
+      FAIL() << "Visualize the trajectories by running scripts/double_integrator/plot_DI_test_trajectories; "
+               "the argument to this python file is the build directory of MPPI-Generic";
     }
 
     // Compute the control

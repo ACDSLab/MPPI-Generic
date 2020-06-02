@@ -118,6 +118,64 @@ namespace mppi_common {
     void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps, cudaStream_t stream);
 
 }
+
+namespace rmppi_kernels {
+  template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
+  __global__ void initEvalKernel(DYN_T* dynamics,
+                                 COST_T* costs,
+                                 int num_timesteps,
+                                 int ctrl_stride,
+                                 float dt,
+                                 int* strides_d,
+                                 float* exploration_var_d,
+                                 float* states_d,
+                                 float* control_d,
+                                 float* control_noise_d,
+                                 float* costs_d);
+
+  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
+  void launchInitEvalKernel(DYN_T* dynamics,
+                            COST_T* costs,
+                            int num_candidates,
+                            int num_timesteps,
+                            int ctrl_stride,
+                            float dt,
+                            int* strides_d,
+                            float* exploration_var_d,
+                            float* states_d,
+                            float* control_d,
+                            float* control_noise_d,
+                            float* costs_d);
+
+  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
+      int NUM_ROLLOUTS, int BLOCKSIZE_Z = 2>
+  __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
+                                     float dt,
+                                     int num_timesteps,
+                                     float lambda,
+                                     float value_func_threshold,
+                                     float* x_d,
+                                     float* u_d,
+                                     float* du_d,
+                                     float* feedback_gains_d,
+                                     float* sigma_u_d,
+                                     float* trajectory_costs_d);
+
+  template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
+           int BLOCKSIZE_Y, int BLOCKSIZE_Z = 2>
+  void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
+                                float dt,
+                                int num_timesteps,
+                                float lambda,
+                                float value_func_threshold,
+                                float* x_d,
+                                float* u_d,
+                                float* du_d,
+                                float* feedback_gains_d,
+                                float* sigma_u_d,
+                                float* trajectory_costs,
+                                cudaStream_t stream);
+}
 #if __CUDACC__
 #include "mppi_common.cu"
 #endif

@@ -9,20 +9,20 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
                              const Eigen::Ref<const StateCostWeight>& Q,
                              const Eigen::Ref<const Hessian>& Qf,
                              const Eigen::Ref<const ControlCostWeight>& R,
-                             const Eigen::Ref<const control_array>& control_variance,
+                             const Eigen::Ref<const control_array>& control_std_dev,
                              int num_timesteps,
                              const Eigen::Ref<const control_trajectory>& init_control_traj,
                              cudaStream_t stream) :Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
                                      model, cost, dt, max_iter, gamma,
-                                     control_variance, num_timesteps, init_control_traj, stream) {
+                                     control_std_dev, num_timesteps, init_control_traj, stream) {
 
   nominal_control_trajectory_ = init_control_traj;
 
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
 
-  // Copy the noise variance to the device
-  this->copyControlVarianceToDevice();
+  // Copy the noise std_dev to the device
+  this->copyControlStdDevToDevice();
 
   this->initDDP(Q, Qf, R);
 }
@@ -68,7 +68,10 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 2>(
             this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
             this->initial_state_d_, this->control_d_, this->control_noise_d_,
-            this->control_variance_d_, this->trajectory_costs_d_, this->stream_);
+            this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
+
+    // Copy back sampled trajectories
+    this->copySampledControlFromDevice();
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
@@ -207,4 +210,3 @@ void TubeMPPI::updateNominalState(const Eigen::Ref<const control_array> &u) {
   this->model_->computeDynamics(nominal_state_trajectory_.col(0), u, xdot);
   this->model_->updateState(nominal_state_trajectory_.col(0), xdot, this->dt_);
 }
-

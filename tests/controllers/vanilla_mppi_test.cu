@@ -17,14 +17,14 @@ TEST_F(Cartpole_VanillaMPPI, BindToStream) {
   const int num_timesteps = 100;
   const int num_rollouts = 256;
 
-  CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(2.5);
+  CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(2.5);
   Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps> init_control = Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps>::Constant(0);
   cudaStream_t stream;
 
   HANDLE_ERROR(cudaStreamCreate(&stream));
 
   auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>
-          (&model, &cost, dt, max_iter, gamma, control_var, num_timesteps, init_control, stream);
+          (&model, &cost, dt, max_iter, gamma, control_std_dev, num_timesteps, init_control, stream);
 
   EXPECT_EQ(CartpoleController->stream_, CartpoleController->model_->stream_)
                       << "Stream bind to dynamics failure";
@@ -35,23 +35,23 @@ TEST_F(Cartpole_VanillaMPPI, BindToStream) {
   delete(CartpoleController);
 }
 
-TEST_F(Cartpole_VanillaMPPI, UpdateNoiseVariance) {
+TEST_F(Cartpole_VanillaMPPI, UpdateNoiseStdDev) {
   const int num_timesteps = 150;
   const int num_rollouts = 512;
-  CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(1.5);
-  CartpoleDynamics::control_array new_control_var = CartpoleDynamics::control_array::Constant(3.5);
+  CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(1.5);
+  CartpoleDynamics::control_array new_control_std_dev = CartpoleDynamics::control_array::Constant(3.5);
 
   auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, num_rollouts, 64, 8>(&model, &cost,
-          dt, max_iter, gamma, control_var);
+          dt, max_iter, gamma, control_std_dev);
   std::cout << sizeof(*CartpoleController) << std::endl;
 
-  std::cout << CartpoleController->getControlVariance() << std::endl;
+  std::cout << CartpoleController->getControlStdDev() << std::endl;
 
-  CartpoleController->updateControlNoiseVariance(new_control_var);
+  CartpoleController->updateControlNoiseStdDev(new_control_std_dev);
 
-  std::cout << CartpoleController->getControlVariance() << std::endl;
+  std::cout << CartpoleController->getControlStdDev() << std::endl;
 
-  EXPECT_FLOAT_EQ(new_control_var[0], CartpoleController->getControlVariance()[0]);
+  EXPECT_FLOAT_EQ(new_control_std_dev[0], CartpoleController->getControlStdDev()[0]);
 }
 
 
@@ -74,10 +74,10 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
   int max_iter = 1;
   float gamma = 0.25;
 
-  CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
+  CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(5.0);
 
   auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
-                                                                                                     dt, max_iter, gamma, control_var);
+                                                                                                     dt, max_iter, gamma, control_std_dev);
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
   int time_horizon = 1000;
 
@@ -110,9 +110,9 @@ TEST_F(Cartpole_VanillaMPPI, ConstructWithNew) {
   float dt = 0.01;
   int max_iter = 1;
   float gamma = 0.25;
-  CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
+  CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(5.0);
   auto controller = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
-                                                                                                     dt, max_iter, gamma, control_var);
+                                                                                                     dt, max_iter, gamma, control_std_dev);
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
 
