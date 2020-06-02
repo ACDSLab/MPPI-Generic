@@ -339,7 +339,7 @@ namespace rmppi_kernels {
                                  int ctrl_stride,
                                  float dt,
                                  int* strides_d,
-                                 float* exploration_var_d,
+                                 float* exploration_std_dev_d,
                                  float* states_d,
                                  float* control_d,
                                  float* control_noise_d,
@@ -354,14 +354,13 @@ namespace rmppi_kernels {
     float* state_der;
     float* control;
     float* control_noise;  // du
-    float* exploration_var;  //nu
 
     //Create shared arrays for holding state and control data.
     __shared__ float state_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
     __shared__ float state_der_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
     __shared__ float control_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
     __shared__ float control_noise_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
-    __shared__ float exploration_variance[BLOCKSIZE_X*DYN_T::CONTROL_DIM]; // Each thread has its own copy
+    __shared__ float exploration_std_dev[DYN_T::CONTROL_DIM]; // Each thread only reads
 
     //Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
@@ -378,18 +377,17 @@ namespace rmppi_kernels {
     state_der = &state_der_shared[tdx*DYN_T::STATE_DIM];
     control = &control_shared[tdx*DYN_T::CONTROL_DIM];
     control_noise = &control_noise_shared[tdx*DYN_T::CONTROL_DIM];
-    exploration_var = &exploration_variance[tdx*DYN_T::CONTROL_DIM];
 
     // Copy the state to the thread
     for (i = tdy; i < DYN_T::STATE_DIM; i+= blockDim.y) {
       state[i] = states_d[condition_idx*DYN_T::STATE_DIM + i]; // states_d holds each condition
     }
 
-    // Copy the exploration noise to the thread
+    // Copy the exploration noise std_dev to the thread
     for (i = tdy; i < DYN_T::CONTROL_DIM; i += blockDim.y) {
       control[i] = 0.0;
       control_noise[i] = 0.0;
-      exploration_var[i] = exploration_var_d[i];
+      exploration_std_dev[i] = exploration_std_dev_d[i];
     }
 
     __syncthreads();
@@ -410,7 +408,7 @@ namespace rmppi_kernels {
           control_noise[j] = 0.0;
         } else {
           control_noise[j] = control_noise_d[num_timesteps*DYN_T::CONTROL_DIM*global_idx +
-                                             i*DYN_T::CONTROL_DIM + j]*exploration_var[j];
+                                             i*DYN_T::CONTROL_DIM + j]*exploration_std_dev[j];
         }
 
         // Sum the control and the noise
@@ -423,7 +421,7 @@ namespace rmppi_kernels {
       __syncthreads();
       if (tdy == 0 && i > 0) { // Only compute once per global index, make sure that we don't divide by zero
         running_cost +=
-                (costs->computeRunningCost(state, control, control_noise, exploration_var, i) * dt - running_cost) / (1.0 * i);
+                (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, i) * dt - running_cost) / (1.0 * i);
       }
       __syncthreads();
 
@@ -450,7 +448,7 @@ namespace rmppi_kernels {
                             int ctrl_stride,
                             float dt,
                             int* strides_d,
-                            float* exploration_var_d,
+                            float* exploration_std_dev_d,
                             float* states_d,
                             float* control_d,
                             float* control_noise_d,
@@ -461,7 +459,7 @@ namespace rmppi_kernels {
     dim3 dimGrid(GRIDSIZE_X, 1, 1);
     initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
             <<<dimGrid, dimBlock, 0>>>(dynamics, costs,
-            num_timesteps, ctrl_stride, dt, strides_d, exploration_var_d, states_d,
+            num_timesteps, ctrl_stride, dt, strides_d, exploration_std_dev_d, states_d,
             control_d, control_noise_d, costs_d);
 
   }
