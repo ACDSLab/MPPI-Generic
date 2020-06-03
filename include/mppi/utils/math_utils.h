@@ -11,6 +11,7 @@
 #include <vector>
 #include <algorithm>
 
+namespace mppi_math {
 // Based off of https://gormanalysis.com/blog/random-numbers-in-cpp
 inline std::vector<int> sample_without_replacement(int k, int N,
     std::default_random_engine g = std::default_random_engine()) {
@@ -33,5 +34,6 @@ inline std::vector<int> sample_without_replacement(int k, int N,
   std::shuffle(final_sequence.begin(), final_sequence.end(), g);
   return final_sequence;
 }
+} // mppi_math
 
-#endif
+#endif // MATH_UTILS_H_
