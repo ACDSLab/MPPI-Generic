@@ -292,6 +292,7 @@ public:
   void setFeedbackController(bool enable_feedback) {
     enable_feedback_ = enable_feedback;
   }
+  bool getFeedbackEnabled() {return enable_feedback_;}
 
   /**
    * Public data members

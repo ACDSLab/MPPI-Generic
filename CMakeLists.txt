@@ -84,6 +84,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/
 # Add gtest
 ###################################################################
 if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
+  message(STATUS "Building MPPI Generic tests")
   enable_testing()
 
   ############################################################
