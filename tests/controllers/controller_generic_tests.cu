@@ -34,15 +34,15 @@ public:
 
   }
 
-  virtual void updateImportanceSampler(const Eigen::Ref<const control_trajectory>& nominal_control) override {
-
-  }
-
   float getDt() {return dt_;}
   int getNumIter() {return num_iters_;}
   float getGamma() {return gamma_;}
   float getNumTimesteps() {return num_timesteps_;}
   cudaStream_t getStream() {return stream_;}
+
+  void setFeedbackGains(TestController::FeedbackGainTrajectory traj) {
+    this->result_.feedback_gain = traj;
+  }
 };
 
 TEST(Controller, ConstructorDestructor) {
@@ -222,3 +222,112 @@ TEST(Controller, computeStateTrajectoryHelper) {
     }
   }
 }
+
+TEST(Controller, interpolateControl) {
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+
+  float dt = 0.1;
+  int max_iter = 1;
+  float gamma = 1.2;
+  MockDynamics::control_array control_var;
+  control_var = MockDynamics::control_array::Constant(1.0);
+
+  // expect double check rebind
+  EXPECT_CALL(mockCost, bindToStream(testing::_)).Times(1);
+  EXPECT_CALL(mockDynamics, bindToStream(testing::_)).Times(1);
+
+  // expect GPU setup called again
+  EXPECT_CALL(mockCost, GPUSetup()).Times(1);
+  EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
+
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController::control_trajectory traj;
+  for(int i = 0; i < controller.getNumTimesteps(); i++) {
+    traj.col(i) = TestController::control_array::Ones() * i;
+  }
+  controller.updateImportanceSampler(traj);
+
+  for(double i = 0; i < controller.getNumTimesteps() - 1; i+= 0.25) {
+    TestController::control_array result = controller.interpolateControls(i*controller.getDt());
+    EXPECT_FLOAT_EQ(result(0), i) << i;
+  }
+}
+
+TEST(Controller, interpolateFeedback) {
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+
+  float dt = 0.1;
+  int max_iter = 1;
+  float gamma = 1.2;
+  MockDynamics::control_array control_var;
+  control_var = MockDynamics::control_array::Constant(1.0);
+
+  // expect double check rebind
+  EXPECT_CALL(mockCost, bindToStream(testing::_)).Times(1);
+  EXPECT_CALL(mockDynamics, bindToStream(testing::_)).Times(1);
+
+  // expect GPU setup called again
+  EXPECT_CALL(mockCost, GPUSetup()).Times(1);
+  EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
+
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+
+  EXPECT_CALL(mockDynamics, enforceConstraints(testing::_, testing::_)).Times(4 * (controller.getNumTimesteps() - 1));
+
+  controller.setFeedbackController(true);
+  TestController::FeedbackGainTrajectory feedback_traj = TestController::FeedbackGainTrajectory(controller.getNumTimesteps());
+  for(int i = 0; i < controller.getNumTimesteps(); i++) {
+    feedback_traj[i] = Eigen::Matrix<float, 1, 1>::Ones() * i;
+  }
+  controller.setFeedbackGains(feedback_traj);
+
+  TestController::state_array state = TestController::state_array::Ones();
+  for(double i = 0; i < controller.getNumTimesteps() - 1; i += 0.25) {
+    TestController::control_array result = controller.interpolateFeedback(state, i*controller.getDt());
+    EXPECT_FLOAT_EQ(result(0), i);
+  }
+}
+
+
+TEST(Controller, getCurrentControlTest) {
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+
+  float dt = 0.1;
+  int max_iter = 1;
+  float gamma = 1.2;
+  MockDynamics::control_array control_var;
+  control_var = MockDynamics::control_array::Constant(1.0);
+
+  // expect double check rebind
+  EXPECT_CALL(mockCost, bindToStream(testing::_)).Times(1);
+  EXPECT_CALL(mockDynamics, bindToStream(testing::_)).Times(1);
+
+  // expect GPU setup called again
+  EXPECT_CALL(mockCost, GPUSetup()).Times(1);
+  EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
+
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+
+  EXPECT_CALL(mockDynamics, enforceConstraints(testing::_, testing::_)).Times(4 * (controller.getNumTimesteps() - 1));
+
+  controller.setFeedbackController(true);
+  TestController::FeedbackGainTrajectory feedback_traj = TestController::FeedbackGainTrajectory(controller.getNumTimesteps());
+  TestController::control_trajectory traj;
+  for(int i = 0; i < controller.getNumTimesteps(); i++) {
+    feedback_traj[i] = Eigen::Matrix<float, 1, 1>::Ones() * i;
+    traj.col(i) = TestController::control_array::Ones() * i;
+  }
+  controller.setFeedbackGains(feedback_traj);
+  controller.updateImportanceSampler(traj);
+
+  TestController::state_array state = TestController::state_array::Ones();
+  for(double i = 0; i < controller.getNumTimesteps() - 1; i += 0.25) {
+    TestController::control_array result = controller.getCurrentControl(state, i*controller.getDt());
+    EXPECT_FLOAT_EQ(result(0), i*2);
+  }
+}
+
+

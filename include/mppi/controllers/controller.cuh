@@ -129,10 +129,70 @@ public:
    */
   virtual void updateImportanceSampler(const Eigen::Ref<const control_trajectory>& nominal_control) {
     // TODO copy to device new control sequence
+    control_ = nominal_control;
   }
 
   // ================ END OF MNETHODS WITH NO DEFAULT =============
   // ======== PURE VIRTUAL END =====
+  /**
+   * determines the control that should
+   * @param state
+   * @param rel_time
+   * @return
+   */
+  virtual control_array getCurrentControl(state_array& state, double rel_time) {
+    // MPPI control
+    control_array u_ff = interpolateControls(rel_time);
+    control_array u_fb = control_array::Zero();
+    if(enable_feedback_) {
+       u_fb = interpolateFeedback(state, rel_time);
+    }
+    return u_ff + u_fb;
+  }
+
+  /**
+   * determines the interpolated control from control_seq_, linear interpolation
+   * @param rel_time time since the solution was calculated
+   * @return
+   */
+  virtual control_array interpolateControls(double rel_time) {
+    int lower_idx = (int) (rel_time / dt_);
+    int upper_idx = lower_idx + 1;
+    double alpha = (rel_time - lower_idx * dt_) / dt_;
+
+    control_array interpolated_control;
+    control_array prev_cmd = getControlSeq().col(lower_idx);
+    control_array next_cmd = getControlSeq().col(upper_idx);
+    interpolated_control = (1 - alpha) * prev_cmd + alpha * next_cmd;
+    return interpolated_control;
+  }
+
+  /**
+   *
+   * @param state
+   * @param rel_time
+   * @return
+   */
+  virtual control_array interpolateFeedback(state_array& state, double rel_time) {
+    int lower_idx = (int) (rel_time / dt_);
+    int upper_idx = lower_idx + 1;
+    double alpha = (rel_time - lower_idx * dt_) / dt_;
+
+    control_array interpolated_control;
+
+    state_array desired_state;
+    desired_state = (1 - alpha)*getStateSeq().col(lower_idx) + alpha*getStateSeq().col(upper_idx);
+
+    auto test = getFeedbackGains()[lower_idx];
+    control_array u_fb = ((1-alpha)*getFeedbackGains()[lower_idx]
+            + alpha*getFeedbackGains()[upper_idx])*(state - desired_state);
+
+    // TODO this is kinda jank
+    state_array empty_state = state_array::Zero();
+    model_->enforceConstraints(empty_state, u_fb);
+
+    return u_fb;
+  }
 
   /**
    * returns the current control sequence
@@ -278,6 +338,7 @@ public:
       printf("You must give a number of timesteps between [0, %d]\n", MAX_TIMESTEPS);
     }
   }
+  int getNumTimesteps() {return num_timesteps_;}
 
   /**
    * updates the scaling factor of noise for sampling around the nominal trajectory
@@ -302,6 +363,7 @@ public:
   cudaStream_t stream_;
 
   float getDt() {return dt_;}
+  void setDt(float dt) {dt_ = dt;}
 
 protected:
   // no default protected members
@@ -356,7 +418,7 @@ protected:
   control_array control_min_;
   control_array control_max_;
 
-  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
+  OptimizerResult<ModelWrapperDDP<DYN_T>> result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
 
   void copyControlVarianceToDevice() {
     HANDLE_ERROR(cudaMemcpyAsync(control_variance_d_, control_variance_.data(), sizeof(float)*control_variance_.size(), cudaMemcpyHostToDevice, stream_));

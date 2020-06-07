@@ -68,8 +68,6 @@ protected:
   int optimization_stride_ = 1;
   int last_optimization_stride_ = 0;
 
-  bool solution_recieved_ = false;
-
   /**
    * From before while loop
    */
@@ -126,7 +124,7 @@ public:
    * applies the control to the system
    * @param u
    */
-  virtual void pubControl(c_array& u) = 0;
+  virtual void pubControl(const c_array& u) = 0;
 
   /**
    * Receives timing info from control loop and can be overwritten
@@ -228,25 +226,17 @@ public:
    */
   virtual void updateState(s_array& state, double time) {
     // calculate and update all timing variables
-    double time_since_last_opt = time - last_optimization_time_;
-
-    // check if the requested time is in the calculated trajectory
-    bool t_within_trajectory = time_since_last_opt < (-1)*controller_->getDt();
+    double time_since_last_opt = time - last_used_pose_update_time_;
 
     state_ = state;
 
-    if (this->solution_recieved_ && time_since_last_opt > 0 && t_within_trajectory){
-      c_array u_ff = interpolateControls(time_since_last_opt,
-                                               controller_->getDt(),
-                                               control_traj_);
-      if (controller_->getFeedbackEnabled()) {
-        // TODO: Do something here for feedback gains
+    // check if the requested time is in the calculated trajectory
+    auto upper_limit = last_used_pose_update_time_ + controller_->getDt()*controller_->getNumTimesteps();
+    bool t_within_trajectory = time > last_used_pose_update_time_ &&
+                               time < last_used_pose_update_time_ + controller_->getDt()*controller_->getNumTimesteps();
 
-        // TODO interpolate feedbackControls
-
-        // TODO apply feedback to state
-      }
-      pubControl(u_ff);
+    if (time_since_last_opt > 0 && t_within_trajectory){
+      pubControl(controller_->getCurrentControl(state, time_since_last_opt));
     }
   }
 
@@ -276,75 +266,11 @@ public:
   virtual bool hasNewModel() { return false;};
 
   /**
-   * Linearly interpolate the controls
-   * @param  t           time in s that we desire a control for
-   * @param  dt          time between control steps
-   * @param  control_seq control trajectory used for interpolation
-   * @return             the control at time t, interpolated from
-   *                     the control sequence
+   *
+   * @param controller
+   * @param state
+   * @return
    */
-  c_array interpolateControls(double t,
-                              double dt,
-                              const c_traj& control_seq) {
-
-    int lower_idx = (int) (t / dt);
-    int upper_idx = lower_idx + 1;
-    double alpha = (t - lower_idx * dt) / dt;
-
-    c_array interpolated_control;
-    for (int i = 0; i < interpolated_control.size(); i++) {
-      float prev_cmd = control_seq(i, lower_idx);
-      float next_cmd = control_seq(i, upper_idx);
-      interpolated_control(i) = (1 - alpha) * prev_cmd + alpha * next_cmd;
-    }
-    return interpolated_control;
-  };
-
-  /**
-   * Linearly interpolate the controls
-   * @param  t           time in s that we desire a control for
-   * @param  dt          time between control steps
-   * @param  control_seq control trajectory used for interpolation
-   * @return             the control at time t, interpolated from
-   *                     the control sequence
-   */
-  // c_array interpolateFeedbackControls(double t,
-  //                                     double dt,
-  //                                     const c_traj& control_seq,
-  //                                     const s_traj& state_seq,
-  //                                     const s_array& curr_state,
-  //                                     const K_mat& K) {
-  //   int lower_idx = (int) (t / dt);
-  //   int upper_idx = lower_idx + 1;
-  //   double alpha = (t - lower_idx * dt) / dt;
-
-  //   c_array interpolated_control;
-  //   s_array desired_state;
-
-  //   int state_dim = CONTROLLER_T::TEMPLATED_DYNAMICS::STATE_DIM;
-
-  //   Eigen::MatrixXf current_state(7,1);
-  //   Eigen::MatrixXf desired_state(7,1);
-  //   Eigen::MatrixXf deltaU;
-  //   current_state << full_state_.x_pos, full_state_.y_pos, full_state_.yaw, full_state_.roll, full_state_.u_x, full_state_.u_y, full_state_.yaw_mder;
-  //   for (int i = 0; i < 7; i++){
-  //     desired_state(i) = (1 - alpha)*stateSequence_[7*lowerIdx + i] + alpha*stateSequence_[7*upperIdx + i];
-  //   }
-
-  //   deltaU = ((1-alpha)*feedback_gains_[lowerIdx] + alpha*feedback_gains_[upperIdx])*(current_state - desired_state);
-
-  //   if (std::isnan( deltaU(0) ) || std::isnan( deltaU(1))){
-  //     steering = steering_ff;
-  //     throttle = throttle_ff;
-  //   }
-  //   else {
-  //     steering_fb = deltaU(0);
-  //     throttle_fb = deltaU(1);
-  //     steering = fmin(0.99, fmax(-0.99, steering_ff + steering_fb));
-  //     throttle = fmin(throttleMax_, fmax(-0.99, throttle_ff + throttle_fb));
-  //   }
-  // };
-
   bool updateParameters(CONTROLLER_T* controller, s_array& state) {
     bool changed = false;
     if (debug_mode_ && controller->cost_->getDebugDisplayEnabled()) { //Display the debug window.

@@ -44,7 +44,7 @@ public:
         : BasePlant<CONTROLLER_T>(controller,hz,opt_stride) {}
 
 
-  void pubControl(c_array& u) override {
+  void pubControl(const c_array& u) override {
 
   }
 
@@ -77,6 +77,7 @@ public:
   double getLoopAvg() {return this->avg_loop_time_ms_;}
   double getFeedbackDuration() {return this->feedback_duration_;}
   double getFeedbackAvg() {return this->avg_feedback_time_ms_;}
+  void setLastTime(double time) {this->last_used_pose_update_time_ = time;}
 };
 
 typedef TestPlant<MockController> MockTestPlant;
@@ -234,6 +235,53 @@ TEST(BasePlant, updateParametersAllTrue) {
 
   MockDynamics::state_array state = MockDynamics::state_array::Zero();
   testPlant.updateParameters(mockController.get(), state);
+}
+
+TEST(BasePlant, updateStateOutsideTimeTest) {
+  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+  mockController->cost_ = &mockCost;
+  mockController->model_ = &mockDynamics;
+
+  mockController->setDt(0.05);
+
+  MockTestPlant testPlant(mockController);
+  testPlant.setLastTime(0);
+
+  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_)).Times(0);
+
+  MockController::state_array state = MockController::state_array::Zero();
+  testPlant.updateState(state, mockController->getDt() * mockController->getNumTimesteps() + 0.01);
+  EXPECT_EQ(testPlant.getState(), state);
+
+  testPlant.setLastTime(100);
+  testPlant.updateState(state, 99.99);
+  EXPECT_EQ(testPlant.getState(), state);
+}
+
+
+TEST(BasePlant, updateStateTest) {
+  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+  mockController->cost_ = &mockCost;
+  mockController->model_ = &mockDynamics;
+
+  mockController->setDt(0.05);
+
+  MockTestPlant testPlant(mockController);
+  testPlant.setLastTime(0);
+
+  MockController::state_array state = MockController::state_array::Zero();
+  EXPECT_CALL(*mockController, getCurrentControl(state, mockController->getDt())).Times(1);
+  testPlant.updateState(state, mockController->getDt());
+  EXPECT_EQ(testPlant.getState(), state);
+
+  //EXPECT_CALL(*mockController, getCurrentControl(state, mockController->getDt()+100)).Times(1);
+  //testPlant.setLastTime(100);
+  //testPlant.updateState(state, 100+mockController->getDt());
+  //EXPECT_EQ(testPlant.getState(), state);
 }
 
 TEST(BasePlant, runControlIterationStoppedTest) {
