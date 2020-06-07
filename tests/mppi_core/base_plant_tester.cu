@@ -31,7 +31,7 @@ public:
 
   using s_array = typename CONTROLLER_T::state_array;
   using s_traj = typename CONTROLLER_T::state_trajectory;
-  using K_mat = typename CONTROLLER_T::K_matrix;
+  using K_mat = typename CONTROLLER_T::feedback_gain_trajectory;
 
   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
@@ -338,7 +338,7 @@ TEST(BasePlant, runControlIterationDebugFalseNoFeedbackTest) {
     EXPECT_EQ(testPlant.checkStatus(), 1);
     EXPECT_EQ(testPlant.getStateTraj(), state_seq);
     EXPECT_EQ(testPlant.getControlTraj(), control_seq);
-    MockController::K_matrix feedback = testPlant.getFeedbackGains();
+    MockController::feedback_gain_trajectory feedback = testPlant.getFeedbackGains();
     MockController::state_array state = MockController::state_array::Ones();
     for(int j = 0; j < 100; j++) {
       // TODO check that feedback is correct
@@ -392,7 +392,7 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
     EXPECT_CALL(*mockController, getStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
 
     EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
-    MockController::K_matrix feedback;
+    MockController::feedback_gain_trajectory feedback;
     EXPECT_CALL(*mockController, getFeedbackGains()).Times(1).WillRepeatedly(testing::Return(feedback));
 
     EXPECT_EQ(testPlant.getDebugMode(), false);
@@ -453,7 +453,7 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackAvgTest) {
     EXPECT_CALL(*mockController, getStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
 
     EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
-    MockController::K_matrix feedback;
+    MockController::feedback_gain_trajectory feedback;
     EXPECT_CALL(*mockController, getFeedbackGains()).Times(1).WillRepeatedly(testing::Return(feedback));
 
     EXPECT_EQ(testPlant.getDebugMode(), false);
@@ -520,7 +520,7 @@ TEST(BasePlant, runControlLoop) {
   MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
   EXPECT_CALL(*mockController, getStateSeq()).Times(iterations/2).WillRepeatedly(testing::Return(state_seq));
   EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(iterations/2).WillRepeatedly(testing::Invoke(wait_function));
-  MockController::K_matrix feedback;
+  MockController::feedback_gain_trajectory feedback;
   EXPECT_CALL(*mockController, getFeedbackGains()).Times(iterations/2).WillRepeatedly(testing::Return(feedback));
 
   std::atomic<bool> is_alive(true);

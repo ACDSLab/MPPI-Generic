@@ -234,7 +234,7 @@ TEST(RolloutKernel, runRolloutKernelOnMultipleSystems) {
   const int NUM_ROLLOUTS = 2048; // Must be a multiple of 32
   // Create variables to pass to rolloutKernel
   std::vector<float> x0(CartpoleDynamics::STATE_DIM);
-  std::vector<float> control_variance(CartpoleDynamics::CONTROL_DIM, 0.4);
+  std::vector<float> control_std_dev(CartpoleDynamics::CONTROL_DIM, 0.4);
   std::vector<float> nominal_control_seq(CartpoleDynamics::CONTROL_DIM * num_timesteps);
   std::vector<float> trajectory_costs_act(NUM_ROLLOUTS);
   std::vector<float> trajectory_costs_nom(NUM_ROLLOUTS);
@@ -243,8 +243,7 @@ TEST(RolloutKernel, runRolloutKernelOnMultipleSystems) {
   }
 
   launchRolloutKernel_nom_act<CartpoleDynamics, CartpoleQuadraticCost, NUM_ROLLOUTS>(
-          &dynamics, &cost, dt, num_timesteps, x0, control_variance,
+          &dynamics, &cost, dt, num_timesteps, x0, control_std_dev,
           nominal_control_seq, trajectory_costs_act, trajectory_costs_nom);
   array_assert_float_eq(trajectory_costs_act, trajectory_costs_nom, NUM_ROLLOUTS);
 }
-

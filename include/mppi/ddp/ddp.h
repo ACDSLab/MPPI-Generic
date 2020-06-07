@@ -124,7 +124,7 @@ public:
             {
                 xnew.col(0) = x_.col(0);
 
-                for(std::size_t k = 0; k < H_ - 1; ++k)
+                for(int k = 0; k < H_ - 1; ++k)
                 {
                     State dx = xnew.col(k) - x_.col(k);
                     unew.col(k) = u_.col(k) + alpha * lk_.col(k) + Lk_.at(k) * dx;

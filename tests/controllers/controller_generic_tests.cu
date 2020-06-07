@@ -9,13 +9,16 @@
 #include <algorithm>
 #include <numeric>
 
-class TestController : public Controller<MockDynamics, MockCost, 100, 1200, 1, 2>{
+
+static const int number_rollouts = 1200;
+
+class TestController : public Controller<MockDynamics, MockCost, 100, number_rollouts, 1, 2>{
 public:
   TestController(MockDynamics* model, MockCost* cost, float dt, int max_iter, float gamma,
                  const Eigen::Ref<const control_array>& control_variance,
                  int num_timesteps = 100,
                  const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
-                 cudaStream_t stream = nullptr) : Controller<MockDynamics, MockCost, 100, 1200, 1, 2>(
+                 cudaStream_t stream = nullptr) : Controller<MockDynamics, MockCost, 100, number_rollouts, 1, 2>(
                          model, cost, dt, max_iter, gamma, control_variance, num_timesteps,
                          init_control_traj, stream) {
 
@@ -23,11 +26,28 @@ public:
     allocateCUDAMemoryHelper(0);
 
     // Copy the noise variance to the device
-    this->copyControlVarianceToDevice();
+    this->copyControlStdDevToDevice();
   }
 
   virtual void computeControl(const Eigen::Ref<const state_array>& state) override {
 
+  }
+
+  void computeControl(const Eigen::Ref<const state_array> state,
+                      const std::array<control_trajectory, number_rollouts> noise) {
+    int trajectory_size = control_trajectory().size();
+    for (int i = 0; i < number_rollouts; i++) {
+      HANDLE_ERROR(cudaMemcpyAsync(control_noise_d_ + i * trajectory_size,
+                                   noise[i].data(),
+                                   sizeof(float)*trajectory_size,
+                                   cudaMemcpyHostToDevice, stream_));
+    }
+    HANDLE_ERROR(cudaStreamSynchronize(stream_));
+    // Normally rolloutKernel would be called here and would transform
+    //  control_noise_d_ from u to u + noise
+
+    // Instead we just get back noise in this test
+    this->copySampledControlFromDevice();
   }
 
   virtual void slideControlSequence(int steps) override {
@@ -40,7 +60,7 @@ public:
   float getNumTimesteps() {return num_timesteps_;}
   cudaStream_t getStream() {return stream_;}
 
-  void setFeedbackGains(TestController::FeedbackGainTrajectory traj) {
+  void setFeedbackGains(TestController::feedback_gain_trajectory traj) {
     this->result_.feedback_gain = traj;
   }
 };
@@ -77,7 +97,7 @@ TEST(Controller, ConstructorDestructor) {
   EXPECT_EQ(controller->getNumIter(), max_iter);
   EXPECT_EQ(controller->getGamma(), gamma);
   EXPECT_EQ(controller->getNumTimesteps(), num_timesteps);
-  EXPECT_EQ(controller->getControlVariance(), control_var);
+  EXPECT_EQ(controller->getControlStdDev(), control_var);
   EXPECT_EQ(controller->getControlSeq(), init_control_trajectory);
   EXPECT_EQ(controller->getStream(), stream);
 
@@ -116,7 +136,7 @@ TEST(Controller, setNumTimesteps) {
 }
 
 
-TEST(Controller, updateControlNoiseVariance) {
+TEST(Controller, updateControlNoiseStdDev) {
   MockCost mockCost;
   MockDynamics mockDynamics;
 
@@ -138,9 +158,9 @@ TEST(Controller, updateControlNoiseVariance) {
 
   TestController::control_array new_control_var = TestController::control_array::Ones();
 
-  controller.updateControlNoiseVariance(new_control_var);
+  controller.updateControlNoiseStdDev(new_control_var);
 
-  EXPECT_EQ(controller.getControlVariance(), new_control_var);
+  EXPECT_EQ(controller.getControlStdDev(), new_control_var);
   // TODO verify copied to GPU correctly
 }
 
@@ -277,7 +297,7 @@ TEST(Controller, interpolateFeedback) {
   EXPECT_CALL(mockDynamics, enforceConstraints(testing::_, testing::_)).Times(4 * (controller.getNumTimesteps() - 1));
 
   controller.setFeedbackController(true);
-  TestController::FeedbackGainTrajectory feedback_traj = TestController::FeedbackGainTrajectory(controller.getNumTimesteps());
+  TestController::feedback_gain_trajectory feedback_traj = TestController::feedback_gain_trajectory(controller.getNumTimesteps());
   for(int i = 0; i < controller.getNumTimesteps(); i++) {
     feedback_traj[i] = Eigen::Matrix<float, 1, 1>::Ones() * i;
   }
@@ -314,7 +334,7 @@ TEST(Controller, getCurrentControlTest) {
   EXPECT_CALL(mockDynamics, enforceConstraints(testing::_, testing::_)).Times(4 * (controller.getNumTimesteps() - 1));
 
   controller.setFeedbackController(true);
-  TestController::FeedbackGainTrajectory feedback_traj = TestController::FeedbackGainTrajectory(controller.getNumTimesteps());
+  TestController::feedback_gain_trajectory feedback_traj = TestController::feedback_gain_trajectory(controller.getNumTimesteps());
   TestController::control_trajectory traj;
   for(int i = 0; i < controller.getNumTimesteps(); i++) {
     feedback_traj[i] = Eigen::Matrix<float, 1, 1>::Ones() * i;
@@ -328,6 +348,58 @@ TEST(Controller, getCurrentControlTest) {
     TestController::control_array result = controller.getCurrentControl(state, i*controller.getDt());
     EXPECT_FLOAT_EQ(result(0), i*2);
   }
+}
+
+TEST(Controller, getSampledControlTrajectories) {
+  // Create controller
+  // Use computeControl with noise passed in
+  // Inside computeControl copySampledControlFromDevice is used
+  // Get sampled control sequence
+  // Compare to original noise
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+
+  float dt = 0.1;
+  int max_iter = 1;
+  float gamma = 1.2;
+  MockDynamics::control_array control_var;
+  control_var = MockDynamics::control_array::Constant(1.0);
+
+  // expect double check rebind
+  EXPECT_CALL(mockCost, bindToStream(testing::_)).Times(1);
+  EXPECT_CALL(mockDynamics, bindToStream(testing::_)).Times(1);
+
+  // expect GPU setup called again
+  EXPECT_CALL(mockCost, GPUSetup()).Times(1);
+  EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
+
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+
+  // Create noisy trajectories./
+  std::array<TestController::control_trajectory, number_rollouts> noise;
+  for(int i = 0; i < number_rollouts; i++) {
+    noise[i] = TestController::control_trajectory::Random();
+  }
+  // Save back a percentage of trajectories
+  controller.setPercentageSampledControlTrajectories(0.3);
+
+  TestController::state_array x = TestController::state_array::Ones();
+  controller.computeControl(x, noise);
+  std::vector<TestController::control_trajectory> sampled_controls = controller.getSampledControlSeq();
+  int j;
+  float total_difference;
+  for (int i = 0; i < sampled_controls.size(); i++) {
+    float diff = -1;
+    // Need to find which noise trajectory the current sample matches
+    for (j = 0; j < number_rollouts; j++){
+      diff = std::abs((noise[j] - sampled_controls[i]).norm());
+      if (diff == 0) {
+        break;
+      }
+    }
+    total_difference += diff;
+  }
+  EXPECT_FLOAT_EQ(0, total_difference);
 }
 
 

@@ -20,7 +20,7 @@ void DoubleIntegratorDynamics::computeDynamics(const Eigen::Ref<const state_arra
   state_der(3) = control(1); // y_force
 }
 
-void DoubleIntegratorDynamics::computeGrad(const Eigen::Ref<const state_array> &state,
+bool DoubleIntegratorDynamics::computeGrad(const Eigen::Ref<const state_array> &state,
         const Eigen::Ref<const control_array> &control,
         Eigen::Ref<dfdx> A,
         Eigen::Ref<dfdu> B) {
@@ -29,6 +29,7 @@ void DoubleIntegratorDynamics::computeGrad(const Eigen::Ref<const state_array> &
 
   B(2,0) = 1;
   B(3,1) = 1;
+  return true;
 }
 
 

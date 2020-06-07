@@ -25,7 +25,7 @@ public:
 
   using s_array = typename CONTROLLER_T::state_array;
   using s_traj = typename CONTROLLER_T::state_trajectory;
-  using K_mat = typename CONTROLLER_T::K_matrix;
+  using K_traj = typename CONTROLLER_T::feedback_gain_trajectory;
 
   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
@@ -62,7 +62,7 @@ protected:
 
   // values sometime updated
   // TODO init to zero?
-  K_mat feedback_gains_;
+  K_traj feedback_gains_;
 
   // from ROSHandle mppi_node
   int optimization_stride_ = 1;
@@ -158,7 +158,7 @@ public:
   c_traj getControlTraj() {
     return control_traj_;
   }
-  K_mat getFeedbackGains() {
+  K_traj getFeedbackGains() {
     return feedback_gains_;
   }
 
@@ -211,7 +211,7 @@ public:
 
   virtual void setSolution(const s_traj& state_seq,
                            const c_traj& control_seq,
-                           const K_mat& feedback_gains,
+                           const K_traj& feedback_gains,
                            double timestamp) {
     std::lock_guard<std::mutex> guard(access_guard_);
     last_used_pose_update_time_ = timestamp;
@@ -365,7 +365,7 @@ public:
 
     std::chrono::steady_clock::time_point feedback_start = std::chrono::steady_clock::now();
     // TODO make sure this is zero by default
-    K_mat feedback_gains;
+    K_traj feedback_gains;
     if(controller->getFeedbackEnabled()) {
       controller->computeFeedbackGains(state);
       feedback_gains = controller->getFeedbackGains();

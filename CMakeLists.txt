@@ -68,9 +68,8 @@ set(
 include_directories(${PROJECT_SOURCE_DIR}/include)
 # Install all library header files
 install(
-        DIRECTORY ${PROJECT_SOURCE_DIR}/include
+        DIRECTORY ${PROJECT_SOURCE_DIR}/include/mppi
         DESTINATION include
-        FILES_MATCHING PATTERN "*.h"
 )
 
 add_subdirectory(src)
@@ -119,4 +118,15 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   endif()
 
   add_subdirectory(tests)
+endif()
+
+# Uninstall
+if(NOT TARGET uninstall)
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/cmake_uninstall.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+    IMMEDIATE @ONLY)
+
+  add_custom_target(uninstall
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
 endif()

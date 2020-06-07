@@ -49,3 +49,16 @@ target_link_libraries(${PLANT_TARGET_NAME} gtest
 
 add_test(NAME ${PLANT_TARGET_NAME} COMMAND base_plant_tests)
 set_target_properties(${PLANT_TARGET_NAME} PROPERTIES FOLDER test)
+
+# RMPPI Kernel Test Cases
+set(RMPPIKERNEL_TARGET_NAME rmppi_kernel_tests)
+
+add_executable(${RMPPIKERNEL_TARGET_NAME} ../test_main.cpp
+        rmppi_kernel_tests.cu)
+target_link_libraries(${RMPPIKERNEL_TARGET_NAME} gtest
+        gmock
+        gtest_main
+        curand)
+
+add_test(NAME ${RMPPIKERNEL_TARGET_NAME} COMMAND rmppi_kernel_tests)
+set_target_properties(${RMPPIKERNEL_TARGET_NAME} PROPERTIES FOLDER test)

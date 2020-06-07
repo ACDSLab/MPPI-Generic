@@ -27,12 +27,12 @@ int main(int argc, char** argv) {
   float dt = 0.02;
   int max_iter = 1;
   float gamma = 0.25;
-  int num_timesteps = 100;
+  const int num_timesteps = 100;
 
   CartpoleDynamics::control_array control_var;
   control_var = CartpoleDynamics::control_array::Constant(1.0);
 
-  auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(model, cost,
+  auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, 2048, 64, 8>(model, cost,
                                                                                                              dt, max_iter, gamma, control_var);
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
