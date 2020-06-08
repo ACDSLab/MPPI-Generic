@@ -6,6 +6,9 @@
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+                     const Eigen::Ref<const StateCostWeight>& Q,
+                     const Eigen::Ref<const Hessian>& Qf,
+                     const Eigen::Ref<const ControlCostWeight>& R,
                      const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps,
                      const Eigen::Ref<const control_trajectory>& init_control_traj,
@@ -20,6 +23,12 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
+
+  // Initialize DDP
+  this->initDDP(Q, Qf, R);
+
+  // Resize the feedback gain vector to hold the raw data for the feedback gains
+  feedback_gain_vector_.resize(this->num_timesteps_*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM);
 }
 
 
@@ -239,6 +248,26 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
     computeBestIndex();
     nominal_stride_ = importance_sampler_strides_(best_index_);
     nominal_state_ = candidate_nominal_states_[best_index_];
+  }
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+void RobustMPPI::computeNominalFeedbackGains() {
+  this->run_cost_->setTargets(nominal_state_trajectory_.data(), nominal_control_trajectory_.data(),
+                        this->num_timesteps_);
+
+  this->terminal_cost_->xf = this->run_cost_->traj_target_x_.col(this->num_timesteps_ - 1);
+  this->result_ = this->ddp_solver_->run(nominal_state_trajectory_.col(0), nominal_control_trajectory_,
+                             this->ddp_model_, this->run_cost_, this->terminal_cost_,
+                             this->control_min_, this->control_max_);
+
+  // Copy the feedback gains into the std::vector (this is useful for easily copying into GPU memory
+  // Copy Feedback Gains into an array
+  for (size_t i = 0; i < feedback_gain_vector_.size(); i++) {
+    int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
+    for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {
+      feedback_gain_vector_[i_index + j] = this->result_.feedback_gains[i].data()[j];
+    }
   }
 }
 

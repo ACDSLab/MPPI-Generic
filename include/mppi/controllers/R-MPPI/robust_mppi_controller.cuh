@@ -122,6 +122,9 @@ public:
   * TODO Finish this description
   */
   RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+                       const Eigen::Ref<const StateCostWeight>& Q,
+                       const Eigen::Ref<const Hessian>& Qf,
+                       const Eigen::Ref<const ControlCostWeight>& R,
                        const Eigen::Ref<const control_array>& control_std_dev,
                        int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
@@ -209,6 +212,7 @@ protected:
   Eigen::MatrixXi importance_sampler_strides_; // Time index where control trajectory starts for each nominal state candidate
   Eigen::MatrixXf candidate_trajectory_costs_;
   Eigen::MatrixXf candidate_free_energy_;
+  std::vector<float> feedback_gain_vector_;
 
   void allocateCUDAMemory();
 

@@ -16,11 +16,14 @@ class TestRobust: public RobustMPPIController<
   TestRobust(DoubleIntegratorDynamics *model,
           DoubleIntegratorCircleCost *cost,
           float dt, int max_iter, float gamma,
+          const Eigen::Ref<const StateCostWeight>& Q,
+          const Eigen::Ref<const Hessian>& Qf,
+          const Eigen::Ref<const ControlCostWeight>& R,
           const Eigen::Ref<const control_array>& control_std_dev,
           int num_timesteps,
           const Eigen::Ref<const control_trajectory>& init_control_traj,
           cudaStream_t stream) :
-  RobustMPPIController(model, cost, dt,  max_iter,  gamma, control_std_dev, num_timesteps, init_control_traj, 1, stream) {};
+  RobustMPPIController(model, cost, dt,  max_iter,  gamma, Q, Qf, R, control_std_dev, num_timesteps, init_control_traj, 1, stream) {};
 
 
   // Test to make sure that its nonzero
@@ -94,7 +97,13 @@ protected:
     cost = new cost_function;  // Initialize the cost function
     control_std_dev << 0.0001, 0.0001;
     init_control_traj.setZero();
-    test_controller = new TestRobust(model, cost, dt, 3, gamma, control_std_dev, 100, init_control_traj, 0);
+    // Q, Qf, R
+    Eigen::Matrix<float, dynamics::STATE_DIM, dynamics::STATE_DIM> Q, Qf;
+    Eigen::Matrix<float, dynamics::CONTROL_DIM, dynamics::CONTROL_DIM> R;
+    Q.setIdentity();
+    Qf.setIdentity();
+    R.setIdentity();
+    test_controller = new TestRobust(model, cost, dt, 3, gamma, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
   }
 
   void TearDown() override {
@@ -237,7 +246,15 @@ protected:
     cost = new cost_function;  // Initialize the cost function
     control_std_dev << 0.0001, 0.0001;
     init_control_traj.setZero();
-    test_controller = new TestRobust(model, cost, dt, 3, gamma, control_std_dev, 100, init_control_traj, 0);
+
+    // Q, Qf, R
+    Eigen::Matrix<float, dynamics::STATE_DIM, dynamics::STATE_DIM> Q, Qf;
+    Eigen::Matrix<float, dynamics::CONTROL_DIM, dynamics::CONTROL_DIM> R;
+    Q.setIdentity();
+    Qf.setIdentity();
+    R.setIdentity();
+
+    test_controller = new TestRobust(model, cost, dt, 3, gamma, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
     test_controller->value_func_threshold_ = 10.0;
 
     // Set the size of the trajectory costs function
