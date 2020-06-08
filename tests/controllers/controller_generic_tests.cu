@@ -364,3 +364,4 @@ TEST(Controller, saveControlHistoryHelper_2) {
     EXPECT_FLOAT_EQ(u_history(i, 1), u(i, steps-1)) << "History column 1 failed";
   }
 }
+

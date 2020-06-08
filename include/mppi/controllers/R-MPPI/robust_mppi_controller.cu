@@ -178,14 +178,24 @@ void RobustMPPI::computeBestIndex() {
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::updateImportanceSampler(const Eigen::Ref<const state_array> &state, int stride) {
   // (Controller Frequency)*(Optimization Time) corresponds to how many timesteps occurred in the last optimization
-  int real_stride = stride;
+  real_stride_ = stride;
 
   computeNominalStateAndStride(state, stride); // Launches the init eval kernel
 
-  // Save the importance sampler history
+  // Save the nominal control history for the importance sampler
+  this->saveControlHistoryHelper(nominal_stride_, nominal_control_trajectory_, nominal_control_history_);
 
-  // Slide the control sequence.
+  // Save the real control history for the optimal control
+  this->saveControlHistoryHelper(real_stride_, this->control_, this->control_history_);
 
+  // Slide the control sequence for the nominal control trajectory
+  this->slideControlSequenceHelper(nominal_stride_, nominal_control_trajectory_);
+
+  // Compute the nominal trajectory
+  this->computeStateTrajectoryHelper(nominal_state_trajectory_, state, nominal_control_trajectory_);
+
+  // Compute the feedback gains
+  computeNominalFeedbackGains(); // TODO not implemented yet..
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
@@ -230,8 +240,6 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
     nominal_stride_ = importance_sampler_strides_(best_index_);
     nominal_state_ = candidate_nominal_states_[best_index_];
   }
-
-
 }
 
 /******************************************************************************

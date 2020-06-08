@@ -167,7 +167,17 @@ public:
 
   state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
 
+  // Does nothing. This reason is because the control sliding happens during the importance sampler update.
+  // The control applied to the real system (during the MPPI rollouts) is the nominal control (which slides
+  // during the importance sampler update), plus the feedback term. Inside the runControlIteration function
+  // slideControl sequence is called prior to optimization, after the importance sampler update.
   void slideControlSequence(int steps) override {};
+
+  // Feedback gain computation is done after the importance sampling update. The nominal trajectory computed
+  // during the importance sampling update does not change after the optimization, thus the feedback gains will
+  // not change either. In the current implementation of runControlIteration, the compute feedback gains is called
+  // after the computation of the optimal control.
+  void computeFeedbackGains(const Eigen::Ref<const state_array> state) override {};
 
   // TubeDiagnostics getTubeDiagnostics();
 
@@ -178,6 +188,7 @@ protected:
   float nominal_normalizer_; ///< Variable for the normalizing term from sampling.
   int optimization_stride_; // Number of timesteps to apply the optimal control (== 1 for true MPC)
   int nominal_stride_ = 0; // Stride for the chosen nominal state of the importance sampler
+  int real_stride_ = 0; // Stride for the optimal controller sliding
   bool nominal_state_init_ = false;
 
 
@@ -188,6 +199,10 @@ protected:
   // Storage classes
   control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
   state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
+
+  // Make the control history size flexible, related to issue #30
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> nominal_control_history_; // History used for nominal_state IS
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_history_;  // History used for the optimal control
 
   NominalCandidateVector candidate_nominal_states_ = {state_array::Zero()};
   Eigen::MatrixXf line_search_weights_; // At minimum there must be 3 candidates
@@ -219,6 +234,9 @@ protected:
 
   // Get the best index based on the candidate free energy
   void computeBestIndex();
+
+  // Computes and saves the feedback gains used in the rollout kernel and tracking.
+  void computeNominalFeedbackGains();
 
   // CUDA Memory
   float* importance_sampling_states_d_;
