@@ -16,6 +16,7 @@
 #include <atomic>
 #include <opencv2/opencv.hpp>
 #include <mutex>
+#include <thread>
 
 template <class CONTROLLER_T>
 class BasePlant {

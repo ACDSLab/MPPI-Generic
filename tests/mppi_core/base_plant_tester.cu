@@ -9,7 +9,6 @@
 #include <random>
 #include <algorithm>
 #include <numeric>
-#include <boost/thread.hpp>
 
 #include <mppi/core/base_plant.hpp>
 #include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
@@ -411,7 +410,7 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
     EXPECT_EQ(testPlant.getNumIter(), i+1);
     EXPECT_EQ(testPlant.getLastOptimizationStride(), expect_opt_stride);
 
-    double small_time_ms = 10; // how long we should expect a non delayed call to take
+    double small_time_ms = 2; // how long we should expect a non delayed call to take
     EXPECT_THAT(testPlant.getOptimizationDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
     EXPECT_LT(testPlant.getOptimizationAvg(), wait_ms + small_time_ms);
@@ -472,7 +471,7 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackAvgTest) {
     EXPECT_EQ(testPlant.getNumIter(), i+1);
     EXPECT_EQ(testPlant.getLastOptimizationStride(), expect_opt_stride);
 
-    double small_time_ms = 10; // how long we should expect a non delayed call to take
+    double small_time_ms = 2; // how long we should expect a non delayed call to take
     EXPECT_THAT(testPlant.getOptimizationDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
     EXPECT_THAT(testPlant.getOptimizationAvg(),
@@ -524,8 +523,7 @@ TEST(BasePlant, runControlLoop) {
   EXPECT_CALL(*mockController, getFeedbackGains()).Times(iterations/2).WillRepeatedly(testing::Return(feedback));
 
   std::atomic<bool> is_alive(true);
-  boost::thread optimizer;
-  optimizer = boost::thread(boost::bind(&MockTestPlant::runControlLoop, &testPlant, mockController.get(), &is_alive));
+  std::thread optimizer(&MockTestPlant::runControlLoop, &testPlant, mockController.get(), &is_alive);
 
   std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
   std::chrono::duration<double, std::milli> loop_duration = std::chrono::steady_clock::now() - loop_start;
@@ -556,7 +554,7 @@ TEST(BasePlant, runControlLoop) {
   EXPECT_EQ(testPlant.getNumIter(), iterations/2);
   EXPECT_EQ(testPlant.getLastOptimizationStride(), 1);
 
-  double small_time_ms = 10; // how long we should expect a non delayed call to take
+  double small_time_ms = 2; // how long we should expect a non delayed call to take
   double wait_ms = wait_s*1e3;
   EXPECT_THAT(testPlant.getOptimizationDuration(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
