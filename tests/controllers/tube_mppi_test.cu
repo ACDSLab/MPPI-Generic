@@ -421,7 +421,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     }
 
     // Get the open loop control
-    DoubleIntegratorDynamics::control_array current_control = controller.getActualControlSeq().col(0);
+    DoubleIntegratorDynamics::control_array current_control = controller.getControlSeq().col(0);
 //    std::cout << current_control << std::endl;
 
 

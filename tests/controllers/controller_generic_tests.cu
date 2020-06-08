@@ -298,3 +298,5 @@ TEST(Controller, getSampledControlTrajectories) {
   }
   EXPECT_FLOAT_EQ(0, total_difference);
 }
+
+//TODO test the save control history helper
