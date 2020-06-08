@@ -100,6 +100,7 @@ TEST(Controller, ConstructorDestructor) {
   EXPECT_EQ(controller->getControlStdDev(), control_var);
   EXPECT_EQ(controller->getControlSeq(), init_control_trajectory);
   EXPECT_EQ(controller->getStream(), stream);
+  EXPECT_EQ(controller->getFeedbackEnabled(), false);
 
   // TODO check that a random seed was set and stream was set
   //EXPECT_NE(controller->getRandomSeed(), 0);

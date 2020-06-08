@@ -17,6 +17,7 @@
 #include <opencv2/opencv.hpp>
 #include <mutex>
 #include <thread>
+#include <memory>
 
 template <class CONTROLLER_T>
 class BasePlant {
@@ -77,7 +78,7 @@ protected:
    * Wall Clock: always real time per the computer
    */
   // Robot Time: can scale with a simulation
-  double last_used_pose_update_time_ = -1; // time of the last pose update that was used for optimization
+  double last_used_pose_update_time_ = 0.0; // time of the last pose update that was used for optimization
   // Wall Clock: always real time
   double last_optimization_time_ = 0; // time of the last optimization
   double optimize_loop_duration_ = 0; // duration of the entire controller run loop
@@ -232,7 +233,6 @@ public:
     state_ = state;
 
     // check if the requested time is in the calculated trajectory
-    auto upper_limit = last_used_pose_update_time_ + controller_->getDt()*controller_->getNumTimesteps();
     bool t_within_trajectory = time > last_used_pose_update_time_ &&
                                time < last_used_pose_update_time_ + controller_->getDt()*controller_->getNumTimesteps();
 
@@ -328,7 +328,7 @@ public:
     // debug mode propagates dynamics on its own
     if (!debug_mode_){
       // wait for a new pose to compute control sequence from
-      while(last_used_pose_update_time_ == temp_last_pose_time && is_alive->load()){
+      while(last_used_pose_update_time_ == temp_last_pose_time && is_alive->load()) {
         usleep(50);
         temp_last_pose_time = getCurrentTime();
       }
@@ -340,7 +340,7 @@ public:
 
     // calculate how much we should slide the control sequence
     double dt = last_used_pose_update_time_ - temp_last_pose_time;
-    if(last_used_pose_update_time_ == -1) {
+    if(last_used_pose_update_time_ == 0) {
       // should only happen on the first iteration
       dt = 0;
       last_optimization_stride_ = 0;

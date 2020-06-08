@@ -76,7 +76,7 @@ public:
   double getLoopAvg() {return this->avg_loop_time_ms_;}
   double getFeedbackDuration() {return this->feedback_duration_;}
   double getFeedbackAvg() {return this->avg_feedback_time_ms_;}
-  void setLastTime(double time) {this->last_used_pose_update_time_ = time;}
+  void setLastTime(double time) {time_ = time;}
 };
 
 typedef TestPlant<MockController> MockTestPlant;
@@ -94,8 +94,9 @@ TEST(BasePlant, Constructor) {
   EXPECT_EQ(plant.getHz(), 20);
   EXPECT_EQ(plant.getTargetOptimizationStride(), 1);
   EXPECT_EQ(plant.getNumIter(), 0);
-  EXPECT_EQ(plant.getLastUsedPoseUpdateTime(), -1);
+  EXPECT_EQ(plant.getLastUsedPoseUpdateTime(), 0);
   EXPECT_EQ(plant.getStatus(), 1);
+  EXPECT_EQ(mockController->getFeedbackEnabled(), false);
 
   EXPECT_EQ(plant.hasNewCostParams(), false);
   EXPECT_EQ(plant.hasNewDynamicsParams(), false);
@@ -309,6 +310,9 @@ TEST(BasePlant, runControlIterationDebugFalseNoFeedbackTest) {
 
   MockTestPlant testPlant(mockController);
 
+  double init_time = 100;
+  testPlant.setLastTime(init_time);
+
   for(int i = 0; i < 2; i++) {
     double wait_ms = 50*i;
 
@@ -347,11 +351,11 @@ TEST(BasePlant, runControlIterationDebugFalseNoFeedbackTest) {
     }
 
     // check last pose update
-    EXPECT_FLOAT_EQ(testPlant.getLastUsedPoseUpdateTime(), 0.05*i);
+    EXPECT_FLOAT_EQ(testPlant.getLastUsedPoseUpdateTime(), 0.05*i + init_time);
     EXPECT_EQ(testPlant.getNumIter(), i+1);
     EXPECT_EQ(testPlant.getLastOptimizationStride(), expect_opt_stride);
 
-    double small_time_ms = 2; // how long we should expect a non delayed call to take
+    double small_time_ms = 4; // how long we should expect a non delayed call to take
     EXPECT_THAT(testPlant.getOptimizationDuration(),
             testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
     EXPECT_LT(testPlant.getOptimizationAvg(), wait_ms + small_time_ms);
@@ -372,7 +376,10 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
   mockController->cost_ = &mockCost;
   mockController->model_ = &mockDynamics;
 
+  double init_time = 51789;
+
   MockTestPlant testPlant(mockController);
+  testPlant.setLastTime(init_time);
 
   for(int i = 0; i < 10; i++) {
     double wait_ms = 50*i;
@@ -406,11 +413,11 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
     EXPECT_EQ(testPlant.getFeedbackGains(), feedback);
 
     // check last pose update
-    EXPECT_FLOAT_EQ(testPlant.getLastUsedPoseUpdateTime(), 0.05*i);
+    EXPECT_FLOAT_EQ(testPlant.getLastUsedPoseUpdateTime(), 0.05*i + init_time);
     EXPECT_EQ(testPlant.getNumIter(), i+1);
     EXPECT_EQ(testPlant.getLastOptimizationStride(), expect_opt_stride);
 
-    double small_time_ms = 2; // how long we should expect a non delayed call to take
+    double small_time_ms = 4; // how long we should expect a non delayed call to take
     EXPECT_THAT(testPlant.getOptimizationDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
     EXPECT_LT(testPlant.getOptimizationAvg(), wait_ms + small_time_ms);
@@ -433,7 +440,9 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackAvgTest) {
   mockController->cost_ = &mockCost;
   mockController->model_ = &mockDynamics;
 
+  double init_time = 51531;
   MockTestPlant testPlant(mockController);
+  testPlant.setLastTime(init_time);
 
   for(int i = 0; i < 10; i++) {
     double wait_ms = 50;
@@ -467,11 +476,11 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackAvgTest) {
     EXPECT_EQ(testPlant.getFeedbackGains(), feedback);
 
     // check last pose update
-    EXPECT_FLOAT_EQ(testPlant.getLastUsedPoseUpdateTime(), 0.05*i);
+    EXPECT_FLOAT_EQ(testPlant.getLastUsedPoseUpdateTime(), 0.05*i + init_time);
     EXPECT_EQ(testPlant.getNumIter(), i+1);
     EXPECT_EQ(testPlant.getLastOptimizationStride(), expect_opt_stride);
 
-    double small_time_ms = 2; // how long we should expect a non delayed call to take
+    double small_time_ms = 4; // how long we should expect a non delayed call to take
     EXPECT_THAT(testPlant.getOptimizationDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
     EXPECT_THAT(testPlant.getOptimizationAvg(),
@@ -499,6 +508,9 @@ TEST(BasePlant, runControlLoop) {
   MockTestPlant testPlant(mockController);
   int hz = testPlant.getHz();
   double time = 1.0; // in seconds
+
+  int init_time = 78;
+  testPlant.setLastTime(init_time);
 
   // setup mock expected calls
   EXPECT_CALL(mockCost, getDebugDisplayEnabled()).Times(0);
@@ -554,7 +566,7 @@ TEST(BasePlant, runControlLoop) {
   EXPECT_EQ(testPlant.getNumIter(), iterations/2);
   EXPECT_EQ(testPlant.getLastOptimizationStride(), 1);
 
-  double small_time_ms = 2; // how long we should expect a non delayed call to take
+  double small_time_ms = 4; // how long we should expect a non delayed call to take
   double wait_ms = wait_s*1e3;
   EXPECT_THAT(testPlant.getOptimizationDuration(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));

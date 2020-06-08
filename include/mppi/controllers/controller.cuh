@@ -184,7 +184,6 @@ public:
     state_array desired_state;
     desired_state = (1 - alpha)*getStateSeq().col(lower_idx) + alpha*getStateSeq().col(upper_idx);
 
-    auto test = getFeedbackGains()[lower_idx];
     control_array u_fb = ((1-alpha)*getFeedbackGains()[lower_idx]
             + alpha*getFeedbackGains()[upper_idx])*(state - desired_state);
 
@@ -434,7 +433,7 @@ protected:
   control_array control_min_;
   control_array control_max_;
 
-  OptimizerResult<ModelWrapperDDP<DYN_T>> result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
+  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;// = OptimizerResult<ModelWrapperDDP<DYN_T>>();
 
   void copyControlStdDevToDevice() {
     HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, control_std_dev_.data(), sizeof(float)*control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
