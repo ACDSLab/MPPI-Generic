@@ -437,7 +437,7 @@ public:
       double wait_until_time = last_used_pose_update_time_ + (1.0/hz_)*last_optimization_stride_;
 
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
-      while(is_alive->load() && status_ == 0 && wait_until_time < getCurrentTime()) {
+      while(is_alive->load() && status_ == 0 && wait_until_time > getCurrentTime()) {
         usleep(50);
       }
       sleep_duration_ = (sleep_start - std::chrono::steady_clock::now()).count();
