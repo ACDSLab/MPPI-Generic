@@ -298,3 +298,69 @@ TEST(Controller, getSampledControlTrajectories) {
   }
   EXPECT_FLOAT_EQ(0, total_difference);
 }
+
+TEST(Controller, saveControlHistoryHelper_1) {
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+
+  float dt = 0.1;
+  int max_iter = 1;
+  float gamma = 1.2;
+  int steps = 1;
+  MockDynamics::control_array control_std_dev;
+  control_std_dev = MockDynamics::control_array::Constant(1.0);
+
+  // expect double check rebind
+  EXPECT_CALL(mockCost, bindToStream(testing::_)).Times(1);
+  EXPECT_CALL(mockDynamics, bindToStream(testing::_)).Times(1);
+
+  // expect GPU setup called again
+  EXPECT_CALL(mockCost, GPUSetup()).Times(1);
+  EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
+
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_std_dev);
+
+  TestController::control_trajectory u = TestController::control_trajectory::Random();
+  Eigen::Matrix<float, MockDynamics::CONTROL_DIM, 2> u_history;
+  u_history.setOnes();
+
+  controller.saveControlHistoryHelper(steps, u, u_history);
+
+  for (int i = 0; i < MockDynamics::CONTROL_DIM; ++i) {
+    EXPECT_FLOAT_EQ(u_history(i, 0), 1.0f) << "History column 0 failed";
+    EXPECT_FLOAT_EQ(u_history(i, 1), u(i, steps-1)) << "History column 1 failed";
+  }
+}
+
+TEST(Controller, saveControlHistoryHelper_2) {
+  MockCost mockCost;
+  MockDynamics mockDynamics;
+
+  float dt = 0.1;
+  int max_iter = 1;
+  float gamma = 1.2;
+  int steps = 4;
+  MockDynamics::control_array control_std_dev;
+  control_std_dev = MockDynamics::control_array::Constant(1.0);
+
+  // expect double check rebind
+  EXPECT_CALL(mockCost, bindToStream(testing::_)).Times(1);
+  EXPECT_CALL(mockDynamics, bindToStream(testing::_)).Times(1);
+
+  // expect GPU setup called again
+  EXPECT_CALL(mockCost, GPUSetup()).Times(1);
+  EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
+
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_std_dev);
+
+  TestController::control_trajectory u = TestController::control_trajectory::Random();
+  Eigen::Matrix<float, MockDynamics::CONTROL_DIM, 2> u_history;
+  u_history.setOnes();
+
+  controller.saveControlHistoryHelper(steps, u, u_history);
+
+  for (int i = 0; i < MockDynamics::CONTROL_DIM; ++i) {
+    EXPECT_FLOAT_EQ(u_history(i, 0), u(i, steps-2)) << "History column 0 failed";
+    EXPECT_FLOAT_EQ(u_history(i, 1), u(i, steps-1)) << "History column 1 failed";
+  }
+}

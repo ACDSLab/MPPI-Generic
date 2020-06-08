@@ -123,13 +123,7 @@ void VanillaMPPI::slideControlSequence(int steps) {
   // TODO does the logic of handling control history reasonable?
 
   // Save the control history
-  if (steps > 1) {
-    this->control_history_.row(0) = this->control_.col(steps - 2).transpose();
-    this->control_history_.row(1) = this->control_.col(steps - 1).transpose();
-  } else { //
-    this->control_history_.row(0) = this->control_history_.row(1); // Slide control history forward
-    this->control_history_.row(1) = this->control_.col(0).transpose(); // Save the control at time 0
-  }
+  this->saveControlHistoryHelper(steps, this->control_, this->control_history_);
 
   this->slideControlSequenceHelper(steps, this->control_);
 }

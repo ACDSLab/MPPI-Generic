@@ -226,7 +226,7 @@ public:
     Eigen::Matrix<float, MAX_TIMESTEPS+4, DYN_T::CONTROL_DIM> control_buffer;
 
     // Fill the first two timesteps with the control history
-    control_buffer.topRows(2) = control_history_;
+    control_buffer.topRows(2) = control_history_.transpose();
 
     // Fill the center timesteps with the current nominal trajectory
     control_buffer.middleRows(2, MAX_TIMESTEPS) = u.transpose();
@@ -243,10 +243,21 @@ public:
 
   virtual void slideControlSequenceHelper(int steps, control_trajectory& u) {
     for (int i = 0; i < num_timesteps_; ++i) {
-      for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
-        int ind = std::min(i + steps, num_timesteps_ - 1);
-        u(j,i) = u(j, ind);
-      }
+      int ind = std::min(i + steps, num_timesteps_ - 1);
+      u.col(i) = u.col(ind);
+    }
+  }
+
+  virtual void saveControlHistoryHelper(int steps,
+          const Eigen::Ref<const control_trajectory>& u_trajectory,
+          Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>& u_history) {
+    if (steps == 1) { // We only moved one timestep
+      u_history.col(0) = u_history.col(1);
+      u_history.col(1) = u_trajectory.col(0);
+    }
+    else if (steps >= 2) { // We have moved more than one timestep, but our history size is still only 2
+      u_history.col(0) = u_trajectory.col(steps - 2);
+      u_history.col(1) = u_trajectory.col(steps - 1);
     }
   }
 
@@ -339,8 +350,7 @@ protected:
   float* control_std_dev_d_; // Array of size DYN_T::CONTROL_DIM
   float* initial_state_d_; // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 
-  // Control history
-  Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM> control_history_; // = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_history_;
 
   // one array of this size is allocated for each state we care about,
   // so it can be the size*N for N nominal states

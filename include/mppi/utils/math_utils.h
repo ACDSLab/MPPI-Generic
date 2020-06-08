@@ -12,7 +12,7 @@
 #include <algorithm>
 
 // Based off of https://gormanalysis.com/blog/random-numbers-in-cpp
-std::vector<int> sample_without_replacement(int k, int N,
+inline std::vector<int> sample_without_replacement(int k, int N,
     std::default_random_engine g = std::default_random_engine()) {
   if (k > N) {
     throw std::logic_error("Can't sample more than n times without replacement");

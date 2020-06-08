@@ -179,13 +179,8 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
 void TubeMPPI::slideControlSequence(int steps) {
 
   // Save the control history
-  if (steps > 1) {
-    this->control_history_.row(0) = nominal_control_trajectory_.col(steps - 2).transpose();
-    this->control_history_.row(1) = nominal_control_trajectory_.col(steps - 1).transpose();
-  } else { //
-    this->control_history_.row(0) = this->control_history_.row(1); // Slide control history forward
-    this->control_history_.row(1) = nominal_control_trajectory_.col(0).transpose(); // Save the control at time 0
-  }
+  this->saveControlHistoryHelper(steps, nominal_control_trajectory_, this->control_history_);
+
   this->slideControlSequenceHelper(steps, nominal_control_trajectory_);
   this->slideControlSequenceHelper(steps, this->control_);
 }
