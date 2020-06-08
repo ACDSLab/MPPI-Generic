@@ -39,7 +39,6 @@ TEST(ARStandardCost, SetGetParamsHost) {
   params.boundary_threshold = 10;
   params.discount = 0.9;
   params.grid_res = 2;
-  params.num_timesteps = 100;
 
   params.r_c1.x = 0;
   params.r_c1.y = 1;
@@ -67,7 +66,6 @@ TEST(ARStandardCost, SetGetParamsHost) {
   EXPECT_FLOAT_EQ(params.boundary_threshold, result_params.boundary_threshold);
   EXPECT_FLOAT_EQ(params.discount, result_params.discount);
   EXPECT_EQ(params.grid_res, result_params.grid_res);
-  EXPECT_EQ(params.num_timesteps, result_params.num_timesteps);
   EXPECT_FLOAT_EQ(params.r_c1.x, result_params.r_c1.x);
   EXPECT_FLOAT_EQ(params.r_c1.y, result_params.r_c1.y);
   EXPECT_FLOAT_EQ(params.r_c1.z, result_params.r_c1.z);
@@ -96,7 +94,6 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   params.boundary_threshold = 10;
   params.discount = 0.9;
   params.grid_res = 2;
-  params.num_timesteps = 100;
 
   params.r_c1.x = 0;
   params.r_c1.y = 1;
@@ -134,7 +131,6 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_FLOAT_EQ(params.boundary_threshold, result_params.boundary_threshold);
   EXPECT_FLOAT_EQ(params.discount, result_params.discount);
   EXPECT_EQ(params.grid_res, result_params.grid_res);
-  EXPECT_EQ(params.num_timesteps, result_params.num_timesteps);
   EXPECT_FLOAT_EQ(params.r_c1.x, result_params.r_c1.x);
   EXPECT_FLOAT_EQ(params.r_c1.y, result_params.r_c1.y);
   EXPECT_FLOAT_EQ(params.r_c1.z, result_params.r_c1.z);
@@ -149,7 +145,6 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_EQ(height, -1);
 
   params.desired_speed = 5;
-  params.num_timesteps = 50;
   params.r_c1.x = 4;
   params.r_c1.y = 5;
   params.r_c1.z = 6;
@@ -169,7 +164,6 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_FLOAT_EQ(params.boundary_threshold, result_params.boundary_threshold);
   EXPECT_FLOAT_EQ(params.discount, result_params.discount);
   EXPECT_EQ(params.grid_res, result_params.grid_res);
-  EXPECT_EQ(params.num_timesteps, result_params.num_timesteps);
   EXPECT_FLOAT_EQ(params.r_c1.x, result_params.r_c1.x);
   EXPECT_FLOAT_EQ(params.r_c1.y, result_params.r_c1.y);
   EXPECT_FLOAT_EQ(params.r_c1.z, result_params.r_c1.z);

@@ -23,7 +23,6 @@ typedef struct {
   float throttle_coeff = 0;
   float boundary_threshold = 0.65;
   float discount = 0.99;
-  int num_timesteps = 100;
   // TODO remove from struct
   int grid_res = 10;
   /*
