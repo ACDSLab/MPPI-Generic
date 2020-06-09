@@ -333,9 +333,10 @@ public:
         temp_last_pose_time = getCurrentTime();
       }
     }
-    s_array state = getState();
 
     std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
+
+    s_array state = getState();
     num_iter_++;
 
     // calculate how much we should slide the control sequence
