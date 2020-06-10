@@ -271,7 +271,7 @@ void RobustMPPI::computeNominalFeedbackGains() {
 
   // Copy the feedback gains into the std::vector (this is useful for easily copying into GPU memory
   // Copy Feedback Gains into an array
-  for (size_t i = 0; i < feedback_gain_vector_.size(); i++) {
+  for (size_t i = 0; i < this->result_.feedback_gain.size(); i++) {
     int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
     for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {
       feedback_gain_vector_[i_index + j] = this->result_.feedback_gain[i].data()[j];

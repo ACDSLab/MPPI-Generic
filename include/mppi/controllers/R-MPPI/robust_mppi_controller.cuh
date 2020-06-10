@@ -204,8 +204,7 @@ protected:
   state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
 
   // Make the control history size flexible, related to issue #30
-  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> nominal_control_history_; // History used for nominal_state IS
-  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_history_;  // History used for the optimal control
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> nominal_control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero(); // History used for nominal_state IS
 
   NominalCandidateVector candidate_nominal_states_ = {state_array::Zero()};
   Eigen::MatrixXf line_search_weights_; // At minimum there must be 3 candidates
