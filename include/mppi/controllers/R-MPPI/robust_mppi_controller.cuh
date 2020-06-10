@@ -216,6 +216,8 @@ protected:
 
   void allocateCUDAMemory();
 
+  void deallocateCUDAMemory();
+
   void deallocateNominalStateCandidateMemory();
 
   void resetCandidateCudaMem();
@@ -246,6 +248,7 @@ protected:
   float* importance_sampling_states_d_;
   float* importance_sampling_costs_d_;
   int* importance_sampling_strides_d_;
+  float* feedback_gain_array_d_;
 
   float* nominal_state_d_;
 

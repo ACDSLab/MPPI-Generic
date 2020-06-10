@@ -28,14 +28,28 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
   this->initDDP(Q, Qf, R);
 
   // Resize the feedback gain vector to hold the raw data for the feedback gains
-  feedback_gain_vector_.resize(this->num_timesteps_*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM);
+  feedback_gain_vector_.resize(MAX_TIMESTEPS*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM);
 }
-
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 RobustMPPI::~RobustMPPIController() {
   deallocateNominalStateCandidateMemory();
+  deallocateCUDAMemory();
 }
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+void RobustMPPI::allocateCUDAMemory() {
+  Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
+
+  // We need to allocate memory for the feedback gains
+  HANDLE_ERROR(cudaMalloc((void**)&feedback_gain_array_d_, sizeof(float)*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM*this->num_timesteps_));
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+void RobustMPPI::deallocateCUDAMemory() {
+  HANDLE_ERROR(cudaFree(feedback_gain_array_d_));
+}
+
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::getInitNominalStateCandidates(
@@ -151,11 +165,6 @@ void RobustMPPI::computeImportanceSamplerStride(int stride) {
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
-void RobustMPPI::allocateCUDAMemory() {
-  Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
-}
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 float RobustMPPI::computeCandidateBaseline() {
   float baseline = candidate_trajectory_costs_(0);
   for (int i = 0; i < SAMPLES_PER_CONDITION; i++){ // TODO What is the reasoning behind only using the first condition to get the baseline?
@@ -181,7 +190,6 @@ void RobustMPPI::computeBestIndex() {
       best_index_ = i;
     }
   }
-
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
@@ -203,8 +211,8 @@ void RobustMPPI::updateImportanceSampler(const Eigen::Ref<const state_array> &st
   // Compute the nominal trajectory
   this->computeStateTrajectoryHelper(nominal_state_trajectory_, state, nominal_control_trajectory_);
 
-  // Compute the feedback gains
-  computeNominalFeedbackGains(); // TODO not implemented yet..
+  // Compute the feedback gains and save them to an array
+  computeNominalFeedbackGains();
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
@@ -258,7 +266,7 @@ void RobustMPPI::computeNominalFeedbackGains() {
 
   this->terminal_cost_->xf = this->run_cost_->traj_target_x_.col(this->num_timesteps_ - 1);
   this->result_ = this->ddp_solver_->run(nominal_state_trajectory_.col(0), nominal_control_trajectory_,
-                             this->ddp_model_, this->run_cost_, this->terminal_cost_,
+                             *this->ddp_model_, *this->run_cost_, *this->terminal_cost_,
                              this->control_min_, this->control_max_);
 
   // Copy the feedback gains into the std::vector (this is useful for easily copying into GPU memory
@@ -266,10 +274,12 @@ void RobustMPPI::computeNominalFeedbackGains() {
   for (size_t i = 0; i < feedback_gain_vector_.size(); i++) {
     int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
     for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {
-      feedback_gain_vector_[i_index + j] = this->result_.feedback_gains[i].data()[j];
+      feedback_gain_vector_[i_index + j] = this->result_.feedback_gain[i].data()[j];
     }
   }
 }
+
+
 
 /******************************************************************************
 //MPPI Kernel Implementations and helper launch files

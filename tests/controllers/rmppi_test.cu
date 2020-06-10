@@ -83,6 +83,10 @@ class TestRobust: public RobustMPPIController<
     return nominal_state_;
   }
 
+  std::vector<float> getFeedbackGainVector() {
+    return this->feedback_gain_vector_;
+  }
+
  };
 
 // Text fixture for nominal state selection
@@ -426,3 +430,29 @@ TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_CurrentReal) {
   ASSERT_EQ(real_x_kp1, nominal_state) << "\nExpected state << \n" << real_x_kp1 << "\nComputed state: \n" << nominal_state;
 }
 
+TEST_F(RMPPINominalStateSelection, FeedbackGainInternalStorage) {
+  const int num_candidates = 3;
+  test_controller->updateCandidates(num_candidates);
+  dynamics::state_array x;
+  x << 2, 0, 0, 0;
+  int stride = 1;
+  test_controller->updateImportanceSampler(x, stride);
+  test_controller->updateImportanceSampler(x, stride);
+
+
+  std::vector<float> feedback_gain_vector = test_controller->getFeedbackGainVector();
+
+  auto feedback_gain_eigen_aligned = test_controller->getFeedbackGains();
+
+  std::cout << "Float Vector Size: " << feedback_gain_vector.size() << std::endl;
+  std::cout << "Eigen Vector Size: " << feedback_gain_eigen_aligned.size() << std::endl;
+
+  ASSERT_FLOAT_EQ(feedback_gain_vector[99*8 + 7] , feedback_gain_eigen_aligned[99].data()[7]);
+
+  for (size_t i = 0; i < feedback_gain_eigen_aligned.size(); i++) {
+    size_t i_index = i * dynamics::STATE_DIM * dynamics::CONTROL_DIM;
+    for (size_t j = 0; j < dynamics::CONTROL_DIM * dynamics::STATE_DIM; j++) {
+      ASSERT_FLOAT_EQ(feedback_gain_vector.at(i_index + j) , feedback_gain_eigen_aligned.at(i).data()[j]);
+    }
+  }
+}
