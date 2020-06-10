@@ -57,7 +57,7 @@ TEST(DoubleIntegratorCost, ControlCost) {
                                cudaMemcpyHostToDevice, stream_t));
   HANDLE_ERROR(cudaMemcpyAsync(eps_d, eps.data(), control_size,
                                cudaMemcpyHostToDevice, stream_t));
- HANDLE_ERROR(cudaMemcpyAsync(std_dev_d, std_dev.data(), control_size,
+  HANDLE_ERROR(cudaMemcpyAsync(std_dev_d, std_dev.data(), control_size,
                                cudaMemcpyHostToDevice, stream_t));
   HANDLE_ERROR(cudaStreamSynchronize(stream_t));
 

@@ -14,6 +14,9 @@ struct QuadrotorDynamicsParams {
   float tau_pitch = 0.25;
   float tau_yaw = 0.25;
   float mass = 1;
+  QuadrotorDynamicsParams(float mass_in) : mass(mass_in) {};
+  QuadrotorDynamicsParams() = default;
+  ~QuadrotorDynamicsParams() = default;
 };
 
 using namespace MPPI_internal;

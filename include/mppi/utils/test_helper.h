@@ -5,6 +5,7 @@
 #ifndef MPPIGENERIC_KERNEL_TESTS_TEST_HELPER_H
 #define MPPIGENERIC_KERNEL_TESTS_TEST_HELPER_H
 #include <gtest/gtest.h>
+#include <Eigen/Dense>
 
 inline void array_assert_float_eq(const std::vector<float>& known,
                                   const std::vector<float>& compute, int size) {
@@ -35,6 +36,14 @@ inline void array_assert_float_eq(const float known, const std::array<float, siz
     ASSERT_EQ(compute.size(), size) << "The computed array size is not the given size!";
     for (int i = 0; i < size; i++) {
         ASSERT_FLOAT_EQ(known, compute[i]) << "Failed at index: " << i;
+    }
+}
+
+template<class EIGEN_MAT>
+inline void eigen_assert_float_eq(const Eigen::Ref<const EIGEN_MAT>& known,
+                                  const Eigen::Ref<const EIGEN_MAT>& compute) {
+    for (int i = 0; i < known.size(); i++) {
+        ASSERT_FLOAT_EQ(known[i], compute[i]) << "Failed at index: " << i;
     }
 }
 
