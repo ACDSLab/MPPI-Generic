@@ -50,7 +50,7 @@ public:
   // void GPUSetup() {
   //   CLASS_T* derived = static_cast<CLASS_T*>(this);
   //   if (!GPUMemStatus_) {
-  //     this->cost_d_ = Managed::GPUSetup(derived);
+  //     cost_d_ = Managed::GPUSetup(derived);
   //   } else {
   //     std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
   //   }
@@ -75,8 +75,8 @@ public:
    * @param params
    */
   void setParams(PARAMS_T params) {
-    this->params_ = params;
-    if(this->GPUMemStatus_) {
+    params_ = params;
+    if(GPUMemStatus_) {
       CLASS_T& derived = static_cast<CLASS_T&>(*this);
       derived.paramsToDevice();
     }
@@ -181,7 +181,7 @@ public:
     throw std::logic_error("SubClass did not implement computeStateCost");
   }
 
-  inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
+  inline __host__ __device__ PARAMS_T getParams() const {return params_;}
 
   __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
   __device__ float terminalCost(float* s)  {

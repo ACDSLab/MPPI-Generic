@@ -49,8 +49,8 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
           int BDIM_X, int BDIM_Y>
 void CONTROLLER::setCUDAStream(cudaStream_t stream) {
   stream_ = stream;
-  this->model_->bindToStream(stream);
-  this->cost_->bindToStream(stream);
+  model_->bindToStream(stream);
+  cost_->bindToStream(stream);
   curandSetStream(gen_, stream); // requires the generator to be created!
 }
 
@@ -75,16 +75,16 @@ void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size,
     // increment by 1 since actual is not included
     ++nominal_size;
   }
-  HANDLE_ERROR(cudaMalloc((void**)&this->initial_state_d_,
+  HANDLE_ERROR(cudaMalloc((void**)&initial_state_d_,
                           sizeof(float)*DYN_T::STATE_DIM*nominal_size));
-  HANDLE_ERROR(cudaMalloc((void**)&this->control_d_,
+  HANDLE_ERROR(cudaMalloc((void**)&control_d_,
                           sizeof(float)*DYN_T::CONTROL_DIM*MAX_TIMESTEPS*nominal_size));
-  HANDLE_ERROR(cudaMalloc((void**)&this->state_d_,
+  HANDLE_ERROR(cudaMalloc((void**)&state_d_,
                           sizeof(float)*DYN_T::STATE_DIM*MAX_TIMESTEPS*nominal_size));
-  HANDLE_ERROR(cudaMalloc((void**)&this->trajectory_costs_d_,
+  HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d_,
                           sizeof(float)*NUM_ROLLOUTS*nominal_size));
-  HANDLE_ERROR(cudaMalloc((void**)&this->control_std_dev_d_,
+  HANDLE_ERROR(cudaMalloc((void**)&control_std_dev_d_,
                           sizeof(float)*DYN_T::CONTROL_DIM));
-  HANDLE_ERROR(cudaMalloc((void**)&this->control_noise_d_,
+  HANDLE_ERROR(cudaMalloc((void**)&control_noise_d_,
                           sizeof(float)*DYN_T::CONTROL_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS* (allocate_double_noise ? nominal_size : 1)));
 }

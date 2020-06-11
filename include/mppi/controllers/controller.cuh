@@ -81,8 +81,8 @@ public:
     setCUDAStream(stream);
 
     // Call the GPU setup functions of the model and cost
-    this->model_->GPUSetup();
-    this->cost_->GPUSetup();
+    model_->GPUSetup();
+    cost_->GPUSetup();
 
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemroy and call it from the constructor
