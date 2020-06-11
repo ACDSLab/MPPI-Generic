@@ -88,3 +88,5 @@ void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size,
   HANDLE_ERROR(cudaMalloc((void**)&control_noise_d_,
                           sizeof(float)*DYN_T::CONTROL_DIM*MAX_TIMESTEPS*NUM_ROLLOUTS* (allocate_double_noise ? nominal_size : 1)));
 }
+
+#undef CONTROLLER
