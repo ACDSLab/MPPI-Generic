@@ -7,6 +7,6 @@
 #include <mppi/dynamics/quadrotor/quadrotor_dynamics.cuh>
 
 // Temporary Cost TODO replace with real cost class
-#include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
+#include <mppi/cost_functions/quadrotor/quadrotor_quadratic_cost.cuh>
 
 #endif //MPPI_GENERIC_CONTROLLERS_QUADROTOR_MPPI_CUH_
