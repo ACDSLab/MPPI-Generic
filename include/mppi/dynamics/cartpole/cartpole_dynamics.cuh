@@ -66,8 +66,6 @@ public:
                                   float* state_der,
                                   float* theta = nullptr);
 
-  void freeCudaMem();
-
 protected:
   const float gravity_ = 9.81;
 

@@ -69,8 +69,11 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     if (this->baseline_ > baseline_prev + 1) {
       // TODO handle printing
-      std::cout << "Previous Baseline: " << baseline_prev << std::endl;
-      std::cout << "         Baseline: " << this->baseline_ << std::endl;
+      if (this->debug_) {
+        std::cout << "Previous Baseline: " << baseline_prev << std::endl;
+        std::cout << "         Baseline: " << this->baseline_ << std::endl;
+      }
+
     }
 
     baseline_prev = this->baseline_;

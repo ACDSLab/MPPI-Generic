@@ -47,15 +47,17 @@ public:
    */
   virtual ~Cost() = default;
 
-  void GPUSetup() {
-    CLASS_T* derived = static_cast<CLASS_T*>(this);
-    if (!GPUMemStatus_) {
-      this->cost_d_ = Managed::GPUSetup(derived);
-    } else {
-      std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
-    }
-    derived->paramsToDevice();
-  }
+  // void GPUSetup() {
+  //   CLASS_T* derived = static_cast<CLASS_T*>(this);
+  //   if (!GPUMemStatus_) {
+  //     this->cost_d_ = Managed::GPUSetup(derived);
+  //   } else {
+  //     std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
+  //   }
+  //   derived->paramsToDevice();
+  // }
+
+  void GPUSetup();
 
   bool getDebugDisplayEnabled() {return false;}
 
@@ -84,10 +86,7 @@ public:
     return params_;
   }
 
-  void paramsToDevice() {
-    printf("ERROR: calling paramsToDevice of base cost");
-    exit(1);
-  };
+  void paramsToDevice();
 
   /**
    *
@@ -99,13 +98,7 @@ public:
   /**
    * deallocates the allocated cuda memory for an object
    */
-  void freeCudaMem() {
-    if(GPUMemStatus_) {
-      cudaFree(cost_d_);
-      this->GPUMemStatus_ = false;
-      cost_d_ = nullptr;
-    }
-  }
+  void freeCudaMem();
 
   /**
    * Computes the feedback control cost on CPU for RMPPI
@@ -191,7 +184,9 @@ public:
   inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
 
   __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
-  __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* s)  {
+    throw std::logic_error("SubClass did not implement terminalCost");
+  }
 
   CLASS_T* cost_d_ = nullptr;
 protected:
@@ -199,5 +194,9 @@ protected:
   // Not an Eigen control_array as it needs to exist on both CPU and GPU
   float control_cost_coef[CONTROL_DIM] = {1};
 };
+
+#if __CUDACC__
+#include "cost.cu"
+#endif
 
 #endif // COSTS_CUH_
