@@ -47,16 +47,6 @@ public:
    */
   virtual ~Cost() = default;
 
-  // void GPUSetup() {
-  //   CLASS_T* derived = static_cast<CLASS_T*>(this);
-  //   if (!GPUMemStatus_) {
-  //     cost_d_ = Managed::GPUSetup(derived);
-  //   } else {
-  //     std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
-  //   }
-  //   derived->paramsToDevice();
-  // }
-
   void GPUSetup();
 
   bool getDebugDisplayEnabled() {return false;}
@@ -184,9 +174,7 @@ public:
   inline __host__ __device__ PARAMS_T getParams() const {return params_;}
 
   __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
-  __device__ float terminalCost(float* s)  {
-    throw std::logic_error("SubClass did not implement terminalCost");
-  }
+  __device__ float terminalCost(float* s);
 
   CLASS_T* cost_d_ = nullptr;
 protected:
