@@ -279,6 +279,97 @@ void RobustMPPI::computeNominalFeedbackGains() {
   }
 }
 
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
+  // Handy dandy pointers to nominal data
+  float * trajectory_costs_nominal_d = this->trajectory_costs_d_ + NUM_ROLLOUTS;
+  float * initial_state_nominal_d = this->initial_state_d_ + DYN_T::STATE_DIM;
+  float * control_noise_nominal_d = this->control_noise_d_ + NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM;
+  float * control_nominal_d = this->control_d_ + this->num_timesteps_ * DYN_T::CONTROL_DIM;
+
+  // Transfer the feedback gains to the GPU
+  HANDLE_ERROR(cudaMemcpyAsync(feedback_gain_array_d_, feedback_gain_vector_.data(),
+                               sizeof(float)*this->num_timesteps_*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM,
+                               cudaMemcpyHostToDevice, this->stream_));
+  // Transfer the real initial state to the GPU
+  HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, state.data(), sizeof(float)*DYN_T::STATE_DIM,
+          cudaMemcpyHostToDevice, this->stream_));
+  // Transfer the nominal state to the GPU: recall that the device GPU has the augmented state [real state, nominal state]
+  HANDLE_ERROR(cudaMemcpyAsync(initial_state_nominal_d, nominal_state_.data(), sizeof(float)*DYN_T::STATE_DIM,
+                               cudaMemcpyHostToDevice, this->stream_));
+
+  for (int opt_iter = 0; opt_iter < this->num_iters_; opt_iter++) {
+    // Copy the importance sampling control to the system
+    HANDLE_ERROR( cudaMemcpyAsync(this->control_d_, nominal_control_trajectory_.data(),
+            sizeof(float)*DYN_T::CONTROL_DIM*this->num_timesteps_, cudaMemcpyHostToDevice, this->stream_));
+
+    // Generate a the control perturbations for exploration
+    curandGenerateNormal(this->gen_, this->control_noise_d_, DYN_T::CONTROL_DIM*this->num_timesteps_, 0.0, 1.0);
+
+    //Make a second copy of the random deviations
+    HANDLE_ERROR( cudaMemcpyAsync(control_noise_nominal_d, this->control_noise_d_,
+            DYN_T::CONTROL_DIM*this->num_timesteps_*sizeof(float), cudaMemcpyDeviceToDevice, this->stream_));
+
+    // Launch the new rollout kernel
+    rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
+            BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
+                            this->gamma_, 10.0f, this->initial_state_d, this->control_d, // TODO make sure value function threshold is correctly
+                            this->control_noise_d, feedback_gain_array_d_, this->control_std_dev_d,
+                            this->trajectory_costs_d, this->stream);
+
+    // Return the costs ->  nominal,  real costs
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
+                                 trajectory_costs_d,
+                                 NUM_ROLLOUTS * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+
+    HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_nominal_.data(),
+                                 trajectory_costs_nominal_d,
+                                 NUM_ROLLOUTS * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+
+    // Launch the norm exponential kernels for the nominal costs and the real costs
+    this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
+    baseline_nominal_ = mppi_common::computeBaselineCost(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+
+    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
+                                     this->trajectory_costs_d_, this->gamma_, this->baseline_, this->stream_);
+    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
+                                     trajectory_costs_nominal_d, this->gamma_, baseline_nominal_, this->stream_);
+
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
+                                 NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_nominal_.data(), trajectory_costs_nominal_d,
+                                 NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+
+    // Launch the weighted reduction kernel for the nominal costs and the real costs
+    this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS);
+    normalizer_nominal_ = mppi_common::computeNormalizer(this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+
+    mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
+            this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,
+            this->normalizer_, this->num_timesteps_, this->stream_);
+    mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
+            trajectory_costs_nominal_d,
+            control_noise_nominal_d, control_nominal_d,
+            this->normalizer_nominal_, this->num_timesteps_, this->stream_);
+
+    // Transfer the new control to the host
+    HANDLE_ERROR( cudaMemcpyAsync(this->control_.data(), this->control_d_,
+                                  sizeof(float)*this->num_timesteps_*DYN_T::CONTROL_DIM,
+                                  cudaMemcpyDeviceToHost, this->stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(nominal_control_trajectory_.data(), control_nominal_d,
+                                  sizeof(float)*this->num_timesteps_*DYN_T::CONTROL_DIM,
+                                  cudaMemcpyDeviceToHost, this->stream_));
+    cudaStreamSynchronize(this->stream_);
+
+    // Smooth the control
+    // TODO Both the optimal control and the importance sampler, using their own histories.
+  }
+}
+
 
 
 /******************************************************************************

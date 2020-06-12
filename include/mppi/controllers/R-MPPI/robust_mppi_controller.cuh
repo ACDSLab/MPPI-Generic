@@ -164,7 +164,7 @@ public:
   * @brief Compute the control given the current state of the system.
   * @param state The current state of the autorally system.
   */
-  void computeControl(const Eigen::Ref<const state_array>& state) override {};
+  void computeControl(const Eigen::Ref<const state_array>& state);
 
   control_trajectory getControlSeq() override {return nominal_control_trajectory_;};
 
@@ -193,6 +193,8 @@ protected:
   int nominal_stride_ = 0; // Stride for the chosen nominal state of the importance sampler
   int real_stride_ = 0; // Stride for the optimal controller sliding
   bool nominal_state_init_ = false;
+  float baseline_nominal_ = 100.0;
+  float normalizer_nominal_ = 100.0;
 
 
   OptimizerResult<ModelWrapperDDP<DYN_T>> last_result_;
@@ -202,6 +204,7 @@ protected:
   // Storage classes
   control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
   state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
+  sampled_cost_traj trajectory_costs_nominal_ = sampled_cost_traj::Zero();
 
   // Make the control history size flexible, related to issue #30
   Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> nominal_control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero(); // History used for nominal_state IS

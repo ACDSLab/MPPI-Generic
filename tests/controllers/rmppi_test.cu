@@ -111,9 +111,9 @@ protected:
   }
 
   void TearDown() override {
+    delete test_controller;
     delete model;
     delete cost;
-    delete test_controller;
   }
 
   dynamics* model;
@@ -269,9 +269,9 @@ protected:
   }
 
   void TearDown() override {
-    delete model;
-    delete cost;
     delete test_controller;
+    delete cost;
+    delete model;
   }
 
   dynamics* model;
