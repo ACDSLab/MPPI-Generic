@@ -12,6 +12,26 @@ struct QuadrotorQuadraticCostParams {
   // quat: w, x, y, z
   float q_goal[4] = {1, 0, 0, 0};
   float w_goal[3] = {0.0, 0.0, 0.0};
+
+  float s_goal[13] = {0, 0, 0,
+                      0, 0, 0,
+                      1, 0, 0, 0,
+                      0, 0, 0};
+
+  float x_coeff = 1.0;
+  float v_coeff = 1.0;
+  float q_coeff = 1.0;
+  float w_coeff = 1.0;
+  float terminal_cost_coeff = 0;
+
+  Eigen::Matrix<float, 13, 1> getDesiredState() {
+    Eigen::Matrix<float, 13, 1> s;
+    s << x_goal[0], x_goal[1], x_goal[2],
+         v_goal[0], v_goal[1], v_goal[2],
+         q_goal[0], q_goal[1], q_goal[2], q_goal[3],
+         w_goal[0], w_goal[1], w_goal[2];
+    return s;
+  }
 };
 
 class QuadrotorQuadraticCost : public Cost<QuadrotorQuadraticCost,
