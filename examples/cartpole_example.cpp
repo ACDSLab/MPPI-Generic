@@ -23,7 +23,6 @@ int main(int argc, char** argv) {
 
   cost->setParams(new_params);
 
-
   float dt = 0.02;
   int max_iter = 1;
   float gamma = 0.25;
@@ -65,9 +64,10 @@ int main(int argc, char** argv) {
   }
   auto time_end = std::chrono::system_clock::now();
   auto diff = std::chrono::duration<double, std::milli>(time_end - time_start);
-  printf("The elapsed time is: %f milliseconds", diff.count());
+  printf("The elapsed time is: %f milliseconds\n", diff.count());
 //    std::cout << "The current control at timestep " << i << " is: " << CartpoleController.get_control_seq()[i] << std::endl;
 
+  // cost->freeCudaMem();
   delete(CartpoleController);
   delete(cost);
   delete(model);

@@ -3,7 +3,7 @@
 #define CONTROLLER Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-          int BDIM_X, int BDIM_Y>
+         int BDIM_X, int BDIM_Y>
 void CONTROLLER::deallocateCUDAMemory() {
   cudaFree(control_d_);
   cudaFree(state_d_);
@@ -20,14 +20,14 @@ void CONTROLLER::copyControlStdDevToDevice() {
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-          int BDIM_X, int BDIM_Y>
+         int BDIM_X, int BDIM_Y>
 void CONTROLLER::copyNominalControlToDevice() {
   HANDLE_ERROR(cudaMemcpyAsync(control_d_, control_.data(), sizeof(float)*control_.size(), cudaMemcpyHostToDevice, stream_));
   HANDLE_ERROR(cudaStreamSynchronize(stream_));
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-          int BDIM_X, int BDIM_Y>
+         int BDIM_X, int BDIM_Y>
 void CONTROLLER::copySampledControlFromDevice() {
   int num_sampled_trajectories = perc_sampled_control_trajectories * NUM_ROLLOUTS;
   int control_trajectory_size = control_trajectory().size();
@@ -46,7 +46,7 @@ void CONTROLLER::copySampledControlFromDevice() {
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-          int BDIM_X, int BDIM_Y>
+         int BDIM_X, int BDIM_Y>
 void CONTROLLER::setCUDAStream(cudaStream_t stream) {
   stream_ = stream;
   model_->bindToStream(stream);
@@ -55,7 +55,7 @@ void CONTROLLER::setCUDAStream(cudaStream_t stream) {
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-          int BDIM_X, int BDIM_Y>
+         int BDIM_X, int BDIM_Y>
 void CONTROLLER::createAndSeedCUDARandomNumberGen() {
   // Seed the PseudoRandomGenerator with the CPU time.
   curandCreateGenerator(&gen_, CURAND_RNG_PSEUDO_DEFAULT);
@@ -64,7 +64,7 @@ void CONTROLLER::createAndSeedCUDARandomNumberGen() {
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-          int BDIM_X, int BDIM_Y>
+         int BDIM_X, int BDIM_Y>
 void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size,
                                           bool allocate_double_noise) {
   if(nominal_size < 0) {
