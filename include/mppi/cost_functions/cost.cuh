@@ -167,9 +167,7 @@ public:
     return 0.5 * lambda * cost;
   }
 
-  __device__ float computeStateCost(float* s) {
-    throw std::logic_error("SubClass did not implement computeStateCost");
-  }
+  __device__ float computeStateCost(float* s);
 
   inline __host__ __device__ PARAMS_T getParams() const {return params_;}
 
