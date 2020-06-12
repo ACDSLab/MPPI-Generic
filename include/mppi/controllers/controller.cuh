@@ -85,6 +85,13 @@ public:
     this->model_->GPUSetup();
     this->cost_->GPUSetup();
 
+    // allocate memory for the optimizer result
+    result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
+    result_.feedback_gain = feedback_gain_trajectory(MAX_TIMESTEPS);
+    for(int i = 0; i < MAX_TIMESTEPS; i++) {
+      result_.feedback_gain[i] = Eigen::Matrix<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>::Zero();
+    }
+
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemroy and call it from the constructor
      * along with any other methods to copy memory to the device and back
@@ -433,7 +440,7 @@ protected:
   control_array control_min_;
   control_array control_max_;
 
-  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;// = OptimizerResult<ModelWrapperDDP<DYN_T>>();
+  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
 
   void copyControlStdDevToDevice() {
     HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, control_std_dev_.data(), sizeof(float)*control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
