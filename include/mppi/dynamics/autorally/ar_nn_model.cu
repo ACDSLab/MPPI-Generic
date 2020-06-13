@@ -21,9 +21,7 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel() {
   if(weighted_in_ != nullptr) {
     delete[] weighted_in_;
   }
-  if(this->GPUMemStatus_) {
-    freeCudaMem();
-  }
+  freeCudaMem();
 }
 
 template<int S_DIM, int C_DIM, int K_DIM, int... layer_args>

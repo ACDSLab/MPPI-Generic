@@ -38,7 +38,6 @@ class QuadrotorQuadraticCost : public Cost<QuadrotorQuadraticCost,
                                            QuadrotorQuadraticCostParams, 13, 4> {
 public:
   QuadrotorQuadraticCost(cudaStream_t stream = nullptr);
-  ~QuadrotorQuadraticCost();
 
   /**
    * Host Functions

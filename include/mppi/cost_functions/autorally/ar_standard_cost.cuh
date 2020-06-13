@@ -50,11 +50,6 @@ public:
   ARStandardCost(cudaStream_t stream=0);
 
   /**
-   *
-   */
-  ~ARStandardCost();
-
-  /**
    * Deallocates the allocated cuda memory for an object
    * TODO make a generic version of this
    */

@@ -31,10 +31,6 @@ public:
    */
   CartpoleQuadraticCost(cudaStream_t stream=0);
 
-  /**
-   *
-   */
-  ~CartpoleQuadraticCost();
 
   /**
    * @brief Compute the control cost

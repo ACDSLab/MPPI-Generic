@@ -10,8 +10,6 @@ Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams, 4, 2>(stream) {
   normal_distribution = std::normal_distribution<float>(0, sqrtf(system_noise));
 }
 
-DoubleIntegratorDynamics::~DoubleIntegratorDynamics() = default;
-
 void DoubleIntegratorDynamics::computeDynamics(const Eigen::Ref<const state_array> &state,
         const Eigen::Ref<const control_array> &control, Eigen::Ref<state_array> state_der) {
   state_der(0) = state(2); // xdot;

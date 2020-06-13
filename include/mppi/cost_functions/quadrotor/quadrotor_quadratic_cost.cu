@@ -4,13 +4,6 @@ QuadrotorQuadraticCost::QuadrotorQuadraticCost(cudaStream_t stream) {
   bindToStream(stream);
 }
 
-QuadrotorQuadraticCost::~QuadrotorQuadraticCost(){
-  if (!GPUMemStatus_) {
-    freeCudaMem();
-    GPUMemStatus_ = false;
-  }
-}
-
 /**
  * Host Functions
  */

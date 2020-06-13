@@ -45,7 +45,9 @@ public:
    * Destructor must be virtual so that children are properly
    * destroyed when called from a basePlant reference
    */
-  virtual ~Cost() = default;
+  virtual ~Cost() {
+    freeCudaMem();
+  }
 
   void GPUSetup();
 

@@ -68,7 +68,9 @@ public:
    * Destructor must be virtual so that children are properly
    * destroyed when called from a Dynamics reference
    */
-  virtual ~Dynamics() = default;
+  virtual ~Dynamics() {
+    freeCudaMem();
+  }
 
   /**
    * Allocates all of the GPU memory
