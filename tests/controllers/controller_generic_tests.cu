@@ -295,8 +295,6 @@ TEST(Controller, interpolateFeedback) {
 
   TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
 
-  EXPECT_CALL(mockDynamics, enforceConstraints(testing::_, testing::_)).Times(4 * (controller.getNumTimesteps() - 1));
-
   controller.setFeedbackController(true);
   TestController::feedback_gain_trajectory feedback_traj = TestController::feedback_gain_trajectory(controller.getNumTimesteps());
   for(int i = 0; i < controller.getNumTimesteps(); i++) {

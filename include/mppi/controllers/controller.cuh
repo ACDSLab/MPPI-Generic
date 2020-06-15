@@ -5,7 +5,6 @@
 #ifndef MPPIGENERIC_CONTROLLER_CUH
 #define MPPIGENERIC_CONTROLLER_CUH
 
-#include <mppi/utils/gpu_err_chk.cuh>
 #include <array>
 #include <Eigen/Core>
 #include <chrono>
@@ -130,6 +129,8 @@ public:
    * Slide the control sequence forwards steps steps
    */
   virtual void slideControlSequence(int steps) = 0;
+  // ================ END OF MNETHODS WITH NO DEFAULT =============
+  // ======== PURE VIRTUAL END =====
 
   /**
    * Used to update the importance sampler
@@ -140,8 +141,6 @@ public:
     control_ = nominal_control;
   }
 
-  // ================ END OF MNETHODS WITH NO DEFAULT =============
-  // ======== PURE VIRTUAL END =====
   /**
    * determines the control that should
    * @param state
@@ -155,7 +154,13 @@ public:
     if(enable_feedback_) {
        u_fb = interpolateFeedback(state, rel_time);
     }
-    return u_ff + u_fb;
+    control_array result = u_ff + u_fb;
+
+    // TODO this is kinda jank
+    state_array empty_state = state_array::Zero();
+    model_->enforceConstraints(empty_state, result);
+
+    return result;
   }
 
   /**
@@ -193,10 +198,6 @@ public:
 
     control_array u_fb = ((1-alpha)*getFeedbackGains()[lower_idx]
             + alpha*getFeedbackGains()[upper_idx])*(state - desired_state);
-
-    // TODO this is kinda jank
-    state_array empty_state = state_array::Zero();
-    model_->enforceConstraints(empty_state, u_fb);
 
     return u_fb;
   }
