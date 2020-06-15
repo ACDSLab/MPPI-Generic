@@ -48,11 +48,6 @@ void CartpoleDynamics::computeDynamics(const Eigen::Ref<const state_array> &stat
   state_der(3) = 1/(l_p*(m_c+m_p*powf(sinf(theta),2.0)))*(-force*cosf(theta)-m_p*l_p*powf(theta_dot,2.0)*cosf(theta)*sinf(theta)-(m_c+m_p)*gravity_*sinf(theta));
 }
 
-void CartpoleDynamics::freeCudaMem()
-{
-  Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>::freeCudaMem();
-}
-
 void CartpoleDynamics::printState(const Eigen::Ref<const state_array>& state)
 {
   printf("Cart position: %f; Cart velocity: %f; Pole angle: %f; Pole rate: %f \n", state(0), state(1), state(2), state(3)); //Needs to be completed

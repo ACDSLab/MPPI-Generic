@@ -36,12 +36,6 @@ public:
    */
   ~CartpoleQuadraticCost();
 
-
-  /**
-   * Copies the parameters to the GPU object
-   */
-  void paramsToDevice();
-
   /**
    * @brief Compute the control cost
    */

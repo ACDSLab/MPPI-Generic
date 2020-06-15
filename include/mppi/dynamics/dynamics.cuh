@@ -73,15 +73,7 @@ public:
   /**
    * Allocates all of the GPU memory
    */
-  void GPUSetup() {
-    CLASS_T* derived = static_cast<CLASS_T*>(this);
-    if (!GPUMemStatus_) {
-      this->model_d_ = Managed::GPUSetup(derived);
-    } else {
-      std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
-    }
-    derived->paramsToDevice();
-  }
+  void GPUSetup();
 
   std::array<float2, C_DIM> getControlRanges() {
     std::array<float2, C_DIM> result;
@@ -95,8 +87,8 @@ public:
   }
 
   void setParams(const PARAMS_T& params) {
-    this->params_ = params;
-    if(this->GPUMemStatus_) {
+    params_ = params;
+    if(GPUMemStatus_) {
       CLASS_T& derived = static_cast<CLASS_T&>(*this);
       derived.paramsToDevice();
     }
@@ -108,13 +100,7 @@ public:
   /*
    *
    */
-  void freeCudaMem() {
-    if(GPUMemStatus_) {
-      cudaFree(model_d_);
-      GPUMemStatus_ = false;
-      model_d_ = nullptr;
-    }
-  }
+  void freeCudaMem();
 
   /**
    *
@@ -130,10 +116,7 @@ public:
   /**
    *
    */
-  void paramsToDevice() {
-    HANDLE_ERROR( cudaMemcpyAsync(&this->model_d_->params_, &this->params_, sizeof(PARAMS_T), cudaMemcpyHostToDevice, this->stream_));
-    HANDLE_ERROR( cudaMemcpyAsync(&this->model_d_->control_rngs_, &this->control_rngs_, C_DIM*sizeof(float2), cudaMemcpyHostToDevice, this->stream_));
-  }
+  void paramsToDevice();
 
   /**
    * loads the .npz at given path
@@ -265,7 +248,7 @@ public:
     int tdy = threadIdx.y;
     //Add the state derivative time dt to the current state.
     //printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-    for (i = tdy; i < this->STATE_DIM; i+=blockDim.y){
+    for (i = tdy; i < STATE_DIM; i+=blockDim.y){
       state[i] += state_der[i]*dt;
       state_der[i] = 0; //Important: reset the state derivative to zero.
     }
@@ -279,7 +262,7 @@ public:
     int i;
     int tdy = threadIdx.y;
     // parallelize setting the constraints with y dim
-    for (i = tdy; i < this->CONTROL_DIM; i+=blockDim.y){
+    for (i = tdy; i < CONTROL_DIM; i+=blockDim.y){
       //printf("thread index = %d, %d, control %f\n", threadIdx.x, tdy, control[i]);
       if(control[i] < control_rngs_[i].x) {
         control[i] = control_rngs_[i].x;
@@ -303,6 +286,10 @@ protected:
   // generic parameter structure
   PARAMS_T params_;
 };
+
+#ifdef __CUDACC__
+#include "dynamics.cu"
+#endif
 
 template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 const int Dynamics<CLASS_T, PARAMS_T, S_DIM, C_DIM>::STATE_DIM;

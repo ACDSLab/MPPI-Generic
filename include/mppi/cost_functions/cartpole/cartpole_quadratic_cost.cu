@@ -11,11 +11,6 @@ CartpoleQuadraticCost::~CartpoleQuadraticCost() {
   }
 }
 
-void CartpoleQuadraticCost::paramsToDevice() {
-  HANDLE_ERROR( cudaMemcpyAsync(&cost_d_->params_, &params_, sizeof(cartpoleQuadraticCostParams), cudaMemcpyHostToDevice, stream_));
-  HANDLE_ERROR( cudaStreamSynchronize(stream_));
-}
-
 float CartpoleQuadraticCost::computeStateCost(const Eigen::Ref<const state_array> s) {
   return (s[0]-params_.desired_terminal_state[0])*(s[0]-params_.desired_terminal_state[0])*params_.cart_position_coeff +
          (s[1]-params_.desired_terminal_state[1])*(s[1]-params_.desired_terminal_state[1])*params_.cart_velocity_coeff +
