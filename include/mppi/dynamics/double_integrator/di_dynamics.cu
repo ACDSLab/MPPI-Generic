@@ -10,7 +10,7 @@ Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams, 4, 2>(stream) {
   normal_distribution = std::normal_distribution<float>(0, sqrtf(system_noise));
 }
 
-DoubleIntegratorDynamics::~DoubleIntegratorDynamics() = default;;
+DoubleIntegratorDynamics::~DoubleIntegratorDynamics() = default;
 
 void DoubleIntegratorDynamics::computeDynamics(const Eigen::Ref<const state_array> &state,
         const Eigen::Ref<const control_array> &control, Eigen::Ref<state_array> state_der) {
@@ -31,11 +31,6 @@ bool DoubleIntegratorDynamics::computeGrad(const Eigen::Ref<const state_array> &
   B(3,1) = 1;
   return true;
 }
-
-
-//void DoubleIntegratorDynamics::paramsToDevice() {
-//  HANDLE_ERROR(cudaMemcpyAsync(&model_d_->params_, &params_, sizeof(DoubleIntegratorParams), cudaMemcpyHostToDevice, stream_));
-//}
 
 void DoubleIntegratorDynamics::printState(float *state) {
   printf("X position: %f; Y position: %f; X velocity: %f; Y velocity: %f \n", state[0], state[1], state[2], state[3]);

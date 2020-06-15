@@ -47,15 +47,7 @@ public:
    */
   virtual ~Cost() = default;
 
-  void GPUSetup() {
-    CLASS_T* derived = static_cast<CLASS_T*>(this);
-    if (!GPUMemStatus_) {
-      this->cost_d_ = Managed::GPUSetup(derived);
-    } else {
-      std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
-    }
-    derived->paramsToDevice();
-  }
+  void GPUSetup();
 
   bool getDebugDisplayEnabled() {return false;}
 
@@ -73,8 +65,8 @@ public:
    * @param params
    */
   void setParams(PARAMS_T params) {
-    this->params_ = params;
-    if(this->GPUMemStatus_) {
+    params_ = params;
+    if(GPUMemStatus_) {
       CLASS_T& derived = static_cast<CLASS_T&>(*this);
       derived.paramsToDevice();
     }
@@ -84,10 +76,7 @@ public:
     return params_;
   }
 
-  void paramsToDevice() {
-    printf("ERROR: calling paramsToDevice of base cost");
-    exit(1);
-  };
+  void paramsToDevice();
 
   /**
    *
@@ -99,13 +88,7 @@ public:
   /**
    * deallocates the allocated cuda memory for an object
    */
-  void freeCudaMem() {
-    if(GPUMemStatus_) {
-      cudaFree(cost_d_);
-      this->GPUMemStatus_ = false;
-      cost_d_ = nullptr;
-    }
-  }
+  void freeCudaMem();
 
   /**
    * Computes the feedback control cost on CPU for RMPPI
@@ -184,11 +167,9 @@ public:
     return 0.5 * lambda * cost;
   }
 
-  __device__ float computeStateCost(float* s) {
-    throw std::logic_error("SubClass did not implement computeStateCost");
-  }
+  __device__ float computeStateCost(float* s);
 
-  inline __host__ __device__ PARAMS_T getParams() const {return this->params_;}
+  inline __host__ __device__ PARAMS_T getParams() const {return params_;}
 
   __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
   __device__ float terminalCost(float* s);
@@ -199,5 +180,9 @@ protected:
   // Not an Eigen control_array as it needs to exist on both CPU and GPU
   float control_cost_coef[CONTROL_DIM] = {1};
 };
+
+#if __CUDACC__
+#include "cost.cu"
+#endif
 
 #endif // COSTS_CUH_

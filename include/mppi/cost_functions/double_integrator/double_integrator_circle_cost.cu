@@ -11,10 +11,6 @@ DoubleIntegratorCircleCost::~DoubleIntegratorCircleCost() {
   }
 }
 
-void DoubleIntegratorCircleCost::paramsToDevice() {
-  HANDLE_ERROR(cudaMemcpyAsync(&cost_d_->params_, &params_, sizeof(DoubleIntegratorCircleCostParams), cudaMemcpyHostToDevice, stream_));
-}
-
 __device__ float DoubleIntegratorCircleCost::computeStateCost(float *s) {
   float radial_position = s[0]*s[0] + s[1]*s[1];
   float current_velocity = sqrtf(s[2]*s[2] + s[3]*s[3]);

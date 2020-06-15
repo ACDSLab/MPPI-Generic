@@ -21,7 +21,6 @@ public:
 
   ~DoubleIntegratorCircleCost();
 
-  void paramsToDevice();
   float computeStateCost(const Eigen::Ref<const state_array> s);
   float terminalCost(const Eigen::Ref<const state_array> s);
 
