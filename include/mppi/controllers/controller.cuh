@@ -84,6 +84,13 @@ public:
     model_->GPUSetup();
     cost_->GPUSetup();
 
+    // allocate memory for the optimizer result
+    result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
+    result_.feedback_gain = feedback_gain_trajectory(MAX_TIMESTEPS);
+    for(int i = 0; i < MAX_TIMESTEPS; i++) {
+      result_.feedback_gain[i] = Eigen::Matrix<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>::Zero();
+    }
+
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemroy and call it from the constructor
      * along with any other methods to copy memory to the device and back
@@ -122,6 +129,8 @@ public:
    * Slide the control sequence forwards steps steps
    */
   virtual void slideControlSequence(int steps) = 0;
+  // ================ END OF MNETHODS WITH NO DEFAULT =============
+  // ======== PURE VIRTUAL END =====
 
   /**
    * Used to update the importance sampler
@@ -129,10 +138,69 @@ public:
    */
   virtual void updateImportanceSampler(const Eigen::Ref<const control_trajectory>& nominal_control) {
     // TODO copy to device new control sequence
+    control_ = nominal_control;
   }
 
-  // ================ END OF MNETHODS WITH NO DEFAULT =============
-  // ======== PURE VIRTUAL END =====
+  /**
+   * determines the control that should
+   * @param state
+   * @param rel_time
+   * @return
+   */
+  virtual control_array getCurrentControl(state_array& state, double rel_time) {
+    // MPPI control
+    control_array u_ff = interpolateControls(rel_time);
+    control_array u_fb = control_array::Zero();
+    if(enable_feedback_) {
+       u_fb = interpolateFeedback(state, rel_time);
+    }
+    control_array result = u_ff + u_fb;
+
+    // TODO this is kinda jank
+    state_array empty_state = state_array::Zero();
+    model_->enforceConstraints(empty_state, result);
+
+    return result;
+  }
+
+  /**
+   * determines the interpolated control from control_seq_, linear interpolation
+   * @param rel_time time since the solution was calculated
+   * @return
+   */
+  virtual control_array interpolateControls(double rel_time) {
+    int lower_idx = (int) (rel_time / dt_);
+    int upper_idx = lower_idx + 1;
+    double alpha = (rel_time - lower_idx * dt_) / dt_;
+
+    control_array interpolated_control;
+    control_array prev_cmd = getControlSeq().col(lower_idx);
+    control_array next_cmd = getControlSeq().col(upper_idx);
+    interpolated_control = (1 - alpha) * prev_cmd + alpha * next_cmd;
+    return interpolated_control;
+  }
+
+  /**
+   *
+   * @param state
+   * @param rel_time
+   * @return
+   */
+  virtual control_array interpolateFeedback(state_array& state, double rel_time) {
+    int lower_idx = (int) (rel_time / dt_);
+    int upper_idx = lower_idx + 1;
+    double alpha = (rel_time - lower_idx * dt_) / dt_;
+
+    control_array interpolated_control;
+
+    state_array desired_state;
+    desired_state = (1 - alpha)*getStateSeq().col(lower_idx) + alpha*getStateSeq().col(upper_idx);
+
+    control_array u_fb = ((1-alpha)*getFeedbackGains()[lower_idx]
+            + alpha*getFeedbackGains()[upper_idx])*(state - desired_state);
+
+    return u_fb;
+  }
 
   /**
    * returns the current control sequence
@@ -289,6 +357,7 @@ public:
       printf("You must give a number of timesteps between [0, %d]\n", MAX_TIMESTEPS);
     }
   }
+  int getNumTimesteps() {return num_timesteps_;}
 
   /**
    * updates the scaling factor of noise for sampling around the nominal trajectory
@@ -303,6 +372,7 @@ public:
   void setFeedbackController(bool enable_feedback) {
     enable_feedback_ = enable_feedback;
   }
+  bool getFeedbackEnabled() {return enable_feedback_;}
 
   /**
    * Set the percentage of sample control trajectories to copy
@@ -323,6 +393,9 @@ public:
   DYN_T* model_;
   COST_T* cost_;
   cudaStream_t stream_;
+
+  float getDt() {return dt_;}
+  void setDt(float dt) {dt_ = dt;}
 
 protected:
   // no default protected members
