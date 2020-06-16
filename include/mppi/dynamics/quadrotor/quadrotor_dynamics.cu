@@ -1,5 +1,5 @@
 #include <mppi/dynamics/quadrotor/quadrotor_dynamics.cuh>
-#include <mppi/utils/quaternion_math.cuh>
+#include <mppi/utils/math_utils.h>
 
 QuadrotorDynamics::QuadrotorDynamics(cudaStream_t stream) :
 Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, 4>(stream) {
