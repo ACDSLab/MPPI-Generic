@@ -186,7 +186,6 @@ protected:
   bool importance_sampling_cuda_mem_init_ = false;
   int num_candidate_nominal_states_ = 9; // TODO should the initialization be a parameter?
   int best_index_ = 0;
-  float nominal_normalizer_; ///< Variable for the normalizing term from sampling.
   int optimization_stride_; // Number of timesteps to apply the optimal control (== 1 for true MPC)
   int nominal_stride_ = 0; // Stride for the chosen nominal state of the importance sampler
   int real_stride_ = 0; // Stride for the optimal controller sliding

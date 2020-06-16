@@ -30,6 +30,9 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
   // Initialize DDP
   this->initDDP(Q, Qf, R);
 
+  // Initialize the nominal control trajectory
+  nominal_control_trajectory_ = init_control_traj;
+
   // Resize the feedback gain vector to hold the raw data for the feedback gains
   feedback_gain_vector_.resize(MAX_TIMESTEPS*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM);
 }
@@ -316,7 +319,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
     // Launch the new rollout kernel
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
             BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
-                            this->gamma_, value_function_threshold_, this->initial_state_d_, this->control_d_, // TODO make sure value function threshold is correctly
+                            1.0 / this->gamma_, value_function_threshold_*this->dt_, this->initial_state_d_, this->control_d_, // TODO make sure value function threshold is correctly
                             this->control_noise_d_, feedback_gain_array_d_, this->control_std_dev_d_,
                             this->trajectory_costs_d_, this->stream_);
 
@@ -332,9 +335,15 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
                                  cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
+    std::cout << "Real Costs: " << this->trajectory_costs_.transpose() << std::endl;
+    std::cout << "Nominal Costs: " << trajectory_costs_nominal_.transpose() << std::endl;
+
     // Launch the norm exponential kernels for the nominal costs and the real costs
     this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
     baseline_nominal_ = mppi_common::computeBaselineCost(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+
+    std::cout << "  Real baseline: " << this->baseline_ << std::endl;
+    std::cout << "  Nominal baseline: " << baseline_nominal_ << std::endl;
 
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
                                      this->trajectory_costs_d_, this->gamma_, this->baseline_, this->stream_);
@@ -349,7 +358,10 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
 
     // Launch the weighted reduction kernel for the nominal costs and the real costs
     this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS);
-    normalizer_nominal_ = mppi_common::computeNormalizer(this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+    normalizer_nominal_ = mppi_common::computeNormalizer(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+
+    std::cout << "  Real normalizer: " << this->normalizer_ << std::endl;
+    std::cout << "  Nominal normalizer: " << normalizer_nominal_ << std::endl;
 
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
             this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,

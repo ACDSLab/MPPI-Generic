@@ -514,7 +514,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   // Value function threshold
   float value_function_threshold = 1000.0;
 
-  // Initialize the tube MPPI controller
+  // Initialize the R MPPI controller
   auto controller = RobustMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
@@ -571,7 +571,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
 
     // Get the open loop control
     DoubleIntegratorDynamics::control_array current_control = controller.getControlSeq().col(0);
-//    std::cout << current_control << std::endl;
+    std::cout << current_control << std::endl;
 
 
     // Apply the feedback given the current state
