@@ -133,7 +133,7 @@ void VanillaMPPI::slideControlSequence(int steps) {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void VanillaMPPI::smoothControlTrajectory() {
-  this->smoothControlTrajectoryHelper(this->control_);
+  this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
 }
 
 #undef VanillaMPPI

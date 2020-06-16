@@ -72,7 +72,7 @@ public:
 
     control_std_dev_ = control_std_dev;
     control_ = init_control_traj;
-    control_history_ = Eigen::Matrix<float, 2, DYN_T::CONTROL_DIM>::Zero();
+    control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
 
     // Create the random number generator
     createAndSeedCUDARandomNumberGen();
@@ -266,7 +266,7 @@ public:
     terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(Qf_);
   }
 
-  virtual void computeFeedbackGains(const Eigen::Ref<const state_array> state) {
+  virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& state) {
     if(!enable_feedback_) {
       return;
     }
@@ -280,7 +280,7 @@ public:
                                control_min_, control_max_);
   }
 
-  void smoothControlTrajectoryHelper(control_trajectory& u) {
+  void smoothControlTrajectoryHelper(Eigen::Ref<control_trajectory> u, const Eigen::Ref<Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>>& control_history) {
     // TODO generalize to any size filter
     // TODO does the logic of handling control history reasonable?
 
@@ -293,7 +293,7 @@ public:
     Eigen::Matrix<float, MAX_TIMESTEPS+4, DYN_T::CONTROL_DIM> control_buffer;
 
     // Fill the first two timesteps with the control history
-    control_buffer.topRows(2) = control_history_.transpose();
+    control_buffer.topRows(2) = control_history.transpose();
 
     // Fill the center timesteps with the current nominal trajectory
     control_buffer.middleRows(2, MAX_TIMESTEPS) = u.transpose();
@@ -308,7 +308,7 @@ public:
     }
   }
 
-  virtual void slideControlSequenceHelper(int steps, control_trajectory& u) {
+  virtual void slideControlSequenceHelper(int steps, Eigen::Ref<control_trajectory> u) {
     for (int i = 0; i < num_timesteps_; ++i) {
       int ind = std::min(i + steps, num_timesteps_ - 1);
       u.col(i) = u.col(ind);
@@ -317,7 +317,7 @@ public:
 
   virtual void saveControlHistoryHelper(int steps,
           const Eigen::Ref<const control_trajectory>& u_trajectory,
-          Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>& u_history) {
+          Eigen::Ref<Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>> u_history) {
     if (steps == 1) { // We only moved one timestep
       u_history.col(0) = u_history.col(1);
       u_history.col(1) = u_trajectory.col(0);
@@ -335,8 +335,8 @@ public:
     // TODO
   };
 
-  virtual void computeStateTrajectoryHelper(state_trajectory& result, const Eigen::Ref<const state_array>& x0,
-          const control_trajectory& u) {
+  virtual void computeStateTrajectoryHelper(Eigen::Ref<state_trajectory> result, const Eigen::Ref<const state_array>& x0,
+          const Eigen::Ref<const control_trajectory>& u) {
     result.col(0) = x0;
     state_array xdot;
     state_array state;
