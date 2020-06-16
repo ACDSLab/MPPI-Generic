@@ -388,6 +388,11 @@ public:
   std::vector<control_trajectory> getSampledControlSeq() {return sampled_controls_;}
 
   /**
+   * Return the most recent free energy calculation
+   */
+  float getFreeEnergy() {return free_energy_;}
+
+  /**
    * Public data members
    */
   DYN_T* model_;
@@ -403,6 +408,10 @@ protected:
 
   // TODO get raw pointers for different things
   bool debug_ = false;
+
+  // Free energy variables
+  float free_energy_ = 0;
+  float free_energy_var_ = 0;
 
   int num_iters_;  // Number of optimization iterations
   float dt_;
