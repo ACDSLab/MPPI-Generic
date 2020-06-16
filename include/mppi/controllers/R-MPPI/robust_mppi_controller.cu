@@ -6,6 +6,7 @@
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+                     float value_function_threshold,
                      const Eigen::Ref<const StateCostWeight>& Q,
                      const Eigen::Ref<const Hessian>& Qf,
                      const Eigen::Ref<const ControlCostWeight>& R,
@@ -14,10 +15,12 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
                      const Eigen::Ref<const control_trajectory>& init_control_traj,
                      int optimization_stride,
                      cudaStream_t stream) : Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        model, cost, dt, max_iter, gamma, control_std_dev, num_timesteps, init_control_traj, stream)  {
+        model, cost, dt, max_iter, gamma, control_std_dev, num_timesteps, init_control_traj, stream),
+        value_function_threshold_(value_function_threshold), optimization_stride_(optimization_stride) {
+
 
   updateNumCandidates(num_candidate_nominal_states_);
-  optimization_stride_ = optimization_stride;
+
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
 
@@ -186,7 +189,7 @@ void RobustMPPI::computeBestIndex() {
     candidate_free_energy_(i) /= (1.0*SAMPLES_PER_CONDITION);
     candidate_free_energy_(i) = -1.0/this->gamma_ *logf(candidate_free_energy_(i)) + baseline;
 
-    if (candidate_free_energy_(i) < value_func_threshold_){
+    if (candidate_free_energy_(i) < value_function_threshold_){
       best_index_ = i;
     }
   }
@@ -313,21 +316,21 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
     // Launch the new rollout kernel
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
             BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
-                            this->gamma_, 10.0f, this->initial_state_d, this->control_d, // TODO make sure value function threshold is correctly
-                            this->control_noise_d, feedback_gain_array_d_, this->control_std_dev_d,
-                            this->trajectory_costs_d, this->stream);
+                            this->gamma_, value_function_threshold_, this->initial_state_d_, this->control_d_, // TODO make sure value function threshold is correctly
+                            this->control_noise_d_, feedback_gain_array_d_, this->control_std_dev_d_,
+                            this->trajectory_costs_d_, this->stream_);
 
     // Return the costs ->  nominal,  real costs
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
-                                 trajectory_costs_d,
+                                 this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float),
-                                 cudaMemcpyDeviceToHost, stream));
+                                 cudaMemcpyDeviceToHost, this->stream_));
 
     HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_nominal_.data(),
                                  trajectory_costs_nominal_d,
                                  NUM_ROLLOUTS * sizeof(float),
-                                 cudaMemcpyDeviceToHost, stream));
-    HANDLE_ERROR(cudaStreamSynchronize(stream));
+                                 cudaMemcpyDeviceToHost, this->stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Launch the norm exponential kernels for the nominal costs and the real costs
     this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
@@ -366,7 +369,8 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
     cudaStreamSynchronize(this->stream_);
 
     // Smooth the control
-    // TODO Both the optimal control and the importance sampler, using their own histories.
+    this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
+    this->smoothControlTrajectoryHelper(nominal_control_trajectory_, nominal_control_history_);
   }
 }
 

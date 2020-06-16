@@ -104,10 +104,7 @@ public:
   // Number of samples per condition must be a multiple of the blockDIM
   static const int SAMPLES_PER_CONDITION = BDIM_X*SAMPLES_PER_CONDITION_MULTIPLIER;
 
-  float value_func_threshold_ = 1000.0;
-
-  int numTimesteps_;
-  int optimizationStride_;
+  float value_function_threshold_ = 1000.0;
 
   state_array nominal_state_ = state_array::Zero();
 
@@ -122,6 +119,7 @@ public:
   * TODO Finish this description
   */
   RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+                       float value_function_threshold,
                        const Eigen::Ref<const StateCostWeight>& Q,
                        const Eigen::Ref<const Hessian>& Qf,
                        const Eigen::Ref<const ControlCostWeight>& R,
@@ -180,7 +178,7 @@ public:
   // during the importance sampling update does not change after the optimization, thus the feedback gains will
   // not change either. In the current implementation of runControlIteration, the compute feedback gains is called
   // after the computation of the optimal control.
-  void computeFeedbackGains(const Eigen::Ref<const state_array> state) override {};
+  void computeFeedbackGains(const Eigen::Ref<const state_array>& state) override {};
 
   // TubeDiagnostics getTubeDiagnostics();
 

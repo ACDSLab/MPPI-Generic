@@ -16,6 +16,7 @@ class TestRobust: public RobustMPPIController<
   TestRobust(DoubleIntegratorDynamics *model,
           DoubleIntegratorCircleCost *cost,
           float dt, int max_iter, float gamma,
+          float value_function_threshold,
           const Eigen::Ref<const StateCostWeight>& Q,
           const Eigen::Ref<const Hessian>& Qf,
           const Eigen::Ref<const ControlCostWeight>& R,
@@ -23,7 +24,7 @@ class TestRobust: public RobustMPPIController<
           int num_timesteps,
           const Eigen::Ref<const control_trajectory>& init_control_traj,
           cudaStream_t stream) :
-  RobustMPPIController(model, cost, dt,  max_iter,  gamma, Q, Qf, R, control_std_dev, num_timesteps, init_control_traj, 1, stream) {};
+  RobustMPPIController(model, cost, dt,  max_iter,  gamma, value_function_threshold, Q, Qf, R, control_std_dev, num_timesteps, init_control_traj, 1, stream) {};
 
 
   // Test to make sure that its nonzero
@@ -107,7 +108,7 @@ protected:
     Q.setIdentity();
     Qf.setIdentity();
     R.setIdentity();
-    test_controller = new TestRobust(model, cost, dt, 3, gamma, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
+    test_controller = new TestRobust(model, cost, dt, 3, gamma, 10.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
   }
 
   void TearDown() override {
@@ -258,8 +259,7 @@ protected:
     Qf.setIdentity();
     R.setIdentity();
 
-    test_controller = new TestRobust(model, cost, dt, 3, gamma, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
-    test_controller->value_func_threshold_ = 10.0;
+    test_controller = new TestRobust(model, cost, dt, 3, gamma, 10.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
 
     // Set the size of the trajectory costs function
     trajectory_costs.resize(num_samples*num_candidates, 1);
@@ -448,4 +448,155 @@ TEST_F(RMPPINominalStateSelection, FeedbackGainInternalStorage) {
       ASSERT_FLOAT_EQ(feedback_gain_vector[i_index + j] , feedback_gain_eigen_aligned[i].data()[j]);
     }
   }
+}
+
+bool tubeFailure(float *s) {
+  float inner_path_radius2 = 1.675*1.675;
+  float outer_path_radius2 = 2.325*2.325;
+  float radial_position = s[0]*s[0] + s[1]*s[1];
+  if ((radial_position < inner_path_radius2) || (radial_position > outer_path_radius2)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+TEST(RMPPITest, RobustMPPILargeVariance) {
+  // Noise enters the system during the "true" state propagation. In this case the noise is nominal
+  DoubleIntegratorDynamics model(100);  // Initialize the double integrator dynamics
+  DoubleIntegratorCircleCost cost;  // Initialize the cost function
+  float dt = 0.02; // Timestep of dynamics propagation
+  int max_iter = 3; // Maximum running iterations of optimization
+  float gamma = 0.25; // Learning rate parameter
+  const int num_timesteps = 50;  // Optimization time horizon
+  const int total_time_horizon = 5000;
+
+  std::vector<float> actual_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
+  std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
+  std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
+
+
+  // Set the initial state
+  DoubleIntegratorDynamics::state_array x;
+  x << 2, 0, 0, 1;
+
+  DoubleIntegratorDynamics::state_array xdot;
+
+  // control variance
+  DoubleIntegratorDynamics::control_array control_var;
+  control_var << 1, 1;
+
+  // DDP cost parameters
+  Eigen::MatrixXf Q;
+  Eigen::MatrixXf Qf;
+  Eigen::MatrixXf R;
+
+  /**
+   * Q =
+   * [500, 0, 0, 0
+   *  0, 500, 0, 0
+   *  0, 0, 100, 0
+   *  0, 0, 0, 100]
+   */
+  Q = 500*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
+  Q(2,2) = 100;
+  Q(3,3) = 100;
+  /**
+   * R = I
+   */
+  R = 1*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
+
+  /**
+   * Qf = I
+   */
+  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
+
+  // Value function threshold
+  float value_function_threshold = 1000.0;
+
+  // Initialize the tube MPPI controller
+  auto controller = RobustMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
+          1024, 64, 1>(&model, &cost, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
+
+  int fail_count = 0;
+
+  // Start the while loop
+  for (int t = 0; t < total_time_horizon; ++t) {
+    // Print the system state
+    if (t % 100 == 0) {
+      printf("Current Time: %f    ", t * dt);
+      model.printState(x.data());
+    }
+
+    if (cost.computeStateCost(x) > 1000) {
+      fail_count++;
+    }
+
+    if (tubeFailure(x.data())) {
+//      cnpy::npy_save("robust_large_actual.npy", actual_trajectory_save.data(),
+//                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+//      cnpy::npy_save("robust_ancillary.npy", ancillary_trajectory_save.data(),
+//                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+//      cnpy::npy_save("robust_large_nominal.npy",nominal_trajectory_save.data(),
+//                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+      std::cout << "Tube failure!!" << std::endl;
+      FAIL() << "Visualize the trajectories by running scripts/double_integrator/plot_DI_test_trajectories; "
+                "the argument to this python file is the build directory of MPPI-Generic";
+    }
+    // Update the importance sampler
+    controller.updateImportanceSampler(x, 1);
+
+    // Compute the control
+    controller.computeControl(x);
+
+    // Save the trajectory from the nominal state
+    auto actual_trajectory = controller.getStateSeq();
+
+    std::cout << "Current State: " << x.transpose() << std::endl;
+    std::cout << "Nominal State: " << controller.getStateSeq().col(0).transpose()  << std::endl;
+
+    // Save the ancillary trajectory
+    auto ancillary_trajectory = controller.getAncillaryStateSeq();
+//
+//    for (int i = 0; i < num_timesteps; i++) {
+//      for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
+//        actual_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+//                               i*DoubleIntegratorDynamics::STATE_DIM + j] = actual_trajectory(j, i);
+//        ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+//                                  i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
+//        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+//                                i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
+//      }
+//    }
+
+    // Get the open loop control
+    DoubleIntegratorDynamics::control_array current_control = controller.getControlSeq().col(0);
+//    std::cout << current_control << std::endl;
+
+
+    // Apply the feedback given the current state
+    current_control += controller.getFeedbackGains()[0]*(x - controller.getStateSeq().col(0));
+
+
+
+
+    // Propagate the state forward
+    model.computeDynamics(x, current_control, xdot);
+    model.updateState(x, xdot, dt);
+
+//    controller.updateNominalState(controller.getControlSeq().col(0));
+
+    // Add the "true" noise of the system
+    model.computeStateDisturbance(dt, x);
+
+    // Slide the control sequence
+    controller.slideControlSequence(1);
+  }
+
+//  cnpy::npy_save("tube_large_actual.npy",actual_trajectory_save.data(),
+//                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+//  cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
+//                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+//  cnpy::npy_save("tube_large_nominal.npy",nominal_trajectory_save.data(),
+//                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 }
