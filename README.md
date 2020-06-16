@@ -42,10 +42,10 @@ make install # Install Eigen to ~/.local
 
 ## Building MPPI-Generic with tests
 
-Pass the flag `DBUILD_TESTS=ON` when configuring cmake.
+The default is to build the library with tests ON. If you would like to turn off the tests when building, pass the flag `DBUILD_TESTS=OFF` when configuring cmake.
 
 ```bash
-cmake .. -DBUILD_TESTS=ON
+cmake .. -DBUILD_TESTS=OFF
 ```
 
 ## TODO
