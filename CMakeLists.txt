@@ -21,10 +21,7 @@ endif()
 
 # Find Eigen
 find_package(Eigen3 REQUIRED)
-# TODO not generic
-#include_directories(SYSTEM /home/jason/.local/include/eigen3)
 include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
-#message(STATUS "Eigen loc: ${EIGEN3_INCLUDE_DIR}")
 
 # REQUIRED for CUDA to correctly align Eigen member variables inside structures/classes
 # https://listengine.tuxfamily.org/lists.tuxfamily.org/eigen/2016/06/msg00006.html
@@ -37,10 +34,6 @@ include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 # find yaml-cpp
 find_package(yaml-cpp REQUIRED)
 include_directories(${YAML_CPP_INCLUDE_DIR})
-
-# Find boost -> required for Tube MPPI
-find_package (Boost 1.55.0 REQUIRED COMPONENTS system filesystem thread chrono date_time atomic)
-include_directories(SYSTEM ${Boost_LIBRARY_DIRS})
 
 # set up cnpy
 # Don't install cnpy to user package registry
@@ -86,6 +79,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/
 # Add gtest
 ###################################################################
 if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
+  message(STATUS "Building MPPI Generic tests")
   enable_testing()
 
   ############################################################

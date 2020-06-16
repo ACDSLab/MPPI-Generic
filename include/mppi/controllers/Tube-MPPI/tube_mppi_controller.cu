@@ -188,7 +188,7 @@ void TubeMPPI::slideControlSequence(int steps) {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void TubeMPPI::smoothControlTrajectory() {
-  this->smoothControlTrajectoryHelper(nominal_control_trajectory_);
+  this->smoothControlTrajectoryHelper(nominal_control_trajectory_, this->control_history_);
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>

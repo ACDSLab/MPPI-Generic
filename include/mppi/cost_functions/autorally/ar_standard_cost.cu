@@ -207,9 +207,9 @@ template <class CLASS_T, class PARAMS_T>
 __device__ float4 ARStandardCost<CLASS_T, PARAMS_T>::queryTextureTransformed(float x, float y) {
   float u, v, w;
   coorTransform(x, y, &u, &v, &w);
-  printf("input coordinates: %f, %f\n", x, y);
+  //printf("input coordinates: %f, %f\n", x, y);
   //printf("\nu = %f, v = %f, w = %f", u, v, w);
-  printf("transformed coordinates %f, %f = %f\n", u/w, v/w, tex2D<float4>(costmap_tex_d_, u/w, v/w).x);
+  //printf("transformed coordinates %f, %f = %f\n", u/w, v/w, tex2D<float4>(costmap_tex_d_, u/w, v/w).x);
   return tex2D<float4>(costmap_tex_d_, u/w, v/w);
 }
 
@@ -300,13 +300,13 @@ inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getTrackCost(float *s
   float y_back = s[1] + BACK_D*__sinf(s[2]);
 
   //Cost of front of the car
-  printf("front before %f, %f\n", x_front, y_front);
+  //printf("front before %f, %f\n", x_front, y_front);
   float track_cost_front = queryTextureTransformed(x_front, y_front).x;
-  printf("front after %f, %f = %f\n", x_front, y_front, track_cost_front);
+  //printf("front after %f, %f = %f\n", x_front, y_front, track_cost_front);
   //Cost for back of the car
-  printf("back before %f, %f\n", x_back, y_back);
+  //printf("back before %f, %f\n", x_back, y_back);
   float track_cost_back = queryTextureTransformed(x_back, y_back).x;
-  printf("back after %f, %f = %f\n", x_back, y_back, track_cost_back);
+  //printf("back after %f, %f = %f\n", x_back, y_back, track_cost_back);
 
   track_cost = (fabs(track_cost_front) + fabs(track_cost_back) )/2.0;
   if (fabs(track_cost) < this->params_.track_slop) {

@@ -38,8 +38,7 @@ target_link_libraries(tube_mppi_tests gtest
         gtest_main
         curand
         ${CUDA_LIBRARIES}
-        cnpy
-        ${Boost_LIBRARIES})
+        cnpy)
 add_test(NAME tube_mppi_tests COMMAND tube_mppi_tests)
 set_target_properties(tube_mppi_tests PROPERTIES FOLDER test)
 
@@ -50,8 +49,7 @@ target_link_libraries(ddp_tests gtest
         gmock
         gtest_main
         cartpole_mppi
-        cnpy
-        ${Boost_LIBRARIES})
+        cnpy)
 add_test(NAME ddp_tests COMMAND ddp_tests)
 set_target_properties(ddp_tests PROPERTIES FOLDER test)
 
@@ -63,8 +61,7 @@ target_link_libraries(rmppi_tests gtest
         gtest_main
         curand
         ${CUDA_LIBRARIES}
-        cnpy
-        ${Boost_LIBRARIES})
+        cnpy)
 add_test(NAME rmppi_tests COMMAND rmppi_tests)
 set_target_properties(rmppi_tests PROPERTIES FOLDER test)
 
