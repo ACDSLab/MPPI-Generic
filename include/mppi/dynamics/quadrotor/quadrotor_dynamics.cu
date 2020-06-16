@@ -89,7 +89,7 @@ void QuadrotorDynamics::computeDynamics(const Eigen::Ref<const state_array> &sta
   // v_d = Lvb * [0 0 T]' + g
   mppi_math::Quat2DCM(q, dcm_lb);
   v_d = (u_thrust / this->params_.mass) * dcm_lb.col(2);
-  v_d(2) -= 9.81;
+  v_d(2) -= mppi_math::GRAVITY;
 
   // q_d = H(q) w
   mppi_math::omega2edot(u_pqr(0), u_pqr(1), u_pqr(2), q, q_d);
@@ -153,7 +153,7 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state,
   for (i = threadIdx.y; i < 3; i += blockDim.y) {
     v_d[i] = (u_thrust / this->params_.mass) * dcm_lb[i][2];
   }
-  v_d[2] -= 9.81;
+  v_d[2] -= mppi_math::GRAVITY;
 
   // q_d = H(q) w
   mppi_math::omega2edot(u_pqr[0], u_pqr[1], u_pqr[2], q, q_d);

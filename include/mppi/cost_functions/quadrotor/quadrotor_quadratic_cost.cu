@@ -13,17 +13,15 @@ float QuadrotorQuadraticCost::computeStateCost(const Eigen::Ref<const state_arra
   Eigen::Vector3f x, v, w;
   Eigen::Vector4f q;
 
-  Eigen::Map<const Eigen::Vector3f> x_g(this->params_.x_goal);
-  Eigen::Map<const Eigen::Vector3f> v_g(this->params_.v_goal);
-  Eigen::Map<const Eigen::Vector4f> q_g(this->params_.q_goal);
-  Eigen::Map<const Eigen::Vector3f> w_g(this->params_.w_goal);
+  Eigen::Map<const Eigen::Vector3f> x_g(this->params_.x_goal());
+  Eigen::Map<const Eigen::Vector3f> v_g(this->params_.v_goal());
+  Eigen::Map<const Eigen::Vector4f> q_g(this->params_.q_goal());
+  Eigen::Map<const Eigen::Vector3f> w_g(this->params_.w_goal());
 
   x = s.block<3, 1>(0, 0);
   v = s.block<3, 1>(3, 0);
   q = s.block<4, 1>(6, 0);
   w = s.block<3, 1>(10, 0);
-
-  state_array test = this->params_.getDesiredState();
 
   Eigen::Vector3f x_cost = this->params_.x_coeff * (x - x_g).array().square();
   Eigen::Vector3f v_cost = this->params_.v_coeff * (v - v_g).array().square();

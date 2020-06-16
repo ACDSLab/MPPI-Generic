@@ -6,17 +6,24 @@
 
 #include <mppi/cost_functions/cost.cuh>
 struct QuadrotorQuadraticCostParams {
-  float x_goal[3] = {0.0, 0.0, 0.0};
-  float v_goal[3] = {0.0, 0.0, 0.0};
-  // TODO Figure out angle goal
-  // quat: w, x, y, z
-  float q_goal[4] = {1, 0, 0, 0};
-  float w_goal[3] = {0.0, 0.0, 0.0};
+/**
+ * State for this class is defined as follows:
+ *    x - position in 3D space (x, y, z) - meters
+ *    v - velocity in 3D space (v_x, v_y_ v_z) - meters/sec
+ *    q - quaternion (q_w, q_x, q_y, q_z)
+ *    w - angular velocities (roll_dot, pitch_dot, yaw_dot) - rad/sec
+ *
+ * Coordinate Frame is NWU
+ */
+  float s_goal[13] = {0, 0, 0,      // x
+                      0, 0, 0,      // v
+                      1, 0, 0, 0,   // q
+                      0, 0, 0};     // w
 
-  float s_goal[13] = {0, 0, 0,
-                      0, 0, 0,
-                      1, 0, 0, 0,
-                      0, 0, 0};
+  float* x_goal() {return &s_goal[0];}
+  float* v_goal() {return &s_goal[3];}
+  float* q_goal() {return &s_goal[6];}
+  float* w_goal() {return &s_goal[10];}
 
   float x_coeff = 1.0;
   float v_coeff = 1.0;
@@ -26,16 +33,32 @@ struct QuadrotorQuadraticCostParams {
 
   Eigen::Matrix<float, 13, 1> getDesiredState() {
     Eigen::Matrix<float, 13, 1> s;
-    s << x_goal[0], x_goal[1], x_goal[2],
-         v_goal[0], v_goal[1], v_goal[2],
-         q_goal[0], q_goal[1], q_goal[2], q_goal[3],
-         w_goal[0], w_goal[1], w_goal[2];
+    s << s_goal[0],  s_goal[1],  s_goal[2],
+         s_goal[3],  s_goal[4],  s_goal[5],
+         s_goal[6],  s_goal[7],  s_goal[8], s_goal[9],
+         s_goal[10], s_goal[11], s_goal[12];
     return s;
   }
 };
 
 class QuadrotorQuadraticCost : public Cost<QuadrotorQuadraticCost,
                                            QuadrotorQuadraticCostParams, 13, 4> {
+/**
+ * State for this class is defined as follows:
+ *    x - position in 3D space (x, y, z) - meters
+ *    v - velocity in 3D space (v_x, v_y_ v_z) - meters/sec
+ *    q - quaternion (q_w, q_x, q_y, q_z)
+ *    w - angular velocities (roll_dot, pitch_dot, yaw_dot) - rad/sec
+ *
+ * Coordinate Frame is NWU
+ *
+ * Control:
+ *    roll_rate  - rad/sec
+ *    pitch_rate - rad/sec
+ *    yaw_rate   - rad/sec
+ *    thrust     - Newtons
+ */
+
 public:
   QuadrotorQuadraticCost(cudaStream_t stream = nullptr);
 
