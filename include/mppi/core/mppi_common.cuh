@@ -100,12 +100,15 @@ namespace mppi_common {
      * Inputs:
      *  cost_rollouts_host - sampled cost trajectories
      *  num_rollouts - the number of sampled cost trajectories
+     *  lambda - the lambda term from the definition of free energy
+     *  baseline - minimum cost trajectory
      * Outputs:
      *  free_energy - the free energy of the samples
      *  free_energy_var - the variance of the free energy calculation
      */
-    void computeFreeEnergy(float* cost_rollouts_host, int num_rollouts,
-                           float& free_energy, float& free_energy_var);
+    void computeFreeEnergy(float& free_energy, float& free_energy_var,
+                           float* cost_rollouts_host,  int num_rollouts,
+                           float baseline, float lambda = 1.0);
 
     // Weighted Reduction Kernel
     template<int CONTROL_DIM, int NUM_ROLLOUT, int SUM_STRIDE>

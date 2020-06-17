@@ -91,8 +91,10 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(),
         NUM_ROLLOUTS);
 
-    mppi_common::computeFreeEnergy(this->trajectory_costs_.data(), NUM_ROLLOUTS,
-                                   this->free_energy_, this->free_energy_var_);
+    // TODO Find lambda and also add it to this method call
+    mppi_common::computeFreeEnergy(this->free_energy_, this->free_energy_var_,
+                                   this->trajectory_costs_.data(), NUM_ROLLOUTS,
+                                   this->baseline_);
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
