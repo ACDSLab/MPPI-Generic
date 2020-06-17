@@ -59,7 +59,7 @@ TEST(QuadrotorDynamics, CompareDynamics_CPU_GPU) {
   model.computeDynamics(s, u, state_deriv_cpu);
 
   // Call GPU Kernel
-  dim3 dimBlock(1, 1, 1);
+  dim3 dimBlock(1, 5, 1);
   dim3 dimGrid(1, 1, 1);
   DynamicsDerivKernel<DYN><<<dimGrid, dimBlock, 0, s1>>>(model.model_d_,
                                                               s_d, u_d,
@@ -120,7 +120,7 @@ TEST(QuadrotorDynamics, UpdateState_CPU_GPU) {
   model.updateState(s_cpu, state_deriv_cpu, dt);
 
   // Call GPU Kernel
-  dim3 dimBlock(1, 1, 1);
+  dim3 dimBlock(1, 5, 1);
   dim3 dimGrid(1, 1, 1);
   UpdateStateKernel<DYN><<<dimGrid, dimBlock, 0, s1>>>(model.model_d_, s_d, u_d,
                                                        state_deriv_GPU, dt);

@@ -7,8 +7,6 @@ QuadrotorQuadraticCost::QuadrotorQuadraticCost(cudaStream_t stream) {
 /**
  * Host Functions
  */
-// void paramsToDevice();
-
 float QuadrotorQuadraticCost::computeStateCost(const Eigen::Ref<const state_array> s) {
   Eigen::Vector3f x, v, w;
   Eigen::Vector4f q;
@@ -37,7 +35,7 @@ float QuadrotorQuadraticCost::terminalCost(const Eigen::Ref<const state_array> s
 }
 
 /**
- * Devic Functions
+ * Device Functions
  */
 __device__ float QuadrotorQuadraticCost::computeStateCost(float* s) {
   float s_diff[STATE_DIM];

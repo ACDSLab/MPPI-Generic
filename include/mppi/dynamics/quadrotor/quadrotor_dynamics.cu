@@ -21,9 +21,9 @@ bool QuadrotorDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
   A.setZero();
   // x_d
   A.block<3, 3>(0, 3).setIdentity();
-  // v_d I have no clue how to do this math in relation to quat
+  // v_d TODO figure out derivative of v_d wrt q
 
-  // q_d I have no clue how this works
+  // q_d TODO figure out derivative of q_d wrt q
 
   // w_d
   Eigen::Vector3f tau_inv;
@@ -41,21 +41,9 @@ bool QuadrotorDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
                         0.5 * q.w(), -0.5 * q.z(),  0.5 * q.y(),
                         0.5 * q.z(),  0.5 * q.w(), -0.5 * q.x(),
                        -0.5 * q.y(),  0.5 * q.x(),  0.5 * q.w();
-  // B(6, 0) = -0.5 * q.x();
-  // B(7, 0) =  0.5 * q.w();
-  // B(8, 0) =  0.5 * q.z();
-  // B(9, 0) =  0.5 * q.y();
-  // B(6, 1) = -0.5 * q.y();
-  // B(7, 1) = -0.5 * q.z();
-  // B(8, 1) =  0.5 * q.w();
-  // B(9, 1) =  0.5 * q.x();
-  // B(6, 2) = -0.5 * q.z();
-  // B(7, 2) =  0.5 * q.y();
-  // B(8, 2) = -0.5 * q.x();
-  // B(9, 2) =  0.5 * q.w();
+
   // w_d
   B.block<3, 3>(10, 0) = tau_inv.asDiagonal();
-  // Because I don't know how parts of the Jacobian dfdx are calculated, returning false
   return false;
 }
 
@@ -70,10 +58,9 @@ void QuadrotorDynamics::computeDynamics(const Eigen::Ref<const state_array> &sta
   Eigen::Matrix<float, 3, 1> tau_inv;
   float u_thrust = control[3];
 
-  // Assume quaterion is w, x, , z in state array
+  // Assume quaterion is w, x, y, z in state array
   Eigen::Quaternionf q(state[6], state[7], state[8], state[9]);
   u_pqr << control[0], control[1], control[2];
-  // v << state(3), state(4), state(5);
   v = state.block<3, 1>(3, 0);
   angular_speed << state(10), state(11), state(12);
   tau_inv << 1 / this->params_.tau_roll,
@@ -113,7 +100,7 @@ void QuadrotorDynamics::computeDynamics(const Eigen::Ref<const state_array> &sta
 void QuadrotorDynamics::updateState(Eigen::Ref<state_array> state,
                                     Eigen::Ref<state_array> state_der,
                                     float dt) {
-  state += state_der * dt;
+  Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, 4>::updateState(state, state_der, dt);
 
   // Renormalize quaternion
   Eigen::Quaternionf q(state[6], state[7], state[8], state[9]);
@@ -126,17 +113,17 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state,
                                                    float* state_der,
                                                    float* theta) {
   //  Fill in
-  float* v = &state[3];
-  float* q = &state[6];
-  float* w = &state[10];
+  float* v = state + 3;
+  float* q = state + 6;
+  float* w = state + 10;
 
   // Derivatives
-  float* x_d = &state_der[0];
-  float* v_d = &state_der[3];
-  float* q_d = &state_der[6];
-  float* w_d = &state_der[10];
+  float* x_d = state_der;
+  float* v_d = state_der + 3;
+  float* q_d = state_der + 6;
+  float* w_d = state_der + 10;
 
-  float* u_pqr = &control[0];
+  float* u_pqr = control;
   float u_thrust = control[3];
 
   float dcm_lb[3][3];
@@ -153,7 +140,10 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state,
   for (i = threadIdx.y; i < 3; i += blockDim.y) {
     v_d[i] = (u_thrust / this->params_.mass) * dcm_lb[i][2];
   }
-  v_d[2] -= mppi_math::GRAVITY;
+  __syncthreads();
+  if ( threadIdx.y == 0) {
+    v_d[2] -= mppi_math::GRAVITY;
+  }
 
   // q_d = H(q) w
   mppi_math::omega2edot(u_pqr[0], u_pqr[1], u_pqr[2], q, q_d);
@@ -162,20 +152,21 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state,
   w_d[0] = (u_pqr[0] - w[0]) / this->params_.tau_roll;
   w_d[1] = (u_pqr[1] - w[1]) / this->params_.tau_pitch;
   w_d[2] = (u_pqr[2] - w[2]) / this->params_.tau_yaw;
+  __syncthreads();
 }
 
 __device__ void QuadrotorDynamics::updateState(float* state,
                                                float* state_der,
                                                float dt) {
-  int i = 0;
-  for (i = threadIdx.y; i < STATE_DIM; i += blockDim.y) {
-    state[i] += state_der[i] * dt;
-  }
+  Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams,
+           STATE_DIM, CONTROL_DIM>::updateState(state, state_der, dt);
 
+  int i = 0;
   // renormalze quaternion
-  float* q = &state[6];
+  float* q = state + 6;
   float q_norm = sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
   for (i = threadIdx.y; i < 4; i+= blockDim.y) {
     q[i] /= q_norm;
   }
+  // __syncthreads();
 }

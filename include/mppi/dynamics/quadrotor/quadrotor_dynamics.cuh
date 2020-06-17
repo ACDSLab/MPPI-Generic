@@ -40,19 +40,19 @@ class QuadrotorDynamics : public Dynamics<QuadrotorDynamics,
 public:
   using state_array = typename Dynamics<QuadrotorDynamics,
                                         QuadrotorDynamicsParams,
-                                        13, 4>::state_array;
+                                        STATE_DIM, CONTROL_DIM>::state_array;
 
   using control_array = typename Dynamics<QuadrotorDynamics,
                                         QuadrotorDynamicsParams,
-                                        13, 4>::control_array;
+                                        STATE_DIM, CONTROL_DIM>::control_array;
 
   using dfdx = typename Dynamics<QuadrotorDynamics,
                                         QuadrotorDynamicsParams,
-                                        13, 4>::dfdx;
+                                        STATE_DIM, CONTROL_DIM>::dfdx;
 
   using dfdu = typename Dynamics<QuadrotorDynamics,
                                         QuadrotorDynamicsParams,
-                                        13, 4>::dfdu;
+                                        STATE_DIM, CONTROL_DIM>::dfdu;
   // Constructor
   QuadrotorDynamics(cudaStream_t stream = nullptr);
 
