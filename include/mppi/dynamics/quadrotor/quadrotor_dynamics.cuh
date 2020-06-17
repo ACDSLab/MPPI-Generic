@@ -54,10 +54,8 @@ public:
                                         QuadrotorDynamicsParams,
                                         STATE_DIM, CONTROL_DIM>::dfdu;
   // Constructor
-  QuadrotorDynamics(cudaStream_t stream = nullptr);
-
-  // Destructor
-  ~QuadrotorDynamics();
+  QuadrotorDynamics(cudaStream_t stream = 0);
+  QuadrotorDynamics(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream = 0);
 
   void computeDynamics(const Eigen::Ref<const state_array>& state,
                        const Eigen::Ref<const control_array>& control,

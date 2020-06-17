@@ -1,12 +1,15 @@
 #include <mppi/dynamics/quadrotor/quadrotor_dynamics.cuh>
 #include <mppi/utils/math_utils.h>
 
-QuadrotorDynamics::QuadrotorDynamics(cudaStream_t stream) :
-Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, 4>(stream) {
+QuadrotorDynamics::QuadrotorDynamics(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream) :
+Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, CONTROL_DIM>(control_rngs, stream) {
   this->params_ = QuadrotorDynamicsParams();
 }
 
-QuadrotorDynamics::~QuadrotorDynamics() = default;
+QuadrotorDynamics::QuadrotorDynamics(cudaStream_t stream) :
+Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, CONTROL_DIM>(stream) {
+  this->params_ = QuadrotorDynamicsParams();
+}
 
 bool QuadrotorDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
                                     const Eigen::Ref<const control_array>& control,
