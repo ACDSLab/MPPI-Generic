@@ -44,6 +44,74 @@ inline std::vector<int> sample_without_replacement(int k, int N,
   return final_sequence;
 }
 
+
+/**
+ * Multiply two quaternions together which gives you their rotations added together
+ * q_3 = q_1 x q_2
+ * Inputs:
+ *  q_1 - first quaternion
+ *  q_2 - second quaternion
+ *  q_3 - output quaternion
+ */
+inline __device__ void QuadMultiply(float q_1[4], float q_2[4], float q_3[4]) {
+  q_3[0] = q_1[0] * q_2[0] - q_1[1] * q_2[1] - q_1[2] * q_2[2] - q_1[3] * q_2[3];
+  q_3[1] = q_1[1] * q_2[0] + q_1[0] * q_2[1] - q_1[3] * q_2[2] + q_1[2] * q_2[3];
+  q_3[2] = q_1[2] * q_2[0] + q_1[3] * q_2[1] + q_1[0] * q_2[2] - q_1[1] * q_2[3];
+  q_3[3] = q_1[3] * q_2[0] - q_1[2] * q_2[1] + q_1[1] * q_2[2] + q_1[0] * q_2[3];
+  float norm = powf(q_3[0], 2) + powf(q_3[1], 2) + powf(q_3[2], 2) + powf(q_3[3], 2);
+  for(int i = 0; i < 4; i++) {
+    q_3[i] /= norm;
+  }
+}
+
+inline __device__ void QuatInv(float q[4], float q_inv[4]) {
+  float norm = powf(q[0], 2) + powf(q[1], 2) + powf(q[2], 2) + powf(q[3], 2);
+  q_inv[0] = q[0] / norm;
+  q_inv[1] = -q[1] / norm;
+  q_inv[2] = -q[2] / norm;
+  q_inv[3] = -q[3] / norm;
+}
+
+/**
+ * Calculate the rotation required to get from q_1 to q_2
+ * In Euler angles, this would be direct subraction but
+ * in quaternions, it doesn't quite work that way
+ */
+inline __device__ void QuatSubtract(float q_1[4], float q_2[4], float q_3[4]) {
+  float q_1_inv[4];
+  QuatInv(q_1, q_1_inv);
+  QuadMultiply(q_2, q_1_inv, q_3);
+}
+
+/*
+* The Euler rotation sequence is 3-2-1 (roll, pitch, yaw) from Body to World
+*/
+inline __device__ void Euler2QuatNWU(const float&r, const float& p,
+                                     const float& y, float q[4]) {
+  double phi = r;
+  double theta = p;
+  double psi = y;
+
+  q[0] = cos(phi/2)*cos(theta/2)*cos(psi/2) + sin(phi/2)*sin(theta/2)*sin(psi/2);
+  q[1] = -cos(phi/2)*sin(theta/2)*sin(psi/2) + cos(theta/2)*cos(psi/2)*sin(phi/2);
+  q[2] = cos(phi/2)*cos(psi/2)*sin(theta/2) + sin(phi/2)*cos(theta/2)*sin(psi/2);
+  q[3] = cos(phi/2)*cos(theta/2)*sin(psi/2) - sin(phi/2)*cos(psi/2)*sin(theta/2);
+}
+
+// (RPY rotation sequence)
+/*
+* Returns an euler sequence 3-2-1 (roll pitch yaw) that when applied takes you from body to world
+*/
+inline __device__ void Quat2EulerNWU(float q[4], float& r, float& p, float& y) {
+  r = atan2(2 * q[3] * q[2] + 2 * q[0] * q[1],
+            q[0] * q[0] + q[3] * q[3] - q[2] * q[2] - q[1] * q[1]);
+  float temp = -2 * q[0] * q[2] + 2 * q[1] * q[3];
+  // Clamp value between -1 and 1 to prevent NaNs
+  p = -asin(fmaxf(fminf(1, temp), -1));
+  y = atan2(2 * q[2] * q[1] + 2 * q[3] * q[0],
+            q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);
+}
+
 inline __device__ void Quat2DCM(float q[4], float M[3][3]) {
   M[0][0] = SQ(q[0]) + SQ(q[1]) - SQ(q[2]) - SQ(q[3]);
   M[0][1] = 2 * (q[1] * q[2] - q[0] * q[3]);
@@ -54,6 +122,61 @@ inline __device__ void Quat2DCM(float q[4], float M[3][3]) {
   M[2][0] = 2 * (q[1] * q[3] - q[0] * q[2]);
   M[2][1] = 2 * (q[2] * q[3] + q[0] * q[1]);
   M[2][2] = SQ(q[0]) - SQ(q[1]) - SQ(q[2]) + SQ(q[3]);
+}
+
+inline void QuatSubtract(const Eigen::Quaternionf& q_1,
+                         const Eigen::Quaternionf& q_2,
+                         Eigen::Quaternionf& q_3) {
+  q_3 = q_2 * q_1.inverse();
+}
+
+inline void QuadMultiply(const Eigen::Quaternionf& q_1,
+                         const Eigen::Quaternionf& q_2,
+                         Eigen::Quaternionf& q_3) {
+  q_3 = q_1 * q_2;
+}
+
+inline void QuatInv(const Eigen::Quaternionf& q, Eigen::Quaternionf& q_f) {
+  q_f = q.inverse();
+}
+
+/*
+* The Euler rotation sequence is 3-2-1 (roll, pitch, yaw) from Body to World
+*/
+inline void Euler2QuatNWU(const float& r, const float& p,
+                          const float& y, Eigen::Quaternionf& q) {
+  // double psi = clamp_radians(euler.roll);
+  // double theta = clamp_radians(euler.pitch);
+  // double phi = clamp_radians(euler.yaw);
+
+  // q.w() = cos(phi/2)*cos(theta/2)*cos(psi/2) - sin(phi/2)*sin(theta/2)*sin(psi/2);
+  // q.x() = cos(phi/2)*cos(theta/2)*sin(psi/2) + sin(theta/2)*cos(psi/2)*sin(phi/2);
+  // q.y() = cos(phi/2)*cos(psi/2)*sin(theta/2) - sin(phi/2)*cos(theta/2)*sin(psi/2);
+  // q.z() = cos(phi/2)*sin(theta/2)*sin(psi/2) + sin(phi/2)*cos(psi/2)*cos(theta/2);
+
+
+
+  double phi = r;
+  double theta = p;
+  double psi = y;
+
+  q.w() = cos(phi/2)*cos(theta/2)*cos(psi/2) + sin(phi/2)*sin(theta/2)*sin(psi/2);
+  q.x() = -cos(phi/2)*sin(theta/2)*sin(psi/2) + cos(theta/2)*cos(psi/2)*sin(phi/2);
+  q.y() = cos(phi/2)*cos(psi/2)*sin(theta/2) + sin(phi/2)*cos(theta/2)*sin(psi/2);
+  q.z() = cos(phi/2)*cos(theta/2)*sin(psi/2) - sin(phi/2)*cos(psi/2)*sin(theta/2);
+}
+
+// (RPY rotation sequence)
+/*
+* Returns an euler sequence 3-2-1 (roll pitch yaw) that when applied takes you from body to world
+*/
+inline void Quat2EulerNWU(const Eigen::Quaternionf&q, float& r, float& p, float& y) {
+  r = atan2(2 * q.z() * q.y() + 2 * q.w() * q.x(),
+            q.w() * q.w() + q.z() * q.z() - q.y() * q.y() - q.x() * q.x());
+  float temp = -2 * q.w() * q.y() + 2 * q.x() * q.z();
+  p = -asin(fmaxf(-1, fminf(temp, 1)));
+  y = atan2(2 * q.y() * q.x() + 2 * q.z() * q.w(),
+            q.w() * q.w() + q.x() * q.x() - q.y() * q.y() - q.z() * q.z());
 }
 
 inline void Quat2DCM(const Eigen::Quaternionf& q, Eigen::Ref<Eigen::Matrix3f> DCM) {

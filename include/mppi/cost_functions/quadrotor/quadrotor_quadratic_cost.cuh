@@ -5,6 +5,7 @@
 #define MPPI_COST_FUNCTIONS_QUADROTOR_QUADRATIC_COST_CUH_
 
 #include <mppi/cost_functions/cost.cuh>
+#include <mppi/utils/math_utils.h>
 struct QuadrotorQuadraticCostParams {
 /**
  * State for this class is defined as follows:
@@ -27,7 +28,13 @@ struct QuadrotorQuadraticCostParams {
 
   float x_coeff = 1.0;
   float v_coeff = 1.0;
-  float q_coeff = 1.0;
+  // Euler Angle or Quaternion scoring
+  bool use_euler = true;
+  float q_coeff = 1.0;     // Quaternion Modifier
+  float roll_coeff = 1.0;
+  float pitch_coeff = 1.0;
+  float yaw_coeff = 1.0;
+
   float w_coeff = 1.0;
   float terminal_cost_coeff = 0;
 
@@ -61,6 +68,7 @@ class QuadrotorQuadraticCost : public Cost<QuadrotorQuadraticCost,
 
 public:
   QuadrotorQuadraticCost(cudaStream_t stream = nullptr);
+  static constexpr float MAX_COST_VALUE = 1e16;
 
   /**
    * Host Functions
@@ -74,7 +82,7 @@ public:
    */
   __device__ float computeStateCost(float* s);
 
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* variance, int timestep);
+  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, int timestep);
 
   __device__ float terminalCost(float* s);
 };

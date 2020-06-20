@@ -24,6 +24,13 @@ TEST(QuadrotorQuadraticCost, ControlCost) {
    */
   COST cost;
   COST::state_array s = COST::state_array::Random();
+  Eigen::Quaternionf q_test(s[6], s[7], s[8], s[9]);
+  q_test.normalize();
+  s[6] = q_test.w();
+  s[7] = q_test.x();
+  s[8] = q_test.y();
+  s[9] = q_test.z();
+
   // COST::control_array std_dev = COST::control_array::Constant(0.5);
   // float lambda = 0.8;
   QuadrotorQuadraticCostParams new_params;

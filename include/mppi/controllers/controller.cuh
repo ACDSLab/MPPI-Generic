@@ -402,6 +402,9 @@ public:
   float getDt() {return dt_;}
   void setDt(float dt) {dt_ = dt;}
 
+  float getDebug() {return debug_;}
+  void setDebug(float debug) {debug_ = debug;}
+
 protected:
   // no default protected members
   void deallocateCUDAMemory();
@@ -418,7 +421,7 @@ protected:
   float gamma_; // Value of the temperature in the softmax.
 
   float normalizer_; // Variable for the normalizing term from sampling.
-  float baseline_; // Baseline cost of the system.
+  float baseline_ = 0; // Baseline cost of the system.
   float perc_sampled_control_trajectories = 0; // Percentage of sampled trajectories to return
 
   curandGenerator_t gen_;

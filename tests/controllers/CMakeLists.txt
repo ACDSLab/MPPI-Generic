@@ -64,4 +64,3 @@ target_link_libraries(rmppi_tests gtest
         cnpy)
 add_test(NAME rmppi_tests COMMAND rmppi_tests)
 set_target_properties(rmppi_tests PROPERTIES FOLDER test)
-

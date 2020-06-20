@@ -69,6 +69,8 @@ public:
   void updateState(Eigen::Ref<state_array> state,
                    Eigen::Ref<state_array> s_der, float dt);
 
+  void printState(float* state);
+
   __device__ void computeDynamics(float* state,
                                   float* control,
                                   float* state_der,

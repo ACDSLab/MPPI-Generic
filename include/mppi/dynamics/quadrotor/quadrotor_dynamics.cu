@@ -9,6 +9,29 @@ Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, CONTROL_DIM>(control_rn
 QuadrotorDynamics::QuadrotorDynamics(cudaStream_t stream) :
 Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, CONTROL_DIM>(stream) {
   this->params_ = QuadrotorDynamicsParams();
+  float2 thrust_rng;
+  thrust_rng.x = 0;
+  thrust_rng.y = 20;  // TODO Figure out if this is a reasonable amount of thrust
+  this->control_rngs_[3] = thrust_rng;
+}
+
+void QuadrotorDynamics::printState(float* state) {
+  int precision = 4;
+  int total_char = precision + 4;
+  printf("Pos     x: %*.*f, y: %*.*f, z: %*.*f\n", total_char, precision, state[0],
+                                               total_char, precision, state[1],
+                                               total_char, precision, state[2]);
+  printf("Vel     x: %*.*f, y: %*.*f, z: %*.*f\n", total_char, precision, state[3],
+                                               total_char, precision, state[4],
+                                               total_char, precision, state[5]);
+  printf("Quat    w: %*.*f, x: %*.*f, y: %*.*f, z: %*.*f\n",
+         total_char, precision, state[6],
+         total_char, precision, state[7],
+         total_char, precision, state[8],
+         total_char, precision, state[9]);
+  printf("Ang Vel x: %*.*f, y: %*.*f, z: %*.*f\n", total_char, precision, state[10],
+                                                   total_char, precision, state[11],
+                                                   total_char, precision, state[12]);
 }
 
 bool QuadrotorDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
@@ -107,7 +130,7 @@ void QuadrotorDynamics::updateState(Eigen::Ref<state_array> state,
 
   // Renormalize quaternion
   Eigen::Quaternionf q(state[6], state[7], state[8], state[9]);
-  state.block<4, 1>(6, 0) /= q.norm();
+  state.block<4, 1>(6, 0) /= q.norm() * copysign(1.0, q.w());
 }
 
 
@@ -167,9 +190,9 @@ __device__ void QuadrotorDynamics::updateState(float* state,
   int i = 0;
   // renormalze quaternion
   float* q = state + 6;
-  float q_norm = sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+  float q_norm = sqrtf(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
   for (i = threadIdx.y; i < 4; i+= blockDim.y) {
-    q[i] /= q_norm;
+    q[i] /= q_norm * copysignf(1.0, q[0]);
   }
   // __syncthreads();
 }
