@@ -207,14 +207,14 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
 
       // Cost update
       control_array zero_u = control_array::Zero();
-      state_cost_nom += costs->computeStateCost(x_t_nom);
-      float state_cost_act = costs->computeStateCost(x_t_act);
+      state_cost_nom += costs->computeStateCost(x_t_nom)*dt;
+      float state_cost_act = costs->computeStateCost(x_t_act)*dt;
       cost_real_w_tracking += state_cost_act +
-                              costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda);
+                              costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda)*dt;
 
       running_state_cost_real += state_cost_act;
       running_control_cost_real +=
-        costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda);
+        costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda)*dt;
 
       model->enforceConstraints(x_t_nom, u_nom);
       model->enforceConstraints(x_t_act, u_act);
@@ -247,7 +247,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
         u_t = control_array::Zero();;
       }
-      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda);
+      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda)*dt;
     }
 
     cost_nom += cost_nom_control;
