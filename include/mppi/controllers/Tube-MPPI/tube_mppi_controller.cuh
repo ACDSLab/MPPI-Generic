@@ -102,7 +102,7 @@ public:
   void updateNominalState(const Eigen::Ref<const control_array>& u);
 
   float getNominalThreshold() {return nominal_threshold_;}
-  float setNominalThreshold(float threshold) {nominal_threshold_ = threshold;}
+  void setNominalThreshold(float threshold) {nominal_threshold_ = threshold;}
 
 
 private:
