@@ -48,14 +48,30 @@ def main(args):
     plot_trajectories(axs[0,1], 'Vanilla MPPI Large Disturbance', vanilla_large)
 
     # Vanilla MPPI with large noise + a tracking controller
-    vanilla_large_track = np.load(data_dir + 'vanilla_large_track.npy')
-    plot_trajectories(axs[1,0], 'Vanilla MPPI Large Disturbance + Tracking', vanilla_large_track)
+    # vanilla_large_track = np.load(data_dir + 'vanilla_large_track.npy')
+    # plot_trajectories(axs[1,0], 'Vanilla MPPI Large Disturbance + Tracking', vanilla_large_track)
 
     # Tube MPPI with large noise
     tube_large = np.load(data_dir + 'tube_large_actual.npy')
-    plot_trajectories(axs[1,1], 'Tube MPPI Large Disturbance', tube_large)
+    plot_trajectories(axs[1,0], 'Tube MPPI Large Disturbance', tube_large)
 
-    # # Tube MPPI ancillary trajectories
+    # RMPPI with large noise
+    # Create the figures for each subplot
+    # fig2, axs2 = plt.subplots(2,2)
+    #
+    # for ax in axs2.flat:
+    #     ax.set(xlabel='X Position (m)', ylabel='Y Position (m)')
+    robust_large = np.load(data_dir + 'robust_large_nominal.npy')
+    plot_trajectories(axs[1,1], 'Robust MPPI Nominal', robust_large)
+
+    # robust_large = np.load(data_dir + 'robust_large_actual.npy')
+    # plot_trajectories(axs2[0,1], 'Robust MPPI Actual', robust_large)
+    #
+    # robust_large = np.load(data_dir + 'robust_ancillary.npy')
+    # plot_trajectories(axs2[1,0], 'Robust MPPI Ancillary', robust_large)
+
+
+# # Tube MPPI ancillary trajectories
     # tube_ancillary = np.load(data_dir + 'tube_ancillary.npy')
     # plot_trajectories(axs[1,1], 'Tube MPPI Ancillary Solution', tube_ancillary)
 

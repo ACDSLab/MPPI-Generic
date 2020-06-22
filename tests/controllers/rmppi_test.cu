@@ -512,20 +512,21 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
 
   // Value function threshold
-  float value_function_threshold = 1000.0;
+  float value_function_threshold = 10.0;
 
   // Initialize the R MPPI controller
   auto controller = RobustMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
+          1024, 64, 8, 1>(&model, &cost, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
   int fail_count = 0;
 
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    if (t % 100 == 0) {
+    if (t % 1 == 0) {
       printf("Current Time: %f    ", t * dt);
       model.printState(x.data());
+      std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
     }
 
     if (cost.computeStateCost(x) > 1000) {
@@ -533,12 +534,15 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
     }
 
     if (tubeFailure(x.data())) {
-//      cnpy::npy_save("robust_large_actual.npy", actual_trajectory_save.data(),
-//                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-//      cnpy::npy_save("robust_ancillary.npy", ancillary_trajectory_save.data(),
-//                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-//      cnpy::npy_save("robust_large_nominal.npy",nominal_trajectory_save.data(),
-//                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+      cnpy::npy_save("robust_large_actual.npy", actual_trajectory_save.data(),
+                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+      cnpy::npy_save("robust_ancillary.npy", ancillary_trajectory_save.data(),
+                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+      cnpy::npy_save("robust_large_nominal.npy",nominal_trajectory_save.data(),
+                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+      printf("Current Time: %f    ", t * dt);
+      model.printState(x.data());
+      std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
       std::cout << "Tube failure!!" << std::endl;
       FAIL() << "Visualize the trajectories by running scripts/double_integrator/plot_DI_test_trajectories; "
                 "the argument to this python file is the build directory of MPPI-Generic";
@@ -550,28 +554,29 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
     controller.computeControl(x);
 
     // Save the trajectory from the nominal state
-    auto actual_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getStateSeq();
 
-    std::cout << "Current State: " << x.transpose() << std::endl;
-    std::cout << "Nominal State: " << controller.getStateSeq().col(0).transpose()  << std::endl;
+//    std::cout << "Current State: " << x.transpose() << std::endl;
+//    std::cout << "Nominal State: " << controller.getStateSeq().col(0).transpose()  << std::endl;
 
     // Save the ancillary trajectory
     auto ancillary_trajectory = controller.getAncillaryStateSeq();
-//
-//    for (int i = 0; i < num_timesteps; i++) {
-//      for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
-//        actual_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
-//                               i*DoubleIntegratorDynamics::STATE_DIM + j] = actual_trajectory(j, i);
-//        ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
-//                                  i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
-//        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
-//                                i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
-//      }
-//    }
+
+
+    for (int i = 0; i < num_timesteps; i++) {
+      for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
+        actual_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+                               i*DoubleIntegratorDynamics::STATE_DIM + j] = x(j);
+        ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+                                  i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
+        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+                                i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
+      }
+    }
 
     // Get the open loop control
     DoubleIntegratorDynamics::control_array current_control = controller.getControlSeq().col(0);
-    std::cout << current_control << std::endl;
+//    std::cout << "Current OL control: " << current_control.transpose() << std::endl;
 
 
     // Apply the feedback given the current state
@@ -593,10 +598,10 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
     controller.slideControlSequence(1);
   }
 
-//  cnpy::npy_save("tube_large_actual.npy",actual_trajectory_save.data(),
-//                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-//  cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
-//                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-//  cnpy::npy_save("tube_large_nominal.npy",nominal_trajectory_save.data(),
-//                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save("robust_large_actual.npy",actual_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save("robust_ancillary.npy",ancillary_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save("robust_large_nominal.npy",nominal_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
 }

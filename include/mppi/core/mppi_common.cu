@@ -422,6 +422,10 @@ namespace rmppi_kernels {
       if (tdy == 0 && i > 0) { // Only compute once per global index, make sure that we don't divide by zero
         running_cost +=
                 (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, i) * dt - running_cost) / (1.0 * i);
+
+        // Compute the likelihood cost
+//        running_cost += costs->computeLikelihoodRatioCost(control,
+//                                                          control_noise, exploration_std_dev, lambda)*dt
       }
       __syncthreads();
 
@@ -578,23 +582,23 @@ namespace rmppi_kernels {
 
         __syncthreads();
         // Calculate All the costs
-        float curr_state_cost = costs->computeStateCost(x);
+        float curr_state_cost = costs->computeStateCost(x)*dt;
 
         // Nominal system is where thread_idz == 1
         if (thread_idz == 1 && thread_idy == 0) {
           // This memory is shared in the y direction so limit which threads can write to it
           *running_state_cost_nom += curr_state_cost;
           *running_control_cost_nom += costs->computeLikelihoodRatioCost(u,
-              du, sigma_u, lambda);
+              du, sigma_u, lambda)*dt;
         }
         // Real system cost update when thread_idz == 0
         if (thread_idz == 0) {
           running_state_cost_real += curr_state_cost;
           running_control_cost_real +=
-            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda);
+            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda)*dt;
 
           running_tracking_cost_real += (curr_state_cost +
-            costs->computeFeedbackCost(fb_control, sigma_u, lambda));
+            costs->computeFeedbackCost(fb_control, sigma_u, lambda))*dt;
         }
         __syncthreads();
         // dynamics update

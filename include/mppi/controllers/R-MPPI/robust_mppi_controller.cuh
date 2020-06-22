@@ -164,9 +164,11 @@ public:
   */
   void computeControl(const Eigen::Ref<const state_array>& state);
 
-  control_trajectory getControlSeq() override {return nominal_control_trajectory_;};
+  control_trajectory getControlSeq() override {return this->control_;};
 
   state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
+
+  state_trajectory getAncillaryStateSeq() {return this->result_.state_trajectory;};
 
   // Does nothing. This reason is because the control sliding happens during the importance sampler update.
   // The control applied to the real system (during the MPPI rollouts) is the nominal control (which slides
@@ -179,6 +181,8 @@ public:
   // not change either. In the current implementation of runControlIteration, the compute feedback gains is called
   // after the computation of the optimal control.
   void computeFeedbackGains(const Eigen::Ref<const state_array>& state) override {};
+
+  Eigen::MatrixXf getCandidateFreeEnergy() {return candidate_free_energy_;};
 
   // TubeDiagnostics getTubeDiagnostics();
 
@@ -217,6 +221,8 @@ protected:
 
   void deallocateCUDAMemory();
 
+  void copyNominalControlToDevice();
+
   void deallocateNominalStateCandidateMemory();
 
   void resetCandidateCudaMem();
@@ -241,7 +247,7 @@ protected:
   void computeBestIndex();
 
   // Computes and saves the feedback gains used in the rollout kernel and tracking.
-  void computeNominalFeedbackGains();
+  void computeNominalFeedbackGains(const Eigen::Ref<const state_array> &state);
 
   // CUDA Memory
   float* importance_sampling_states_d_;
