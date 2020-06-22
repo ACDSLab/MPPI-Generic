@@ -77,6 +77,7 @@ public:
   double getFeedbackDuration() {return this->feedback_duration_;}
   double getFeedbackAvg() {return this->avg_feedback_time_ms_;}
   void setLastTime(double time) {time_ = time;}
+  double getSleepTimeAvg() {return this->avg_sleep_time_ms_;}
 };
 
 typedef TestPlant<MockController> MockTestPlant;
@@ -580,4 +581,6 @@ TEST(BasePlant, runControlLoop) {
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
   EXPECT_THAT(testPlant.getFeedbackAvg(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+  EXPECT_THAT(testPlant.getSleepTimeAvg(),
+              testing::AllOf(testing::Gt(0), testing::Le(small_time_ms)));
 }
