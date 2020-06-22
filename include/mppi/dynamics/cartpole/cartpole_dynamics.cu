@@ -5,10 +5,6 @@ CartpoleDynamics::CartpoleDynamics(float cart_mass, float pole_mass, float pole_
     this->params_ = CartpoleDynamicsParams(cart_mass, pole_mass, pole_length);
 }
 
-CartpoleDynamics::~CartpoleDynamics() {
-}
-
-
 bool CartpoleDynamics::computeGrad(const Eigen::Ref<const state_array> & state,
                                    const Eigen::Ref<const control_array>& control,
                                    Eigen::Ref<dfdx> A,

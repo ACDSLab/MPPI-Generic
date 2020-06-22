@@ -33,7 +33,7 @@ public:
 
   }
 
-  void computeControl(const Eigen::Ref<const state_array> state,
+  void computeControl(const Eigen::Ref<const state_array>& state,
                       const std::array<control_trajectory, number_rollouts> noise) {
     int trajectory_size = control_trajectory().size();
     for (int i = 0; i < number_rollouts; i++) {

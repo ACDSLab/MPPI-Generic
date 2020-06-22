@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
+#include <mppi/instantiations/quadrotor_mppi/quadrotor_mppi.cuh>
 
 
 class Cartpole_VanillaMPPI: public ::testing::Test {
@@ -121,4 +122,105 @@ TEST_F(Cartpole_VanillaMPPI, ConstructWithNew) {
 
   delete(controller);
 
+}
+
+class Quadrotor_VanillaMPPI: public ::testing::Test {
+public:
+  using DYN = QuadrotorDynamics;
+  using COST = QuadrotorQuadraticCost;
+
+  const int num_timesteps = 150;
+  typedef VanillaMPPIController<DYN, COST, 150, 2048, 64, 8> CONTROLLER;
+  DYN model;
+  QuadrotorQuadraticCost cost;
+};
+
+TEST_F(Quadrotor_VanillaMPPI, HoverTest) {
+  QuadrotorQuadraticCostParams new_params;
+  new_params.x_goal()[2] = 1;
+  new_params.x_coeff = 150;
+  // new_params.q_coeff = 15;
+  new_params.roll_coeff = 15;
+  new_params.pitch_coeff = 15;
+  new_params.yaw_coeff = 15;
+  new_params.w_coeff = 5;
+  float acceptable_distance = 0.15; // meters
+
+  std::cout << "Goal: " << new_params.getDesiredState().transpose() << std::endl;
+
+  cost.setParams(new_params);
+
+  float dt = 0.01;
+  int max_iter = 1;
+  float gamma = 0.25;
+
+  DYN::control_array control_std_dev = DYN::control_array::Constant(0.5);
+  control_std_dev[3] = 5;
+
+  CONTROLLER::control_trajectory init_control = CONTROLLER::control_trajectory::Zero();
+  for(int i = 0; i < num_timesteps; i++) {
+    init_control(4, i) = mppi_math::GRAVITY;
+  }
+
+  auto controller = CONTROLLER(&model,
+                               &cost,
+                               dt,
+                               max_iter,
+                               gamma,
+                               control_std_dev,
+                               num_timesteps,
+                               init_control);
+  controller.setDebug(true);
+  DYN::state_array current_state = DYN::state_array::Zero();
+  current_state(6) = 1;  // set q_w to 1
+  int time_horizon = 3000;
+
+  //float xdot[DYN::STATE_DIM];
+  DYN::state_array xdot(4, 1);
+  DYN::control_array control;
+  control = controller.getControlSeq().block(0, 0, DYN::CONTROL_DIM, 1);
+
+  int far_away_cnt = 0;
+  Eigen::Vector3f goal_pos = new_params.getDesiredState().block<3, 1>(0, 0);
+
+  for (int i =0; i < time_horizon; ++i) {
+    if (i % 50 == 0) {
+      printf("Current Time: %6.2f    ", i * dt);
+      printf("Current Baseline Cost: %f \n", controller.getBaselineCost());
+      printf("State Cost: %f\n", controller.cost_->computeStateCost(current_state));
+      model.printState(current_state.data());
+      std::cout << "Control: " << control.transpose() << std::endl;
+    }
+    if (std::isnan(controller.getBaselineCost()) || control.hasNaN() ||
+        current_state.hasNaN()) {
+      printf("ENCOUNTERED A NAN!!\n");
+      printf("Current Time: %f    ", i * dt);
+      printf("Current Baseline Cost: %f \n", controller.getBaselineCost());
+      model.printState(current_state.data());
+      std::cout << "Control: " << control.transpose() << std::endl;
+
+      break;
+    }
+
+    // Compute the control
+    controller.computeControl(current_state);
+
+    control = controller.getControlSeq().block(0, 0, DYN::CONTROL_DIM, 1);
+    // Increment the state
+    model.computeStateDeriv(current_state, control, xdot);
+    model.updateState(current_state, xdot, dt);
+
+    controller.slideControlSequence(1);
+    Eigen::Vector3f pos = current_state.block<3, 1>(0, 0);
+    float dist = (pos -goal_pos).norm();
+    if (dist > acceptable_distance) {
+      far_away_cnt++;
+    }
+
+  }
+  float percentage_in_ball = float(far_away_cnt) / time_horizon;
+  std::cout << "Amount of time outside " << acceptable_distance << " m: "
+            << percentage_in_ball * 100 << "%"<< std::endl;
+
+  EXPECT_LT(percentage_in_ball, 0.1);
 }

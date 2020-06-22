@@ -4,13 +4,6 @@ CartpoleQuadraticCost::CartpoleQuadraticCost(cudaStream_t stream) {
   bindToStream(stream);
 }
 
-CartpoleQuadraticCost::~CartpoleQuadraticCost() {
-  if (!GPUMemStatus_) {
-    freeCudaMem();
-    GPUMemStatus_ = false;
-  }
-}
-
 float CartpoleQuadraticCost::computeStateCost(const Eigen::Ref<const state_array> s) {
   return (s[0]-params_.desired_terminal_state[0])*(s[0]-params_.desired_terminal_state[0])*params_.cart_position_coeff +
          (s[1]-params_.desired_terminal_state[1])*(s[1]-params_.desired_terminal_state[1])*params_.cart_velocity_coeff +

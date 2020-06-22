@@ -1,24 +1,3 @@
-cmake_minimum_required(VERSION 3.8)
-set(CMAKE_CXX_STANDARD 11)
-
-# Generic dynamics test
-set(TARGET_NAME dynamics_generic_tests)
-
-add_executable(${TARGET_NAME} ../test_main.cpp dynamics_generic_tests.cu)
-target_link_libraries(${TARGET_NAME} gtest gmock gtest_main)
-
-add_test(NAME ${TARGET_NAME} COMMAND cartpole_dynamics_tests)
-set_target_properties(${TARGET_NAME} PROPERTIES FOLDER test)
-
-# Cartpole dynamics tests
-set(TARGET_NAME cartpole_dynamics_tests)
-
-add_executable(${TARGET_NAME} ../test_main.cpp cartpole_dynamics_tests.cu)
-target_link_libraries(${TARGET_NAME} gtest gmock gtest_main)
-
-add_test(NAME ${TARGET_NAME} COMMAND cartpole_dynamics_tests)
-set_target_properties(${TARGET_NAME} PROPERTIES FOLDER test)
-
 if(BUILD_TESTS)
   message("")
   find_package(PythonInterp)
@@ -42,19 +21,28 @@ if(BUILD_TESTS)
   message("")
 endif()
 
-add_executable(ar_nn_dynamics_tests ../test_main.cpp ar_dynamics_nn_test.cu)
-target_link_libraries(ar_nn_dynamics_tests
-                      gtest
-                      gmock
-                      gtest_main
+set(GTEST_LIBRARIES gtest gmock gtest_main)
+# set(TARGETS ar_dynamics_nn_test quadrotor_dynamics_tests
+#     cartpole_dynamics_tests dynamics_generic_tests)
+
+file(GLOB TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
+
+foreach(T_FILE IN LISTS TARGET_SRCS)
+  get_filename_component(T_NAME ${T_FILE} NAME_WE)
+  add_executable(${T_NAME} ../test_main.cpp ${T_FILE})
+  target_link_libraries(${T_NAME}
+                        ${GTEST_LIBRARIES}
+                        cnpy)
+  add_test(NAME ${T_NAME} COMMAND ${T_NAME})
+  set_target_properties(${T_NAME} PROPERTIES FOLDER test)
+endforeach()
+
+## Autorally Dynamics Constant Memory Tests
+add_executable(ar_dynamics_nn_test_constant ../test_main.cpp ar_dynamics_nn_test.cu)
+target_compile_definitions(ar_dynamics_nn_test_constant PRIVATE MPPI_NNET_USING_CONSTANT_MEM__)
+target_link_libraries(ar_dynamics_nn_test_constant
+                      ${GTEST_LIBRARIES}
                       cnpy)
 
-add_test(NAME ar_nn_dynamics_tests COMMAND ar_nn_dynamics_tests)
-set_target_properties(ar_nn_dynamics_tests PROPERTIES FOLDER test)
-
-add_executable(ar_nn_dynamics_tests_constant ../test_main.cpp ar_dynamics_nn_test.cu)
-target_compile_definitions(ar_nn_dynamics_tests_constant PRIVATE MPPI_NNET_USING_CONSTANT_MEM__)
-target_link_libraries(ar_nn_dynamics_tests_constant gtest gmock gtest_main cnpy)
-
-add_test(NAME ar_nn_dynamics_tests_constant COMMAND ar_nn_dynamics_tests)
-set_target_properties(ar_nn_dynamics_tests_constant PROPERTIES FOLDER test)
+add_test(NAME ar_dynamics_nn_test_constant COMMAND ar_dynamics_nn_test_constant)
+set_target_properties(ar_dynamics_nn_test_constant PROPERTIES FOLDER test)

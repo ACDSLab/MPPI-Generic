@@ -97,7 +97,7 @@ namespace mppi_common {
 
     if (global_idx < num_rollouts * blockDim.z) {
       float cost_dif = trajectory_costs_d[global_idx] - baseline;
-      trajectory_costs_d[global_idx] = expf(-gamma*cost_dif);
+      trajectory_costs_d[global_idx] = expf(-gamma * cost_dif);
     }
   }
 
@@ -238,6 +238,23 @@ namespace mppi_common {
             normalizer += cost_rollouts_host[i];
         }
         return normalizer;
+    }
+
+    void computeFreeEnergy(float& free_energy, float& free_energy_var,
+                           float* cost_rollouts_host,  int num_rollouts,
+                           float baseline, float lambda) {
+      float var = 0;
+      float norm = 0;
+      for(int i = 0; i < num_rollouts; i++) {
+        norm += cost_rollouts_host[i];
+        var += powf(cost_rollouts_host[i], 2);
+      }
+      norm /= num_rollouts;
+      free_energy = lambda * logf(norm) + baseline;
+      free_energy_var = lambda * (var / num_rollouts - powf(norm, 2));
+      // TODO Figure out the point of the following lines
+      // float weird_term = free_energy_var / (mean * sqrtf(1.0 * num_rollouts));
+      // free_energy_var = lambda * (weird_term + 0.5 * powf(weird_term, 2));
     }
 
     /*******************************************************************************************************************

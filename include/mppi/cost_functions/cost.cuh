@@ -45,7 +45,9 @@ public:
    * Destructor must be virtual so that children are properly
    * destroyed when called from a basePlant reference
    */
-  virtual ~Cost() = default;
+  virtual ~Cost() {
+    freeCudaMem();
+  }
 
   void GPUSetup();
 
@@ -171,7 +173,7 @@ public:
 
   inline __host__ __device__ PARAMS_T getParams() const {return params_;}
 
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
+  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, int timestep);
   __device__ float terminalCost(float* s);
 
   CLASS_T* cost_d_ = nullptr;

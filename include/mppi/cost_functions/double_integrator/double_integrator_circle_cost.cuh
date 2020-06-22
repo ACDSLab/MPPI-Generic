@@ -19,8 +19,6 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   DoubleIntegratorCircleCost(cudaStream_t stream = nullptr);
 
-  ~DoubleIntegratorCircleCost();
-
   float computeStateCost(const Eigen::Ref<const state_array> s);
   float terminalCost(const Eigen::Ref<const state_array> s);
 

@@ -355,7 +355,7 @@ __global__ void computeAndSaveCostAllRollouts_KernelTest(COST_T* cost, int state
 }
 
 template<class COST_T, int STATE_DIM, int NUM_ROLLOUTS>
-void launchComputeAndSaveCostAllRollouts_KernelTest(COST_T cost,
+void launchComputeAndSaveCostAllRollouts_KernelTest(COST_T& cost,
     const std::array<float, NUM_ROLLOUTS>& cost_all_rollouts,
     const std::array<float, STATE_DIM*NUM_ROLLOUTS>& terminal_states,
     std::array<float, NUM_ROLLOUTS>& cost_compute) {
@@ -488,12 +488,3 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   cudaFree(trajectory_costs_d);
   cudaFree(control_noise_d);
 }
-
-/**
- * Cartpole Compute and Save cost all rollouts instantiations
- */
-const int num_rollouts_cs = 1234;
-template void launchComputeAndSaveCostAllRollouts_KernelTest<CartpoleQuadraticCost, CartpoleDynamics::STATE_DIM, num_rollouts_cs>(CartpoleQuadraticCost cost,
-                          const std::array<float, num_rollouts_cs>& cost_all_rollouts,
-                          const std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_cs>& terminal_states,
-                          std::array<float, num_rollouts_cs>& cost_compute);

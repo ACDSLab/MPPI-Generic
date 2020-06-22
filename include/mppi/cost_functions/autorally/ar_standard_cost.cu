@@ -7,15 +7,6 @@ ARStandardCost<CLASS_T, PARAMS_T>::ARStandardCost(cudaStream_t stream) {
 }
 
 template <class CLASS_T, class PARAMS_T>
-ARStandardCost<CLASS_T, PARAMS_T>::~ARStandardCost() {
-  //std::cout << __PRETTY_FUNCTION__ << std::endl;
-  if(this->GPUMemStatus_) {
-    freeCudaMem();
-    this->GPUMemStatus_ = false;
-  }
-}
-
-template <class CLASS_T, class PARAMS_T>
 void ARStandardCost<CLASS_T, PARAMS_T>::freeCudaMem() {
   // TODO free everything
   Cost<ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T, this->STATE_DIM,
