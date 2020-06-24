@@ -58,7 +58,8 @@ public:
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
-  Controller(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+  Controller(DYN_T* model, COST_T* cost, float dt, int max_iter,
+          float lambda, float alpha,
           const Eigen::Ref<const control_array>& control_std_dev,
           int num_timesteps = MAX_TIMESTEPS,
           const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
@@ -67,7 +68,8 @@ public:
     cost_ = cost;
     dt_ = dt;
     num_iters_ = max_iter;
-    gamma_ = gamma;
+    lambda_ = lambda;
+    alpha_ = alpha;
     num_timesteps_ = num_timesteps;
 
     control_std_dev_ = control_std_dev;
@@ -418,7 +420,8 @@ protected:
 
   int num_iters_;  // Number of optimization iterations
   float dt_;
-  float gamma_; // Value of the temperature in the softmax.
+  float lambda_; // Value of the temperature in the softmax.
+  float alpha_; //
 
   float normalizer_; // Variable for the normalizing term from sampling.
   float baseline_ = 0; // Baseline cost of the system.

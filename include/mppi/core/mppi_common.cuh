@@ -125,10 +125,10 @@ namespace mppi_common {
 
     // Launch functions
     template<class DYN_T, class COST_T>
-    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d,
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float lambda, float alpha, float* x_d, float* u_d,
             float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream);
 
-    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float baseline, cudaStream_t stream);
+    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda, float baseline, cudaStream_t stream);
 
     template<class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE >
     void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps, cudaStream_t stream);
@@ -140,6 +140,8 @@ namespace rmppi_kernels {
   __global__ void initEvalKernel(DYN_T* dynamics,
                                  COST_T* costs,
                                  int num_timesteps,
+                                 float lambda,
+                                 float alpha,
                                  int ctrl_stride,
                                  float dt,
                                  int* strides_d,
@@ -154,6 +156,8 @@ namespace rmppi_kernels {
                             COST_T* costs,
                             int num_candidates,
                             int num_timesteps,
+                            float lambda,
+                            float alpha,
                             int ctrl_stride,
                             float dt,
                             int* strides_d,
@@ -169,6 +173,7 @@ namespace rmppi_kernels {
                                      float dt,
                                      int num_timesteps,
                                      float lambda,
+                                     float alpha,
                                      float value_func_threshold,
                                      float* x_d,
                                      float* u_d,
@@ -183,6 +188,7 @@ namespace rmppi_kernels {
                                 float dt,
                                 int num_timesteps,
                                 float lambda,
+                                float alpha,
                                 float value_func_threshold,
                                 float* x_d,
                                 float* u_d,

@@ -327,8 +327,9 @@ inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeCost(float *s,
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *du, float *vars, int timestep) {
-  float control_cost = getControlCost(u, du, vars);
+inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
+        int timestep) {
+  float control_cost = getControlCost(u, noise, std_dev);
   int crash[1] = {0};
   float track_cost = getTrackCost(s, crash);
   float speed_cost = getSpeedCost(s, crash);

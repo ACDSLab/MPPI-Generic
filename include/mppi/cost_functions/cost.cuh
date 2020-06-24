@@ -113,13 +113,14 @@ public:
   float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u,
                                    const Eigen::Ref<const control_array> noise,
                                    const Eigen::Ref<const control_array> std_dev,
-                                   const float lambda = 1.0) {
+                                   const float lambda = 1.0,
+                                   const float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
       cost += control_cost_coef[i] * u(i) * (u(i) + 2 * noise(i)) /
         (std_dev(i) * std_dev(i));
     }
-    return 0.5 * lambda * cost;
+    return 0.5 * lambda * (1 - alpha) * cost;
   }
 
   /**
@@ -160,20 +161,21 @@ public:
   __device__ float computeLikelihoodRatioCost(float* u,
                                               float* noise,
                                               float* std_dev,
-                                              float lambda = 1.0) {
+                                              float lambda = 1.0,
+                                              float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
       cost += control_cost_coef[i] * (u[i] - noise[i]) * (u[i] + noise[i]) /
         (std_dev[i] * std_dev[i]);
     }
-    return 0.5 * lambda * cost;
+    return 0.5 * lambda * (1 - alpha) * cost;
   }
 
   __device__ float computeStateCost(float* s);
 
   inline __host__ __device__ PARAMS_T getParams() const {return params_;}
 
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, int timestep);
+  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda, float alpha, int timestep);
   __device__ float terminalCost(float* s);
 
   CLASS_T* cost_d_ = nullptr;

@@ -26,7 +26,7 @@ public:
 
   __device__ float computeStateCost(float* s);
 
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* variance, int timestep);
+  __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha, int timestep);
 
   __device__ float terminalCost(float* s);
 

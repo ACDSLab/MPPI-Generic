@@ -10,13 +10,14 @@ template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
 VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost,
                                    float dt,
                                    int max_iter,
-                                   float gamma,
+                                   float lambda,
+                                   float alpha,
                                    const Eigen::Ref<const control_array>& control_std_dev,
                                    int num_timesteps,
                                    const Eigen::Ref<const control_trajectory>& init_control_traj,
                                    cudaStream_t stream) :
-Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(model, cost, dt, max_iter, gamma,
-        control_std_dev, num_timesteps, init_control_traj, stream) {
+Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(model, cost, dt,
+        max_iter, lambda, alpha, control_std_dev, num_timesteps, init_control_traj, stream) {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
 
@@ -52,6 +53,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     //Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
+        this->lambda_, this->alpha_,
         this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
 
@@ -80,7 +82,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     // Launch the norm exponential kernel
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-        this->trajectory_costs_d_, this->gamma_, this->baseline_, this->stream_);
+        this->trajectory_costs_d_, this->lambda_, this->baseline_, this->stream_);
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
         this->trajectory_costs_d_,
         NUM_ROLLOUTS*sizeof(float),

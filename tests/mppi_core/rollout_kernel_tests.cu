@@ -241,9 +241,11 @@ TEST(RolloutKernel, runRolloutKernelOnMultipleSystems) {
   for (size_t i = 0; i < x0.size(); i++) {
     x0[i] = i * 0.1 + 0.2;
   }
+  float lambda = 0.5;
+  float alpha = 0.001;
 
   launchRolloutKernel_nom_act<CartpoleDynamics, CartpoleQuadraticCost, NUM_ROLLOUTS>(
-          &dynamics, &cost, dt, num_timesteps, x0, control_std_dev,
+          &dynamics, &cost, dt, num_timesteps, lambda, alpha, x0, control_std_dev,
           nominal_control_seq, trajectory_costs_act, trajectory_costs_nom);
   array_assert_float_eq(trajectory_costs_act, trajectory_costs_nom, NUM_ROLLOUTS);
 }

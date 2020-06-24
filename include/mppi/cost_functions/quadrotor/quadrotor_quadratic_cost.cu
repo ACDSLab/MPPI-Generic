@@ -113,8 +113,9 @@ __device__ float QuadrotorQuadraticCost::computeStateCost(float* s) {
 
 __device__ float QuadrotorQuadraticCost::computeRunningCost(float* s, float* u,
                                                             float* du, float* std_dev,
+                                                            float lambda, float alpha,
                                                             int timestep) {
-  float cost =  computeStateCost(s) + computeLikelihoodRatioCost(u, du, std_dev);
+  float cost =  computeStateCost(s) + computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
   return cost * (1 - isnan(cost)) + isnan(cost) * MAX_COST_VALUE;
 }
 

@@ -14,12 +14,12 @@ static const int number_rollouts = 1200;
 
 class TestController : public Controller<MockDynamics, MockCost, 100, number_rollouts, 1, 2>{
 public:
-  TestController(MockDynamics* model, MockCost* cost, float dt, int max_iter, float gamma,
+  TestController(MockDynamics* model, MockCost* cost, float dt, int max_iter, float lambda, float alpha,
                  const Eigen::Ref<const control_array>& control_variance,
                  int num_timesteps = 100,
                  const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                  cudaStream_t stream = nullptr) : Controller<MockDynamics, MockCost, 100, number_rollouts, 1, 2>(
-                         model, cost, dt, max_iter, gamma, control_variance, num_timesteps,
+                         model, cost, dt, max_iter, lambda, alpha, control_variance, num_timesteps,
                          init_control_traj, stream) {
 
     // Allocate CUDA memory for the controller
@@ -56,7 +56,8 @@ public:
 
   float getDt() {return dt_;}
   int getNumIter() {return num_iters_;}
-  float getGamma() {return gamma_;}
+  float getLambda() {return lambda_;}
+  float getAlpha() {return alpha_;}
   float getNumTimesteps() {return num_timesteps_;}
   cudaStream_t getStream() {return stream_;}
 
@@ -71,7 +72,8 @@ TEST(Controller, ConstructorDestructor) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   MockDynamics::control_array control_var;
   control_var = MockDynamics::control_array::Constant(1.0);
   int num_timesteps = 10;
@@ -88,14 +90,15 @@ TEST(Controller, ConstructorDestructor) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController* controller = new TestController(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var, num_timesteps,
+  TestController* controller = new TestController(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_var, num_timesteps,
           init_control_trajectory, stream);
 
   EXPECT_EQ(controller->model_, &mockDynamics);
   EXPECT_EQ(controller->cost_, &mockCost);
   EXPECT_EQ(controller->getDt(), dt);
   EXPECT_EQ(controller->getNumIter(), max_iter);
-  EXPECT_EQ(controller->getGamma(), gamma);
+  EXPECT_EQ(controller->getLambda(), lambda);
+  EXPECT_EQ(controller->getAlpha(), alpha);
   EXPECT_EQ(controller->getNumTimesteps(), num_timesteps);
   EXPECT_EQ(controller->getControlStdDev(), control_var);
   EXPECT_EQ(controller->getControlSeq(), init_control_trajectory);
@@ -115,7 +118,8 @@ TEST(Controller, setNumTimesteps) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   MockDynamics::control_array control_var;
   control_var = MockDynamics::control_array::Constant(1.0);
 
@@ -127,7 +131,7 @@ TEST(Controller, setNumTimesteps) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_var);
 
   controller.setNumTimesteps(10);
   EXPECT_EQ(controller.getNumTimesteps(), 10);
@@ -143,7 +147,8 @@ TEST(Controller, updateControlNoiseStdDev) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   MockDynamics::control_array control_var;
   control_var = MockDynamics::control_array::Constant(1.0);
 
@@ -155,7 +160,7 @@ TEST(Controller, updateControlNoiseStdDev) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_var);
 
   TestController::control_array new_control_var = TestController::control_array::Ones();
 
@@ -171,7 +176,8 @@ TEST(Controller, slideControlSequenceHelper) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   MockDynamics::control_array control_var;
   control_var = MockDynamics::control_array::Constant(1.0);
 
@@ -183,7 +189,7 @@ TEST(Controller, slideControlSequenceHelper) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_var);
   TestController::control_trajectory u;
   for(int i = 0; i < controller.num_timesteps_; i++) {
     TestController::control_array control = TestController::control_array::Ones();
@@ -214,7 +220,8 @@ TEST(Controller, computeStateTrajectoryHelper) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   MockDynamics::control_array control_var;
   control_var = MockDynamics::control_array::Constant(1.0);
 
@@ -226,7 +233,7 @@ TEST(Controller, computeStateTrajectoryHelper) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_var);
 
   TestController::state_array x = TestController::state_array::Ones();
   TestController::state_array xdot = TestController::state_array::Ones();
@@ -250,7 +257,8 @@ TEST(Controller, interpolateControl) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   MockDynamics::control_array control_var;
   control_var = MockDynamics::control_array::Constant(1.0);
 
@@ -262,7 +270,7 @@ TEST(Controller, interpolateControl) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_var);
   TestController::control_trajectory traj;
   for(int i = 0; i < controller.getNumTimesteps(); i++) {
     traj.col(i) = TestController::control_array::Ones() * i;
@@ -281,7 +289,8 @@ TEST(Controller, interpolateFeedback) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   MockDynamics::control_array control_var;
   control_var = MockDynamics::control_array::Constant(1.0);
 
@@ -293,7 +302,7 @@ TEST(Controller, interpolateFeedback) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_var);
 
   controller.setFeedbackController(true);
   TestController::feedback_gain_trajectory feedback_traj = TestController::feedback_gain_trajectory(controller.getNumTimesteps());
@@ -316,7 +325,8 @@ TEST(Controller, getCurrentControlTest) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   MockDynamics::control_array control_var;
   control_var = MockDynamics::control_array::Constant(1.0);
 
@@ -328,7 +338,7 @@ TEST(Controller, getCurrentControlTest) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_var);
 
   EXPECT_CALL(mockDynamics, enforceConstraints(testing::_, testing::_)).Times(4 * (controller.getNumTimesteps() - 1));
 
@@ -360,7 +370,8 @@ TEST(Controller, getSampledControlTrajectories) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   MockDynamics::control_array control_var;
   control_var = MockDynamics::control_array::Constant(1.0);
 
@@ -372,7 +383,7 @@ TEST(Controller, getSampledControlTrajectories) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_var);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_var);
 
   // Create noisy trajectories./
   std::array<TestController::control_trajectory, number_rollouts> noise;
@@ -407,7 +418,8 @@ TEST(Controller, saveControlHistoryHelper_1) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   int steps = 1;
   MockDynamics::control_array control_std_dev;
   control_std_dev = MockDynamics::control_array::Constant(1.0);
@@ -420,7 +432,7 @@ TEST(Controller, saveControlHistoryHelper_1) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_std_dev);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_std_dev);
 
   TestController::control_trajectory u = TestController::control_trajectory::Random();
   Eigen::Matrix<float, MockDynamics::CONTROL_DIM, 2> u_history;
@@ -440,7 +452,8 @@ TEST(Controller, saveControlHistoryHelper_2) {
 
   float dt = 0.1;
   int max_iter = 1;
-  float gamma = 1.2;
+  float lambda = 1.2;
+  float alpha = 0.1;
   int steps = 4;
   MockDynamics::control_array control_std_dev;
   control_std_dev = MockDynamics::control_array::Constant(1.0);
@@ -453,7 +466,7 @@ TEST(Controller, saveControlHistoryHelper_2) {
   EXPECT_CALL(mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(mockDynamics, GPUSetup()).Times(1);
 
-  TestController controller(&mockDynamics, &mockCost, dt, max_iter, gamma, control_std_dev);
+  TestController controller(&mockDynamics, &mockCost, dt, max_iter, lambda, alpha, control_std_dev);
 
   TestController::control_trajectory u = TestController::control_trajectory::Random();
   Eigen::Matrix<float, MockDynamics::CONTROL_DIM, 2> u_history;

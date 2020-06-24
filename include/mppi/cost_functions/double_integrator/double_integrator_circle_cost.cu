@@ -10,11 +10,15 @@ __device__ float DoubleIntegratorCircleCost::computeStateCost(float *s) {
   float current_angular_momentum = s[0]*s[3] - s[1]*s[2];
 
   float cost = 0;
-  if ((radial_position < params_.inner_path_radius2) || (radial_position > params_.outer_path_radius2)) {
+  if ((radial_position < params_.inner_path_radius2) ||
+      (radial_position > params_.outer_path_radius2)) {
     cost += params_.crash_cost;
   }
-  cost += params_.velocity_cost*(current_velocity - params_.velocity_desired)*(current_velocity - params_.velocity_desired);
-  cost += params_.velocity_cost*(current_angular_momentum - params_.angular_momentum_desired)*(current_angular_momentum - params_.angular_momentum_desired);
+  cost += params_.velocity_cost * (current_velocity - params_.velocity_desired) *
+          (current_velocity - params_.velocity_desired);
+  cost += params_.velocity_cost *
+          (current_angular_momentum - params_.angular_momentum_desired) *
+          (current_angular_momentum - params_.angular_momentum_desired);
   return cost;
 }
 
@@ -24,20 +28,21 @@ float DoubleIntegratorCircleCost::computeStateCost(const Eigen::Ref<const state_
   float current_angular_momentum = s[0]*s[3] - s[1]*s[2];
 
   float cost = 0;
-  if ((radial_position < params_.inner_path_radius2) || (radial_position > params_.outer_path_radius2)) {
+  if ((radial_position < params_.inner_path_radius2) ||
+      (radial_position > params_.outer_path_radius2)) {
     cost += params_.crash_cost;
   }
-  cost += params_.velocity_cost*(current_velocity - params_.velocity_desired)*(current_velocity - params_.velocity_desired);
-  cost += params_.velocity_cost*(current_angular_momentum - params_.angular_momentum_desired)*(current_angular_momentum - params_.angular_momentum_desired);
+  cost += params_.velocity_cost * (current_velocity - params_.velocity_desired) *
+          (current_velocity - params_.velocity_desired);
+  cost += params_.velocity_cost *
+          (current_angular_momentum - params_.angular_momentum_desired) *
+          (current_angular_momentum - params_.angular_momentum_desired);
   return cost;
 }
 
-__device__ float DoubleIntegratorCircleCost::getControlCost(float *u, float *du, float *vars) {
-  return du[0]*(u[0] - du[0])/(vars[0]*vars[0]);
-}
-
-__device__ float DoubleIntegratorCircleCost::computeRunningCost(float *s, float *u, float *du, float *vars, int timestep) {
-  return computeStateCost(s);
+__device__ float DoubleIntegratorCircleCost::computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha, int timestep) {
+  return computeStateCost(s) +
+          this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
 }
 
 float DoubleIntegratorCircleCost::terminalCost(const Eigen::Ref<const state_array> s) {

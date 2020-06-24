@@ -35,6 +35,8 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   const int num_candidates = 9;
 
   float dt = 0.01;
+  float lambda = 0.25;
+  float alpha = 0.01;
 
   Eigen::Matrix<float, 4, num_candidates> x0_candidates;
   x0_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4,
@@ -168,7 +170,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // Run the GPU test kernel of the init eval kernel and get the output data
   // ();
   rmppi_kernels::launchInitEvalKernel<dynamics, cost_function, 64, 8, num_samples>(model->model_d_, cost->cost_d_,
-          num_candidates, num_timesteps, ctrl_stride, dt,
+          num_candidates, num_timesteps, lambda, alpha, ctrl_stride, dt,
           strides_d, exploration_var_d, states_d, control_d, control_noise_d, costs_d);
   CudaCheckError();
 
@@ -196,6 +198,7 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   float dt = 0.01;
   // int max_iter = 10;
   float lambda = 0.1;
+  float alpha = 0.0001;
   const int num_timesteps = 50;
   const int num_rollouts = 64;
 
@@ -280,11 +283,11 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   std::array<float, num_rollouts> costs_act_GPU, costs_nom_GPU;
   std::array<float, num_rollouts> costs_act_CPU, costs_nom_CPU;
   launchRMPPIRolloutKernelGPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-    num_timesteps, lambda, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    num_timesteps, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_GPU, costs_nom_GPU);
   launchRMPPIRolloutKernelCPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-    num_timesteps, lambda, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    num_timesteps, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_CPU, costs_nom_CPU);
 

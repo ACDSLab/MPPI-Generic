@@ -392,6 +392,8 @@ template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
+                                 float lambda,
+                                 float alpha,
                                  const std::vector<float>& x0,
                                  const std::vector<float>& sigma_u,
                                  const std::vector<float>& nom_control_seq,
@@ -467,6 +469,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   // Launch rollout kernel
   mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
     BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps,
+                    lambda, alpha,
                     initial_state_d, control_d, control_noise_d,
                     control_std_dev_d, trajectory_costs_d, stream);
 

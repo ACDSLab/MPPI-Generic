@@ -31,16 +31,10 @@ public:
    */
   CartpoleQuadraticCost(cudaStream_t stream=0);
 
-
-  /**
-   * @brief Compute the control cost
-   */
-  __host__ __device__ float getControlCost(float* u, float* du, float* vars);
-
   /**
    * @brief Compute the state cost
    */
-  __host__ __device__ float getStateCost(float* s);
+  __device__ float computeStateCost(float* s);
 
   /**
    * @brief Compute the state cost on the CPU
@@ -50,12 +44,13 @@ public:
   /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
-  __host__ __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
+  __device__ float computeRunningCost(float* s, float* u, float* noise,
+          float* std_dev, float lambda, float alpha, int timestep);
 
   /**
    * @brief Compute the terminal cost of the system
    */
-   __host__ __device__ float terminalCost(float *s);
+   __device__ float terminalCost(float *s);
 
 protected:
 

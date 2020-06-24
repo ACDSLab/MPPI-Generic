@@ -15,12 +15,12 @@ class TestRobust: public RobustMPPIController<
  public:
   TestRobust(DoubleIntegratorDynamics *model,
           DoubleIntegratorCircleCost *cost,
-          float dt, int max_iter, float gamma,
+          float dt, int max_iter, float lambda, float alpha,
           const Eigen::Ref<const control_array>& control_std_dev,
           int num_timesteps,
           const Eigen::Ref<const control_trajectory>& init_control_traj,
           cudaStream_t stream) :
-  RobustMPPIController(model, cost, dt,  max_iter,  gamma, control_std_dev, num_timesteps, init_control_traj, stream) {}
+  RobustMPPIController(model, cost, dt,  max_iter, lambda, alpha, control_std_dev, num_timesteps, init_control_traj, stream) {}
 
 
   // Test to make sure that its nonzero
@@ -70,7 +70,7 @@ protected:
   void SetUp() override {
     model = new dynamics(10);  // Initialize the double integrator dynamics
     cost = new cost_function;  // Initialize the cost function
-    test_controller = new TestRobust(model, cost, dt, 3, gamma, control_std_dev, 100, init_control_traj, 0);
+    test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, control_std_dev, 100, init_control_traj, 0);
   }
 
   void TearDown() override {
@@ -85,7 +85,8 @@ protected:
   dynamics::control_array control_std_dev;
   TestRobust::control_trajectory init_control_traj;
   float dt = 0.01;
-  float gamma = 0.5;
+  float lambda = 0.5;
+  float alpha = 0.01;
 };
 
 TEST_F(RMPPINominalStateSelection, UpdateNumCandidates_LessThan3) {
