@@ -523,7 +523,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
-    if (t % 1 == 0) {
+    if (t % 100 == 0) {
       printf("Current Time: %f    ", t * dt);
       model.printState(x.data());
       std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;

@@ -93,9 +93,6 @@ public:
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
   using NominalCandidateVector = typename util::NamedEigenAlignedVector<state_array>;
 
-  static const int BLOCKSIZE_WRX = 64;
-  //NUM_ROLLOUTS has to be divisible by BLOCKSIZE_WRX
-//  static const int NUM_ROLLOUTS = (NUM_ROLLOUTS/BLOCKSIZE_WRX)*BLOCKSIZE_WRX;
   static const int BLOCKSIZE_X = BDIM_X;
   static const int BLOCKSIZE_Y = BDIM_Y;
   static const int STATE_DIM = DYN_T::STATE_DIM;
@@ -142,18 +139,6 @@ public:
   // and allocates the associated CUDA memory
   void updateNumCandidates(int new_num_candidates);
 
-  /*
-  * @brief Resets the control commands to there initial values.
-  */
-//  void resetControls();
-
-//  void cutThrottle();
-
-//  void savitskyGolay();
-
-//  void computeNominalTraj(const Eigen::Ref<const state_array>& state);
-
-  /*void slideControlSeq(int stride);*/
 
 // Update the importance sampler prior to calling computeControl
   void updateImportanceSampler(const Eigen::Ref<const state_array> &state, int stride);
@@ -254,47 +239,7 @@ protected:
   float* importance_sampling_costs_d_;
   int* importance_sampling_strides_d_;
   float* feedback_gain_array_d_;
-
-  float* nominal_state_d_;
-
-  // control_noise_d_ is also used to hold the rollout noise for the quick estimate free energy.
-  // Here num_candidates*num_samples_per_condition < 2*num_rollouts. -> we should enforce this
-
-  //  // Previous storage classes
-//  std::vector<float> U_;
-//  std::vector<float> U_optimal_;
-//  std::vector<float> augmented_nominal_costs_; ///< Array of the trajectory costs.
-//  std::vector<float> augmented_real_costs_; ///< Array of the trajectory costs.
-//  std::vector<float> pure_real_costs_; ///< Array of the trajectory costs.
-//
-//  std::vector<float> state_solution_; ///< Host array for keeping track of the nomimal trajectory.
-//  std::vector<float> control_solution_;
-//  std::vector<float> importance_hist_;
-//  std::vector<float> optimal_control_hist_;
-//  std::vector<float> du_; ///< Host array for computing the optimal control update.
-//  std::vector<float> nu_;
-//  std::vector<float> init_u_;
-//  std::vector<float> feedback_gains_;
-//
-//  float* feedback_gains_d_;
-//  float *augmented_nominal_costs_d_, *augmented_real_costs_d_, *pure_real_costs_d_;
-//  float *state_d_, *nominal_state_d_;
-//  float *U_d_;
-//  float *nu_d_;
-//  float *du_d_;
-//  float *dx_d_;
-
 };
-
-//template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
-//__global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, float dt,
-//    int num_timesteps, float* init_states_d, float* strides_d,
-//    float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs_d);
-//
-//template<class DYN_T, class COST_T>
-//void launchInitEvalKernel(DYN_T* dynamics, COST_T* costs, float dt,
-//    int num_timesteps, float* x_d, float* u_d, float* du_d,
-//    float* sigma_u_d, float* candidate_trajectory_costs, cudaStream_t stream);
 
 #if __CUDACC__
 #include "robust_mppi_controller.cu"
