@@ -598,7 +598,7 @@ namespace rmppi_kernels {
             costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda)*dt;
 
           running_tracking_cost_real += (curr_state_cost +
-            costs->computeFeedbackCost(fb_control, sigma_u, lambda))*dt;
+            costs->computeFeedbackCost(fb_control, sigma_u, lambda)*dt);
         }
         __syncthreads();
         // dynamics update
