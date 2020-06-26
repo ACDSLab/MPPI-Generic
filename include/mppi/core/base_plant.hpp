@@ -338,6 +338,7 @@ public:
 
     s_array state = getState();
     num_iter_++;
+    updateParameters(controller, state);
 
     // calculate how much we should slide the control sequence
     double dt = last_used_pose_update_time_ - temp_last_pose_time;
