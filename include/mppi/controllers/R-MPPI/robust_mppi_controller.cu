@@ -13,13 +13,19 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
                      const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps,
                      const Eigen::Ref<const control_trajectory>& init_control_traj,
+                     int num_candidate_nominal_states,
                      int optimization_stride,
                      cudaStream_t stream) : Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         model, cost, dt, max_iter, gamma, control_std_dev, num_timesteps, init_control_traj, stream),
-        value_function_threshold_(value_function_threshold), optimization_stride_(optimization_stride) {
+        value_function_threshold_(value_function_threshold), optimization_stride_(optimization_stride),
+        num_candidate_nominal_states_(num_candidate_nominal_states) {
 
 
   updateNumCandidates(num_candidate_nominal_states_);
+
+  // Zero the control history
+  this->control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
+  nominal_control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
 
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
@@ -207,7 +213,7 @@ void RobustMPPI::computeBestIndex() {
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
-void RobustMPPI::updateImportanceSampler(const Eigen::Ref<const state_array> &state, int stride) {
+void RobustMPPI::updateImportanceSamplingControl(const Eigen::Ref<const state_array> &state, int stride) {
   // (Controller Frequency)*(Optimization Time) corresponds to how many timesteps occurred in the last optimization
   real_stride_ = stride;
 

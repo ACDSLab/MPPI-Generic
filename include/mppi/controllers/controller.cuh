@@ -136,7 +136,6 @@ public:
    * Used to update the importance sampler
    * @param nominal_control the new nominal control sequence to sample around
    */
-   // TODO The function to update the importance sampler is only explicitly used in RMPPI, why is it in the base class?
   virtual void updateImportanceSampler(const Eigen::Ref<const control_trajectory>& nominal_control) {
     // TODO copy to device new control sequence
     control_ = nominal_control;
@@ -418,7 +417,7 @@ protected:
   float* control_std_dev_d_; // Array of size DYN_T::CONTROL_DIM
   float* initial_state_d_; // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 
-  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_history_;
 
   // one array of this size is allocated for each state we care about,
   // so it can be the size*N for N nominal states

@@ -123,6 +123,7 @@ public:
                        const Eigen::Ref<const control_array>& control_std_dev,
                        int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
+                       int num_candidate_nominal_states = 9,
                        int optimization_stride = 1,
                        cudaStream_t stream = nullptr);
 
@@ -140,8 +141,8 @@ public:
   void updateNumCandidates(int new_num_candidates);
 
 
-// Update the importance sampler prior to calling computeControl
-  void updateImportanceSampler(const Eigen::Ref<const state_array> &state, int stride);
+  // Update the importance sampler prior to calling computeControl
+  void updateImportanceSamplingControl(const Eigen::Ref<const state_array> &state, int stride);
 
   /**
   * @brief Compute the control given the current state of the system.
@@ -169,23 +170,16 @@ public:
 
   Eigen::MatrixXf getCandidateFreeEnergy() {return candidate_free_energy_;};
 
-  // TubeDiagnostics getTubeDiagnostics();
-
 protected:
   bool importance_sampling_cuda_mem_init_ = false;
-  int num_candidate_nominal_states_ = 9; // TODO should the initialization be a parameter?
-  int best_index_ = 0;
+  int num_candidate_nominal_states_;
+  int best_index_ = 0;  // Selected nominal state candidate
   int optimization_stride_; // Number of timesteps to apply the optimal control (== 1 for true MPC)
   int nominal_stride_ = 0; // Stride for the chosen nominal state of the importance sampler
   int real_stride_ = 0; // Stride for the optimal controller sliding
   bool nominal_state_init_ = false;
-  float baseline_nominal_ = 100.0;
-  float normalizer_nominal_ = 100.0;
-
-
-  OptimizerResult<ModelWrapperDDP<DYN_T>> last_result_;
-
-//  TubeDiagnostics status_;
+  float baseline_nominal_ = 100.0; // Cost baseline for the nominal state
+  float normalizer_nominal_ = 100.0;  // Normalizer variable for the nominal state
 
   // Storage classes
   control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
@@ -193,7 +187,7 @@ protected:
   sampled_cost_traj trajectory_costs_nominal_ = sampled_cost_traj::Zero();
 
   // Make the control history size flexible, related to issue #30
-  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> nominal_control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero(); // History used for nominal_state IS
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> nominal_control_history_; // History used for nominal_state IS
 
   NominalCandidateVector candidate_nominal_states_ = {state_array::Zero()};
   Eigen::MatrixXf line_search_weights_; // At minimum there must be 3 candidates

@@ -24,7 +24,7 @@ class TestRobust: public RobustMPPIController<
           int num_timesteps,
           const Eigen::Ref<const control_trajectory>& init_control_traj,
           cudaStream_t stream) :
-  RobustMPPIController(model, cost, dt,  max_iter,  gamma, value_function_threshold, Q, Qf, R, control_std_dev, num_timesteps, init_control_traj, 1, stream) {};
+  RobustMPPIController(model, cost, dt,  max_iter,  gamma, value_function_threshold, Q, Qf, R, control_std_dev, num_timesteps, init_control_traj, 9, 1, stream) {};
 
 
   // Test to make sure that its nonzero
@@ -434,8 +434,8 @@ TEST_F(RMPPINominalStateSelection, FeedbackGainInternalStorage) {
   dynamics::state_array x;
   x << 2, 0, 0, 0;
   int stride = 1;
-  test_controller->updateImportanceSampler(x, stride);
-  test_controller->updateImportanceSampler(x, stride);
+  test_controller->updateImportanceSamplingControl(x, stride);
+  test_controller->updateImportanceSamplingControl(x, stride);
 
   std::vector<float> feedback_gain_vector = test_controller->getFeedbackGainVector();
 
@@ -548,16 +548,13 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
                 "the argument to this python file is the build directory of MPPI-Generic";
     }
     // Update the importance sampler
-    controller.updateImportanceSampler(x, 1);
+    controller.updateImportanceSamplingControl(x, 1);
 
     // Compute the control
     controller.computeControl(x);
 
     // Save the trajectory from the nominal state
     auto nominal_trajectory = controller.getStateSeq();
-
-//    std::cout << "Current State: " << x.transpose() << std::endl;
-//    std::cout << "Nominal State: " << controller.getStateSeq().col(0).transpose()  << std::endl;
 
     // Save the ancillary trajectory
     auto ancillary_trajectory = controller.getAncillaryStateSeq();
