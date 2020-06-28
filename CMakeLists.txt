@@ -54,6 +54,9 @@ endif()
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -maxrregcount=32 -arch=sm_35 -w")
+
+# Add debug flags so cuda-gdb can be used to stop inside a kernel.
+# NOTE: You may have to run make multiple times for it to compile successfully.
 set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G --keep")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
