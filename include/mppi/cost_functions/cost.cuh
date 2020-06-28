@@ -143,12 +143,12 @@ public:
    * diagonal.
    */
   __device__ float computeFeedbackCost(float* fb_u, float* std_dev,
-                                       float lambda = 1.0) {
+                                       float lambda = 1.0, float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
       cost += control_cost_coef[i] * powf(fb_u[i] / std_dev[i], 2);
     }
-    return 0.5 * lambda * cost;
+    return 0.5 * lambda * (1 - alpha) * cost;
   }
 
   /**

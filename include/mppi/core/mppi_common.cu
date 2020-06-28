@@ -664,6 +664,7 @@ namespace rmppi_kernels {
                                 float dt,
                                 int num_timesteps,
                                 float lambda,
+                                float alpha,
                                 float value_func_threshold,
                                 float* x_d,
                                 float* u_d,
@@ -677,7 +678,7 @@ namespace rmppi_kernels {
     dim3 dimGrid(gridsize_x, 1, 1);
     RMPPIRolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
                       BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
-                        dynamics, costs, dt, num_timesteps, lambda,
+                        dynamics, costs, dt, num_timesteps, lambda, alpha,
                         value_func_threshold, x_d, u_d, du_d,
                         feedback_gains_d, sigma_u_d, trajectory_costs);
     CudaCheckError();
