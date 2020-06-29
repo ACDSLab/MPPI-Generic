@@ -40,7 +40,12 @@ public:
   typedef Eigen::Matrix<float, CONTROL_DIM, CONTROL_DIM> control_matrix; // Control at a time t
   typedef Eigen::Matrix<float, STATE_DIM, 1> state_array; // State at a time t
 
-  Cost() = default;
+  Cost() {
+    // Default set all controls to 1
+    for (int i = 0; i < CONTROL_DIM; i++) {
+      control_cost_coef[i] = 1.0;
+    }
+  };
   /**
    * Destructor must be virtual so that children are properly
    * destroyed when called from a basePlant reference
@@ -183,7 +188,7 @@ public:
 protected:
   PARAMS_T params_;
   // Not an Eigen control_array as it needs to exist on both CPU and GPU
-  float control_cost_coef[CONTROL_DIM] = {1};
+  float control_cost_coef[CONTROL_DIM] = {};
 };
 
 #if __CUDACC__

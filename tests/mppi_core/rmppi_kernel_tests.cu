@@ -129,15 +129,11 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
     for (int j = 0; j < num_samples; ++j) {
       x_current = x0_candidates.col(i);  // The initial state of the rollout
       for (int k = 0; k < num_timesteps; ++k) {
-        // compute the cost
-        if (k > 0) {
-          cost_current += (cost->computeRunningCost(x_current, u_current, noise_current, exploration_var, lambda, alpha, k) * dt - cost_current) / (1.0f*k);
-        }
         // get the control plus a disturbance
         if (j == 0 || k < ctrl_stride) { // First sample should always be noise free as should any timesteps that are below the control stride
           noise_current = dynamics::control_array::Zero();
         } else {
-          noise_current = control_noise.col(i * num_samples * num_timesteps + j * num_timesteps + k).cwiseProduct(
+          noise_current = control_noise.col((i * num_samples + j) * num_timesteps + k).cwiseProduct(
                   exploration_var);
         }
         u_current = candidate_nominal_control.col(k) + noise_current;
@@ -145,8 +141,13 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
         // enforce constraints
         model->enforceConstraints(x_current, u_current);
 
+        // compute the cost
+        if (k > 0) {
+          cost_current += (cost->computeRunningCost(x_current, candidate_nominal_control.col(k), noise_current, exploration_var, lambda, alpha, k) * dt - cost_current) / (1.0f*k);
+        }
+
         // compute the next state_dot
-        model->computeDynamics(x_current, u_current, x_dot_current);
+        model->computeStateDeriv(x_current, u_current, x_dot_current);
         // update the state to the next
         model->updateState(x_current, x_dot_current, dt);
         }
