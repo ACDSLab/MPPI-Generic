@@ -35,6 +35,7 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
   target_link_libraries(${T_NAME}
                         ${GTEST_LIBRARIES}
                         cnpy)
-  add_test(NAME ${T_NAME} COMMAND ${T_NAME})
+#  add_test(NAME ${T_NAME} COMMAND ${T_NAME})
+  gtest_discover_tests(${T_NAME})
   set_target_properties(${T_NAME} PROPERTIES FOLDER test)
 endforeach()

@@ -7,7 +7,7 @@ target_link_libraries(${ROLLOUT_TARGET_NAME} gtest
         gtest_main
         curand)
 
-add_test(NAME ${ROLLOUT_TARGET_NAME} COMMAND rollout_kernel_tests)
+gtest_discover_tests(${ROLLOUT_TARGET_NAME})
 set_target_properties(${ROLLOUT_TARGET_NAME} PROPERTIES FOLDER test)
 
 # Norm exponential kernel test suite
@@ -19,7 +19,7 @@ target_link_libraries(${NORMEXP_TARGET_NAME} gtest
         gtest_main
         curand)
 
-add_test(NAME ${NORMEXP_TARGET_NAME} COMMAND normexp_kernel_tests)
+gtest_discover_tests(${NORMEXP_TARGET_NAME})
 set_target_properties(${NORMEXP_TARGET_NAME} PROPERTIES FOLDER test)
 
 # Weighted Reduction Kernel Test Suite
@@ -32,7 +32,7 @@ target_link_libraries(${WEIGHTRED_TARGET_NAME} gtest
         gtest_main
         curand)
 
-add_test(NAME ${WEIGHTRED_TARGET_NAME} COMMAND weightedreduction_kernel_tests)
+gtest_discover_tests(${WEIGHTRED_TARGET_NAME})
 set_target_properties(${WEIGHTRED_TARGET_NAME} PROPERTIES FOLDER test)
 
 # Base Plant test cases
@@ -45,7 +45,7 @@ target_link_libraries(${PLANT_TARGET_NAME} gtest
         ${OpenCV_LIBRARIES}
         )
 
-add_test(NAME ${PLANT_TARGET_NAME} COMMAND base_plant_tests)
+gtest_discover_tests(${PLANT_TARGET_NAME})
 set_target_properties(${PLANT_TARGET_NAME} PROPERTIES FOLDER test)
 
 # RMPPI Kernel Test Cases
@@ -58,5 +58,5 @@ target_link_libraries(${RMPPIKERNEL_TARGET_NAME} gtest
         gtest_main
         curand)
 
-add_test(NAME ${RMPPIKERNEL_TARGET_NAME} COMMAND rmppi_kernel_tests)
+gtest_discover_tests(${RMPPIKERNEL_TARGET_NAME})
 set_target_properties(${RMPPIKERNEL_TARGET_NAME} PROPERTIES FOLDER test)

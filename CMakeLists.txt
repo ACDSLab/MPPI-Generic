@@ -82,7 +82,6 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/
 if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   message(STATUS "Building MPPI Generic tests")
   enable_testing()
-
   ############################################################
   # copied from
   # https://github.com/google/googletest/tree/master/googletest#incorporating-into-an-existing-cmake-project
@@ -114,6 +113,7 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
                      ${PROJECT_BINARY_DIR}/googletest-build)
   endif()
 
+  include(GoogleTest)
   add_subdirectory(tests)
 endif()
 

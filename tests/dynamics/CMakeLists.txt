@@ -33,7 +33,7 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
   target_link_libraries(${T_NAME}
                         ${GTEST_LIBRARIES}
                         cnpy)
-  add_test(NAME ${T_NAME} COMMAND ${T_NAME})
+  gtest_discover_tests(${T_NAME})
   set_target_properties(${T_NAME} PROPERTIES FOLDER test)
 endforeach()
 
@@ -44,5 +44,6 @@ target_link_libraries(ar_dynamics_nn_test_constant
                       ${GTEST_LIBRARIES}
                       cnpy)
 
-add_test(NAME ar_dynamics_nn_test_constant COMMAND ar_dynamics_nn_test_constant)
+gtest_discover_tests(ar_dynamics_nn_test_constant)
+
 set_target_properties(ar_dynamics_nn_test_constant PROPERTIES FOLDER test)
