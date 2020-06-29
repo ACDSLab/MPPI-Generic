@@ -131,7 +131,7 @@ public:
    * Slide the control sequence forwards steps steps
    */
   virtual void slideControlSequence(int steps) = 0;
-  // ================ END OF MNETHODS WITH NO DEFAULT =============
+  // ================ END OF METHODS WITH NO DEFAULT =============
   // ======== PURE VIRTUAL END =====
 
   /**

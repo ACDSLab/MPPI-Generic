@@ -78,10 +78,11 @@ public:
   float terminalCost(const Eigen::Ref<const state_array> s);
 
   /**
-   * Devic Functions
+   * Device Functions
    */
   __device__ float computeStateCost(float* s);
 
+  // Custom implementation that does a Nan check.
   __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha, int timestep);
 
   __device__ float terminalCost(float* s);

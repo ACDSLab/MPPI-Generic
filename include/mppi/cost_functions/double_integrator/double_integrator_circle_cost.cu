@@ -40,20 +40,6 @@ float DoubleIntegratorCircleCost::computeStateCost(const Eigen::Ref<const state_
   return cost;
 }
 
-float DoubleIntegratorCircleCost::computeRunningCost(const Eigen::Ref<const state_array> s,
-                                                     const Eigen::Ref<const control_array> u,
-                                                     const Eigen::Ref<const control_array> noise,
-                                                     const Eigen::Ref<const control_array> std_dev,
-                                                     float lambda, float alpha, int timestep) {
-  return computeStateCost(s) +
-          this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
-}
-
-__device__ float DoubleIntegratorCircleCost::computeRunningCost(float *s, float *u, float* noise, float* std_dev, float lambda, float alpha, int timestep) {
-  return computeStateCost(s) +
-         this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
-}
-
 float DoubleIntegratorCircleCost::terminalCost(const Eigen::Ref<const state_array> s) {
   return 0;
 }

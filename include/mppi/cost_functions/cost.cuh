@@ -27,7 +27,7 @@ template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 class Cost : public Managed
 {
 public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /**
      * typedefs for access to templated class from outside classes
@@ -128,7 +128,7 @@ public:
     }
     return 0.5 * lambda * (1 - alpha) * cost;
   }
-
+  // =================== METHODS THAT SHOULD HAVE NO DEFAULT ==========================
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
    */
@@ -137,11 +137,28 @@ public:
   }
 
   /**
+   *
+   * @param s current state as a float array
+   * @return state cost on GPU
+   */
+  __device__ float computeStateCost(float* s);
+
+
+  /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
    */
   float terminalCost(const Eigen::Ref<const state_array> s) {
     throw std::logic_error("SubClass did not implement terminalCost");
   }
+
+  /**
+   *
+   * @param s terminal state as float array
+   * @return terminal cost on GPU
+   */
+  __device__ float terminalCost(float* s);
+
+  // ================ END OF METHODS WITH NO DEFAULT =============
 
   /**
    * Computes the feedback control cost on GPU used in RMPPI. There is an
@@ -177,12 +194,23 @@ public:
     return 0.5 * lambda * (1 - alpha) * cost;
   }
 
-  __device__ float computeStateCost(float* s);
+  float computeRunningCost(const Eigen::Ref<const state_array> s,
+                           const Eigen::Ref<const control_array> u,
+                           const Eigen::Ref<const control_array> noise,
+                           const Eigen::Ref<const control_array> std_dev,
+                           float lambda, float alpha, int timestep) {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    return derived->computeStateCost(s) + derived->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
+  }
+
+  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda, float alpha, int timestep) {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    return derived->computeStateCost(s) + derived->computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
+  }
+
 
   inline __host__ __device__ PARAMS_T getParams() const {return params_;}
 
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda, float alpha, int timestep);
-  __device__ float terminalCost(float* s);
 
   CLASS_T* cost_d_ = nullptr;
 protected:

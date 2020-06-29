@@ -233,6 +233,8 @@ inline __host__ __device__ float ARStandardCost<CLASS_T, PARAMS_T>::terminalCost
   return 0.0;
 }
 
+
+ // DEPRECATED
 template <class CLASS_T, class PARAMS_T>
 inline __host__ __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getControlCost(float *u, float *du, float *vars) {
   float control_cost = 0.0;
@@ -312,6 +314,7 @@ inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getTrackCost(float *s
   return track_cost;
 }
 
+// DEPRECATED
 template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeCost(float *s, float *u, float *du, float *vars, int *crash, int timestep) {
   float control_cost = getControlCost(u, du, vars);
@@ -326,6 +329,7 @@ inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeCost(float *s,
   return cost;
 }
 
+// TODO add likelihoodcst to computeRunningCost!
 template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
         int timestep) {
