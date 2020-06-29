@@ -124,12 +124,12 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
   CartpoleDynamics model = CartpoleDynamics(1.0, 1.0, 1.0);
   CartpoleQuadraticCost cost;
 
-  cartpoleQuadraticCostParams new_params;
+  CartpoleQuadraticCostParams new_params;
   new_params.cart_position_coeff = 100;
   new_params.pole_angle_coeff = 200;
   new_params.cart_velocity_coeff = 10;
   new_params.pole_angular_velocity_coeff = 20;
-  new_params.control_force_coeff = 1;
+  new_params.control_cost_coeff[0] = 1;
   new_params.terminal_cost_coeff = 0;
   new_params.desired_terminal_state[0] = 0;
   new_params.desired_terminal_state[1] = 0;

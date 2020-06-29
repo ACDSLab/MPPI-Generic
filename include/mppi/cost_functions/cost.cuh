@@ -15,11 +15,12 @@ Header file for costs
 
 #include <stdexcept>
 
-/*
-typedef struct {
-  // fill in data here
-} CostParams;
- */
+
+template<int C_DIM>
+struct CostParams {
+  float control_cost_coeff[C_DIM] = {1};
+};
+
 
 // removing PARAMS_T is probably impossible
 // https://cboard.cprogramming.com/cplusplus-programming/122412-crtp-how-pass-type.html
@@ -158,8 +159,9 @@ public:
    */
   __device__ float terminalCost(float* s);
 
-  // ================ END OF METHODS WITH NO DEFAULT =============
+  // ================ END OF METHODS WITH NO DEFAULT ===========================
 
+  // =================== METHODS THAT SHOULD NOT BE OVERWRITTEN ================
   /**
    * Computes the feedback control cost on GPU used in RMPPI. There is an
    * assumption that we are provided std_dev and the covriance matrix is
@@ -193,7 +195,9 @@ public:
     }
     return 0.5 * lambda * (1 - alpha) * cost;
   }
+  // =================== END METHODS THAT SHOULD NOT BE OVERWRITTEN ============
 
+  // =================== METHODS THAT CAN BE OVERWRITTEN =======================
   float computeRunningCost(const Eigen::Ref<const state_array> s,
                            const Eigen::Ref<const control_array> u,
                            const Eigen::Ref<const control_array> noise,
@@ -207,6 +211,7 @@ public:
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     return derived->computeStateCost(s) + derived->computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
   }
+  // =================== END METHODS THAT CAN BE OVERWRITTEN ===================
 
 
   inline __host__ __device__ PARAMS_T getParams() const {return params_;}

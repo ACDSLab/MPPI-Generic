@@ -6,7 +6,7 @@
 
 #include <mppi/cost_functions/cost.cuh>
 #include <mppi/utils/math_utils.h>
-struct QuadrotorQuadraticCostParams {
+struct QuadrotorQuadraticCostParams : public CostParams<4> {
 /**
  * State for this class is defined as follows:
  *    x - position in 3D space (x, y, z) - meters
@@ -37,6 +37,13 @@ struct QuadrotorQuadraticCostParams {
 
   float w_coeff = 1.0;
   float terminal_cost_coeff = 0;
+
+  QuadrotorQuadraticCostParams() {
+    control_cost_coeff[0] = 2.0;
+    control_cost_coeff[1] = 2.0;
+    control_cost_coeff[2] = 2.0;
+    control_cost_coeff[3] = 2.0;
+  }
 
   Eigen::Matrix<float, 13, 1> getDesiredState() {
     Eigen::Matrix<float, 13, 1> s;

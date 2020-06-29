@@ -4,15 +4,21 @@
 
 #include <mppi/cost_functions/cost.cuh>
 
-typedef struct {
+
+struct DoubleIntegratorCircleCostParams : public CostParams<2> {
   float velocity_cost = 1;
   float crash_cost = 1000;
   float velocity_desired = 2;
   float inner_path_radius2 = 1.875*1.875;
   float outer_path_radius2 = 2.125*2.125;
   float angular_momentum_desired = 2*velocity_desired; // Enforces the system travels counter clockwise
-  float control_cost_coeff[2] = {1};
-} DoubleIntegratorCircleCostParams;
+
+  DoubleIntegratorCircleCostParams() {
+    control_cost_coeff[0] = 2.0;
+    control_cost_coeff[1] = 2.0;
+  }
+
+} ;
 
 class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost,
                                                DoubleIntegratorCircleCostParams, 4, 2> {

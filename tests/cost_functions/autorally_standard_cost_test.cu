@@ -34,8 +34,8 @@ TEST(ARStandardCost, SetGetParamsHost) {
   params.slip_penalty = 1000;
   params.track_slop = 0.2;
   params.crash_coeff = 10000;
-  params.steering_coeff = 20;
-  params.throttle_coeff = 10;
+  params.control_cost_coeff[0] = 20;
+  params.control_cost_coeff[1] = 10;
   params.boundary_threshold = 10;
   params.discount = 0.9;
   params.grid_res = 2;
@@ -61,8 +61,8 @@ TEST(ARStandardCost, SetGetParamsHost) {
   EXPECT_FLOAT_EQ(params.slip_penalty, result_params.slip_penalty);
   EXPECT_FLOAT_EQ(params.track_slop, result_params.track_slop);
   EXPECT_FLOAT_EQ(params.crash_coeff, result_params.crash_coeff);
-  EXPECT_FLOAT_EQ(params.steering_coeff, result_params.steering_coeff);
-  EXPECT_FLOAT_EQ(params.throttle_coeff, result_params.throttle_coeff);
+  EXPECT_FLOAT_EQ(params.control_cost_coeff[0], result_params.control_cost_coeff[0]);
+  EXPECT_FLOAT_EQ(params.control_cost_coeff[1], result_params.control_cost_coeff[1]);
   EXPECT_FLOAT_EQ(params.boundary_threshold, result_params.boundary_threshold);
   EXPECT_FLOAT_EQ(params.discount, result_params.discount);
   EXPECT_EQ(params.grid_res, result_params.grid_res);
@@ -89,8 +89,8 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   params.slip_penalty = 1000;
   params.track_slop = 0.2;
   params.crash_coeff = 10000;
-  params.steering_coeff = 20;
-  params.throttle_coeff = 10;
+  params.control_cost_coeff[0] = 20;
+  params.control_cost_coeff[1] = 10;
   params.boundary_threshold = 10;
   params.discount = 0.9;
   params.grid_res = 2;
@@ -126,8 +126,8 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_FLOAT_EQ(params.slip_penalty, result_params.slip_penalty);
   EXPECT_FLOAT_EQ(params.track_slop, result_params.track_slop);
   EXPECT_FLOAT_EQ(params.crash_coeff, result_params.crash_coeff);
-  EXPECT_FLOAT_EQ(params.steering_coeff, result_params.steering_coeff);
-  EXPECT_FLOAT_EQ(params.throttle_coeff, result_params.throttle_coeff);
+  EXPECT_FLOAT_EQ(params.control_cost_coeff[0], result_params.control_cost_coeff[0]);
+  EXPECT_FLOAT_EQ(params.control_cost_coeff[1], result_params.control_cost_coeff[1]);
   EXPECT_FLOAT_EQ(params.boundary_threshold, result_params.boundary_threshold);
   EXPECT_FLOAT_EQ(params.discount, result_params.discount);
   EXPECT_EQ(params.grid_res, result_params.grid_res);
@@ -159,8 +159,8 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_FLOAT_EQ(params.slip_penalty, result_params.slip_penalty);
   EXPECT_FLOAT_EQ(params.track_slop, result_params.track_slop);
   EXPECT_FLOAT_EQ(params.crash_coeff, result_params.crash_coeff);
-  EXPECT_FLOAT_EQ(params.steering_coeff, result_params.steering_coeff);
-  EXPECT_FLOAT_EQ(params.throttle_coeff, result_params.throttle_coeff);
+  EXPECT_FLOAT_EQ(params.control_cost_coeff[0], result_params.control_cost_coeff[0]);
+  EXPECT_FLOAT_EQ(params.control_cost_coeff[1], result_params.control_cost_coeff[1]);
   EXPECT_FLOAT_EQ(params.boundary_threshold, result_params.boundary_threshold);
   EXPECT_FLOAT_EQ(params.discount, result_params.discount);
   EXPECT_EQ(params.grid_res, result_params.grid_res);
@@ -688,25 +688,32 @@ TEST(ARStandardCost, TerminalCostTest) {
 
 TEST(ARStandardCost, controlCostTest) {
 
-  float u[2] = {0.5, 0.6};
-  float du[2] = {0.3, 0.4};
-  float nu[2] = {0.2, 0.8};
+  ARStandardCost<>::control_array u, du, nu;
+  u << 0.5, 0.6;
+  du << 0.3, 0.4;
+  nu << 0.2, 0.8;
+
   ARStandardCost<> cost;
   ARStandardCostParams params;
-  params.steering_coeff = 20;
-  params.throttle_coeff = 10;
+  params.control_cost_coeff[0] = 20;
+  params.control_cost_coeff[1] = 10;
   cost.setParams(params);
 
-  float result = cost.getControlCost(u, du, nu);
 
-  EXPECT_FLOAT_EQ(result, 1.5*20+.125*10);
 
-  params.throttle_coeff = 20;
-  params.steering_coeff = 10;
+  float result = cost.computeLikelihoodRatioCost(u, du, nu);
+
+  float known_result = (params.control_cost_coeff[0]*u(0)*(u(0) + 2*du(0)) / (nu(0)*nu(0)) +
+          params.control_cost_coeff[1]*u(1)*(u(1) + 2*du(1)) / (nu(1)*nu(1)))/2.0;
+
+  EXPECT_FLOAT_EQ(result, known_result);
+
+  params.control_cost_coeff[0] = 20;
+  params.control_cost_coeff[1] = 10;
   cost.setParams(params);
 
-  result = cost.getControlCost(u, du, nu);
-  EXPECT_FLOAT_EQ(result, 1.5*10+.125*20);
+  result = cost.computeLikelihoodRatioCost(u, du, nu);
+  EXPECT_FLOAT_EQ(result, known_result);
 }
 
 TEST(ARStandardCost, getSpeedCostTest) {
@@ -861,8 +868,8 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   params.speed_coeff = 0;
   params.crash_coeff = 0.0;
   params.slip_penalty = 0.0;
-  params.throttle_coeff = 0.0;
-  params.steering_coeff = 0.0;
+  params.control_cost_coeff[0] = 0.0;
+  params.control_cost_coeff[1] = 0.0;
   cost.setParams(params);
 
   cost.GPUSetup();
@@ -942,8 +949,8 @@ TEST(ARStandardCost, computeCostOverflowTest) {
   params.speed_coeff = 10;
   params.crash_coeff = 0.0;
   params.slip_penalty = 0.0;
-  params.throttle_coeff = 0.0;
-  params.steering_coeff = 0.0;
+  params.control_cost_coeff[0] = 0.0;
+  params.control_cost_coeff[1] = 0.0;
   params.desired_speed = ARStandardCost<>::MAX_COST_VALUE;
   cost.setParams(params);
 

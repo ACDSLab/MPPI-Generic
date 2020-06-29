@@ -37,8 +37,8 @@ void checkParameters(ARRobustCostParams& params, ARRobustCostParams& result) {
   EXPECT_FLOAT_EQ(params.speed_coeff, result.speed_coeff);
   EXPECT_FLOAT_EQ(params.track_coeff,result.track_coeff);
   EXPECT_FLOAT_EQ(params.heading_coeff, result.heading_coeff);
-  EXPECT_FLOAT_EQ(params.steering_coeff,result.steering_coeff);
-  EXPECT_FLOAT_EQ(params.throttle_coeff,result.throttle_coeff);
+  EXPECT_FLOAT_EQ(params.control_cost_coeff[0],result.control_cost_coeff[0]);
+  EXPECT_FLOAT_EQ(params.control_cost_coeff[1],result.control_cost_coeff[1]);
   EXPECT_FLOAT_EQ(params.slip_coeff,result.slip_coeff);
   EXPECT_FLOAT_EQ(params.crash_coeff,result.crash_coeff);
   EXPECT_FLOAT_EQ(params.boundary_threshold,result.boundary_threshold);
@@ -62,8 +62,8 @@ TEST(ARRobustCost, setParams) {
   params.speed_coeff = 1.0;
   params.track_coeff = 2.0;
   params.heading_coeff = 3.0;
-  params.steering_coeff = 4.0;
-  params.throttle_coeff = 5.0;
+  params.control_cost_coeff[0] = 4.0;
+  params.control_cost_coeff[1] = 5.0;
   params.slip_coeff = 6.0;
   params.crash_coeff = 7.0;
   params.boundary_threshold = 8.0;
