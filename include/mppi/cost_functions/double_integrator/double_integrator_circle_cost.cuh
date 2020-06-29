@@ -11,6 +11,7 @@ typedef struct {
   float inner_path_radius2 = 1.875*1.875;
   float outer_path_radius2 = 2.125*2.125;
   float angular_momentum_desired = 2*velocity_desired; // Enforces the system travels counter clockwise
+  float control_cost_coeff[2] = {1};
 } DoubleIntegratorCircleCostParams;
 
 class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost,

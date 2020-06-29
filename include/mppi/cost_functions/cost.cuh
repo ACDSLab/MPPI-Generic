@@ -42,9 +42,9 @@ public:
 
   Cost() {
     // Default set all controls to 1
-    for (int i = 0; i < CONTROL_DIM; i++) {
-      control_cost_coef[i] = 1.0;
-    }
+//    for (int i = 0; i < CONTROL_DIM; i++) {
+//      control_cost_coef[i] = 1.0;
+//    }
   };
   /**
    * Destructor must be virtual so that children are properly
@@ -106,7 +106,7 @@ public:
                             const float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += control_cost_coef[i] * fb_u(i) * fb_u(i) / powf(std_dev(i), 2);
+      cost += params_.control_cost_coeff[i] * fb_u(i) * fb_u(i) / powf(std_dev(i), 2);
     }
 
     return 0.5 * lambda * (1 - alpha) * cost;
@@ -123,7 +123,7 @@ public:
                                    const float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += control_cost_coef[i] * u(i) * (u(i) + 2 * noise(i)) /
+      cost += params_.control_cost_coeff[i] * u(i) * (u(i) + 2 * noise(i)) /
         (std_dev(i) * std_dev(i));
     }
     return 0.5 * lambda * (1 - alpha) * cost;
@@ -169,7 +169,7 @@ public:
                                        float lambda = 1.0, float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += control_cost_coef[i] * powf(fb_u[i] / std_dev[i], 2);
+      cost += params_.control_cost_coeff[i] * powf(fb_u[i] / std_dev[i], 2);
     }
     return 0.5 * lambda * (1 - alpha) * cost;
   }
@@ -188,7 +188,7 @@ public:
                                               float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += control_cost_coef[i] * (u[i] - noise[i]) * (u[i] + noise[i]) /
+      cost += params_.control_cost_coeff[i] * (u[i] - noise[i]) * (u[i] + noise[i]) /
         (std_dev[i] * std_dev[i]);
     }
     return 0.5 * lambda * (1 - alpha) * cost;
@@ -216,7 +216,7 @@ public:
 protected:
   PARAMS_T params_;
   // Not an Eigen control_array as it needs to exist on both CPU and GPU
-  float control_cost_coef[CONTROL_DIM] = {};
+  //float control_cost_coef[CONTROL_DIM] = {};
 };
 
 #if __CUDACC__

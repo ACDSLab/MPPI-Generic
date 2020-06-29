@@ -35,7 +35,7 @@ TEST(CartpoleQuadraticCost, SetParamsCPU) {
     new_params.pole_angle_coeff = 3;
     new_params.cart_velocity_coeff = 3;
     new_params.pole_angular_velocity_coeff = 3;
-    new_params.control_force_coeff = 5;
+    new_params.control_cost_coeff[0] = 5;
     new_params.terminal_cost_coeff = 20;
     new_params.desired_terminal_state[0] = 3;
     new_params.desired_terminal_state[1] = 2;
@@ -51,7 +51,7 @@ TEST(CartpoleQuadraticCost, SetParamsCPU) {
     EXPECT_FLOAT_EQ(new_params.pole_angle_coeff, current_params.pole_angle_coeff);
     EXPECT_FLOAT_EQ(new_params.cart_velocity_coeff, current_params.cart_velocity_coeff);
     EXPECT_FLOAT_EQ(new_params.pole_angular_velocity_coeff, current_params.pole_angular_velocity_coeff);
-    EXPECT_FLOAT_EQ(new_params.control_force_coeff, current_params.control_force_coeff);
+    EXPECT_FLOAT_EQ(new_params.control_cost_coeff[0], current_params.control_cost_coeff[0]);
     EXPECT_FLOAT_EQ(new_params.terminal_cost_coeff, current_params.terminal_cost_coeff);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[0], current_params.desired_terminal_state[0]);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[1], current_params.desired_terminal_state[1]);
@@ -70,7 +70,7 @@ TEST(CartpoleQuadraticCost, SetParamsGPU) {
     new_params.pole_angle_coeff = 6;
     new_params.cart_velocity_coeff = 7;
     new_params.pole_angular_velocity_coeff = 8;
-    new_params.control_force_coeff = 9;
+    new_params.control_cost_coeff[0] = 9;
     new_params.terminal_cost_coeff = 2000;
     new_params.desired_terminal_state[0] = 3;
     new_params.desired_terminal_state[1] = 2;
@@ -92,7 +92,7 @@ TEST(CartpoleQuadraticCost, SetParamsGPU) {
     EXPECT_FLOAT_EQ(new_params.pole_angle_coeff, gpu_params.pole_angle_coeff);
     EXPECT_FLOAT_EQ(new_params.cart_velocity_coeff, gpu_params.cart_velocity_coeff);
     EXPECT_FLOAT_EQ(new_params.pole_angular_velocity_coeff, gpu_params.pole_angular_velocity_coeff);
-    EXPECT_FLOAT_EQ(new_params.control_force_coeff, gpu_params.control_force_coeff);
+    EXPECT_FLOAT_EQ(new_params.control_cost_coeff[0], gpu_params.control_cost_coeff[0]);
     EXPECT_FLOAT_EQ(new_params.terminal_cost_coeff, gpu_params.terminal_cost_coeff);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[0], gpu_params.desired_terminal_state[0]);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[1], gpu_params.desired_terminal_state[1]);
@@ -125,7 +125,7 @@ TEST(CartpoleQuadraticCost, ComputeControlCost) {
 
 
   float cost_compute = cost.computeLikelihoodRatioCost(control, noise, std_dev, lambda, alpha);
-  float cost_known = 0.5f * lambda * (1 - alpha) * cost.getParams().control_force_coeff*control(0)*(control(0) + 2 * noise(0)) / (std_dev(0)*std_dev(0));
+  float cost_known = 0.5f * lambda * (1 - alpha) * cost.getParams().control_cost_coeff[0]*control(0)*(control(0) + 2 * noise(0)) / (std_dev(0)*std_dev(0));
   ASSERT_FLOAT_EQ(cost_known, cost_compute);
 }
 
@@ -148,7 +148,7 @@ TEST(CartpoleQuadraticCost, ComputeRunningCost) {
                        (state[1]-cost.getParams().desired_terminal_state[1])*(state(1)-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
                        (state[2]-cost.getParams().desired_terminal_state[2])*(state(2)-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
                        (state[3]-cost.getParams().desired_terminal_state[3])*(state(3)-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff+
-                       cost.getParams().control_force_coeff*control(0)*(control(0) + 2* noise(0)) / (std_dev(0)*std_dev(0)) * 0.5f * lambda * (1 - alpha);
+                       cost.getParams().control_cost_coeff[0]*control(0)*(control(0) + 2* noise(0)) / (std_dev(0)*std_dev(0)) * 0.5f * lambda * (1 - alpha);
 
     cost_known = cost_known ;
     ASSERT_EQ(cost_known, cost_compute);
