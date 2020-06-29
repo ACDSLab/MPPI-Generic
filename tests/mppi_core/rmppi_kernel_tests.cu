@@ -27,6 +27,7 @@ public:
   cost_function* cost;
 };
 
+// TODO figure out whether or not test failure is computation issue or GPU/CPU precision issue
 TEST_F(RMPPIKernels, InitEvalRollout) {
   // Given the initial states, we need to roll out the number of samples.
   // 1.)  Generate the noise used to evaluate each sample.
@@ -35,8 +36,8 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   const int num_candidates = 9;
 
   float dt = 0.01;
-  float lambda = 0.25;
-  float alpha = 0.01;
+  float lambda = 0.75;
+  float alpha = 0.5;
 
   Eigen::Matrix<float, 4, num_candidates> x0_candidates;
   x0_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4,
@@ -106,6 +107,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // Let us make temporary variables to hold the states and state derivatives and controls
   dynamics::state_array x_current, x_dot_current;
   dynamics::control_array u_current;
+  dynamics::control_array noise_current;
 
   Eigen::Matrix<float, 1, num_samples*9> cost_vector;
 
@@ -129,16 +131,19 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
       for (int k = 0; k < num_timesteps; ++k) {
         // compute the cost
         if (k > 0) {
-          cost_current += (cost->computeStateCost(x_current) * dt - cost_current) / (1.0*k);
+          cost_current += (cost->computeRunningCost(x_current, u_current, noise_current, exploration_var, lambda, alpha, k) * dt - cost_current) / (1.0f*k);
         }
         // get the control plus a disturbance
         if (j == 0 || k < ctrl_stride) { // First sample should always be noise free as should any timesteps that are below the control stride
-          u_current = candidate_nominal_control.col(k);
+          noise_current = dynamics::control_array::Zero();
         } else {
-          u_current = candidate_nominal_control.col(k) +
-                      control_noise.col(i * num_samples * num_timesteps + j * num_timesteps + k).cwiseProduct(
-                              exploration_var);
+          noise_current = control_noise.col(i * num_samples * num_timesteps + j * num_timesteps + k).cwiseProduct(
+                  exploration_var);
         }
+        u_current = candidate_nominal_control.col(k) + noise_current;
+
+        // enforce constraints
+        model->enforceConstraints(x_current, u_current);
 
         // compute the next state_dot
         model->computeDynamics(x_current, u_current, x_dot_current);
@@ -197,7 +202,7 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
 
   float dt = 0.01;
   // int max_iter = 10;
-  float lambda = 0.1;
+  float lambda = 1.0;
   float alpha = 0.0001;
   const int num_timesteps = 50;
   const int num_rollouts = 64;

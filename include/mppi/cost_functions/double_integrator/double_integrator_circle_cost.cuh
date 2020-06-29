@@ -22,13 +22,17 @@ public:
   float computeStateCost(const Eigen::Ref<const state_array> s);
   float terminalCost(const Eigen::Ref<const state_array> s);
 
-  __device__ float getControlCost(float* u, float* du, float* variance);
+  float computeRunningCost(const Eigen::Ref<const state_array> s,
+                           const Eigen::Ref<const control_array> u,
+                           const Eigen::Ref<const control_array> noise,
+                           const Eigen::Ref<const control_array> std_dev,
+                           float lambda, float alpha, int timestep);
+
 
   __device__ float computeStateCost(float* s);
-
-  __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha, int timestep);
-
   __device__ float terminalCost(float* s);
+  __device__ float computeRunningCost(float* s, float* u, float* noise,
+                                      float* std_dev, float lambda, float alpha, int timestep);
 
 
 };
