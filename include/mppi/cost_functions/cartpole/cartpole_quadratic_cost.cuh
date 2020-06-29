@@ -42,6 +42,15 @@ public:
   float computeStateCost(const Eigen::Ref<const state_array> s);
 
   /**
+   * @brief Compute the running cost on the CPU
+   */
+   float computeRunningCost(const Eigen::Ref<const state_array> s,
+                            const Eigen::Ref<const control_array> u,
+                            const Eigen::Ref<const control_array> noise,
+                            const Eigen::Ref<const control_array> std_dev,
+                            float lambda, float alpha, int timestep);
+
+  /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
   __device__ float computeRunningCost(float* s, float* u, float* noise,

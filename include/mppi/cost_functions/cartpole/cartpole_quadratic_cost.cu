@@ -18,6 +18,14 @@ __device__ float CartpoleQuadraticCost::computeStateCost(float *state) {
          (state[3]-params_.desired_terminal_state[3])*(state[3]-params_.desired_terminal_state[3])*params_.pole_angular_velocity_coeff;
 }
 
+float CartpoleQuadraticCost::computeRunningCost(const Eigen::Ref<const state_array> s,
+        const Eigen::Ref<const control_array> u,
+        const Eigen::Ref<const control_array> noise,
+        const Eigen::Ref<const control_array> std_dev,
+        float lambda, float alpha, int timestep) {
+  return computeStateCost(s) + this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
+}
+
 __device__ float CartpoleQuadraticCost::computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha, int timestep) {
   return computeStateCost(s) + this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
 }
