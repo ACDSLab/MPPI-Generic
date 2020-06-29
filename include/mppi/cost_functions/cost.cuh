@@ -97,13 +97,14 @@ public:
    */
   float computeFeedbackCost(const Eigen::Ref<const control_array> fb_u,
                             const Eigen::Ref<const control_array> std_dev,
-                            const float lambda = 1.0) {
+                            const float lambda = 1.0,
+                            const float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
       cost += control_cost_coef[i] * fb_u(i) * fb_u(i) / powf(std_dev(i), 2);
     }
 
-    return 0.5 * lambda * cost;
+    return 0.5 * lambda * (1 - alpha) * cost;
   }
 
   /**
