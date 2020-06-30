@@ -350,6 +350,10 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   Eigen::MatrixXf Qf;
   Eigen::MatrixXf R;
 
+  typedef TubeMPPIController<DoubleIntegratorDynamics,
+                             DoubleIntegratorCircleCost, num_timesteps,
+                             1024, 64, 1> CONTROLLER_T;
+
   /**
    * Q =
    * [500, 0, 0, 0
@@ -357,22 +361,21 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
    *  0, 0, 100, 0
    *  0, 0, 0, 100]
    */
-  Q = 500*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
-  Q(2,2) = 100;
-  Q(3,3) = 100;
+  Q = CONTROLLER_T::StateCostWeight::Identity();
+  Q.diagonal() << 500, 500, 100, 100;
   /**
    * R = I
    */
-  R = 1*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
+  R = CONTROLLER_T::ControlCostWeight::Identity();
 
   /**
    * Qf = I
    */
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
+  Qf = CONTROLLER_T::Hessian::Identity();
 
   // Initialize the tube MPPI controller
-  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, Q, Qf, R, control_var);
+  auto controller = CONTROLLER_T(&model, &cost, dt, max_iter, lambda, alpha, Q, Qf, R,
+                                 control_var);
 
   int fail_count = 0;
 
@@ -416,12 +419,12 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
     for (int i = 0; i < num_timesteps; i++) {
       for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
-        actual_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
-                                i*DoubleIntegratorDynamics::STATE_DIM + j] = actual_trajectory(j, i);
-        ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
-                                i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
-        nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
-                               i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
+        actual_trajectory_save[(t * num_timesteps + i) *
+                               DoubleIntegratorDynamics::STATE_DIM + j] = actual_trajectory(j, i);
+        ancillary_trajectory_save[(t * num_timesteps + i) *
+                                  DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
+        nominal_trajectory_save[(t * num_timesteps + i) *
+                                DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
       }
     }
 
