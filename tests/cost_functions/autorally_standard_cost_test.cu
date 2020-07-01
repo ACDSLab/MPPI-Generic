@@ -31,7 +31,7 @@ TEST(ARStandardCost, SetGetParamsHost) {
   params.speed_coeff = 2;
   params.track_coeff = 100;
   params.max_slip_ang = 1.5;
-  params.slip_penalty = 1000;
+  params.slip_coeff = 1000;
   params.track_slop = 0.2;
   params.crash_coeff = 10000;
   params.control_cost_coeff[0] = 20;
@@ -58,7 +58,7 @@ TEST(ARStandardCost, SetGetParamsHost) {
   EXPECT_FLOAT_EQ(params.speed_coeff, result_params.speed_coeff);
   EXPECT_FLOAT_EQ(params.track_coeff, result_params.track_coeff);
   EXPECT_FLOAT_EQ(params.max_slip_ang, result_params.max_slip_ang);
-  EXPECT_FLOAT_EQ(params.slip_penalty, result_params.slip_penalty);
+  EXPECT_FLOAT_EQ(params.slip_coeff, result_params.slip_coeff);
   EXPECT_FLOAT_EQ(params.track_slop, result_params.track_slop);
   EXPECT_FLOAT_EQ(params.crash_coeff, result_params.crash_coeff);
   EXPECT_FLOAT_EQ(params.control_cost_coeff[0], result_params.control_cost_coeff[0]);
@@ -86,7 +86,7 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   params.speed_coeff = 2;
   params.track_coeff = 100;
   params.max_slip_ang = 1.5;
-  params.slip_penalty = 1000;
+  params.slip_coeff = 1000;
   params.track_slop = 0.2;
   params.crash_coeff = 10000;
   params.control_cost_coeff[0] = 20;
@@ -123,7 +123,7 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_FLOAT_EQ(params.speed_coeff, result_params.speed_coeff);
   EXPECT_FLOAT_EQ(params.track_coeff, result_params.track_coeff);
   EXPECT_FLOAT_EQ(params.max_slip_ang, result_params.max_slip_ang);
-  EXPECT_FLOAT_EQ(params.slip_penalty, result_params.slip_penalty);
+  EXPECT_FLOAT_EQ(params.slip_coeff, result_params.slip_coeff);
   EXPECT_FLOAT_EQ(params.track_slop, result_params.track_slop);
   EXPECT_FLOAT_EQ(params.crash_coeff, result_params.crash_coeff);
   EXPECT_FLOAT_EQ(params.control_cost_coeff[0], result_params.control_cost_coeff[0]);
@@ -156,7 +156,7 @@ TEST(ARStandardCost, GPUSetupAndParamsToDeviceTest) {
   EXPECT_FLOAT_EQ(params.speed_coeff, result_params.speed_coeff);
   EXPECT_FLOAT_EQ(params.track_coeff, result_params.track_coeff);
   EXPECT_FLOAT_EQ(params.max_slip_ang, result_params.max_slip_ang);
-  EXPECT_FLOAT_EQ(params.slip_penalty, result_params.slip_penalty);
+  EXPECT_FLOAT_EQ(params.slip_coeff, result_params.slip_coeff);
   EXPECT_FLOAT_EQ(params.track_slop, result_params.track_slop);
   EXPECT_FLOAT_EQ(params.crash_coeff, result_params.crash_coeff);
   EXPECT_FLOAT_EQ(params.control_cost_coeff[0], result_params.control_cost_coeff[0]);
@@ -746,7 +746,7 @@ TEST(ARStandardCost, getSpeedCostTest) {
 TEST(ARStandardCost, getStablizingCostTest) {
   ARStandardCost<> cost;
   ARStandardCostParams params;
-  params.slip_penalty = 25;
+  params.slip_coeff = 25;
   params.crash_coeff = 1000;
   params.max_slip_ang = 0.5;
   cost.setParams(params);
@@ -867,7 +867,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   params.track_coeff = 0;
   params.speed_coeff = 0;
   params.crash_coeff = 0.0;
-  params.slip_penalty = 0.0;
+  params.slip_coeff = 0.0;
   params.control_cost_coeff[0] = 0.0;
   params.control_cost_coeff[1] = 0.0;
   cost.setParams(params);
@@ -905,7 +905,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
 
 
   params.speed_coeff = 0.0;
-  params.slip_penalty = 10;
+  params.slip_coeff = 10;
   cost.setParams(params);
 
   float slip_cost = powf(-atanf(1.0/2.0), 2) * 10;
@@ -913,7 +913,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   EXPECT_FLOAT_EQ(cost_results[0], slip_cost);
 
 
-  params.slip_penalty = 0.0;
+  params.slip_coeff = 0.0;
   params.track_coeff = 200.0;
   cost.setParams(params);
 
@@ -933,7 +933,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
 
   params.speed_coeff = 4.25;
   params.track_coeff = 200;
-  params.slip_penalty = 10;
+  params.slip_coeff = 10;
   params.crash_coeff = 10000;
   cost.setParams(params);
 
@@ -948,7 +948,7 @@ TEST(ARStandardCost, computeCostOverflowTest) {
   params.track_coeff = 0;
   params.speed_coeff = 10;
   params.crash_coeff = 0.0;
-  params.slip_penalty = 0.0;
+  params.slip_coeff = 0.0;
   params.control_cost_coeff[0] = 0.0;
   params.control_cost_coeff[1] = 0.0;
   params.desired_speed = ARStandardCost<>::MAX_COST_VALUE;
