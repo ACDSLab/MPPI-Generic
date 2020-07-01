@@ -18,7 +18,10 @@ Header file for costs
 
 template<int C_DIM>
 struct CostParams {
-  float control_cost_coeff[C_DIM] = {1};
+  //Default set all controls to 1
+  for (int i = 0; i < CONTROL_DIM; i++) {
+    control_cost_coef[i] = 1.0;
+  }
 };
 
 
