@@ -27,12 +27,9 @@ public:
   cost_function* cost;
 };
 
-// TODO figure out whether or not test failure is computation issue or GPU/CPU precision issue
 TEST_F(RMPPIKernels, InitEvalRollout) {
   // Given the initial states, we need to roll out the number of samples.
   // 1.)  Generate the noise used to evaluate each sample.
-  //
-
   const int num_candidates = 9;
 
   float dt = 0.01;
@@ -97,12 +94,10 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
 
   control_noise =  Eigen::Map<Eigen::Matrix<float,dynamics::CONTROL_DIM, num_candidates*num_samples*num_timesteps>>(control_noise_data.data());
 
-//   std::cout << "Control Noise\n" << control_noise.col(num_samples*num_timesteps).cwiseProduct(exploration_var).transpose() << std::endl;
   int ctrl_stride = 2;
 
   Eigen::Matrix<int, 1, 9> strides;
   strides << 1, 2, 3, 4, 4, 4, 4, 4, 4;
-
 
   // Let us make temporary variables to hold the states and state derivatives and controls
   dynamics::state_array x_current, x_dot_current;
@@ -122,10 +117,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
         candidate_nominal_control.col(k) = nominal_control.col(k+strides(i));
       }
     }
-//    if (i == 0) {
-//      std::cout << "Nominal_control:\n" << nominal_control << std::endl;
-//      std::cout << "Candidate_control:\n" << candidate_nominal_control << std::endl;
-//    }
+
     for (int j = 0; j < num_samples; ++j) {
       x_current = x0_candidates.col(i);  // The initial state of the rollout
       for (int k = 0; k < num_timesteps; ++k) {
@@ -157,10 +149,6 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
     }
   }
 
-
-//  std::cout << "Eigen strides: " << strides << std::endl;
-
-
   // Copy the state candidates to GPU
   HANDLE_ERROR(cudaMemcpy(states_d, x0_candidates.data(), sizeof(float)*dynamics::STATE_DIM*num_candidates, cudaMemcpyHostToDevice));
 
@@ -184,11 +172,6 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // Compare with the CPU version
   HANDLE_ERROR(cudaMemcpy(cost_vector_GPU.data(), costs_d, sizeof(float)*num_samples*num_candidates, cudaMemcpyDeviceToHost));
 
-//  std::cout <<  "Cost Vector CPU\n" << cost_vector.col(65) << std::endl;
-//  std::cout << "Cost Vector GPU\n" << cost_vector_GPU.col(65) << std::endl;
-
-//  std::cout << (cost_vector - cost_vector_GPU).transpose() << std::endl;
-
   EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 1e-4);
 }
 
@@ -208,10 +191,6 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   const int num_timesteps = 50;
   const int num_rollouts = 64;
 
-  // float x[num_rollouts * state_dim * 2];
-  // float x_dot[num_rollouts * state_dim * 2];
-  // float u[num_rollouts * control_dim * 2];
-  // float du[num_rollouts * control_dim * 2];
   float sigma_u[control_dim] = {0.5, 0.05}; // variance to sample noise from
   COST::control_matrix cost_variance = COST::control_matrix::Identity();
   for(int i = 0; i < control_dim; i++) {
