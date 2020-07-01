@@ -285,7 +285,7 @@ void RobustMPPI::computeNominalFeedbackGains(const Eigen::Ref<const state_array>
                         this->num_timesteps_);
 
   this->terminal_cost_->xf = this->run_cost_->traj_target_x_.col(this->num_timesteps_ - 1);
-  this->result_ = this->ddp_solver_->run(nominal_state_trajectory_.col(0), nominal_control_trajectory_,
+  this->result_ = this->ddp_solver_->run(state, nominal_control_trajectory_,
                              *this->ddp_model_, *this->run_cost_, *this->terminal_cost_,
                              this->control_min_, this->control_max_);
 
