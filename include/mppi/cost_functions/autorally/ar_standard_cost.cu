@@ -251,7 +251,7 @@ inline __host__ __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getStabilizi
   float stabilizing_cost = 0;
   if (fabs(s[4]) > 0.001) {
     float slip = -atan(s[5]/fabs(s[4]));
-    stabilizing_cost = this->params_.slip_penalty*powf(slip,2);
+    stabilizing_cost = this->params_.slip_coeff*powf(slip,2);
     if (fabs(-atan(s[5]/fabs(s[4]))) > this->params_.max_slip_ang) {
       //If the slip angle is above the max slip angle kill the trajectory.
       stabilizing_cost += this->params_.crash_coeff;

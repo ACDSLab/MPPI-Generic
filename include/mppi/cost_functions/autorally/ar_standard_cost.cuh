@@ -16,7 +16,7 @@ struct ARStandardCostParams : public CostParams<2> {
   float speed_coeff = 4.25;
   float track_coeff = 200.0;
   float max_slip_ang = 1.25;
-  float slip_penalty = 10.0;
+  float slip_coeff = 10.0;
   float track_slop = 0;
   float crash_coeff = 10000;
   float boundary_threshold = 0.65;

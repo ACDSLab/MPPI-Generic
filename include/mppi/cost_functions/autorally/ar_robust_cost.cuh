@@ -3,30 +3,29 @@
 
 #include <mppi/cost_functions/autorally/ar_standard_cost.cuh>
 
-struct ARRobustCostParams : public CostParams<2>  {
-  //values, if negative ignored
-  float desired_speed = -1;
-  //Cost term coefficients
-  float speed_coeff = 20.0;
-  float track_coeff = 33.0;
-  float heading_coeff = 0.0;
-  float slip_coeff = 0.0;
-  //Constraint penalty thresholds
-  float crash_coeff = 125000;
-  float boundary_threshold = 0.75;
-  float max_slip_ang = 1.5;
+struct ARRobustCostParams : public ARStandardCostParams {
   //Miscellaneous
-  float track_slop = 0.0;
   int num_timesteps = 100;
-  float3 r_c1;
-  float3 r_c2;
-  float3 trs;
+  float heading_coeff = 0.0;
 
   ARRobustCostParams() {
     control_cost_coeff[0] = 0.0; // steering_coeff
     control_cost_coeff[1] = 0.0; // throttle_coeff
+    //values, if negative ignored
+    desired_speed = -1;
+    max_slip_ang = 1.5;
+
+    //Cost term coefficients
+    track_coeff = 33.0;
+    slip_coeff = 0.0;
+    speed_coeff = 20.0;
+    //Constraint penalty thresholds
+    crash_coeff = 125000;
+    boundary_threshold = 0.75;
+    //Miscellaneous
+    track_slop = 0;
   }
-} ;
+};
 
 template<class CLASS_T = void, class PARAMS_T = ARRobustCostParams>
 class ARRobustCost : public ARStandardCost< ARRobustCost<CLASS_T, PARAMS_T>, PARAMS_T> {
