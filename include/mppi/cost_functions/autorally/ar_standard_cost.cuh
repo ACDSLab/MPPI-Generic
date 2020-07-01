@@ -11,7 +11,7 @@
 #include <cuda_runtime.h>
 #include <cnpy.h>
 
-typedef struct {
+struct ARStandardCostParams : public CostParams<2> {
   float desired_speed = 6.0;
   float speed_coeff = 4.25;
   float track_coeff = 200.0;
@@ -19,8 +19,6 @@ typedef struct {
   float slip_penalty = 10.0;
   float track_slop = 0;
   float crash_coeff = 10000;
-  float steering_coeff = 0;
-  float throttle_coeff = 0;
   float boundary_threshold = 0.65;
   float discount = 0.1;
   // TODO remove from struct
@@ -34,7 +32,12 @@ typedef struct {
   float3 r_c1; // R matrix col 1
   float3 r_c2; // R matrix col 2
   float3 trs; // translation vector
-} ARStandardCostParams;
+
+  ARStandardCostParams() {
+    control_cost_coeff[0] = 0.0; // steering_coeff
+    control_cost_coeff[1] = 0.0; // throttle_coeff
+  }
+};
 
 template <class CLASS_T = void, class PARAMS_T = ARStandardCostParams>
 class ARStandardCost : public Cost< ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T, 7, 2> {
@@ -158,11 +161,6 @@ public:
   //__host__ __device__ void getCrash(float* state, int* crash);
 
   /**
-   * @brief Compute the control cost
-   */
-  __host__ __device__ float getControlCost(float* u, float* du, float* vars);
-
-  /**
    * @brief Compute the cost for achieving a desired speed
    */
   __host__ __device__ float getSpeedCost(float* s, int* crash);
@@ -186,8 +184,9 @@ public:
   /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
-  __device__ float computeCost(float* s, float* u, float* du, float* vars, int* crash, int timestep);
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
+  inline __device__ float computeStateCost(float *s, int timestep);
+  inline __device__ float computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
+                                      int timestep);
 
   /**
    * @brief Computes the terminal cost from a state

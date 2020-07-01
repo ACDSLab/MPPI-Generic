@@ -75,17 +75,20 @@ __device__ float ARRobustCost<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
   return cost;
 }
 
-//Compute the immediate running cost.
-template<class CLASS_T, class PARAMS_T>
-__device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeCost(float* s, float* u, float* du,
-                                           float* vars, int* crash, int timestep)
-{
-  float control_cost = this->getControlCost(u, du, vars);
+template <class CLASS_T, class PARAMS_T>
+inline __device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeStateCost(float *s) {
+
   float stabilizing_cost = getStabilizingCost(s);
   float costmap_cost = getCostmapCost(s);
-  float cost = stabilizing_cost + control_cost + costmap_cost;
-  if (cost > this->MAX_COST_VALUE || isnan(cost)) {
+  float cost = stabilizing_cost + costmap_cost;
+  if (cost > this->MAX_COST_VALUE || isnan(cost)) {  // TODO Handle max cost value in a generic way
     cost = this->MAX_COST_VALUE;
   }
   return cost;
+}
+
+template <class CLASS_T, class PARAMS_T>
+inline __device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
+                                                                              int timestep) {
+  return computeStateCost(s) + this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
 }

@@ -26,7 +26,8 @@ TEST(TubeMPPITest, Construction) {
   DoubleIntegratorCircleCost cost;
   float dt = 0.01;
   int max_iter = 10;
-  float gamma = 0.5;
+  float lambda = 0.5;
+  float alpha = 0.0;
   const int num_timesteps = 100;
 
   // control variance
@@ -41,10 +42,10 @@ TEST(TubeMPPITest, Construction) {
   R = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
 
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-                                      512, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
+                                      512, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
 
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-                                        512, 64, 8>(&model, &cost, dt, max_iter, gamma, Q, Q, R, control_var);
+                                        512, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, Q, Q, R, control_var);
 
 //  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
 //                                      512, 64, 8>(&model, &cost, dt, max_iter,
@@ -64,7 +65,8 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   DoubleIntegratorCircleCost cost;
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float gamma = 0.25; // Learning rate parameter
+  float lambda = 0.25; // Learning rate parameter
+  float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
 
@@ -82,7 +84,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
 
   int fail_count = 0;
   // Start the while loop
@@ -140,7 +142,8 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   DoubleIntegratorCircleCost cost;
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float gamma = 0.25; // Learning rate parameter
+  float lambda = 0.25; // Learning rate parameter
+  float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
@@ -158,7 +161,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
 
   //bool success = false;
   int fail_count = 0;
@@ -221,7 +224,8 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
   DoubleIntegratorCircleCost cost;
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float gamma = 0.25; // Learning rate parameter
+  float lambda = 0.25; // Learning rate parameter
+  float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
@@ -239,7 +243,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
 
   // Initialize the vanilla MPPI controller
   auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, gamma, control_var);
+          1024, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
 
   // DDP cost parameters
   Eigen::MatrixXf Q;
@@ -322,7 +326,8 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   DoubleIntegratorCircleCost cost;  // Initialize the cost function
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float gamma = 0.25; // Learning rate parameter
+  float lambda = 0.25; // Learning rate parameter
+  float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
   std::vector<float> actual_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
@@ -367,7 +372,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   // Initialize the tube MPPI controller
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, gamma, Q, Qf, R, control_var);
+          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, Q, Qf, R, control_var);
 
   int fail_count = 0;
 

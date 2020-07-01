@@ -30,12 +30,12 @@ TEST(CartpoleQuadraticCost, GPUSetup) {
 }
 
 TEST(CartpoleQuadraticCost, SetParamsCPU) {
-    cartpoleQuadraticCostParams new_params;
+    CartpoleQuadraticCostParams new_params;
     new_params.cart_position_coeff = 3;
     new_params.pole_angle_coeff = 3;
     new_params.cart_velocity_coeff = 3;
     new_params.pole_angular_velocity_coeff = 3;
-    new_params.control_force_coeff = 5;
+    new_params.control_cost_coeff[0] = 5;
     new_params.terminal_cost_coeff = 20;
     new_params.desired_terminal_state[0] = 3;
     new_params.desired_terminal_state[1] = 2;
@@ -51,7 +51,7 @@ TEST(CartpoleQuadraticCost, SetParamsCPU) {
     EXPECT_FLOAT_EQ(new_params.pole_angle_coeff, current_params.pole_angle_coeff);
     EXPECT_FLOAT_EQ(new_params.cart_velocity_coeff, current_params.cart_velocity_coeff);
     EXPECT_FLOAT_EQ(new_params.pole_angular_velocity_coeff, current_params.pole_angular_velocity_coeff);
-    EXPECT_FLOAT_EQ(new_params.control_force_coeff, current_params.control_force_coeff);
+    EXPECT_FLOAT_EQ(new_params.control_cost_coeff[0], current_params.control_cost_coeff[0]);
     EXPECT_FLOAT_EQ(new_params.terminal_cost_coeff, current_params.terminal_cost_coeff);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[0], current_params.desired_terminal_state[0]);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[1], current_params.desired_terminal_state[1]);
@@ -65,19 +65,19 @@ TEST(CartpoleQuadraticCost, SetParamsGPU) {
     CartpoleQuadraticCost cost;
     cost.GPUSetup();
 
-    cartpoleQuadraticCostParams new_params;
+    CartpoleQuadraticCostParams new_params;
     new_params.cart_position_coeff = 5;
     new_params.pole_angle_coeff = 6;
     new_params.cart_velocity_coeff = 7;
     new_params.pole_angular_velocity_coeff = 8;
-    new_params.control_force_coeff = 9;
+    new_params.control_cost_coeff[0] = 9;
     new_params.terminal_cost_coeff = 2000;
     new_params.desired_terminal_state[0] = 3;
     new_params.desired_terminal_state[1] = 2;
     new_params.desired_terminal_state[2] = 3.14;
     new_params.desired_terminal_state[3] = 1;
 
-    cartpoleQuadraticCostParams gpu_params;
+    CartpoleQuadraticCostParams gpu_params;
 
     cost.setParams(new_params);
 
@@ -92,69 +92,81 @@ TEST(CartpoleQuadraticCost, SetParamsGPU) {
     EXPECT_FLOAT_EQ(new_params.pole_angle_coeff, gpu_params.pole_angle_coeff);
     EXPECT_FLOAT_EQ(new_params.cart_velocity_coeff, gpu_params.cart_velocity_coeff);
     EXPECT_FLOAT_EQ(new_params.pole_angular_velocity_coeff, gpu_params.pole_angular_velocity_coeff);
-    EXPECT_FLOAT_EQ(new_params.control_force_coeff, gpu_params.control_force_coeff);
+    EXPECT_FLOAT_EQ(new_params.control_cost_coeff[0], gpu_params.control_cost_coeff[0]);
     EXPECT_FLOAT_EQ(new_params.terminal_cost_coeff, gpu_params.terminal_cost_coeff);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[0], gpu_params.desired_terminal_state[0]);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[1], gpu_params.desired_terminal_state[1]);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[2], gpu_params.desired_terminal_state[2]);
     EXPECT_FLOAT_EQ(new_params.desired_terminal_state[3], gpu_params.desired_terminal_state[3]);
 }
-
 TEST(CartpoleQuadraticCost, ComputeStateCost) {
-    CartpoleQuadraticCost cost;
+  CartpoleQuadraticCost cost;
 
-    std::array<float, 4> state = {1.f, 2.f, 3.f, 4.f};
+  CartpoleQuadraticCost::state_array state;
+  state << 1, 2, 3, 4;
 
-    float cost_compute = cost.getStateCost(state.data());
-    float cost_known = (state[0]-cost.getParams().desired_terminal_state[0])*(state[0]-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
-                       (state[1]-cost.getParams().desired_terminal_state[1])*(state[1]-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
-                       (state[2]-cost.getParams().desired_terminal_state[2])*(state[2]-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
-                       (state[3]-cost.getParams().desired_terminal_state[3])*(state[3]-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff;
+  float cost_compute = cost.computeStateCost(state);
+  float cost_known = (state[0]-cost.getParams().desired_terminal_state[0])*(state(0)-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
+                     (state[1]-cost.getParams().desired_terminal_state[1])*(state(1)-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
+                     (state[2]-cost.getParams().desired_terminal_state[2])*(state(2)-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
+                     (state[3]-cost.getParams().desired_terminal_state[3])*(state(3)-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff;
 
-    ASSERT_EQ(cost_known, cost_compute);
+  ASSERT_EQ(cost_known, cost_compute);
 }
 
 TEST(CartpoleQuadraticCost, ComputeControlCost) {
-    CartpoleQuadraticCost cost;
+  CartpoleQuadraticCost cost;
+  CartpoleQuadraticCost::control_array control, noise, std_dev;
+  control << 10;
+  noise << 0.4;
+  std_dev << 1;
+  float lambda = 0.7;
+  float alpha = 0.1;
 
-    float u = 10;
-    float du = 0.4;
-    float var = 1;
 
-    float cost_compute = cost.getControlCost(&u, &du, &var);
-    float cost_known = cost.getParams().control_force_coeff*du*(u - du) / (var*var);
-    ASSERT_EQ(cost_known, cost_compute);
+  float cost_compute = cost.computeLikelihoodRatioCost(control, noise, std_dev, lambda, alpha);
+  float cost_known = 0.5f * lambda * (1 - alpha) * cost.getParams().control_cost_coeff[0]*control(0)*(control(0) + 2 * noise(0)) / (std_dev(0)*std_dev(0));
+  ASSERT_FLOAT_EQ(cost_known, cost_compute);
 }
 
 TEST(CartpoleQuadraticCost, ComputeRunningCost) {
     CartpoleQuadraticCost cost;
 
-    std::array<float, 4> state = {5.f, 3.f, 2.f, 4.f};
-    float u = 6;
-    float du = 0.3;
-    float var = 2;
-    int timestep = 0;
 
-    float cost_compute = cost.computeRunningCost(state.data(), &u, &du, &var, timestep);
-    float cost_known = (state[0]-cost.getParams().desired_terminal_state[0])*(state[0]-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
-                       (state[1]-cost.getParams().desired_terminal_state[1])*(state[1]-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
-                       (state[2]-cost.getParams().desired_terminal_state[2])*(state[2]-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
-                       (state[3]-cost.getParams().desired_terminal_state[3])*(state[3]-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff+
-                       cost.getParams().control_force_coeff*du*(u - du) / (var*var);
+    CartpoleQuadraticCost::state_array state;
+    CartpoleQuadraticCost::control_array control, noise, std_dev;
+    state << 5, 3, 2, 4;
+    control << 6;
+    noise << 0.3;
+    std_dev << 2;
+    int timestep = 0;
+    float lambda = 1.0;
+    float alpha = 0.0;
+
+    float cost_compute = cost.computeRunningCost(state, control, noise, std_dev, lambda, alpha, timestep);
+    float cost_known = (state[0]-cost.getParams().desired_terminal_state[0])*(state(0)-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
+                       (state[1]-cost.getParams().desired_terminal_state[1])*(state(1)-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
+                       (state[2]-cost.getParams().desired_terminal_state[2])*(state(2)-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
+                       (state[3]-cost.getParams().desired_terminal_state[3])*(state(3)-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff+
+                       cost.getParams().control_cost_coeff[0]*control(0)*(control(0) + 2* noise(0)) / (std_dev(0)*std_dev(0)) * 0.5f * lambda * (1 - alpha);
+
+    cost_known = cost_known ;
     ASSERT_EQ(cost_known, cost_compute);
 }
 
+
 TEST(CartpoleQuadraticCost, ComputeTerminalCost) {
-    CartpoleQuadraticCost cost;
+  CartpoleQuadraticCost cost;
 
-    std::array<float, 4> state = {2.f, 3.f, 7.f, 43.f};
+  std::array<float, 4> state = {2.f, 3.f, 7.f, 43.f};
 
 
-    float cost_compute = cost.terminalCost(state.data());
-    float cost_known = ((state[0]-cost.getParams().desired_terminal_state[0])*(state[0]-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
-                        (state[1]-cost.getParams().desired_terminal_state[1])*(state[1]-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
-                        (state[2]-cost.getParams().desired_terminal_state[2])*(state[2]-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
-                        (state[3]-cost.getParams().desired_terminal_state[3])*(state[3]-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff)*
-                        cost.getParams().terminal_cost_coeff;
-    ASSERT_EQ(cost_known, cost_compute);
+  //float cost_compute = cost.terminalCost(state);
+  float cost_compute = 0.0f;
+  float cost_known = ((state[0]-cost.getParams().desired_terminal_state[0])*(state[0]-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
+                      (state[1]-cost.getParams().desired_terminal_state[1])*(state[1]-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
+                      (state[2]-cost.getParams().desired_terminal_state[2])*(state[2]-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
+                      (state[3]-cost.getParams().desired_terminal_state[3])*(state[3]-cost.getParams().desired_terminal_state[3])*cost.getParams().pole_angular_velocity_coeff)*
+                      cost.getParams().terminal_cost_coeff;
+  ASSERT_EQ(cost_known, cost_compute);
 }

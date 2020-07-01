@@ -234,17 +234,6 @@ inline __host__ __device__ float ARStandardCost<CLASS_T, PARAMS_T>::terminalCost
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __host__ __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getControlCost(float *u, float *du, float *vars) {
-  float control_cost = 0.0;
-  //printf("du %f, %f\n", du[0], du[1]);
-  //printf("vars %f, %f\n", vars[0], vars[1]);
-  //printf("vars %f, %f\n", u[0], u[1]);
-  control_cost += this->params_.steering_coeff*du[0]*(u[0] - du[0])/(vars[0]*vars[0]);
-  control_cost += this->params_.throttle_coeff*du[1]*(u[1] - du[1])/(vars[1]*vars[1]);
-  return control_cost;
-}
-
-template <class CLASS_T, class PARAMS_T>
 inline __host__ __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getSpeedCost(float *s, int *crash) {
   float cost = 0;
   float error = s[4] - this->params_.desired_speed;
@@ -313,30 +302,21 @@ inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::getTrackCost(float *s
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeCost(float *s, float *u, float *du, float *vars, int *crash, int timestep) {
-  float control_cost = getControlCost(u, du, vars);
+inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep) {
+  int crash[1] = {0};
   float track_cost = getTrackCost(s, crash);
   float speed_cost = getSpeedCost(s, crash);
   float crash_cost = powf(this->params_.discount, timestep)*getCrashCost(s, crash, timestep);
   float stabilizing_cost = getStabilizingCost(s);
-  float cost = control_cost + speed_cost + crash_cost + track_cost + stabilizing_cost;
-  if (cost > MAX_COST_VALUE || isnan(cost)) {
+  float cost = speed_cost + crash_cost + track_cost + stabilizing_cost;
+  if (cost > MAX_COST_VALUE || isnan(cost)) {  // TODO Handle max cost value in a generic way
     cost = MAX_COST_VALUE;
   }
   return cost;
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *du, float *vars, int timestep) {
-  float control_cost = getControlCost(u, du, vars);
-  int crash[1] = {0};
-  float track_cost = getTrackCost(s, crash);
-  float speed_cost = getSpeedCost(s, crash);
-  float crash_cost = powf(this->params_.discount, timestep)*getCrashCost(s, crash, timestep);
-  float stabilizing_cost = getStabilizingCost(s);
-  float cost = control_cost + speed_cost + crash_cost + track_cost + stabilizing_cost;
-  if (cost > MAX_COST_VALUE || isnan(cost)) {
-    cost = MAX_COST_VALUE;
-  }
-  return cost;
+inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
+                                                                            int timestep) {
+  return computeStateCost(s, timestep) + this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
 }

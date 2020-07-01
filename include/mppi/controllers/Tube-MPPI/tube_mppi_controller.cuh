@@ -61,7 +61,8 @@ public:
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
-  TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+  TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+                     float lambda, float alpha,
                      const Eigen::Ref<const StateCostWeight>& Q,
                      const Eigen::Ref<const Hessian>& Qf,
                      const Eigen::Ref<const ControlCostWeight>& R,

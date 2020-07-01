@@ -39,6 +39,8 @@ template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
+                                 float lambda,
+                                 float alpha,
                                  const std::vector<float>& x0,
                                  const std::vector<float>& sigma_u,
                                  const std::vector<float>& nom_control_seq,

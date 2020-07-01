@@ -247,10 +247,11 @@ __global__ void computeCostTestKernel(COST_T& cost, float* test_xu, float* cost_
   if(tid < num_points) {
     float* state = &test_xu[tid];
     float* control = &test_xu[tid+7];
-    int crash = 0;
     float vars[2] = {1,1};
     float du[2] = {0,0};
-    cost_results[tid] = cost.computeCost(state, control, du, vars, &crash, tid);
+    float lambda = 1.0;
+    float alpha = 0.0;
+    cost_results[tid] = cost.computeRunningCost(state, control, du, vars, lambda, alpha, tid);
   }
 }
 

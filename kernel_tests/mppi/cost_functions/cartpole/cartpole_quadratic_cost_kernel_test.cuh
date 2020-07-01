@@ -6,12 +6,12 @@
 /**
  * In this cost function, we are supplied with a device side cost class, and a device side parameter structure
  */
-__global__ void parameterTestKernel(CartpoleQuadraticCost* cost_d, cartpoleQuadraticCostParams* params_d);
+__global__ void parameterTestKernel(CartpoleQuadraticCost* cost_d, CartpoleQuadraticCostParams* params_d);
 
 /**
  *
  */
-void launchParameterTestKernel(const CartpoleQuadraticCost& cost, cartpoleQuadraticCostParams& param_check);
+void launchParameterTestKernel(const CartpoleQuadraticCost& cost, CartpoleQuadraticCostParams& param_check);
 
 #include "cartpole_quadratic_cost_kernel_test.cu"
 
