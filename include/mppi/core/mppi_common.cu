@@ -422,10 +422,7 @@ namespace rmppi_kernels {
       if (tdy == 0 && i > 0) { // Only compute once per global index, make sure that we don't divide by zero
         running_cost +=
                 (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, i) * dt - running_cost) / (1.0 * i);
-
-        // Compute the likelihood cost
-//        running_cost += costs->computeLikelihoodRatioCost(control,
-//                                                          control_noise, exploration_std_dev, lambda)*dt
+                                                    control_noise, exploration_std_dev, lambda)*dt
       }
       __syncthreads();
 
