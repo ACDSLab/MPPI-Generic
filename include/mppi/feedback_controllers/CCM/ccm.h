@@ -72,6 +72,82 @@ Eigen::Matrix<float, D, N> chebyshevPolynomialDerivative(
   return dT;
 }
 
+template<class DYN_T, int NUM_TIMESTEPS = 100>
+class LinearCCM {
+public:
+  // Typedefs
+  using state_array = typename DYN_T::state_array;
+  using control_array = typename DYN_T::control_array;
+  using B_matrix = typename DYN_T::dfdu;
+  using RiemannianMetric = typename DYN_T::dfdx;
+
+  typedef Eigen::Matrix<float, DYN_T::STATE_DIM, NUM_TIMESTEPS> state_trajectory;
+  typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, NUM_TIMESTEPS> control_trajectory;
+
+  LinearCCM(DYN_T* dyn) {
+    model_ = dyn;
+  }
+
+  // Generic Method for calculating the Metric based on state x
+  RiemannianMetric M(const Eigen::Ref<const state_array>& x) {
+    return M_;
+  }
+
+
+  float Energy(const Eigen::Ref<const state_array>& delta_x,
+               const Eigen::Ref<const state_array>& x) {
+    return delta_x.transpose() * M(x) * delta_x;
+  }
+
+  // TODO Replace with some call to Dynamics
+  B_matrix B(const Eigen::Ref<const state_array>& x) {
+    return B_;
+  }
+
+  state_array f(const Eigen::Ref<const state_array>& x,
+                const Eigen::Ref<const control_array>& u = control_array::Zero()) {
+    state_array x_der;
+    model_->computeStateDeriv(x, u, x_der);
+    return x_der;
+  }
+
+  control_array u_feedback(state_array x_act, int t) {
+    state_array x_nom_t = x_nominal_traj_.col(t);
+    control_array u_nom_t = u_nominal_traj_.col(t);
+    state_array delta_x = x_act - x_nom_t;
+
+    float E = Energy(delta_x, x_act);
+    control_array lhs = 2 * B(x_act).transpose() * M(x_act) * delta_x;
+    float normalize_lhs = lhs.norm() * lhs.norm();
+    float rhs = -2 * lambda_ * E - 2 * delta_x.transpose() * M(x_act) *
+                (f(x_act) - f(x_nom_t)) + (B(x_act) - B(x_mon_t)) * u_nom_t);
+    if (rhs > 0 || normalize_lhs == 0) {
+      return control_array::Zero();
+    } else {
+      return rhs / normalize_lhs * lhs;
+    }
+  }
+
+  void setNominalControlTrajectory(const Eigen::Ref<const control_trajectory>& u_traj) {
+    u_nominal_traj_ = u_traj;
+  }
+
+  void setNominalStateTrajectory(const Eigen::Ref<const state_trajectory>& x_traj) {
+    x_nominal_traj_ = x_traj;
+  }
+
+protected:
+  state_trajectory x_nominal_traj_;
+  control_trajectory u_nominal_traj_;
+  float lambda_ = 1.0;
+
+  RiemannianMetric M_;
+
+  DYN_T* model_;
+  B_matrix B_ = B_matrix::Zero();
+
+
+};
 
 } // namespace ccm
 
