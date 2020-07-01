@@ -103,8 +103,8 @@ protected:
     control_std_dev << 0.0001, 0.0001;
     init_control_traj.setZero();
     // Q, Qf, R
-    Eigen::Matrix<float, dynamics::STATE_DIM, dynamics::STATE_DIM> Q, Qf;
-    Eigen::Matrix<float, dynamics::CONTROL_DIM, dynamics::CONTROL_DIM> R;
+    dynamics::dfdx Q, Qf;  // Get a N x N matrix
+    cost_function::control_matrix R; // Get a M x M matrix
     Q.setIdentity();
     Qf.setIdentity();
     R.setIdentity();
@@ -253,8 +253,8 @@ protected:
     init_control_traj.setZero();
 
     // Q, Qf, R
-    Eigen::Matrix<float, dynamics::STATE_DIM, dynamics::STATE_DIM> Q, Qf;
-    Eigen::Matrix<float, dynamics::CONTROL_DIM, dynamics::CONTROL_DIM> R;
+    dynamics::dfdx Q, Qf;  // Get a N x N matrix
+    cost_function::control_matrix R; // Get a M x M matrix
     Q.setIdentity();
     Qf.setIdentity();
     R.setIdentity();
@@ -498,18 +498,18 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
    *  0, 0, 100, 0
    *  0, 0, 0, 100]
    */
-  Q = 500*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
+  Q = 500*DoubleIntegratorDynamics::dfdx::Identity();
   Q(2,2) = 100;
   Q(3,3) = 100;
   /**
    * R = I
    */
-  R = 1*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
+  R = 1*DoubleIntegratorCircleCost::control_matrix::Identity();
 
   /**
    * Qf = I
    */
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
+  Qf = DoubleIntegratorDynamics::dfdx::Identity();
 
   // Value function threshold
   float value_function_threshold = 10.0;
@@ -570,23 +570,15 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
                                 i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
       }
     }
-
     // Get the open loop control
     DoubleIntegratorDynamics::control_array current_control = controller.getControlSeq().col(0);
-//    std::cout << "Current OL control: " << current_control.transpose() << std::endl;
-
 
     // Apply the feedback given the current state
     current_control += controller.getFeedbackGains()[0]*(x - controller.getStateSeq().col(0));
 
-
-
-
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
     model.updateState(x, xdot, dt);
-
-//    controller.updateNominalState(controller.getControlSeq().col(0));
 
     // Add the "true" noise of the system
     model.computeStateDisturbance(dt, x);
