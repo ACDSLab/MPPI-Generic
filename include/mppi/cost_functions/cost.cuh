@@ -218,8 +218,6 @@ public:
   CLASS_T* cost_d_ = nullptr;
 protected:
   PARAMS_T params_;
-  // Not an Eigen control_array as it needs to exist on both CPU and GPU
-  //float control_cost_coef[CONTROL_DIM] = {};
 };
 
 #if __CUDACC__
