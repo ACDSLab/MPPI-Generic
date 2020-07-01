@@ -17,7 +17,6 @@ struct DoubleIntegratorCircleCostParams : public CostParams<2> {
     control_cost_coeff[0] = 2.0;
     control_cost_coeff[1] = 2.0;
   }
-
 } ;
 
 class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost,
@@ -28,12 +27,8 @@ public:
   float computeStateCost(const Eigen::Ref<const state_array> s);
   float terminalCost(const Eigen::Ref<const state_array> s);
 
-
   __device__ float computeStateCost(float* s);
   __device__ float terminalCost(float* s);
-
-
-
 };
 
 #if __CUDACC__
