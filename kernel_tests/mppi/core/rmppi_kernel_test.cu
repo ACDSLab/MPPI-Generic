@@ -3,6 +3,7 @@
 //
 
 #include "rmppi_kernel_test.cuh"
+#include <mppi/feedback_controllers/CCM/ccm.h>
 
 const int BLOCKSIZE_X = 32;
 const int BLOCKSIZE_Y = 8;
@@ -401,3 +402,126 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
 }
 
 
+template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
+void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
+                                    float dt,
+                                    int num_timesteps,
+                                    float lambda,
+                                    float value_func_threshold,
+                                    const std::vector<float>& x0_nom,
+                                    const std::vector<float>& x0_act,
+                                    const std::vector<float>& sigma_u,
+                                    const std::vector<float>& nom_control_seq,
+                                    const std::vector<float>& feedback_gains_seq,
+                                    const std::vector<float>& sampled_noise,
+                                    std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
+                                    std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom) {
+  // Crate Eigen items
+  const int state_dim = DYN_T::STATE_DIM;
+  const int control_dim = DYN_T::CONTROL_DIM;
+  using control_matrix = typename COST_T::control_matrix;
+  using control_array = typename DYN_T::control_array;
+  using state_array = typename DYN_T::state_array;
+  using feedback_matrix = typename DYN_T::feedback_matrix;
+  Eigen::Map<const state_array> x_init_nom(x0_nom.data());
+  Eigen::Map<const state_array> x_init_act(x0_act.data());
+
+  // CCM Initialization
+  ccm::Vectorf<7> pts, weights;
+  std::tie(pts, weights) = ccm::chebyshevPts<7>();
+
+  control_array cost_std_dev;
+  for(int i = 0; i < control_dim; i++) {
+    cost_std_dev(i) = sigma_u[i];
+  }
+
+  // Start rollouts
+  for (int traj_i = 0; traj_i < NUM_ROLLOUTS; traj_i++)  {
+    float cost_real_w_tracking = 0; // S^(V, x_0, x*_0) in Grady Thesis (8.24)
+    float state_cost_nom = 0; // S(V, x*_0)
+    float running_state_cost_real = 0;
+    float running_control_cost_real = 0;
+
+    int traj_index = traj_i * num_timesteps;
+
+    // Get all relevant values at time t in rollout i
+    state_array x_t_nom = x_init_nom;
+    state_array x_t_act = x_init_act;
+
+    for (int t = 0; t < num_timesteps; t++){
+      // Controls are read only so I can use Eigen::Map<const...>
+      Eigen::Map<const control_array>
+          u_t(nom_control_seq.data() + t * control_dim); // trajectory u at time t
+      Eigen::Map<const control_array>
+          pure_noise(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
+      control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
+      Eigen::Map<const feedback_matrix>
+          feedback_gains_t(feedback_gains_seq.data() + t * control_dim * state_dim); // Feedback gains at time t
+
+      // Create newly calculated values at time t in rollout i
+      state_array x_dot_t_nom;
+      state_array x_dot_t_act;
+      control_array u_nom;
+      if (traj_i == 0) {
+        eps_t = control_array::Zero();
+        u_nom = u_t;
+      } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
+        u_nom = eps_t;
+      } else {
+         u_nom = u_t + eps_t;
+      }
+
+
+      control_array fb_u_t = feedback_gains_t * (x_t_act - x_t_nom);
+      control_array u_act = u_nom + fb_u_t;
+
+      // Cost update
+      control_array zero_u = control_array::Zero();
+      state_cost_nom += costs->computeStateCost(x_t_nom);
+      float state_cost_act = costs->computeStateCost(x_t_act);
+      cost_real_w_tracking += state_cost_act +
+                              costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda);
+
+      running_state_cost_real += state_cost_act;
+      running_control_cost_real +=
+        costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda);
+
+      model->enforceConstraints(x_t_nom, u_nom);
+      model->enforceConstraints(x_t_act, u_act);
+
+      // Dyanamics Update
+      model->computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
+      model->computeStateDeriv(x_t_act, u_act, x_dot_t_act);
+
+      model->updateState(x_t_act, x_dot_t_act, dt);
+      model->updateState(x_t_nom, x_dot_t_nom, dt);
+    }
+
+    state_cost_nom += costs->terminalCost(x_t_nom);
+    cost_real_w_tracking += costs->terminalCost(x_t_act);
+    running_state_cost_real += costs->terminalCost(x_t_act);
+
+    float cost_nom = 0.5 * state_cost_nom + 0.5 *
+      std::max(std::min(cost_real_w_tracking, value_func_threshold), state_cost_nom);
+    // Figure out control costs for the nominal trajectory
+    float cost_nom_control = 0;
+    for (int t = 0; t < num_timesteps - 1; t++) {
+      Eigen::Map<const control_array>
+          u_nom(nom_control_seq.data() + t * control_dim); // trajectory u at time t
+      Eigen::Map<const control_array>
+          pure_noise(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
+      control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
+      control_array u_t = u_nom;
+      if (traj_i == 0) {
+        eps_t = control_array::Zero();
+      } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
+        u_t = control_array::Zero();;
+      }
+      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda);
+    }
+
+    cost_nom += cost_nom_control;
+    trajectory_costs_nom[traj_i] = cost_nom;
+    trajectory_costs_act[traj_i] = running_state_cost_real + running_control_cost_real;
+  }
+}
