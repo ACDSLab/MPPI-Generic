@@ -82,7 +82,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     // Launch the norm exponential kernel
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-        this->trajectory_costs_d_, this->lambda_, this->baseline_, this->stream_);
+        this->trajectory_costs_d_, 1.0/this->lambda_, this->baseline_, this->stream_);
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
         this->trajectory_costs_d_,
         NUM_ROLLOUTS*sizeof(float),

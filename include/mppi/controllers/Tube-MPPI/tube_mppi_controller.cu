@@ -97,10 +97,10 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     // Launch the norm exponential kernel for both actual and nominal
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-        this->trajectory_costs_d_, this->lambda_, this->baseline_, this->stream_);
+        this->trajectory_costs_d_, 1.0/this->lambda_, this->baseline_, this->stream_);
 
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-        trajectory_costs_nominal_d, this->lambda_, this->baseline_nominal_, this->stream_);
+        trajectory_costs_nominal_d, 1.0/this->lambda_, this->baseline_nominal_, this->stream_);
 
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
         this->trajectory_costs_d_,
