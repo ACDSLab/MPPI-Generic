@@ -13,6 +13,7 @@ struct ARRobustCostParams : public ARStandardCostParams {
     control_cost_coeff[1] = 0.0; // throttle_coeff
     //values, if negative ignored
     desired_speed = -1;
+    max_slip_ang = 1.5;
 
     //Cost term coefficients
     track_coeff = 33.0;
