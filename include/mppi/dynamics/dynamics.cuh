@@ -68,7 +68,9 @@ public:
    * Destructor must be virtual so that children are properly
    * destroyed when called from a Dynamics reference
    */
-  virtual ~Dynamics() = default;
+  virtual ~Dynamics() {
+    freeCudaMem();
+  }
 
   /**
    * Allocates all of the GPU memory
@@ -165,9 +167,10 @@ public:
    * @param s state
    * @param s_der
    */
-  void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> s_der, float dt) {
-    state += s_der*dt;
-    s_der.setZero();
+  void updateState(Eigen::Ref<state_array> state,
+                   Eigen::Ref<state_array> state_der, float dt) {
+    state += state_der * dt;
+    state_der.setZero();
   }
 
   /**

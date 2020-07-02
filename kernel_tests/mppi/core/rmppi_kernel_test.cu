@@ -12,6 +12,7 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
                                  float lambda,
+                                 float alpha,
                                  float value_func_threshold,
                                  const std::vector<float>& x0_nom,
                                  const std::vector<float>& x0_act,
@@ -112,11 +113,11 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
   // Launch rollout kernel
   rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
     BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps,
-                    lambda, value_func_threshold, initial_state_d, control_d,
+                    lambda, alpha, value_func_threshold, initial_state_d, control_d,
                     control_noise_d, feedback_gains_d, control_std_dev_d,
                     trajectory_costs_d, stream);
 
-  // Copy the costs back to the host
+
   HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_act.data(),
                                trajectory_costs_d,
                                NUM_ROLLOUTS * sizeof(float),
@@ -141,6 +142,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
                                  float lambda,
+                                 float alpha,
                                  float value_func_threshold,
                                  const std::vector<float>& x0_nom,
                                  const std::vector<float>& x0_act,
@@ -210,11 +212,11 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       state_cost_nom += costs->computeStateCost(x_t_nom)*dt;
       float state_cost_act = costs->computeStateCost(x_t_act)*dt;
       cost_real_w_tracking += state_cost_act +
-                              costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda)*dt;
+                              costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda, alpha)*dt;
 
       running_state_cost_real += state_cost_act;
       running_control_cost_real +=
-        costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda)*dt;
+      costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda, alpha)*dt;
 
       model->enforceConstraints(x_t_nom, u_nom);
       model->enforceConstraints(x_t_act, u_act);
@@ -247,7 +249,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
         u_t = control_array::Zero();;
       }
-      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda)*dt;
+      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda, alpha)*dt;
     }
 
     cost_nom += cost_nom_control;

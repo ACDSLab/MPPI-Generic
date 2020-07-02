@@ -355,7 +355,7 @@ __global__ void computeAndSaveCostAllRollouts_KernelTest(COST_T* cost, int state
 }
 
 template<class COST_T, int STATE_DIM, int NUM_ROLLOUTS>
-void launchComputeAndSaveCostAllRollouts_KernelTest(COST_T cost,
+void launchComputeAndSaveCostAllRollouts_KernelTest(COST_T& cost,
     const std::array<float, NUM_ROLLOUTS>& cost_all_rollouts,
     const std::array<float, STATE_DIM*NUM_ROLLOUTS>& terminal_states,
     std::array<float, NUM_ROLLOUTS>& cost_compute) {
@@ -392,6 +392,8 @@ template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
+                                 float lambda,
+                                 float alpha,
                                  const std::vector<float>& x0,
                                  const std::vector<float>& sigma_u,
                                  const std::vector<float>& nom_control_seq,
@@ -467,6 +469,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   // Launch rollout kernel
   mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
     BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps,
+                    lambda, alpha,
                     initial_state_d, control_d, control_noise_d,
                     control_std_dev_d, trajectory_costs_d, stream);
 
@@ -488,12 +491,3 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   cudaFree(trajectory_costs_d);
   cudaFree(control_noise_d);
 }
-
-/**
- * Cartpole Compute and Save cost all rollouts instantiations
- */
-const int num_rollouts_cs = 1234;
-template void launchComputeAndSaveCostAllRollouts_KernelTest<CartpoleQuadraticCost, CartpoleDynamics::STATE_DIM, num_rollouts_cs>(CartpoleQuadraticCost cost,
-                          const std::array<float, num_rollouts_cs>& cost_all_rollouts,
-                          const std::array<float, CartpoleDynamics::STATE_DIM*num_rollouts_cs>& terminal_states,
-                          std::array<float, num_rollouts_cs>& cost_compute);

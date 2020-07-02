@@ -8,6 +8,7 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 set(BUILD_FLAGS "-Wuninitialized -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
+set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G --keep")
 
 option(BUILD_TESTS "BUILD_TESTS" ON)
 
@@ -79,7 +80,6 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/
 if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   message(STATUS "Building MPPI Generic tests")
   enable_testing()
-
   ############################################################
   # copied from
   # https://github.com/google/googletest/tree/master/googletest#incorporating-into-an-existing-cmake-project
@@ -111,6 +111,7 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
                      ${PROJECT_BINARY_DIR}/googletest-build)
   endif()
 
+  include(GoogleTest)
   add_subdirectory(tests)
 endif()
 

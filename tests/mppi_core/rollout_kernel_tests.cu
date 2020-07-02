@@ -213,12 +213,12 @@ TEST(RolloutKernel, runRolloutKernelOnMultipleSystems) {
   CartpoleDynamics dynamics(1, 1, 1);
   CartpoleQuadraticCost cost;
 
-  cartpoleQuadraticCostParams new_params;
+  CartpoleQuadraticCostParams new_params;
   new_params.cart_position_coeff = 100;
   new_params.pole_angle_coeff = 200;
   new_params.cart_velocity_coeff = 10;
   new_params.pole_angular_velocity_coeff = 20;
-  new_params.control_force_coeff = 1;
+  new_params.control_cost_coeff[0] = 1;
   new_params.terminal_cost_coeff = 0;
   new_params.desired_terminal_state[0] = -20;
   new_params.desired_terminal_state[1] = 0;
@@ -241,9 +241,11 @@ TEST(RolloutKernel, runRolloutKernelOnMultipleSystems) {
   for (size_t i = 0; i < x0.size(); i++) {
     x0[i] = i * 0.1 + 0.2;
   }
+  float lambda = 0.5;
+  float alpha = 0.001;
 
   launchRolloutKernel_nom_act<CartpoleDynamics, CartpoleQuadraticCost, NUM_ROLLOUTS>(
-          &dynamics, &cost, dt, num_timesteps, x0, control_std_dev,
+          &dynamics, &cost, dt, num_timesteps, lambda, alpha, x0, control_std_dev,
           nominal_control_seq, trajectory_costs_act, trajectory_costs_nom);
   array_assert_float_eq(trajectory_costs_act, trajectory_costs_nom, NUM_ROLLOUTS);
 }

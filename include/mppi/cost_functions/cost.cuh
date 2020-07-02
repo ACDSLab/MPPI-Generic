@@ -15,11 +15,18 @@ Header file for costs
 
 #include <stdexcept>
 
-/*
-typedef struct {
-  // fill in data here
-} CostParams;
- */
+
+template<int C_DIM>
+struct CostParams {
+  float control_cost_coeff[C_DIM];
+  CostParams() {
+    //Default set all controls to 1
+    for (int i = 0; i < C_DIM; ++i) {
+      control_cost_coeff[i] = 1.0;
+    }
+  }
+};
+
 
 // removing PARAMS_T is probably impossible
 // https://cboard.cprogramming.com/cplusplus-programming/122412-crtp-how-pass-type.html
@@ -27,7 +34,7 @@ template<class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 class Cost : public Managed
 {
 public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /**
      * typedefs for access to templated class from outside classes
@@ -45,7 +52,9 @@ public:
    * Destructor must be virtual so that children are properly
    * destroyed when called from a basePlant reference
    */
-  virtual ~Cost() = default;
+  virtual ~Cost() {
+    freeCudaMem();
+  }
 
   void GPUSetup();
 
@@ -95,13 +104,14 @@ public:
    */
   float computeFeedbackCost(const Eigen::Ref<const control_array> fb_u,
                             const Eigen::Ref<const control_array> std_dev,
-                            const float lambda = 1.0) {
+                            const float lambda = 1.0,
+                            const float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += control_cost_coef[i] * fb_u(i) * fb_u(i) / powf(std_dev(i), 2);
+      cost += params_.control_cost_coeff[i] * fb_u(i) * fb_u(i) / powf(std_dev(i), 2);
     }
 
-    return 0.5 * lambda * cost;
+    return 0.5 * lambda * (1 - alpha) * cost;
   }
 
   /**
@@ -111,21 +121,30 @@ public:
   float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u,
                                    const Eigen::Ref<const control_array> noise,
                                    const Eigen::Ref<const control_array> std_dev,
-                                   const float lambda = 1.0) {
+                                   const float lambda = 1.0,
+                                   const float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += control_cost_coef[i] * u(i) * (u(i) + 2 * noise(i)) /
+      cost += params_.control_cost_coeff[i] * u(i) * (u(i) + 2 * noise(i)) /
         (std_dev(i) * std_dev(i));
     }
-    return 0.5 * lambda * cost;
+    return 0.5 * lambda * (1 - alpha) * cost;
   }
-
+  // =================== METHODS THAT SHOULD HAVE NO DEFAULT ==========================
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
    */
   float computeStateCost(const Eigen::Ref<const state_array> s) {
     throw std::logic_error("SubClass did not implement computeStateCost");
   }
+
+  /**
+   *
+   * @param s current state as a float array
+   * @return state cost on GPU
+   */
+  __device__ float computeStateCost(float* s);
+
 
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
@@ -135,17 +154,27 @@ public:
   }
 
   /**
+   *
+   * @param s terminal state as float array
+   * @return terminal cost on GPU
+   */
+  __device__ float terminalCost(float* s);
+
+  // ================ END OF METHODS WITH NO DEFAULT ===========================
+
+  // =================== METHODS THAT SHOULD NOT BE OVERWRITTEN ================
+  /**
    * Computes the feedback control cost on GPU used in RMPPI. There is an
    * assumption that we are provided std_dev and the covriance matrix is
    * diagonal.
    */
   __device__ float computeFeedbackCost(float* fb_u, float* std_dev,
-                                       float lambda = 1.0) {
+                                       float lambda = 1.0, float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += control_cost_coef[i] * powf(fb_u[i] / std_dev[i], 2);
+      cost += params_.control_cost_coeff[i] * powf(fb_u[i] / std_dev[i], 2);
     }
-    return 0.5 * lambda * cost;
+    return 0.5 * lambda * (1 - alpha) * cost;
   }
 
   /**
@@ -158,27 +187,40 @@ public:
   __device__ float computeLikelihoodRatioCost(float* u,
                                               float* noise,
                                               float* std_dev,
-                                              float lambda = 1.0) {
+                                              float lambda = 1.0,
+                                              float alpha = 0.0) {
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++) {
-      cost += control_cost_coef[i] * (u[i] - noise[i]) * (u[i] + noise[i]) /
+      cost += params_.control_cost_coeff[i] * (u[i] - noise[i]) * (u[i] + noise[i]) /
         (std_dev[i] * std_dev[i]);
     }
-    return 0.5 * lambda * cost;
+    return 0.5 * lambda * (1 - alpha) * cost;
+  }
+  // =================== END METHODS THAT SHOULD NOT BE OVERWRITTEN ============
+
+  // =================== METHODS THAT CAN BE OVERWRITTEN =======================
+  float computeRunningCost(const Eigen::Ref<const state_array> s,
+                           const Eigen::Ref<const control_array> u,
+                           const Eigen::Ref<const control_array> noise,
+                           const Eigen::Ref<const control_array> std_dev,
+                           float lambda, float alpha, int timestep) {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    return derived->computeStateCost(s) + derived->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
   }
 
-  __device__ float computeStateCost(float* s);
+  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda, float alpha, int timestep) {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    return derived->computeStateCost(s) + derived->computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
+  }
+  // =================== END METHODS THAT CAN BE OVERWRITTEN ===================
+
 
   inline __host__ __device__ PARAMS_T getParams() const {return params_;}
 
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, int timestep);
-  __device__ float terminalCost(float* s);
 
   CLASS_T* cost_d_ = nullptr;
 protected:
   PARAMS_T params_;
-  // Not an Eigen control_array as it needs to exist on both CPU and GPU
-  float control_cost_coef[CONTROL_DIM] = {1};
 };
 
 #if __CUDACC__

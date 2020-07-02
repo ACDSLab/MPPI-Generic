@@ -115,7 +115,8 @@ public:
   * @param num_timesteps The number of timesteps to look ahead for.
   * TODO Finish this description
   */
-  RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+  RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+                       float lambda, float alpha,
                        float value_function_threshold,
                        const Eigen::Ref<const StateCostWeight>& Q,
                        const Eigen::Ref<const Hessian>& Qf,

@@ -57,7 +57,8 @@ public:
    * Public member functions
    */
   // Constructor
-  VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+  VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+                        float lambda, float alpha,
                         const Eigen::Ref<const control_array>& control_std_dev,
                         int num_timesteps = MAX_TIMESTEPS,
                         const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),

@@ -1,29 +1,3 @@
-cmake_minimum_required(VERSION 3.8)
-set(CMAKE_CXX_STANDARD 11)
-
-add_executable(cp_quadratic_cost_tests
-        ../test_main.cpp
-        cartpole_quadratic_cost_test.cu)
-
-target_link_libraries(cp_quadratic_cost_tests gtest
-        gmock
-        gtest_main
-        cnpy)
-
-add_test(NAME cp_quadratic_cost_tests COMMAND cp_quadratic_cost_tests)
-set_target_properties(cp_quadratic_cost_tests PROPERTIES FOLDER test)
-
-add_executable(di_circle_cost_tests
-        ../test_main.cpp
-        double_integrator_circle_cost_test.cu)
-
-target_link_libraries(di_circle_cost_tests gtest
-        gmock
-        gtest_main
-        cnpy)
-
-add_test(NAME di_circle_cost_tests COMMAND di_circle_cost_tests)
-set_target_properties(di_circle_cost_tests PROPERTIES FOLDER test)
 
 if(BUILD_TESTS)
     message("")
@@ -48,31 +22,20 @@ if(BUILD_TESTS)
     message("")
 endif()
 
-set(TEST_NAME ar_cost_tests)
+set(GTEST_LIBRARIES gtest gmock gtest_main)
+# set(TARGETS autorally_roboust_cost_test autorally_standard_cost_test
+#     cartpole_quadratic_cost_test double_integrator_circle_cost_test
+#     quadrotor_quadratic_cost_test)
 
-add_executable(${TEST_NAME}
-               ../test_main.cpp
-               autorally_standard_cost_test.cu)
+file(GLOB TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
 
-target_link_libraries(${TEST_NAME} gtest
-                      gmock
-                      gtest_main
-                      cnpy)
-
-add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-set_target_properties(${TEST_NAME} PROPERTIES FOLDER test)
-
-
-set(TEST_NAME ar_robust_cost_tests)
-
-add_executable(${TEST_NAME}
-        ../test_main.cpp
-        autorally_robust_cost_test.cu)
-
-target_link_libraries(${TEST_NAME} gtest
-        gmock
-        gtest_main
-        cnpy)
-
-add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-set_target_properties(${TEST_NAME} PROPERTIES FOLDER test)
+foreach(T_FILE IN LISTS TARGET_SRCS)
+  get_filename_component(T_NAME ${T_FILE} NAME_WE)
+  add_executable(${T_NAME} ../test_main.cpp ${T_FILE})
+  target_link_libraries(${T_NAME}
+                        ${GTEST_LIBRARIES}
+                        cnpy)
+#  add_test(NAME ${T_NAME} COMMAND ${T_NAME})
+  gtest_discover_tests(${T_NAME})
+  set_target_properties(${T_NAME} PROPERTIES FOLDER test)
+endforeach()

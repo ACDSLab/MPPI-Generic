@@ -338,6 +338,7 @@ public:
 
     s_array state = getState();
     num_iter_++;
+    updateParameters(controller, state);
 
     // calculate how much we should slide the control sequence
     double dt = last_used_pose_update_time_ - temp_last_pose_time;
@@ -441,7 +442,7 @@ public:
       while(is_alive->load() && status_ == 0 && wait_until_time > getCurrentTime()) {
         usleep(50);
       }
-      sleep_duration_ = (sleep_start - std::chrono::steady_clock::now()).count();
+      sleep_duration_ = (std::chrono::steady_clock::now() - sleep_start).count() / 1e6;
       double prev_iter_percent = (num_iter_ - 1.0) / num_iter_;
       avg_sleep_time_ms_ = prev_iter_percent * avg_sleep_time_ms_ +
               sleep_duration_/num_iter_;

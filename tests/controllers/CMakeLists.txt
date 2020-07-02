@@ -12,7 +12,7 @@ target_link_libraries(vanilla_mppi_tests gtest
                       cartpole_mppi
                       ${CUDA_LIBRARIES}
                       cnpy)
-add_test(NAME vanilla_mppi_tests COMMAND vanilla_mppi_tests)
+gtest_discover_tests(vanilla_mppi_tests)
 set_target_properties(vanilla_mppi_tests PROPERTIES FOLDER test)
 
 add_executable(controller_generic_tests
@@ -26,7 +26,7 @@ target_link_libraries(controller_generic_tests gtest
         ${OpenCV_LIBRARIES}
         curand
         cnpy)
-add_test(NAME controller_generic_tests COMMAND controller_generic_tests)
+gtest_discover_tests(controller_generic_tests)
 set_target_properties(controller_generic_tests PROPERTIES FOLDER test)
 
 
@@ -39,7 +39,7 @@ target_link_libraries(tube_mppi_tests gtest
         curand
         ${CUDA_LIBRARIES}
         cnpy)
-add_test(NAME tube_mppi_tests COMMAND tube_mppi_tests)
+gtest_discover_tests(tube_mppi_tests)
 set_target_properties(tube_mppi_tests PROPERTIES FOLDER test)
 
 add_executable(ddp_tests
@@ -50,7 +50,7 @@ target_link_libraries(ddp_tests gtest
         gtest_main
         cartpole_mppi
         cnpy)
-add_test(NAME ddp_tests COMMAND ddp_tests)
+gtest_discover_tests(ddp_tests)
 set_target_properties(ddp_tests PROPERTIES FOLDER test)
 
 add_executable(rmppi_tests
@@ -62,6 +62,6 @@ target_link_libraries(rmppi_tests gtest
         curand
         ${CUDA_LIBRARIES}
         cnpy)
-add_test(NAME rmppi_tests COMMAND rmppi_tests)
-set_target_properties(rmppi_tests PROPERTIES FOLDER test)
+gtest_discover_tests(rmppi_tests)
 
+set_target_properties(rmppi_tests PROPERTIES FOLDER test)

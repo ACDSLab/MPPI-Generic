@@ -94,6 +94,22 @@ namespace mppi_common {
 
     float computeNormalizer(float* cost_rollouts_host, int num_rollouts);
 
+    /**
+     * Calculates the free energy mean and variance from the different
+     * cost trajectories after normExpKernel
+     * Inputs:
+     *  cost_rollouts_host - sampled cost trajectories
+     *  num_rollouts - the number of sampled cost trajectories
+     *  lambda - the lambda term from the definition of free energy
+     *  baseline - minimum cost trajectory
+     * Outputs:
+     *  free_energy - the free energy of the samples
+     *  free_energy_var - the variance of the free energy calculation
+     */
+    void computeFreeEnergy(float& free_energy, float& free_energy_var,
+                           float* cost_rollouts_host,  int num_rollouts,
+                           float baseline, float lambda = 1.0);
+
     // Weighted Reduction Kernel
     template<int CONTROL_DIM, int NUM_ROLLOUT, int SUM_STRIDE>
     __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps);
@@ -109,10 +125,10 @@ namespace mppi_common {
 
     // Launch functions
     template<class DYN_T, class COST_T>
-    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float* x_d, float* u_d,
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float lambda, float alpha, float* x_d, float* u_d,
             float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream);
 
-    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float baseline, cudaStream_t stream);
+    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda, float baseline, cudaStream_t stream);
 
     template<class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE >
     void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer, int num_timesteps, cudaStream_t stream);
@@ -124,6 +140,8 @@ namespace rmppi_kernels {
   __global__ void initEvalKernel(DYN_T* dynamics,
                                  COST_T* costs,
                                  int num_timesteps,
+                                 float lambda,
+                                 float alpha,
                                  int ctrl_stride,
                                  float dt,
                                  int* strides_d,
@@ -138,6 +156,8 @@ namespace rmppi_kernels {
                             COST_T* costs,
                             int num_candidates,
                             int num_timesteps,
+                            float lambda,
+                            float alpha,
                             int ctrl_stride,
                             float dt,
                             int* strides_d,
@@ -154,6 +174,7 @@ namespace rmppi_kernels {
                                      float dt,
                                      int num_timesteps,
                                      float lambda,
+                                     float alpha,
                                      float value_func_threshold,
                                      float* x_d,
                                      float* u_d,
@@ -168,6 +189,7 @@ namespace rmppi_kernels {
                                 float dt,
                                 int num_timesteps,
                                 float lambda,
+                                float alpha,
                                 float value_func_threshold,
                                 float* x_d,
                                 float* u_d,

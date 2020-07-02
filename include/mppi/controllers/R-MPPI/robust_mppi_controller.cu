@@ -5,7 +5,8 @@
 
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
-RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter, float gamma,
+RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+                     float lambda, float alpha,
                      float value_function_threshold,
                      const Eigen::Ref<const StateCostWeight>& Q,
                      const Eigen::Ref<const Hessian>& Qf,
@@ -16,10 +17,9 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
                      int num_candidate_nominal_states,
                      int optimization_stride,
                      cudaStream_t stream) : Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        model, cost, dt, max_iter, gamma, control_std_dev, num_timesteps, init_control_traj, stream),
+        model, cost, dt, max_iter, lambda, alpha, control_std_dev, num_timesteps, init_control_traj, stream),
         value_function_threshold_(value_function_threshold), optimization_stride_(optimization_stride),
         num_candidate_nominal_states_(num_candidate_nominal_states) {
-
 
   updateNumCandidates(num_candidate_nominal_states_);
 
@@ -201,10 +201,10 @@ void RobustMPPI::computeBestIndex() {
   float baseline = computeCandidateBaseline();
   for (int i = 0; i < num_candidate_nominal_states_; i++){
     for (int j = 0; j < SAMPLES_PER_CONDITION; j++){
-      candidate_free_energy_(i) += expf(-this->gamma_*(candidate_trajectory_costs_(i*SAMPLES_PER_CONDITION + j) - baseline));
+      candidate_free_energy_(i) += expf(-1.0/this->lambda_*(candidate_trajectory_costs_(i*SAMPLES_PER_CONDITION + j) - baseline));
     }
     candidate_free_energy_(i) /= (1.0*SAMPLES_PER_CONDITION);
-    candidate_free_energy_(i) = -1.0/this->gamma_ *logf(candidate_free_energy_(i)) + baseline;
+    candidate_free_energy_(i) = -this->lambda_ *logf(candidate_free_energy_(i)) + baseline;
 
     if (candidate_free_energy_(i) < value_function_threshold_){
       best_index_ = i;
@@ -264,6 +264,7 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
     // Launch the init eval kernel
     rmppi_kernels::launchInitEvalKernel<DYN_T, COST_T, BDIM_X, BDIM_Y, SAMPLES_PER_CONDITION>(
             this->model_->model_d_, this->cost_->cost_d_, num_candidate_nominal_states_, this->num_timesteps_,
+            this->lambda_, this->alpha_,
             optimization_stride_, this->dt_, importance_sampling_strides_d_, this->control_std_dev_d_,
             importance_sampling_states_d_, this->control_d_, this->control_noise_d_, importance_sampling_costs_d_,
             this->stream_);
@@ -333,7 +334,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
     // Launch the new rollout kernel
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
             BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
-                            1.0 / this->gamma_, value_function_threshold_, this->initial_state_d_, this->control_d_,
+                            1.0 / this->lambda_, this->alpha_, value_function_threshold_, this->initial_state_d_, this->control_d_,
                             this->control_noise_d_, feedback_gain_array_d_, this->control_std_dev_d_,
                             this->trajectory_costs_d_, this->stream_);
 
@@ -355,9 +356,9 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
 
     // In this case this->gamma = 1 / lambda
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-                                     this->trajectory_costs_d_, this->gamma_, this->baseline_, this->stream_);
+                                     this->trajectory_costs_d_, this->lambda_, this->baseline_, this->stream_);
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-                                     trajectory_costs_nominal_d, this->gamma_, baseline_nominal_, this->stream_);
+                                     trajectory_costs_nominal_d, this->lambda_, baseline_nominal_, this->stream_);
 
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, this->stream_));

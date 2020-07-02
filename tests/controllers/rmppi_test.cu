@@ -15,7 +15,7 @@ class TestRobust: public RobustMPPIController<
  public:
   TestRobust(DoubleIntegratorDynamics *model,
           DoubleIntegratorCircleCost *cost,
-          float dt, int max_iter, float gamma,
+          float dt, int max_iter, float lambda, float alpha,
           float value_function_threshold,
           const Eigen::Ref<const StateCostWeight>& Q,
           const Eigen::Ref<const Hessian>& Qf,
@@ -24,7 +24,8 @@ class TestRobust: public RobustMPPIController<
           int num_timesteps,
           const Eigen::Ref<const control_trajectory>& init_control_traj,
           cudaStream_t stream) :
-  RobustMPPIController(model, cost, dt,  max_iter,  gamma, value_function_threshold, Q, Qf, R, control_std_dev, num_timesteps, init_control_traj, 9, 1, stream) {};
+
+  RobustMPPIController(model, cost, dt,  max_iter, lambda, alpha, value_function_threshold, Q, Qf, R, control_std_dev, num_timesteps, init_control_traj, 9, 1, stream) {}
 
 
   // Test to make sure that its nonzero
@@ -108,7 +109,8 @@ protected:
     Q.setIdentity();
     Qf.setIdentity();
     R.setIdentity();
-    test_controller = new TestRobust(model, cost, dt, 3, gamma, 10.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
+    test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, 10.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
+
   }
 
   void TearDown() override {
@@ -123,7 +125,8 @@ protected:
   dynamics::control_array control_std_dev;
   TestRobust::control_trajectory init_control_traj;
   float dt = 0.01;
-  float gamma = 0.5;
+  float lambda = 0.5;
+  float alpha = 0.01;
 };
 
 TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_LessThan3) {
@@ -259,7 +262,7 @@ protected:
     Qf.setIdentity();
     R.setIdentity();
 
-    test_controller = new TestRobust(model, cost, dt, 3, gamma, 10.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
+    test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, 10.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
 
     // Set the size of the trajectory costs function
     trajectory_costs.resize(num_samples*num_candidates, 1);
@@ -280,7 +283,8 @@ protected:
   dynamics::control_array control_std_dev;
   TestRobust::control_trajectory init_control_traj;
   float dt = 0.01;
-  float gamma = 0.5;
+  float lambda = 0.5;
+  float alpha = 0.01;
 
 };
 
@@ -314,7 +318,7 @@ TEST_F(RMPPINominalStateSelection, ComputeBestCandidate) {
   // Should probably be in a cuda kernel? Will have to profile.
   for (int i = 0; i < num_candidates; i++){
     for (int j = 0; j < num_samples; j++){
-      candidate_free_energy(i) += expf(-gamma*(trajectory_costs(i*num_samples + j) - baseline));
+      candidate_free_energy(i) += expf(-1.0/lambda*(trajectory_costs(i*num_samples + j) - baseline));
     }
   }
   for (int i = 0; i < num_candidates; i++){
@@ -322,7 +326,7 @@ TEST_F(RMPPINominalStateSelection, ComputeBestCandidate) {
   }
 
   for (int i = 0; i < num_candidates; i++){
-    candidate_free_energy(i) = -1.0/gamma*logf(candidate_free_energy(i)) + baseline;
+    candidate_free_energy(i) = -lambda*logf(candidate_free_energy(i)) + baseline;
   }
 
   //Now get the closest initial condition that is above the threshold.
@@ -467,7 +471,8 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   DoubleIntegratorCircleCost cost;  // Initialize the cost function
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float gamma = 0.25; // Learning rate parameter
+  float lambda = 0.25; // Learning rate parameter
+  float alpha = 0.01;
   const int num_timesteps = 50;  // Optimization time horizon
   const int total_time_horizon = 5000;
 
@@ -516,7 +521,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
 
   // Initialize the R MPPI controller
   auto controller = RobustMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8, 1>(&model, &cost, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
+          1024, 64, 8, 1>(&model, &cost, dt, max_iter, lambda, alpha, value_function_threshold, Q, Qf, R, control_var);
 
   int fail_count = 0;
 

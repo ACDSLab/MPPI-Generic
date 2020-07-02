@@ -30,11 +30,11 @@ public:
 TEST_F(RMPPIKernels, InitEvalRollout) {
   // Given the initial states, we need to roll out the number of samples.
   // 1.)  Generate the noise used to evaluate each sample.
-  //
-
   const int num_candidates = 9;
 
   float dt = 0.01;
+  float lambda = 0.75;
+  float alpha = 0.5;
 
   Eigen::Matrix<float, 4, num_candidates> x0_candidates;
   x0_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4,
@@ -94,16 +94,15 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
 
   control_noise =  Eigen::Map<Eigen::Matrix<float,dynamics::CONTROL_DIM, num_candidates*num_samples*num_timesteps>>(control_noise_data.data());
 
-//   std::cout << "Control Noise\n" << control_noise.col(num_samples*num_timesteps).cwiseProduct(exploration_var).transpose() << std::endl;
   int ctrl_stride = 2;
 
   Eigen::Matrix<int, 1, 9> strides;
   strides << 1, 2, 3, 4, 4, 4, 4, 4, 4;
 
-
   // Let us make temporary variables to hold the states and state derivatives and controls
   dynamics::state_array x_current, x_dot_current;
   dynamics::control_array u_current;
+  dynamics::control_array noise_current;
 
   Eigen::Matrix<float, 1, num_samples*9> cost_vector;
 
@@ -118,28 +117,29 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
         candidate_nominal_control.col(k) = nominal_control.col(k+strides(i));
       }
     }
-//    if (i == 0) {
-//      std::cout << "Nominal_control:\n" << nominal_control << std::endl;
-//      std::cout << "Candidate_control:\n" << candidate_nominal_control << std::endl;
-//    }
+
     for (int j = 0; j < num_samples; ++j) {
       x_current = x0_candidates.col(i);  // The initial state of the rollout
       for (int k = 0; k < num_timesteps; ++k) {
-        // compute the cost
-        if (k > 0) {
-          cost_current += (cost->computeStateCost(x_current) * dt - cost_current) / (1.0*k);
-        }
         // get the control plus a disturbance
         if (j == 0 || k < ctrl_stride) { // First sample should always be noise free as should any timesteps that are below the control stride
-          u_current = candidate_nominal_control.col(k);
+          noise_current = dynamics::control_array::Zero();
         } else {
-          u_current = candidate_nominal_control.col(k) +
-                      control_noise.col(i * num_samples * num_timesteps + j * num_timesteps + k).cwiseProduct(
-                              exploration_var);
+          noise_current = control_noise.col((i * num_samples + j) * num_timesteps + k).cwiseProduct(
+                  exploration_var);
+        }
+        u_current = candidate_nominal_control.col(k) + noise_current;
+
+        // enforce constraints
+        model->enforceConstraints(x_current, u_current);
+
+        // compute the cost
+        if (k > 0) {
+          cost_current += (cost->computeRunningCost(x_current, candidate_nominal_control.col(k), noise_current, exploration_var, lambda, alpha, k) * dt - cost_current) / (1.0f*k);
         }
 
         // compute the next state_dot
-        model->computeDynamics(x_current, u_current, x_dot_current);
+        model->computeStateDeriv(x_current, u_current, x_dot_current);
         // update the state to the next
         model->updateState(x_current, x_dot_current, dt);
         }
@@ -148,10 +148,6 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
       cost_current = 0.0;
     }
   }
-
-
-//  std::cout << "Eigen strides: " << strides << std::endl;
-
 
   // Copy the state candidates to GPU
   HANDLE_ERROR(cudaMemcpy(states_d, x0_candidates.data(), sizeof(float)*dynamics::STATE_DIM*num_candidates, cudaMemcpyHostToDevice));
@@ -168,18 +164,13 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // Run the GPU test kernel of the init eval kernel and get the output data
   // ();
   rmppi_kernels::launchInitEvalKernel<dynamics, cost_function, 64, 8, num_samples>(model->model_d_, cost->cost_d_,
-          num_candidates, num_timesteps, ctrl_stride, dt,
+          num_candidates, num_timesteps, lambda, alpha, ctrl_stride, dt,
           strides_d, exploration_var_d, states_d, control_d, control_noise_d, costs_d, 0);
   CudaCheckError();
 
   Eigen::Matrix<float, 1, num_samples*num_candidates> cost_vector_GPU;
   // Compare with the CPU version
   HANDLE_ERROR(cudaMemcpy(cost_vector_GPU.data(), costs_d, sizeof(float)*num_samples*num_candidates, cudaMemcpyDeviceToHost));
-
-//  std::cout <<  "Cost Vector CPU\n" << cost_vector.col(65) << std::endl;
-//  std::cout << "Cost Vector GPU\n" << cost_vector_GPU.col(65) << std::endl;
-
-//  std::cout << (cost_vector - cost_vector_GPU).transpose() << std::endl;
 
   EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 1e-4);
 }
@@ -195,14 +186,11 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
 
   float dt = 0.01;
   // int max_iter = 10;
-  float lambda = 0.1;
+  float lambda = 1.0;
+  float alpha = 0.0001;
   const int num_timesteps = 50;
   const int num_rollouts = 64;
 
-  // float x[num_rollouts * state_dim * 2];
-  // float x_dot[num_rollouts * state_dim * 2];
-  // float u[num_rollouts * control_dim * 2];
-  // float du[num_rollouts * control_dim * 2];
   float sigma_u[control_dim] = {0.5, 0.05}; // variance to sample noise from
   COST::control_matrix cost_variance = COST::control_matrix::Identity();
   for(int i = 0; i < control_dim; i++) {
@@ -293,11 +281,11 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   std::array<float, num_rollouts> costs_act_GPU, costs_nom_GPU;
   std::array<float, num_rollouts> costs_act_CPU, costs_nom_CPU;
   launchRMPPIRolloutKernelGPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-    num_timesteps, lambda, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    num_timesteps, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_GPU, costs_nom_GPU);
   launchRMPPIRolloutKernelCPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-    num_timesteps, lambda, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    num_timesteps, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_CPU, costs_nom_CPU);
 

@@ -12,6 +12,8 @@ namespace mppi_common {
   __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs,
                                float dt,
                                int num_timesteps,
+                               float lambda,
+                               float alpha,
                                float* x_d,
                                float* u_d,
                                float* du_d,
@@ -72,7 +74,7 @@ namespace mppi_common {
         __syncthreads();
 
         //Accumulate running cost
-        running_cost += costs->computeRunningCost(x, u, du, sigma_u, t)*dt;
+        running_cost += costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t)*dt;
         //__syncthreads();
 
         //Compute state derivatives
@@ -90,14 +92,14 @@ namespace mppi_common {
 
   __global__ void normExpKernel(int num_rollouts,
                                 float* trajectory_costs_d,
-                                float gamma,
+                                float lambda_inv,
                                 float baseline) {
     int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + \
       threadIdx.z;
 
     if (global_idx < num_rollouts * blockDim.z) {
       float cost_dif = trajectory_costs_d[global_idx] - baseline;
-      trajectory_costs_d[global_idx] = expf(-gamma*cost_dif);
+      trajectory_costs_d[global_idx] = expf(-lambda_inv * cost_dif);
     }
   }
 
@@ -240,11 +242,27 @@ namespace mppi_common {
         return normalizer;
     }
 
+    void computeFreeEnergy(float& free_energy, float& free_energy_var,
+                           float* cost_rollouts_host,  int num_rollouts,
+                           float baseline, float lambda) {
+      float var = 0;
+      float norm = 0;
+      for(int i = 0; i < num_rollouts; i++) {
+        norm += cost_rollouts_host[i];
+        var += powf(cost_rollouts_host[i], 2);
+      }
+      norm /= num_rollouts;
+      free_energy = lambda * logf(norm) + baseline;
+      free_energy_var = lambda * (var / num_rollouts - powf(norm, 2));
+      // TODO Figure out the point of the following lines
+      // float weird_term = free_energy_var / (mean * sqrtf(1.0 * num_rollouts));
+      // free_energy_var = lambda * (weird_term + 0.5 * powf(weird_term, 2));
+    }
+
     /*******************************************************************************************************************
      * Weighted Reduction Kernel Helpers
     *******************************************************************************************************************/
     __device__ void setInitialControlToZero(int control_dim, int thread_idx, float* u, float* u_intermediate) {
-        // TODO replace with memset?
         for (int i = 0; i < control_dim; i++) {
             u[i] = 0;
             u_intermediate[thread_idx * control_dim + i] = 0;
@@ -299,22 +317,23 @@ namespace mppi_common {
     template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
              int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
     void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
-                             int num_timesteps, float* x_d, float* u_d,
+                             int num_timesteps, float lambda, float alpha,
+                             float* x_d, float* u_d,
                              float* du_d, float* sigma_u_d,
                              float* trajectory_costs, cudaStream_t stream) {
       const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
       dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
       dim3 dimGrid(gridsize_x, 1, 1);
       rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
-              num_timesteps, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
+              num_timesteps, lambda, alpha, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
       CudaCheckError();
       HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
-    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float baseline, cudaStream_t stream) {
+    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda, float baseline, cudaStream_t stream) {
         dim3 dimBlock(blocksize_x, 1, 1);
         dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
-        normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, gamma, baseline);
+        normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, 1.0/lambda, baseline);
         CudaCheckError();
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
@@ -336,6 +355,8 @@ namespace rmppi_kernels {
   __global__ void initEvalKernel(DYN_T* dynamics,
                                  COST_T* costs,
                                  int num_timesteps,
+                                 float lambda,
+                                 float alpha,
                                  int ctrl_stride,
                                  float dt,
                                  int* strides_d,
@@ -421,7 +442,7 @@ namespace rmppi_kernels {
       __syncthreads();
       if (tdy == 0 && i > 0) { // Only compute once per global index, make sure that we don't divide by zero
         running_cost +=
-                (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, i) * dt - running_cost) / (1.0 * i);
+                (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, lambda, alpha, i) * dt - running_cost) / (1.0 * i);
       }
       __syncthreads();
 
@@ -445,6 +466,8 @@ namespace rmppi_kernels {
                             COST_T* costs,
                             int num_candidates,
                             int num_timesteps,
+                            float lambda,
+                            float alpha,
                             int ctrl_stride,
                             float dt,
                             int* strides_d,
@@ -459,9 +482,9 @@ namespace rmppi_kernels {
     dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
     dim3 dimGrid(GRIDSIZE_X, 1, 1);
     initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
-            <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs,
-            num_timesteps, ctrl_stride, dt, strides_d, exploration_std_dev_d, states_d,
-            control_d, control_noise_d, costs_d);
+      <<<dimGrid, dimBlock, 0>>>(dynamics, costs,
+      num_timesteps, lambda, alpha, ctrl_stride, dt, strides_d,
+      exploration_std_dev_d, states_d, control_d, control_noise_d, costs_d);
 
   }
 
@@ -472,6 +495,7 @@ namespace rmppi_kernels {
                                      float dt,
                                      int num_timesteps,
                                      float lambda,
+                                     float alpha,
                                      float value_func_threshold,
                                      float* x_d,
                                      float* u_d,
@@ -585,16 +609,16 @@ namespace rmppi_kernels {
           // This memory is shared in the y direction so limit which threads can write to it
           *running_state_cost_nom += curr_state_cost;
           *running_control_cost_nom += costs->computeLikelihoodRatioCost(u,
-              du, sigma_u, lambda)*dt;
+              du, sigma_u, lambda, alpha)*dt;
         }
         // Real system cost update when thread_idz == 0
         if (thread_idz == 0) {
           running_state_cost_real += curr_state_cost;
           running_control_cost_real +=
-            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda)*dt;
+            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda, alpha)*dt;
 
           running_tracking_cost_real += (curr_state_cost +
-            costs->computeFeedbackCost(fb_control, sigma_u, lambda)*dt);
+            costs->computeFeedbackCost(fb_control, sigma_u, lambda, alpha)*dt);
         }
         __syncthreads();
         // dynamics update
@@ -641,6 +665,7 @@ namespace rmppi_kernels {
                                 float dt,
                                 int num_timesteps,
                                 float lambda,
+                                float alpha,
                                 float value_func_threshold,
                                 float* x_d,
                                 float* u_d,
@@ -654,7 +679,7 @@ namespace rmppi_kernels {
     dim3 dimGrid(gridsize_x, 1, 1);
     RMPPIRolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
                       BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
-                        dynamics, costs, dt, num_timesteps, lambda,
+                        dynamics, costs, dt, num_timesteps, lambda, alpha,
                         value_func_threshold, x_d, u_d, du_d,
                         feedback_gains_d, sigma_u_d, trajectory_costs);
     CudaCheckError();
