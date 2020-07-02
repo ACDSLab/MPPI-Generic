@@ -610,6 +610,7 @@ namespace rmppi_kernels {
           *running_state_cost_nom += curr_state_cost;
           *running_control_cost_nom += costs->computeLikelihoodRatioCost(u,
               du, sigma_u, lambda, alpha)*dt;
+
         }
         // Real system cost update when thread_idz == 0
         if (thread_idz == 0) {
@@ -619,6 +620,7 @@ namespace rmppi_kernels {
 
           running_tracking_cost_real += (curr_state_cost +
             costs->computeFeedbackCost(fb_control, sigma_u, lambda, alpha)*dt);
+
         }
         __syncthreads();
         // dynamics update

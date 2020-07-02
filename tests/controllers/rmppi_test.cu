@@ -24,9 +24,7 @@ class TestRobust: public RobustMPPIController<
           int num_timesteps,
           const Eigen::Ref<const control_trajectory>& init_control_traj,
           cudaStream_t stream) :
-
   RobustMPPIController(model, cost, dt,  max_iter, lambda, alpha, value_function_threshold, Q, Qf, R, control_std_dev, num_timesteps, init_control_traj, 9, 1, stream) {}
-
 
   // Test to make sure that its nonzero
   // Test to make sure that cuda memory is allocated
@@ -110,7 +108,6 @@ protected:
     Qf.setIdentity();
     R.setIdentity();
     test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, 10.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
-
   }
 
   void TearDown() override {
