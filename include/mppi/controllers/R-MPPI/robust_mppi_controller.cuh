@@ -39,7 +39,7 @@
 #include <mppi/core/mppi_common.cuh>
 
 template <class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
-          int BDIM_X = 64, int BDIM_Y = 1>
+          int BDIM_X = 64, int BDIM_Y = 1, int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
 class RobustMPPIController : public Controller<DYN_T, COST_T,
                                             MAX_TIMESTEPS,
                                             NUM_ROLLOUTS,
@@ -93,25 +93,17 @@ public:
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
   using NominalCandidateVector = typename util::NamedEigenAlignedVector<state_array>;
 
-  static const int BLOCKSIZE_WRX = 64;
-  //NUM_ROLLOUTS has to be divisible by BLOCKSIZE_WRX
-//  static const int NUM_ROLLOUTS = (NUM_ROLLOUTS/BLOCKSIZE_WRX)*BLOCKSIZE_WRX;
   static const int BLOCKSIZE_X = BDIM_X;
   static const int BLOCKSIZE_Y = BDIM_Y;
   static const int STATE_DIM = DYN_T::STATE_DIM;
   static const int CONTROL_DIM = DYN_T::CONTROL_DIM;
 
-  //Constants for the safe importance sampler updates
-  static const int SAMPLES_PER_CONDITION = 64; //Must be multiple of BDIM_X
-  static const int NUM_CANDIDATES = 9; //Must be odd
+  // Number of samples per condition must be a multiple of the blockDIM
+  static const int SAMPLES_PER_CONDITION = BDIM_X*SAMPLES_PER_CONDITION_MULTIPLIER;
 
-  float value_func_threshold_ = 1000.0;
+  float value_function_threshold_ = 1000.0;
 
-  bool nominalStateInit_ = false;
-  int numTimesteps_;
-  int optimizationStride_;
-
-  state_array nominal_state_;
+  state_array nominal_state_ = state_array::Zero();
 
   /**
   * @brief Constructor for mppi controller class
@@ -125,9 +117,15 @@ public:
   */
   RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
                        float lambda, float alpha,
+                       float value_function_threshold,
+                       const Eigen::Ref<const StateCostWeight>& Q,
+                       const Eigen::Ref<const Hessian>& Qf,
+                       const Eigen::Ref<const ControlCostWeight>& R,
                        const Eigen::Ref<const control_array>& control_std_dev,
                        int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
+                       int num_candidate_nominal_states = 9,
+                       int optimization_stride = 1,
                        cudaStream_t stream = nullptr);
 
   /**
@@ -135,65 +133,77 @@ public:
   */
   ~RobustMPPIController();
 
-//  void computeFeedbackGains(const Eigen::Ref<const state_array>& s) override;
-
   feedback_gain_trajectory getFeedbackGains() override {
     return this->result_.feedback_gain;
   };
 
-  /*
-  * @brief Resets the control commands to there initial values.
-  */
-//  void resetControls();
+  // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
+  // and allocates the associated CUDA memory
+  void updateNumCandidates(int new_num_candidates);
 
-//  void cutThrottle();
 
-//  void savitskyGolay();
-
-//  void computeNominalTraj(const Eigen::Ref<const state_array>& state);
-
-  /*void slideControlSeq(int stride);*/
-
-//  void updateImportanceSampler(const Eigen::Ref<const state_array>& state, int stride);
+  // Update the importance sampler prior to calling computeControl
+  void updateImportanceSamplingControl(const Eigen::Ref<const state_array> &state, int stride);
 
   /**
   * @brief Compute the control given the current state of the system.
   * @param state The current state of the autorally system.
   */
-  void computeControl(const Eigen::Ref<const state_array>& state) override {};
+  void computeControl(const Eigen::Ref<const state_array>& state);
 
-  control_trajectory getControlSeq() override {return nominal_control_trajectory_;};
+  control_trajectory getControlSeq() override {return this->control_;};
 
   state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
 
+  state_trajectory getAncillaryStateSeq() {return this->result_.state_trajectory;};
+
+  // Does nothing. This reason is because the control sliding happens during the importance sampler update.
+  // The control applied to the real system (during the MPPI rollouts) is the nominal control (which slides
+  // during the importance sampler update), plus the feedback term. Inside the runControlIteration function
+  // slideControl sequence is called prior to optimization, after the importance sampler update.
   void slideControlSequence(int steps) override {};
 
-  // TubeDiagnostics getTubeDiagnostics();
+  // Feedback gain computation is done after the importance sampling update. The nominal trajectory computed
+  // during the importance sampling update does not change after the optimization, thus the feedback gains will
+  // not change either. In the current implementation of runControlIteration, the compute feedback gains is called
+  // after the computation of the optimal control.
+  void computeFeedbackGains(const Eigen::Ref<const state_array>& state) override {};
+
+  Eigen::MatrixXf getCandidateFreeEnergy() {return candidate_free_energy_;};
 
 protected:
   bool importance_sampling_cuda_mem_init_ = false;
-  int num_candidate_nominal_states_ = 9; // TODO should the initialization be a parameter?
-  float nominal_normalizer_; ///< Variable for the normalizing term from sampling.
-
-  OptimizerResult<ModelWrapperDDP<DYN_T>> last_result_;
-
-//  TubeDiagnostics status_;
+  int num_candidate_nominal_states_;
+  int best_index_ = 0;  // Selected nominal state candidate
+  int optimization_stride_; // Number of timesteps to apply the optimal control (== 1 for true MPC)
+  int nominal_stride_ = 0; // Stride for the chosen nominal state of the importance sampler
+  int real_stride_ = 0; // Stride for the optimal controller sliding
+  bool nominal_state_init_ = false;
+  float baseline_nominal_ = 100.0; // Cost baseline for the nominal state
+  float normalizer_nominal_ = 100.0;  // Normalizer variable for the nominal state
 
   // Storage classes
   control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
   state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
+  sampled_cost_traj trajectory_costs_nominal_ = sampled_cost_traj::Zero();
+
+  // Make the control history size flexible, related to issue #30
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> nominal_control_history_; // History used for nominal_state IS
 
   NominalCandidateVector candidate_nominal_states_ = {state_array::Zero()};
   Eigen::MatrixXf line_search_weights_; // At minimum there must be 3 candidates
   Eigen::MatrixXi importance_sampler_strides_; // Time index where control trajectory starts for each nominal state candidate
+  Eigen::MatrixXf candidate_trajectory_costs_;
+  Eigen::MatrixXf candidate_free_energy_;
+  std::vector<float> feedback_gain_vector_;
 
   void allocateCUDAMemory();
 
-  void deallocateNominalStateCandidateMemory();
+  void deallocateCUDAMemory();
 
-  // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
-  // and allocates the associated CUDA memory
-  void updateNumCandidates(int new_num_candidates);
+  void copyNominalControlToDevice();
+
+  void deallocateNominalStateCandidateMemory();
 
   void resetCandidateCudaMem();
 
@@ -205,52 +215,26 @@ protected:
   // compute the line search weights
   void computeLineSearchWeights();
 
+  void computeNominalStateAndStride(const Eigen::Ref<const state_array> &state, int stride);
+
   // compute the importance sampler strides
   void computeImportanceSamplerStride(int stride);
+
+  // Compute the baseline of the candidates
+  float computeCandidateBaseline();
+
+  // Get the best index based on the candidate free energy
+  void computeBestIndex();
+
+  // Computes and saves the feedback gains used in the rollout kernel and tracking.
+  void computeNominalFeedbackGains(const Eigen::Ref<const state_array> &state);
 
   // CUDA Memory
   float* importance_sampling_states_d_;
   float* importance_sampling_costs_d_;
-  float* importance_sampling_strides_d_;
-
-  float* nominal_state_d_;
-  // Here num_candidates*num_samples_per_condition < 2*num_rollouts. -> we should enforce this
-
-  //  // Previous storage classes
-//  std::vector<float> U_;
-//  std::vector<float> U_optimal_;
-//  std::vector<float> augmented_nominal_costs_; ///< Array of the trajectory costs.
-//  std::vector<float> augmented_real_costs_; ///< Array of the trajectory costs.
-//  std::vector<float> pure_real_costs_; ///< Array of the trajectory costs.
-//
-//  std::vector<float> state_solution_; ///< Host array for keeping track of the nomimal trajectory.
-//  std::vector<float> control_solution_;
-//  std::vector<float> importance_hist_;
-//  std::vector<float> optimal_control_hist_;
-//  std::vector<float> du_; ///< Host array for computing the optimal control update.
-//  std::vector<float> nu_;
-//  std::vector<float> init_u_;
-//  std::vector<float> feedback_gains_;
-//
-//  float* feedback_gains_d_;
-//  float *augmented_nominal_costs_d_, *augmented_real_costs_d_, *pure_real_costs_d_;
-//  float *state_d_, *nominal_state_d_;
-//  float *U_d_;
-//  float *nu_d_;
-//  float *du_d_;
-//  float *dx_d_;
-
+  int* importance_sampling_strides_d_;
+  float* feedback_gain_array_d_;
 };
-
-//template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
-//__global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, float dt,
-//    int num_timesteps, float* init_states_d, float* strides_d,
-//    float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs_d);
-//
-//template<class DYN_T, class COST_T>
-//void launchInitEvalKernel(DYN_T* dynamics, COST_T* costs, float dt,
-//    int num_timesteps, float* x_d, float* u_d, float* du_d,
-//    float* sigma_u_d, float* trajectory_costs, cudaStream_t stream);
 
 #if __CUDACC__
 #include "robust_mppi_controller.cu"

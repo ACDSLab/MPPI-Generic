@@ -12,6 +12,3 @@ template class VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorC
 template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 512, 64, 8>;
 template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 50, 1024, 64, 8>;
 template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 1024, 64, 8>;
-
-// Temporary explicit template instantiation for mppi common functions prior to putting them into RMPPI
-template class RobustMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 512, 64, 8>;

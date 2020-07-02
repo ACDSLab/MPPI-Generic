@@ -475,15 +475,16 @@ namespace rmppi_kernels {
                             float* states_d,
                             float* control_d,
                             float* control_noise_d,
-                            float* costs_d) {
+                            float* costs_d,
+                            cudaStream_t stream) {
 
     int GRIDSIZE_X = num_candidates * SAMPLES_PER_CONDITION / BLOCKSIZE_X;
     dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
     dim3 dimGrid(GRIDSIZE_X, 1, 1);
     initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
-            <<<dimGrid, dimBlock, 0>>>(dynamics, costs,
-            num_timesteps, lambda, alpha, ctrl_stride, dt, strides_d,
-            exploration_std_dev_d, states_d, control_d, control_noise_d, costs_d);
+      <<<dimGrid, dimBlock, 0>>>(dynamics, costs,
+      num_timesteps, lambda, alpha, ctrl_stride, dt, strides_d,
+      exploration_std_dev_d, states_d, control_d, control_noise_d, costs_d);
 
   }
 
@@ -601,23 +602,25 @@ namespace rmppi_kernels {
 
         __syncthreads();
         // Calculate All the costs
-        float curr_state_cost = costs->computeStateCost(x);
+        float curr_state_cost = costs->computeStateCost(x)*dt;
 
         // Nominal system is where thread_idz == 1
         if (thread_idz == 1 && thread_idy == 0) {
           // This memory is shared in the y direction so limit which threads can write to it
           *running_state_cost_nom += curr_state_cost;
           *running_control_cost_nom += costs->computeLikelihoodRatioCost(u,
-              du, sigma_u, lambda, alpha);
+              du, sigma_u, lambda, alpha)*dt;
+
         }
         // Real system cost update when thread_idz == 0
         if (thread_idz == 0) {
           running_state_cost_real += curr_state_cost;
           running_control_cost_real +=
-            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda, alpha);
+            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda, alpha)*dt;
 
           running_tracking_cost_real += (curr_state_cost +
-            costs->computeFeedbackCost(fb_control, sigma_u, lambda, alpha));
+            costs->computeFeedbackCost(fb_control, sigma_u, lambda, alpha)*dt);
+
         }
         __syncthreads();
         // dynamics update

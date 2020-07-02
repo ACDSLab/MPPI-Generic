@@ -26,11 +26,11 @@ def callback(event):
     global axs
 
     ''' this function gets called if we hit a key'''
-    #print('you pressed', event.key)
     plt.cla()
     plot_boundaries(axs)
     global cur_timestep
     if event.key == "right":
+        # print((actual[cur_timestep,0,:] == 0).all())
         if not (actual[cur_timestep,0,:] == 0).all():  # Means that the system stopped saving trajectories because of task failure
             cur_timestep += 1
     elif event.key == "left":
@@ -51,6 +51,7 @@ def callback(event):
     # plt nominal state
     axs.plot(nominal[cur_timestep,:,0], nominal[cur_timestep,:,1], 'g', linewidth=2.0, label='nominal trajectory')
     axs.plot(nominal[min_index:cur_timestep,0,0], nominal[min_index:cur_timestep,0,1], 'g+', label='nominal state')
+
     # fix legend
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
 
@@ -71,6 +72,7 @@ def plot_boundaries(axis):
 
 def main(args):
     build_dir = args['build_dir']
+    controller_flag = args['controller']
     data_dir = build_dir + 'tests/controllers/'
     # Create the figures for each subplot
     global axs
@@ -86,11 +88,19 @@ def main(args):
     # for ax in axs.flat:
     #     ax.label_outer()
 
+
     # Tube MPPI with large noise
     global actual, ancillary, nominal
-    actual = np.load(data_dir + 'tube_large_actual.npy')
-    nominal = np.load(data_dir + 'tube_large_nominal.npy')
-    ancillary = np.load(data_dir + 'tube_ancillary.npy')
+    if controller_flag == '0':  # 0 for tube, 1 for robust
+        actual = np.load(data_dir + 'tube_large_actual.npy')
+        nominal = np.load(data_dir + 'tube_large_nominal.npy')
+        ancillary = np.load(data_dir + 'tube_ancillary.npy')
+    elif controller_flag == '1':
+        actual = np.load(data_dir + 'robust_large_actual.npy')
+        nominal = np.load(data_dir + 'robust_large_nominal.npy')
+        ancillary = np.load(data_dir + 'robust_ancillary.npy')
+    else:
+        pass
     plot_boundaries(axs)
     # TODO plot the initial location
 
@@ -99,6 +109,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Say hello')
     parser.add_argument('--build_dir', help='Location of MPPI-Generic build folder', required=True)
+    parser.add_argument('--controller', help='0: Tube MPPI, 1: Robust MPPI')
     args = vars(parser.parse_args())
 
     main(args)

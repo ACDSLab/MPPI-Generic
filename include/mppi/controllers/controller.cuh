@@ -142,7 +142,7 @@ public:
     // TODO copy to device new control sequence
     control_ = nominal_control;
   }
-
+  
   /**
    * determines the control that should
    * @param state

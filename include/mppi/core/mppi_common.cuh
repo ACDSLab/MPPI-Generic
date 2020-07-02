@@ -165,7 +165,8 @@ namespace rmppi_kernels {
                             float* states_d,
                             float* control_d,
                             float* control_noise_d,
-                            float* costs_d);
+                            float* costs_d,
+                            cudaStream_t stream);
 
   template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
       int NUM_ROLLOUTS, int BLOCKSIZE_Z = 2>

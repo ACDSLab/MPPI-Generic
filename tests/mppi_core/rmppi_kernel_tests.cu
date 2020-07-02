@@ -165,7 +165,8 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // ();
   rmppi_kernels::launchInitEvalKernel<dynamics, cost_function, 64, 8, num_samples>(model->model_d_, cost->cost_d_,
           num_candidates, num_timesteps, lambda, alpha, ctrl_stride, dt,
-          strides_d, exploration_var_d, states_d, control_d, control_noise_d, costs_d);
+          strides_d, exploration_var_d, states_d, control_d, control_noise_d, costs_d, 0);
+
   CudaCheckError();
 
   Eigen::Matrix<float, 1, num_samples*num_candidates> cost_vector_GPU;
@@ -199,9 +200,9 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   // float fb_u[num_rollouts * control_dim * state_dim];
 
   DYN::state_array x_init_act;
-  x_init_act << 0, 0, 0, 0;
+  x_init_act << 2, 0, 0, 0;
   DYN::state_array x_init_nom;
-  x_init_nom << 0, 0, 0.1, 0;
+  x_init_nom << 2, 0, 0.1, 0;
 
   // Generate control noise
   float sampled_noise[num_rollouts * num_timesteps * control_dim];
@@ -264,6 +265,19 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
 
   float value_func_threshold = 50000;
 
+  std::cout <<  "X_init_act_vec " << std::endl;
+  for (int i = 0; i < x_init_act_vec.size(); ++i) {
+    std::cout <<  " " << x_init_act_vec[i];
+  }
+  std::cout << std::endl;
+
+  std::cout <<  "X_init_nom_vec " << std::endl;
+  for (int i = 0; i < x_init_nom_vec.size(); ++i) {
+    std::cout <<  " " << x_init_nom_vec[i];
+  }
+  std::cout << std::endl;
+
+
   // Output Trajectory Costs
   std::array<float, num_rollouts> costs_act_GPU, costs_nom_GPU;
   std::array<float, num_rollouts> costs_act_CPU, costs_nom_CPU;
@@ -275,6 +289,11 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
     num_timesteps, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_CPU, costs_nom_CPU);
+
+  for (int i = 0; i < costs_nom_CPU.size(); ++i) {
+    std::cout << "Nominal Cost CPU: " << costs_nom_CPU[i] << std::endl;
+    std::cout << "Nominal Cost GPU: " << costs_nom_GPU[i] << std::endl;
+  }
 
   float max_diff_nom = -100;
   float max_diff_act = -100;

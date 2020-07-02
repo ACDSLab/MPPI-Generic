@@ -25,6 +25,7 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
 
+  // Initialize DDP
   this->initDDP(Q, Qf, R);
 }
 
