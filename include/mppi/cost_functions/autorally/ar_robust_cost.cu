@@ -76,7 +76,7 @@ __device__ float ARRobustCost<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeStateCost(float *s) {
+inline __device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep) {
 
   float stabilizing_cost = getStabilizingCost(s);
   float costmap_cost = getCostmapCost(s);

@@ -602,7 +602,7 @@ namespace rmppi_kernels {
 
         __syncthreads();
         // Calculate All the costs
-        float curr_state_cost = costs->computeStateCost(x)*dt;
+        float curr_state_cost = costs->computeStateCost(x, t)*dt;
 
         // Nominal system is where thread_idz == 1
         if (thread_idz == 1 && thread_idy == 0) {

@@ -20,7 +20,6 @@ struct ARStandardCostParams : public CostParams<2> {
   float track_slop = 0;
   float crash_coeff = 10000;
   float boundary_threshold = 0.65;
-  float discount = 0.1;
   // TODO remove from struct
   int grid_res = 10;
   /*
@@ -184,7 +183,7 @@ public:
   /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
-  inline __device__ float computeStateCost(float *s, int timestep);
+  inline __device__ float computeStateCost(float *s, int timestep = 0);
   inline __device__ float computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
                                       int timestep);
 

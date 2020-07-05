@@ -68,7 +68,7 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     // call rollout kernel with z = 2 since we have a nominal state
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 2>(
-            this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
+            this->model_->model_d_, static_cast<COST_T*>(this->cost_->cost_d_), this->dt_, this->num_timesteps_,
             this->lambda_, this->alpha_,
             this->initial_state_d_, this->control_d_, this->control_noise_d_,
             this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
