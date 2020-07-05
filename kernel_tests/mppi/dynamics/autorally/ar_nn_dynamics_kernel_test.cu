@@ -43,7 +43,7 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::array<float, THETA_SI
 
 template<class NETWORK_T, int S_DIM, int C_DIM>
 __global__ void fullARNNTestKernel(NETWORK_T* model, float* state, float* control, float* state_der, float dt) {
-  __shared__ float theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK];
+  __shared__ float theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK*blockDim.x];
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   // calls enforce constraints -> compute state derivative -> increment state
 

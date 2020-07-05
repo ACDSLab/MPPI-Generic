@@ -229,7 +229,7 @@ Eigen::Array3f ARStandardCost<CLASS_T, PARAMS_T>::getTranslation() {
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __host__ __device__ float ARStandardCost<CLASS_T, PARAMS_T>::terminalCost(float *s) {
+inline __device__ float ARStandardCost<CLASS_T, PARAMS_T>::terminalCost(float *s) {
   return 0.0;
 }
 

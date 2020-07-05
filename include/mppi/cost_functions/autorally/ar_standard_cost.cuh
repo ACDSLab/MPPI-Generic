@@ -183,14 +183,14 @@ public:
   /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
-  inline __device__ float computeStateCost(float *s, int timestep = 0);
-  inline __device__ float computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
+  inline __device__ float computeStateCost(float* s, int timestep = 0);
+  inline __device__ float computeRunningCost(float* s, float* u, float *noise, float* std_dev, float lambda, float alpha,
                                       int timestep);
 
   /**
    * @brief Computes the terminal cost from a state
    */
-  __host__ __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* s);
 
   //Constant variables
   const float FRONT_D = 0.5; ///< Distance from GPS receiver to front of car.

@@ -34,7 +34,7 @@ namespace mppi_common {
     __shared__ float sigma_u[DYN_T::CONTROL_DIM];
 
     // Create a shared array for the dynamics model to use
-    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
 
     // Create local state, state dot and controls
     float* x;
@@ -521,7 +521,7 @@ namespace rmppi_kernels {
     __shared__ float running_control_cost_nom_shared[BLOCKSIZE_X];
 
     // Create a shared array for the dynamics model to use
-    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+    __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
 
     // Create local state, state dot and controls
     float* x;
