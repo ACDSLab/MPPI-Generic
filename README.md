@@ -6,6 +6,8 @@ Generic implementation of Model Predictive Path Integral Control
 * CMake >= 3.8
 * CUDA Toolkit == 10.0
 * Eigen >= 3.3.4
+* OpenCV
+* python-pil
 
 ## Install instructions (Ubuntu 16.04)
 
@@ -39,6 +41,16 @@ make install # Install Eigen to ~/.local
 * cnpy
 * yaml
 * ros ( wrappers only)
+
+## Install instructions (Ubuntu 20.04)
+
+### Install Dependencies
+
+```bash
+sudo apt install cmake libeigen3-dev libopencv-dev python3-pil
+```
+
+Note: If using Pop!\_OS you can `sudo apt install system76-cuda` instead of installing CUDA manually.
 
 ## Building MPPI-Generic with tests
 
