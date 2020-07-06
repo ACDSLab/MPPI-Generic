@@ -9,15 +9,10 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   DoubleIntegratorRobustCost(cudaStream_t stream = nullptr);
 
-  float computeStateCost(const Eigen::Ref<const state_array> s);
+  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep = 0);
   float terminalCost(const Eigen::Ref<const state_array> s);
 
-  // __device__ float getControlCost(float* u, float* du, float* variance);
-
-  __device__ float computeStateCost(float* s);
-
-  __device__ float computeRunningCost(float* s, float* u, float* du,
-                                      float* variance, int timestep);
+  __device__ float computeStateCost(float* s, int timestep = 0);
 
   __device__ float terminalCost(float* s);
 

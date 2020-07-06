@@ -466,6 +466,149 @@ bool tubeFailure(float *s) {
 
 TEST(RMPPITest, RobustMPPILargeVariance) {
   using DYNAMICS = DoubleIntegratorDynamics;
+  using COST_T = DoubleIntegratorCircleCost;
+  // Noise enters the system during the "true" state propagation. In this case the noise is nominal
+  DYNAMICS model(100);  // Initialize the double integrator dynamics
+  COST_T cost;  // Initialize the cost function
+  float dt = 0.02; // Timestep of dynamics propagation
+  int max_iter = 3; // Maximum running iterations of optimization
+  float lambda = 0.25; // Learning rate parameter
+  float alpha = 0.01;
+  const int num_timesteps = 50;  // Optimization time horizon
+  const int total_time_horizon = 5000;
+
+  std::vector<float> actual_trajectory_save(num_timesteps*total_time_horizon*DYNAMICS::STATE_DIM);
+  std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DYNAMICS::STATE_DIM);
+  std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DYNAMICS::STATE_DIM);
+
+
+  // Set the initial state
+  DYNAMICS::state_array x;
+  x << 2, 0, 0, 1;
+
+  DYNAMICS::state_array xdot;
+
+  // control variance
+  DYNAMICS::control_array control_var;
+  control_var << 1, 1;
+
+  // DDP cost parameters
+  Eigen::MatrixXf Q;
+  Eigen::MatrixXf Qf;
+  Eigen::MatrixXf R;
+
+  /**
+   * Q =
+   * [500, 0, 0, 0
+   *  0, 500, 0, 0
+   *  0, 0, 100, 0
+   *  0, 0, 0, 100]
+   */
+  Q = 500*DoubleIntegratorDynamics::dfdx::Identity();
+  Q(2,2) = 100;
+  Q(3,3) = 100;
+  /**
+   * R = I
+   */
+  R = 1*DoubleIntegratorCircleCost::control_matrix::Identity();
+
+  /**
+   * Qf = I
+   */
+  Qf = DoubleIntegratorDynamics::dfdx::Identity();
+
+  // Value function threshold
+  float value_function_threshold = 10.0;
+
+  // DoubleIntegratorRobustCost cost2;
+  // auto controller2 = RobustMPPIController<DYNAMICS, DoubleIntegratorRobustCost, num_timesteps,
+  //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
+
+  // Initialize the R MPPI controller
+  auto controller = RobustMPPIController<DYNAMICS, COST_T, num_timesteps,
+          1024, 64, 8, 1>(&model, &cost, dt, max_iter, lambda, alpha, value_function_threshold, Q, Qf, R, control_var);
+
+  int fail_count = 0;
+
+  // Start the while loop
+  for (int t = 0; t < total_time_horizon; ++t) {
+    // Print the system state
+    if (t % 100 == 0) {
+      printf("Current Time: %f    ", t * dt);
+      model.printState(x.data());
+      std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
+    }
+
+    if (cost.computeStateCost(x) > 1000) {
+      fail_count++;
+    }
+
+    if (tubeFailure(x.data())) {
+      cnpy::npy_save("robust_large_actual.npy", actual_trajectory_save.data(),
+                     {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+      cnpy::npy_save("robust_ancillary.npy", ancillary_trajectory_save.data(),
+                     {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+      cnpy::npy_save("robust_large_nominal.npy",nominal_trajectory_save.data(),
+                     {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+      printf("Current Time: %f    ", t * dt);
+      model.printState(x.data());
+      std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
+      std::cout << "Tube failure!!" << std::endl;
+      FAIL() << "Visualize the trajectories by running scripts/double_integrator/plot_DI_test_trajectories; "
+                "the argument to this python file is the build directory of MPPI-Generic";
+    }
+    // Update the importance sampler
+    controller.updateImportanceSamplingControl(x, 1);
+
+    // Compute the control
+    controller.computeControl(x);
+
+    // Save the trajectory from the nominal state
+    auto nominal_trajectory = controller.getStateSeq();
+
+    // Save the ancillary trajectory
+    auto ancillary_trajectory = controller.getAncillaryStateSeq();
+
+
+    for (int i = 0; i < num_timesteps; i++) {
+      for (int j = 0; j < DYNAMICS::STATE_DIM; j++) {
+        actual_trajectory_save[t * num_timesteps * DYNAMICS::STATE_DIM +
+                               i*DYNAMICS::STATE_DIM + j] = x(j);
+        ancillary_trajectory_save[t * num_timesteps * DYNAMICS::STATE_DIM +
+                                  i*DYNAMICS::STATE_DIM + j] = ancillary_trajectory(j, i);
+        nominal_trajectory_save[t * num_timesteps * DYNAMICS::STATE_DIM +
+                                i*DYNAMICS::STATE_DIM + j] = nominal_trajectory(j, i);
+      }
+    }
+    // Get the open loop control
+    DYNAMICS::control_array current_control = controller.getControlSeq().col(0);
+//    std::cout << "Current OL control: " << current_control.transpose() << std::endl;
+
+
+    // Apply the feedback given the current state
+    current_control += controller.getFeedbackGains()[0]*(x - controller.getStateSeq().col(0));
+
+    // Propagate the state forward
+    model.computeDynamics(x, current_control, xdot);
+    model.updateState(x, xdot, dt);
+
+    // Add the "true" noise of the system
+    model.computeStateDisturbance(dt, x);
+
+    // Slide the control sequence
+    controller.slideControlSequence(1);
+  }
+
+  cnpy::npy_save("robust_large_actual.npy",actual_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+  cnpy::npy_save("robust_ancillary.npy",ancillary_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+  cnpy::npy_save("robust_large_nominal.npy",nominal_trajectory_save.data(),
+                 {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+}
+
+TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
+  using DYNAMICS = DoubleIntegratorDynamics;
   using COST_T = DoubleIntegratorRobustCost;
   // Noise enters the system during the "true" state propagation. In this case the noise is nominal
   DYNAMICS model(100);  // Initialize the double integrator dynamics
