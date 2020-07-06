@@ -34,7 +34,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   DYN::state_array x_init_act;
   x_init_act << 0, 0, 0, 0;
   DYN::state_array x_init_nom;
-  x_init_nom << 0, 0, 0.1, 0;
+  x_init_nom << 4, 0, 0.1, 0;
 
   // Generate control noise
   float sampled_noise[num_rollouts * num_timesteps * control_dim];
@@ -55,14 +55,17 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   }
   // TODO: Figure out nonzero Initial control trajectory
   float u_traj[num_timesteps * control_dim] = {0};
-  u_traj[0] = 1;
-  u_traj[1] = 0.5;
+  for (int i = 0; i < num_timesteps; i++) {
+    u_traj[i * control_dim] = 1;
+  }
+  // u_traj[0] = 1;
+  // u_traj[1] = 0.5;
 
-  u_traj[10] = 1;
-  u_traj[11] = 0.5;
+  // u_traj[10] = 1;
+  // u_traj[11] = 0.5;
 
-  u_traj[14] = -1;
-  u_traj[15] = 0.5;
+  // u_traj[14] = -1;
+  // u_traj[15] = 0.5;
 
   // TODO: Generate feedback gain trajectories
   // VanillaMPPIController<DYN, COST, 100, 512, 64, 8>::feedback_gain_trajectory feedback_gains;

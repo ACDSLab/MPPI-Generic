@@ -122,7 +122,7 @@ public:
 
   control_array u_feedback(const Eigen::Ref<const state_array>& x_act,
                            const Eigen::Ref<const state_array>& x_nom,
-                           const Eigen::Ref<const control_array>& u_nom) {
+                           const Eigen::Ref<const control_array>& u_nom, bool debug = false) {
     state_array delta_x = x_act - x_nom;
 
     float E = Energy(delta_x, x_act);
@@ -130,6 +130,11 @@ public:
     float normalize_lhs = lhs.norm() * lhs.norm();
     float rhs = -2 * lambda_ * E - 2 * delta_x.transpose() * M(x_act) *
                 (f(x_act) - f(x_nom) + (B(x_act) - B(x_nom)) * u_nom);
+    if (debug) {
+      std::cout << "Delta x: " << delta_x.transpose() << std::endl;
+      std::cout << "E: " << E << ", RHS: " << rhs << std::endl;
+    }
+
     if (rhs > 0 || normalize_lhs == 0) {
       return control_array::Zero();
     } else {
@@ -144,6 +149,10 @@ public:
 
   void setNominalStateTrajectory(const Eigen::Ref<const state_trajectory>& x_traj) {
     x_nominal_traj_ = x_traj;
+  }
+
+  void setM(const Eigen::Ref<const RiemannianMetric>& M_new) {
+    M_ = M_new;
   }
 
 protected:

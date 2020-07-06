@@ -422,6 +422,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
   using control_array = typename DYN_T::control_array;
   using state_array = typename DYN_T::state_array;
   using feedback_matrix = typename DYN_T::feedback_matrix;
+  using dfdx = typename DYN_T::dfdx;
   Eigen::Map<const state_array> x_init_nom(x0_nom.data());
   Eigen::Map<const state_array> x_init_act(x0_act.data());
 
@@ -429,6 +430,10 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
   ccm::Vectorf<7> pts, weights;
   std::tie(pts, weights) = ccm::chebyshevPts<7>();
   auto CCM_Controller = ccm::LinearCCM<DYN_T>(model);
+  dfdx M_new = dfdx::Identity();
+  M_new(3,3) = 0.01;
+  M_new(2,2) = 0.01;
+  CCM_Controller.setM(M_new);
 
   control_array cost_std_dev;
   for(int i = 0; i < control_dim; i++) {
@@ -470,18 +475,25 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       } else {
          u_nom = u_t + eps_t;
       }
-
-
+      bool debug = false;
+      if (traj_i == 0) {
+        debug = true;
+      }
       // control_array fb_u_t = feedback_gains_t * (x_t_act - x_t_nom);
-      control_array fb_u_t = CCM_Controller.u_feedback(x_t_act, x_t_nom, u_nom);
+      control_array fb_u_t = CCM_Controller.u_feedback(x_t_act, x_t_nom, u_nom, debug);
       if (traj_i == 0) {
         std::cout << "Feedback at t = " << t << ": " << fb_u_t.transpose() << std::endl;
+        std::cout << "\tu_nominl: " << u_nom.transpose() << std::endl;
         std::cout << "\tx_actual: " << x_t_act.transpose() << std::endl;
         std::cout << "\tx_nominl: " << x_t_nom.transpose() << std::endl;
         std::cout << std::endl;
       }
 
       control_array u_act = u_nom + fb_u_t;
+
+
+      model->enforceConstraints(x_t_nom, u_nom);
+      model->enforceConstraints(x_t_act, u_act);
 
       // Cost update
       control_array zero_u = control_array::Zero();
@@ -493,9 +505,6 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       running_state_cost_real += state_cost_act;
       running_control_cost_real +=
         costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda);
-
-      model->enforceConstraints(x_t_nom, u_nom);
-      model->enforceConstraints(x_t_act, u_act);
 
       // Dyanamics Update
       model->computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
