@@ -32,6 +32,7 @@ namespace mppi_common {
     __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float sigma_u[DYN_T::CONTROL_DIM];
+    __shared__ int crash_status_shared[BLOCKSIZE_X*BLOCKSIZE_Z];
 
     // Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
@@ -41,6 +42,7 @@ namespace mppi_common {
     float* xdot;
     float* u;
     float* du;
+    int* crash_status;
 
     //Initialize running cost and total cost
     float running_cost = 0;
@@ -50,6 +52,8 @@ namespace mppi_common {
       xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
       u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
       du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+      crash_status = &crash_status_shared[thread_idz*blockDim.x + thread_idx];
+
     }
     //__syncthreads();
     loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
@@ -74,7 +78,7 @@ namespace mppi_common {
         __syncthreads();
 
         //Accumulate running cost
-        running_cost += costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t)*dt;
+        running_cost += costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t, crash_status)*dt;
         //__syncthreads();
 
         //Compute state derivatives

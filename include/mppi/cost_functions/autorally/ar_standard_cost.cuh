@@ -183,9 +183,9 @@ public:
   /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
-  inline __device__ float computeStateCost(float* s, int timestep = 0);
+  inline __device__ float computeStateCost(float* s, int timestep, int* crash_status);
   inline __device__ float computeRunningCost(float* s, float* u, float *noise, float* std_dev, float lambda, float alpha,
-                                      int timestep);
+                                      int timestep, int* crash_status);
 
   /**
    * @brief Computes the terminal cost from a state

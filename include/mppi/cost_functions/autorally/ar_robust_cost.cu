@@ -74,7 +74,7 @@ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep) {
+inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep, int* crash_status) {
 
   float stabilizing_cost = getStabilizingCost(s);
   float costmap_cost = getCostmapCost(s);
@@ -87,6 +87,6 @@ inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(fl
 
 template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
-                                                                              int timestep) {
-  return computeStateCost(s) + this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
+                                                                              int timestep, int* crash_status) {
+  return computeStateCost(s, timestep, crash_status) + this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
 }

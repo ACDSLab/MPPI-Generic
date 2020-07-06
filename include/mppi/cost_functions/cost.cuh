@@ -135,7 +135,7 @@ public:
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
    */
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep = 0) {
+  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep, int* crash_status) {
     throw std::logic_error("SubClass did not implement computeStateCost");
   }
 
@@ -144,7 +144,7 @@ public:
    * @param s current state as a float array
    * @return state cost on GPU
    */
-  __device__ float computeStateCost(float* s, int timestep = 0);
+  __device__ float computeStateCost(float* s, int timestep, int* crash_status);
 
 
   /**
@@ -204,14 +204,15 @@ public:
                            const Eigen::Ref<const control_array> u,
                            const Eigen::Ref<const control_array> noise,
                            const Eigen::Ref<const control_array> std_dev,
-                           float lambda, float alpha, int timestep) {
+                           float lambda, float alpha, int timestep, int* crash) {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
-    return  (derived->computeStateCost(s) + derived->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha));
+
+    return derived->computeStateCost(s, timestep, crash) + derived->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
   }
 
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda, float alpha, int timestep) {
+  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda, float alpha, int timestep, int* crash) {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
-    return derived->computeStateCost(s) + derived->computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
+    return derived->computeStateCost(s, timestep, crash) + derived->computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
   }
   // =================== END METHODS THAT CAN BE OVERWRITTEN ===================
 

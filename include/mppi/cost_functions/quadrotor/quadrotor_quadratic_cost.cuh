@@ -80,17 +80,17 @@ public:
   /**
    * Host Functions
    */
-  float computeStateCost(const Eigen::Ref<const state_array> s);
+  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep=0, int* crash_status=nullptr);
 
   float terminalCost(const Eigen::Ref<const state_array> s);
 
   /**
    * Device Functions
    */
-  __device__ float computeStateCost(float* s);
+  __device__ float computeStateCost(float* s, int timestep=0, int* crash_status=nullptr);
 
   // Custom implementation that does a Nan check.
-  __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha, int timestep);
+  __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha, int timestep, int* crash_status);
 
   __device__ float terminalCost(float* s);
 };
