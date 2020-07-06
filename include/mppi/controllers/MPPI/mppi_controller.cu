@@ -52,7 +52,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
 
     //Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        this->model_->model_d_, static_cast<COST_T*>(this->cost_->cost_d_), this->dt_, this->num_timesteps_,
+        this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
         this->lambda_, this->alpha_,
         this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);

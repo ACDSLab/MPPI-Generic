@@ -41,9 +41,9 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::array<float, THETA_SI
 }
 
 
-template<class NETWORK_T, int S_DIM, int C_DIM>
+template<class NETWORK_T, int S_DIM, int C_DIM, int BLOCKDIM_X>
 __global__ void fullARNNTestKernel(NETWORK_T* model, float* state, float* control, float* state_der, float dt) {
-  __shared__ float theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK*blockDim.x];
+  __shared__ float theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK*BLOCKDIM_X];
   int tid = blockIdx.x*blockDim.x + threadIdx.x;
   // calls enforce constraints -> compute state derivative -> increment state
 
@@ -77,7 +77,7 @@ void launchFullARNNTestKernel(NETWORK_T& model, std::vector< std::array<float, S
   dim3 threadsPerBlock(1, dim_y);
   dim3 numBlocks(1, 1);
   // launch kernel
-  fullARNNTestKernel<NETWORK_T, S_DIM, C_DIM><<<numBlocks,threadsPerBlock>>>(model.model_d_, state_d, control_d, state_der_d, dt);
+  fullARNNTestKernel<NETWORK_T, S_DIM, C_DIM, 1><<<numBlocks,threadsPerBlock>>>(model.model_d_, state_d, control_d, state_der_d, dt);
   CudaCheckError();
 
   HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float)*S_DIM, cudaMemcpyDeviceToHost))

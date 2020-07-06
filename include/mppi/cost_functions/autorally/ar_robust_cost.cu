@@ -1,12 +1,10 @@
 
 template<class CLASS_T, class PARAMS_T>
 ARRobustCost<CLASS_T, PARAMS_T>::ARRobustCost(cudaStream_t stream) : ARStandardCost<ARRobustCost<CLASS_T, PARAMS_T>, PARAMS_T>(stream) {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
 }
 
 template<class CLASS_T, class PARAMS_T>
 ARRobustCost<CLASS_T, PARAMS_T>::~ARRobustCost() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
 }
 
 template<class CLASS_T, class PARAMS_T>

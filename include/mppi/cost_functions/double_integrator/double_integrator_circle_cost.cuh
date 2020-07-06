@@ -24,10 +24,10 @@ class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost,
 public:
   DoubleIntegratorCircleCost(cudaStream_t stream = nullptr);
 
-  float computeStateCost(const Eigen::Ref<const state_array> s);
+  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep=0);
   float terminalCost(const Eigen::Ref<const state_array> s);
 
-  __device__ float computeStateCost(float* s);
+  __device__ float computeStateCost(float* s, int timestep=0);
   __device__ float terminalCost(float* s);
 };
 

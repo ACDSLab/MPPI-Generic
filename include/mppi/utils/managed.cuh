@@ -89,6 +89,7 @@ protected:
   static T* GPUSetup(T* host_ptr) {
       // Allocate enough space on the GPU for the object
       T* device_ptr;
+      std::cout << "inside GPUSetup " << typeid(T).name() << std::endl;
       cudaMalloc((void**)&device_ptr, sizeof(T) );
       // Cudamemcpy
       HANDLE_ERROR(cudaMemcpyAsync(device_ptr, host_ptr, sizeof(T), cudaMemcpyHostToDevice, host_ptr->stream_));

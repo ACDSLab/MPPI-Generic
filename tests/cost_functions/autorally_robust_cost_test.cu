@@ -11,6 +11,9 @@
 
 TEST(ARRobustCost, Constructor) {
   ARRobustCost<> cost;
+
+  // checks for CRTP
+  //ARRobustCost<>* robust = cost.cost_d_;
 }
 
 TEST(ARRobustCost, GPUSetup) {
@@ -44,7 +47,6 @@ void checkParameters(ARRobustCostParams& params, ARRobustCostParams& result) {
   EXPECT_FLOAT_EQ(params.boundary_threshold,result.boundary_threshold);
   EXPECT_FLOAT_EQ(params.max_slip_ang,result.max_slip_ang);
   EXPECT_FLOAT_EQ(params.track_slop,result.track_slop);
-  EXPECT_FLOAT_EQ(params.num_timesteps,result.num_timesteps);
   EXPECT_FLOAT_EQ(params.r_c1.x,result.r_c1.x);
   EXPECT_FLOAT_EQ(params.r_c1.y,result.r_c1.y);
   EXPECT_FLOAT_EQ(params.r_c1.z,result.r_c1.z);
@@ -69,7 +71,6 @@ TEST(ARRobustCost, setParams) {
   params.boundary_threshold = 8.0;
   params.max_slip_ang = 9.0;
   params.track_slop = 10.0;
-  params.num_timesteps = 11;
   params.r_c1.x = 12;
   params.r_c1.y = 13;
   params.r_c1.z = 14;
