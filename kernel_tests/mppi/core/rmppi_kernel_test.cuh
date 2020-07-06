@@ -56,6 +56,20 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
                                        std::array<float, NUM_ROLLOUTS>& mppi_costs_out,
                                        int opt_delay, cudaStream_t stream);
 
+template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
+void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
+                                    float dt,
+                                    int num_timesteps,
+                                    float lambda,
+                                    float value_func_threshold,
+                                    const std::vector<float>& x0_nom,
+                                    const std::vector<float>& x0_act,
+                                    const std::vector<float>& sigma_u,
+                                    const std::vector<float>& nom_control_seq,
+                                    const std::vector<float>& sampled_noise,
+                                    std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
+                                    std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom);
+
 #if __CUDACC__
 #include "rmppi_kernel_test.cu"
 #endif

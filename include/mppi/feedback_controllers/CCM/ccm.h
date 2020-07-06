@@ -86,6 +86,7 @@ public:
 
   LinearCCM(DYN_T* dyn) {
     model_ = dyn;
+    M_ = RiemannianMetric::Identity();
   }
 
   // Generic Method for calculating the Metric based on state x
@@ -101,7 +102,7 @@ public:
 
   // TODO Replace with some call to Dynamics
   B_matrix B(const Eigen::Ref<const state_array>& x) {
-    return B_;
+    return model_->B(x);
   }
 
   state_array f(const Eigen::Ref<const state_array>& x,
@@ -111,21 +112,30 @@ public:
     return x_der;
   }
 
-  control_array u_feedback(state_array x_act, int t) {
+  control_array u_feedback(const Eigen::Ref<const state_array>& x_act, int t) {
     state_array x_nom_t = x_nominal_traj_.col(t);
     control_array u_nom_t = u_nominal_traj_.col(t);
     state_array delta_x = x_act - x_nom_t;
+
+    return u_feedback(x_act, x_nom_t, u_nom_t);
+  }
+
+  control_array u_feedback(const Eigen::Ref<const state_array>& x_act,
+                           const Eigen::Ref<const state_array>& x_nom,
+                           const Eigen::Ref<const control_array>& u_nom) {
+    state_array delta_x = x_act - x_nom;
 
     float E = Energy(delta_x, x_act);
     control_array lhs = 2 * B(x_act).transpose() * M(x_act) * delta_x;
     float normalize_lhs = lhs.norm() * lhs.norm();
     float rhs = -2 * lambda_ * E - 2 * delta_x.transpose() * M(x_act) *
-                (f(x_act) - f(x_nom_t)) + (B(x_act) - B(x_mon_t)) * u_nom_t);
+                (f(x_act) - f(x_nom) + (B(x_act) - B(x_nom)) * u_nom);
     if (rhs > 0 || normalize_lhs == 0) {
       return control_array::Zero();
     } else {
       return rhs / normalize_lhs * lhs;
     }
+
   }
 
   void setNominalControlTrajectory(const Eigen::Ref<const control_trajectory>& u_traj) {

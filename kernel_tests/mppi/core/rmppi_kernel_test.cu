@@ -412,7 +412,6 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
                                     const std::vector<float>& x0_act,
                                     const std::vector<float>& sigma_u,
                                     const std::vector<float>& nom_control_seq,
-                                    const std::vector<float>& feedback_gains_seq,
                                     const std::vector<float>& sampled_noise,
                                     std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
                                     std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom) {
@@ -429,6 +428,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
   // CCM Initialization
   ccm::Vectorf<7> pts, weights;
   std::tie(pts, weights) = ccm::chebyshevPts<7>();
+  auto CCM_Controller = ccm::LinearCCM<DYN_T>(model);
 
   control_array cost_std_dev;
   for(int i = 0; i < control_dim; i++) {
@@ -455,8 +455,8 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       Eigen::Map<const control_array>
           pure_noise(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
       control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
-      Eigen::Map<const feedback_matrix>
-          feedback_gains_t(feedback_gains_seq.data() + t * control_dim * state_dim); // Feedback gains at time t
+      // Eigen::Map<const feedback_matrix>
+      //     feedback_gains_t(feedback_gains_seq.data() + t * control_dim * state_dim); // Feedback gains at time t
 
       // Create newly calculated values at time t in rollout i
       state_array x_dot_t_nom;
@@ -472,7 +472,15 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       }
 
 
-      control_array fb_u_t = feedback_gains_t * (x_t_act - x_t_nom);
+      // control_array fb_u_t = feedback_gains_t * (x_t_act - x_t_nom);
+      control_array fb_u_t = CCM_Controller.u_feedback(x_t_act, x_t_nom, u_nom);
+      if (traj_i == 0) {
+        std::cout << "Feedback at t = " << t << ": " << fb_u_t.transpose() << std::endl;
+        std::cout << "\tx_actual: " << x_t_act.transpose() << std::endl;
+        std::cout << "\tx_nominl: " << x_t_nom.transpose() << std::endl;
+        std::cout << std::endl;
+      }
+
       control_array u_act = u_nom + fb_u_t;
 
       // Cost update
