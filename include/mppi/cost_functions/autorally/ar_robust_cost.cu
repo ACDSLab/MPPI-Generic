@@ -1,16 +1,14 @@
 
 template<class CLASS_T, class PARAMS_T>
-ARRobustCost<CLASS_T, PARAMS_T>::ARRobustCost(cudaStream_t stream) : ARStandardCost<ARRobustCost<CLASS_T, PARAMS_T>, PARAMS_T>(stream) {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
+ARRobustCostImpl<CLASS_T, PARAMS_T>::ARRobustCostImpl(cudaStream_t stream) : ARStandardCostImpl<CLASS_T, PARAMS_T>(stream) {
 }
 
 template<class CLASS_T, class PARAMS_T>
-ARRobustCost<CLASS_T, PARAMS_T>::~ARRobustCost() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
+ARRobustCostImpl<CLASS_T, PARAMS_T>::~ARRobustCostImpl() {
 }
 
 template<class CLASS_T, class PARAMS_T>
-__host__ __device__ float ARRobustCost<CLASS_T, PARAMS_T>::getStabilizingCost(float* s)
+__host__ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getStabilizingCost(float* s)
 {
   float penalty_val = 0;
   float slip;
@@ -30,7 +28,7 @@ __host__ __device__ float ARRobustCost<CLASS_T, PARAMS_T>::getStabilizingCost(fl
 }
 
 template<class CLASS_T, class PARAMS_T>
-__device__ float ARRobustCost<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
+__device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 {
   float cost = 0;
 
@@ -76,7 +74,7 @@ __device__ float ARRobustCost<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeStateCost(float *s) {
+inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep) {
 
   float stabilizing_cost = getStabilizingCost(s);
   float costmap_cost = getCostmapCost(s);
@@ -88,7 +86,7 @@ inline __device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeStateCost(float 
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARRobustCost<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
+inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
                                                                               int timestep) {
   return computeStateCost(s) + this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
 }

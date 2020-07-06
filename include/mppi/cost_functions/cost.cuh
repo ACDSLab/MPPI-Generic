@@ -19,6 +19,7 @@ Header file for costs
 template<int C_DIM>
 struct CostParams {
   float control_cost_coeff[C_DIM];
+  float discount = 1.0;
   CostParams() {
     //Default set all controls to 1
     for (int i = 0; i < C_DIM; ++i) {
@@ -134,7 +135,7 @@ public:
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
    */
-  float computeStateCost(const Eigen::Ref<const state_array> s) {
+  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep = 0) {
     throw std::logic_error("SubClass did not implement computeStateCost");
   }
 
@@ -143,7 +144,7 @@ public:
    * @param s current state as a float array
    * @return state cost on GPU
    */
-  __device__ float computeStateCost(float* s);
+  __device__ float computeStateCost(float* s, int timestep = 0);
 
 
   /**
@@ -205,7 +206,7 @@ public:
                            const Eigen::Ref<const control_array> std_dev,
                            float lambda, float alpha, int timestep) {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
-    return derived->computeStateCost(s) + derived->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
+    return  (derived->computeStateCost(s) + derived->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha));
   }
 
   __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda, float alpha, int timestep) {

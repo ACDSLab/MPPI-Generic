@@ -20,7 +20,6 @@ struct ARStandardCostParams : public CostParams<2> {
   float track_slop = 0;
   float crash_coeff = 10000;
   float boundary_threshold = 0.65;
-  float discount = 0.1;
   // TODO remove from struct
   int grid_res = 10;
   /*
@@ -39,8 +38,8 @@ struct ARStandardCostParams : public CostParams<2> {
   }
 };
 
-template <class CLASS_T = void, class PARAMS_T = ARStandardCostParams>
-class ARStandardCost : public Cost< ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T, 7, 2> {
+template <class CLASS_T, class PARAMS_T = ARStandardCostParams>
+class ARStandardCostImpl : public Cost<CLASS_T, PARAMS_T, 7, 2> {
 public:
 //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static constexpr float MAX_COST_VALUE = 1e16;
@@ -50,7 +49,7 @@ public:
    * @param width
    * @param height
    */
-  ARStandardCost(cudaStream_t stream=0);
+  ARStandardCostImpl(cudaStream_t stream=0);
 
   /**
    * Deallocates the allocated cuda memory for an object
@@ -184,14 +183,14 @@ public:
   /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
-  inline __device__ float computeStateCost(float *s, int timestep);
-  inline __device__ float computeRunningCost(float *s, float *u, float *noise, float *std_dev, float lambda, float alpha,
+  inline __device__ float computeStateCost(float* s, int timestep = 0);
+  inline __device__ float computeRunningCost(float* s, float* u, float *noise, float* std_dev, float lambda, float alpha,
                                       int timestep);
 
   /**
    * @brief Computes the terminal cost from a state
    */
-  __host__ __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* s);
 
   //Constant variables
   const float FRONT_D = 0.5; ///< Distance from GPS receiver to front of car.
@@ -226,5 +225,10 @@ protected:
 #if __CUDACC__
 #include "ar_standard_cost.cu"
 #endif
+
+class ARStandardCost : public ARStandardCostImpl<ARStandardCost> {
+public:
+  ARStandardCost(cudaStream_t stream=0) : ARStandardCostImpl<ARStandardCost>(stream) {};
+};
 
 #endif // AR_STANDARD_COST_CUH_

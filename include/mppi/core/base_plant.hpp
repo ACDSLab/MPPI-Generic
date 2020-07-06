@@ -352,9 +352,8 @@ public:
     last_used_pose_update_time_ = temp_last_pose_time;
     // determine how long we should stride based off of robot time
 
-    // TODO call update importance sampler
-
     if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller->num_timesteps_){
+      controller->updateImportanceSamplingControl(state, last_optimization_stride_);
       controller->slideControlSequence(last_optimization_stride_);
     }
 

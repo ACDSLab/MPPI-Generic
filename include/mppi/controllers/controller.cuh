@@ -135,6 +135,13 @@ public:
   // ======== PURE VIRTUAL END =====
 
   /**
+   * only used in rmppi, here for generic calls in base_plant. Jank as hell
+   * @param state
+   * @param stride
+   */
+  void updateImportanceSamplingControl(const Eigen::Ref<const state_array> &state, int stride) {}
+
+  /**
    * Used to update the importance sampler
    * @param nominal_control the new nominal control sequence to sample around
    */

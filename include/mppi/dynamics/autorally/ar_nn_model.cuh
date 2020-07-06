@@ -147,7 +147,6 @@ public:
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
-//  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
 
 private:
   Eigen::MatrixXf* weighted_in_ = nullptr;

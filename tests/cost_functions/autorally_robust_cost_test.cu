@@ -10,7 +10,10 @@
 #include <autorally_test_map.h>
 
 TEST(ARRobustCost, Constructor) {
-  ARRobustCost<> cost;
+  ARRobustCost cost;
+
+  // checks for CRTP
+  ARRobustCost* robust = cost.cost_d_;
 }
 
 TEST(ARRobustCost, GPUSetup) {
@@ -18,7 +21,7 @@ TEST(ARRobustCost, GPUSetup) {
 
   HANDLE_ERROR(cudaStreamCreate(&stream));
 
-  ARRobustCost<> cost(stream);
+  ARRobustCost cost(stream);
 
   EXPECT_EQ(cost.stream_, stream) << "Stream binding failure.";
 
@@ -44,7 +47,6 @@ void checkParameters(ARRobustCostParams& params, ARRobustCostParams& result) {
   EXPECT_FLOAT_EQ(params.boundary_threshold,result.boundary_threshold);
   EXPECT_FLOAT_EQ(params.max_slip_ang,result.max_slip_ang);
   EXPECT_FLOAT_EQ(params.track_slop,result.track_slop);
-  EXPECT_FLOAT_EQ(params.num_timesteps,result.num_timesteps);
   EXPECT_FLOAT_EQ(params.r_c1.x,result.r_c1.x);
   EXPECT_FLOAT_EQ(params.r_c1.y,result.r_c1.y);
   EXPECT_FLOAT_EQ(params.r_c1.z,result.r_c1.z);
@@ -69,7 +71,6 @@ TEST(ARRobustCost, setParams) {
   params.boundary_threshold = 8.0;
   params.max_slip_ang = 9.0;
   params.track_slop = 10.0;
-  params.num_timesteps = 11;
   params.r_c1.x = 12;
   params.r_c1.y = 13;
   params.r_c1.z = 14;
@@ -80,7 +81,7 @@ TEST(ARRobustCost, setParams) {
   params.trs.y = 19;
   params.trs.z = 20;
 
-  ARRobustCost<> cost;
+  ARRobustCost cost;
 
   cost.setParams(params);
   ARRobustCostParams result = cost.getParams();
@@ -93,7 +94,7 @@ TEST(ARRobustCost, setParams) {
 }
 
 TEST(ARRobustCost, getStabilizingCostTest) {
-  ARRobustCost<> cost;
+  ARRobustCost cost;
   ARRobustCostParams params;
   params.max_slip_ang = 1.25;
   params.crash_coeff = 10000;
@@ -101,6 +102,9 @@ TEST(ARRobustCost, getStabilizingCostTest) {
   cost.setParams(params);
 
   float s[7];
+  for(int i = 0; i < 7; i++) {
+    s[i] = 0;
+  }
   s[4] = 0.24;
   s[5] = 0.0;
   float result = cost.getStabilizingCost(s);
@@ -124,7 +128,7 @@ TEST(ARRobustCost, getStabilizingCostTest) {
   EXPECT_FLOAT_EQ(result, 1.4711*10 + params.crash_coeff + params.crash_coeff);
 }
 
-float calculateRobustCostmapValue(ARRobustCost<>& cost, float3 state, int width, int height, float x_min, float x_max, float y_min, float y_max, int ppm) {
+float calculateRobustCostmapValue(ARRobustCost& cost, float3 state, int width, int height, float x_min, float x_max, float y_min, float y_max, int ppm) {
   float x_front = state.x + cost.FRONT_D*cosf(state.z);
   float y_front = state.y + cost.FRONT_D*sinf(state.z);
   float x_back = state.x + cost.BACK_D*cosf(state.z);
@@ -147,7 +151,7 @@ float calculateRobustCostmapValue(ARRobustCost<>& cost, float3 state, int width,
 }
 
 TEST(ARRobustCost, getCostmapCostSpeedMapTest) {
-  ARRobustCost<> cost;
+  ARRobustCost cost;
   ARRobustCostParams params;
   params.boundary_threshold = 0.0;
   params.crash_coeff = 10000;
@@ -182,7 +186,7 @@ TEST(ARRobustCost, getCostmapCostSpeedMapTest) {
 }
 
 TEST(ARRobustCost, getCostmapCostSpeedNoMapTest) {
-  ARRobustCost<> cost;
+  ARRobustCost cost;
   ARRobustCostParams params;
   params.boundary_threshold = 0.0;
   params.crash_coeff = 10000;
@@ -217,7 +221,7 @@ TEST(ARRobustCost, getCostmapCostSpeedNoMapTest) {
 }
 
 TEST(ARRobustCost, computeCostTest) {
-  ARRobustCost<> cost;
+  ARRobustCost cost;
   ARRobustCostParams params;
   params.boundary_threshold = 0.0;
   params.crash_coeff = 10000;
