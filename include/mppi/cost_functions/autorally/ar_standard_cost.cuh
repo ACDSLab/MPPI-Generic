@@ -38,8 +38,8 @@ struct ARStandardCostParams : public CostParams<2> {
   }
 };
 
-template <class CLASS_T = void, class PARAMS_T = ARStandardCostParams>
-class ARStandardCost : public Cost< ARStandardCost<CLASS_T, PARAMS_T>, PARAMS_T, 7, 2> {
+template <class CLASS_T, class PARAMS_T = ARStandardCostParams>
+class ARStandardCostImpl : public Cost<CLASS_T, PARAMS_T, 7, 2> {
 public:
 //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static constexpr float MAX_COST_VALUE = 1e16;
@@ -49,7 +49,7 @@ public:
    * @param width
    * @param height
    */
-  ARStandardCost(cudaStream_t stream=0);
+  ARStandardCostImpl(cudaStream_t stream=0);
 
   /**
    * Deallocates the allocated cuda memory for an object
@@ -225,5 +225,10 @@ protected:
 #if __CUDACC__
 #include "ar_standard_cost.cu"
 #endif
+
+class ARStandardCost : public ARStandardCostImpl<ARStandardCost> {
+public:
+  ARStandardCost(cudaStream_t stream=0) : ARStandardCostImpl<ARStandardCost>(stream) {};
+};
 
 #endif // AR_STANDARD_COST_CUH_

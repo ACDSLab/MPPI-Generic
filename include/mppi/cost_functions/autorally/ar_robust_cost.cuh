@@ -26,12 +26,12 @@ struct ARRobustCostParams : public ARStandardCostParams {
   }
 };
 
-template<class CLASS_T = void, class PARAMS_T = ARRobustCostParams>
-class ARRobustCost : public ARStandardCost< ARRobustCost<CLASS_T, PARAMS_T>, PARAMS_T> {
+template<class CLASS_T, class PARAMS_T = ARRobustCostParams>
+class ARRobustCostImpl : public ARStandardCostImpl<CLASS_T, PARAMS_T> {
 public:
 
-  ARRobustCost(cudaStream_t stream=0);// : ARStandardCost<PARAMS_T>(steam);
-  ~ARRobustCost();
+  ARRobustCostImpl(cudaStream_t stream=0);// : ARStandardCost<PARAMS_T>(steam);
+  ~ARRobustCostImpl();
 
   __host__ __device__ float getStabilizingCost(float* s);
   __device__ float getCostmapCost(float* s);
@@ -47,5 +47,10 @@ private:
 #if __CUDACC__
 #include "ar_robust_cost.cu"
 #endif
+
+class ARRobustCost : public ARRobustCostImpl<ARRobustCost> {
+public:
+  ARRobustCost(cudaStream_t stream=0) : ARRobustCostImpl<ARRobustCost>(stream) {}
+};
 
 #endif // AR_ROBUST_COST_CUH_
