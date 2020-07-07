@@ -152,7 +152,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
                                  const std::vector<float>& sigma_u,
                                  const std::vector<float>& nom_control_seq,
                                  const std::vector<float>& feedback_gains_seq,
-                                 const std::vector<float>& sampled_noise,
+                                 std::vector<float>& sampled_noise,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom) {
   // Crate Eigen items
@@ -169,6 +169,8 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
   for(int i = 0; i < control_dim; i++) {
     cost_std_dev(i) = sigma_u[i];
   }
+
+  int control_traj_size = NUM_ROLLOUTS * num_timesteps * control_dim;
 
   // Start rollouts
   for (int traj_i = 0; traj_i < NUM_ROLLOUTS; traj_i++)  {
@@ -189,9 +191,12 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       // Controls are read only so I can use Eigen::Map<const...>
       Eigen::Map<const control_array>
           u_t(nom_control_seq.data() + t * control_dim); // trajectory u at time t
-      Eigen::Map<const control_array>
-          pure_noise(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
-      control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
+      Eigen::Map<control_array>
+          pure_noise_act(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
+      Eigen::Map<control_array>
+          pure_noise_nom(sampled_noise.data() + control_traj_size +
+                         (traj_index + t) * control_dim); // ptr to noise for nominal
+      control_array eps_t = cost_std_dev.cwiseProduct(pure_noise_act);
       Eigen::Map<const feedback_matrix>
           feedback_gains_t(feedback_gains_seq.data() + t * control_dim * state_dim); // Feedback gains at time t
 
@@ -412,7 +417,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
                                     const std::vector<float>& x0_act,
                                     const std::vector<float>& sigma_u,
                                     const std::vector<float>& nom_control_seq,
-                                    const std::vector<float>& sampled_noise,
+                                    std::vector<float>& sampled_noise,
                                     std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
                                     std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom) {
   // Crate Eigen items
@@ -440,6 +445,8 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
     cost_std_dev(i) = sigma_u[i];
   }
 
+  int control_traj_size = NUM_ROLLOUTS * num_timesteps * control_dim;
+
   // Start rollouts
   for (int traj_i = 0; traj_i < NUM_ROLLOUTS; traj_i++)  {
     float cost_real_w_tracking = 0; // S^(V, x_0, x*_0) in Grady Thesis (8.24)
@@ -457,9 +464,18 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       // Controls are read only so I can use Eigen::Map<const...>
       Eigen::Map<const control_array>
           u_t(nom_control_seq.data() + t * control_dim); // trajectory u at time t
-      Eigen::Map<const control_array>
-          pure_noise(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
-      control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
+      /**
+       * Get the noise at time t for nominal and actual systems
+       * Note that they are assumed to be the same
+       * They both need to exist to save different controls to
+       * later on.
+       */
+      Eigen::Map<control_array>
+          pure_noise_act(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
+      Eigen::Map<control_array>
+          pure_noise_nom(sampled_noise.data() + control_traj_size +
+                         (traj_index + t) * control_dim); // ptr to noise for nominal
+      control_array eps_t = cost_std_dev.cwiseProduct(pure_noise_act);
       // Eigen::Map<const feedback_matrix>
       //     feedback_gains_t(feedback_gains_seq.data() + t * control_dim * state_dim); // Feedback gains at time t
 
@@ -494,6 +510,14 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
 
       model->enforceConstraints(x_t_nom, u_nom);
       model->enforceConstraints(x_t_act, u_act);
+
+      /**
+       * Copy controls back into noise vecotrs
+       * This is where the noise pointing to different locations
+       * for nominal and actual matter.
+       */
+      pure_noise_act = u_act;
+      pure_noise_nom = u_nom;
 
       // Cost update
       control_array zero_u = control_array::Zero();

@@ -270,8 +270,13 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   std::vector<float> feedback_gains_seq_vec, sampled_noise_vec;
   feedback_gains_seq_vec.assign(feedback_array, feedback_array +
     num_timesteps * control_dim * state_dim);
-  sampled_noise_vec.assign(sampled_noise, sampled_noise +
-    num_rollouts * num_timesteps * control_dim);
+  int control_traj_size = num_rollouts * num_timesteps * control_dim;
+
+  sampled_noise_vec.reserve(control_traj_size * 2);
+  for(int i = 0; i < control_traj_size; i++) {
+    sampled_noise_vec[i] = sampled_noise_vec[i];
+    sampled_noise_vec[control_traj_size + i] = sampled_noise_vec[i];
+  }
 
   float value_func_threshold = 50000;
 

@@ -40,7 +40,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* dynamics, COST_T* costs,
                                  const std::vector<float>& sigma_u,
                                  const std::vector<float>& nom_control_seq,
                                  const std::vector<float>& feedback_gains_seq,
-                                 const std::vector<float>& sampled_noise,
+                                 std::vector<float>& sampled_noise,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom);
 
@@ -66,7 +66,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
                                     const std::vector<float>& x0_act,
                                     const std::vector<float>& sigma_u,
                                     const std::vector<float>& nom_control_seq,
-                                    const std::vector<float>& sampled_noise,
+                                    std::vector<float>& sampled_noise,
                                     std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
                                     std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom);
 

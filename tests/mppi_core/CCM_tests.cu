@@ -6,37 +6,37 @@
 #include <mppi/utils/test_helper.h>
 
 const int NUM_TIMESTEPS = 50;
-const int NUM_ROLLOUTS = 64;
+const int NUM_ROLLOUTS_CONST = 64;
 
 // Might be simpler to create a new Controller CLass from RMPPI
 template<class DYN_T = DoubleIntegratorDynamics, class COST_T = DoubleIntegratorCircleCost,
-         int MAX_TIMESTEPS = NUM_TIMESTEPS, int NUM_ROLLOUTS_T = NUM_ROLLOUTS,
+         int MAX_TIMESTEPS = NUM_TIMESTEPS, int NUM_ROLLOUTS = NUM_ROLLOUTS_CONST,
          int B_X = 64, int B_Y = 1, int S  = 1>
 class RMPPICCMDoubleIntegratorController : public RobustMPPIController<DYN_T, COST_T,
-    MAX_TIMESTEPS, NUM_ROLLOUTS_T, B_X, B_Y, S> {
+    MAX_TIMESTEPS, NUM_ROLLOUTS, B_X, B_Y, S> {
 public:
   using Q_MAT = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                              NUM_ROLLOUTS_T, B_X, B_Y,
+                                              NUM_ROLLOUTS, B_X, B_Y,
                                               S>::StateCostWeight;
 
   using Qf_MAT = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                               NUM_ROLLOUTS_T, B_X, B_Y,
+                                               NUM_ROLLOUTS, B_X, B_Y,
                                                S>::Hessian;
 
   using R_MAT = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                              NUM_ROLLOUTS_T, B_X, B_Y,
+                                              NUM_ROLLOUTS, B_X, B_Y,
                                               S>::ControlCostWeight;
 
   using control_array = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                                      NUM_ROLLOUTS_T, B_X, B_Y,
+                                                      NUM_ROLLOUTS, B_X, B_Y,
                                                       S>::control_array;
 
   using control_trajectory = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                                      NUM_ROLLOUTS_T, B_X, B_Y,
+                                                      NUM_ROLLOUTS, B_X, B_Y,
                                                       S>::control_trajectory;
 
   using state_array = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                                      NUM_ROLLOUTS_T, B_X, B_Y,
+                                                      NUM_ROLLOUTS, B_X, B_Y,
                                                       S>::state_array;
 
   // Constructor... Yeah It ain't pretty
@@ -47,17 +47,148 @@ public:
       const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
       int num_candidate_nominal_states = 9, int optimization_stride = 1,
       cudaStream_t stream = nullptr) : RobustMPPIController<DYN_T, COST_T,
-      MAX_TIMESTEPS, NUM_ROLLOUTS_T, 64, 1, 1>(model, cost, dt, 1, lambda, alpha,
+      MAX_TIMESTEPS, NUM_ROLLOUTS, 64, 1, 1>(model, cost, dt, 1, lambda, alpha,
       value_function_threshold, Q_MAT::Zero(), Qf_MAT::Zero(), R_MAT::Zero(),
       control_std_dev, num_timesteps, init_control_traj,
       num_candidate_nominal_states, optimization_stride, stream) {
-    int help = 0;
+    control_dist_ = std::normal_distribution<float>(0, 1);
+  }
+
+  std::vector<float> ptrToVec(float* input, int num) {
+    std::vector<float> output;
+    output.assign(input, input + num);
+    return output;
   }
 
   void computeControl(const Eigen::Ref<const state_array>& state) override {
     std::cout << "PPPBBBBBBBBBTTTTTTTTTTTTTT" << std::endl;
     // Rewrite computeControl using the CCM Rollout Kernel
+    int c_dim = DYN_T::CONTROL_DIM;
+    int s_dim = s_dim;
+    int single_control_traj_size = this->num_timesteps_ * c_dim;
+    int multi_control_traj_size = NUM_ROLLOUTS * single_control_traj_size;
+
+    // Handy dandy pointers to nominal data
+    float * trajectory_costs_nominal_d = this->trajectory_costs_d_ + NUM_ROLLOUTS;
+    float * initial_state_nominal_d = this->initial_state_d_ + s_dim;
+    float * control_noise_nominal_d = this->control_noise_d_ + multi_control_traj_size;
+    float * control_nominal_d = this->control_d_ + single_control_traj_size;
+    for (int opt_iter = 0; opt_iter < this->num_iters_; opt_iter++) {
+      // Create noise for trajectories
+      std::vector<float> control_noise_vec(multi_control_traj_size * 2, 0);
+      for(int i = 0; i < multi_control_traj_size; i++) {
+        control_noise_vec[i] = control_dist_(rng_gen_);
+        control_noise_vec[multi_control_traj_size + i] = control_noise_vec[i];
+      }
+      auto x_init_act_vec = ptrToVec(state.data(), s_dim);
+      auto x_init_nom_vec = ptrToVec(this->nominal_state_.data(), s_dim);
+      auto u_traj_vec = ptrToVec(this->nominal_control_trajectory_.data(),
+                                 single_control_traj_size);
+      auto control_std_dev_vec = ptrToVec(this->control_std_dev_.data(), c_dim);
+
+
+      // Launch rollout kernel using CCM
+      // TODO pass in alpha
+      std::array<float, NUM_ROLLOUTS> costs_act_CPU, costs_nom_CPU;
+      launchRMPPIRolloutKernelCCMCPU<DYN_T, COST_T, NUM_ROLLOUTS>(this->model_,
+        this->cost_, this->dt, this->num_timesteps, this->lambda,
+        this->value_func_threshold_, x_init_nom_vec, x_init_act_vec,
+        control_std_dev_vec, u_traj_vec, control_noise_vec,
+        costs_act_CPU, costs_nom_CPU);
+
+      for(int i = 0; i < multi_control_traj_size; i++) {
+        this->trajectory_costs_(i) = costs_act_CPU[i];
+        this->trajectory_costs_nominal_(i) = costs_nom_CPU[i];
+      }
+      // Control noise should be modified to contain u + noise
+      this->baseline_ = mppi_common::computeBaselineCost(
+          this->trajectory_costs_.data(), NUM_ROLLOUTS);
+      this->baseline_nominal_ = mppi_common::computeBaselineCost(
+          this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+
+    // Copy data over to GPU
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_d_,
+                                 this->trajectory_costs_.data(),
+                                 NUM_ROLLOUTS * sizeof(float),
+                                 cudaMemcpyHostToDevice, this->stream_));
+
+    HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_nominal_d,
+                                 this->trajectory_costs_nominal_.data(),
+                                 NUM_ROLLOUTS * sizeof(float),
+                                 cudaMemcpyHostToDevice, this->stream_));
+
+    HANDLE_ERROR(cudaMemcpyAsync(this->control_noise_d_,
+                                 control_noise_vec.data(),
+                                 multi_control_traj_size * sizeof(float),
+                                 cudaMemcpyHostToDevice, this->stream_));
+
+    HANDLE_ERROR(cudaMemcpyAsync(control_noise_nominal_d,
+                                 control_noise_vec.data() + multi_control_traj_size,
+                                 multi_control_traj_size * sizeof(float),
+                                 cudaMemcpyHostToDevice, this->stream_));
+
+    // After rollout kernel, control_d_ and nominal_control_d are written to
+    // and not read from so there is nothing to copy to them
+    // HANDLE_ERROR(cudaMemcpyAsync(this->control_d_,
+    //                              this->nominal_control_trajectory_.data(),
+    //                              single_control_traj_size * sizeof(float),
+    //                              cudaMemcpyHostToDevice, this->stream_));
+
+    // // TODO Not done in RMPPI RolloutKernel but I think it should be
+    // HANDLE_ERROR(cudaMemcpyAsync(control_nominal_d,
+    //                              this->nominal_control_trajectory_.data(),
+    //                              single_control_traj_size * sizeof(float),
+    //                              cudaMemcpyHostToDevice, this->stream_));
+
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+
+    // In this case this->gamma = 1 / lambda
+    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, B_X,
+                                     this->trajectory_costs_d_, this->lambda_,
+                                     this->baseline_, this->stream_);
+    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, B_X,
+                                     trajectory_costs_nominal_d, this->lambda_,
+                                     this->baseline_nominal_, this->stream_);
+
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
+                                 this->trajectory_costs_d_,
+                                 NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost,
+                                 this->stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_nominal_.data(),
+                                 trajectory_costs_nominal_d,
+                                 NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost,
+                                 this->stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+
+    this->normalizer_ = mppi_common::computeNormalizer(
+        this->trajectory_costs_.data(), NUM_ROLLOUTS);
+    this->normalizer_nominal_ = mppi_common::computeNormalizer(
+        this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+
+
+    mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, B_X>(
+            this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,
+            this->normalizer_, this->num_timesteps_, this->stream_);
+    mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, B_X>(
+            trajectory_costs_nominal_d,
+            control_noise_nominal_d, control_nominal_d,
+            this->normalizer_nominal_, this->num_timesteps_, this->stream_);
+
+    // Transfer the new control to the host
+    HANDLE_ERROR( cudaMemcpyAsync(this->control_.data(), this->control_d_,
+                                  sizeof(float) * single_control_traj_size,
+                                  cudaMemcpyDeviceToHost, this->stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(this->nominal_control_trajectory_.data(),
+                                  control_nominal_d,
+                                  sizeof(float) * single_control_traj_size,
+                                  cudaMemcpyDeviceToHost, this->stream_));
+    cudaStreamSynchronize(this->stream_);
+
+    }
   }
+protected:
+  std::mt19937 rng_gen_;
+  std::normal_distribution<float> control_dist_;
 };
 
 TEST(CCMTest, RMPPIRolloutKernel) {
