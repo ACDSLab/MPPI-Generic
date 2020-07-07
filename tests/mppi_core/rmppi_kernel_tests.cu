@@ -35,6 +35,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   float dt = 0.01;
   float lambda = 0.75;
   float alpha = 0.5;
+  int crash_status[1] = {0};
 
   Eigen::Matrix<float, 4, num_candidates> x0_candidates;
   x0_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4,
@@ -57,6 +58,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   float* control_d;
   float* control_noise_d;
   float* costs_d;
+
   HANDLE_ERROR(cudaMalloc((void**)&strides_d, sizeof(int)*num_candidates));
   HANDLE_ERROR(cudaMalloc((void**)&exploration_var_d, sizeof(float)*dynamics::CONTROL_DIM));
   HANDLE_ERROR(cudaMalloc((void**)&states_d, sizeof(float)*dynamics::STATE_DIM*num_candidates));
@@ -135,7 +137,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
 
         // compute the cost
         if (k > 0) {
-          cost_current += (cost->computeRunningCost(x_current, candidate_nominal_control.col(k), noise_current, exploration_var, lambda, alpha, k) * dt - cost_current) / (1.0f*k);
+          cost_current += (cost->computeRunningCost(x_current, candidate_nominal_control.col(k), noise_current, exploration_var, lambda, alpha, k, crash_status) * dt - cost_current) / (1.0f*k);
         }
 
         // compute the next state_dot

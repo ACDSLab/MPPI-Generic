@@ -379,6 +379,7 @@ namespace rmppi_kernels {
     float* state_der;
     float* control;
     float* control_noise;  // du
+    int* crash_status;
 
     //Create shared arrays for holding state and control data.
     __shared__ float state_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
@@ -386,6 +387,7 @@ namespace rmppi_kernels {
     __shared__ float control_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
     __shared__ float control_noise_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
     __shared__ float exploration_std_dev[DYN_T::CONTROL_DIM]; // Each thread only reads
+    __shared__ int crash_status_shared[BLOCKSIZE_X];
 
     //Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
@@ -402,6 +404,7 @@ namespace rmppi_kernels {
     state_der = &state_der_shared[tdx*DYN_T::STATE_DIM];
     control = &control_shared[tdx*DYN_T::CONTROL_DIM];
     control_noise = &control_noise_shared[tdx*DYN_T::CONTROL_DIM];
+    crash_status = &crash_status_shared[tdx];
 
     // Copy the state to the thread
     for (i = tdy; i < DYN_T::STATE_DIM; i+= blockDim.y) {
@@ -446,7 +449,7 @@ namespace rmppi_kernels {
       __syncthreads();
       if (tdy == 0 && i > 0) { // Only compute once per global index, make sure that we don't divide by zero
         running_cost +=
-                (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, lambda, alpha, i) * dt - running_cost) / (1.0 * i);
+                (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, lambda, alpha, i, crash_status) * dt - running_cost) / (1.0 * i);
       }
       __syncthreads();
 
@@ -523,6 +526,7 @@ namespace rmppi_kernels {
     // Create a shared array for the nominal costs calculations
     __shared__ float running_state_cost_nom_shared[BLOCKSIZE_X];
     __shared__ float running_control_cost_nom_shared[BLOCKSIZE_X];
+    __shared__ int crash_status_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
 
     // Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
@@ -534,6 +538,7 @@ namespace rmppi_kernels {
     float* u;
     float* du;
     float* fb_gain;
+    int* crash_status;
     // The array to hold K(x,x*)
     float fb_control[DYN_T::CONTROL_DIM];
 
@@ -547,6 +552,8 @@ namespace rmppi_kernels {
     float* running_state_cost_nom;
     float running_tracking_cost_real = 0;
     float* running_control_cost_nom;
+
+
 
     // Load global array into shared memory
     if (global_idx < NUM_ROLLOUTS) {
@@ -562,6 +569,7 @@ namespace rmppi_kernels {
       // Nominal State Cost
       running_state_cost_nom = &running_state_cost_nom_shared[thread_idx];
       running_control_cost_nom = &running_control_cost_nom_shared[thread_idx];
+      crash_status = &crash_status_shared[thread_idz*blockDim.x + thread_idx];
 
       // Load memory into appropriate arrays
       mppi_common::loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,

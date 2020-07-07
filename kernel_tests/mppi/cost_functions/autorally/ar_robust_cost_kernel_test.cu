@@ -56,7 +56,8 @@ __global__ void computeCostTestKernel(CLASS_T* cost, float* test_xu, float* cost
     float du[2] = {0,0};
     float lambda = 1.0;
     float alpha = 0.0;
-    cost_results[tid] = cost->computeRunningCost(state, control, du, vars, lambda, alpha, tid);
+    int crash_status[1] = {0};
+    cost_results[tid] = cost->computeRunningCost(state, control, du, vars, lambda, alpha, tid, crash_status);
   }
 }
 
