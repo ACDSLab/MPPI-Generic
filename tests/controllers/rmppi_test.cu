@@ -470,6 +470,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   int max_iter = 3; // Maximum running iterations of optimization
   float lambda = 0.25; // Learning rate parameter
   float alpha = 0.01;
+  int crash_status[1] = {0};
   const int num_timesteps = 50;  // Optimization time horizon
   const int total_time_horizon = 5000;
 
@@ -531,8 +532,9 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
       std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
     }
 
-    if (cost.computeStateCost(x) > 1000) {
+    if (cost.computeStateCost(x, t, crash_status) > 1000) {
       fail_count++;
+      crash_status[0] = 0;
     }
 
     if (tubeFailure(x.data())) {

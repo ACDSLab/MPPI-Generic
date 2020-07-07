@@ -12,8 +12,13 @@ __device__ float DoubleIntegratorCircleCost::computeStateCost(float *s, int time
   float cost = 0;
   if ((radial_position < params_.inner_path_radius2) ||
       (radial_position > params_.outer_path_radius2)) {
+    crash_status[0] = 1; // Indicates the system has crashed.
+  }
+
+  if (crash_status[0] > 0) { // If we've crashed once, constantly add the crash cost.
     cost += params_.crash_cost;
   }
+
   cost += params_.velocity_cost * powf(current_velocity - params_.velocity_desired, 2);
   cost += params_.velocity_cost * powf(current_angular_momentum - params_.angular_momentum_desired, 2);
   return cost;
@@ -27,8 +32,13 @@ float DoubleIntegratorCircleCost::computeStateCost(const Eigen::Ref<const state_
   float cost = 0;
   if ((radial_position < params_.inner_path_radius2) ||
       (radial_position > params_.outer_path_radius2)) {
+    crash_status[0] = 1; // Indicates the system has crashed.
+  }
+
+  if (crash_status[0] > 0) { // If we've crashed once, constantly add the crash cost.
     cost += params_.crash_cost;
   }
+
   cost += params_.velocity_cost * powf(current_velocity - params_.velocity_desired, 2);
   cost += params_.velocity_cost * powf(current_angular_momentum - params_.angular_momentum_desired, 2);
   return cost;

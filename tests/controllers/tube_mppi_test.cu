@@ -87,6 +87,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
           1024, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
 
   int fail_count = 0;
+  int crash_status[1] = {0};
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
@@ -97,8 +98,9 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
 //      model.printState(x.data());
 //    }
 
-    if (cost.computeStateCost(x) > 1000) {
+    if (cost.computeStateCost(x, t, crash_status) > 1000) {
       fail_count++;
+      crash_status[0] = 0;
     }
 
     if (tubeFailure(x.data())) {
@@ -375,6 +377,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, Q, Qf, R, control_var);
 
   int fail_count = 0;
+  int crash_status[1] = {0};
 
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
@@ -386,8 +389,9 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 //      model.printState(x.data());
 //    }
 
-    if (cost.computeStateCost(x) > 1000) {
+    if (cost.computeStateCost(x, t, crash_status) > 1000) {
       fail_count++;
+      crash_status[0] = 0;
     }
 
     if (tubeFailure(x.data())) {

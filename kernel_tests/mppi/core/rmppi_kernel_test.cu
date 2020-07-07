@@ -173,6 +173,8 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
     float state_cost_nom = 0; // S(V, x*_0)
     float running_state_cost_real = 0;
     float running_control_cost_real = 0;
+    int crash_status_nom[1] = {0};
+    int crash_status_act[1] = {0};
 
     int traj_index = traj_i * num_timesteps;
 
@@ -209,8 +211,8 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
 
       // Cost update
       control_array zero_u = control_array::Zero();
-      state_cost_nom += costs->computeStateCost(x_t_nom)*dt;
-      float state_cost_act = costs->computeStateCost(x_t_act)*dt;
+      state_cost_nom += costs->computeStateCost(x_t_nom, t, crash_status_nom)*dt;
+      float state_cost_act = costs->computeStateCost(x_t_act, t, crash_status_act)*dt;
       cost_real_w_tracking += state_cost_act +
                               costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda, alpha)*dt;
 

@@ -53,6 +53,7 @@ namespace mppi_common {
       u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
       du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
       crash_status = &crash_status_shared[thread_idz*blockDim.x + thread_idx];
+      crash_status[0] = 0; // We have not crashed yet as of the first trajectory.
 
     }
     //__syncthreads();
@@ -405,6 +406,7 @@ namespace rmppi_kernels {
     control = &control_shared[tdx*DYN_T::CONTROL_DIM];
     control_noise = &control_noise_shared[tdx*DYN_T::CONTROL_DIM];
     crash_status = &crash_status_shared[tdx];
+    crash_status[0] = 0; // We have not crashed yet as of the first trajectory.
 
     // Copy the state to the thread
     for (i = tdy; i < DYN_T::STATE_DIM; i+= blockDim.y) {
@@ -570,6 +572,7 @@ namespace rmppi_kernels {
       running_state_cost_nom = &running_state_cost_nom_shared[thread_idx];
       running_control_cost_nom = &running_control_cost_nom_shared[thread_idx];
       crash_status = &crash_status_shared[thread_idz*blockDim.x + thread_idx];
+      crash_status[0] = 0; // We have not crashed yet as of the first trajectory.
 
       // Load memory into appropriate arrays
       mppi_common::loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
@@ -618,7 +621,7 @@ namespace rmppi_kernels {
 
         __syncthreads();
         // Calculate All the costs
-        float curr_state_cost = costs->computeStateCost(x, t)*dt;
+        float curr_state_cost = costs->computeStateCost(x, t, crash_status)*dt;
 
         // Nominal system is where thread_idz == 1
         if (thread_idz == 1 && thread_idy == 0) {
