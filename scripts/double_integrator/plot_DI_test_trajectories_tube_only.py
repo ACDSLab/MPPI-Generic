@@ -109,7 +109,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Say hello')
     parser.add_argument('--build_dir', help='Location of MPPI-Generic build folder', required=True)
-    parser.add_argument('--controller', help='0: Tube MPPI, 1: Robust MPPI')
+    parser.add_argument('--controller', help='0: Tube MPPI, 1: Robust MPPI', required=True)
     args = vars(parser.parse_args())
 
     main(args)
