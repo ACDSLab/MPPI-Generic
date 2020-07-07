@@ -54,7 +54,7 @@ public:
     control_dist_ = std::normal_distribution<float>(0, 1);
   }
 
-  std::vector<float> ptrToVec(float* input, int num) {
+  std::vector<float> ptrToVec(const float* input, int num) {
     std::vector<float> output;
     output.assign(input, input + num);
     return output;
@@ -91,8 +91,8 @@ public:
       // TODO pass in alpha
       std::array<float, NUM_ROLLOUTS> costs_act_CPU, costs_nom_CPU;
       launchRMPPIRolloutKernelCCMCPU<DYN_T, COST_T, NUM_ROLLOUTS>(this->model_,
-        this->cost_, this->dt, this->num_timesteps, this->lambda, this->alpha,
-        this->value_func_threshold_, x_init_nom_vec, x_init_act_vec,
+        this->cost_, this->dt_, this->num_timesteps_, this->lambda_, this->alpha_,
+        this->value_function_threshold_, x_init_nom_vec, x_init_act_vec,
         control_std_dev_vec, u_traj_vec, control_noise_vec,
         costs_act_CPU, costs_nom_CPU);
 
@@ -212,13 +212,25 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   // int max_iter = 10;
   float lambda = 0.1;
   float alpha = 0;
+  float value_func_threshold = 50000;
+
+  CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(0.5);
+  CONTROLLER::control_trajectory u_traj_eigen = CONTROLLER::control_trajectory::Zero();
+  // Set first control to 1 across entire time
+  u_traj_eigen.row(0) = CONTROLLER::cost_trajectory::Constant(1.0);
+
+  CONTROLLER rmppi_controller = CONTROLLER(&model, &cost, dt, lambda, alpha,
+                                           value_func_threshold,
+                                           control_std_dev, num_timesteps,
+                                           u_traj_eigen);
+
 
   // float x[num_rollouts * state_dim * 2];
   // float x_dot[num_rollouts * state_dim * 2];
   // float u[num_rollouts * control_dim * 2];
   // float du[num_rollouts * control_dim * 2];
-  float sigma_u[control_dim] = {0.5, 0.05}; // variance to sample noise from
-  CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(0.5);
+  // float sigma_u[control_dim] = {0.5, 0.05}; // variance to sample noise from
+
   // COST::control_matrix cost_variance = COST::control_matrix::Identity();
   // for(int i = 0; i < control_dim; i++) {
   //   cost_variance(i, i) = sigma_u[i];
@@ -229,6 +241,8 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   x_init_act << 4, 0, 0, 0;
   DYN::state_array x_init_nom;
   x_init_nom << 0, 0, 0.1, 0;
+
+  rmppi_controller.computeControl(x_init_act);
 
   // Generate control noise
   float sampled_noise[num_rollouts * num_timesteps * control_dim];
@@ -284,15 +298,13 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   std::vector<float> x_init_act_vec, x_init_nom_vec, sigma_u_vec, u_traj_vec;
   x_init_act_vec.assign(x_init_act.data(), x_init_act.data() + state_dim);
   x_init_nom_vec.assign(x_init_nom.data(), x_init_nom.data() + state_dim);
-  sigma_u_vec.assign(sigma_u, sigma_u + control_dim);
+  sigma_u_vec.assign(control_std_dev.data(), control_std_dev.data() + control_dim);
   u_traj_vec.assign(u_traj, u_traj + num_timesteps * control_dim);
   std::vector<float> feedback_gains_seq_vec, sampled_noise_vec;
   // feedback_gains_seq_vec.assign(feedback_array, feedback_array +
   //   num_timesteps * control_dim * state_dim);
   sampled_noise_vec.assign(sampled_noise, sampled_noise +
     num_rollouts * num_timesteps * control_dim);
-
-  float value_func_threshold = 50000;
 
 
   // ============= Entire Sim loop ================
