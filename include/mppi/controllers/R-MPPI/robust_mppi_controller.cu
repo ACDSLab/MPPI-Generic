@@ -336,6 +336,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
     HANDLE_ERROR( cudaMemcpyAsync(control_noise_nominal_d, this->control_noise_d_,
             DYN_T::CONTROL_DIM*this->num_timesteps_*NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToDevice, this->stream_));
 
+    HANDLE_ERROR( cudaStreamSynchronize(this->stream_));
     // Launch the new rollout kernel
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
             BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_, optimization_stride,
