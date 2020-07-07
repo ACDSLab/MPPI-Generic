@@ -412,6 +412,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
                                     float dt,
                                     int num_timesteps,
                                     float lambda,
+                                    float alpha,
                                     float value_func_threshold,
                                     const std::vector<float>& x0_nom,
                                     const std::vector<float>& x0_act,
@@ -524,11 +525,13 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       state_cost_nom += costs->computeStateCost(x_t_nom);
       float state_cost_act = costs->computeStateCost(x_t_act);
       cost_real_w_tracking += state_cost_act +
-                              costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda);
+                              costs->computeFeedbackCost(fb_u_t, cost_std_dev,
+                                                         lambda, alpha);
 
       running_state_cost_real += state_cost_act;
       running_control_cost_real +=
-        costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda);
+        costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev,
+                                          lambda, alpha);
 
       // Dyanamics Update
       model->computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
@@ -558,7 +561,8 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
         u_t = control_array::Zero();;
       }
-      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda);
+      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev,
+                                                            lambda, alpha);
     }
 
     cost_nom += cost_nom_control;

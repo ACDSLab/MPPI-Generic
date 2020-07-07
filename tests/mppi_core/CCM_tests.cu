@@ -91,7 +91,7 @@ public:
       // TODO pass in alpha
       std::array<float, NUM_ROLLOUTS> costs_act_CPU, costs_nom_CPU;
       launchRMPPIRolloutKernelCCMCPU<DYN_T, COST_T, NUM_ROLLOUTS>(this->model_,
-        this->cost_, this->dt, this->num_timesteps, this->lambda,
+        this->cost_, this->dt, this->num_timesteps, this->lambda, this->alpha,
         this->value_func_threshold_, x_init_nom_vec, x_init_act_vec,
         control_std_dev_vec, u_traj_vec, control_noise_vec,
         costs_act_CPU, costs_nom_CPU);
@@ -211,6 +211,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   float dt = 0.01;
   // int max_iter = 10;
   float lambda = 0.1;
+  float alpha = 0;
 
   // float x[num_rollouts * state_dim * 2];
   // float x_dot[num_rollouts * state_dim * 2];
@@ -317,7 +318,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   // Output Trajectory Costs
   std::array<float, num_rollouts> costs_act_CPU, costs_nom_CPU;
   launchRMPPIRolloutKernelCCMCPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-    num_timesteps, lambda, value_func_threshold, x_init_nom_vec, x_init_act_vec,
-    sigma_u_vec, u_traj_vec, sampled_noise_vec,
+    num_timesteps, lambda, alpha, value_func_threshold, x_init_nom_vec,
+    x_init_act_vec, sigma_u_vec, u_traj_vec, sampled_noise_vec,
     costs_act_CPU, costs_nom_CPU);
 }
