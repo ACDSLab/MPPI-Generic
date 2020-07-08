@@ -785,8 +785,8 @@ TEST(ARNeuralNetDynamics, fullComparedToAutoRallyImpl) {
 
   std::copy(u.begin(), u.end(), u_result.begin());
 
-  model.loadParams("/home/jason/catkin_ws/ar/src/autorally/"
-                   "autorally_control/src/path_integral/params/models/autorally_nnet_09_12_2018.npz");
+  std::string path = mppi::tests::old_autorally_network_file;
+  model.loadParams(path);
 
   for(int y_dim = 1; y_dim < 33; y_dim++) {
     std::vector<std::array<float, 7>> s_temp(s);
