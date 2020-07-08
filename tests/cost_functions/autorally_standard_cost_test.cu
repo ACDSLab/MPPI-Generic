@@ -681,11 +681,25 @@ TEST(ARStandardCost, costmapToTextureTransformTest) {
 
 TEST(ARStandardCost, TerminalCostTest) {
   ARStandardCost cost;
-  float state[7];
-  FAIL();
-  // TODO
-  //float result = cost.terminalCost(state);
-  //EXPECT_FLOAT_EQ(result, 0.0);
+
+  cost.GPUSetup();
+
+  std::vector<std::array<float, 7>> states;
+
+  std::array<float, 7> array = {0.0};
+  array[0] = 3.0; // X
+  array[1] = 0.0; // Y
+  array[2] = M_PI_2; // Theta
+  array[3] = 0.0; // Roll
+  array[4] = 2.0; // Vx
+  array[5] = 1.0; // Vy
+  array[6] = 0.1; // Yaw dot
+  states.push_back(array);
+
+  std::vector<float> cost_results;
+
+  launchTerminalCostTestKernel<>(cost, states, cost_results);
+  EXPECT_FLOAT_EQ(cost_results[0], 0.0);
 }
 
 TEST(ARStandardCost, controlCostTest) {
@@ -759,22 +773,41 @@ TEST(ARStandardCost, getStablizingCostTest) {
   }
   state[4] = 0.1;
   state[5] = 0.0;
+  int crash = 0;
 
-  float result = cost.getStabilizingCost(state);
+  float result = cost.getStabilizingCost(state, &crash);
 
   EXPECT_FLOAT_EQ(result, 0);
+  EXPECT_EQ(crash, 0);
 
   state[5] = 0.01;
 
-  result = cost.getStabilizingCost(state);
+  result = cost.getStabilizingCost(state, &crash);
 
   EXPECT_FLOAT_EQ(result, 0.2483460072);
+  EXPECT_EQ(crash, 0);
 
   state[5] = 0.2;
 
-  result = cost.getStabilizingCost(state);
+  result = cost.getStabilizingCost(state, &crash);
 
   EXPECT_FLOAT_EQ(result, 1030.6444);
+  EXPECT_EQ(crash, 0);
+
+  state[3] = 1.6;
+  state[5] = 0.0;
+
+  result = cost.getStabilizingCost(state, &crash);
+
+  EXPECT_FLOAT_EQ(result, 0.0);
+  EXPECT_EQ(crash, 1);
+
+  state[3] = -1.6;
+
+  result = cost.getStabilizingCost(state, &crash);
+
+  EXPECT_FLOAT_EQ(result, 0.0);
+  EXPECT_EQ(crash, 1);
 }
 
 TEST(ARStandardCost, getCrashCostTest) {
@@ -811,13 +844,13 @@ float calculateStandardCostmapValue(ARStandardCost& cost, float3 state, int widt
   float new_y = max(min(y_front - y_min, y_max - y_min), 0.0f);
 
   float front = fabs(height/2.0f - (new_y)) + (new_x)/width;
-  std::cout << "front point = " << new_x << ", " << new_y << " = " << front << std::endl;
+  //std::cout << "front point = " << new_x << ", " << new_y << " = " << front << std::endl;
 
   new_x = max(min(x_back - x_min + 1.0/(width*ppm), x_max - x_min), 0.0f);
   new_y = max(min(y_back - y_min + 1.0/(height*ppm), y_max - y_min), 0.0f);
 
   float back = fabs(height/2.0f - (new_y)) + (new_x)/width;
-  std::cout << "back point = " << new_x << ", " << new_y << " = " << back << std::endl;
+  //std::cout << "back point = " << new_x << ", " << new_y << " = " << back << std::endl;
   return (front + back) / 2.0f;
 }
 

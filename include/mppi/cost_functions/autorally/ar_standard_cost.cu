@@ -245,7 +245,7 @@ inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getSpeed
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getStabilizingCost(float *s) {
+inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getStabilizingCost(float *s, int* crash_status) {
   float stabilizing_cost = 0;
   if (fabs(s[4]) > 0.001) {
     float slip = -atan(s[5]/fabs(s[4]));
@@ -254,6 +254,10 @@ inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getStabi
       //If the slip angle is above the max slip angle kill the trajectory.
       stabilizing_cost += this->params_.crash_coeff;
     }
+  }
+  // if we roll over kill the trajectory
+  if(fabs(s[3]) > M_PI_2) {
+    crash_status[0] = 1;
   }
   return stabilizing_cost;
 }
@@ -304,7 +308,7 @@ inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::computeStateCost(
   float track_cost = getTrackCost(s, crash_status);
   float speed_cost = getSpeedCost(s, crash_status);
   float crash_cost = powf(this->params_.discount, timestep)*getCrashCost(s, crash_status, timestep);
-  float stabilizing_cost = getStabilizingCost(s);
+  float stabilizing_cost = getStabilizingCost(s, crash_status);
   float cost = speed_cost + crash_cost + track_cost + stabilizing_cost;
   if (cost > MAX_COST_VALUE || isnan(cost)) {  // TODO Handle max cost value in a generic way
     cost = MAX_COST_VALUE;

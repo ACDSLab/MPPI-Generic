@@ -241,6 +241,51 @@ void launchTrackCostTestKernel(const COST_T& cost, std::vector<float3>& test_ind
 }
 
 template<typename COST_T>
+__global__ void terminalCostTestKernel(COST_T& cost, float* test_xu, float* cost_results, int num_points) {
+
+  int tid = blockIdx.x*blockDim.x + threadIdx.x;
+  if(tid < num_points) {
+    float* state = &test_xu[tid];
+    cost_results[tid] = cost.terminalCost(state);
+  }
+}
+
+template<typename COST_T>
+void launchTerminalCostTestKernel(const COST_T& cost, std::vector<std::array<float, 7>>& x, std::vector<float>& cost_results) {
+
+  int num_test_points = x.size();
+  cost_results.resize(num_test_points*7);
+
+  float* cost_results_d;
+  float* u_d;
+  HANDLE_ERROR(cudaMalloc((void**)&cost_results_d, sizeof(float)*num_test_points))
+  HANDLE_ERROR(cudaMalloc((void**)&u_d, sizeof(float)*7*num_test_points))
+
+  for(int i = 0; i < num_test_points; i++) {
+    for(int j = 0; j < 7; j++) {
+      cost_results[7*i+j] = x[i][j];
+    }
+  }
+
+  HANDLE_ERROR(cudaMemcpy(u_d, x.data(), sizeof(float)*7*num_test_points, cudaMemcpyHostToDevice));
+
+  // TODO amount should depend on the number of query points
+  dim3 threadsPerBlock(num_test_points, 1);
+  dim3 numBlocks(1, 1);
+  terminalCostTestKernel<<<numBlocks,threadsPerBlock>>>(*cost.cost_d_, u_d, cost_results_d, num_test_points);
+  CudaCheckError();
+  cudaDeviceSynchronize();
+
+  // Copy the memory back to the host
+  HANDLE_ERROR(cudaMemcpy(cost_results.data(), cost_results_d, sizeof(float)*num_test_points, cudaMemcpyDeviceToHost));
+
+  cudaDeviceSynchronize();
+
+  cudaFree(cost_results_d);
+  cudaFree(u_d);
+}
+
+template<typename COST_T>
 __global__ void computeCostTestKernel(COST_T& cost, float* test_xu, float* cost_results, int num_points) {
 
   int tid = blockIdx.x*blockDim.x + threadIdx.x;

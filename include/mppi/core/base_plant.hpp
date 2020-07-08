@@ -203,12 +203,11 @@ public:
     debug_img_ = debug_img;
   }
 
-  virtual void displayDebugImage() {
-    if(recieved_debug_img_) {
-      cv::namedWindow(debug_window_name_, cv::WINDOW_AUTOSIZE);
-      cv::imshow(debug_window_name_, debug_img_);
-      cv::waitKey(1);
-    }
+  virtual bool hasNewDebugImage() {
+    return recieved_debug_img_;
+  }
+  virtual cv::Mat getDebugImage() {
+    return debug_img_;
   }
 
   virtual void setSolution(const s_traj& state_seq,
@@ -325,13 +324,10 @@ public:
 
     double temp_last_pose_time = getCurrentTime();
 
-    // debug mode propagates dynamics on its own
-    if (!debug_mode_){
-      // wait for a new pose to compute control sequence from
-      while(last_used_pose_update_time_ == temp_last_pose_time && is_alive->load()) {
-        usleep(50);
-        temp_last_pose_time = getCurrentTime();
-      }
+    // wait for a new pose to compute control sequence from
+    while(last_used_pose_update_time_ == temp_last_pose_time && is_alive->load()) {
+      usleep(50);
+      temp_last_pose_time = getCurrentTime();
     }
 
     std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();

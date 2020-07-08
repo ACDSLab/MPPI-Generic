@@ -172,7 +172,7 @@ public:
   /**
    * @brief Compute some cost terms that help stabilize the car.
    */
-  __host__ __device__ float getStabilizingCost(float* s);
+  __host__ __device__ float getStabilizingCost(float* s, int* crash);
 
   /**
    * @brief Compute the current track cost based on the costmap.
