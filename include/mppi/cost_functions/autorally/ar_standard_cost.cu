@@ -259,6 +259,7 @@ inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getStabi
   if(fabs(s[3]) > M_PI_2) {
     crash_status[0] = 1;
   }
+  //printf("stabilizing %f\n", stabilizing_cost);
   return stabilizing_cost;
 }
 
@@ -268,6 +269,7 @@ inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getCrash
   if (crash[0] > 0) {
     crash_cost = this->params_.crash_coeff;
   }
+  //printf("crash_cost %f\n", crash_cost);
   return crash_cost;
 }
 
@@ -300,15 +302,34 @@ inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getTrackCost(floa
   if (track_cost_front >= this->params_.boundary_threshold || track_cost_back >= this->params_.boundary_threshold) {
     crash[0] = 1;
   }
+  //printf("track_cost %f\n", track_cost);
   return track_cost;
 }
 
 template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep, int* crash_status) {
+  //printf("input state %f %f %f %f %f %f %f\n", s[0], s[1], s[2], s[3], s[4], s[5], s[6]);
+  /*
+  int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
+  if(global_idx == 0) {
+    printf("desired_speed %f\n", this->params_.desired_speed);
+    printf("speed_coeff %f\n", this->params_.speed_coeff);
+    printf("track_coeff %f\n", this->params_.track_coeff);
+    printf("max_slip_angle %f\n", this->params_.max_slip_ang);
+    printf("slip_coeff %f\n", this->params_.slip_coeff);
+    printf("track_slop %f\n", this->params_.track_slop);
+    printf("crash_coeff %f\n", this->params_.crash_coeff);
+    printf("discount %f\n", this->params_.discount);
+    printf("boundary_threshold %f\n", this->params_.boundary_threshold);
+    printf("grid_res %d\n", this->params_.grid_res);
+    printf("control_cost_coeff[0] %f\n", this->params_.control_cost_coeff[0]);
+    printf("control_cost_coeff[1] %f\n", this->params_.control_cost_coeff[1]);
+  }*/
   float track_cost = getTrackCost(s, crash_status);
   float speed_cost = getSpeedCost(s, crash_status);
-  float crash_cost = powf(this->params_.discount, timestep)*getCrashCost(s, crash_status, timestep);
+  //printf("speed %f\n", speed_cost);
   float stabilizing_cost = getStabilizingCost(s, crash_status);
+  float crash_cost = powf(this->params_.discount, timestep)*getCrashCost(s, crash_status, timestep);
   float cost = speed_cost + crash_cost + track_cost + stabilizing_cost;
   if (cost > MAX_COST_VALUE || isnan(cost)) {  // TODO Handle max cost value in a generic way
     cost = MAX_COST_VALUE;

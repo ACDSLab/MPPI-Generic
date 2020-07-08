@@ -44,10 +44,10 @@ __global__ void trackCostTestKernel(COST_T* cost, float3* test_indexes, int num_
         float* cost_results, int* crash_results);
 
 template<typename COST_T>
-void launchComputeCostTestKernel(const COST_T& cost, std::vector<std::array<float, 9>>& test_xu, std::vector<float>& cost_results);
+void launchComputeCostTestKernel(const COST_T& cost, std::vector<std::array<float, 9>>& test_xu, std::vector<float>& cost_results, std::vector<int>& timesteps);
 
 template<typename COST_T>
-__global__ void computeCostTestKernel(COST_T& cost, float* test_xu, float* cost_results, int num_points);
+__global__ void computeCostTestKernel(COST_T& cost, float* test_xu, float* cost_results, int* timesteps, int num_points);
 
 #include "ar_standard_cost_kernel_test.cu"
 

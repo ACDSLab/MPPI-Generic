@@ -905,6 +905,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   params.slip_coeff = 0.0;
   params.control_cost_coeff[0] = 0.0;
   params.control_cost_coeff[1] = 0.0;
+  params.discount = 0.9;
   cost.setParams(params);
 
   cost.GPUSetup();
@@ -927,15 +928,19 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   states.push_back(array);
 
   std::vector<float> cost_results;
+  std::vector<int> timestep;
+  timestep.push_back(1);
+  std::vector<int> crash;
+  crash.push_back(0);
 
-  launchComputeCostTestKernel<>(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results, timestep, crash);
   EXPECT_FLOAT_EQ(cost_results[0], 0.0);
 
   params.speed_coeff = 4.25;
   cost.setParams(params);
 
   float speed_cost = powf(4.0, 2)*4.25;
-  launchComputeCostTestKernel<>(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results, timestep, crash);
   EXPECT_FLOAT_EQ(cost_results[0], speed_cost);
 
 
@@ -944,7 +949,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   cost.setParams(params);
 
   float slip_cost = powf(-atanf(1.0/2.0), 2) * 10;
-  launchComputeCostTestKernel<>(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results, timestep, crash);
   EXPECT_FLOAT_EQ(cost_results[0], slip_cost);
 
 
@@ -953,7 +958,7 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   cost.setParams(params);
 
   float track_cost = 1116.3333;
-  launchComputeCostTestKernel<>(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results, timestep, crash);
   EXPECT_FLOAT_EQ(cost_results[0], track_cost);
 
 
@@ -961,8 +966,8 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   params.crash_coeff = 10000;
   cost.setParams(params);
 
-  float crash_cost = 10000;
-  launchComputeCostTestKernel<>(cost, states, cost_results);
+  float crash_cost = 9000;
+  launchComputeCostTestKernel<>(cost, states, cost_results, timestep, crash);
   EXPECT_FLOAT_EQ(cost_results[0], crash_cost);
 
 
@@ -972,8 +977,13 @@ TEST(ARStandardCost, computeCostIndividualTest) {
   params.crash_coeff = 10000;
   cost.setParams(params);
 
-  launchComputeCostTestKernel<>(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results, timestep, crash);
   EXPECT_FLOAT_EQ(cost_results[0], speed_cost + slip_cost + track_cost + crash_cost);
+
+  timestep[0] = 4;
+
+  launchComputeCostTestKernel<>(cost, states, cost_results, timestep, crash);
+  EXPECT_FLOAT_EQ(cost_results[0], speed_cost + slip_cost + track_cost + powf(0.9, timestep[0])*params.crash_coeff);
 
 }
 
@@ -1010,13 +1020,111 @@ TEST(ARStandardCost, computeCostOverflowTest) {
 
   std::vector<float> cost_results;
 
-  launchComputeCostTestKernel<>(cost, states, cost_results);
+  std::vector<int> timestep;
+  timestep.push_back(1);
+  std::vector<int> crash;
+  crash.push_back(0);
+
+  launchComputeCostTestKernel<>(cost, states, cost_results, timestep, crash);
   EXPECT_FLOAT_EQ(cost_results[0], ARStandardCost::MAX_COST_VALUE);
 
   cost_results[0] = 0;
 
   params.desired_speed = NAN;
   cost.setParams(params);
-  launchComputeCostTestKernel<>(cost, states, cost_results);
+  launchComputeCostTestKernel<>(cost, states, cost_results, timestep, crash);
   EXPECT_FLOAT_EQ(cost_results[0], ARStandardCost::MAX_COST_VALUE);
+}
+
+
+TEST(ARStandardCost, matchAutoRallyTest) {
+  ARStandardCost cost;
+  ARStandardCostParams params;
+  params.desired_speed = 6.0;
+  params.track_coeff = 200;
+  params.speed_coeff = 4.25;
+  params.crash_coeff = 10000.0;
+  params.max_slip_ang = 1.25;
+  params.slip_coeff = 10.0;
+  params.track_slop = 0.0;
+  params.boundary_threshold = 0.65;
+  params.control_cost_coeff[0] = 0.0;
+  params.control_cost_coeff[1] = 0.0;
+  params.discount = 0.9;
+  cost.setParams(params);
+
+  cost.GPUSetup();
+
+  cost.loadTrackData("/home/jason/catkin_ws/ar/src/autorally/autorally_control"
+                     "/src/path_integral/params/maps/ccrf/ccrf_track.npz");
+  params = cost.getParams();
+
+  std::vector<std::array<float, 9>> states;
+  std::vector<int> timesteps;
+  std::vector<int> crash;
+
+  std::array<float, 9> array = {0.0};
+
+  //input state 19.113796 -36.497066 7.431655 0.055569 4.922609 0.069374 -1.785045
+  //input control -0.134569 -0.485720
+  //timestep 1
+  // crash = 0
+  //cost returned 122.039955
+  array = {19.113796, -36.497066, 7.431655, 0.055569, 4.922609, 0.069374, -1.785045, -0.134569, -0.485720};
+  states.push_back(array);
+  timesteps.push_back(1);
+  crash.push_back(0);
+
+  // input state 19.076693 -36.588978 7.397079 0.066307 4.951416 0.068694 -1.694298
+  // input control 0.183665 -0.441535
+  // timestep 1
+  // cost returned 128.190033
+  //crash = 0
+  array = {19.076693, -36.588978, 7.397079, 0.066307, 4.951416, 0.068694, -1.694298, 0.183665, -0.441535};
+  states.push_back(array);
+  timesteps.push_back(1);
+  crash.push_back(0);
+
+  //input state -1.470056 -13.121619 1.015522 -0.076247 5.938981 0.375569 2.230900
+  //input control 0.273864 -0.176446
+  //timestep, crash 1 0
+  //cost returned 9137.753906
+  array = {-1.470056, -13.121619, 1.015522, -0.076247, 5.938981, 0.375569, 2.230900, 0.273864, -0.176446};
+  states.push_back(array);
+  timesteps.push_back(1);
+  crash.push_back(0);
+
+  //input state -1.413821 -13.016726 0.970904 -0.079068 5.893999 0.607982 2.259659
+  //input control 0.225313 -0.035700
+  //timestep, crash 2 1
+  //cost returned 8402.457031
+  array = {-1.413821, -13.016726, 0.970904, -0.079068, 5.893999, 0.607982, 2.259659, 0.225313, -0.035700};
+  states.push_back(array);
+  timesteps.push_back(2);
+  crash.push_back(1);
+
+  //input state 7.273710 -10.255844 -0.030983 -0.067543 4.353069 -0.036942 -0.177069
+  //input control -0.038980 -0.335935
+  //timestep, crash 99 1
+  //cost returned 2857.133545
+  array = {7.273710, -10.255844, -0.030983, -0.067543, 4.353069, -0.036942, -0.177069, -0.038980, -0.335935};
+  states.push_back(array);
+  timesteps.push_back(99);
+  crash.push_back(1);
+
+
+  std::vector<float> cost_results;
+
+  launchComputeCostTestKernel<>(cost, states, cost_results, timesteps, crash);
+  EXPECT_FLOAT_EQ(cost_results[0], 122.039955);
+  EXPECT_EQ(crash[0], 0);
+  EXPECT_FLOAT_EQ(cost_results[1], 128.190033);
+  EXPECT_EQ(crash[1], 0);
+  EXPECT_FLOAT_EQ(cost_results[2], 9137.753906);
+  EXPECT_EQ(crash[2], 1);
+  EXPECT_FLOAT_EQ(cost_results[3], 8402.457031);
+  EXPECT_EQ(crash[3], 1);
+  EXPECT_FLOAT_EQ(cost_results[4], 2857.133545);
+  EXPECT_EQ(crash[4], 1);
+
 }
