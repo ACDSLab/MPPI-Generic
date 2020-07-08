@@ -78,8 +78,8 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice() {
   // TODO should be if else
   HANDLE_ERROR( cudaMemcpy(this->model_d_->params_.theta, this->params_.theta, NUM_PARAMS*sizeof(float), cudaMemcpyHostToDevice) );
 
-#if defined(MPPI_NNET_USING_CONSTANT_MEM___) //Use constant memory.
-  HANDLE_ERROR( cudaMemcpyToSymbol(NNET_PARAMS, theta_d_, NUM_PARAMS*sizeof(float)) );
+#if defined(MPPI_NNET_USING_CONSTANT_MEM__) //Use constant memory.
+  HANDLE_ERROR( cudaMemcpyToSymbol(NNET_PARAMS, this->model_d_->params_.theta, NUM_PARAMS*sizeof(float)) );
 #endif
 
 }
@@ -104,13 +104,16 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::s
     double* weight_i = weight_i_raw.data<double>();
     double* bias_i = bias_i_raw.data<double>();
 
+    // copy over the weights
     for (j = 0; j < this->params_.net_structure[i + 1]; j++){
       for (k = 0; k < this->params_.net_structure[i]; k++){
         // TODO why i - 1?
-        this->params_.theta[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k] = (float)weight_i[j*this->params_.net_structure[i] + k];
+        this->params_.theta[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k] =
+                (float)weight_i[j*this->params_.net_structure[i] + k];
         weights_[i](j,k) = (float)weight_i[j*this->params_.net_structure[i] + k];
       }
     }
+    // copy over the bias
     for (j = 0; j < this->params_.net_structure[i+1]; j++){
       this->params_.theta[this->params_.stride_idcs[2*i + 1] + j] = (float)bias_i[j];
       biases_[i](j,0) = (float)bias_i[j];
@@ -235,7 +238,7 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   // iterate through each layer
   for (i = 0; i < NUM_LAYERS - 1; i++){
     //Conditional compilation depending on if we're using a global constant memory array or not.
-#if defined(MPPI_NNET_USING_CONSTANT_MEM___) //Use constant memory.
+#if defined(MPPI_NNET_USING_CONSTANT_MEM__) //Use constant memory.
     W = &NNET_PARAMS[this->params_.stride_idcs[2*i]]; // weights
     b = &NNET_PARAMS[this->params_.stride_idcs[2*i + 1]]; // biases
 #else //Use (slow) global memory.
