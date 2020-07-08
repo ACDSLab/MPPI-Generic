@@ -1055,8 +1055,9 @@ TEST(ARStandardCost, matchAutoRallyTest) {
 
   cost.GPUSetup();
 
-  cost.loadTrackData("/home/jason/catkin_ws/ar/src/autorally/autorally_control"
-                     "/src/path_integral/params/maps/ccrf/ccrf_track.npz");
+
+  cost.loadTrackData(mppi::tests::ccrf_map);
+
   params = cost.getParams();
 
   std::vector<std::array<float, 9>> states;
