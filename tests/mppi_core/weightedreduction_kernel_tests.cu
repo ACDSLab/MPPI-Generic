@@ -114,6 +114,46 @@ TEST(WeightedReductionKernel, rolloutWeightReductionAndSaveControl) {
     launchRolloutWeightReductionAndSaveControl_KernelTest<control_dim, num_rollouts, num_timesteps, sum_stride>(u_intermediate_host, du_new_compute);
 
     array_assert_float_eq<num_timesteps*control_dim>(du_new_known, du_new_compute);
+}
+
+TEST(WeightedReductionKernel, comparisonTestAutorallyMPPI_Generic) {
+  auto generator = std::default_random_engine(7.0);
+  auto distribution = std::normal_distribution<float>(5.0, 1.2);
+  const int sum_stride = 64;
+
+  const int num_rollouts = 1024;
+  const int control_dim = 1;
+  const int num_timesteps = 2;
 
 
+  std::array<float, num_rollouts> exp_costs;
+  std::array<float, control_dim*num_rollouts*num_timesteps> perturbed_controls;
+  std::array<float, control_dim*num_timesteps> controls_out_autorally;
+  std::array<float, control_dim*num_timesteps> controls_out_mppi_generic;
+
+  // Initialize the exp costs with positive numbers
+  for (float & exp_cost : exp_costs) {
+    exp_cost = expf(-1*distribution(generator));
+  }
+  exp_costs[0] = 0; // Minimum cost
+
+  // Initialize the control perturbations with random numbers
+  for (float & control : perturbed_controls) {
+    control = distribution(generator);
+  }
+
+  // The normalizer is the sum of all exponential costs;
+  float normalizer = std::accumulate(exp_costs.begin(), exp_costs.end(), 0.0);
+
+  std::cout << "This is the normalizer: " << normalizer << std::endl;
+
+  launchWeightedReductionKernelTest
+          <control_dim, num_rollouts, sum_stride, num_timesteps>
+          (exp_costs, perturbed_controls, normalizer, controls_out_mppi_generic,0);
+
+  launchAutoRallyWeightedReductionKernelTest
+          <control_dim, num_rollouts, sum_stride, num_timesteps>
+          (exp_costs, perturbed_controls, normalizer, controls_out_autorally,0);
+
+  array_expect_float_eq<num_timesteps*control_dim>(controls_out_mppi_generic, controls_out_autorally);
 }

@@ -31,6 +31,23 @@ template<int control_dim, int num_rollouts, int num_timesteps, int sum_stride>
 void launchRolloutWeightReductionAndSaveControl_KernelTest(const std::array<float, num_timesteps*control_dim*((num_rollouts - 1) / sum_stride + 1)>& u_intermediate_host,
                                                            std::array<float, num_timesteps*control_dim>& du_new_host);
 
+
+template<int CONTROL_DIM, int NUM_ROLLOUTS, int BLOCKSIZE_WRX>
+__global__ void autorallyWeightedReductionKernel(float* states_d, float* du_d,
+                                                 float normalizer, int num_timesteps);
+
+template<int CONTROL_DIM, int NUM_ROLLOUTS, int BLOCKSIZE_WRX, int NUM_TIMESTEPS>
+void launchAutoRallyWeightedReductionKernelTest(std::array<float, NUM_ROLLOUTS> exp_costs,
+                                                std::array<float, CONTROL_DIM*NUM_ROLLOUTS*NUM_TIMESTEPS> perturbed_controls,
+                                                float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS> controls_out,
+                                                cudaStream_t stream);
+
+template<int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE, int NUM_TIMESTEPS>
+void launchWeightedReductionKernelTest(std::array<float, NUM_ROLLOUTS> exp_costs,
+                                       std::array<float, CONTROL_DIM*NUM_ROLLOUTS*NUM_TIMESTEPS> perturbed_controls,
+                                       float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS> controls_out,
+                                       cudaStream_t stream);
+
 #if __CUDACC__
 #include "weightedreduction_kernel_test.cu"
 #endif
