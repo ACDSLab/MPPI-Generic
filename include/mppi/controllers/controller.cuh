@@ -18,6 +18,8 @@
 #include <mppi/ddp/ddp.h>
 #include <mppi/utils/math_utils.h>
 
+#include <cfloat>
+
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 class Controller {
@@ -189,8 +191,9 @@ public:
     control_array next_cmd = c_traj.col(upper_idx);
     interpolated_control = (1 - alpha) * prev_cmd + alpha * next_cmd;
 
-    //printf("prev: %d %f, %f\n", lower_idx, prev_cmd[0], prev_cmd[1]);
-    //printf("next: %d %f, %f\n", upper_idx, next_cmd[0], next_cmd[1]);
+    printf("prev: %d %f, %f\n", lower_idx, prev_cmd[0], prev_cmd[1]);
+    printf("next: %d %f, %f\n", upper_idx, next_cmd[0], next_cmd[1]);
+    printf("smoother: %f\n", alpha);
     return interpolated_control;
   }
 
