@@ -156,14 +156,16 @@ public:
    * @param rel_time
    * @return
    */
-  virtual control_array getCurrentControl(state_array& state, double rel_time) {
+  virtual control_array getCurrentControl(state_array& state, double rel_time, state_trajectory& s_traj, control_trajectory& c_traj) {
     // MPPI control
-    control_array u_ff = interpolateControls(rel_time);
+    control_array u_ff = interpolateControls(rel_time, c_traj);
     control_array u_fb = control_array::Zero();
     if(enable_feedback_) {
        u_fb = interpolateFeedback(state, rel_time);
     }
     control_array result = u_ff + u_fb;
+    printf("rel_time %f\n", rel_time);
+    printf("uff: %f, %f u_fb: %f, %f\n", u_ff[0], u_ff[1], u_fb[0], u_fb[1]);
 
     // TODO this is kinda jank
     state_array empty_state = state_array::Zero();
@@ -177,15 +179,18 @@ public:
    * @param rel_time time since the solution was calculated
    * @return
    */
-  virtual control_array interpolateControls(double rel_time) {
+  virtual control_array interpolateControls(double rel_time, control_trajectory& c_traj) {
     int lower_idx = (int) (rel_time / dt_);
     int upper_idx = lower_idx + 1;
     double alpha = (rel_time - lower_idx * dt_) / dt_;
 
     control_array interpolated_control;
-    control_array prev_cmd = getControlSeq().col(lower_idx);
-    control_array next_cmd = getControlSeq().col(upper_idx);
+    control_array prev_cmd = c_traj.col(lower_idx);
+    control_array next_cmd = c_traj.col(upper_idx);
     interpolated_control = (1 - alpha) * prev_cmd + alpha * next_cmd;
+
+    //printf("prev: %d %f, %f\n", lower_idx, prev_cmd[0], prev_cmd[1]);
+    //printf("next: %d %f, %f\n", upper_idx, next_cmd[0], next_cmd[1]);
     return interpolated_control;
   }
 
@@ -400,6 +405,15 @@ public:
    * Return the most recent free energy calculation
    */
   float getFreeEnergy() {return free_energy_;}
+
+  std::vector<float> getSampledNoise() {
+    std::vector<float> vector = std::vector<float>(NUM_ROLLOUTS*num_timesteps_*DYN_T::CONTROL_DIM, FLT_MIN);
+
+    HANDLE_ERROR(cudaMemcpyAsync(vector.data(), control_noise_d_, sizeof(float)*NUM_ROLLOUTS*num_timesteps_*DYN_T::CONTROL_DIM,
+                                 cudaMemcpyDeviceToHost, stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(stream_));
+    return vector;
+  }
 
   /**
    * Public data members

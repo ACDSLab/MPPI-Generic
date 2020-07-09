@@ -113,6 +113,58 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
   EXPECT_LT(controller.getBaselineCost(), 1.0);
 }
 
+
+TEST_F(Cartpole_VanillaMPPI, VerifyNoiseProfile) {
+  float dt = 0.01;
+  int max_iter = 1;
+  float lambda = 0.25;
+  float alpha = 0.01;
+
+  CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(5.0);
+
+  auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
+                                                                                                     dt, max_iter, lambda, alpha, control_std_dev);
+  CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
+  int time_horizon = 1000;
+
+  CartpoleDynamics::state_array xdot(4, 1);
+
+  for (int i =0; i < time_horizon; ++i) {
+    if (i % 50 == 0) {
+      printf("Current Time: %f    ", i * dt);
+      printf("Current Baseline Cost: %f    ", controller.getBaselineCost());
+      model.printState(current_state.data());
+    }
+
+    // Compute the control
+    controller.computeControl(current_state);
+
+    CartpoleDynamics::control_array control;
+    control = controller.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
+    // Increment the state
+    model.computeStateDeriv(current_state, control, xdot);
+    model.updateState(current_state, xdot, dt);
+
+    controller.slideControlSequence(1);
+
+    std::vector<float> noise = controller.getSampledNoise();
+    float mean = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      mean += (noise[k]/noise.size());
+    }
+
+    float std_dev = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      std_dev += powf(noise[k] - mean, 2);
+    }
+    std_dev = sqrt(std_dev/noise.size());
+
+    EXPECT_NEAR(mean, 0.0, 0.01);
+    EXPECT_NEAR(std_dev, 5.0, 0.01);
+  }
+
+}
+
 TEST_F(Cartpole_VanillaMPPI, ConstructWithNew) {
   float dt = 0.01;
   int max_iter = 1;

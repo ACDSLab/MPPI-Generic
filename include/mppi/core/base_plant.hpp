@@ -114,6 +114,8 @@ public:
     controller_ = controller;
     hz_ = hz;
     optimization_stride_ = optimization_stride;
+    control_traj_ = c_traj::Zero();
+    state_traj_ = s_traj::Zero();
   };
   /**
    * Destructor must be virtual so that children are properly
@@ -219,6 +221,11 @@ public:
     state_traj_ = state_seq;
     control_traj_ = control_seq;
     feedback_gains_ = feedback_gains;
+    /*
+    for(int i = 0; i < 15; i++) {
+      printf("inside setSolution %d %f, %f\n", i, control_traj_(0, i), control_traj_(1, i));
+    }
+     */
   }
   /**
    * updates the state and publishes a new control
@@ -235,8 +242,9 @@ public:
     bool t_within_trajectory = time > last_used_pose_update_time_ &&
                                time < last_used_pose_update_time_ + controller_->getDt()*controller_->getNumTimesteps();
 
+    // TODO check that we haven't been waiting too long
     if (time_since_last_opt > 0 && t_within_trajectory){
-      pubControl(controller_->getCurrentControl(state, time_since_last_opt));
+      pubControl(controller_->getCurrentControl(state, time_since_last_opt, state_traj_, control_traj_));
     }
   }
 
@@ -345,7 +353,6 @@ public:
     } else {
       last_optimization_stride_ = std::max(int(round(dt / hz_)), optimization_stride_);
     }
-    last_used_pose_update_time_ = temp_last_pose_time;
     // determine how long we should stride based off of robot time
 
     if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller->num_timesteps_){
