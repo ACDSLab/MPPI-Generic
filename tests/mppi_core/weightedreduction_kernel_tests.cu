@@ -122,8 +122,8 @@ TEST(WeightedReductionKernel, comparisonTestAutorallyMPPI_Generic) {
   const int sum_stride = 64;
 
   const int num_rollouts = 1024;
-  const int control_dim = 1;
-  const int num_timesteps = 2;
+  const int control_dim = 4;
+  const int num_timesteps = 100;
 
 
   std::array<float, num_rollouts> exp_costs;
@@ -144,8 +144,6 @@ TEST(WeightedReductionKernel, comparisonTestAutorallyMPPI_Generic) {
 
   // The normalizer is the sum of all exponential costs;
   float normalizer = std::accumulate(exp_costs.begin(), exp_costs.end(), 0.0);
-
-  std::cout << "This is the normalizer: " << normalizer << std::endl;
 
   launchWeightedReductionKernelTest
           <control_dim, num_rollouts, sum_stride, num_timesteps>

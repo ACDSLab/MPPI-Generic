@@ -39,13 +39,13 @@ __global__ void autorallyWeightedReductionKernel(float* states_d, float* du_d,
 template<int CONTROL_DIM, int NUM_ROLLOUTS, int BLOCKSIZE_WRX, int NUM_TIMESTEPS>
 void launchAutoRallyWeightedReductionKernelTest(std::array<float, NUM_ROLLOUTS> exp_costs,
                                                 std::array<float, CONTROL_DIM*NUM_ROLLOUTS*NUM_TIMESTEPS> perturbed_controls,
-                                                float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS> controls_out,
+                                                float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS>& controls_out,
                                                 cudaStream_t stream);
 
 template<int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE, int NUM_TIMESTEPS>
 void launchWeightedReductionKernelTest(std::array<float, NUM_ROLLOUTS> exp_costs,
                                        std::array<float, CONTROL_DIM*NUM_ROLLOUTS*NUM_TIMESTEPS> perturbed_controls,
-                                       float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS> controls_out,
+                                       float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS>& controls_out,
                                        cudaStream_t stream);
 
 #if __CUDACC__

@@ -162,7 +162,7 @@ __global__ void autorallyWeightedReductionKernel(float* states_d, float* du_d,
 template<int CONTROL_DIM, int NUM_ROLLOUTS, int BLOCKSIZE_WRX, int NUM_TIMESTEPS>
 void launchAutoRallyWeightedReductionKernelTest(std::array<float, NUM_ROLLOUTS> exp_costs,
         std::array<float, CONTROL_DIM*NUM_ROLLOUTS*NUM_TIMESTEPS> perturbed_controls,
-        float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS> controls_out,
+        float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS>& controls_out,
         cudaStream_t stream) {
 
   float* exp_costs_d_;
@@ -197,7 +197,7 @@ void launchAutoRallyWeightedReductionKernelTest(std::array<float, NUM_ROLLOUTS> 
 template<int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE, int NUM_TIMESTEPS>
 void launchWeightedReductionKernelTest(std::array<float, NUM_ROLLOUTS> exp_costs,
       std::array<float, CONTROL_DIM*NUM_ROLLOUTS*NUM_TIMESTEPS> perturbed_controls,
-      float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS> controls_out,
+      float normalizer, std::array<float, CONTROL_DIM*NUM_TIMESTEPS>& controls_out,
       cudaStream_t stream) {
 
   float* exp_costs_d_;
@@ -221,6 +221,8 @@ void launchWeightedReductionKernelTest(std::array<float, NUM_ROLLOUTS> exp_costs
           <<<dimGrid, dimBlock, 0, stream>>>
           (exp_costs_d_, perturbed_controls_d_,optimal_controls_d_,
           normalizer,NUM_TIMESTEPS);
+  CudaCheckError();
+
 
   // Copy the result back to the GPU
   HANDLE_ERROR(cudaMemcpyAsync(controls_out.data(), optimal_controls_d_, sizeof(float)*controls_out.size(), cudaMemcpyDeviceToHost, stream));
