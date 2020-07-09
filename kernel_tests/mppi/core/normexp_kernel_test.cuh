@@ -9,6 +9,14 @@
 template<int NUM_ROLLOUTS>
 void launchNormExp_KernelTest(std::array<float, NUM_ROLLOUTS>& trajectory_costs_host, float gamma, float baseline, std::array<float, NUM_ROLLOUTS>& normalized_compute);
 
+template<int NUM_ROLLOUTS, int BLOCKSIZE_X>
+void launchGenericNormExpKernelTest(std::array<float, NUM_ROLLOUTS> trajectory_costs_host,
+                                    float gamma, float baseline, std::array<float, NUM_ROLLOUTS>& normalized_compute);
+
+template<int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+void launchAutorallyNormExpKernelTest(std::array<float, NUM_ROLLOUTS> trajectory_costs_host,
+                                      float gamma, float baseline, std::array<float, NUM_ROLLOUTS>& normalized_compute);
+
 #if __CUDACC__
 #include "normexp_kernel_test.cu"
 #endif

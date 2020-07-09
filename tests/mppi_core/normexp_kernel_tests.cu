@@ -73,3 +73,28 @@ TEST_F(NormExpKernel, computeExpNorm_Test) {
 
     array_assert_float_eq<num_rollouts>(normalized_compute, normalized_known);
 }
+
+TEST_F(NormExpKernel, comparisonTestAutorallyMPPI_Generic) {
+    const int num_rollouts = 28754;
+    const int blocksize_x = 8;
+    const int blocksize_y = 8;
+    std::array<float, num_rollouts> cost_vec = {0};
+    std::array<float, num_rollouts> normalized_autorally = {0};
+    std::array<float, num_rollouts> normalized_generic = {0};
+    float gamma = 0.3;
+
+    // Use a range based for loop to set the cost
+    for(auto& cost: cost_vec) {
+        cost = distribution(generator);
+    }
+
+    float baseline = *std::min_element(cost_vec.begin(), cost_vec.end());
+
+    launchGenericNormExpKernelTest<num_rollouts, blocksize_x>
+            (cost_vec, gamma, baseline, normalized_generic);
+
+    launchAutorallyNormExpKernelTest<num_rollouts, blocksize_x, blocksize_y>
+            (cost_vec, gamma, baseline, normalized_autorally);
+
+    array_assert_float_eq<num_rollouts>(normalized_autorally, normalized_generic);
+}
