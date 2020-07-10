@@ -3,11 +3,11 @@
 #include <mppi/dynamics/cartpole/cartpole_dynamics.cuh>
 #include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
 
-const int STATE_DIM = 12;
-const int CONTROL_DIM = 3;
-const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is
-const int BLOCKSIZE_X = 32;
-const int BLOCKSIZE_Y = 8; // Blocksize_y has to be greater than the control dim TODO fix how we step through the controls
+//const int STATE_DIM = 12;
+//const int CONTROL_DIM = 3;
+//const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is
+//const int BLOCKSIZE_X = 32;
+//const int BLOCKSIZE_Y = 8; // Blocksize_y has to be greater than the control dim TODO fix how we step through the controls
 
 template<int BLOCKSIZE_Z>
 __global__ void loadGlobalToShared_KernelTest(float* x0_device,
@@ -17,6 +17,13 @@ __global__ void loadGlobalToShared_KernelTest(float* x0_device,
                                               float* u_thread_device,
                                               float* du_thread_device,
                                               float* sigma_u_thread_device) {
+  const int STATE_DIM = 12;
+  const int CONTROL_DIM = 3;
+  const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is
+  const int BLOCKSIZE_X = 32;
+  const int BLOCKSIZE_Y = 8; // Blocksize_y has to be greater than the control dim TODO fix how we step through the controls
+
+
   int thread_idx = threadIdx.x;
   int thread_idy = threadIdx.y;
   int thread_idz = threadIdx.z;
@@ -84,6 +91,12 @@ void launchGlobalToShared_KernelTest(const std::vector<float>& x0_host,
                                      std::vector<float>& du_thread_host,
                                      std::vector<float>& sigma_u_thread_host) {
 
+  const int STATE_DIM = 12;
+  const int CONTROL_DIM = 3;
+  const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is
+  const int BLOCKSIZE_X = 32;
+  const int BLOCKSIZE_Y = 8; // Blocksize_y has to be greater than the control dim TODO fix how we step through the controls
+
   // Define the initial condition x0_device and the exploration variance in global device memory
   float* x0_device;
   float* u_var_device;
@@ -149,6 +162,12 @@ void launchGlobalToShared_KernelTest_nom_act(const std::vector<float>& x0_host_a
                                              std::vector<float>& u_thread_host_nom,
                                              std::vector<float>& du_thread_host_nom,
                                              std::vector<float>& sigma_u_thread_host) {
+
+  const int STATE_DIM = 12;
+  const int CONTROL_DIM = 3;
+  const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is
+  const int BLOCKSIZE_X = 32;
+  const int BLOCKSIZE_Y = 8; // Blocksize_y has to be greater than the control dim TODO fix how we step through the controls
 
   // Define the initial condition x0_device and the exploration variance in global device memory
   // Need twice as much memory for tube-mppi
@@ -221,6 +240,12 @@ void launchGlobalToShared_KernelTest_nom_act(const std::vector<float>& x0_host_a
 }
 
 __global__ void  injectControlNoiseOnce_KernelTest(int num_rollouts, int num_timesteps, int timestep, float* u_traj_device, float* ep_v_device, float* sigma_u_device, float* control_compute_device) {
+  const int STATE_DIM = 12;
+  const int CONTROL_DIM = 3;
+  const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is
+  const int BLOCKSIZE_X = 32;
+  const int BLOCKSIZE_Y = 8; // Blocksize_y has to be greater than the control dim TODO fix how we step through the controls
+
   int global_idx = threadIdx.x + blockDim.x*blockIdx.x;
   int thread_idy = threadIdx.y;
   float u_thread[CONTROL_DIM];
@@ -241,6 +266,11 @@ void launchInjectControlNoiseOnce_KernelTest(const std::vector<float>& u_traj_ho
                                              std::vector<float>& sigma_u_host,
                                              std::vector<float>& control_compute) {
 
+  const int STATE_DIM = 12;
+  const int CONTROL_DIM = 3;
+  const int NUM_ROLLOUTS = 100; // .99 times this number has to be an integer... TODO fix how brittle this is
+  const int BLOCKSIZE_X = 32;
+  const int BLOCKSIZE_Y = 8; // Blocksize_y has to be greater than the control dim TODO fix how we step through the controls
   // Timestep
   int timestep = 0;
 
@@ -360,6 +390,9 @@ void launchComputeAndSaveCostAllRollouts_KernelTest(COST_T& cost,
     const std::array<float, STATE_DIM*NUM_ROLLOUTS>& terminal_states,
     std::array<float, NUM_ROLLOUTS>& cost_compute) {
 
+  const int BLOCKSIZE_X = 32;
+  const int BLOCKSIZE_Y = 8;
+
   // Allocate CUDA memory
   float* cost_all_rollouts_device;
   float* terminal_states_device;
@@ -405,6 +438,9 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   float * control_noise_d; // du
   float * control_std_dev_d;
   float * control_d;
+
+  const int BLOCKSIZE_X = 32;
+  const int BLOCKSIZE_Y = 8;
 
   /**
    * Ensure dynamics and costs exist on GPU
@@ -490,4 +526,220 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   cudaFree(control_d);
   cudaFree(trajectory_costs_d);
   cudaFree(control_noise_d);
+}
+
+template<class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+__global__ void autorallyRolloutKernel(int num_timesteps, float* state_d, float* U_d, float* du_d, float* nu_d,
+                              float* costs_d, DYNAMICS_T* dynamics_model, COSTS_T* mppi_costs,
+                              int opt_delay, float lambda, float alpha, float dt)
+{
+  int i,j;
+  int tdx = threadIdx.x;
+  int tdy = threadIdx.y;
+  int bdx = blockIdx.x;
+
+  //Initialize the local state, controls, and noise
+  float* s;
+  float* s_der;
+  float* u;
+  float* nu;
+  float* du;
+  int* crash;
+
+  const int STATE_DIM = DYNAMICS_T::STATE_DIM;
+  const int CONTROL_DIM = DYNAMICS_T::CONTROL_DIM;
+  const int SHARED_MEM_REQUEST_GRD = DYNAMICS_T::SHARED_MEM_REQUEST_GRD;
+  const int SHARED_MEM_REQUEST_BLK = DYNAMICS_T::SHARED_MEM_REQUEST_BLK;
+
+  //Create shared arrays for holding state and control data.
+  __shared__ float state_shared[BLOCKSIZE_X*STATE_DIM];
+  __shared__ float state_der_shared[BLOCKSIZE_X*STATE_DIM];
+  __shared__ float control_shared[BLOCKSIZE_X*CONTROL_DIM];
+  __shared__ float control_var_shared[BLOCKSIZE_X*CONTROL_DIM];
+  __shared__ float exploration_variance[BLOCKSIZE_X*CONTROL_DIM];
+  __shared__ int crash_status[BLOCKSIZE_X];
+  //Create a shared array for the dynamics model to use
+  __shared__ float theta[SHARED_MEM_REQUEST_GRD + SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+
+  //Initialize trajectory cost
+  float running_cost = 0;
+
+  int global_idx = BLOCKSIZE_X*bdx + tdx;
+  if (global_idx < NUM_ROLLOUTS) {
+    //Portion of the shared array belonging to each x-thread index.
+    s = &state_shared[tdx*STATE_DIM];
+    s_der = &state_der_shared[tdx*STATE_DIM];
+    u = &control_shared[tdx*CONTROL_DIM];
+    du = &control_var_shared[tdx*CONTROL_DIM];
+    nu = &exploration_variance[tdx*CONTROL_DIM];
+    crash = &crash_status[tdx];
+    //Load the initial state, nu, and zero the noise
+    for (i = tdy; i < STATE_DIM; i+= blockDim.y) {
+      s[i] = state_d[i];
+      s_der[i] = 0;
+    }
+    //Load nu
+    for (i = tdy; i < CONTROL_DIM; i+= blockDim.y) {
+      u[i] = 0;
+      du[i] = 0;
+      nu[i] = nu_d[i];
+    }
+    crash[0] = 0;
+  }
+  __syncthreads();
+  /*<----Start of simulation loop-----> */
+  for (i = 0; i < num_timesteps; i++) {
+    if (global_idx < NUM_ROLLOUTS) {
+      for (j = tdy; j < CONTROL_DIM; j+= blockDim.y) {
+        //Noise free rollout
+        if (global_idx == 0 || i < opt_delay) { //Don't optimize variables that are already being executed
+          du[j] = 0.0;
+          u[j] = U_d[i*CONTROL_DIM + j];
+        }
+        else if (global_idx >= .99*NUM_ROLLOUTS) {
+          du[j] = du_d[CONTROL_DIM*num_timesteps*(BLOCKSIZE_X*bdx + tdx) + i*CONTROL_DIM + j]*nu[j];
+          u[j] = du[j];
+        }
+        else {
+          du[j] = du_d[CONTROL_DIM*num_timesteps*(BLOCKSIZE_X*bdx + tdx) + i*CONTROL_DIM + j]*nu[j];
+          u[j] = U_d[i*CONTROL_DIM + j] + du[j];
+        }
+        du_d[CONTROL_DIM*num_timesteps*(BLOCKSIZE_X*bdx + tdx) + i*CONTROL_DIM + j] = u[j];
+      }
+    }
+    __syncthreads();
+    if (tdy == 0 && global_idx < NUM_ROLLOUTS){
+       dynamics_model->enforceConstraints(s, u);
+    }
+    __syncthreads();
+    //Compute the cost of the being in the current state
+    if (tdy == 0 && global_idx < NUM_ROLLOUTS && i > 0 && crash[0] > -1) {
+      //Running average formula
+      running_cost += (mppi_costs->computeRunningCost(s, u, du, nu, lambda, alpha, i, crash) - running_cost)/(1.0*i);
+    }
+    //Compute the dynamics
+    if (global_idx < NUM_ROLLOUTS){
+      dynamics_model->computeStateDeriv(s, u, s_der, theta);
+    }
+    __syncthreads();
+    //Update the state
+    if (global_idx < NUM_ROLLOUTS){
+      dynamics_model->updateState(s, s_der, dt);
+    }
+//    //Check to see if the rollout will result in a (physical) crash.
+//    if (tdy == 0 && global_idx < NUM_ROLLOUTS) {
+//      mppi_costs.getCrash(s, crash);
+//    }
+  }
+  /* <------- End of the simulation loop ----------> */
+  if (global_idx < NUM_ROLLOUTS && tdy == 0) {   //Write cost results back to global memory.
+    costs_d[(BLOCKSIZE_X)*bdx + tdx] = running_cost + mppi_costs->terminalCost(s);
+  }
+}
+
+template<class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+void launchAutorallyRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
+        std::array<float, DYNAMICS_T::STATE_DIM> state_array,
+        std::array<float, NUM_TIMESTEPS*DYNAMICS_T::CONTROL_DIM> control_array,
+        std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM> control_noise_array,
+        std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u,
+        std::array<float, NUM_ROLLOUTS>& costs_out, int opt_delay, cudaStream_t stream) {
+
+  float* state_d;
+  float* U_d;
+  float* du_d;
+  float* nu_d;
+  float* costs_d;
+
+  // Allocate CUDA memory for the rollout
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*state_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&U_d, sizeof(float)*control_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float)*control_noise_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&nu_d, sizeof(float)*sigma_u.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float)*costs_out.size()));
+
+  // Copy the initial values
+  HANDLE_ERROR(cudaMemcpyAsync(state_d, state_array.data(),
+          sizeof(float) * state_array.size(), cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(U_d, control_array.data(),
+                               sizeof(float) * control_array.size(), cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(du_d, control_noise_array.data(),
+                               sizeof(float) * control_noise_array.size(), cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(nu_d, sigma_u.data(),
+                               sizeof(float) * sigma_u.size(), cudaMemcpyHostToDevice, stream));
+
+  const int GRIDSIZE_X = (NUM_ROLLOUTS-1)/BLOCKSIZE_X + 1;
+
+  dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+  dim3 dimGrid(GRIDSIZE_X, 1, 1);
+
+  autorallyRolloutKernel<DYNAMICS_T, COSTS_T, NUM_ROLLOUTS, BLOCKSIZE_X, BLOCKSIZE_Y>
+          <<<dimGrid, dimBlock, 0, stream>>>
+          (NUM_TIMESTEPS, state_d, U_d, du_d, nu_d, costs_d, dynamics->model_d_, costs->cost_d_, opt_delay, lambda, alpha, dt);
+
+  CudaCheckError();
+
+  // Copy data back
+  HANDLE_ERROR(cudaMemcpyAsync(costs_out.data(), costs_d,
+          sizeof(float) * costs_out.size(), cudaMemcpyDeviceToHost, stream));
+
+  // Deallocate CUDA Memory
+  HANDLE_ERROR(cudaFree(state_d));
+  HANDLE_ERROR(cudaFree(U_d));
+  HANDLE_ERROR(cudaFree(du_d));
+  HANDLE_ERROR(cudaFree(nu_d));
+  HANDLE_ERROR(cudaFree(costs_d));
+
+}
+
+template<class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+void launchGenericRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
+                                      std::array<float, DYNAMICS_T::STATE_DIM> state_array,
+                                      std::array<float, NUM_TIMESTEPS*DYNAMICS_T::CONTROL_DIM> control_array,
+                                      std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM> control_noise_array,
+                                      std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u,
+                                      std::array<float, NUM_ROLLOUTS>& costs_out, int opt_delay, cudaStream_t stream) {
+
+  float* state_d;
+  float* U_d;
+  float* du_d;
+  float* nu_d;
+  float* costs_d;
+
+  // Allocate CUDA memory for the rollout
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*state_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&U_d, sizeof(float)*control_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float)*control_noise_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&nu_d, sizeof(float)*sigma_u.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float)*costs_out.size()));
+
+  // Copy the initial values
+  HANDLE_ERROR(cudaMemcpyAsync(state_d, state_array.data(),
+                               sizeof(float) * state_array.size(), cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(U_d, control_array.data(),
+                               sizeof(float) * control_array.size(), cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(du_d, control_noise_array.data(),
+                               sizeof(float) * control_noise_array.size(), cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(nu_d, sigma_u.data(),
+                               sizeof(float) * sigma_u.size(), cudaMemcpyHostToDevice, stream));
+
+  const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
+  dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+  dim3 dimGrid(gridsize_x, 1, 1);
+  mppi_common::rolloutKernel<DYNAMICS_T, COSTS_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, 1>
+          <<<dimGrid, dimBlock, 0, stream>>>
+          (dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS, lambda, alpha, state_d, U_d, du_d, nu_d, costs_d);
+  CudaCheckError();
+
+  // Copy data back
+  HANDLE_ERROR(cudaMemcpyAsync(costs_out.data(), costs_d,
+                               sizeof(float) * costs_out.size(), cudaMemcpyDeviceToHost, stream));
+
+  // Deallocate CUDA Memory
+  HANDLE_ERROR(cudaFree(state_d));
+  HANDLE_ERROR(cudaFree(U_d));
+  HANDLE_ERROR(cudaFree(du_d));
+  HANDLE_ERROR(cudaFree(nu_d));
+  HANDLE_ERROR(cudaFree(costs_d));
+
 }

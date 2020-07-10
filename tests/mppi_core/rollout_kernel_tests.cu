@@ -2,6 +2,9 @@
 #include <mppi/dynamics/cartpole/cartpole_dynamics.cuh>
 #include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
 #include <mppi/core/rollout_kernel_test.cuh>
+#include <mppi/cost_functions/autorally/ar_standard_cost.cuh>
+#include <mppi/dynamics/autorally/ar_nn_model.cuh>
+
 #include <mppi/utils/test_helper.h>
 #include <random>
 /*
@@ -248,4 +251,82 @@ TEST(RolloutKernel, runRolloutKernelOnMultipleSystems) {
           &dynamics, &cost, dt, num_timesteps, lambda, alpha, x0, control_std_dev,
           nominal_control_seq, trajectory_costs_act, trajectory_costs_nom);
   array_assert_float_eq(trajectory_costs_act, trajectory_costs_nom, NUM_ROLLOUTS);
+}
+
+TEST(RolloutKernel, comparisonTestAutorallyMPPI_Generic) {
+  const int MPPI_NUM_ROLLOUTS__ = 100;
+  const int NUM_TIMESTEPS = 100;
+  const int BLOCKSIZE_X = 8;
+  const int BLOCKSIZE_Y = 16;
+  typedef NeuralNetModel<7,2,3,6,32,32,4> DynamicsModel;
+  typedef ARStandardCost MPPICostFunction;
+
+  float dt = 1.0/50.0;
+  float lambda = 6.666;
+  float alpha = 0.0;
+
+  std::default_random_engine generator(7.0);
+  std::normal_distribution<float> distribution(0.0,1.0);
+  std::normal_distribution<float> throttle_distribution(.3,0.3);
+  std::normal_distribution<float> steering_distribution(0.0,0.3);
+
+  std::array<float2, 2> control_rngs;
+  control_rngs[0].x = -.99;
+  control_rngs[0].y = .99;
+  control_rngs[1].x = -.99;
+  control_rngs[1].y = .99;
+
+  std::array<float, 2> control_std_dev = {.3, .3};
+
+  // setup cost and dynamics
+  MPPICostFunction* costs = new MPPICostFunction();
+  DynamicsModel* dynamics = new DynamicsModel(control_rngs);
+
+  auto params = costs->getParams();
+  params.crash_coeff = 0.0;
+  params.discount = 0.9;
+  params.control_cost_coeff[0] = 0.0;
+  params.control_cost_coeff[1] = 0.0;
+
+  costs->setParams(params);
+
+  std::string model_path, map_path;
+  model_path = "/home/mgandhi3/git/MPPI-Generic/resources/autorally_nnet_09_12_2018.npz";
+  map_path = "/home/mgandhi3/git/MPPI-Generic/resources/ccrf_track.npz";
+
+  // Call the GPU setup functions of the model and cost
+  dynamics->GPUSetup();
+  costs->GPUSetup();
+
+  dynamics->loadParams(model_path);
+  costs->loadTrackData(map_path);
+
+  // Generate an initial state
+  std::array<float, DynamicsModel::STATE_DIM> state_array = {0, 0, 2.35, 0 , 0, 0, 0};
+  std::array<float, NUM_TIMESTEPS*DynamicsModel::CONTROL_DIM> control_array;
+  std::array<float, NUM_TIMESTEPS*MPPI_NUM_ROLLOUTS__*DynamicsModel::CONTROL_DIM> control_noise_array;
+  std::array<float, MPPI_NUM_ROLLOUTS__> costs_autorally;
+  std::array<float, MPPI_NUM_ROLLOUTS__> costs_generic;
+
+  for (int i = 0; i < NUM_TIMESTEPS; ++i) {
+    control_array[i*DynamicsModel::CONTROL_DIM] = steering_distribution(generator);
+    control_array[i*DynamicsModel::CONTROL_DIM+1] = throttle_distribution(generator);
+  }
+
+  for(auto& noise: control_noise_array) {
+    noise = distribution(generator);
+  }
+
+  launchAutorallyRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X, BLOCKSIZE_Y>
+          (dynamics, costs, dt, lambda, alpha, state_array, control_array, control_noise_array, control_std_dev, costs_autorally, 1, 0);
+
+
+  launchGenericRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X, BLOCKSIZE_Y>
+          (dynamics, costs, dt, lambda, alpha, state_array, control_array, control_noise_array, control_std_dev, costs_generic, 1, 0);
+
+
+  array_expect_float_eq<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_autorally);
+
+  delete costs;
+  delete dynamics;
 }
