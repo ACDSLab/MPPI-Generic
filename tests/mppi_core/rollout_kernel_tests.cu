@@ -155,8 +155,7 @@ TEST(RolloutKernel, injectControlNoiseCheckControl_V) {
         for (int j =0; j < num_timesteps; ++j) {
             for (int k =0; k < control_dim; ++k) {
                 int index = i*num_timesteps*control_dim + j*control_dim + k;
-                if (i == 0) {
-
+                if (i == 0 || j < 1) {
                     ep_v_known[index] = u_traj_host[j*control_dim + k];
                 } else if (i >= num_rollouts*.99) {
                     ep_v_known[index] = ep_v_host[index]*sigma_u_host[k];
