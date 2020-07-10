@@ -65,7 +65,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   DoubleIntegratorCircleCost cost;
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float lambda = 0.25; // Learning rate parameter
+  float lambda = 4; // Learning rate parameter
   float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
@@ -108,7 +108,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
     }
 
     // Compute the control
-    vanilla_controller.computeControl(x);
+    vanilla_controller.computeControl(x, 1);
 
     // Save the nominal trajectory
     auto nominal_trajectory = vanilla_controller.getStateSeq();
@@ -144,7 +144,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   DoubleIntegratorCircleCost cost;
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float lambda = 0.25; // Learning rate parameter
+  float lambda = 4; // Learning rate parameter
   float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
@@ -187,7 +187,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
       break;
     }
     // Compute the control
-    vanilla_controller.computeControl(x);
+    vanilla_controller.computeControl(x, 1);
 
     // Save the nominal trajectory
     auto nominal_trajectory = vanilla_controller.getStateSeq();
@@ -226,7 +226,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
   DoubleIntegratorCircleCost cost;
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float lambda = 0.25; // Learning rate parameter
+  float lambda = 4; // Learning rate parameter
   float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
@@ -283,7 +283,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
       break;
     }
     // Compute the control
-    vanilla_controller.computeControl(x);
+    vanilla_controller.computeControl(x, 1);
 
     // Save the nominal trajectory
     auto nominal_trajectory = vanilla_controller.getStateSeq();
@@ -328,7 +328,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   DoubleIntegratorCircleCost cost;  // Initialize the cost function
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float lambda = 0.25; // Learning rate parameter
+  float lambda = 4; // Learning rate parameter
   float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
@@ -381,13 +381,13 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   // Start the while loop
   for (int t = 0; t < total_time_horizon; ++t) {
-    // Print the system state
-//    if (t % 100 == 0) {
+//     Print the system state
+    if (t % 100 == 0) {
 //      float current_cost = cost.computeStateCost(x.data());
-//      printf("Current Time: %f    ", t * dt);
+      printf("Current Time: %f    ", t * dt);
 //      printf("Current State Cost: %f    ", current_cost);
-//      model.printState(x.data());
-//    }
+      model.printState(x.data());
+    }
 
     if (cost.computeStateCost(x, t, crash_status) > 1000) {
       fail_count++;
@@ -406,7 +406,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     }
 
     // Compute the control
-    controller.computeControl(x);
+    controller.computeControl(x, 1);
 
     // Save the trajectory from the nominal state
     auto nominal_trajectory = controller.getStateSeq();

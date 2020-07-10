@@ -11,6 +11,7 @@ template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
+                                 int optimization_stride,
                                  float lambda,
                                  float alpha,
                                  float value_func_threshold,
@@ -113,7 +114,7 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
   // Launch rollout kernel
   rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
     BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps,
-                    lambda, alpha, value_func_threshold, initial_state_d, control_d,
+                    optimization_stride, lambda, alpha, value_func_threshold, initial_state_d, control_d,
                     control_noise_d, feedback_gains_d, control_std_dev_d,
                     trajectory_costs_d, stream);
 
@@ -141,6 +142,7 @@ template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
+                                 int optimization_stride,
                                  float lambda,
                                  float alpha,
                                  float value_func_threshold,
@@ -196,7 +198,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       state_array x_dot_t_nom;
       state_array x_dot_t_act;
       control_array u_nom;
-      if (traj_i == 0) {
+      if (traj_i == 0 || t < optimization_stride) {
         eps_t = control_array::Zero();
         u_nom = u_t;
       } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
@@ -246,7 +248,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
           pure_noise(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
       control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
       control_array u_t = u_nom;
-      if (traj_i == 0) {
+      if (traj_i == 0 || t < optimization_stride) {
         eps_t = control_array::Zero();
       } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
         u_t = control_array::Zero();;

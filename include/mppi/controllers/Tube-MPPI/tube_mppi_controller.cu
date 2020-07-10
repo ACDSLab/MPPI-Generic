@@ -31,7 +31,7 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
+void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) {
   if (!nominalStateInit_){
     // set the nominal state to the actual state
     nominal_state_trajectory_.col(0) = state;
@@ -69,7 +69,7 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     // call rollout kernel with z = 2 since we have a nominal state
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 2>(
             this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
-            this->lambda_, this->alpha_,
+            optimization_stride, this->lambda_, this->alpha_,
             this->initial_state_d_, this->control_d_, this->control_noise_d_,
             this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
 

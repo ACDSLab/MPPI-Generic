@@ -71,12 +71,12 @@ public:
    * computes a new control sequence
    * @param state starting position
    */
-  void computeControl(const Eigen::Ref<const state_array>& state) override;
+  void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride=1) override;
 
   /**
    * Slide the control sequence back n steps
    */
-  void slideControlSequence(int steps) override;
+  void slideControlSequence(int optimization_stride) override;
 
 protected:
 

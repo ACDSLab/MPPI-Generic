@@ -294,7 +294,7 @@ TEST(BasePlant, runControlIterationStoppedTest) {
   MockTestPlant testPlant(mockController);
 
   EXPECT_CALL(*mockController, slideControlSequence(testing::_)).Times(0);
-  EXPECT_CALL(*mockController, computeControl(testing::_)).Times(0);
+  EXPECT_CALL(*mockController, computeControl(testing::_, testing::_)).Times(0);
 
   std::atomic<bool> is_alive(false);
   //testPlant.runControlIteration(mockController.get(), &is_alive);
@@ -323,7 +323,7 @@ TEST(BasePlant, runControlIterationDebugFalseNoFeedbackTest) {
     int expect_opt_stride = i > 0 ? 1 : 0;
 
     EXPECT_CALL(*mockController, slideControlSequence(expect_opt_stride)).Times(i > 0 ? 1 : 0);
-    EXPECT_CALL(*mockController, computeControl(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
+    EXPECT_CALL(*mockController, computeControl(testing::_, testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
     MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
     EXPECT_CALL(*mockController, getControlSeq()).Times(1).WillRepeatedly(testing::Return(control_seq));
     MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
@@ -391,7 +391,7 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
     int expect_opt_stride = i > 0 ? 1 : 0;
 
     EXPECT_CALL(*mockController, slideControlSequence(expect_opt_stride)).Times(i > 0 ? 1 : 0);
-    EXPECT_CALL(*mockController, computeControl(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
+    EXPECT_CALL(*mockController, computeControl(testing::_, testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
     MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
     EXPECT_CALL(*mockController, getControlSeq()).Times(1).WillRepeatedly(testing::Return(control_seq));
     MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
@@ -454,7 +454,7 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackAvgTest) {
     int expect_opt_stride = i > 0 ? 1 : 0;
 
     EXPECT_CALL(*mockController, slideControlSequence(expect_opt_stride)).Times(i > 0 ? 1 : 0);
-    EXPECT_CALL(*mockController, computeControl(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
+    EXPECT_CALL(*mockController, computeControl(testing::_, testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
     MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
     EXPECT_CALL(*mockController, getControlSeq()).Times(1).WillRepeatedly(testing::Return(control_seq));
     MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
@@ -525,7 +525,7 @@ TEST(BasePlant, runControlLoop) {
   };
   int iterations = int(std::round((hz*1.0) / (time * 1.0))); // number of times the method will be called
   EXPECT_CALL(*mockController, slideControlSequence(1)).Times(iterations/2);
-  EXPECT_CALL(*mockController, computeControl(testing::_)).Times(iterations/2).WillRepeatedly(testing::Invoke(wait_function));
+  EXPECT_CALL(*mockController, computeControl(testing::_, testing::_)).Times(iterations/2).WillRepeatedly(testing::Invoke(wait_function));
   MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
   EXPECT_CALL(*mockController, getControlSeq()).Times(iterations/2).WillRepeatedly(testing::Return(control_seq));
   MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();

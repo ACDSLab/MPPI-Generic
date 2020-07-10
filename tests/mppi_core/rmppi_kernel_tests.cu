@@ -193,6 +193,7 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   float alpha = 0.0001;
   const int num_timesteps = 50;
   const int num_rollouts = 64;
+  int optimization_stride = 1;
 
   float sigma_u[control_dim] = {0.5, 0.05}; // variance to sample noise from
   COST::control_matrix cost_variance = COST::control_matrix::Identity();
@@ -284,11 +285,11 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   std::array<float, num_rollouts> costs_act_GPU, costs_nom_GPU;
   std::array<float, num_rollouts> costs_act_CPU, costs_nom_CPU;
   launchRMPPIRolloutKernelGPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-    num_timesteps, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    num_timesteps, optimization_stride, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_GPU, costs_nom_GPU);
   launchRMPPIRolloutKernelCPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-    num_timesteps, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    num_timesteps, optimization_stride, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_CPU, costs_nom_CPU);
 

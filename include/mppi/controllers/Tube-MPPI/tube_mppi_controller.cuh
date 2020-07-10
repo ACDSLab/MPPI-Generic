@@ -71,7 +71,7 @@ public:
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                      cudaStream_t stream = nullptr);
 
-  void computeControl(const Eigen::Ref<const state_array>& state) override;
+  void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride=1) override;
 
   /**
    * returns the current control sequence
@@ -109,7 +109,7 @@ public:
 private:
   float normalizer_nominal_; // Variable for the normalizing term from sampling.
   float baseline_nominal_; // Baseline cost of the system.
-  float nominal_threshold_ = 100; // How much worse the actual system has to be compared to the nominal
+  float nominal_threshold_ = 1000; // How much worse the actual system has to be compared to the nominal
 
 
   // nominal state CPU side copies

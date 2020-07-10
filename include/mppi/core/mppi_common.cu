@@ -12,6 +12,7 @@ namespace mppi_common {
   __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs,
                                float dt,
                                int num_timesteps,
+                               int optimization_stride,
                                float lambda,
                                float alpha,
                                float* x_d,
@@ -67,14 +68,14 @@ namespace mppi_common {
       for (int t = 0; t < num_timesteps; t++) {
         //Load noise trajectories scaled by the exploration factor
         injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
-                           t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
+                           t, global_idx, thread_idy, optimization_stride, u_d, du_d, sigma_u, u, du);
         // du_d is now v
         __syncthreads();
 
         // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
         // usually just control clamping
         // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
-        //dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]);
+        // dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]); // TODO verify that this is wrong in theory
         dynamics->enforceConstraints(x, u);
         __syncthreads();
 
@@ -84,6 +85,8 @@ namespace mppi_common {
                   (costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha,
                                              t, crash_status) - running_cost) /
                   (1.0 * t );
+//          printf("Common Current State rollout %i: [%f, %f, %f, %f]\n", global_idx, x[0], x[1], x[2], x[3]);
+//          printf("Common Running Cost rollout %i: %f\n", global_idx, running_cost);
         }
         //__syncthreads();
 
@@ -190,6 +193,7 @@ namespace mppi_common {
                                        int current_timestep,
                                        int global_idx,
                                        int thread_idy,
+                                       int optimization_stride,
                                        const float* u_traj_device,
                                        float* ep_v_device,
                                        const float* sigma_u_thread,
@@ -203,7 +207,7 @@ namespace mppi_common {
 
       for (int i = thread_idy; i < control_dim; i += blocksize_y) {
           //Keep one noise free trajectory
-          if (global_idx == 0 || current_timestep < 1){
+          if (global_idx == 0 || current_timestep < optimization_stride) {
               du_thread[i] = 0;
               u_thread[i] = u_traj_device[current_timestep * control_dim + i];
           }
@@ -327,24 +331,23 @@ namespace mppi_common {
     template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
              int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
     void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
-                             int num_timesteps, float lambda, float alpha,
+                             int num_timesteps, int optimization_stride, float lambda, float alpha,
                              float* x_d, float* u_d,
                              float* du_d, float* sigma_u_d,
                              float* trajectory_costs, cudaStream_t stream) {
       const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
       dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
       dim3 dimGrid(gridsize_x, 1, 1);
-      rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z>
-              <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
-              num_timesteps, lambda, alpha, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
+      rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
+              num_timesteps, optimization_stride, lambda, alpha, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
       CudaCheckError();
       HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
-    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda, float baseline, cudaStream_t stream) {
+    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda_inv, float baseline, cudaStream_t stream) {
         dim3 dimBlock(blocksize_x, 1, 1);
         dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
-        normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, lambda, baseline);
+        normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, lambda_inv, baseline);
         CudaCheckError();
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
@@ -510,6 +513,7 @@ namespace rmppi_kernels {
   __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
                                      float dt,
                                      int num_timesteps,
+                                     int optimization_stride,
                                      float lambda,
                                      float alpha,
                                      float value_func_threshold,
@@ -590,9 +594,9 @@ namespace rmppi_kernels {
       *running_control_cost_nom = 0;
       for (t = 0; t < num_timesteps; t++) {
         mppi_common::injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y,
-                                        NUM_ROLLOUTS, num_timesteps,
-                                        t, global_idx, thread_idy, u_d, du_d,
-                                        sigma_u, u, du);
+                                        NUM_ROLLOUTS, num_timesteps, t,
+                                        global_idx, thread_idy, optimization_stride,
+                                        u_d, du_d, sigma_u, u, du);
         __syncthreads();
 
         // Now find feedback control
@@ -693,6 +697,7 @@ namespace rmppi_kernels {
   void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
                                 float dt,
                                 int num_timesteps,
+                                int optimization_stride,
                                 float lambda,
                                 float alpha,
                                 float value_func_threshold,
@@ -708,7 +713,7 @@ namespace rmppi_kernels {
     dim3 dimGrid(gridsize_x, 1, 1);
     RMPPIRolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
                       BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
-                        dynamics, costs, dt, num_timesteps, lambda, alpha,
+                        dynamics, costs, dt, num_timesteps, optimization_stride, lambda, alpha,
                         value_func_threshold, x_d, u_d, du_d,
                         feedback_gains_d, sigma_u_d, trajectory_costs);
     CudaCheckError();

@@ -120,7 +120,9 @@ void launchAutorallyRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, floa
                                       std::array<float, NUM_TIMESTEPS*DYNAMICS_T::CONTROL_DIM> control_array,
                                       std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM> control_noise_array,
                                       std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u,
-                                      std::array<float, NUM_ROLLOUTS>& costs_out, int opt_delay, cudaStream_t stream);
+                                      std::array<float, NUM_ROLLOUTS>& costs_out,
+                                      std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM>& control_noise_out,
+                                      int opt_delay, cudaStream_t stream);
 
 template<class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
 void launchGenericRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
@@ -128,7 +130,9 @@ void launchGenericRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, float 
                                     std::array<float, NUM_TIMESTEPS*DYNAMICS_T::CONTROL_DIM> control_array,
                                     std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM> control_noise_array,
                                     std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u,
-                                    std::array<float, NUM_ROLLOUTS>& costs_out, int opt_delay, cudaStream_t stream);
+                                    std::array<float, NUM_ROLLOUTS>& costs_out,
+                                    std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM>& control_noise_out,
+                                    int opt_delay, cudaStream_t stream);
 
 #if __CUDACC__
 #include "rollout_kernel_test.cu"

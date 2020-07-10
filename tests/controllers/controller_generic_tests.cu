@@ -29,7 +29,7 @@ public:
     this->copyControlStdDevToDevice();
   }
 
-  virtual void computeControl(const Eigen::Ref<const state_array>& state) override {
+  virtual void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) override {
 
   }
 

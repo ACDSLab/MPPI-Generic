@@ -33,13 +33,13 @@ VanillaMPPI::~VanillaMPPIController() {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
+void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) {
 
   // Send the initial condition to the device
   HANDLE_ERROR( cudaMemcpyAsync(this->initial_state_d_, state.data(),
       DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, this->stream_));
 
-  float baseline_prev = 1e4;
+  float baseline_prev = 1e8;
 
   for (int opt_iter = 0; opt_iter < this->num_iters_; opt_iter++) {
     // Send the nominal control to the device
@@ -67,7 +67,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     //Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
-        this->lambda_, this->alpha_,
+        optimization_stride, this->lambda_, this->alpha_,
         this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
     /*

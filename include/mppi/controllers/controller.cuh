@@ -126,13 +126,13 @@ public:
    * @param state - the current state from which we would like to calculate
    * a control sequence
    */
-  virtual void computeControl(const Eigen::Ref<const state_array>& state) = 0;
+  virtual void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) = 0;
 
   /**
    * @param steps dt's to slide control sequence forward
    * Slide the control sequence forwards steps steps
    */
-  virtual void slideControlSequence(int steps) = 0;
+  virtual void slideControlSequence(int optimization_stride) = 0;
   // ================ END OF METHODS WITH NO DEFAULT =============
   // ======== PURE VIRTUAL END =====
 
@@ -141,7 +141,7 @@ public:
    * @param state
    * @param stride
    */
-  void updateImportanceSamplingControl(const Eigen::Ref<const state_array> &state, int stride) {}
+  void updateImportanceSamplingControl(const Eigen::Ref<const state_array> &state, int optimization_stride) {}
 
   /**
    * Used to update the importance sampler

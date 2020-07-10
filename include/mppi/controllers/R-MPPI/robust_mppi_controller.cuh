@@ -149,7 +149,7 @@ public:
   * @brief Compute the control given the current state of the system.
   * @param state The current state of the autorally system.
   */
-  void computeControl(const Eigen::Ref<const state_array>& state);
+  void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride=1);
 
   control_trajectory getControlSeq() override {return this->control_;};
 

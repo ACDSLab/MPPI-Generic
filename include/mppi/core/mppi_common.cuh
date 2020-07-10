@@ -12,7 +12,7 @@ namespace mppi_common {
     template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
              int NUM_ROLLOUTS, int BLOCKSIZE_Z = 1>
     __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
-                                  int num_timesteps, float* x_d, float* u_d, float* du_d, float* sigma_u_d,
+                                  int num_timesteps, int opt_delay, float* x_d, float* u_d, float* du_d, float* sigma_u_d,
                                   float* trajectory_costs_d);
 
     // RolloutKernel Helpers
@@ -75,6 +75,7 @@ namespace mppi_common {
                                        int current_timestep,
                                        int global_idx,
                                        int thread_idy,
+                                       int opt_delay,
                                        const float* u_traj_device,
                                        float* ep_v_device,
                                        const float* sigma_u_thread,
@@ -125,7 +126,7 @@ namespace mppi_common {
 
     // Launch functions
     template<class DYN_T, class COST_T>
-    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float lambda, float alpha, float* x_d, float* u_d,
+    void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, int opt_delay, float lambda, float alpha, float* x_d, float* u_d,
             float* du_d, float* sigma_u_d, float* trajectory_costs, cudaStream_t stream);
 
     void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda, float baseline, cudaStream_t stream);
@@ -173,6 +174,7 @@ namespace rmppi_kernels {
   __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
                                      float dt,
                                      int num_timesteps,
+                                     int optimization_stride,
                                      float lambda,
                                      float alpha,
                                      float value_func_threshold,
@@ -188,6 +190,7 @@ namespace rmppi_kernels {
   void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
                                 float dt,
                                 int num_timesteps,
+                                int optimization_stride,
                                 float lambda,
                                 float alpha,
                                 float value_func_threshold,

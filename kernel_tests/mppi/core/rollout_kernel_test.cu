@@ -252,7 +252,7 @@ __global__ void  injectControlNoiseOnce_KernelTest(int num_rollouts, int num_tim
   float du_thread[CONTROL_DIM];
 
   if (global_idx < num_rollouts) {
-    mppi_common::injectControlNoise(CONTROL_DIM, BLOCKSIZE_Y, num_rollouts, num_timesteps, timestep, global_idx, thread_idy, u_traj_device, ep_v_device, sigma_u_device, u_thread, du_thread);
+    mppi_common::injectControlNoise(CONTROL_DIM, BLOCKSIZE_Y, num_rollouts, num_timesteps, timestep, global_idx, thread_idy, 0, u_traj_device, ep_v_device, sigma_u_device, u_thread, du_thread);
     if (thread_idy < CONTROL_DIM) {
       control_compute_device[global_idx * CONTROL_DIM + thread_idy] = u_thread[thread_idy];
     }
@@ -327,7 +327,7 @@ __global__ void injectControlNoiseCheckControlV_KernelTest(int num_rollouts, int
   float du_thread[control_dim];
 
   if (global_idx < num_rollouts) {
-    mppi_common::injectControlNoise(control_dim, blocksize_y, num_rollouts, num_timesteps, timestep, global_idx, thread_idy, u_traj_device, ep_v_device, sigma_u_device, u_thread, du_thread);
+    mppi_common::injectControlNoise(control_dim, blocksize_y, num_rollouts, num_timesteps, timestep, global_idx, thread_idy, 1, u_traj_device, ep_v_device, sigma_u_device, u_thread, du_thread);
     __syncthreads();
   }
 }
@@ -504,7 +504,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs,
   HANDLE_ERROR(cudaStreamSynchronize(stream));
   // Launch rollout kernel
   mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
-    BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps,
+    BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps, 0,
                     lambda, alpha,
                     initial_state_d, control_d, control_noise_d,
                     control_std_dev_d, trajectory_costs_d, stream);
@@ -616,6 +616,8 @@ __global__ void autorallyRolloutKernel(int num_timesteps, float* state_d, float*
     if (tdy == 0 && global_idx < NUM_ROLLOUTS && i > 0 && crash[0] > -1) {
       //Running average formula
       running_cost += (mppi_costs->computeRunningCost(s, u, du, nu, lambda, alpha, i, crash) - running_cost)/(1.0*i);
+//      printf("AutoRa Current State rollout %i, timestep: %i: [%f, %f, %f, %f]\n", global_idx, i, s[0], s[1], s[2], s[3]);
+//      printf("AutoRa Running Cost rollout %i, timestep: %i: %f\n", global_idx, i, running_cost);
     }
     //Compute the dynamics
     if (global_idx < NUM_ROLLOUTS){
@@ -625,6 +627,7 @@ __global__ void autorallyRolloutKernel(int num_timesteps, float* state_d, float*
     //Update the state
     if (global_idx < NUM_ROLLOUTS){
       dynamics_model->updateState(s, s_der, dt);
+
     }
 //    //Check to see if the rollout will result in a (physical) crash.
 //    if (tdy == 0 && global_idx < NUM_ROLLOUTS) {
@@ -643,7 +646,9 @@ void launchAutorallyRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, floa
         std::array<float, NUM_TIMESTEPS*DYNAMICS_T::CONTROL_DIM> control_array,
         std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM> control_noise_array,
         std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u,
-        std::array<float, NUM_ROLLOUTS>& costs_out, int opt_delay, cudaStream_t stream) {
+        std::array<float, NUM_ROLLOUTS>& costs_out,
+        std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM>& control_noise_out,
+        int opt_delay, cudaStream_t stream) {
 
   float* state_d;
   float* U_d;
@@ -683,6 +688,10 @@ void launchAutorallyRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, floa
   HANDLE_ERROR(cudaMemcpyAsync(costs_out.data(), costs_d,
           sizeof(float) * costs_out.size(), cudaMemcpyDeviceToHost, stream));
 
+  // Copy the noise back
+  HANDLE_ERROR(cudaMemcpyAsync(control_noise_out.data(), du_d,
+                               sizeof(float) * control_noise_out.size(), cudaMemcpyDeviceToHost, stream));
+
   // Deallocate CUDA Memory
   HANDLE_ERROR(cudaFree(state_d));
   HANDLE_ERROR(cudaFree(U_d));
@@ -698,7 +707,9 @@ void launchGenericRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, float 
                                       std::array<float, NUM_TIMESTEPS*DYNAMICS_T::CONTROL_DIM> control_array,
                                       std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM> control_noise_array,
                                       std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u,
-                                      std::array<float, NUM_ROLLOUTS>& costs_out, int opt_delay, cudaStream_t stream) {
+                                      std::array<float, NUM_ROLLOUTS>& costs_out,
+                                      std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM>& control_noise_out,
+                                      int opt_delay, cudaStream_t stream) {
 
   float* state_d;
   float* U_d;
@@ -728,12 +739,16 @@ void launchGenericRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, float 
   dim3 dimGrid(gridsize_x, 1, 1);
   mppi_common::rolloutKernel<DYNAMICS_T, COSTS_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, 1>
           <<<dimGrid, dimBlock, 0, stream>>>
-          (dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS, lambda, alpha, state_d, U_d, du_d, nu_d, costs_d);
+          (dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS, opt_delay, lambda, alpha, state_d, U_d, du_d, nu_d, costs_d);
   CudaCheckError();
 
   // Copy data back
   HANDLE_ERROR(cudaMemcpyAsync(costs_out.data(), costs_d,
                                sizeof(float) * costs_out.size(), cudaMemcpyDeviceToHost, stream));
+
+  // Copy the noise back
+  HANDLE_ERROR(cudaMemcpyAsync(control_noise_out.data(), du_d,
+                               sizeof(float) * control_noise_out.size(), cudaMemcpyDeviceToHost, stream));
 
   // Deallocate CUDA Memory
   HANDLE_ERROR(cudaFree(state_d));

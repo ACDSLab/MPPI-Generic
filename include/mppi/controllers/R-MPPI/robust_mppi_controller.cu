@@ -301,7 +301,7 @@ void RobustMPPI::computeNominalFeedbackGains(const Eigen::Ref<const state_array>
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
-void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
+void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int optimization_stride) {
   // Handy dandy pointers to nominal data
   float * trajectory_costs_nominal_d = this->trajectory_costs_d_ + NUM_ROLLOUTS;
   float * initial_state_nominal_d = this->initial_state_d_ + DYN_T::STATE_DIM;
@@ -333,7 +333,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
 
     // Launch the new rollout kernel
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
-            BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
+            BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_, optimization_stride,
                             1.0 / this->lambda_, this->alpha_, value_function_threshold_, this->initial_state_d_, this->control_d_,
                             this->control_noise_d_, feedback_gain_array_d_, this->control_std_dev_d_,
                             this->trajectory_costs_d_, this->stream_);

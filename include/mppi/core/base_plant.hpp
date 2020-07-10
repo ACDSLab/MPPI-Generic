@@ -378,7 +378,7 @@ public:
     // Compute a new control sequence
     std::chrono::steady_clock::time_point optimization_start = std::chrono::steady_clock::now();
     //std::cout << "run compute control" << std::endl;
-    controller->computeControl(state); // Compute the nominal control sequence
+    controller->computeControl(state, last_optimization_stride_); // Compute the nominal control sequence
 
     c_traj control_traj = controller->getControlSeq();
     s_traj state_traj = controller->getStateSeq();
