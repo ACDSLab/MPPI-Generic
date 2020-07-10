@@ -45,7 +45,7 @@ protected:
   Dynamics(cudaStream_t stream=0) : Managed(stream) {
     // TODO handle at Managed
     for(int i = 0; i < C_DIM; i++) {
-      control_rngs_[i].x = FLT_MIN;
+      control_rngs_[i].x = -FLT_MAX;
       control_rngs_[i].y = FLT_MAX;
     }
   }

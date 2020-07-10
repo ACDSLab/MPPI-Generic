@@ -153,7 +153,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     cudaStreamSynchronize(this->stream_);
 
     }
-  //smoothControlTrajectory();
+  smoothControlTrajectory();
   computeStateTrajectory(state);
 
 }

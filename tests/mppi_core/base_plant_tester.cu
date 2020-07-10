@@ -250,7 +250,7 @@ TEST(BasePlant, updateStateOutsideTimeTest) {
   MockTestPlant testPlant(mockController);
   testPlant.setLastTime(0);
 
-  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_)).Times(0);
+  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(0);
 
   MockController::state_array state = MockController::state_array::Zero();
   testPlant.updateState(state, mockController->getDt() * mockController->getNumTimesteps() + 0.01);
@@ -260,7 +260,6 @@ TEST(BasePlant, updateStateOutsideTimeTest) {
   testPlant.updateState(state, 99.99);
   EXPECT_EQ(testPlant.getState(), state);
 }
-
 
 TEST(BasePlant, updateStateTest) {
   std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
@@ -275,7 +274,7 @@ TEST(BasePlant, updateStateTest) {
   testPlant.setLastTime(0);
 
   MockController::state_array state = MockController::state_array::Zero();
-  EXPECT_CALL(*mockController, getCurrentControl(state, mockController->getDt())).Times(1);
+  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(1);
   testPlant.updateState(state, mockController->getDt());
   EXPECT_EQ(testPlant.getState(), state);
 
