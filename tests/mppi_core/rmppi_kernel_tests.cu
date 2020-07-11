@@ -137,7 +137,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
 
         // compute the cost
         if (k > 0) {
-          cost_current += (cost->computeRunningCost(x_current, candidate_nominal_control.col(k), noise_current, exploration_var, lambda, alpha, k, crash_status) * dt - cost_current) / (1.0f*k);
+          cost_current += (cost->computeRunningCost(x_current, candidate_nominal_control.col(k), noise_current, exploration_var, lambda, alpha, k, crash_status) - cost_current) / (1.0f*k);
         }
 
         // compute the next state_dot
@@ -175,7 +175,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // Compare with the CPU version
   HANDLE_ERROR(cudaMemcpy(cost_vector_GPU.data(), costs_d, sizeof(float)*num_samples*num_candidates, cudaMemcpyDeviceToHost));
 
-  EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 1e-4);
+  EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 1e-3);
 }
 
 TEST(RMPPITest, RMPPIRolloutKernel) {
@@ -293,10 +293,10 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_CPU, costs_nom_CPU);
 
-  for (int i = 0; i < costs_nom_CPU.size(); ++i) {
-    std::cout << "Nominal Cost CPU: " << costs_nom_CPU[i] << std::endl;
-    std::cout << "Nominal Cost GPU: " << costs_nom_GPU[i] << std::endl;
-  }
+//  for (int i = 0; i < costs_nom_CPU.size(); ++i) {
+//    std::cout << "Nominal Cost CPU: " << costs_nom_CPU[i] << std::endl;
+//    std::cout << "Nominal Cost GPU: " << costs_nom_GPU[i] << std::endl;
+//  }
 
   float max_diff_nom = -100;
   float max_diff_act = -100;
