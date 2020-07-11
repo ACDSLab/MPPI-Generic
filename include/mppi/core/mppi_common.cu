@@ -187,6 +187,8 @@ namespace mppi_common {
       }
     }
 
+  // TODO generalize the trim control
+  // The zero control trajectory should be an equilbrium control defined in the dynamics.
     __device__ void injectControlNoise(int control_dim,
                                        int blocksize_y, int num_rollouts,
                                        int num_timesteps,
