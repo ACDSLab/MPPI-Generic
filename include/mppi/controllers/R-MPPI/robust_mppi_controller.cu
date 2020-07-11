@@ -334,7 +334,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
     // Launch the new rollout kernel
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
             BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_, optimization_stride,
-                            1.0 / this->lambda_, this->alpha_, value_function_threshold_, this->initial_state_d_, this->control_d_,
+                            this->lambda_, this->alpha_, value_function_threshold_, this->initial_state_d_, this->control_d_,
                             this->control_noise_d_, feedback_gain_array_d_, this->control_std_dev_d_,
                             this->trajectory_costs_d_, this->stream_);
 
@@ -356,9 +356,9 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
 
     // In this case this->gamma = 1 / lambda
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-                                     this->trajectory_costs_d_, this->lambda_, this->baseline_, this->stream_);
+                                     this->trajectory_costs_d_, 1.0 / this->lambda_, this->baseline_, this->stream_);
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-                                     trajectory_costs_nominal_d, this->lambda_, baseline_nominal_, this->stream_);
+                                     trajectory_costs_nominal_d, 1.0 / this->lambda_, baseline_nominal_, this->stream_);
 
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
