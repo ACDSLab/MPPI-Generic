@@ -383,9 +383,9 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   for (int t = 0; t < total_time_horizon; ++t) {
 //     Print the system state
     if (t % 100 == 0) {
-//      float current_cost = cost.computeStateCost(x.data());
+      float current_cost = cost.computeStateCost(x, 1, crash_status);
       printf("Current Time: %f    ", t * dt);
-//      printf("Current State Cost: %f    ", current_cost);
+      printf("Current State Cost: %f    ", current_cost);
       model.printState(x.data());
     }
 
@@ -395,6 +395,10 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     }
 
     if (tubeFailure(x.data())) {
+      float current_cost = cost.computeStateCost(x, 1, crash_status);
+      printf("Current Time: %f    ", t * dt);
+      printf("Current State Cost: %f    ", current_cost);
+      model.printState(x.data());
       cnpy::npy_save("tube_large_actual.npy", actual_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       cnpy::npy_save("tube_ancillary.npy", ancillary_trajectory_save.data(),

@@ -84,3 +84,7 @@ TEST(DoubleIntegratorCost, ControlCost) {
 
   array_assert_float_eq<num_results>(CPU_result, GPU_result);
 }
+
+TEST(DoubleIntegratorCost, CrashPersistence) {
+  
+}

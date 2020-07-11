@@ -145,6 +145,9 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
     // Compute the nominal and actual state trajectories
     computeStateTrajectory(state); // Input is the actual state
 
+//    std::cout << "Actual baseline: " << this->baseline_ << std::endl;
+//    std::cout << "Nominal baseline: " << baseline_nominal_ << std::endl;
+
     if (this->baseline_ < baseline_nominal_ + nominal_threshold_) {
       // In this case, the disturbance the made the nominal and actual states differ improved the cost.
       // std::copy(state_trajectory.begin(), state_trajectory.end(), nominal_state_trajectory_.begin());

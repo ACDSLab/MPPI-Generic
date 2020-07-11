@@ -14,8 +14,9 @@ struct DoubleIntegratorCircleCostParams : public CostParams<2> {
   float angular_momentum_desired = 2*velocity_desired; // Enforces the system travels counter clockwise
 
   DoubleIntegratorCircleCostParams() {
-    control_cost_coeff[0] = 2.0;
-    control_cost_coeff[1] = 2.0;
+    control_cost_coeff[0] = 0.01;
+    control_cost_coeff[1] = 0.01;
+    discount = 1.0;
   }
 } ;
 

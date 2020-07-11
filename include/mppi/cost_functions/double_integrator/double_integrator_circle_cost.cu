@@ -10,13 +10,18 @@ __device__ float DoubleIntegratorCircleCost::computeStateCost(float *s, int time
   float current_angular_momentum = s[0]*s[3] - s[1]*s[2];
 
   float cost = 0;
+//  if ((radial_position < params_.inner_path_radius2) ||
+//      (radial_position > params_.outer_path_radius2)) {
+//    crash_status[0] = 1; // Indicates the system has crashed.
+//  }
+//
+//  if (crash_status[0] > 0) { // If we've crashed once, constantly add the crash cost.
+//    cost += params_.crash_cost;
+//  }
+
   if ((radial_position < params_.inner_path_radius2) ||
       (radial_position > params_.outer_path_radius2)) {
-    crash_status[0] = 1; // Indicates the system has crashed.
-  }
-
-  if (crash_status[0] > 0) { // If we've crashed once, constantly add the crash cost.
-    cost += params_.crash_cost;
+    cost += powf(this->params_.discount, timestep)*params_.crash_cost;
   }
 
   cost += params_.velocity_cost * powf(current_velocity - params_.velocity_desired, 2);
@@ -28,15 +33,20 @@ float DoubleIntegratorCircleCost::computeStateCost(const Eigen::Ref<const state_
   float radial_position = s[0]*s[0] + s[1]*s[1];
   float current_velocity = sqrtf(s[2]*s[2] + s[3]*s[3]);
   float current_angular_momentum = s[0]*s[3] - s[1]*s[2];
-
   float cost = 0;
+
+//  if ((radial_position < params_.inner_path_radius2) ||
+//      (radial_position > params_.outer_path_radius2)) {
+//    crash_status[0] = 1; // Indicates the system has crashed.
+//  }
+//
+//  if (crash_status[0] > 0) { // If we've crashed once, constantly add the crash cost.
+//    cost += params_.crash_cost;
+//  }
+
   if ((radial_position < params_.inner_path_radius2) ||
       (radial_position > params_.outer_path_radius2)) {
-    crash_status[0] = 1; // Indicates the system has crashed.
-  }
-
-  if (crash_status[0] > 0) { // If we've crashed once, constantly add the crash cost.
-    cost += params_.crash_cost;
+    cost += powf(this->params_.discount, timestep)*params_.crash_cost;
   }
 
   cost += params_.velocity_cost * powf(current_velocity - params_.velocity_desired, 2);
