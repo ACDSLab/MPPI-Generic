@@ -629,7 +629,7 @@ namespace rmppi_kernels {
 
         __syncthreads();
         // Clamp the control in both the importance sampling sequence and the disturbed sequence.
-        dynamics->enforceConstraints(x, du);
+//        dynamics->enforceConstraints(x, du); // TODO unnecessary
         dynamics->enforceConstraints(x, u);
 
         __syncthreads();
@@ -662,9 +662,21 @@ namespace rmppi_kernels {
         __syncthreads();
       }
 
+      // Compute average cost per timestep
+      if (thread_idz == 1 && thread_idy == 0)  {
+        *running_state_cost_nom /= (float)num_timesteps;
+        *running_control_cost_nom /= (float)num_timesteps;
+      }
+
+      if (thread_idz == 0) {
+        running_state_cost_real /= (float)num_timesteps;
+        running_tracking_cost_real /= (float)num_timesteps;
+        running_control_cost_real /= (float)num_timesteps;
+      }
+
       // calculate terminal costs
       if (thread_idz == 1 && thread_idy == 0) { //Thread y required to prevent double addition
-        *running_control_cost_nom += costs->terminalCost(x);
+        *running_state_cost_nom += costs->terminalCost(x);
       }
 
       if (thread_idz == 0) {

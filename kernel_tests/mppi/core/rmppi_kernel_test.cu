@@ -213,14 +213,14 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
 
       // Cost update
       control_array zero_u = control_array::Zero();
-      state_cost_nom += costs->computeStateCost(x_t_nom, t, crash_status_nom)*dt;
-      float state_cost_act = costs->computeStateCost(x_t_act, t, crash_status_act)*dt;
+      state_cost_nom += costs->computeStateCost(x_t_nom, t, crash_status_nom);
+      float state_cost_act = costs->computeStateCost(x_t_act, t, crash_status_act);
       cost_real_w_tracking += state_cost_act +
-                              costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda, alpha)*dt;
+                              costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda, alpha);
 
       running_state_cost_real += state_cost_act;
       running_control_cost_real +=
-      costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda, alpha)*dt;
+      costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda, alpha);
 
       model->enforceConstraints(x_t_nom, u_nom);
       model->enforceConstraints(x_t_act, u_act);
@@ -232,6 +232,11 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       model->updateState(x_t_act, x_dot_t_act, dt);
       model->updateState(x_t_nom, x_dot_t_nom, dt);
     }
+
+    // Compute average cost per timestep
+    state_cost_nom /= (float)num_timesteps;
+    cost_real_w_tracking /= (float)num_timesteps;
+    running_state_cost_real /= (float)num_timesteps;
 
     state_cost_nom += costs->terminalCost(x_t_nom);
     cost_real_w_tracking += costs->terminalCost(x_t_act);
@@ -253,8 +258,12 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
         u_t = control_array::Zero();;
       }
-      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda, alpha)*dt;
+      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda, alpha);
     }
+
+    // Compute average cost per timestep
+    cost_nom_control /= (float)num_timesteps;
+    running_control_cost_real /= (float)num_timesteps;
 
     cost_nom += cost_nom_control;
     trajectory_costs_nom[traj_i] = cost_nom;
