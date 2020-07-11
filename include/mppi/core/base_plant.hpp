@@ -36,6 +36,7 @@ public:
 protected:
 
   std::mutex access_guard_;
+  std::mutex timing_guard_;
 
   int hz_ = 10; // Frequency of control publisher
   bool debug_mode_ = false;
@@ -114,6 +115,8 @@ public:
     controller_ = controller;
     hz_ = hz;
     optimization_stride_ = optimization_stride;
+    control_traj_ = c_traj::Zero();
+    state_traj_ = s_traj::Zero();
   };
   /**
    * Destructor must be virtual so that children are properly
@@ -214,11 +217,18 @@ public:
                            const c_traj& control_seq,
                            const K_traj& feedback_gains,
                            double timestamp) {
-    std::lock_guard<std::mutex> guard(access_guard_);
+    timing_guard_.lock();
     last_used_pose_update_time_ = timestamp;
+    timing_guard_.unlock();
+    std::lock_guard<std::mutex> guard(access_guard_);
     state_traj_ = state_seq;
     control_traj_ = control_seq;
     feedback_gains_ = feedback_gains;
+    /*
+    for(int i = 0; i < 5; i++) {
+      printf("inside setSolution %d %f, %f\n", i, control_traj_(0, i), control_traj_(1, i));
+    }
+     */
   }
   /**
    * updates the state and publishes a new control
@@ -226,17 +236,23 @@ public:
    * @param time the time of the most recent state from the state estimator
    */
   virtual void updateState(s_array& state, double time) {
+    //printf("update state called with %f\n", time);
     // calculate and update all timing variables
-    double time_since_last_opt = time - last_used_pose_update_time_;
+    timing_guard_.lock();
+    float temp_last_pose_update_time = last_used_pose_update_time_;
+    timing_guard_.unlock();
+
+    double time_since_last_opt = time - temp_last_pose_update_time;
 
     state_ = state;
 
     // check if the requested time is in the calculated trajectory
-    bool t_within_trajectory = time > last_used_pose_update_time_ &&
-                               time < last_used_pose_update_time_ + controller_->getDt()*controller_->getNumTimesteps();
+    bool t_within_trajectory = time > temp_last_pose_update_time &&
+                               time < temp_last_pose_update_time + controller_->getDt()*controller_->getNumTimesteps();
 
+    // TODO check that we haven't been waiting too long
     if (time_since_last_opt > 0 && t_within_trajectory){
-      pubControl(controller_->getCurrentControl(state, time_since_last_opt));
+      pubControl(controller_->getCurrentControl(state, time_since_last_opt, state_traj_, control_traj_, feedback_gains_));
     }
   }
 
@@ -317,35 +333,41 @@ public:
    * @return the millisecond number that the loop iteration started at
    */
   void runControlIteration(CONTROLLER_T* controller, std::atomic<bool>* is_alive) {
+    std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
     if(!is_alive->load()) {
       // break out if it should stop
       return;
     }
+    //std::cout << "run control iteration" << std::endl;
 
     double temp_last_pose_time = getCurrentTime();
+    timing_guard_.lock();
+    double temp_last_used_pose_update_time = last_used_pose_update_time_;
+    timing_guard_.unlock();
 
     // wait for a new pose to compute control sequence from
-    while(last_used_pose_update_time_ == temp_last_pose_time && is_alive->load()) {
+    int counter = 0;
+    while(temp_last_used_pose_update_time == temp_last_pose_time && is_alive->load()) {
       usleep(50);
       temp_last_pose_time = getCurrentTime();
+      counter++;
     }
-
-    std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
+    //std::cout << "counter = " << counter << std::endl;
 
     s_array state = getState();
     num_iter_++;
     updateParameters(controller, state);
 
     // calculate how much we should slide the control sequence
-    double dt = last_used_pose_update_time_ - temp_last_pose_time;
-    if(last_used_pose_update_time_ == 0) {
+    double dt = temp_last_pose_time - temp_last_used_pose_update_time;
+    if(temp_last_used_pose_update_time == 0) {
       // should only happen on the first iteration
       dt = 0;
       last_optimization_stride_ = 0;
     } else {
-      last_optimization_stride_ = std::max(int(round(dt / hz_)), optimization_stride_);
+      last_optimization_stride_ = std::max(int(round(dt * hz_)), optimization_stride_);
     }
-    last_used_pose_update_time_ = temp_last_pose_time;
+    //printf("calc optimization stride %f %f %f %d\n", dt, temp_last_used_pose_update_time, temp_last_pose_time, last_optimization_stride_);
     // determine how long we should stride based off of robot time
 
     if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller->num_timesteps_){
@@ -355,11 +377,13 @@ public:
 
     // Compute a new control sequence
     std::chrono::steady_clock::time_point optimization_start = std::chrono::steady_clock::now();
+    //std::cout << "run compute control" << std::endl;
     controller->computeControl(state); // Compute the nominal control sequence
 
     c_traj control_traj = controller->getControlSeq();
     s_traj state_traj = controller->getStateSeq();
     optimization_duration_ = (std::chrono::steady_clock::now() - optimization_start).count() / 1e6;
+    //printf("optimization_duration %f\n", optimization_duration_);
 
     std::chrono::steady_clock::time_point feedback_start = std::chrono::steady_clock::now();
     // TODO make sure this is zero by default
@@ -391,17 +415,18 @@ public:
     //   }
     // }
 
-    optimize_loop_duration_ = (std::chrono::steady_clock::now() - loop_start).count() / 1e6;
 
     // Update the average loop time data
     double prev_iter_percent = (num_iter_ - 1.0) / num_iter_;
 
-    avg_loop_time_ms_ = prev_iter_percent * avg_loop_time_ms_ +
-                              optimize_loop_duration_ / num_iter_;
     avg_optimize_time_ms_ = prev_iter_percent * avg_optimize_time_ms_ +
                               optimization_duration_ / num_iter_;
     avg_feedback_time_ms_ = prev_iter_percent * avg_feedback_time_ms_ +
                               feedback_duration_ /num_iter_;
+
+    optimize_loop_duration_ = (std::chrono::steady_clock::now() - loop_start).count() / 1e6;
+    avg_loop_time_ms_ = prev_iter_percent * avg_loop_time_ms_ +
+                        optimize_loop_duration_ / num_iter_;
 
     setTimingInfo(avg_loop_time_ms_, avg_optimize_time_ms_, avg_feedback_time_ms_);
   }
@@ -431,7 +456,11 @@ public:
     while (is_alive->load()) {
       runControlIteration(controller, is_alive);
 
-      double wait_until_time = last_used_pose_update_time_ + (1.0/hz_)*last_optimization_stride_;
+      timing_guard_.lock();
+      double wait_until_time = last_used_pose_update_time_ + (1.0/hz_)*optimization_stride_;
+      //printf("last used pose update time %f last_stride = %d\n", last_used_pose_update_time_, last_optimization_stride_);
+      //printf("wait until time %f current time %f\n", wait_until_time, getCurrentTime());
+      timing_guard_.unlock();
 
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
       while(is_alive->load() && status_ == 0 && wait_until_time > getCurrentTime()) {
@@ -441,6 +470,7 @@ public:
       double prev_iter_percent = (num_iter_ - 1.0) / num_iter_;
       avg_sleep_time_ms_ = prev_iter_percent * avg_sleep_time_ms_ +
               sleep_duration_/num_iter_;
+      //printf("\nsleep: %f loop_time %f\n", sleep_duration_/1000, optimize_loop_duration_/1000);
     }
   }
 };

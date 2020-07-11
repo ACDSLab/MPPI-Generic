@@ -49,6 +49,20 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     curandGenerateNormal(this->gen_, this->control_noise_d_,
                          NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
                          0.0, 1.0);
+    /*
+    std::vector<float> noise = this->getSampledNoise();
+    float mean = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      mean += (noise[k]/noise.size());
+    }
+
+    float std_dev = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      std_dev += powf(noise[k] - mean, 2);
+    }
+    std_dev = sqrt(std_dev/noise.size());
+    printf("CPU 1 side N(%f, %f)\n", mean, std_dev);
+     */
 
     //Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
@@ -56,6 +70,20 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
         this->lambda_, this->alpha_,
         this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
+    /*
+    noise = this->getSampledNoise();
+    mean = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      mean += (noise[k]/noise.size());
+    }
+
+    std_dev = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      std_dev += powf(noise[k] - mean, 2);
+    }
+    std_dev = sqrt(std_dev/noise.size());
+    printf("CPU 2 side N(%f, %f)\n", mean, std_dev);
+     */
 
     // Copy back sampled trajectories
     this->copySampledControlFromDevice();
@@ -102,6 +130,21 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
             this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,
             this->normalizer_, this->num_timesteps_, this->stream_);
+
+    /*
+    noise = this->getSampledNoise();
+    mean = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      mean += (noise[k]/noise.size());
+    }
+
+    std_dev = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      std_dev += powf(noise[k] - mean, 2);
+    }
+    std_dev = sqrt(std_dev/noise.size());
+    printf("CPU 3 side N(%f, %f)\n", mean, std_dev);
+     */
 
     // Transfer the new control to the host
     HANDLE_ERROR( cudaMemcpyAsync(this->control_.data(), this->control_d_,

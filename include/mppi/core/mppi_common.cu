@@ -74,7 +74,7 @@ namespace mppi_common {
         // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
         // usually just control clamping
         // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
-        dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]);
+        //dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]);
         dynamics->enforceConstraints(x, u);
         __syncthreads();
 
@@ -203,7 +203,7 @@ namespace mppi_common {
 
       for (int i = thread_idy; i < control_dim; i += blocksize_y) {
           //Keep one noise free trajectory
-          if (global_idx == 0){
+          if (global_idx == 0 || current_timestep < 1){
               du_thread[i] = 0;
               u_thread[i] = u_traj_device[current_timestep * control_dim + i];
           }
@@ -334,7 +334,8 @@ namespace mppi_common {
       const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
       dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
       dim3 dimGrid(gridsize_x, 1, 1);
-      rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
+      rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z>
+              <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
               num_timesteps, lambda, alpha, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
       CudaCheckError();
       HANDLE_ERROR( cudaStreamSynchronize(stream) );
@@ -343,7 +344,7 @@ namespace mppi_common {
     void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda, float baseline, cudaStream_t stream) {
         dim3 dimBlock(blocksize_x, 1, 1);
         dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
-        normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, 1.0/lambda, baseline);
+        normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, lambda, baseline);
         CudaCheckError();
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
@@ -397,6 +398,7 @@ namespace rmppi_kernels {
 
     //Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+
 
 
     float running_cost = 0;  //Initialize trajectory cost
