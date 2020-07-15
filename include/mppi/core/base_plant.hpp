@@ -32,7 +32,6 @@ struct MPPIStatistics {
 
   freeEnergyEstimate nominal_sys_fe;
   freeEnergyEstimate real_sys_fe;
-
 };
 
 template <class CONTROLLER_T>
@@ -154,6 +153,12 @@ public:
   virtual void pubNominalState(const s_array& s) = 0;
 
   /**
+   * applies the control to the syste
+   * @param u
+   */
+  virtual void pubStateDivergence(const s_array& s_diff) = 0;
+
+  /**
    * Receives timing info from control loop and can be overwritten
    * to ouput to another system
    * @param avg_loop_ms          Average duration of a single iteration in ms
@@ -252,6 +257,7 @@ public:
     }
      */
   }
+
   /**
    * updates the state and publishes a new control
    * @param state the most recent state from state estimator
@@ -277,6 +283,8 @@ public:
       s_array target_nominal_state = this->controller_->interpolateState(state_traj_, time_since_last_opt);
       pubNominalState(target_nominal_state);
       pubControl(controller_->getCurrentControl(state, time_since_last_opt, target_nominal_state, control_traj_, feedback_gains_));
+      s_array state_diff = state - target_nominal_state;
+      pubStateDivergence(state_diff);
     }
   }
 

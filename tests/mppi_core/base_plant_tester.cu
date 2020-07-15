@@ -43,13 +43,11 @@ public:
         : BasePlant<CONTROLLER_T>(controller,hz,opt_stride) {}
 
 
-  void pubControl(const c_array& u) override {
+  void pubControl(const c_array& u) override {}
 
-  }
+  void pubNominalState(const s_array& s) override {}
 
-  void pubNominalState(const s_array& s) override {
-
-  }
+  void pubStateDivergence(const s_array& s) override {}
 
   void incrementTime() {
     time_ += 0.05;
