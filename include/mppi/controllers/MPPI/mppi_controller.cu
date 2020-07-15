@@ -34,6 +34,7 @@ VanillaMPPI::~VanillaMPPIController() {
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) {
+  this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
 
   // Send the initial condition to the device
   HANDLE_ERROR( cudaMemcpyAsync(this->initial_state_d_, state.data(),
@@ -121,8 +122,9 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(),
         NUM_ROLLOUTS);
 
-    mppi_common::computeFreeEnergy(this->free_energy_mean_, this->free_energy_variance_,
-                                   this->free_energy_modified_variance_,
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
                                    this->trajectory_costs_.data(), NUM_ROLLOUTS,
                                    this->baseline_, this->lambda_);
 

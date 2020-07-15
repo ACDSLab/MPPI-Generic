@@ -308,6 +308,9 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
   float * control_noise_nominal_d = this->control_noise_d_ + NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM;
   float * control_nominal_d = this->control_d_ + this->num_timesteps_ * DYN_T::CONTROL_DIM;
 
+  this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
+  this->free_energy_statistics_.nominal_sys.previousBaseline = this->baseline_nominal_;
+
   // Transfer the feedback gains to the GPU
   HANDLE_ERROR(cudaMemcpyAsync(feedback_gain_array_d_, feedback_gain_vector_.data(),
                                sizeof(float)*this->num_timesteps_*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM,
@@ -371,16 +374,18 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
     normalizer_nominal_ = mppi_common::computeNormalizer(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
 
     // Compute real free energy
-    mppi_common::computeFreeEnergy(this->free_energy_mean_, this->free_energy_variance_,
-                                   this->free_energy_modified_variance_,
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
                                    this->trajectory_costs_.data(), NUM_ROLLOUTS,
-                                   this->baseline_);
+                                   this->baseline_, this->lambda_);
 
     // Compute Nominal State free Energy
-    mppi_common::computeFreeEnergy(nominal_free_energy_mean_, nominal_free_energy_variance_,
-                                   nominal_free_energy_modified_variance_,
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
                                    this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS,
-                                   baseline_nominal_);
+                                   this->baseline_nominal_, this->lambda_);
 
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
             this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,

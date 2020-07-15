@@ -20,6 +20,20 @@
 
 #include <cfloat>
 
+struct freeEnergyEstimate {
+  float previousBaseline = -1;
+  float freeEnergyMean = -1;
+  float freeEnergyVariance = -1;
+  float freeEnergyModifiedVariance = -1;
+};
+
+struct MPPIFreeEnergyStatistics {
+  int nominal_state_used = 0;
+
+  freeEnergyEstimate nominal_sys;
+  freeEnergyEstimate real_sys;
+};
+
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 class Controller {
@@ -414,17 +428,7 @@ public:
   /**
    * Return the most recent free energy calculation for the mean
    */
-  float getFreeEnergyMean() {return free_energy_mean_;}
-
-  /**
-   * Return the most recent free energy calculation for variance
-   */
-  float getFreeEnergyVariance() {return free_energy_variance_;}
-
-  /**
- * Return the most recent free energy calculation for modified variance
- */
-  float getFreeEnergyModVariance() {return free_energy_modified_variance_;}
+   MPPIFreeEnergyStatistics getFreeEnergyStatistics() {return free_energy_statistics_;}
 
   std::vector<float> getSampledNoise() {
     std::vector<float> vector = std::vector<float>(NUM_ROLLOUTS*num_timesteps_*DYN_T::CONTROL_DIM, FLT_MIN);
@@ -456,9 +460,7 @@ protected:
   bool debug_ = false;
 
   // Free energy variables
-  float free_energy_mean_ = 0;
-  float free_energy_variance_ = 0;
-  float free_energy_modified_variance_ = 0;
+  MPPIFreeEnergyStatistics free_energy_statistics_;
 
   int num_iters_;  // Number of optimization iterations
   float dt_;

@@ -38,6 +38,9 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
     nominalStateInit_ = true;
   }
 
+  this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
+  this->free_energy_statistics_.nominal_sys.previousBaseline = this->baseline_nominal_;
+
 //  std::cout << "Post disturbance Actual State: "; this->model_->printState(state.data());
 //  std::cout << "                Nominal State: "; this->model_->printState(nominal_state_trajectory_.col(0).data());
 
@@ -120,16 +123,19 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
         this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
 
     // Compute real free energy
-    mppi_common::computeFreeEnergy(this->free_energy_mean_, this->free_energy_variance_,
-                                   this->free_energy_modified_variance_,
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
                                    this->trajectory_costs_.data(), NUM_ROLLOUTS,
-                                   this->baseline_);
+                                   this->baseline_, this->lambda_);
 
     // Compute Nominal State free Energy
-    mppi_common::computeFreeEnergy(nominal_free_energy_mean_, nominal_free_energy_variance_,
-                                   nominal_free_energy_modified_variance_,
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
                                    this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS,
-                                   baseline_nominal_);
+                                   this->baseline_nominal_, this->lambda_);
+
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(

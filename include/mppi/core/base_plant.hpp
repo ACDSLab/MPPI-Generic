@@ -19,20 +19,6 @@
 #include <thread>
 #include <memory>
 
-struct freeEnergyEstimate {
-  float freeEnergyMean = -1;
-  float freeEnergyVariance = -1;
-  float freeEnergyModifiedVariance = -1;
-};
-
-struct MPPIStatistics {
-  bool feedback_enabled = false;
-  float previous_baseline = -1;
-  int nominal_state_used = 0;
-
-  freeEnergyEstimate nominal_sys_fe;
-  freeEnergyEstimate real_sys_fe;
-};
 
 template <class CONTROLLER_T>
 class BasePlant {
@@ -157,6 +143,8 @@ public:
    * @param u
    */
   virtual void pubStateDivergence(const s_array& s_diff) = 0;
+
+  virtual void pubFreeEnergyStatistics(MPPIFreeEnergyStatistics& fe_stats) = 0;
 
   /**
    * Receives timing info from control loop and can be overwritten
@@ -411,6 +399,7 @@ public:
     std::chrono::steady_clock::time_point optimization_start = std::chrono::steady_clock::now();
     //std::cout << "run compute control" << std::endl;
     controller->computeControl(state, last_optimization_stride_); // Compute the nominal control sequence
+    MPPIFreeEnergyStatistics fe_stats = controller_->getFreeEnergyStatistics();
 
     c_traj control_traj = controller->getControlSeq();
     s_traj state_traj = controller->getStateSeq();
@@ -431,6 +420,7 @@ public:
                 control_traj,
                 feedback_gains,
                 temp_last_pose_time);
+    pubFreeEnergyStatistics(fe_stats);
 
     //Check the robots status
     status_ = checkStatus();
