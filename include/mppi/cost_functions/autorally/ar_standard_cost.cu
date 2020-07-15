@@ -5,11 +5,11 @@ ARStandardCostImpl<CLASS_T, PARAMS_T>::ARStandardCostImpl(cudaStream_t stream) {
   this->bindToStream(stream);
 }
 
-template <class CLASS_T, class PARAMS_T>
-void ARStandardCostImpl<CLASS_T, PARAMS_T>::freeCudaMem() {
-  // TODO free everything
-  Cost<CLASS_T, PARAMS_T, this->STATE_DIM, this->CONTROL_DIM>::freeCudaMem();
-}
+// template <class CLASS_T, class PARAMS_T>
+// void ARStandardCostImpl<CLASS_T, PARAMS_T>::freeCudaMem() {
+//   // TODO free everything
+//   Cost<CLASS_T, PARAMS_T, this->STATE_DIM, this->CONTROL_DIM>::freeCudaMem();
+// }
 
 template <class CLASS_T, class PARAMS_T>
 void ARStandardCostImpl<CLASS_T, PARAMS_T>::paramsToDevice() {
