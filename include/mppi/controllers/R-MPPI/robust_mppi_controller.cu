@@ -118,16 +118,20 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
 
   if ((new_num_candidates * SAMPLES_PER_CONDITION) > NUM_ROLLOUTS) {
     std::cerr << "ERROR: (number of candidates) * (SAMPLES_PER_CONDITION) cannot exceed NUM_ROLLOUTS\n";
+    std::cerr << "number of candidates: " << new_num_candidates  << ", SAMPLES_PER_CONDITION: "
+              << SAMPLES_PER_CONDITION << ", NUM_ROLLOUTS: " << NUM_ROLLOUTS << "\n";
     std::terminate();
   }
 
   // New number must be odd and greater than 3
   if (new_num_candidates < 3) {
     std::cerr << "ERROR: number of candidates must be greater or equal to 3\n";
+    std::cerr << "number of candidates: " << new_num_candidates << "\n";
     std::terminate();
   }
   if (new_num_candidates % 2 == 0) {
     std::cerr << "ERROR: number of candidates must be odd\n";
+    std::cerr << "number of candidates: " << new_num_candidates << "\n";
     std::terminate();
   }
 

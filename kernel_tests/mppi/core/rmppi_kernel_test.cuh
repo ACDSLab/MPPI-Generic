@@ -6,6 +6,7 @@
 #define MPPIGENERIC_RMPPI_KERNEL_TEST_CUH
 
 #include <mppi/core/mppi_common.cuh>
+#include <mppi/feedback_controllers/CCM/ccm.h>
 #include <curand.h>
 #include <Eigen/Dense>
 
@@ -58,6 +59,7 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
 
 template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
+                                    ccm::LinearCCM<DYN_T>* fb_controller,
                                     float dt,
                                     int num_timesteps,
                                     float lambda,

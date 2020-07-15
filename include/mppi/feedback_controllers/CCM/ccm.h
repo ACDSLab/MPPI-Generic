@@ -87,6 +87,7 @@ public:
   LinearCCM(DYN_T* dyn) {
     model_ = dyn;
     M_ = RiemannianMetric::Identity();
+    std::cout << "\033[1;33mCALLED CONSTRUCTOR\033[0m" << std::endl;
   }
 
   // Generic Method for calculating the Metric based on state x
@@ -132,7 +133,8 @@ public:
                 (f(x_act) - f(x_nom) + (B(x_act) - B(x_nom)) * u_nom);
     if (debug) {
       std::cout << "Delta x: " << delta_x.transpose() << std::endl;
-      std::cout << "E: " << E << ", RHS: " << rhs << std::endl;
+      std::cout << "E: " << E << ", RHS: " << rhs << ", LHS Norm: "
+                << normalize_lhs << std::endl;
     }
 
     if (rhs > 0 || normalize_lhs == 0) {

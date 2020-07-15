@@ -3,7 +3,6 @@
 //
 
 #include "rmppi_kernel_test.cuh"
-#include <mppi/feedback_controllers/CCM/ccm.h>
 
 const int BLOCKSIZE_X = 32;
 const int BLOCKSIZE_Y = 8;
@@ -409,6 +408,7 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
 
 template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
+                                    ccm::LinearCCM<DYN_T>* fb_controller,
                                     float dt,
                                     int num_timesteps,
                                     float lambda,
@@ -498,7 +498,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       }
       // control_array fb_u_t = feedback_gains_t * (x_t_act - x_t_nom);
       control_array fb_u_t = CCM_Controller.u_feedback(x_t_act, x_t_nom, u_nom, debug);
-      if (traj_i == 0) {
+      if (traj_i == -1) {
         std::cout << "Feedback at t = " << t << ": " << fb_u_t.transpose() << std::endl;
         std::cout << "\tu_nominl: " << u_nom.transpose() << std::endl;
         std::cout << "\tx_actual: " << x_t_act.transpose() << std::endl;
