@@ -55,7 +55,7 @@ public:
    * Deallocates the allocated cuda memory for an object
    * TODO make a generic version of this
    */
-  void freeCudaMem();
+  // void freeCudaMem();
 
   inline __host__ __device__ int getHeight() const {return height_;}
   inline __host__ __device__ int getWidth() const {return width_;}
