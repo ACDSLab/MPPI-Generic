@@ -105,11 +105,31 @@ public:
   float getNominalThreshold() {return nominal_threshold_;}
   void setNominalThreshold(float threshold) {nominal_threshold_ = threshold;}
 
+  /**
+  * Return the most recent free energy calculation for the mean
+  */
+  float getNominalFreeEnergyMean() {return nominal_free_energy_mean_;}
+
+  /**
+   * Return the most recent free energy calculation for variance
+   */
+  float getNominalFreeEnergyVariance() {return nominal_free_energy_variance_;}
+
+  /**
+   * Return the most recent free energy calculation for modified variance
+   */
+  float getNominalFreeEnergyModVariance() {return nominal_free_energy_modified_variance_;}
+
 
 private:
   float normalizer_nominal_; // Variable for the normalizing term from sampling.
   float baseline_nominal_; // Baseline cost of the system.
   float nominal_threshold_ = 20; // How much worse the actual system has to be compared to the nominal
+
+  // Free energy variables
+  float nominal_free_energy_mean_ = 0;
+  float nominal_free_energy_variance_ = 0;
+  float nominal_free_energy_modified_variance_ = 0;
 
 
   // nominal state CPU side copies

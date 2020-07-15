@@ -108,8 +108,9 @@ namespace mppi_common {
      *  free_energy_var - the variance of the free energy calculation
      */
     void computeFreeEnergy(float& free_energy, float& free_energy_var,
+                           float& free_energy_modified,
                            float* cost_rollouts_host,  int num_rollouts,
-                           float baseline, float lambda = 1.0);
+                           float baseline, float lambda=1.0) ;
 
     // Weighted Reduction Kernel
     template<int CONTROL_DIM, int NUM_ROLLOUT, int SUM_STRIDE>

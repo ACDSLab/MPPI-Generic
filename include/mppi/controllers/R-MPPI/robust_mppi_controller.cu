@@ -370,6 +370,18 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
     this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS);
     normalizer_nominal_ = mppi_common::computeNormalizer(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
 
+    // Compute real free energy
+    mppi_common::computeFreeEnergy(this->free_energy_mean_, this->free_energy_variance_,
+                                   this->free_energy_modified_variance_,
+                                   this->trajectory_costs_.data(), NUM_ROLLOUTS,
+                                   this->baseline_);
+
+    // Compute Nominal State free Energy
+    mppi_common::computeFreeEnergy(nominal_free_energy_mean_, nominal_free_energy_variance_,
+                                   nominal_free_energy_modified_variance_,
+                                   this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS,
+                                   baseline_nominal_);
+
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
             this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,
             this->normalizer_, this->num_timesteps_, this->stream_);

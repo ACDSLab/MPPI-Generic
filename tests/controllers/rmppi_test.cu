@@ -529,7 +529,9 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
     if (t % 100 == 0) {
       printf("Current Time: %f    ", t * dt);
       model.printState(x.data());
-      std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
+      std::cout << "                           Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
+      std::cout << "Real    FE [mean, variance]: [" << controller.getFreeEnergyMean() << ", " << controller.getFreeEnergyVariance() << "]" << std::endl;
+      std::cout << "Nominal FE [mean, variance]: [" << controller.getNominalFreeEnergyMean() << ", " << controller.getNominalFreeEnergyVariance() << "]\n" << std::endl;
     }
 
     if (cost.computeStateCost(x, t, crash_status) > 1000) {

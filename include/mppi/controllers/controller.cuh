@@ -407,9 +407,19 @@ public:
   std::vector<control_trajectory> getSampledControlSeq() {return sampled_controls_;}
 
   /**
-   * Return the most recent free energy calculation
+   * Return the most recent free energy calculation for the mean
    */
-  float getFreeEnergy() {return free_energy_;}
+  float getFreeEnergyMean() {return free_energy_mean_;}
+
+  /**
+   * Return the most recent free energy calculation for variance
+   */
+  float getFreeEnergyVariance() {return free_energy_variance_;}
+
+  /**
+ * Return the most recent free energy calculation for modified variance
+ */
+  float getFreeEnergyModVariance() {return free_energy_modified_variance_;}
 
   std::vector<float> getSampledNoise() {
     std::vector<float> vector = std::vector<float>(NUM_ROLLOUTS*num_timesteps_*DYN_T::CONTROL_DIM, FLT_MIN);
@@ -441,8 +451,9 @@ protected:
   bool debug_ = false;
 
   // Free energy variables
-  float free_energy_ = 0;
-  float free_energy_var_ = 0;
+  float free_energy_mean_ = 0;
+  float free_energy_variance_ = 0;
+  float free_energy_modified_variance_ = 0;
 
   int num_iters_;  // Number of optimization iterations
   float dt_;

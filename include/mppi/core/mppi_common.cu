@@ -259,6 +259,7 @@ namespace mppi_common {
     }
 
     void computeFreeEnergy(float& free_energy, float& free_energy_var,
+                           float& free_energy_modified,
                            float* cost_rollouts_host,  int num_rollouts,
                            float baseline, float lambda) {
       float var = 0;
@@ -268,11 +269,11 @@ namespace mppi_common {
         var += powf(cost_rollouts_host[i], 2);
       }
       norm /= num_rollouts;
-      free_energy = lambda * logf(norm) + baseline;
+      free_energy = -lambda * logf(norm) + baseline;
       free_energy_var = lambda * (var / num_rollouts - powf(norm, 2));
       // TODO Figure out the point of the following lines
-      // float weird_term = free_energy_var / (mean * sqrtf(1.0 * num_rollouts));
-      // free_energy_var = lambda * (weird_term + 0.5 * powf(weird_term, 2));
+       float weird_term = free_energy_var / (norm * sqrtf(1.0 * num_rollouts));
+       free_energy_modified = lambda * (weird_term + 0.5 * powf(weird_term, 2));
     }
 
     /*******************************************************************************************************************

@@ -171,6 +171,21 @@ public:
 
   Eigen::MatrixXf getCandidateFreeEnergy() {return candidate_free_energy_;};
 
+  /**
+   * Return the most recent free energy calculation for the mean
+   */
+  float getNominalFreeEnergyMean() {return nominal_free_energy_mean_;}
+
+  /**
+   * Return the most recent free energy calculation for variance
+   */
+  float getNominalFreeEnergyVariance() {return nominal_free_energy_variance_;}
+
+  /**
+   * Return the most recent free energy calculation for modified variance
+   */
+  float getNominalFreeEnergyModVariance() {return nominal_free_energy_modified_variance_;}
+
 protected:
   bool importance_sampling_cuda_mem_init_ = false;
   int num_candidate_nominal_states_;
@@ -181,6 +196,11 @@ protected:
   bool nominal_state_init_ = false;
   float baseline_nominal_ = 100.0; // Cost baseline for the nominal state
   float normalizer_nominal_ = 100.0;  // Normalizer variable for the nominal state
+
+  // Free energy variables
+  float nominal_free_energy_mean_ = 0;
+  float nominal_free_energy_variance_ = 0;
+  float nominal_free_energy_modified_variance_ = 0;
 
   // Storage classes
   control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
