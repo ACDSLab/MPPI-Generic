@@ -159,16 +159,16 @@ public:
    * @return
    */
   virtual control_array getCurrentControl(state_array& state, double rel_time,
-          state_trajectory& s_traj, control_trajectory& c_traj, feedback_gain_trajectory& gain_traj) {
+          state_array& target_nominal_state, control_trajectory& c_traj, feedback_gain_trajectory& gain_traj) {
     // MPPI control
     control_array u_ff = interpolateControls(rel_time, c_traj);
     control_array u_fb = control_array::Zero();
     if(enable_feedback_) {
-       u_fb = interpolateFeedback(state, s_traj, gain_traj, rel_time);
+       u_fb = interpolateFeedback(state, target_nominal_state, gain_traj, rel_time);
     }
     control_array result = u_ff + u_fb;
-    printf("rel_time %f\n", rel_time);
-    printf("uff: %f, %f u_fb: %f, %f\n", u_ff[0], u_ff[1], u_fb[0], u_fb[1]);
+    //printf("rel_time %f\n", rel_time);
+    //printf("uff: %f, %f u_fb: %f, %f\n", u_ff[0], u_ff[1], u_fb[0], u_fb[1]);
 
     // TODO this is kinda jank
     state_array empty_state = state_array::Zero();
@@ -192,10 +192,20 @@ public:
     control_array next_cmd = c_traj.col(upper_idx);
     interpolated_control = (1 - alpha) * prev_cmd + alpha * next_cmd;
 
-    printf("prev: %d %f, %f\n", lower_idx, prev_cmd[0], prev_cmd[1]);
-    printf("next: %d %f, %f\n", upper_idx, next_cmd[0], next_cmd[1]);
-    printf("smoother: %f\n", alpha);
+    //printf("prev: %d %f, %f\n", lower_idx, prev_cmd[0], prev_cmd[1]);
+    //printf("next: %d %f, %f\n", upper_idx, next_cmd[0], next_cmd[1]);
+    //printf("smoother: %f\n", alpha);
     return interpolated_control;
+  }
+
+  virtual state_array interpolateState(state_trajectory& s_traj, double rel_time) {
+    int lower_idx = (int) (rel_time / dt_);
+    int upper_idx = lower_idx + 1;
+    double alpha = (rel_time - lower_idx * dt_) / dt_;
+
+    state_array desired_state;
+    desired_state = (1 - alpha)*s_traj.col(lower_idx) + alpha*s_traj.col(upper_idx);
+    return desired_state;
   }
 
   /**
@@ -204,19 +214,14 @@ public:
    * @param rel_time
    * @return
    */
-  virtual control_array interpolateFeedback(state_array& state, state_trajectory& s_traj,
+  virtual control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
           feedback_gain_trajectory& gain_traj, double rel_time) {
     int lower_idx = (int) (rel_time / dt_);
     int upper_idx = lower_idx + 1;
     double alpha = (rel_time - lower_idx * dt_) / dt_;
 
-    control_array interpolated_control;
-
-    state_array desired_state;
-    desired_state = (1 - alpha)*s_traj.col(lower_idx) + alpha*s_traj.col(upper_idx);
-
     control_array u_fb = ((1-alpha)*gain_traj[lower_idx]
-            + alpha*gain_traj[upper_idx])*(state - desired_state);
+            + alpha*gain_traj[upper_idx])*(state - target_nominal_state);
 
     return u_fb;
   }

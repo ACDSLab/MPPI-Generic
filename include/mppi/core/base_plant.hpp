@@ -19,6 +19,22 @@
 #include <thread>
 #include <memory>
 
+struct freeEnergyEstimate {
+  float freeEnergyMean = -1;
+  float freeEnergyVariance = -1;
+  float freeEnergyModifiedVariance = -1;
+};
+
+struct MPPIStatistics {
+  bool feedback_enabled = false;
+  float previous_baseline = -1;
+  int nominal_state_used = 0;
+
+  freeEnergyEstimate nominal_sys_fe;
+  freeEnergyEstimate real_sys_fe;
+
+};
+
 template <class CONTROLLER_T>
 class BasePlant {
 public:
@@ -130,6 +146,12 @@ public:
    * @param u
    */
   virtual void pubControl(const c_array& u) = 0;
+
+  /**
+   * publishes the target nominal state
+   * @param s
+   */
+  virtual void pubNominalState(const s_array& s) = 0;
 
   /**
    * Receives timing info from control loop and can be overwritten
@@ -252,7 +274,9 @@ public:
 
     // TODO check that we haven't been waiting too long
     if (time_since_last_opt > 0 && t_within_trajectory){
-      pubControl(controller_->getCurrentControl(state, time_since_last_opt, state_traj_, control_traj_, feedback_gains_));
+      s_array target_nominal_state = this->controller_->interpolateState(state_traj_, time_since_last_opt);
+      pubNominalState(target_nominal_state);
+      pubControl(controller_->getCurrentControl(state, time_since_last_opt, target_nominal_state, control_traj_, feedback_gains_));
     }
   }
 

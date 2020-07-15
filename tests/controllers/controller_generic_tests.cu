@@ -313,7 +313,8 @@ TEST(Controller, interpolateFeedback) {
 
   TestController::state_array state = TestController::state_array::Ones();
   for(double i = 0; i < controller.getNumTimesteps() - 1; i += 0.25) {
-    TestController::control_array result = controller.interpolateFeedback(state, s_traj, feedback_traj, i*controller.getDt());
+    TestController::state_array interpolated_state = controller.interpolateState(s_traj, i*controller.getDt());
+    TestController::control_array result = controller.interpolateFeedback(state, interpolated_state, feedback_traj, i*controller.getDt());
     EXPECT_FLOAT_EQ(result(0), i);
   }
 }
@@ -354,7 +355,9 @@ TEST(Controller, getCurrentControlTest) {
 
   TestController::state_array state = TestController::state_array::Ones();
   for(double i = 0; i < controller.getNumTimesteps() - 1; i += 0.25) {
-    TestController::control_array result = controller.getCurrentControl(state, i*controller.getDt(), s_traj, traj, feedback_traj);
+    TestController::state_array interpolated_state = controller.interpolateState(s_traj, i*controller.getDt());
+    TestController::control_array result = controller.getCurrentControl(state, i*controller.getDt(),
+            interpolated_state, traj, feedback_traj);
     EXPECT_FLOAT_EQ(result(0), i*2);
   }
 }

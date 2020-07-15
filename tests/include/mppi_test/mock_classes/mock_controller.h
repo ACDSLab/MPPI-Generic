@@ -17,7 +17,7 @@ public:
   MOCK_METHOD0(resetControls, void());
   MOCK_METHOD(void, computeFeedbackGains, (const Eigen::Ref<const state_array>& state), (override));
   MOCK_METHOD1(slideControlSequence, void(int stride));
-  MOCK_METHOD5(getCurrentControl, control_array(state_array&, double, state_trajectory, control_trajectory, feedback_gain_trajectory));
+  MOCK_METHOD5(getCurrentControl, control_array(state_array&, double, state_array, control_trajectory, feedback_gain_trajectory));
   MOCK_METHOD2(computeControl, void(const Eigen::Ref<const state_array>& state, int optimization_stride));
   MOCK_METHOD0(getControlSeq, control_trajectory());
   MOCK_METHOD0(getStateSeq, state_trajectory());

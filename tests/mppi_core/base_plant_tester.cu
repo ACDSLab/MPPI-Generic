@@ -47,6 +47,10 @@ public:
 
   }
 
+  void pubNominalState(const s_array& s) override {
+
+  }
+
   void incrementTime() {
     time_ += 0.05;
   }
