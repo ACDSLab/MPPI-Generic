@@ -217,7 +217,7 @@ TEST(ARRobustCost, getCostmapCostSpeedNoMapTest) {
 
   launchGetCostmapCostTestKernel(cost, states, cost_results);
 
-  EXPECT_FLOAT_EQ(cost_results[0], 11549.229);
+  EXPECT_FLOAT_EQ(cost_results[0], 11349.729);
 }
 
 TEST(ARRobustCost, computeCostTest) {
@@ -252,5 +252,5 @@ TEST(ARRobustCost, computeCostTest) {
 
   launchComputeCostTestKernel<>(cost, states, cost_results);
 
-  EXPECT_FLOAT_EQ(cost_results[0], 11549.229);
+  EXPECT_FLOAT_EQ(cost_results[0], 11349.729);
 }
