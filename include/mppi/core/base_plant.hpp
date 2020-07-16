@@ -359,13 +359,11 @@ public:
       // break out if it should stop
       return;
     }
-    std::cout << "run control iteration" << std::endl;
 
     double temp_last_pose_time = getCurrentTime();
     timing_guard_.lock();
     double temp_last_used_pose_update_time = last_used_pose_update_time_;
     timing_guard_.unlock();
-    std::cout << "Time updated" << std::endl;
 
     // wait for a new pose to compute control sequence from
     int counter = 0;
@@ -373,9 +371,7 @@ public:
       usleep(50);
       temp_last_pose_time = getCurrentTime();
       counter++;
-      std::cout << "Waiting on new pose " << std::endl;
     }
-    std::cout << "counter = " << counter << std::endl;
 
     s_array state = getState();
     num_iter_++;
@@ -390,7 +386,7 @@ public:
     } else {
       last_optimization_stride_ = std::max(int(round(dt * hz_)), optimization_stride_);
     }
-    printf("calc optimization stride %f %f %f %d\n", dt, temp_last_used_pose_update_time, temp_last_pose_time, last_optimization_stride_);
+    //printf("calc optimization stride %f %f %f %d\n", dt, temp_last_used_pose_update_time, temp_last_pose_time, last_optimization_stride_);
     // determine how long we should stride based off of robot time
 
     if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller->num_timesteps_){
@@ -400,9 +396,7 @@ public:
 
     // Compute a new control sequence
     std::chrono::steady_clock::time_point optimization_start = std::chrono::steady_clock::now();
-    std::cout << "run compute control" << std::endl;
     controller->computeControl(state, last_optimization_stride_); // Compute the nominal control sequence
-    std::cout << "Finish compute control" << std::endl;
 
     MPPIFreeEnergyStatistics fe_stats = controller_->getFreeEnergyStatistics();
 
@@ -481,9 +475,7 @@ public:
 
     //Start the control loop.
     while (is_alive->load()) {
-      std::cout << "Did we even get here?" << std::endl;
       runControlIteration(controller, is_alive);
-      std::cout << "Post run control iteration." << std::endl;
 
 
       timing_guard_.lock();

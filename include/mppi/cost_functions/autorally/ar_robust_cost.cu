@@ -64,7 +64,7 @@ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
   if(this->params_.desired_speed == -1) {
     cost += this->params_.speed_coeff*fabs(s[4] - track_params_front.z);
   } else {
-    cost += this->params_.speed_coeff*fabs(this->params_.desired_speed - track_params_front.z);
+    cost += this->params_.speed_coeff*fabs(s[4] - this->params_.desired_speed);
   }
 
   //Calculate the heading cost
@@ -75,7 +75,6 @@ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 
 template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep, int* crash_status) {
-
   float stabilizing_cost = getStabilizingCost(s);
   float costmap_cost = getCostmapCost(s);
   float cost = stabilizing_cost + costmap_cost;
