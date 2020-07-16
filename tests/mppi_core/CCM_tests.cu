@@ -75,7 +75,7 @@ public:
 
   }
 
-  void computeControl(const Eigen::Ref<const state_array>& state) override {
+  void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride=1) override {
     std::cout << "Candidate chosen: " << this->best_index_ << std::endl;
     // Rewrite computeControl using the CCM Rollout Kernel
     int c_dim = DYN_T::CONTROL_DIM;
@@ -109,7 +109,7 @@ public:
       std::array<float, NUM_ROLLOUTS> costs_act_CPU, costs_nom_CPU;
       launchRMPPIRolloutKernelCCMCPU<DYN_T, COST_T, NUM_ROLLOUTS>(this->model_,
         this->cost_, &CCM_feedback_controller_, this->dt_,
-        this->num_timesteps_, this->lambda_, this->alpha_,
+        this->num_timesteps_, optimization_stride, this->lambda_, this->alpha_,
         this->value_function_threshold_, x_init_nom_vec, x_init_act_vec,
         control_std_dev_vec, u_traj_vec, control_noise_vec,
         costs_act_CPU, costs_nom_CPU);
@@ -162,10 +162,10 @@ public:
 
       // In this case this->gamma = 1 / lambda
       mppi_common::launchNormExpKernel(NUM_ROLLOUTS, B_X,
-                                      this->trajectory_costs_d_, this->lambda_,
+                                      this->trajectory_costs_d_, 1.0 / this->lambda_,
                                       this->baseline_, this->stream_);
       mppi_common::launchNormExpKernel(NUM_ROLLOUTS, B_X,
-                                      trajectory_costs_nominal_d, this->lambda_,
+                                      trajectory_costs_nominal_d, 1.0 / this->lambda_,
                                       this->baseline_nominal_, this->stream_);
 
       HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
@@ -203,9 +203,7 @@ public:
     }
   }
 
-  void computeNominalFeedbackGains(const Eigen::Ref<const state_array>& state) override {
-    std::cout << "We using this!!\n\n\n" << std::endl;
-  }
+  void computeNominalFeedbackGains(const Eigen::Ref<const state_array>& state) override {}
 
   control_array getCCMFeedbackGains(const Eigen::Ref<const state_array>& x_act,
                                  const Eigen::Ref<const state_array>& x_nom,
@@ -248,11 +246,11 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   const int state_dim = DYN::STATE_DIM;
   const int control_dim = DYN::CONTROL_DIM;
 
-  float dt = 0.01;
+  float dt = 0.02;
   // int max_iter = 10;
-  float lambda = 0.1;
+  float lambda = 4;
   float alpha = 0;
-  float value_func_threshold = 50000;
+  float value_func_threshold = 10;
 
   CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(1.0);
   CONTROLLER::control_trajectory u_traj_eigen = CONTROLLER::control_trajectory::Zero();

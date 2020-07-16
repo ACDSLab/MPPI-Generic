@@ -411,6 +411,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
                                     ccm::LinearCCM<DYN_T>* fb_controller,
                                     float dt,
                                     int num_timesteps,
+                                    int optimization_stride,
                                     float lambda,
                                     float alpha,
                                     float value_func_threshold,
@@ -484,7 +485,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       state_array x_dot_t_nom;
       state_array x_dot_t_act;
       control_array u_nom;
-      if (traj_i == 0) {
+      if (traj_i == 0 || t < optimization_stride) {
         eps_t = control_array::Zero();
         u_nom = u_t;
       } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
@@ -540,6 +541,11 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       model->updateState(x_t_nom, x_dot_t_nom, dt);
     }
 
+    // Compute average cost per timestep
+    state_cost_nom /= (float)num_timesteps;
+    cost_real_w_tracking /= (float)num_timesteps;
+    running_state_cost_real /= (float)num_timesteps;
+
     state_cost_nom += costs->terminalCost(x_t_nom);
     cost_real_w_tracking += costs->terminalCost(x_t_act);
     running_state_cost_real += costs->terminalCost(x_t_act);
@@ -564,6 +570,9 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       cost_nom_control += costs->computeLikelihoodRatioCost(u_nom, eps_t - u_nom, cost_std_dev,
                                                             lambda, alpha);
     }
+    // Compute average cost per timestep
+    cost_nom_control /= (float)num_timesteps;
+    running_control_cost_real /= (float)num_timesteps;
 
     cost_nom += cost_nom_control;
     trajectory_costs_nom[traj_i] = cost_nom;
