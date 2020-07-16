@@ -15,6 +15,11 @@ template<class DYN_T = DoubleIntegratorDynamics, class COST_T = DoubleIntegrator
          int B_X = 64, int B_Y = 1, int S = 1>
 class RMPPICCMDoubleIntegratorController : public RobustMPPIController<DYN_T, COST_T,
     MAX_TIMESTEPS, NUM_ROLLOUTS, B_X, B_Y, S> {
+
+protected:
+  std::mt19937 rng_gen_;
+  std::normal_distribution<float> control_dist_;
+  ccm::LinearCCM<DYN_T> CCM_feedback_controller_;
 public:
   using Q_MAT = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
                                               NUM_ROLLOUTS, B_X, B_Y,
@@ -54,25 +59,23 @@ public:
       num_candidate_nominal_states, optimization_stride, stream) {
 
     control_dist_ = std::normal_distribution<float>(0, 1);
-    CCM_feedback_controller_ = std::make_shared<ccm::LinearCCM<DYN_T>>(model);
+    CCM_feedback_controller_ = ccm::LinearCCM<DYN_T>(model);
+    Q_MAT M_new = Q_MAT::Identity();
+    CCM_feedback_controller_.setM(M_new);
   }
 
   void ptrToVec(const float* input, int num, std::vector<float>& output) {
-    std::cout << "ptrToVec before Size: " << output.size() << std::endl;
     output.assign(input, input + num);
     if (output.size() != num) {
-      std::cout << "Hit weird case" << std::endl;
       output.assign(num, 0.0);
       for(int i = 0; i < num; i++) {
         output[i] = input[i];
       }
     }
-    std::cout << "ptrToVec after Size: " << output.size() << std::endl;
 
   }
 
   void computeControl(const Eigen::Ref<const state_array>& state) override {
-    std::cout << "PPPBBBBBBBBBTTTTTTTTTTTTTT" << std::endl;
     // Rewrite computeControl using the CCM Rollout Kernel
     int c_dim = DYN_T::CONTROL_DIM;
     int s_dim = DYN_T::STATE_DIM;
@@ -93,10 +96,8 @@ public:
       }
       std::vector<float> x_init_act_vec, x_init_nom_vec, u_traj_vec;
       std::vector<float> control_std_dev_vec;
-      std::cout << "State: " << state.transpose() << std::endl;
       ptrToVec(state.data(), s_dim, x_init_act_vec);
       ptrToVec(this->nominal_state_.data(), s_dim, x_init_nom_vec);
-      std::cout << "NOMINAL: " << x_init_nom_vec.size() << std::endl;
       ptrToVec(this->nominal_control_trajectory_.data(),
                single_control_traj_size, u_traj_vec);
       ptrToVec(this->control_std_dev_.data(), c_dim, control_std_dev_vec);
@@ -105,17 +106,14 @@ public:
       // Launch rollout kernel using CCM
       // TODO pass in alpha
       std::array<float, NUM_ROLLOUTS> costs_act_CPU, costs_nom_CPU;
-      std::cout << "To my childhood philistines" << std::endl;
       launchRMPPIRolloutKernelCCMCPU<DYN_T, COST_T, NUM_ROLLOUTS>(this->model_,
-        this->cost_, CCM_feedback_controller_.get(), this->dt_,
+        this->cost_, &CCM_feedback_controller_, this->dt_,
         this->num_timesteps_, this->lambda_, this->alpha_,
         this->value_function_threshold_, x_init_nom_vec, x_init_act_vec,
         control_std_dev_vec, u_traj_vec, control_noise_vec,
         costs_act_CPU, costs_nom_CPU);
 
-      std::cout << "Oh my god I thought you would never ask" << std::endl;
-
-      for(int i = 0; i < multi_control_traj_size; i++) {
+      for(int i = 0; i < NUM_ROLLOUTS; i++) {
         this->trajectory_costs_(i) = costs_act_CPU[i];
         this->trajectory_costs_nominal_(i) = costs_nom_CPU[i];
       }
@@ -161,8 +159,6 @@ public:
 
       HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
-      std::cout << "What's the occasion?" << std::endl;
-
       // In this case this->gamma = 1 / lambda
       mppi_common::launchNormExpKernel(NUM_ROLLOUTS, B_X,
                                       this->trajectory_costs_d_, this->lambda_,
@@ -181,8 +177,6 @@ public:
                                   this->stream_));
       HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
-      std::cout << "What's a little scandal between friends?" << std::endl;
-
       this->normalizer_ = mppi_common::computeNormalizer(
           this->trajectory_costs_.data(), NUM_ROLLOUTS);
       this->normalizer_nominal_ = mppi_common::computeNormalizer(
@@ -196,7 +190,6 @@ public:
               trajectory_costs_nominal_d,
               control_noise_nominal_d, control_nominal_d,
               this->normalizer_nominal_, this->num_timesteps_, this->stream_);
-      std::cout << "I don't know you" << std::endl;
       // Transfer the new control to the host
       HANDLE_ERROR( cudaMemcpyAsync(this->control_.data(), this->control_d_,
                                     sizeof(float) * single_control_traj_size,
@@ -207,27 +200,25 @@ public:
                                     cudaMemcpyDeviceToHost, this->stream_));
       cudaStreamSynchronize(this->stream_);
     }
-    std::cout << "Finished Computing control" << std::endl;
   }
 
   control_array getCCMFeedbackGains(const Eigen::Ref<const state_array>& x_act,
                                  const Eigen::Ref<const state_array>& x_nom,
                                  const Eigen::Ref<const control_array>& u_nom) {
-    std::cout << "M:\n" << CCM_feedback_controller_->M(state_array::Zero()) << std::endl;
-    control_array fb_u = CCM_feedback_controller_->u_feedback(x_act, x_nom, u_nom);
+    control_array fb_u = CCM_feedback_controller_.u_feedback(x_act, x_nom, u_nom);
+    std::cout << "Act: " << x_act.transpose() << std::endl;
+    std::cout << "nom: " << x_nom.transpose() << std::endl;
+    std::cout << "U: " << u_nom.transpose() << std::endl;
+    std::cout << "Feedback: " << fb_u.transpose() << std::endl;
     return fb_u;
 
   }
-protected:
-  std::mt19937 rng_gen_;
-  std::normal_distribution<float> control_dist_;
-  std::shared_ptr<ccm::LinearCCM<DYN_T>> CCM_feedback_controller_;
 };
 
 TEST(CCMTest, RMPPIRolloutKernel) {
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
-  DYN model;
+  DYN model(50);
   COST cost;
   const int num_timesteps = NUM_TIMESTEPS;
   const int num_rollouts = NUM_ROLLOUTS_CONST;
@@ -247,7 +238,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   float alpha = 0;
   float value_func_threshold = 50000;
 
-  CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(0.5);
+  CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(1.0);
   CONTROLLER::control_trajectory u_traj_eigen = CONTROLLER::control_trajectory::Zero();
   // Set first control to 1 across entire time
   u_traj_eigen.row(0) = CONTROLLER::cost_trajectory::Constant(1.0);
@@ -271,7 +262,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   // float fb_u[num_rollouts * control_dim * state_dim];
 
   DYN::state_array x_init_act, x_dot;
-  x_init_act << 4, 0, 0, 0;
+  x_init_act << 2, 0, 0, 1;
   DYN::state_array x_init_nom;
   x_init_nom << 0, 0, 0.1, 0;
 
@@ -281,28 +272,22 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   DYN::state_array x = x_init_act;
 
   for(int t = 0; t < mission_length; t++) {
-    if (t % 100 == 0) {
-      printf("Current Time: %f    ", t * dt);
+    if (t % 2 == 0) {
+      printf("Current Time: %5.2f    ", t * dt);
       model.printState(x.data());
-      std::cout << "                          Candidate Free Energies: "
+      std::cout << "\tCandidate Free Energies: "
                 << rmppi_controller.getCandidateFreeEnergy().transpose()
                 << std::endl;
     }
-    printf("I just want you to watch me dissolve\n");
     rmppi_controller.updateImportanceSamplingControl(x, 1);
-    printf("Can't find an exit\n");
     rmppi_controller.computeControl(x);
-    printf("So baby come on home\n");
     DYN::state_array x_nom = rmppi_controller.getStateSeq().col(0);
     DYN::control_array current_control = rmppi_controller.getControlSeq().col(0);
-    printf("Where the tick tock of my heart is beating right on time\n");
-    current_control += rmppi_controller.getCCMFeedbackGains(x, x_nom, current_control);
-    printf("I leave a light outside\n");
-    model.computeDynamics(x, current_control, x_dot);
-    printf("And I hope that you know that you don't have to hide\n");
-    model.updateState(x, x_dot, dt);
 
     model.computeStateDisturbance(dt, x);
+    current_control += rmppi_controller.getCCMFeedbackGains(x, x_nom, current_control);
+    model.computeDynamics(x, current_control, x_dot);
+    model.updateState(x, x_dot, dt);
 
     rmppi_controller.slideControlSequence(1);
 

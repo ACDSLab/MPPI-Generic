@@ -4,7 +4,7 @@
 #ifndef FEEDBACK_CONTROLLERS_CCM_CCM_H_
 #define FEEDBACK_CONTROLLERS_CCM_CCM_H_
 
-#include <Eigen/Dense>
+#include <Eigen/Core>
 
 #include <tuple>
 #include <cmath>
@@ -75,6 +75,7 @@ Eigen::Matrix<float, D, N> chebyshevPolynomialDerivative(
 template<class DYN_T, int NUM_TIMESTEPS = 100>
 class LinearCCM {
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   // Typedefs
   using state_array = typename DYN_T::state_array;
   using control_array = typename DYN_T::control_array;
@@ -84,6 +85,9 @@ public:
   typedef Eigen::Matrix<float, DYN_T::STATE_DIM, NUM_TIMESTEPS> state_trajectory;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, NUM_TIMESTEPS> control_trajectory;
 
+  LinearCCM() = default;
+  ~LinearCCM() = default;
+
   LinearCCM(DYN_T* dyn) {
     model_ = dyn;
     M_ = RiemannianMetric::Identity();
@@ -92,7 +96,19 @@ public:
 
   // Generic Method for calculating the Metric based on state x
   RiemannianMetric M(const Eigen::Ref<const state_array>& x) {
-    return M_;
+    RiemannianMetric W;
+    float x0_2 = powf(x[0], 2);
+    float x1_2 = powf(x[1], 2);
+    float w_1_term = 0.0004616 * x0_2 + 0.0004616 * x1_2 + 2.0459139;
+    float w_2_term = -0.0007369 * x0_2 - 0.007369 * x1_2 - 1.9129315;
+    float w_3_term = -0.0007369 * x0_2 - 0.007369 * x1_2 - 1.9129315;
+    float w_4_term = 0.0026403 * x0_2 + 0.0026403 * x1_2 + 5.2164191;
+    W << w_1_term, 0, w_2_term, 0,
+         0, w_1_term, 0, w_2_term,
+         w_3_term, 0, w_4_term, 0,
+         0, w_3_term, 0, w_4_term;
+    return W.inverse();
+    // return M_;
   }
 
 
@@ -145,7 +161,7 @@ public:
 
   }
 
-  void setNominalControlTrajectory(const Eigen::Ref<const control_trajectory>& u_traj) {
+  void setNominalControlTrajectory(const Eigen::Ref<const control_trajectory>&& u_traj) {
     u_nominal_traj_ = u_traj;
   }
 
@@ -158,11 +174,11 @@ public:
   }
 
 protected:
-  state_trajectory x_nominal_traj_;
-  control_trajectory u_nominal_traj_;
+  state_trajectory x_nominal_traj_ = state_trajectory::Zero();
+  control_trajectory u_nominal_traj_ = control_trajectory::Zero();
   float lambda_ = 1.0;
 
-  RiemannianMetric M_;
+  RiemannianMetric M_ = RiemannianMetric::Identity();
 
   DYN_T* model_;
   B_matrix B_ = B_matrix::Zero();

@@ -433,13 +433,13 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
   Eigen::Map<const state_array> x_init_act(x0_act.data());
 
   // CCM Initialization
-  ccm::Vectorf<7> pts, weights;
-  std::tie(pts, weights) = ccm::chebyshevPts<7>();
-  auto CCM_Controller = ccm::LinearCCM<DYN_T>(model);
-  dfdx M_new = dfdx::Identity();
-  M_new(3,3) = 0.01;
-  M_new(2,2) = 0.01;
-  CCM_Controller.setM(M_new);
+  // ccm::Vectorf<7> pts, weights;
+  // std::tie(pts, weights) = ccm::chebyshevPts<7>();
+  // auto CCM_Controller = ccm::LinearCCM<DYN_T>(model);
+  // dfdx M_new = dfdx::Identity();
+  // M_new(3,3) = 0.01;
+  // M_new(2,2) = 0.01;
+  // CCM_Controller.setM(M_new);
 
   control_array cost_std_dev;
   for(int i = 0; i < control_dim; i++) {
@@ -493,11 +493,11 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
          u_nom = u_t + eps_t;
       }
       bool debug = false;
-      if (traj_i == 0) {
-        debug = true;
-      }
+      // if (traj_i == 0) {
+      //   debug = true;
+      // }
       // control_array fb_u_t = feedback_gains_t * (x_t_act - x_t_nom);
-      control_array fb_u_t = CCM_Controller.u_feedback(x_t_act, x_t_nom, u_nom, debug);
+      control_array fb_u_t = fb_controller->u_feedback(x_t_act, x_t_nom, u_nom, debug);
       if (traj_i == -1) {
         std::cout << "Feedback at t = " << t << ": " << fb_u_t.transpose() << std::endl;
         std::cout << "\tu_nominl: " << u_nom.transpose() << std::endl;
@@ -521,7 +521,6 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       pure_noise_nom = u_nom;
 
       // Cost update
-      control_array zero_u = control_array::Zero();
       state_cost_nom += costs->computeStateCost(x_t_nom);
       float state_cost_act = costs->computeStateCost(x_t_act);
       cost_real_w_tracking += state_cost_act +
@@ -553,15 +552,16 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
       Eigen::Map<const control_array>
           u_nom(nom_control_seq.data() + t * control_dim); // trajectory u at time t
       Eigen::Map<const control_array>
-          pure_noise(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
-      control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
-      control_array u_t = u_nom;
-      if (traj_i == 0) {
-        eps_t = control_array::Zero();
-      } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
-        u_t = control_array::Zero();;
-      }
-      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev,
+          eps_t(sampled_noise.data() + control_traj_size +
+                     (traj_index + t) * control_dim); // U + noise Noise at time t
+      // control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
+      // control_array u_t = u_nom;
+      // if (traj_i == 0) {
+      //   eps_t = control_array::Zero();
+      // } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
+      //   u_t = control_array::Zero();;
+      // }
+      cost_nom_control += costs->computeLikelihoodRatioCost(u_nom, eps_t - u_nom, cost_std_dev,
                                                             lambda, alpha);
     }
 
