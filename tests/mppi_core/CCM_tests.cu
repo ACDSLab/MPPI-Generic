@@ -76,6 +76,7 @@ public:
   }
 
   void computeControl(const Eigen::Ref<const state_array>& state) override {
+    std::cout << "Candidate chosen: " << this->best_index_ << std::endl;
     // Rewrite computeControl using the CCM Rollout Kernel
     int c_dim = DYN_T::CONTROL_DIM;
     int s_dim = DYN_T::STATE_DIM;
@@ -202,6 +203,10 @@ public:
     }
   }
 
+  void computeNominalFeedbackGains(const Eigen::Ref<const state_array>& state) override {
+    std::cout << "We using this!!\n\n\n" << std::endl;
+  }
+
   control_array getCCMFeedbackGains(const Eigen::Ref<const state_array>& x_act,
                                  const Eigen::Ref<const state_array>& x_nom,
                                  const Eigen::Ref<const control_array>& u_nom) {
@@ -215,10 +220,21 @@ public:
   }
 };
 
+bool tubeFailure(float *s) {
+  float inner_path_radius2 = 1.675*1.675;
+  float outer_path_radius2 = 2.325*2.325;
+  float radial_position = s[0]*s[0] + s[1]*s[1];
+  if ((radial_position < inner_path_radius2) || (radial_position > outer_path_radius2)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 TEST(CCMTest, RMPPIRolloutKernel) {
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
-  DYN model(50);
+  DYN model(100);
   COST cost;
   const int num_timesteps = NUM_TIMESTEPS;
   const int num_rollouts = NUM_ROLLOUTS_CONST;
@@ -272,10 +288,16 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   DYN::state_array x = x_init_act;
 
   for(int t = 0; t < mission_length; t++) {
+
+    if (cost.computeStateCost(x) > 1000) {
+      std::cout << "State Cost is " << cost.computeStateCost(x) << std::endl;
+      std::cout << "State was " << x.transpose() << std::endl;
+      FAIL();
+    }
     if (t % 2 == 0) {
       printf("Current Time: %5.2f    ", t * dt);
       model.printState(x.data());
-      std::cout << "\tCandidate Free Energies: "
+      std::cout << "            Candidate Free Energies: "
                 << rmppi_controller.getCandidateFreeEnergy().transpose()
                 << std::endl;
     }
@@ -284,10 +306,14 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     DYN::state_array x_nom = rmppi_controller.getStateSeq().col(0);
     DYN::control_array current_control = rmppi_controller.getControlSeq().col(0);
 
-    model.computeStateDisturbance(dt, x);
     current_control += rmppi_controller.getCCMFeedbackGains(x, x_nom, current_control);
     model.computeDynamics(x, current_control, x_dot);
     model.updateState(x, x_dot, dt);
+
+    std::cout << "Stte before: " << x.transpose() << std::endl;
+    model.computeStateDisturbance(dt, x);
+    std::cout << "Stte after: " << x.transpose() << std::endl;
+
 
     rmppi_controller.slideControlSequence(1);
 

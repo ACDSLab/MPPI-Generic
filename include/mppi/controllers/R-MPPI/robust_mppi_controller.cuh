@@ -234,7 +234,7 @@ protected:
   void computeBestIndex();
 
   // Computes and saves the feedback gains used in the rollout kernel and tracking.
-  void computeNominalFeedbackGains(const Eigen::Ref<const state_array> &state);
+  virtual void computeNominalFeedbackGains(const Eigen::Ref<const state_array> &state);
 
   // CUDA Memory
   float* importance_sampling_states_d_;
