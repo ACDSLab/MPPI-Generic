@@ -5,6 +5,7 @@
 #include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 #include <mppi/feedback_controllers/CCM/ccm.h>
 #include <mppi/utils/test_helper.h>
+#include <cnpy.h>
 
 const int NUM_TIMESTEPS = 50;
 const int NUM_ROLLOUTS_CONST = 1024;
@@ -241,8 +242,6 @@ TEST(CCMTest, RMPPIRolloutKernel) {
                                                         num_timesteps,
                                                         num_rollouts>;
 
-  // Todo create RMPPI controller to use updateImportanceSamplingmethods
-
   const int state_dim = DYN::STATE_DIM;
   const int control_dim = DYN::CONTROL_DIM;
 
@@ -251,6 +250,13 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   float lambda = 4;
   float alpha = 0;
   float value_func_threshold = 10;
+
+
+  int mission_length = int(100 / dt); // 100 seconds
+
+  std::vector<float> actual_trajectory_save(num_timesteps*mission_length*DYN::STATE_DIM);
+  std::vector<float> nominal_trajectory_save(num_timesteps*mission_length*DYN::STATE_DIM);
+  std::string file_prefix = "/data/bvlahov3/RMPPI_CCM_control_trajectories_CoRL2020/";
 
   CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(1.0);
   CONTROLLER::control_trajectory u_traj_eigen = CONTROLLER::control_trajectory::Zero();
@@ -280,18 +286,35 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   DYN::state_array x_init_nom;
   x_init_nom << 0, 0, 0.1, 0;
 
-  int mission_length = int(10 / dt); // 10 seconds
-
   // rmppi_controller.computeControl(x_init_act);
   DYN::state_array x = x_init_act;
 
   for(int t = 0; t < mission_length; t++) {
+    std::string act_file_name = file_prefix + "robust_large_actual_CCM_t_" +
+                                std::to_string(t) + ".npy";
+    std::string nom_file_name = file_prefix + "robust_large_nominal_CCM_t_" +
+                                std::to_string(t) + ".npy";
 
-    if (cost.computeStateCost(x) > 1000) {
-      std::cout << "State Cost is " << cost.computeStateCost(x) << std::endl;
-      std::cout << "State was " << x.transpose() << std::endl;
-      FAIL();
+    // if (cost.computeStateCost(x) > 1000) {
+    //   std::cout << "State Cost is " << cost.computeStateCost(x) << std::endl;
+    //   std::cout << "State was " << x.transpose() << std::endl;
+    //   FAIL();
+    // }
+
+    if (tubeFailure(x.data())) {
+      cnpy::npy_save(act_file_name, actual_trajectory_save.data(),
+                     {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+      cnpy::npy_save(nom_file_name, nominal_trajectory_save.data(),
+                     {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+      printf("Current Time: %f    ", t * dt);
+      model.printState(x.data());
+      std::cout << "                          Candidate Free Energies: "
+                << rmppi_controller.getCandidateFreeEnergy().transpose() << std::endl;
+      std::cout << "Tube failure!!" << std::endl;
+      FAIL() << "Visualize the trajectories by running scripts/double_integrator/plot_DI_test_trajectories; "
+                "the argument to this python file is the build directory of MPPI-Generic";
     }
+
     if (t % 2 == 0) {
       printf("Current Time: %5.2f    ", t * dt);
       model.printState(x.data());
@@ -301,6 +324,17 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     }
     rmppi_controller.updateImportanceSamplingControl(x, 1);
     rmppi_controller.computeControl(x);
+
+    auto nominal_trajectory = rmppi_controller.getStateSeq();
+
+    for (int i = 0; i < num_timesteps; i++) {
+      for (int j = 0; j < DYN::STATE_DIM; j++) {
+        actual_trajectory_save[t * num_timesteps * DYN::STATE_DIM +
+                               i*DYN::STATE_DIM + j] = x(j);
+        nominal_trajectory_save[t * num_timesteps * DYN::STATE_DIM +
+                                i*DYN::STATE_DIM + j] = nominal_trajectory(j, i);
+      }
+    }
     DYN::state_array x_nom = rmppi_controller.getStateSeq().col(0);
     DYN::control_array current_control = rmppi_controller.getControlSeq().col(0);
 
@@ -308,104 +342,14 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     model.computeDynamics(x, current_control, x_dot);
     model.updateState(x, x_dot, dt);
 
-    std::cout << "Stte before: " << x.transpose() << std::endl;
     model.computeStateDisturbance(dt, x);
-    std::cout << "Stte after: " << x.transpose() << std::endl;
-
-
     rmppi_controller.slideControlSequence(1);
 
-
-  }
-
-
-  // Generate control noise
-  float sampled_noise[num_rollouts * num_timesteps * control_dim];
-  std::mt19937 rng_gen;
-  std::vector<std::normal_distribution<float>> control_dist;
-  for (int i = 0; i < control_dim; i++) {
-    control_dist.push_back(std::normal_distribution<float>(0, 1));
-  }
-
-  for (int n = 0; n < num_rollouts; n++) {
-    int n_ind = n * num_timesteps * control_dim;
-    for (int t = 0; t < num_timesteps; t++) {
-      int t_ind = t * control_dim;
-      for (int j = 0; j < control_dim; j++) {
-        sampled_noise[n_ind + t_ind + j] = control_dist[j](rng_gen);
-      }
+    if (t % 50 == 0) {
+      cnpy::npy_save(act_file_name, actual_trajectory_save.data(),
+                     {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+      cnpy::npy_save(nom_file_name, nominal_trajectory_save.data(),
+                     {mission_length, num_timesteps, DYN::STATE_DIM},"w");
     }
   }
-  // TODO: Figure out nonzero Initial control trajectory
-  float u_traj[num_timesteps * control_dim] = {0};
-  for (int i = 0; i < num_timesteps; i++) {
-    u_traj[i * control_dim] = 1;
-  }
-  // u_traj[0] = 1;
-  // u_traj[1] = 0.5;
-
-  // u_traj[10] = 1;
-  // u_traj[11] = 0.5;
-
-  // u_traj[14] = -1;
-  // u_traj[15] = 0.5;
-
-  // TODO: Generate feedback gain trajectories
-  // VanillaMPPIController<DYN, COST, 100, 512, 64, 8>::feedback_gain_trajectory feedback_gains;
-  // for (int i = 0; i < num_timesteps; i++) {
-  //   feedback_gains.push_back(DYN::feedback_matrix::Constant(-15));
-  // }
-
-  // // Copy Feedback Gains into an array
-  // float feedback_array[num_timesteps * control_dim * state_dim];
-  // for (size_t i = 0; i < feedback_gains.size(); i++) {
-  //   // std::cout << "Matrix " << i << ":\n";
-  //   // std::cout << feedback_gains[i] << std::endl;
-  //   int i_index = i * control_dim * state_dim;
-
-  //   for (size_t j = 0; j < control_dim * state_dim; j++) {
-  //     feedback_array[i_index + j] = feedback_gains[i].data()[j];
-  //   }
-  // }
-  /**
-   * Create vectors of data for GPU/CPU test
-   */
-  std::vector<float> x_init_act_vec, x_init_nom_vec, sigma_u_vec, u_traj_vec;
-  x_init_act_vec.assign(x_init_act.data(), x_init_act.data() + state_dim);
-  x_init_nom_vec.assign(x_init_nom.data(), x_init_nom.data() + state_dim);
-  sigma_u_vec.assign(control_std_dev.data(), control_std_dev.data() + control_dim);
-  u_traj_vec.assign(u_traj, u_traj + num_timesteps * control_dim);
-  std::vector<float> feedback_gains_seq_vec, sampled_noise_vec;
-  // feedback_gains_seq_vec.assign(feedback_array, feedback_array +
-  //   num_timesteps * control_dim * state_dim);
-  sampled_noise_vec.assign(sampled_noise, sampled_noise +
-    num_rollouts * num_timesteps * control_dim);
-
-
-  // ============= Entire Sim loop ================
-  // for (int i = 0; i < num_timesteps; i++) {
-    // UpdateImportanceSamplingControl with new state
-    // =============== computeControl ===============
-    // Generate noise for new control sequences
-    // Call Rollout kernel with new state and noise
-    // computeBaseline for nominal and actual
-
-    // Launch NormExpKernel for nominal and actual
-    // Compute Normalizer for norminal and actual
-    // Launch weighted reduction kernel for nominal and actual
-    // Optional: Smooth trajectory
-
-    // ============== Update State ======================
-    // Get current control
-    // Get current feedback
-    // ComputeDynamics
-    // Update State
-
-  // }
-  // Output Trajectory Costs
-  // std::array<float, num_rollouts> costs_act_CPU, costs_nom_CPU;
-  // launchRMPPIRolloutKernelCCMCPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-  //   num_timesteps, lambda, alpha, value_func_threshold, x_init_nom_vec,
-  //   x_init_act_vec, sigma_u_vec, u_traj_vec, sampled_noise_vec,
-  //   costs_act_CPU, costs_nom_CPU);
 }

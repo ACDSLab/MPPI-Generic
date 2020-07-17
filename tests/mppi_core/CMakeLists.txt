@@ -70,7 +70,8 @@ add_executable(${CCM_TARGET_NAME} ../test_main.cpp
 target_link_libraries(${CCM_TARGET_NAME} gtest
         gmock
         gtest_main
-        curand)
+        curand
+        cnpy)
 
 gtest_discover_tests(${CCM_TARGET_NAME})
 set_target_properties(${CCM_TARGET_NAME} PROPERTIES FOLDER test)
