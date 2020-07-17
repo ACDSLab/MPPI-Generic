@@ -21,6 +21,7 @@
 #include <cfloat>
 
 struct freeEnergyEstimate {
+  float increase = -1;
   float previousBaseline = -1;
   float freeEnergyMean = -1;
   float freeEnergyVariance = -1;

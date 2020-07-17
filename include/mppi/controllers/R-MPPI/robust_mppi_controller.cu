@@ -275,6 +275,7 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
 
     // Compute the best nominal state candidate from the rollouts
     computeBestIndex();
+    this->free_energy_statistics_.nominal_state_used = best_index_;
     nominal_stride_ = importance_sampler_strides_(best_index_);
     nominal_state_ = candidate_nominal_states_[best_index_];
   }
@@ -407,4 +408,8 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
   // Smooth the control
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
   this->smoothControlTrajectoryHelper(nominal_control_trajectory_, nominal_control_history_);
+
+  this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
+
+  this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
 }

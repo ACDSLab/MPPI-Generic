@@ -165,8 +165,11 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
       // In this case, the disturbance the made the nominal and actual states differ improved the cost.
       // std::copy(state_trajectory.begin(), state_trajectory.end(), nominal_state_trajectory_.begin());
       // std::copy(control_trajectory.begin(), control_trajectory.end(), nominal_control_.begin());
+      this->free_energy_statistics_.nominal_state_used = 0;
       nominal_state_trajectory_ = this->state_;
       nominal_control_trajectory_ = this->control_;
+    } else {
+      this->free_energy_statistics_.nominal_state_used = 1;
     }
 
     // Outside of this loop, we will utilize the nominal state trajectory and the nominal control trajectory to compute
@@ -176,6 +179,9 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
   }
   smoothControlTrajectory();
   computeStateTrajectory(state); // Input is the actual state
+
+  this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
+  this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
