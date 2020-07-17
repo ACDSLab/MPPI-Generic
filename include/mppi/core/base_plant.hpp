@@ -18,6 +18,7 @@
 #include <mutex>
 #include <thread>
 #include <memory>
+#include <mppi/controllers/controller.cuh>
 
 
 template <class CONTROLLER_T>

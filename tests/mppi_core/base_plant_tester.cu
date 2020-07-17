@@ -49,6 +49,8 @@ public:
 
   void pubStateDivergence(const s_array& s) override {}
 
+  void pubFreeEnergyStatistics(MPPIFreeEnergyStatistics& fe_stats) override {}
+
   void incrementTime() {
     time_ += 0.05;
   }
