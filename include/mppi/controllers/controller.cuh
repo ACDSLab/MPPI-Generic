@@ -277,6 +277,39 @@ public:
     }
   };
 
+  // Indicator for algorithm health, should be between 0.01 and 0.1 anecdotally
+  float getNormalizerPercent() {return this->normalizer_/(float)NUM_ROLLOUTS;}
+
+  /**
+ * Computes the actual trajectory given the MPPI optimal control and the
+ * feedback gains computed by DDP. If feedback is not enabled, then we return
+ * zero since this function would not make sense.
+ */
+  virtual void computeFeedbackPropagatedStateSeq() {
+    if (!enable_feedback_) {
+      return;
+    }
+    // Compute the nominal trajectory
+    propagated_feedback_state_trajectory_.col(0) = getAncillaryStateSeq().col(0); // State that we optimized from
+    state_array xdot;
+    state_array current_state;
+    control_array current_control;
+    for (int i =0; i < num_timesteps_ - 1; ++i) {
+      current_state = propagated_feedback_state_trajectory_.col(i);
+      // MPPI control apply feedback at the given timestep against the nominal trajectory at that timestep
+      current_control = getControlSeq().col(i) + getFeedbackGains()[i]*(current_state - getStateSeq().col(i));
+      model_->computeStateDeriv(current_state, current_control, xdot);
+      model_->updateState(current_state, xdot, dt_);
+      propagated_feedback_state_trajectory_.col(i+1) = current_state;
+    }
+  }
+
+  /**
+   *
+   * @return State trajectory from optimized state with MPPI control and computed feedback gains
+   */
+  state_trajectory getFeedbackPropagatedStateSeq() {return propagated_feedback_state_trajectory_;};
+
   control_array getControlStdDev() { return control_std_dev_;};
 
   float getBaselineCost() {return baseline_;};
@@ -494,6 +527,9 @@ protected:
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
   std::vector<control_trajectory> sampled_controls_; // Sampled control trajectories from rollout kernel
+
+  // Propagated real state trajectory
+  state_trajectory propagated_feedback_state_trajectory_ = state_trajectory::Zero();
 
   // tracking controller variables
   StateCostWeight Q_;

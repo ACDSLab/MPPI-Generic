@@ -157,8 +157,6 @@ public:
 
   state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
 
-  state_trajectory getAncillaryStateSeq() {return this->result_.state_trajectory;};
-
   // Does nothing. This reason is because the control sliding happens during the importance sampler update.
   // The control applied to the real system (during the MPPI rollouts) is the nominal control (which slides
   // during the importance sampler update), plus the feedback term. Inside the runControlIteration function
@@ -193,6 +191,8 @@ protected:
   control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
   state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_nominal_ = sampled_cost_traj::Zero();
+
+
 
   // Make the control history size flexible, related to issue #30
   Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> nominal_control_history_; // History used for nominal_state IS

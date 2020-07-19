@@ -175,7 +175,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // Compare with the CPU version
   HANDLE_ERROR(cudaMemcpy(cost_vector_GPU.data(), costs_d, sizeof(float)*num_samples*num_candidates, cudaMemcpyDeviceToHost));
 
-  EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 1e-3);
+  EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 5e-3);
 }
 
 TEST(RMPPITest, RMPPIRolloutKernel) {

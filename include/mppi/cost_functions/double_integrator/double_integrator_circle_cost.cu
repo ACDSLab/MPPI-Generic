@@ -24,8 +24,8 @@ __device__ float DoubleIntegratorCircleCost::computeStateCost(float *s, int time
     cost += powf(this->params_.discount, timestep)*params_.crash_cost;
   }
 
-  cost += params_.velocity_cost * powf(current_velocity - params_.velocity_desired, 2);
-  cost += params_.velocity_cost * powf(current_angular_momentum - params_.angular_momentum_desired, 2);
+  cost += params_.velocity_cost * abs(current_velocity - params_.velocity_desired);
+  cost += params_.velocity_cost * abs(current_angular_momentum - params_.angular_momentum_desired);
   return cost;
 }
 
@@ -49,8 +49,8 @@ float DoubleIntegratorCircleCost::computeStateCost(const Eigen::Ref<const state_
     cost += powf(this->params_.discount, timestep)*params_.crash_cost;
   }
 
-  cost += params_.velocity_cost * powf(current_velocity - params_.velocity_desired, 2);
-  cost += params_.velocity_cost * powf(current_angular_momentum - params_.angular_momentum_desired, 2);
+  cost += params_.velocity_cost * abs(current_velocity - params_.velocity_desired);
+  cost += params_.velocity_cost * abs(current_angular_momentum - params_.angular_momentum_desired);
   return cost;
 }
 
