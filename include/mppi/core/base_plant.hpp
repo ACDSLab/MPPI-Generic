@@ -425,6 +425,9 @@ public:
     //Check the robots status
     status_ = checkStatus();
 
+    // calculate the propogated feedback trajectory
+    controller->computeFeedbackPropagatedStateSeq();
+
     // TODO
     //Increment the state if debug mode is set to true
     // if (status != 0 && debug_mode_){
