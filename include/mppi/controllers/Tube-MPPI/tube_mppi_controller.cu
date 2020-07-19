@@ -180,7 +180,9 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
   smoothControlTrajectory();
   computeStateTrajectory(state); // Input is the actual state
 
+  this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_/NUM_ROLLOUTS;
   this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
+  this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_/NUM_ROLLOUTS;
   this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
 }
 

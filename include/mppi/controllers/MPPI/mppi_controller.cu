@@ -155,6 +155,9 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     cudaStreamSynchronize(this->stream_);
 
     }
+
+  this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_/NUM_ROLLOUTS;
+  this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
   smoothControlTrajectory();
   computeStateTrajectory(state);
 

@@ -26,6 +26,7 @@ struct freeEnergyEstimate {
   float freeEnergyMean = -1;
   float freeEnergyVariance = -1;
   float freeEnergyModifiedVariance = -1;
+  float normalizerPercent = -1;
 };
 
 struct MPPIFreeEnergyStatistics {
