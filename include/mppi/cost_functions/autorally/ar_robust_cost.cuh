@@ -33,6 +33,10 @@ public:
   ARRobustCostImpl(cudaStream_t stream=0);// : ARStandardCost<PARAMS_T>(steam);
   ~ARRobustCostImpl();
 
+  std::string getCostFunctionName() {
+    return "AutoRally robust cost function";
+  }
+
   __host__ __device__ float getStabilizingCost(float* s);
   __device__ float getCostmapCost(float* s);
   __device__ float computeStateCost(float *s, int timestep, int* crash_status);

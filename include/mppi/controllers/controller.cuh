@@ -148,8 +148,12 @@ public:
    * Slide the control sequence forwards steps steps
    */
   virtual void slideControlSequence(int optimization_stride) = 0;
+
   // ================ END OF METHODS WITH NO DEFAULT =============
   // ======== PURE VIRTUAL END =====
+
+  virtual std::string getControllerName() {return "name not set";};
+  virtual std::string getCostFunctionName() {return cost_->getCostFunctionName();}
 
   /**
    * only used in rmppi, here for generic calls in base_plant. Jank as hell

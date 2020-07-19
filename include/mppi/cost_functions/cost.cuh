@@ -57,6 +57,10 @@ public:
     freeCudaMem();
   }
 
+  std::string getCostFunctionName() {
+    return "cost function name not set";
+  }
+
   void GPUSetup();
 
   bool getDebugDisplayEnabled() {return false;}

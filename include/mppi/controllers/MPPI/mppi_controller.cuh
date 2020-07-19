@@ -67,6 +67,8 @@ public:
   // Destructor
   ~VanillaMPPIController();
 
+  std::string getControllerName() {return "Vanilla MPPI";};
+
   /**
    * computes a new control sequence
    * @param state starting position

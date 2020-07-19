@@ -51,6 +51,10 @@ public:
    */
   ARStandardCostImpl(cudaStream_t stream=0);
 
+  std::string getCostFunctionName() {
+    return "AutoRally standard cost function";
+  }
+
   /**
    * Deallocates the allocated cuda memory for an object
    * TODO make a generic version of this

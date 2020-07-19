@@ -133,6 +133,8 @@ public:
   */
   ~RobustMPPIController();
 
+  std::string getControllerName() {return "Robust MPPI";};
+
   feedback_gain_trajectory getFeedbackGains() override {
     return this->result_.feedback_gain;
   };
