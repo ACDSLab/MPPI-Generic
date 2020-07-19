@@ -257,7 +257,7 @@ public:
     //printf("update state called with %f\n", time);
     // calculate and update all timing variables
     timing_guard_.lock();
-    float temp_last_pose_update_time = last_used_pose_update_time_;
+    double temp_last_pose_update_time = last_used_pose_update_time_;
     timing_guard_.unlock();
 
     double time_since_last_opt = time - temp_last_pose_update_time;
@@ -265,7 +265,7 @@ public:
     state_ = state;
 
     // check if the requested time is in the calculated trajectory
-    bool t_within_trajectory = time > temp_last_pose_update_time &&
+    bool t_within_trajectory = time >= temp_last_pose_update_time &&
                                time < temp_last_pose_update_time + controller_->getDt()*controller_->getNumTimesteps();
 
     // TODO check that we haven't been waiting too long
