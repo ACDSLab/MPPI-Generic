@@ -61,8 +61,8 @@ public:
 
     control_dist_ = std::normal_distribution<float>(0, 1);
     CCM_feedback_controller_ = ccm::LinearCCM<DYN_T>(model);
-    Q_MAT M_new = Q_MAT::Identity();
-    CCM_feedback_controller_.setM(M_new);
+    // Q_MAT M_new = Q_MAT::Identity();
+    // CCM_feedback_controller_.setM(M_new);
   }
 
   void ptrToVec(const float* input, int num, std::vector<float>& output) {
@@ -230,6 +230,44 @@ bool tubeFailure(float *s) {
   }
 }
 
+TEST(CCMTest, CCMFeedbackTest) {
+  using DYN = DoubleIntegratorDynamics;
+  using COST = DoubleIntegratorCircleCost;
+  DYN model(100);
+  ccm::LinearCCM<DYN> fb_controller(&model);
+  float dt = 0.02;
+  int mission_length = int(10/dt);
+
+  DYN::state_array x, x_nom, x_dot;
+  x << 4, 0, 0, 1;
+  x_nom << -3, 2, 0, 0;
+  DYN::control_array current_control;
+
+  float two_percent_settle_time = -1;
+
+  for (int t = 0; t < mission_length; t++) {
+    current_control = fb_controller.u_feedback(x, x_nom, DYN::control_array::Zero());
+    model.computeDynamics(x, current_control, x_dot);
+    model.updateState(x, x_dot, dt);
+
+    DYN::state_array abs_diff = x - x_nom;
+    for (int i = 0; i < DYN::STATE_DIM; i++) {
+      if (x_nom(i) >= 1) {
+        abs_diff(i) /= x_nom(i);
+      }
+    }
+    abs_diff = abs_diff.cwiseAbs();
+    if (abs_diff.block<2,1>(0,0).maxCoeff() < 0.02 && two_percent_settle_time < 0) {
+      two_percent_settle_time = t * dt;
+    }
+
+    if (t % 5 == 0) {
+      std::cout << "State at t = " << t * dt << ": " << x.transpose() << std::endl;
+    }
+  }
+  std::cout << "2% settling time is " << two_percent_settle_time << " secs" << std::endl;
+}
+
 TEST(CCMTest, RMPPIRolloutKernel) {
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
@@ -308,7 +346,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
                      {mission_length, num_timesteps, DYN::STATE_DIM},"w");
       printf("Current Time: %f    ", t * dt);
       model.printState(x.data());
-      std::cout << "                          Candidate Free Energies: "
+      std::cout << "\tCandidate Free Energies: "
                 << rmppi_controller.getCandidateFreeEnergy().transpose() << std::endl;
       std::cout << "Tube failure!!" << std::endl;
       FAIL() << "Visualize the trajectories by running scripts/double_integrator/plot_DI_test_trajectories; "
@@ -318,7 +356,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     if (t % 2 == 0) {
       printf("Current Time: %5.2f    ", t * dt);
       model.printState(x.data());
-      std::cout << "            Candidate Free Energies: "
+      std::cout << "\tCandidate Free Energies: "
                 << rmppi_controller.getCandidateFreeEnergy().transpose()
                 << std::endl;
     }

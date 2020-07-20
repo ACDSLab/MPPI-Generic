@@ -455,6 +455,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
     float state_cost_nom = 0; // S(V, x*_0)
     float running_state_cost_real = 0;
     float running_control_cost_real = 0;
+    float running_control_cost_nom = 0;
 
     int traj_index = traj_i * num_timesteps;
 
@@ -530,8 +531,10 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
 
       running_state_cost_real += state_cost_act;
       running_control_cost_real +=
-        costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev,
+        costs->computeLikelihoodRatioCost(u_nom - eps_t + fb_u_t, eps_t, cost_std_dev,
                                           lambda, alpha);
+      running_control_cost_nom +=
+        costs->computeLikelihoodRatioCost(u_nom - eps_t, eps_t, cost_std_dev, lambda, alpha);
 
       // Dyanamics Update
       model->computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
@@ -553,28 +556,28 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
     float cost_nom = 0.5 * state_cost_nom + 0.5 *
       std::max(std::min(cost_real_w_tracking, value_func_threshold), state_cost_nom);
     // Figure out control costs for the nominal trajectory
-    float cost_nom_control = 0;
-    for (int t = 0; t < num_timesteps - 1; t++) {
-      Eigen::Map<const control_array>
-          u_nom(nom_control_seq.data() + t * control_dim); // trajectory u at time t
-      Eigen::Map<const control_array>
-          eps_t(sampled_noise.data() + control_traj_size +
-                     (traj_index + t) * control_dim); // U + noise Noise at time t
-      // control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
-      // control_array u_t = u_nom;
-      // if (traj_i == 0) {
-      //   eps_t = control_array::Zero();
-      // } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
-      //   u_t = control_array::Zero();;
-      // }
-      cost_nom_control += costs->computeLikelihoodRatioCost(u_nom, eps_t - u_nom, cost_std_dev,
-                                                            lambda, alpha);
-    }
+    // float cost_nom_control = 0;
+    // for (int t = 0; t < num_timesteps - 1; t++) {
+    //   Eigen::Map<const control_array>
+    //       u_nom(nom_control_seq.data() + t * control_dim); // trajectory u at time t
+    //   Eigen::Map<const control_array>
+    //       eps_t(sampled_noise.data() + control_traj_size +
+    //                  (traj_index + t) * control_dim); // U + noise Noise at time t
+    //   // control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
+    //   // control_array u_t = u_nom;
+    //   // if (traj_i == 0) {
+    //   //   eps_t = control_array::Zero();
+    //   // } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
+    //   //   u_t = control_array::Zero();;
+    //   // }
+    //   cost_nom_control += costs->computeLikelihoodRatioCost(u_nom, eps_t - u_nom, cost_std_dev,
+    //                                                         lambda, alpha);
+    // }
     // Compute average cost per timestep
-    cost_nom_control /= (float)num_timesteps;
+    running_control_cost_nom /= (float)num_timesteps;
     running_control_cost_real /= (float)num_timesteps;
 
-    cost_nom += cost_nom_control;
+    cost_nom += running_control_cost_nom;
     trajectory_costs_nom[traj_i] = cost_nom;
     trajectory_costs_act[traj_i] = running_state_cost_real + running_control_cost_real;
   }

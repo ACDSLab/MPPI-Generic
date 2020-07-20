@@ -97,12 +97,25 @@ public:
   // Generic Method for calculating the Metric based on state x
   RiemannianMetric M(const Eigen::Ref<const state_array>& x) {
     RiemannianMetric W;
-    float x0_2 = powf(x[0], 2);
-    float x1_2 = powf(x[1], 2);
-    float w_1_term = 0.0004616 * x0_2 + 0.0004616 * x1_2 + 2.0459139;
-    float w_2_term = -0.0007369 * x0_2 - 0.007369 * x1_2 - 1.9129315;
-    float w_3_term = -0.0007369 * x0_2 - 0.007369 * x1_2 - 1.9129315;
-    float w_4_term = 0.0026403 * x0_2 + 0.0026403 * x1_2 + 5.2164191;
+    float x0_2 = 0; // powf(x[0], 2);
+    float x1_2 = 0; // powf(x[1], 2);
+    /** lambda = 0.8 **/
+    // float w_1_term = 0.0004616 * x0_2 + 0.0004616 * x1_2 + 2.0459139;
+    // float w_2_term = -0.0007369 * x0_2 - 0.007369 * x1_2 - 1.9129315;
+    // float w_3_term = -0.0007369 * x0_2 - 0.007369 * x1_2 - 1.9129315;
+    // float w_4_term = 0.0026403 * x0_2 + 0.0026403 * x1_2 + 5.2164191;
+
+    /** lmabda = 1.5 **/
+    // float w_1_term = 0.006889 * x0_2 + 0.006889 * x1_2 + 3.6390396;
+    // float w_2_term = -0.034485 * x0_2 - 0.034485 * x1_2 - 7.1123521;
+    // float w_3_term = -0.034485 * x0_2 - 0.034485 * x1_2 - 7.1123521;
+    // float w_4_term = 0.2511511 * x0_2 + 0.2511511 * x1_2 + 24.9433551;
+
+    /** lambda = 3.5 **/
+    float w_1_term = 0.0005948 * x0_2 + 0.0005948 * x1_2 + 2.2416827;
+    float w_2_term = -0.0044842 * x0_2 - 0.0044842 * x1_2 - 8.2434395;
+    float w_3_term = -0.0044842 * x0_2 - 0.0044842 * x1_2 - 8.2434395;
+    float w_4_term = 0.0521421 * x0_2 + 0.0521421 * x1_2 + 59.1072868;
     W << w_1_term, 0, w_2_term, 0,
          0, w_1_term, 0, w_2_term,
          w_3_term, 0, w_4_term, 0,
