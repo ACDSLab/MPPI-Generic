@@ -625,7 +625,7 @@ namespace rmppi_kernels {
         for (i = thread_idy; i < DYN_T::CONTROL_DIM; i+= BLOCKSIZE_Y) {
           u[i] += fb_control[i];
           // Make sure feedback is added to the modified control noise pointer
-          du_d[control_index + i] += fb_control[i];
+          // du_d[control_index + i] += fb_control[i];
         }
 
         __syncthreads();
