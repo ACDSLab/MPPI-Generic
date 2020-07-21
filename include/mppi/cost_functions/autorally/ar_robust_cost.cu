@@ -12,17 +12,19 @@ __host__ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getStabilizingCos
 {
   float penalty_val = 0;
   float slip;
-  if (fabs(s[4]) < 0.25){
+  if (fabs(s[4]) < 0.001){
     slip = 0;
   } else {
     slip = fabs(-atan(s[5]/fabs(s[4])));
   }
-  if (slip >= this->params_.max_slip_ang){
-    penalty_val = this->params_.crash_coeff;
+  if (slip >= 0.75*this->params_.max_slip_ang){
+    float slip_val = fminf(1.0, slip/this->params_.max_slip_ang);
+    float alpha = (slip_val - 0.75)/(1.0 - 0.75);
+    penalty_val = alpha*this->params_.crash_coeff;
   }
   // crash if roll is too large
-  if (fabs(s[3]) >= 1.5){
-    penalty_val += this->params_.crash_coeff;
+  if (fabs(s[3]) >= M_PI_2){
+    penalty_val = this->params_.crash_coeff;
   }
   return this->params_.slip_coeff*slip + penalty_val;
 }
@@ -45,6 +47,7 @@ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
   float4 track_params_front = tex2D<float4>(this->costmap_tex_d_, u/w, v/w);
   this->coorTransform(x_back, y_back, &u, &v, &w);
   float4 track_params_back = tex2D<float4>(this->costmap_tex_d_, u/w, v/w);
+  //printf("thread (%d %d %d) front val (%f, %f) %f back_val (%f, %f) %f\n", threadIdx.x, threadIdx.y, threadIdx.z, x_front, y_front, track_params_front.x, x_back, y_back, track_params_back.x);
 
 
   //Calculate the constraint penalty
@@ -75,6 +78,21 @@ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 
 template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep, int* crash_status) {
+  int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
+  if(global_idx == 0) {
+    printf("desired_speed %f\n", this->params_.desired_speed);
+    printf("speed_coeff %f\n", this->params_.speed_coeff);
+    printf("track_coeff %f\n", this->params_.track_coeff);
+    printf("max_slip_angle %f\n", this->params_.max_slip_ang);
+    printf("slip_coeff %f\n", this->params_.slip_coeff);
+    printf("track_slop %f\n", this->params_.track_slop);
+    printf("crash_coeff %f\n", this->params_.crash_coeff);
+    printf("discount %f\n", this->params_.discount);
+    printf("boundary_threshold %f\n", this->params_.boundary_threshold);
+    printf("grid_res %d\n", this->params_.grid_res);
+    printf("control_cost_coeff[0] %f\n", this->params_.control_cost_coeff[0]);
+    printf("control_cost_coeff[1] %f\n", this->params_.control_cost_coeff[1]);
+  }
   float stabilizing_cost = getStabilizingCost(s);
   float costmap_cost = getCostmapCost(s);
   float cost = stabilizing_cost + costmap_cost;
