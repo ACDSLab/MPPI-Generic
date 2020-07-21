@@ -171,7 +171,7 @@ public:
     // TODO copy to device new control sequence
     control_ = nominal_control;
   }
-  
+
   /**
    * determines the control that should
    * @param state
@@ -389,6 +389,9 @@ public:
     for (int i = 0; i < num_timesteps_; ++i) {
       int ind = std::min(i + steps, num_timesteps_ - 1);
       u.col(i) = u.col(ind);
+      if (i + steps > num_timesteps_ - 1) {
+        u.col(i) = control_array::Zero();
+      }
     }
   }
 
