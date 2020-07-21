@@ -201,7 +201,11 @@ TEST(Controller, slideControlSequenceHelper) {
   for(int i = 0; i < controller.num_timesteps_; i++) {
     for(int j = 0; j < MockDynamics::CONTROL_DIM; j++) {
       int val = std::min(i + 1, controller.num_timesteps_ - 1);
-      EXPECT_FLOAT_EQ(u(j, i), val);
+      if (i+1 > controller.num_timesteps_-1) {
+        EXPECT_FLOAT_EQ(u(j, i), 0);
+      } else {
+        EXPECT_FLOAT_EQ(u(j, i), val);
+      }
     }
   }
 
@@ -209,7 +213,11 @@ TEST(Controller, slideControlSequenceHelper) {
   for(int i = 0; i < controller.num_timesteps_; i++) {
     for(int j = 0; j < MockDynamics::CONTROL_DIM; j++) {
       int val = std::min(i + 11, controller.num_timesteps_ - 1);
-      EXPECT_FLOAT_EQ(u(j, i), val);
+      if (i+10 > controller.num_timesteps_-2) {
+        EXPECT_FLOAT_EQ(u(j, i), 0);
+      } else {
+        EXPECT_FLOAT_EQ(u(j, i), val);
+      }
     }
   }
 }

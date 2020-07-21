@@ -85,8 +85,6 @@ namespace mppi_common {
                   (costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha,
                                              t, crash_status) - running_cost) /
                   (1.0 * t );
-//          printf("Common Current State rollout %i: [%f, %f, %f, %f]\n", global_idx, x[0], x[1], x[2], x[3]);
-//          printf("Common Running Cost rollout %i: %f\n", global_idx, running_cost);
         }
         //__syncthreads();
 
@@ -570,7 +568,6 @@ namespace rmppi_kernels {
     float* running_control_cost_nom;
 
 
-
     // Load global array into shared memory
     if (global_idx < NUM_ROLLOUTS) {
       // Actual or nominal
@@ -635,25 +632,25 @@ namespace rmppi_kernels {
 
         __syncthreads();
         // Calculate All the costs
-        float curr_state_cost = costs->computeStateCost(x, t, crash_status);
+        if (t > 0) {
+          curr_state_cost = costs->computeStateCost(x, t, crash_status);
+        }
 
         // Nominal system is where thread_idz == 1
-        if (thread_idz == 1 && thread_idy == 0) {
+        if (thread_idz == 1 && thread_idy == 0 && t > 0) {
           // This memory is shared in the y direction so limit which threads can write to it
           *running_state_cost_nom += curr_state_cost;
           *running_control_cost_nom += costs->computeLikelihoodRatioCost(u,
               du, sigma_u, lambda, alpha);
-
         }
         // Real system cost update when thread_idz == 0
-        if (thread_idz == 0) {
+        if (thread_idz == 0 && t > 0) {
           running_state_cost_real += curr_state_cost;
           running_control_cost_real +=
             costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda, alpha);
 
           running_tracking_cost_real += (curr_state_cost +
             costs->computeFeedbackCost(fb_control, sigma_u, lambda, alpha));
-
         }
         __syncthreads();
         // dynamics update
@@ -665,14 +662,14 @@ namespace rmppi_kernels {
 
       // Compute average cost per timestep
       if (thread_idz == 1 && thread_idy == 0)  {
-        *running_state_cost_nom /= (float)num_timesteps;
-        *running_control_cost_nom /= (float)num_timesteps;
+        *running_state_cost_nom /= ((float)num_timesteps-1);
+        *running_control_cost_nom /= ((float)num_timesteps-1);
       }
 
       if (thread_idz == 0) {
-        running_state_cost_real /= (float)num_timesteps;
-        running_tracking_cost_real /= (float)num_timesteps;
-        running_control_cost_real /= (float)num_timesteps;
+        running_state_cost_real /= ((float)num_timesteps-1);
+        running_tracking_cost_real /= ((float)num_timesteps-1);
+        running_control_cost_real /= ((float)num_timesteps-1);
       }
 
       // calculate terminal costs

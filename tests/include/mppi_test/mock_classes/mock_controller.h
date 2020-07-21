@@ -24,5 +24,6 @@ public:
   MOCK_METHOD0(getFeedbackGains, feedback_gain_trajectory());
   MOCK_METHOD1(updateImportanceSampler, void(const Eigen::Ref<const control_trajectory>& nominal_control));
   MOCK_METHOD0(allocateCUDAMemory, void());
+  MOCK_METHOD0(computeFeedbackPropagatedStateSeq, void());
 };
 #endif //MPPIGENERIC_MOCK_CONTROLLER_H
