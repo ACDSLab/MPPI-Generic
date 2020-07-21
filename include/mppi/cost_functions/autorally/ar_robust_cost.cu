@@ -79,20 +79,6 @@ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep, int* crash_status) {
   int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
-  if(global_idx == 0) {
-    printf("desired_speed %f\n", this->params_.desired_speed);
-    printf("speed_coeff %f\n", this->params_.speed_coeff);
-    printf("track_coeff %f\n", this->params_.track_coeff);
-    printf("max_slip_angle %f\n", this->params_.max_slip_ang);
-    printf("slip_coeff %f\n", this->params_.slip_coeff);
-    printf("track_slop %f\n", this->params_.track_slop);
-    printf("crash_coeff %f\n", this->params_.crash_coeff);
-    printf("discount %f\n", this->params_.discount);
-    printf("boundary_threshold %f\n", this->params_.boundary_threshold);
-    printf("grid_res %d\n", this->params_.grid_res);
-    printf("control_cost_coeff[0] %f\n", this->params_.control_cost_coeff[0]);
-    printf("control_cost_coeff[1] %f\n", this->params_.control_cost_coeff[1]);
-  }
   float stabilizing_cost = getStabilizingCost(s);
   float costmap_cost = getCostmapCost(s);
   float cost = stabilizing_cost + costmap_cost;

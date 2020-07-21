@@ -592,6 +592,7 @@ namespace rmppi_kernels {
       __syncthreads();
       *running_state_cost_nom = 0;
       *running_control_cost_nom = 0;
+      float curr_state_cost = 0.0;
       for (t = 0; t < num_timesteps; t++) {
         mppi_common::injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y,
                                         NUM_ROLLOUTS, num_timesteps, t,

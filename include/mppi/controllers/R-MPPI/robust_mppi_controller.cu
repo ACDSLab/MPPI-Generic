@@ -187,7 +187,7 @@ void RobustMPPI::computeImportanceSamplerStride(int stride) {
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 float RobustMPPI::computeCandidateBaseline() {
   float baseline = candidate_trajectory_costs_(0);
-  for (int i = 0; i < SAMPLES_PER_CONDITION; i++){ // TODO What is the reasoning behind only using the first condition to get the baseline?
+  for (int i = 0; i < SAMPLES_PER_CONDITION*num_candidate_nominal_states_; i++){ // TODO What is the reasoning behind only using the first condition to get the baseline?
     if (candidate_trajectory_costs_(i) < baseline){
       baseline = candidate_trajectory_costs_(i);
     }
@@ -202,6 +202,7 @@ void RobustMPPI::computeBestIndex() {
   for (int i = 0; i < num_candidate_nominal_states_; i++){
     for (int j = 0; j < SAMPLES_PER_CONDITION; j++){
       candidate_free_energy_(i) += expf(-1.0/this->lambda_*(candidate_trajectory_costs_(i*SAMPLES_PER_CONDITION + j) - baseline));
+
     }
     candidate_free_energy_(i) /= (1.0*SAMPLES_PER_CONDITION);
     candidate_free_energy_(i) = -this->lambda_ *logf(candidate_free_energy_(i)) + baseline;
@@ -265,7 +266,7 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
     rmppi_kernels::launchInitEvalKernel<DYN_T, COST_T, BDIM_X, BDIM_Y, SAMPLES_PER_CONDITION>(
             this->model_->model_d_, this->cost_->cost_d_, num_candidate_nominal_states_, this->num_timesteps_,
             this->lambda_, this->alpha_,
-            optimization_stride_, this->dt_, importance_sampling_strides_d_, this->control_std_dev_d_,
+            stride, this->dt_, importance_sampling_strides_d_, this->control_std_dev_d_,
             importance_sampling_states_d_, this->control_d_, this->control_noise_d_, importance_sampling_costs_d_,
             this->stream_);
 
@@ -354,6 +355,12 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
                                  cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
+    // for (int i = 0; i < NUM_ROLLOUTS; i++) {
+    //   if (abs(this->trajectory_costs_(i) - trajectory_costs_nominal_(i)) > 1e-4) {
+    //     printf("Nominal cost, Real cost, Rollout: [%f, %f, %i]\n", this->trajectory_costs_(i), trajectory_costs_nominal_(i), i);
+    //   }
+    // }
+
     // Launch the norm exponential kernels for the nominal costs and the real costs
     this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
     baseline_nominal_ = mppi_common::computeBaselineCost(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
@@ -404,6 +411,12 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
                                   sizeof(float)*this->num_timesteps_*DYN_T::CONTROL_DIM,
                                   cudaMemcpyDeviceToHost, this->stream_));
     cudaStreamSynchronize(this->stream_);
+
+    // for (int i = 0; i < this->num_timesteps_*DYN_T::CONTROL_DIM; i++) {
+    //   if (abs(this->control_(i) - nominal_control_trajectory_(i)) > 1e-4) {
+    //     printf("Nominal control, Real control, i: [%f, %f, %i]\n", this->control_(i), nominal_control_trajectory_(i), i);
+    //   }
+    // }
   }
   // Smooth the control
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
@@ -413,4 +426,6 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
   this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
   this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_/NUM_ROLLOUTS;
   this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
+
+  // std::cout << "Free energy candidates:\n" << getCandidateFreeEnergy() << std::endl;
 }
