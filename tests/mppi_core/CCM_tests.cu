@@ -184,6 +184,20 @@ public:
       this->normalizer_nominal_ = mppi_common::computeNormalizer(
           this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
 
+      // Compute real free energy
+      mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                     this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                     this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
+                                     this->trajectory_costs_.data(), NUM_ROLLOUTS,
+                                     this->baseline_, this->lambda_);
+
+      // Compute Nominal State free Energy
+      mppi_common::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
+                                     this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
+                                     this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
+                                     this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS,
+                                     this->baseline_nominal_, this->lambda_);
+
 
       mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, B_X>(
               this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,
@@ -202,6 +216,14 @@ public:
                                     cudaMemcpyDeviceToHost, this->stream_));
       cudaStreamSynchronize(this->stream_);
     }
+    this->computeStateTrajectoryHelper(this->nominal_state_trajectory_,
+                                       this->nominal_state_,
+                                       this->nominal_control_trajectory_);
+
+    this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_/NUM_ROLLOUTS;
+    this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
+    this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_/NUM_ROLLOUTS;
+    this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
   }
 
   void computeNominalFeedbackGains(const Eigen::Ref<const state_array>& state) override {}
