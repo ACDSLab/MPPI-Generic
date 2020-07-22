@@ -361,9 +361,23 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
     //   }
     // }
 
+    // Get the mean and variance of the trajectory costs
+    float mean = 0;
+    float var = 0;
+    for(int i = 0; i < NUM_ROLLOUTS; i++) {
+      mean += trajectory_costs_nominal_[i];
+      var += powf(trajectory_costs_nominal_[i], 2);
+    }
+    mean /= NUM_ROLLOUTS;
+    var = (var / NUM_ROLLOUTS - powf(mean, 2));
+
+    printf("Trajectory Costs [Mean, Variance]: [%f, %f]\n", mean, var);
+
     // Launch the norm exponential kernels for the nominal costs and the real costs
     this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
     baseline_nominal_ = mppi_common::computeBaselineCost(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+
+    printf("This is the baseline nominal: %f\n", baseline_nominal_);
 
     // In this case this->gamma = 1 / lambda
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
@@ -376,6 +390,17 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
     HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_nominal_.data(), trajectory_costs_nominal_d,
                                  NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+
+    mean = 0;
+    var = 0;
+    for(int i = 0; i < NUM_ROLLOUTS; i++) {
+      mean += trajectory_costs_nominal_[i];
+      var += powf(trajectory_costs_nominal_[i], 2);
+    }
+    mean /= NUM_ROLLOUTS;
+    var = (var / NUM_ROLLOUTS - powf(mean, 2));
+
+    printf("Exp Trajectory Costs [Mean, Variance]: [%f, %f]\n", mean, var);
 
     // Launch the weighted reduction kernel for the nominal costs and the real costs
     this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS);
@@ -421,6 +446,9 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
   // Smooth the control
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
   this->smoothControlTrajectoryHelper(nominal_control_trajectory_, nominal_control_history_);
+
+  // Compute the nominal trajectory because we updated the nominal control!
+  this->computeStateTrajectoryHelper(nominal_state_trajectory_, nominal_state_, nominal_control_trajectory_);
 
   this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_/NUM_ROLLOUTS;
   this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
