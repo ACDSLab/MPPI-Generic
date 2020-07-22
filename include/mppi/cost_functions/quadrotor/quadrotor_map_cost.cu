@@ -4,22 +4,26 @@
 
 template <class CLASS_T, class PARAMS_T>
 QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::QuadrotorMapCostImpl(cudaStream_t stream) {
-  std::cout << "Hi there" << std::endl;
   this->bindToStream(stream);
 }
 
 template <class CLASS_T, class PARAMS_T>
-QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::~QuadrotorMapCostImpl() {
-  HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
-  HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_d_));
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::freeCudaMem() {
+  if (this->GPUMemStatus_) {
+    HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
+    HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_d_));
+  }
+  Cost<CLASS_T, PARAMS_T, this->STATE_DIM, this->CONTROL_DIM>::freeCudaMem();
 }
 
 template <class CLASS_T, class PARAMS_T>
 void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::paramsToDevice() {
-  HANDLE_ERROR( cudaMemcpyAsync(&this->cost_d_->params_, &this->params_, sizeof(PARAMS_T), cudaMemcpyHostToDevice, this->stream_));
-  HANDLE_ERROR( cudaMemcpyAsync(&this->cost_d_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-  HANDLE_ERROR( cudaMemcpyAsync(&this->cost_d_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-  HANDLE_ERROR( cudaStreamSynchronize(this->stream_));
+  if (this->GPUMemStatus_) {
+    HANDLE_ERROR( cudaMemcpyAsync(&this->cost_d_->params_, &this->params_, sizeof(PARAMS_T), cudaMemcpyHostToDevice, this->stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&this->cost_d_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
+    HANDLE_ERROR( cudaMemcpyAsync(&this->cost_d_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
+    HANDLE_ERROR( cudaStreamSynchronize(this->stream_));
+  }
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -74,37 +78,30 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::distToWaypoin
 
 template <class CLASS_T, class PARAMS_T>
 void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateWaypoint(float4 new_waypoint) {
-  if (this->params_.curr_waypoint != new_waypoint) {
-    this->params_.prev_waypoint = this->params_.curr_waypoint;
-    this->params_.curr_waypoint = new_waypoint;
 
-    paramsToDevice();
-  }
+  updateWaypoint(new_waypoint.x, new_waypoint.y, new_waypoint.z, new_waypoint.w);
 }
 
 template <class CLASS_T, class PARAMS_T>
 void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateWaypoint(float x, float y,
                                                              float z,
                                                              float heading) {
-  float4 new_waypoint;
-  new_waypoint.x = x;
-  new_waypoint.y = y;
-  new_waypoint.z = z;
-  new_waypoint.w = heading;
-  updateWaypoint(new_waypoint);
+  if (this->params_.curr_waypoint.x != x ||
+      this->params_.curr_waypoint.y != y ||
+      this->params_.curr_waypoint.z != z ||
+      this->params_.curr_waypoint.w != heading) {
+    this->params_.prev_waypoint = this->params_.curr_waypoint;
+    this->params_.curr_waypoint = make_float4(x, y, z, heading);
+
+    paramsToDevice();
+  }
 }
 
 template <class CLASS_T, class PARAMS_T>
 void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateGateBoundaries(float3 left_side,
                                                                    float3 right_side) {
-  if (this->params_.curr_gate_left != left_side ||
-      this->params_.curr_gate_right != right_side) {
-    this->params_.prev_gate_left = this->params_.curr_gate_left;
-    this->params_.prev_gate_right = this->params_.curr_gate_right;
-    this->params_.prev_gate_left = left_side;
-    this->params_.prev_gate_right = right_side;
-    paramsToDevice();
-  }
+  updateGateBoundaries(left_side.x, left_side.y, left_side.z,
+                       right_side.x, right_side.y, right_side.z);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -115,14 +112,8 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateGateBoundaries(
               << " call to updateGateBoundaries" << std::endl;
     return;
   }
-  float3 left_side, right_side;
-  left_side.x = boundaries[0];
-  left_side.y = boundaries[1];
-  left_side.z = boundaries[2];
-  right_side.x = boundaries[3];
-  right_side.y = boundaries[4];
-  right_side.z = boundaries[5];
-  updateGateBoundaries(left_side, right_side);
+  updateGateBoundaries(boundaries[0], boundaries[1], boundaries[2],
+                       boundaries[3], boundaries[4], boundaries[5]);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -132,14 +123,18 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateGateBoundaries(float left_x,
                                                                    float right_x,
                                                                    float right_y,
                                                                    float right_z) {
-  float3 left_side, right_side;
-  left_side.x = left_x;
-  left_side.y = left_y;
-  left_side.z = left_z;
-  right_side.x = right_x;
-  right_side.y = right_y;
-  right_side.z = right_z;
-  updateGateBoundaries(left_side, right_side);
+  if (this->params_.curr_gate_left.x != left_x ||
+      this->params_.curr_gate_left.y != left_y ||
+      this->params_.curr_gate_left.z != left_z ||
+      this->params_.curr_gate_right.x != right_x ||
+      this->params_.curr_gate_right.y != right_y ||
+      this->params_.curr_gate_right.z != right_z) {
+    this->params_.prev_gate_left = this->params_.curr_gate_left;
+    this->params_.prev_gate_right = this->params_.curr_gate_right;
+    this->params_.prev_gate_left = make_float3(left_x, left_y, left_z);
+    this->params_.prev_gate_right = make_float3(right_x, right_y, right_z);
+    paramsToDevice();
+  }
 }
 
 template <class CLASS_T, class PARAMS_T>

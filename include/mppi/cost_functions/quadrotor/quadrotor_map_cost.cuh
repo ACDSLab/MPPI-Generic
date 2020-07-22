@@ -54,7 +54,7 @@ public:
 
   QuadrotorMapCostImpl(cudaStream_t stream = 0);
 
-  ~QuadrotorMapCostImpl();
+  void freeCudaMem();
 
   void paramsToDevice();
 
