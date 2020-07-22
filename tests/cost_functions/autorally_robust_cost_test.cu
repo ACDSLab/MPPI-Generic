@@ -125,7 +125,7 @@ TEST(ARRobustCost, getStabilizingCostTest) {
   s[4] = 1.0;
   s[5] = 10.0;
   result = cost.getStabilizingCost(s);
-  EXPECT_FLOAT_EQ(result, 1.4711*10 + params.crash_coeff + params.crash_coeff);
+  EXPECT_FLOAT_EQ(result, 1.4711*10 + params.crash_coeff);
 }
 
 float calculateRobustCostmapValue(ARRobustCost& cost, float3 state, int width, int height, float x_min, float x_max, float y_min, float y_max, int ppm) {

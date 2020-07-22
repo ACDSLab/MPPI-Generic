@@ -206,7 +206,6 @@ void RobustMPPI::computeBestIndex() {
     }
     candidate_free_energy_(i) /= (1.0*SAMPLES_PER_CONDITION);
     candidate_free_energy_(i) = -this->lambda_ *logf(candidate_free_energy_(i)) + baseline;
-
     if (candidate_free_energy_(i) < value_function_threshold_){
       best_index_ = i;
     }
@@ -229,7 +228,7 @@ void RobustMPPI::updateImportanceSamplingControl(const Eigen::Ref<const state_ar
   // Slide the control sequence for the nominal control trajectory
   this->slideControlSequenceHelper(nominal_stride_, nominal_control_trajectory_);
 
-  // Compute the nominal trajectory
+  // Compute the nominal trajectory because we have slid the control sequence and updated the nominal state
   this->computeStateTrajectoryHelper(nominal_state_trajectory_, nominal_state_, nominal_control_trajectory_);
 
   // Compute the feedback gains and save them to an array
@@ -276,6 +275,7 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
 
     // Compute the best nominal state candidate from the rollouts
     computeBestIndex();
+//    best_index_ = 8;
     this->free_energy_statistics_.nominal_state_used = best_index_;
     nominal_stride_ = importance_sampler_strides_(best_index_);
     nominal_state_ = candidate_nominal_states_[best_index_];
@@ -364,6 +364,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
                                      this->trajectory_costs_d_, 1.0 / this->lambda_, this->baseline_, this->stream_);
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
                                      trajectory_costs_nominal_d, 1.0 / this->lambda_, baseline_nominal_, this->stream_);
+
 
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, this->stream_));

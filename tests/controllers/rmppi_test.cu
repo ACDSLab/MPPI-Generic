@@ -107,7 +107,7 @@ protected:
     Q.setIdentity();
     Qf.setIdentity();
     R.setIdentity();
-    test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, 10.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
+    test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, 1000.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
   }
 
   void TearDown() override {
@@ -259,7 +259,7 @@ protected:
     Qf.setIdentity();
     R.setIdentity();
 
-    test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, 10.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
+    test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, 1000.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
 
     // Set the size of the trajectory costs function
     trajectory_costs.resize(num_samples*num_candidates, 1);
@@ -288,7 +288,7 @@ protected:
 TEST_F(RMPPINominalStateSelection, GetCandidateBaseline) {
   // Compute baseline
   float baseline = trajectory_costs(0);
-  for (int i = 0; i < num_samples; i++){
+  for (int i = 0; i < trajectory_costs.size(); i++){
     if (trajectory_costs(i) < baseline){
       baseline = trajectory_costs(i);
     }
@@ -392,7 +392,7 @@ TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_CurrentNominal) 
 
   // We know that the cost penalizes any trajectory that exists our donut which
   // is centered around the origin with radius 2. Set the 3 relevant points of
-  // the system such that x_k_star (the previous nominal state) is the best
+  // the system such that x_k_star (the nominal state) is the best
   // free energy candidate.
   dynamics::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
   nominal_x_k << -100, 0, 0, 0;
@@ -467,7 +467,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   DoubleIntegratorDynamics model(100);  // Initialize the double integrator dynamics
   DoubleIntegratorCircleCost cost;  // Initialize the cost function
   auto params = cost.getParams();
-  params.velocity_desired = 10;
+  params.velocity_desired = 2;
   cost.setParams(params);
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization

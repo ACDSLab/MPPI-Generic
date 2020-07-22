@@ -344,11 +344,11 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   DoubleIntegratorDynamics model(100);  // Initialize the double integrator dynamics
   DoubleIntegratorCircleCost cost;  // Initialize the cost function
   auto params = cost.getParams();
-  params.velocity_desired = 10;
+  params.velocity_desired = 2;
   cost.setParams(params);
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float lambda = 2.0; // Learning rate parameter
+  float lambda = 4.0; // Learning rate parameter
   float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
@@ -400,7 +400,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, Q, Qf, R, control_var);
 
-  controller.setNominalThreshold(200);
+  controller.setNominalThreshold(20);
 
   int fail_count = 0;
   int crash_status[1] = {0};

@@ -6,9 +6,9 @@
 
 
 struct DoubleIntegratorCircleCostParams : public CostParams<2> {
-  float velocity_cost = 10;
-  float crash_cost = 10000;
-  float velocity_desired = 10;
+  float velocity_cost = 1;
+  float crash_cost = 1000;
+  float velocity_desired = 2;
   float inner_path_radius2 = 1.875*1.875;
   float outer_path_radius2 = 2.125*2.125;
   float angular_momentum_desired = 2*velocity_desired; // Enforces the system travels counter clockwise

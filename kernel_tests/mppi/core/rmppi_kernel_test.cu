@@ -297,7 +297,7 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
   // Allocate CUDA memory for the rollout
   HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*state_array.size()));
   HANDLE_ERROR(cudaMalloc((void**)&U_d, sizeof(float)*control_array.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float)*2*DYNAMICS_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS));
+  HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float)*DYNAMICS_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS));
   HANDLE_ERROR(cudaMalloc((void**)&nu_d, sizeof(float)*sigma_u.size()));
   HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float)*mppi_costs_out.size()));
 
@@ -384,7 +384,7 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
           2><<<dimGrid, dimBlock, 0, stream>>>(
                   dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS,
                   opt_delay, lambda, alpha,
-                  1000000, state_d, U_d, du_d,
+                  10, state_d, U_d, du_d,
                   feedback_gains_d, nu_d, costs_d);
 
   // Copy data back

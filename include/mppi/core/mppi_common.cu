@@ -86,6 +86,11 @@ namespace mppi_common {
                                              t, crash_status) - running_cost) /
                   (1.0 * t );
         }
+
+//        if (global_idx == 29 && thread_idy == 0 && thread_idz == 0 && t > 0) {
+//          printf("MPPI Current state real: [%f, %f, %f, %f]\n", x[0], x[1], x[2], x[3]);
+//          printf("MPPI Current state cost real: [%f]\n", running_cost);
+//        }
         //__syncthreads();
 
         //Compute state derivatives
@@ -653,6 +658,11 @@ namespace rmppi_kernels {
           running_tracking_cost_real += (curr_state_cost +
             costs->computeFeedbackCost(fb_control, sigma_u, lambda, alpha));
         }
+
+//        if (global_idx == 29 && thread_idy == 0 && thread_idz == 0 && t > 0) {
+//          printf("RMPPI Current state real: [%f, %f, %f, %f]\n", x[0], x[1], x[2], x[3]);
+//          printf("RMPPI Current state cost real: [%f]\n", (running_state_cost_real+running_control_cost_real)/t);
+//        }
         __syncthreads();
         // dynamics update
         dynamics->computeStateDeriv(x, u, xdot, theta_s);

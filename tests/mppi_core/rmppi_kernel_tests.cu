@@ -351,11 +351,11 @@ TEST(RMPPITest, RolloutKernelComparison) {
   float dt = 0.01;
   float lambda = 4.2;
   float alpha = 0.05;
-  const int num_timesteps = 3;
-  const int num_rollouts = 32;
+  const int num_timesteps = 100;
+  const int num_rollouts = 1920;
   int optimization_stride = 1;
 
-  std::array<float, control_dim> sigma_u = {0.5, 0.05};
+  std::array<float, control_dim> sigma_u = {0.5, 1.5};
 
   std::array<float, state_dim> x_real = {2, 0, 1, 1};
   std::array<float, state_dim> x_nominal = {2, 0, 1, 1};
@@ -364,7 +364,7 @@ TEST(RMPPITest, RolloutKernelComparison) {
   std::default_random_engine generator(7.0);
   std::normal_distribution<float> distribution(0.0,1.0);
   for (auto & u_init : u_init_trajectory) {
-    u_init = 0.1*distribution(generator);
+    u_init = 2*distribution(generator);
   }
 
   std::array<float, num_timesteps*num_rollouts*control_dim> control_noise_array{};
@@ -405,11 +405,11 @@ TEST(RMPPITest, RolloutKernelComparison) {
   }
 
   for (int i = 0; i < num_rollouts; i++) {
-    EXPECT_FLOAT_EQ(rmppi_costs_out[i], mppi_costs_out[i]) << i;
+    EXPECT_NEAR(rmppi_costs_out[i], mppi_costs_out[i], 1e-1) << i;
   }
 
   for (int i = 0; i < num_rollouts; i++) {
-    EXPECT_FLOAT_EQ(rmppi_costs_out[num_rollouts+i], mppi_costs_out[i])  << num_rollouts + i;
+    EXPECT_NEAR(rmppi_costs_out[num_rollouts+i], mppi_costs_out[i], 1e-1)  << num_rollouts + i;
   }
 
 }
