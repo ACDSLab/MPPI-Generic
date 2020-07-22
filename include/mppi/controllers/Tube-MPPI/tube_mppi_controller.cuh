@@ -71,7 +71,9 @@ public:
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                      cudaStream_t stream = nullptr);
 
-  void computeControl(const Eigen::Ref<const state_array>& state) override;
+  void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride=1) override;
+
+  std::string getControllerName() {return "Tube MPPI";};
 
   /**
    * returns the current control sequence
@@ -105,11 +107,15 @@ public:
   float getNominalThreshold() {return nominal_threshold_;}
   void setNominalThreshold(float threshold) {nominal_threshold_ = threshold;}
 
-
 private:
   float normalizer_nominal_; // Variable for the normalizing term from sampling.
   float baseline_nominal_; // Baseline cost of the system.
-  float nominal_threshold_ = 100; // How much worse the actual system has to be compared to the nominal
+  float nominal_threshold_ = 20; // How much worse the actual system has to be compared to the nominal
+
+  // Free energy variables
+  float nominal_free_energy_mean_ = 0;
+  float nominal_free_energy_variance_ = 0;
+  float nominal_free_energy_modified_variance_ = 0;
 
 
   // nominal state CPU side copies

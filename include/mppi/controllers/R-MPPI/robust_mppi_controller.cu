@@ -187,7 +187,7 @@ void RobustMPPI::computeImportanceSamplerStride(int stride) {
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 float RobustMPPI::computeCandidateBaseline() {
   float baseline = candidate_trajectory_costs_(0);
-  for (int i = 0; i < SAMPLES_PER_CONDITION; i++){ // TODO What is the reasoning behind only using the first condition to get the baseline?
+  for (int i = 0; i < SAMPLES_PER_CONDITION*num_candidate_nominal_states_; i++){ // TODO What is the reasoning behind only using the first condition to get the baseline?
     if (candidate_trajectory_costs_(i) < baseline){
       baseline = candidate_trajectory_costs_(i);
     }
@@ -202,10 +202,10 @@ void RobustMPPI::computeBestIndex() {
   for (int i = 0; i < num_candidate_nominal_states_; i++){
     for (int j = 0; j < SAMPLES_PER_CONDITION; j++){
       candidate_free_energy_(i) += expf(-1.0/this->lambda_*(candidate_trajectory_costs_(i*SAMPLES_PER_CONDITION + j) - baseline));
+
     }
     candidate_free_energy_(i) /= (1.0*SAMPLES_PER_CONDITION);
     candidate_free_energy_(i) = -this->lambda_ *logf(candidate_free_energy_(i)) + baseline;
-
     if (candidate_free_energy_(i) < value_function_threshold_){
       best_index_ = i;
     }
@@ -228,7 +228,7 @@ void RobustMPPI::updateImportanceSamplingControl(const Eigen::Ref<const state_ar
   // Slide the control sequence for the nominal control trajectory
   this->slideControlSequenceHelper(nominal_stride_, nominal_control_trajectory_);
 
-  // Compute the nominal trajectory
+  // Compute the nominal trajectory because we have slid the control sequence and updated the nominal state
   this->computeStateTrajectoryHelper(nominal_state_trajectory_, nominal_state_, nominal_control_trajectory_);
 
   // Compute the feedback gains and save them to an array
@@ -265,7 +265,7 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
     rmppi_kernels::launchInitEvalKernel<DYN_T, COST_T, BDIM_X, BDIM_Y, SAMPLES_PER_CONDITION>(
             this->model_->model_d_, this->cost_->cost_d_, num_candidate_nominal_states_, this->num_timesteps_,
             this->lambda_, this->alpha_,
-            optimization_stride_, this->dt_, importance_sampling_strides_d_, this->control_std_dev_d_,
+            stride, this->dt_, importance_sampling_strides_d_, this->control_std_dev_d_,
             importance_sampling_states_d_, this->control_d_, this->control_noise_d_, importance_sampling_costs_d_,
             this->stream_);
 
@@ -275,6 +275,8 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
 
     // Compute the best nominal state candidate from the rollouts
     computeBestIndex();
+//    best_index_ = 8;
+    this->free_energy_statistics_.nominal_state_used = best_index_;
     nominal_stride_ = importance_sampler_strides_(best_index_);
     nominal_state_ = candidate_nominal_states_[best_index_];
   }
@@ -301,12 +303,15 @@ void RobustMPPI::computeNominalFeedbackGains(const Eigen::Ref<const state_array>
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
-void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
+void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int optimization_stride) {
   // Handy dandy pointers to nominal data
   float * trajectory_costs_nominal_d = this->trajectory_costs_d_ + NUM_ROLLOUTS;
   float * initial_state_nominal_d = this->initial_state_d_ + DYN_T::STATE_DIM;
   float * control_noise_nominal_d = this->control_noise_d_ + NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM;
   float * control_nominal_d = this->control_d_ + this->num_timesteps_ * DYN_T::CONTROL_DIM;
+
+  this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
+  this->free_energy_statistics_.nominal_sys.previousBaseline = this->baseline_nominal_;
 
   // Transfer the feedback gains to the GPU
   HANDLE_ERROR(cudaMemcpyAsync(feedback_gain_array_d_, feedback_gain_vector_.data(),
@@ -333,8 +338,8 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
 
     // Launch the new rollout kernel
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
-            BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
-                            1.0 / this->lambda_, this->alpha_, value_function_threshold_, this->initial_state_d_, this->control_d_,
+            BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_, optimization_stride,
+                            this->lambda_, this->alpha_, value_function_threshold_, this->initial_state_d_, this->control_d_,
                             this->control_noise_d_, feedback_gain_array_d_, this->control_std_dev_d_,
                             this->trajectory_costs_d_, this->stream_);
 
@@ -356,9 +361,10 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
 
     // In this case this->gamma = 1 / lambda
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-                                     this->trajectory_costs_d_, this->lambda_, this->baseline_, this->stream_);
+                                     this->trajectory_costs_d_, 1.0 / this->lambda_, this->baseline_, this->stream_);
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X,
-                                     trajectory_costs_nominal_d, this->lambda_, baseline_nominal_, this->stream_);
+                                     trajectory_costs_nominal_d, 1.0 / this->lambda_, baseline_nominal_, this->stream_);
+
 
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
@@ -369,6 +375,20 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
     // Launch the weighted reduction kernel for the nominal costs and the real costs
     this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS);
     normalizer_nominal_ = mppi_common::computeNormalizer(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+
+    // Compute real free energy
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
+                                   this->trajectory_costs_.data(), NUM_ROLLOUTS,
+                                   this->baseline_, this->lambda_);
+
+    // Compute Nominal State free Energy
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
+                                   this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS,
+                                   this->baseline_nominal_, this->lambda_);
 
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
             this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,
@@ -390,4 +410,13 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state) {
   // Smooth the control
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
   this->smoothControlTrajectoryHelper(nominal_control_trajectory_, nominal_control_history_);
+
+  // Compute the nominal trajectory because we updated the nominal control!
+  this->computeStateTrajectoryHelper(nominal_state_trajectory_, nominal_state_, nominal_control_trajectory_);
+
+  this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_/NUM_ROLLOUTS;
+  this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
+  this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_/NUM_ROLLOUTS;
+  this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
+
 }

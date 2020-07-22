@@ -18,6 +18,24 @@
 #include <mppi/ddp/ddp.h>
 #include <mppi/utils/math_utils.h>
 
+#include <cfloat>
+
+struct freeEnergyEstimate {
+  float increase = -1;
+  float previousBaseline = -1;
+  float freeEnergyMean = -1;
+  float freeEnergyVariance = -1;
+  float freeEnergyModifiedVariance = -1;
+  float normalizerPercent = -1;
+};
+
+struct MPPIFreeEnergyStatistics {
+  int nominal_state_used = 0;
+
+  freeEnergyEstimate nominal_sys;
+  freeEnergyEstimate real_sys;
+};
+
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 class Controller {
@@ -124,22 +142,26 @@ public:
    * @param state - the current state from which we would like to calculate
    * a control sequence
    */
-  virtual void computeControl(const Eigen::Ref<const state_array>& state) = 0;
+  virtual void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) = 0;
 
   /**
    * @param steps dt's to slide control sequence forward
    * Slide the control sequence forwards steps steps
    */
-  virtual void slideControlSequence(int steps) = 0;
+  virtual void slideControlSequence(int optimization_stride) = 0;
+
   // ================ END OF METHODS WITH NO DEFAULT =============
   // ======== PURE VIRTUAL END =====
+
+  virtual std::string getControllerName() {return "name not set";};
+  virtual std::string getCostFunctionName() {return cost_->getCostFunctionName();}
 
   /**
    * only used in rmppi, here for generic calls in base_plant. Jank as hell
    * @param state
    * @param stride
    */
-  void updateImportanceSamplingControl(const Eigen::Ref<const state_array> &state, int stride) {}
+  void updateImportanceSamplingControl(const Eigen::Ref<const state_array> &state, int optimization_stride) {}
 
   /**
    * Used to update the importance sampler
@@ -149,21 +171,24 @@ public:
     // TODO copy to device new control sequence
     control_ = nominal_control;
   }
-  
+
   /**
    * determines the control that should
    * @param state
    * @param rel_time
    * @return
    */
-  virtual control_array getCurrentControl(state_array& state, double rel_time) {
+  virtual control_array getCurrentControl(state_array& state, double rel_time,
+          state_array& target_nominal_state, control_trajectory& c_traj, feedback_gain_trajectory& gain_traj) {
     // MPPI control
-    control_array u_ff = interpolateControls(rel_time);
+    control_array u_ff = interpolateControls(rel_time, c_traj);
     control_array u_fb = control_array::Zero();
     if(enable_feedback_) {
-       u_fb = interpolateFeedback(state, rel_time);
+       u_fb = interpolateFeedback(state, target_nominal_state, gain_traj, rel_time);
     }
     control_array result = u_ff + u_fb;
+    //printf("rel_time %f\n", rel_time);
+    //printf("uff: %f, %f u_fb: %f, %f\n", u_ff[0], u_ff[1], u_fb[0], u_fb[1]);
 
     // TODO this is kinda jank
     state_array empty_state = state_array::Zero();
@@ -177,16 +202,30 @@ public:
    * @param rel_time time since the solution was calculated
    * @return
    */
-  virtual control_array interpolateControls(double rel_time) {
+  virtual control_array interpolateControls(double rel_time, control_trajectory& c_traj) {
     int lower_idx = (int) (rel_time / dt_);
     int upper_idx = lower_idx + 1;
     double alpha = (rel_time - lower_idx * dt_) / dt_;
 
     control_array interpolated_control;
-    control_array prev_cmd = getControlSeq().col(lower_idx);
-    control_array next_cmd = getControlSeq().col(upper_idx);
+    control_array prev_cmd = c_traj.col(lower_idx);
+    control_array next_cmd = c_traj.col(upper_idx);
     interpolated_control = (1 - alpha) * prev_cmd + alpha * next_cmd;
+
+    //printf("prev: %d %f, %f\n", lower_idx, prev_cmd[0], prev_cmd[1]);
+    //printf("next: %d %f, %f\n", upper_idx, next_cmd[0], next_cmd[1]);
+    //printf("smoother: %f\n", alpha);
     return interpolated_control;
+  }
+
+  virtual state_array interpolateState(state_trajectory& s_traj, double rel_time) {
+    int lower_idx = (int) (rel_time / dt_);
+    int upper_idx = lower_idx + 1;
+    double alpha = (rel_time - lower_idx * dt_) / dt_;
+
+    state_array desired_state;
+    desired_state = (1 - alpha)*s_traj.col(lower_idx) + alpha*s_traj.col(upper_idx);
+    return desired_state;
   }
 
   /**
@@ -195,18 +234,14 @@ public:
    * @param rel_time
    * @return
    */
-  virtual control_array interpolateFeedback(state_array& state, double rel_time) {
+  virtual control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
+          feedback_gain_trajectory& gain_traj, double rel_time) {
     int lower_idx = (int) (rel_time / dt_);
     int upper_idx = lower_idx + 1;
     double alpha = (rel_time - lower_idx * dt_) / dt_;
 
-    control_array interpolated_control;
-
-    state_array desired_state;
-    desired_state = (1 - alpha)*getStateSeq().col(lower_idx) + alpha*getStateSeq().col(upper_idx);
-
-    control_array u_fb = ((1-alpha)*getFeedbackGains()[lower_idx]
-            + alpha*getFeedbackGains()[upper_idx])*(state - desired_state);
+    control_array u_fb = ((1-alpha)*gain_traj[lower_idx]
+            + alpha*gain_traj[upper_idx])*(state - target_nominal_state);
 
     return u_fb;
   }
@@ -242,6 +277,39 @@ public:
       return feedback_gain_trajectory();
     }
   };
+
+  // Indicator for algorithm health, should be between 0.01 and 0.1 anecdotally
+  float getNormalizerPercent() {return this->normalizer_/(float)NUM_ROLLOUTS;}
+
+  /**
+ * Computes the actual trajectory given the MPPI optimal control and the
+ * feedback gains computed by DDP. If feedback is not enabled, then we return
+ * zero since this function would not make sense.
+ */
+  virtual void computeFeedbackPropagatedStateSeq() {
+    if (!enable_feedback_) {
+      return;
+    }
+    // Compute the nominal trajectory
+    propagated_feedback_state_trajectory_.col(0) = getAncillaryStateSeq().col(0); // State that we optimized from
+    state_array xdot;
+    state_array current_state;
+    control_array current_control;
+    for (int i =0; i < num_timesteps_ - 1; ++i) {
+      current_state = propagated_feedback_state_trajectory_.col(i);
+      // MPPI control apply feedback at the given timestep against the nominal trajectory at that timestep
+      current_control = getControlSeq().col(i) + getFeedbackGains()[i]*(current_state - getStateSeq().col(i));
+      model_->computeStateDeriv(current_state, current_control, xdot);
+      model_->updateState(current_state, xdot, dt_);
+      propagated_feedback_state_trajectory_.col(i+1) = current_state;
+    }
+  }
+
+  /**
+   *
+   * @return State trajectory from optimized state with MPPI control and computed feedback gains
+   */
+  state_trajectory getFeedbackPropagatedStateSeq() {return propagated_feedback_state_trajectory_;};
 
   control_array getControlStdDev() { return control_std_dev_;};
 
@@ -321,6 +389,9 @@ public:
     for (int i = 0; i < num_timesteps_; ++i) {
       int ind = std::min(i + steps, num_timesteps_ - 1);
       u.col(i) = u.col(ind);
+      if (i + steps > num_timesteps_ - 1) {
+        u.col(i) = control_array::Zero();
+      }
     }
   }
 
@@ -397,9 +468,18 @@ public:
   std::vector<control_trajectory> getSampledControlSeq() {return sampled_controls_;}
 
   /**
-   * Return the most recent free energy calculation
+   * Return the most recent free energy calculation for the mean
    */
-  float getFreeEnergy() {return free_energy_;}
+   MPPIFreeEnergyStatistics getFreeEnergyStatistics() {return free_energy_statistics_;}
+
+  std::vector<float> getSampledNoise() {
+    std::vector<float> vector = std::vector<float>(NUM_ROLLOUTS*num_timesteps_*DYN_T::CONTROL_DIM, FLT_MIN);
+
+    HANDLE_ERROR(cudaMemcpyAsync(vector.data(), control_noise_d_, sizeof(float)*NUM_ROLLOUTS*num_timesteps_*DYN_T::CONTROL_DIM,
+                                 cudaMemcpyDeviceToHost, stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(stream_));
+    return vector;
+  }
 
   /**
    * Public data members
@@ -422,8 +502,7 @@ protected:
   bool debug_ = false;
 
   // Free energy variables
-  float free_energy_ = 0;
-  float free_energy_var_ = 0;
+  MPPIFreeEnergyStatistics free_energy_statistics_;
 
   int num_iters_;  // Number of optimization iterations
   float dt_;
@@ -452,6 +531,9 @@ protected:
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
   std::vector<control_trajectory> sampled_controls_; // Sampled control trajectories from rollout kernel
+
+  // Propagated real state trajectory
+  state_trajectory propagated_feedback_state_trajectory_ = state_trajectory::Zero();
 
   // tracking controller variables
   StateCostWeight Q_;

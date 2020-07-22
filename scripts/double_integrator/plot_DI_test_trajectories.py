@@ -44,8 +44,8 @@ def main(args):
     plot_trajectories(axs[0,0], 'Vanilla MPPI Nominal Disturbance', vanilla_nominal)
 
     # Vanilla MPPI with large noise
-    vanilla_large = np.load(data_dir + 'vanilla_large.npy')
-    plot_trajectories(axs[0,1], 'Vanilla MPPI Large Disturbance', vanilla_large)
+    vanilla_large = np.load(data_dir + 'vanilla_large_track_feedback.npy')
+    plot_trajectories(axs[0,1], 'Vanilla MPPI Tracking Large Disturbance', vanilla_large)
 
     # Vanilla MPPI with large noise + a tracking controller
     # vanilla_large_track = np.load(data_dir + 'vanilla_large_track.npy')
@@ -61,8 +61,8 @@ def main(args):
     #
     # for ax in axs2.flat:
     #     ax.set(xlabel='X Position (m)', ylabel='Y Position (m)')
-    robust_large = np.load(data_dir + 'robust_large_nominal.npy')
-    plot_trajectories(axs[1,1], 'Robust MPPI Nominal', robust_large)
+    robust_large = np.load(data_dir + 'robust_large_actual.npy')
+    plot_trajectories(axs[1,1], 'Robust MPPI Actual', robust_large)
 
     # robust_large = np.load(data_dir + 'robust_large_actual.npy')
     # plot_trajectories(axs2[0,1], 'Robust MPPI Actual', robust_large)

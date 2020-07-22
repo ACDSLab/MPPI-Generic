@@ -17,12 +17,13 @@ public:
   MOCK_METHOD0(resetControls, void());
   MOCK_METHOD(void, computeFeedbackGains, (const Eigen::Ref<const state_array>& state), (override));
   MOCK_METHOD1(slideControlSequence, void(int stride));
-  MOCK_METHOD2(getCurrentControl, control_array(state_array&, double));
-  MOCK_METHOD1(computeControl, void(const Eigen::Ref<const state_array>& state));
+  MOCK_METHOD5(getCurrentControl, control_array(state_array&, double, state_array, control_trajectory, feedback_gain_trajectory));
+  MOCK_METHOD2(computeControl, void(const Eigen::Ref<const state_array>& state, int optimization_stride));
   MOCK_METHOD0(getControlSeq, control_trajectory());
   MOCK_METHOD0(getStateSeq, state_trajectory());
   MOCK_METHOD0(getFeedbackGains, feedback_gain_trajectory());
   MOCK_METHOD1(updateImportanceSampler, void(const Eigen::Ref<const control_trajectory>& nominal_control));
   MOCK_METHOD0(allocateCUDAMemory, void());
+  MOCK_METHOD0(computeFeedbackPropagatedStateSeq, void());
 };
 #endif //MPPIGENERIC_MOCK_CONTROLLER_H

@@ -19,10 +19,11 @@ y_track_outer = track_radius_outer*np.sin(theta)
 cur_timestep = 0
 nominal = None
 actual = None
+feedback = None
 axs = None
 
 def callback(event):
-    global actual, acillary, nominal
+    global actual, acillary, nominal, feedback
     global axs
 
     ''' this function gets called if we hit a key'''
@@ -46,14 +47,18 @@ def callback(event):
     axs.plot(actual[cur_timestep,:,0], actual[cur_timestep,:,1], 'b', linewidth=2.0, label='actual trajectory')
     axs.plot(actual[min_index:cur_timestep,0,0], actual[min_index:cur_timestep,0,1], 'bx', label='actual state')
 
-    axs.plot(ancillary[cur_timestep,:,0], ancillary[cur_timestep,:,1], 'k', linewidth=2.0, label='ancillary trajectory')
+    # plot actual state with feedback
+    axs.plot(feedback[cur_timestep,:,0], feedback[cur_timestep,:,1], 'c', linewidth=2.0, label='actual feedback trajectory')
+
+    # plot ancillary trajectory
+    # axs.plot(ancillary[cur_timestep,:,0], ancillary[cur_timestep,:,1], 'k', linewidth=2.0, label='ancillary trajectory')
 
     # plt nominal state
     axs.plot(nominal[cur_timestep,:,0], nominal[cur_timestep,:,1], 'g', linewidth=2.0, label='nominal trajectory')
     axs.plot(nominal[min_index:cur_timestep,0,0], nominal[min_index:cur_timestep,0,1], 'g+', label='nominal state')
 
     # fix legend
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
+    plt.legend(bbox_to_anchor=(.80, 1.15), loc='upper left', borderaxespad=0.)
 
 def plot_trajectories(axis, axis_name, trajectory_array):
     axis.set_title(axis_name)
@@ -90,15 +95,17 @@ def main(args):
 
 
     # Tube MPPI with large noise
-    global actual, ancillary, nominal
+    global actual, ancillary, nominal, feedback
     if controller_flag == '0':  # 0 for tube, 1 for robust
         actual = np.load(data_dir + 'tube_large_actual.npy')
         nominal = np.load(data_dir + 'tube_large_nominal.npy')
         ancillary = np.load(data_dir + 'tube_ancillary.npy')
+        feedback = np.load(data_dir + 'tube_large_feedback.npy')
     elif controller_flag == '1':
         actual = np.load(data_dir + 'robust_large_actual.npy')
         nominal = np.load(data_dir + 'robust_large_nominal.npy')
         ancillary = np.load(data_dir + 'robust_ancillary.npy')
+        feedback = np.load(data_dir + 'robust_large_feedback.npy')
     else:
         pass
     plot_boundaries(axs)
@@ -109,7 +116,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Say hello')
     parser.add_argument('--build_dir', help='Location of MPPI-Generic build folder', required=True)
-    parser.add_argument('--controller', help='0: Tube MPPI, 1: Robust MPPI')
+    parser.add_argument('--controller', help='0: Tube MPPI, 1: Robust MPPI', required=True)
     args = vars(parser.parse_args())
 
     main(args)

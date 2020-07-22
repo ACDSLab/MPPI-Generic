@@ -5,7 +5,8 @@ add_executable(${ROLLOUT_TARGET_NAME} ../test_main.cpp rollout_kernel_tests.cu)
 target_link_libraries(${ROLLOUT_TARGET_NAME} gtest
         gmock
         gtest_main
-        curand)
+        curand
+        cnpy)
 
 gtest_discover_tests(${ROLLOUT_TARGET_NAME})
 set_target_properties(${ROLLOUT_TARGET_NAME} PROPERTIES FOLDER test)

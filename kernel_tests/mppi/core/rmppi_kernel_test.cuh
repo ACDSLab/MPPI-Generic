@@ -13,6 +13,7 @@ template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
+                                 int optimization_stride,
                                  float lambda,
                                  float alpha,
                                  float value_func_threshold,
@@ -30,6 +31,7 @@ template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelCPU(DYN_T* dynamics, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
+                                 int optimization_stride,
                                  float lambda,
                                  float alpha,
                                  float value_func_threshold,
@@ -41,6 +43,18 @@ void launchRMPPIRolloutKernelCPU(DYN_T* dynamics, COST_T* costs,
                                  const std::vector<float>& sampled_noise,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom);
+
+template<class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
+                                       std::array<float, DYNAMICS_T::STATE_DIM> state_array,
+                                       std::array<float, DYNAMICS_T::STATE_DIM> state_array_nominal,
+                                       std::vector<float> feedback_gain_vector,
+                                       std::array<float, NUM_TIMESTEPS*DYNAMICS_T::CONTROL_DIM> control_array,
+                                       std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM> control_noise_array,
+                                       std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u,
+                                       std::array<float, 2*NUM_ROLLOUTS>& rmppi_costs_out,
+                                       std::array<float, NUM_ROLLOUTS>& mppi_costs_out,
+                                       int opt_delay, cudaStream_t stream);
 
 #if __CUDACC__
 #include "rmppi_kernel_test.cu"

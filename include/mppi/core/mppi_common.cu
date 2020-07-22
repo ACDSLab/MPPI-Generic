@@ -12,6 +12,7 @@ namespace mppi_common {
   __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs,
                                float dt,
                                int num_timesteps,
+                               int optimization_stride,
                                float lambda,
                                float alpha,
                                float* x_d,
@@ -32,6 +33,7 @@ namespace mppi_common {
     __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
     __shared__ float sigma_u[DYN_T::CONTROL_DIM];
+    __shared__ int crash_status_shared[BLOCKSIZE_X*BLOCKSIZE_Z];
 
     // Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
@@ -41,6 +43,7 @@ namespace mppi_common {
     float* xdot;
     float* u;
     float* du;
+    int* crash_status;
 
     //Initialize running cost and total cost
     float running_cost = 0;
@@ -50,6 +53,9 @@ namespace mppi_common {
       xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
       u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
       du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+      crash_status = &crash_status_shared[thread_idz*blockDim.x + thread_idx];
+      crash_status[0] = 0; // We have not crashed yet as of the first trajectory.
+
     }
     //__syncthreads();
     loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
@@ -62,19 +68,29 @@ namespace mppi_common {
       for (int t = 0; t < num_timesteps; t++) {
         //Load noise trajectories scaled by the exploration factor
         injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
-                           t, global_idx, thread_idy, u_d, du_d, sigma_u, u, du);
+                           t, global_idx, thread_idy, optimization_stride, u_d, du_d, sigma_u, u, du);
         // du_d is now v
         __syncthreads();
 
         // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
         // usually just control clamping
         // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
-        dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]);
+        // dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]); // TODO verify that this is wrong in theory
         dynamics->enforceConstraints(x, u);
         __syncthreads();
 
         //Accumulate running cost
-        running_cost += costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t)*dt;
+        if (thread_idy == 0 && t > 0) {
+          running_cost +=
+                  (costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha,
+                                             t, crash_status) - running_cost) /
+                  (1.0 * t );
+        }
+
+//        if (global_idx == 29 && thread_idy == 0 && thread_idz == 0 && t > 0) {
+//          printf("MPPI Current state real: [%f, %f, %f, %f]\n", x[0], x[1], x[2], x[3]);
+//          printf("MPPI Current state cost real: [%f]\n", running_cost);
+//        }
         //__syncthreads();
 
         //Compute state derivatives
@@ -174,12 +190,15 @@ namespace mppi_common {
       }
     }
 
+  // TODO generalize the trim control
+  // The zero control trajectory should be an equilbrium control defined in the dynamics.
     __device__ void injectControlNoise(int control_dim,
                                        int blocksize_y, int num_rollouts,
                                        int num_timesteps,
                                        int current_timestep,
                                        int global_idx,
                                        int thread_idy,
+                                       int optimization_stride,
                                        const float* u_traj_device,
                                        float* ep_v_device,
                                        const float* sigma_u_thread,
@@ -193,7 +212,7 @@ namespace mppi_common {
 
       for (int i = thread_idy; i < control_dim; i += blocksize_y) {
           //Keep one noise free trajectory
-          if (global_idx == 0){
+          if (global_idx == 0 || current_timestep < optimization_stride) {
               du_thread[i] = 0;
               u_thread[i] = u_traj_device[current_timestep * control_dim + i];
           }
@@ -243,6 +262,7 @@ namespace mppi_common {
     }
 
     void computeFreeEnergy(float& free_energy, float& free_energy_var,
+                           float& free_energy_modified,
                            float* cost_rollouts_host,  int num_rollouts,
                            float baseline, float lambda) {
       float var = 0;
@@ -252,11 +272,11 @@ namespace mppi_common {
         var += powf(cost_rollouts_host[i], 2);
       }
       norm /= num_rollouts;
-      free_energy = lambda * logf(norm) + baseline;
+      free_energy = -lambda * logf(norm) + baseline;
       free_energy_var = lambda * (var / num_rollouts - powf(norm, 2));
       // TODO Figure out the point of the following lines
-      // float weird_term = free_energy_var / (mean * sqrtf(1.0 * num_rollouts));
-      // free_energy_var = lambda * (weird_term + 0.5 * powf(weird_term, 2));
+       float weird_term = free_energy_var / (norm * sqrtf(1.0 * num_rollouts));
+       free_energy_modified = lambda * (weird_term + 0.5 * powf(weird_term, 2));
     }
 
     /*******************************************************************************************************************
@@ -317,7 +337,7 @@ namespace mppi_common {
     template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
              int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
     void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
-                             int num_timesteps, float lambda, float alpha,
+                             int num_timesteps, int optimization_stride, float lambda, float alpha,
                              float* x_d, float* u_d,
                              float* du_d, float* sigma_u_d,
                              float* trajectory_costs, cudaStream_t stream) {
@@ -325,15 +345,15 @@ namespace mppi_common {
       dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
       dim3 dimGrid(gridsize_x, 1, 1);
       rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt,
-              num_timesteps, lambda, alpha, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
+              num_timesteps, optimization_stride, lambda, alpha, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
       CudaCheckError();
       HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
-    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda, float baseline, cudaStream_t stream) {
+    void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda_inv, float baseline, cudaStream_t stream) {
         dim3 dimBlock(blocksize_x, 1, 1);
         dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
-        normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, 1.0/lambda, baseline);
+        normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, lambda_inv, baseline);
         CudaCheckError();
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
@@ -375,6 +395,7 @@ namespace rmppi_kernels {
     float* state_der;
     float* control;
     float* control_noise;  // du
+    int* crash_status;
 
     //Create shared arrays for holding state and control data.
     __shared__ float state_shared[BLOCKSIZE_X*DYN_T::STATE_DIM];
@@ -382,9 +403,11 @@ namespace rmppi_kernels {
     __shared__ float control_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
     __shared__ float control_noise_shared[BLOCKSIZE_X*DYN_T::CONTROL_DIM];
     __shared__ float exploration_std_dev[DYN_T::CONTROL_DIM]; // Each thread only reads
+    __shared__ int crash_status_shared[BLOCKSIZE_X];
 
     //Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+
 
 
     float running_cost = 0;  //Initialize trajectory cost
@@ -398,6 +421,8 @@ namespace rmppi_kernels {
     state_der = &state_der_shared[tdx*DYN_T::STATE_DIM];
     control = &control_shared[tdx*DYN_T::CONTROL_DIM];
     control_noise = &control_noise_shared[tdx*DYN_T::CONTROL_DIM];
+    crash_status = &crash_status_shared[tdx];
+    crash_status[0] = 0; // We have not crashed yet as of the first trajectory.
 
     // Copy the state to the thread
     for (i = tdy; i < DYN_T::STATE_DIM; i+= blockDim.y) {
@@ -442,7 +467,7 @@ namespace rmppi_kernels {
       __syncthreads();
       if (tdy == 0 && i > 0) { // Only compute once per global index, make sure that we don't divide by zero
         running_cost +=
-                (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, lambda, alpha, i) * dt - running_cost) / (1.0 * i);
+                (costs->computeRunningCost(state, control, control_noise, exploration_std_dev, lambda, alpha, i, crash_status) - running_cost) / (1.0 * i);
       }
       __syncthreads();
 
@@ -482,7 +507,7 @@ namespace rmppi_kernels {
     dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
     dim3 dimGrid(GRIDSIZE_X, 1, 1);
     initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
-      <<<dimGrid, dimBlock, 0>>>(dynamics, costs,
+      <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs,
       num_timesteps, lambda, alpha, ctrl_stride, dt, strides_d,
       exploration_std_dev_d, states_d, control_d, control_noise_d, costs_d);
 
@@ -494,6 +519,7 @@ namespace rmppi_kernels {
   __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
                                      float dt,
                                      int num_timesteps,
+                                     int optimization_stride,
                                      float lambda,
                                      float alpha,
                                      float value_func_threshold,
@@ -519,6 +545,7 @@ namespace rmppi_kernels {
     // Create a shared array for the nominal costs calculations
     __shared__ float running_state_cost_nom_shared[BLOCKSIZE_X];
     __shared__ float running_control_cost_nom_shared[BLOCKSIZE_X];
+    __shared__ int crash_status_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
 
     // Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
@@ -530,6 +557,7 @@ namespace rmppi_kernels {
     float* u;
     float* du;
     float* fb_gain;
+    int* crash_status;
     // The array to hold K(x,x*)
     float fb_control[DYN_T::CONTROL_DIM];
 
@@ -543,6 +571,7 @@ namespace rmppi_kernels {
     float* running_state_cost_nom;
     float running_tracking_cost_real = 0;
     float* running_control_cost_nom;
+
 
     // Load global array into shared memory
     if (global_idx < NUM_ROLLOUTS) {
@@ -558,6 +587,8 @@ namespace rmppi_kernels {
       // Nominal State Cost
       running_state_cost_nom = &running_state_cost_nom_shared[thread_idx];
       running_control_cost_nom = &running_control_cost_nom_shared[thread_idx];
+      crash_status = &crash_status_shared[thread_idz*blockDim.x + thread_idx];
+      crash_status[0] = 0; // We have not crashed yet as of the first trajectory.
 
       // Load memory into appropriate arrays
       mppi_common::loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS,
@@ -566,11 +597,12 @@ namespace rmppi_kernels {
       __syncthreads();
       *running_state_cost_nom = 0;
       *running_control_cost_nom = 0;
+      float curr_state_cost = 0.0;
       for (t = 0; t < num_timesteps; t++) {
         mppi_common::injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y,
-                                        NUM_ROLLOUTS, num_timesteps,
-                                        t, global_idx, thread_idy, u_d, du_d,
-                                        sigma_u, u, du);
+                                        NUM_ROLLOUTS, num_timesteps, t,
+                                        global_idx, thread_idy, optimization_stride,
+                                        u_d, du_d, sigma_u, u, du);
         __syncthreads();
 
         // Now find feedback control
@@ -596,36 +628,41 @@ namespace rmppi_kernels {
         for (i = thread_idy; i < DYN_T::CONTROL_DIM; i+= BLOCKSIZE_Y) {
           u[i] += fb_control[i];
           // Make sure feedback is added to the modified control noise pointer
-          du_d[control_index + i] += fb_control[i];
+          // du_d[control_index + i] += fb_control[i];
         }
 
         __syncthreads();
         // Clamp the control in both the importance sampling sequence and the disturbed sequence.
-        dynamics->enforceConstraints(x, du);
+//        dynamics->enforceConstraints(x, du); // TODO unnecessary
         dynamics->enforceConstraints(x, u);
 
         __syncthreads();
         // Calculate All the costs
-        float curr_state_cost = costs->computeStateCost(x, t)*dt;
+        if (t > 0) {
+          curr_state_cost = costs->computeStateCost(x, t, crash_status);
+        }
 
         // Nominal system is where thread_idz == 1
-        if (thread_idz == 1 && thread_idy == 0) {
+        if (thread_idz == 1 && thread_idy == 0 && t > 0) {
           // This memory is shared in the y direction so limit which threads can write to it
           *running_state_cost_nom += curr_state_cost;
           *running_control_cost_nom += costs->computeLikelihoodRatioCost(u,
-              du, sigma_u, lambda, alpha)*dt;
-
+              du, sigma_u, lambda, alpha);
         }
         // Real system cost update when thread_idz == 0
-        if (thread_idz == 0) {
+        if (thread_idz == 0 && t > 0) {
           running_state_cost_real += curr_state_cost;
           running_control_cost_real +=
-            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda, alpha)*dt;
+            costs->computeLikelihoodRatioCost(u, du, sigma_u, lambda, alpha);
 
           running_tracking_cost_real += (curr_state_cost +
-            costs->computeFeedbackCost(fb_control, sigma_u, lambda, alpha)*dt);
-
+            costs->computeFeedbackCost(fb_control, sigma_u, lambda, alpha));
         }
+
+//        if (global_idx == 29 && thread_idy == 0 && thread_idz == 0 && t > 0) {
+//          printf("RMPPI Current state real: [%f, %f, %f, %f]\n", x[0], x[1], x[2], x[3]);
+//          printf("RMPPI Current state cost real: [%f]\n", (running_state_cost_real+running_control_cost_real)/t);
+//        }
         __syncthreads();
         // dynamics update
         dynamics->computeStateDeriv(x, u, xdot, theta_s);
@@ -633,9 +670,22 @@ namespace rmppi_kernels {
         dynamics->updateState(x, xdot, dt);
         __syncthreads();
       }
+
+      // Compute average cost per timestep
+      if (thread_idz == 1 && thread_idy == 0)  {
+        *running_state_cost_nom /= ((float)num_timesteps-1);
+        *running_control_cost_nom /= ((float)num_timesteps-1);
+      }
+
+      if (thread_idz == 0) {
+        running_state_cost_real /= ((float)num_timesteps-1);
+        running_tracking_cost_real /= ((float)num_timesteps-1);
+        running_control_cost_real /= ((float)num_timesteps-1);
+      }
+
       // calculate terminal costs
       if (thread_idz == 1 && thread_idy == 0) { //Thread y required to prevent double addition
-        *running_control_cost_nom += costs->terminalCost(x);
+        *running_state_cost_nom += costs->terminalCost(x);
       }
 
       if (thread_idz == 0) {
@@ -670,6 +720,7 @@ namespace rmppi_kernels {
   void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
                                 float dt,
                                 int num_timesteps,
+                                int optimization_stride,
                                 float lambda,
                                 float alpha,
                                 float value_func_threshold,
@@ -685,7 +736,7 @@ namespace rmppi_kernels {
     dim3 dimGrid(gridsize_x, 1, 1);
     RMPPIRolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
                       BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
-                        dynamics, costs, dt, num_timesteps, lambda, alpha,
+                        dynamics, costs, dt, num_timesteps, optimization_stride, lambda, alpha,
                         value_func_threshold, x_d, u_d, du_d,
                         feedback_gains_d, sigma_u_d, trajectory_costs);
     CudaCheckError();

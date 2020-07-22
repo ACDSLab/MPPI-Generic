@@ -37,12 +37,12 @@ public:
   /**
    * @brief Compute the state cost
    */
-  __device__ float computeStateCost(float* s);
+  __device__ float computeStateCost(float* s, int timestep=0, int* crash_status=nullptr);
 
   /**
    * @brief Compute the state cost on the CPU
    */
-  float computeStateCost(const Eigen::Ref<const state_array> s);
+  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep=0, int* crash_status=nullptr);
 
 
   /**

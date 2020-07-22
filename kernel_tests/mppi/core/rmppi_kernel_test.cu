@@ -11,6 +11,7 @@ template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
+                                 int optimization_stride,
                                  float lambda,
                                  float alpha,
                                  float value_func_threshold,
@@ -113,7 +114,7 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
   // Launch rollout kernel
   rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
     BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps,
-                    lambda, alpha, value_func_threshold, initial_state_d, control_d,
+                    optimization_stride, lambda, alpha, value_func_threshold, initial_state_d, control_d,
                     control_noise_d, feedback_gains_d, control_std_dev_d,
                     trajectory_costs_d, stream);
 
@@ -141,6 +142,7 @@ template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
                                  float dt,
                                  int num_timesteps,
+                                 int optimization_stride,
                                  float lambda,
                                  float alpha,
                                  float value_func_threshold,
@@ -173,6 +175,8 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
     float state_cost_nom = 0; // S(V, x*_0)
     float running_state_cost_real = 0;
     float running_control_cost_real = 0;
+    int crash_status_nom[1] = {0};
+    int crash_status_act[1] = {0};
 
     int traj_index = traj_i * num_timesteps;
 
@@ -194,7 +198,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       state_array x_dot_t_nom;
       state_array x_dot_t_act;
       control_array u_nom;
-      if (traj_i == 0) {
+      if (traj_i == 0 || t < optimization_stride) {
         eps_t = control_array::Zero();
         u_nom = u_t;
       } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
@@ -208,16 +212,20 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       control_array u_act = u_nom + fb_u_t;
 
       // Cost update
-      control_array zero_u = control_array::Zero();
-      state_cost_nom += costs->computeStateCost(x_t_nom)*dt;
-      float state_cost_act = costs->computeStateCost(x_t_act)*dt;
-      cost_real_w_tracking += state_cost_act +
-                              costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda, alpha)*dt;
+      if (t > 0) {
+        control_array zero_u = control_array::Zero();
+        state_cost_nom += costs->computeStateCost(x_t_nom, t, crash_status_nom);
+        float state_cost_act = costs->computeStateCost(x_t_act, t,
+                                                       crash_status_act);
+        cost_real_w_tracking += state_cost_act +
+                                costs->computeFeedbackCost(fb_u_t, cost_std_dev,
+                                                           lambda, alpha);
 
-      running_state_cost_real += state_cost_act;
-      running_control_cost_real +=
-      costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda, alpha)*dt;
-
+        running_state_cost_real += state_cost_act;
+        running_control_cost_real +=
+                costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t,
+                                                  cost_std_dev, lambda, alpha);
+      }
       model->enforceConstraints(x_t_nom, u_nom);
       model->enforceConstraints(x_t_act, u_act);
 
@@ -229,6 +237,11 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       model->updateState(x_t_nom, x_dot_t_nom, dt);
     }
 
+    // Compute average cost per timestep
+    state_cost_nom /= ((float)num_timesteps-1);
+    cost_real_w_tracking /= ((float)num_timesteps-1);
+    running_state_cost_real /= ((float)num_timesteps-1);
+
     state_cost_nom += costs->terminalCost(x_t_nom);
     cost_real_w_tracking += costs->terminalCost(x_t_act);
     running_state_cost_real += costs->terminalCost(x_t_act);
@@ -237,23 +250,154 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
       std::max(std::min(cost_real_w_tracking, value_func_threshold), state_cost_nom);
     // Figure out control costs for the nominal trajectory
     float cost_nom_control = 0;
-    for (int t = 0; t < num_timesteps - 1; t++) {
+    for (int t = 1; t < num_timesteps; t++) {
       Eigen::Map<const control_array>
           u_nom(nom_control_seq.data() + t * control_dim); // trajectory u at time t
       Eigen::Map<const control_array>
           pure_noise(sampled_noise.data() + (traj_index + t) * control_dim); // Noise at time t
       control_array eps_t = cost_std_dev.cwiseProduct(pure_noise);
       control_array u_t = u_nom;
-      if (traj_i == 0) {
+      if (traj_i == 0 || t < optimization_stride) {
         eps_t = control_array::Zero();
       } else if (traj_i >= 0.99 * NUM_ROLLOUTS) {
         u_t = control_array::Zero();;
       }
-      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda, alpha)*dt;
+      cost_nom_control += costs->computeLikelihoodRatioCost(u_t, eps_t, cost_std_dev, lambda, alpha);
     }
+
+    // Compute average cost per timestep
+    cost_nom_control /= ((float)num_timesteps-1);
+    running_control_cost_real /= ((float)num_timesteps-1);
 
     cost_nom += cost_nom_control;
     trajectory_costs_nom[traj_i] = cost_nom;
     trajectory_costs_act[traj_i] = running_state_cost_real + running_control_cost_real;
   }
 }
+
+template<class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
+                                       std::array<float, DYNAMICS_T::STATE_DIM> state_array,
+                                       std::array<float, DYNAMICS_T::STATE_DIM> state_array_nominal,
+                                       std::vector<float> feedback_gain_vector,
+                                       std::array<float, NUM_TIMESTEPS*DYNAMICS_T::CONTROL_DIM> control_array,
+                                       std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM> control_noise_array,
+                                       std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u,
+                                       std::array<float, 2*NUM_ROLLOUTS>& rmppi_costs_out,
+                                       std::array<float, NUM_ROLLOUTS>& mppi_costs_out,
+                                       int opt_delay, cudaStream_t stream) {
+
+  /*************************** MPPI ******************************************/
+  float* state_d;
+  float* U_d;
+  float* du_d;
+  float* nu_d;
+  float* costs_d;
+
+  // Allocate CUDA memory for the rollout
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*state_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&U_d, sizeof(float)*control_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float)*DYNAMICS_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS));
+  HANDLE_ERROR(cudaMalloc((void**)&nu_d, sizeof(float)*sigma_u.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float)*mppi_costs_out.size()));
+
+  // Copy the initial values
+  HANDLE_ERROR(cudaMemcpyAsync(state_d, state_array.data(),
+                               sizeof(float) * state_array.size(), cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(U_d, control_array.data(),
+                               sizeof(float) * control_array.size(), cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(du_d, control_noise_array.data(),
+                               sizeof(float) * control_noise_array.size(), cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(nu_d, sigma_u.data(),
+                               sizeof(float) * sigma_u.size(), cudaMemcpyHostToDevice, stream));
+
+  const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
+  dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+  dim3 dimGrid(gridsize_x, 1, 1);
+  mppi_common::rolloutKernel<DYNAMICS_T, COSTS_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, 1>
+  <<<dimGrid, dimBlock, 0, stream>>>
+                           (dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS, opt_delay, lambda, alpha, state_d, U_d, du_d, nu_d, costs_d);
+  CudaCheckError();
+
+  // Copy data back
+  HANDLE_ERROR(cudaMemcpyAsync(mppi_costs_out.data(), costs_d,
+                               sizeof(float) * mppi_costs_out.size(), cudaMemcpyDeviceToHost, stream));
+
+  // Deallocate CUDA Memory
+  HANDLE_ERROR(cudaFree(state_d));
+  HANDLE_ERROR(cudaFree(U_d));
+  HANDLE_ERROR(cudaFree(du_d));
+  HANDLE_ERROR(cudaFree(nu_d));
+  HANDLE_ERROR(cudaFree(costs_d));
+
+  /*************************** RMPPI ******************************************/
+
+  float* feedback_gains_d;
+
+  // Allocate CUDA memory for the rollout
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*2*state_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&U_d, sizeof(float)*2*control_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float)*2*DYNAMICS_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS));
+  HANDLE_ERROR(cudaMalloc((void**)&nu_d, sizeof(float)*sigma_u.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float)*rmppi_costs_out.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&feedback_gains_d, sizeof(float)*feedback_gain_vector.size()));
+
+
+  // Copy the initial values
+  HANDLE_ERROR(cudaMemcpyAsync(state_d, state_array.data(),
+                               sizeof(float) * state_array.size(),
+                               cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(state_d + DYNAMICS_T::STATE_DIM, state_array_nominal.data(),
+                               sizeof(float) * DYNAMICS_T::STATE_DIM,
+                               cudaMemcpyHostToDevice, stream));
+
+  HANDLE_ERROR(cudaMemcpyAsync(nu_d, sigma_u.data(),
+                               sizeof(float) * sigma_u.size(),
+                               cudaMemcpyHostToDevice, stream));
+
+  HANDLE_ERROR(cudaMemcpyAsync(U_d, control_array.data(),
+                               sizeof(float) * DYNAMICS_T::CONTROL_DIM * NUM_TIMESTEPS,
+                               cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(U_d + NUM_TIMESTEPS * DYNAMICS_T::CONTROL_DIM,
+                               control_array.data(),
+                               sizeof(float) * DYNAMICS_T::CONTROL_DIM * NUM_TIMESTEPS,
+                               cudaMemcpyHostToDevice, stream));
+
+  HANDLE_ERROR(cudaMemcpyAsync(feedback_gains_d,
+                               feedback_gain_vector.data(),
+                               sizeof(float) * DYNAMICS_T::CONTROL_DIM *
+                                       DYNAMICS_T::STATE_DIM * NUM_TIMESTEPS,
+                               cudaMemcpyHostToDevice, stream));
+
+  HANDLE_ERROR(cudaMemcpyAsync(du_d, control_noise_array.data(),
+                               sizeof(float) * control_noise_array.size(),
+                               cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(du_d + control_noise_array.size(),
+                               control_noise_array.data(),
+                               sizeof(float) * control_noise_array.size(),
+                               cudaMemcpyHostToDevice, stream));
+
+  dimBlock = dim3(BLOCKSIZE_X, BLOCKSIZE_Y, 2);
+  dimGrid = dim3(gridsize_x, 1, 1);
+
+  rmppi_kernels::RMPPIRolloutKernel<DYNAMICS_T, COSTS_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
+          2><<<dimGrid, dimBlock, 0, stream>>>(
+                  dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS,
+                  opt_delay, lambda, alpha,
+                  10, state_d, U_d, du_d,
+                  feedback_gains_d, nu_d, costs_d);
+
+  // Copy data back
+  HANDLE_ERROR(cudaMemcpyAsync(rmppi_costs_out.data(), costs_d,
+                               sizeof(float) * rmppi_costs_out.size(), cudaMemcpyDeviceToHost, stream));
+
+  // Deallocate CUDA Memory
+  HANDLE_ERROR(cudaFree(state_d));
+  HANDLE_ERROR(cudaFree(U_d));
+  HANDLE_ERROR(cudaFree(du_d));
+  HANDLE_ERROR(cudaFree(nu_d));
+  HANDLE_ERROR(cudaFree(costs_d));
+  HANDLE_ERROR(cudaFree(feedback_gains_d));
+}
+
+

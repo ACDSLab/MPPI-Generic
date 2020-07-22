@@ -51,11 +51,15 @@ public:
    */
   ARStandardCostImpl(cudaStream_t stream=0);
 
+  std::string getCostFunctionName() {
+    return "AutoRally standard cost function";
+  }
+
   /**
    * Deallocates the allocated cuda memory for an object
    * TODO make a generic version of this
    */
-  void freeCudaMem();
+  // void freeCudaMem();
 
   inline __host__ __device__ int getHeight() const {return height_;}
   inline __host__ __device__ int getWidth() const {return width_;}
@@ -172,7 +176,7 @@ public:
   /**
    * @brief Compute some cost terms that help stabilize the car.
    */
-  __host__ __device__ float getStabilizingCost(float* s);
+  __host__ __device__ float getStabilizingCost(float* s, int* crash);
 
   /**
    * @brief Compute the current track cost based on the costmap.
@@ -183,9 +187,9 @@ public:
   /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
-  inline __device__ float computeStateCost(float* s, int timestep = 0);
+  inline __device__ float computeStateCost(float* s, int timestep, int* crash_status);
   inline __device__ float computeRunningCost(float* s, float* u, float *noise, float* std_dev, float lambda, float alpha,
-                                      int timestep);
+                                      int timestep, int* crash_status);
 
   /**
    * @brief Computes the terminal cost from a state

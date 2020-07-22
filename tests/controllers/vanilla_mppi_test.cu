@@ -99,7 +99,7 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
     }
 
     // Compute the control
-    controller.computeControl(current_state);
+    controller.computeControl(current_state, 1);
 
     CartpoleDynamics::control_array control;
     control = controller.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
@@ -136,8 +136,8 @@ public:
   using DYN = QuadrotorDynamics;
   using COST = QuadrotorQuadraticCost;
 
-  const int num_timesteps = 150;
-  typedef VanillaMPPIController<DYN, COST, 150, 2048, 64, 8> CONTROLLER;
+  static const int num_timesteps = 150;
+  typedef VanillaMPPIController<DYN, COST, num_timesteps, 2048, 64, 8> CONTROLLER;
   DYN model;
   QuadrotorQuadraticCost cost;
 };
@@ -145,7 +145,8 @@ public:
 TEST_F(Quadrotor_VanillaMPPI, HoverTest) {
   QuadrotorQuadraticCostParams new_params;
   new_params.x_goal()[2] = 1;
-  new_params.x_coeff = 150;
+  new_params.x_coeff = 400;
+  new_params.v_coeff = 150;
   // new_params.q_coeff = 15;
   new_params.roll_coeff = 15;
   new_params.pitch_coeff = 15;
@@ -159,16 +160,16 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest) {
 
   float dt = 0.01;
   int max_iter = 1;
-  float lambda = 0.25;
-  float alpha = 0.01;
+  float lambda = 4.0;
+  float alpha = 0.9;
 
   DYN::control_array control_std_dev = DYN::control_array::Constant(0.5);
-  control_std_dev[3] = 5;
+  control_std_dev[3] = 2;
 
   CONTROLLER::control_trajectory init_control = CONTROLLER::control_trajectory::Zero();
-  for(int i = 0; i < num_timesteps; i++) {
-    init_control(4, i) = mppi_math::GRAVITY;
-  }
+//  for(int i = 0; i < num_timesteps; i++) {
+//    init_control(3, i) = mppi_math::GRAVITY;
+//  }
 
   auto controller = CONTROLLER(&model,
                                &cost,
@@ -212,7 +213,7 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest) {
     }
 
     // Compute the control
-    controller.computeControl(current_state);
+    controller.computeControl(current_state, 1);
 
     control = controller.getControlSeq().block(0, 0, DYN::CONTROL_DIM, 1);
     // Increment the state

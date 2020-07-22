@@ -151,7 +151,7 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
                                                                                                      dt, max_iter, lambda, alpha, control_var);
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
   // Compute the control
-  controller.computeControl(current_state);
+  controller.computeControl(current_state, 0);
   auto nominal_state = controller.getStateSeq();
   auto nominal_control = controller.getControlSeq();
 //  std::cout << nominal_state << std::endl;

@@ -142,8 +142,9 @@ TEST(CartpoleQuadraticCost, ComputeRunningCost) {
     int timestep = 0;
     float lambda = 1.0;
     float alpha = 0.0;
+    int crash_status[1] = {0};
 
-    float cost_compute = cost.computeRunningCost(state, control, noise, std_dev, lambda, alpha, timestep);
+    float cost_compute = cost.computeRunningCost(state, control, noise, std_dev, lambda, alpha, timestep, crash_status);
     float cost_known = (state[0]-cost.getParams().desired_terminal_state[0])*(state(0)-cost.getParams().desired_terminal_state[0])*cost.getParams().cart_position_coeff +
                        (state[1]-cost.getParams().desired_terminal_state[1])*(state(1)-cost.getParams().desired_terminal_state[1])*cost.getParams().cart_velocity_coeff +
                        (state[2]-cost.getParams().desired_terminal_state[2])*(state(2)-cost.getParams().desired_terminal_state[2])*cost.getParams().pole_angle_coeff +
