@@ -34,7 +34,7 @@ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(
   cost += computeStabilizingCost(s.data());
 
   // Decrease cost if we pass a gate
-  float dist_to_gate = distToWaypoint(s.data(), this->params_.waypoint);
+  float dist_to_gate = distToWaypoint(s.data(), this->params_.curr_waypoint);
 
   if (dist_to_gate < this->params_.gate_margin) {
     cost += this->params_.gate_pass_cost;
@@ -54,7 +54,7 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(
   cost += computeStabilizingCost(s);
 
   // Decrease cost if we pass a gate
-  float dist_to_gate = distToWaypoint(s, this->params_.waypoint);
+  float dist_to_gate = distToWaypoint(s, this->params_.curr_waypoint);
 
   if (dist_to_gate < this->params_.gate_margin) {
     cost += this->params_.gate_pass_cost;
@@ -64,12 +64,82 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(
 
 template <class CLASS_T, class PARAMS_T>
 __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::distToWaypoint(float* s,
-    float3 waypoint) {
+    float4 waypoint) {
   float dist = sqrt(powf(s[0] - waypoint.x, 2) +
                     powf(s[1] - waypoint.y, 2) +
                     powf(s[2] - waypoint.z, 2));
 
   return dist;
+}
+
+template <class CLASS_T, class PARAMS_T>
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateWaypoint(float4 new_waypoint) {
+  if (this->params_.curr_waypoint != new_waypoint) {
+    this->params_.prev_waypoint = this->params_.curr_waypoint;
+    this->params_.curr_waypoint = new_waypoint;
+
+    paramsToDevice();
+  }
+}
+
+template <class CLASS_T, class PARAMS_T>
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateWaypoint(float x, float y,
+                                                             float z,
+                                                             float heading) {
+  float4 new_waypoint;
+  new_waypoint.x = x;
+  new_waypoint.y = y;
+  new_waypoint.z = z;
+  new_waypoint.w = heading;
+  updateWaypoint(new_waypoint);
+}
+
+template <class CLASS_T, class PARAMS_T>
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateGateBoundaries(float3 left_side,
+                                                                   float3 right_side) {
+  if (this->params_.curr_gate_left != left_side ||
+      this->params_.curr_gate_right != right_side) {
+    this->params_.prev_gate_left = this->params_.curr_gate_left;
+    this->params_.prev_gate_right = this->params_.curr_gate_right;
+    this->params_.prev_gate_left = left_side;
+    this->params_.prev_gate_right = right_side;
+    paramsToDevice();
+  }
+}
+
+template <class CLASS_T, class PARAMS_T>
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateGateBoundaries(
+    std::vector<float> boundaries) {
+  if (boundaries.size() < 6) {
+    std::cerr << "You need " << 6 - boundaries.size() << " more floats in the"
+              << " call to updateGateBoundaries" << std::endl;
+    return;
+  }
+  float3 left_side, right_side;
+  left_side.x = boundaries[0];
+  left_side.y = boundaries[1];
+  left_side.z = boundaries[2];
+  right_side.x = boundaries[3];
+  right_side.y = boundaries[4];
+  right_side.z = boundaries[5];
+  updateGateBoundaries(left_side, right_side);
+}
+
+template <class CLASS_T, class PARAMS_T>
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateGateBoundaries(float left_x,
+                                                                   float left_y,
+                                                                   float left_z,
+                                                                   float right_x,
+                                                                   float right_y,
+                                                                   float right_z) {
+  float3 left_side, right_side;
+  left_side.x = left_x;
+  left_side.y = left_y;
+  left_side.z = left_z;
+  right_side.x = right_x;
+  right_side.y = right_y;
+  right_side.z = right_z;
+  updateGateBoundaries(left_side, right_side);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -92,12 +162,12 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeadin
   mppi_math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
 
   // Calculate heading to gate
-  float wx = this->params_.waypoint.x - s[0];
-  float wy = this->params_.waypoint.y - s[1];
+  float wx = this->params_.curr_waypoint.x - s[0];
+  float wy = this->params_.curr_waypoint.y - s[1];
   float w_heading = atan2f(wy, wx);
 
 
-  float dist_to_gate = distToWaypoint(s, this->params_.waypoint);
+  float dist_to_gate = distToWaypoint(s, this->params_.curr_waypoint);
   // Far away from the gate, we want to be pointing at the gate
   if (dist_to_gate > this->params_.gate_margin) {
     cost += this->params_.heading_coeff * powf(yaw - w_heading, 2);
@@ -143,14 +213,14 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
 
   // Calculate height cost
   float cost = 0;
-  float d1 = sqrtf(powf(s[0] - this->params_.last_waypoint.x, 2) +
-	                 powf(s[1] - this->params_.last_waypoint.y, 2));
-  float d2 = sqrtf(powf(s[0] - this->params_.waypoint.x, 2) +
-	                 powf(s[1] - this->params_.waypoint.y, 2));
+  float d1 = sqrtf(powf(s[0] - this->params_.prev_waypoint.x, 2) +
+	                 powf(s[1] - this->params_.prev_waypoint.y, 2));
+  float d2 = sqrtf(powf(s[0] - this->params_.curr_waypoint.x, 2) +
+	                 powf(s[1] - this->params_.curr_waypoint.y, 2));
   float w1 = d1 / (d1 + d2);
   float w2 = d2 / (d1 + d2);
-  float interpolated_height = (1.0 - w1) * this->params_.last_waypoint.z +
-                              (1.0 - w2) * this->params_.waypoint.z;
+  float interpolated_height = (1.0 - w1) * this->params_.prev_waypoint.z +
+                              (1.0 - w2) * this->params_.curr_waypoint.z;
   float height_diff = fabs(s[2] - interpolated_height);
   cost += this->params_.height_coeff * height_diff;
   return cost;

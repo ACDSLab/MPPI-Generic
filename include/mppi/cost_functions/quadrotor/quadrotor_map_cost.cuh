@@ -23,8 +23,8 @@ struct QuadrotorMapCostParams : public CostParams<4> {
   float track_slop = 0.0;
   float gate_pass_cost = -150;
 
-  float3 waypoint;
-  float3 last_waypoint;
+  float4 curr_waypoint;
+  float4 prev_waypoint;
   float3 curr_gate_left;
   float3 curr_gate_right;
   float3 prev_gate_left;
@@ -81,7 +81,15 @@ public:
 
   __host__ __device__ float computeStabilizingCost(float* s);
 
-  __host__ __device__ float distToWaypoint(float* s, float3 waypoint);
+  __host__ __device__ float distToWaypoint(float* s, float4 waypoint);
+
+  void updateWaypoint(float4 new_waypoint);
+  void updateWaypoint(float x, float y, float z, float heading = 0);
+
+  void updateGateBoundaries(float3 left_side, float3 right_side);
+  void updateGateBoundaries(std::vector<float> boundaries);
+  void updateGateBoundaries(float left_x, float left_y, float left_z,
+                            float right_x, float right_y, float right_z);
 
   /** =================== Cost Map Related Functions ================== **/
   __device__ float computeCostmapCost(float* s);
