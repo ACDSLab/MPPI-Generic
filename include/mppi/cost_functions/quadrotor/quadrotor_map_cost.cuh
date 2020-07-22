@@ -19,9 +19,18 @@ struct QuadrotorMapCostParams : public CostParams<4> {
 template <class CLASS_T, class PARAMS_T = QuadrotorMapCostParams>
 class QuadrotorMapCostImpl : public Cost<CLASS_T, PARAMS_T, 13, 4> {
 public:
-  QuadrotorMapCostImpl(cudaStream_t stream = 0) {
-    // do stuff
-  }
+  QuadrotorMapCostImpl(cudaStream_t stream = 0);
+
+  std::string getCostFunctionName() {return "Quadrotor Map Cost";}
+
+  float computeStateCost(const Eigen::ref<const state_array> s, int timestep,
+                         int* crash_status);
+
+  __device__ float computeStateCost(float* s, int timestep, int* crash_status);
+
+  float terminalCost(const Eigen::Ref<const state_array> s);
+
+  __device__ float terminalCost(float* s);
 protected:
   std::string map_path_;
 }
