@@ -42,6 +42,37 @@ struct QuadrotorMapCostParams : public CostParams<4> {
     control_cost_coeff[2] = 1;  // yaw
     control_cost_coeff[3] = 1;  // throttle
   }
+
+  bool updateWaypoint(float x, float y, float z, float heading = 0) {
+    bool changed = false;
+    if (curr_waypoint.x != x ||
+        curr_waypoint.y != y ||
+        curr_waypoint.z != z ||
+        curr_waypoint.w != heading) {
+      prev_waypoint = curr_waypoint;
+      curr_waypoint = make_float4(x, y, z, heading);
+      changed = true;
+    }
+    return changed;
+  }
+
+  bool updateGateBoundaries(float left_x, float left_y, float left_z,
+                            float right_x, float right_y, float right_z){
+    bool changed = false;
+    if (curr_gate_left.x != left_x ||
+        curr_gate_left.y != left_y ||
+        curr_gate_left.z != left_z ||
+        curr_gate_right.x != right_x ||
+        curr_gate_right.y != right_y ||
+        curr_gate_right.z != right_z) {
+      prev_gate_left = curr_gate_left;
+      prev_gate_right = curr_gate_right;
+      prev_gate_left = make_float3(left_x, left_y, left_z);
+      prev_gate_right = make_float3(right_x, right_y, right_z);
+      changed = true;
+    }
+    return changed;
+  }
 };
 
 template <class CLASS_T, class PARAMS_T = QuadrotorMapCostParams>

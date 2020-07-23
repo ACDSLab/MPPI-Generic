@@ -78,7 +78,6 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::distToWaypoin
 
 template <class CLASS_T, class PARAMS_T>
 void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateWaypoint(float4 new_waypoint) {
-
   updateWaypoint(new_waypoint.x, new_waypoint.y, new_waypoint.z, new_waypoint.w);
 }
 
@@ -86,13 +85,7 @@ template <class CLASS_T, class PARAMS_T>
 void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateWaypoint(float x, float y,
                                                              float z,
                                                              float heading) {
-  if (this->params_.curr_waypoint.x != x ||
-      this->params_.curr_waypoint.y != y ||
-      this->params_.curr_waypoint.z != z ||
-      this->params_.curr_waypoint.w != heading) {
-    this->params_.prev_waypoint = this->params_.curr_waypoint;
-    this->params_.curr_waypoint = make_float4(x, y, z, heading);
-
+  if (this->params_.updateWaypoint(x, y, z, heading)) {
     paramsToDevice();
   }
 }
@@ -123,16 +116,8 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::updateGateBoundaries(float left_x,
                                                                    float right_x,
                                                                    float right_y,
                                                                    float right_z) {
-  if (this->params_.curr_gate_left.x != left_x ||
-      this->params_.curr_gate_left.y != left_y ||
-      this->params_.curr_gate_left.z != left_z ||
-      this->params_.curr_gate_right.x != right_x ||
-      this->params_.curr_gate_right.y != right_y ||
-      this->params_.curr_gate_right.z != right_z) {
-    this->params_.prev_gate_left = this->params_.curr_gate_left;
-    this->params_.prev_gate_right = this->params_.curr_gate_right;
-    this->params_.prev_gate_left = make_float3(left_x, left_y, left_z);
-    this->params_.prev_gate_right = make_float3(right_x, right_y, right_z);
+  if (this->params_.updateGateBoundaries(left_x, left_y, left_z,
+                                         right_x, right_y, right_z)) {
     paramsToDevice();
   }
 }
