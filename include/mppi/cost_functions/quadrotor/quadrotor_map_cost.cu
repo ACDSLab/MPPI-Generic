@@ -50,12 +50,25 @@ template <class CLASS_T, class PARAMS_T>
 __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(
     float* s, int timestep, int* crash_status) {
   float cost = 0;
-  cost += computeCostmapCost(s);
-  cost += computeGateSideCost(s);
-  cost += computeHeightCost(s);
-  cost += computeHeadingCost(s);
-  cost += computeSpeedCost(s);
-  cost += computeStabilizingCost(s);
+  float costmap_cost, gate_cost, height_cost, heading_cost, speed_cost, stable_cost;
+  costmap_cost = computeCostmapCost(s);
+  gate_cost = computeGateSideCost(s);
+  height_cost = computeHeightCost(s);
+  heading_cost = computeHeadingCost(s);
+  speed_cost = computeSpeedCost(s);
+  stable_cost = computeStabilizingCost(s);
+
+  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+    if (isnan(costmap_cost) || isnan(gate_cost) || isnan(height_cost) ||
+        isnan(heading_cost) || isnan(speed_cost) || isnan(stable_cost)) {
+      printf("Costs rollout: Costmap %5.2f, Gate %5.2f, Height %5.2f,"
+             " Heading %5.2f, Speed %5.2f, Stabilization %5.2f\n",
+             costmap_cost, gate_cost, height_cost, heading_cost,
+             speed_cost, stable_cost);
+    }
+  }
+
+  cost += costmap_cost + gate_cost + height_cost + heading_cost + speed_cost + stable_cost;
 
   // Decrease cost if we pass a gate
   float dist_to_gate = distToWaypoint(s, this->params_.curr_waypoint);
@@ -197,8 +210,9 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
 	                 powf(s[1] - this->params_.prev_waypoint.y, 2));
   float d2 = sqrtf(powf(s[0] - this->params_.curr_waypoint.x, 2) +
 	                 powf(s[1] - this->params_.curr_waypoint.y, 2));
-  float w1 = d1 / (d1 + d2);
-  float w2 = d2 / (d1 + d2);
+
+  float w1 = d1 / (d1 + d2 + 0.001);
+  float w2 = d2 / (d1 + d2 + 0.001);
   float interpolated_height = (1.0 - w1) * this->params_.prev_waypoint.z +
                               (1.0 - w2) * this->params_.curr_waypoint.z;
   float height_diff = fabs(s[2] - interpolated_height);

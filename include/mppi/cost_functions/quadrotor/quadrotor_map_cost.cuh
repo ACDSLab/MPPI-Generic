@@ -41,6 +41,13 @@ struct QuadrotorMapCostParams : public CostParams<4> {
     control_cost_coeff[1] = 1; // pitch
     control_cost_coeff[2] = 1;  // yaw
     control_cost_coeff[3] = 1;  // throttle
+    curr_waypoint = make_float4(0, 0, 0, 0);
+    prev_waypoint = make_float4(0, 0, 0, 0);
+
+    curr_gate_left = make_float3(0, 0, 0);
+    curr_gate_right = make_float3(0, 0, 0);
+    prev_gate_left = make_float3(0, 0, 0);
+    prev_gate_right = make_float3(0, 0, 0);
   }
 
   bool updateWaypoint(float x, float y, float z, float heading = 0) {
