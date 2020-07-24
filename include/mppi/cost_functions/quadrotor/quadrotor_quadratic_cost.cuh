@@ -53,15 +53,6 @@ struct QuadrotorQuadraticCostParams : public CostParams<4> {
          s_goal[10], s_goal[11], s_goal[12];
     return s;
   }
-
-  bool updateWaypoint(float x, float y, float z, float heading = 0) {
-    return false;
-  }
-
-  bool updateGateBoundaries(float left_x, float left_y, float left_z,
-                            float right_x, float right_y, float right_z){
-    return false;
-  }
 };
 
 class QuadrotorQuadraticCost : public Cost<QuadrotorQuadraticCost,
