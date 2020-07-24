@@ -7,7 +7,7 @@ QuadrotorQuadraticCost::QuadrotorQuadraticCost(cudaStream_t stream) {
 /**
  * Host Functions
  */
-float QuadrotorQuadraticCost::computeStateCost(const Eigen::Ref<const state_array> s) {
+float QuadrotorQuadraticCost::computeStateCost(const Eigen::Ref<const state_array> s, int timestep, int* crash_status) {
   Eigen::Vector3f x, v, w;
   // Eigen::Vector4f q;
 
@@ -63,7 +63,7 @@ float QuadrotorQuadraticCost::terminalCost(const Eigen::Ref<const state_array> s
 /**
  * Device Functions
  */
-__device__ float QuadrotorQuadraticCost::computeStateCost(float* s) {
+__device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep, int* crash_status) {
   float s_diff[STATE_DIM];
   int i;
   float sum = 0;
@@ -114,8 +114,8 @@ __device__ float QuadrotorQuadraticCost::computeStateCost(float* s) {
 __device__ float QuadrotorQuadraticCost::computeRunningCost(float* s, float* u,
                                                             float* du, float* std_dev,
                                                             float lambda, float alpha,
-                                                            int timestep) {
-  float cost =  computeStateCost(s) + computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
+                                                            int timestep, int* crash_status) {
+  float cost =  computeStateCost(s, timestep, crash_status) + computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
   return cost * (1 - isnan(cost)) + isnan(cost) * MAX_COST_VALUE;
 }
 

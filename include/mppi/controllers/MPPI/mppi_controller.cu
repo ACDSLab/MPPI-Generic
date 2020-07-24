@@ -33,13 +33,14 @@ VanillaMPPI::~VanillaMPPIController() {
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
+void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) {
+  this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
 
   // Send the initial condition to the device
   HANDLE_ERROR( cudaMemcpyAsync(this->initial_state_d_, state.data(),
       DYN_T::STATE_DIM*sizeof(float), cudaMemcpyHostToDevice, this->stream_));
 
-  float baseline_prev = 1e4;
+  float baseline_prev = 1e8;
 
   for (int opt_iter = 0; opt_iter < this->num_iters_; opt_iter++) {
     // Send the nominal control to the device
@@ -49,13 +50,41 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     curandGenerateNormal(this->gen_, this->control_noise_d_,
                          NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
                          0.0, 1.0);
+    /*
+    std::vector<float> noise = this->getSampledNoise();
+    float mean = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      mean += (noise[k]/noise.size());
+    }
+
+    float std_dev = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      std_dev += powf(noise[k] - mean, 2);
+    }
+    std_dev = sqrt(std_dev/noise.size());
+    printf("CPU 1 side N(%f, %f)\n", mean, std_dev);
+     */
 
     //Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
-        this->lambda_, this->alpha_,
+        optimization_stride, this->lambda_, this->alpha_,
         this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
+    /*
+    noise = this->getSampledNoise();
+    mean = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      mean += (noise[k]/noise.size());
+    }
+
+    std_dev = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      std_dev += powf(noise[k] - mean, 2);
+    }
+    std_dev = sqrt(std_dev/noise.size());
+    printf("CPU 2 side N(%f, %f)\n", mean, std_dev);
+     */
 
     // Copy back sampled trajectories
     this->copySampledControlFromDevice();
@@ -93,15 +122,31 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(),
         NUM_ROLLOUTS);
 
-    // TODO Find lambda and also add it to this method call
-    mppi_common::computeFreeEnergy(this->free_energy_, this->free_energy_var_,
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
                                    this->trajectory_costs_.data(), NUM_ROLLOUTS,
-                                   this->baseline_);
+                                   this->baseline_, this->lambda_);
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
             this->trajectory_costs_d_, this->control_noise_d_, this->control_d_,
             this->normalizer_, this->num_timesteps_, this->stream_);
+
+    /*
+    noise = this->getSampledNoise();
+    mean = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      mean += (noise[k]/noise.size());
+    }
+
+    std_dev = 0;
+    for(int k = 0; k < noise.size(); k++) {
+      std_dev += powf(noise[k] - mean, 2);
+    }
+    std_dev = sqrt(std_dev/noise.size());
+    printf("CPU 3 side N(%f, %f)\n", mean, std_dev);
+     */
 
     // Transfer the new control to the host
     HANDLE_ERROR( cudaMemcpyAsync(this->control_.data(), this->control_d_,
@@ -110,6 +155,9 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     cudaStreamSynchronize(this->stream_);
 
     }
+
+  this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_/NUM_ROLLOUTS;
+  this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
   smoothControlTrajectory();
   computeStateTrajectory(state);
 

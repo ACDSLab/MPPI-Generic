@@ -31,12 +31,15 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
+void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) {
   if (!nominalStateInit_){
     // set the nominal state to the actual state
     nominal_state_trajectory_.col(0) = state;
     nominalStateInit_ = true;
   }
+
+  this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
+  this->free_energy_statistics_.nominal_sys.previousBaseline = this->baseline_nominal_;
 
 //  std::cout << "Post disturbance Actual State: "; this->model_->printState(state.data());
 //  std::cout << "                Nominal State: "; this->model_->printState(nominal_state_trajectory_.col(0).data());
@@ -69,7 +72,7 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     // call rollout kernel with z = 2 since we have a nominal state
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 2>(
             this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_,
-            this->lambda_, this->alpha_,
+            optimization_stride, this->lambda_, this->alpha_,
             this->initial_state_d_, this->control_d_, this->control_noise_d_,
             this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
 
@@ -119,10 +122,20 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     normalizer_nominal_ = mppi_common::computeNormalizer(
         this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
 
-    // TODO Find lambda and also add it to this method call
-    mppi_common::computeFreeEnergy(this->free_energy_, this->free_energy_var_,
+    // Compute real free energy
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
                                    this->trajectory_costs_.data(), NUM_ROLLOUTS,
-                                   this->baseline_);
+                                   this->baseline_, this->lambda_);
+
+    // Compute Nominal State free Energy
+    mppi_common::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
+                                   this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
+                                   this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
+                                   this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS,
+                                   this->baseline_nominal_, this->lambda_);
+
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
@@ -145,12 +158,18 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
     // Compute the nominal and actual state trajectories
     computeStateTrajectory(state); // Input is the actual state
 
+//    std::cout << "Actual baseline: " << this->baseline_ << std::endl;
+//    std::cout << "Nominal baseline: " << baseline_nominal_ << std::endl;
+
     if (this->baseline_ < baseline_nominal_ + nominal_threshold_) {
       // In this case, the disturbance the made the nominal and actual states differ improved the cost.
       // std::copy(state_trajectory.begin(), state_trajectory.end(), nominal_state_trajectory_.begin());
       // std::copy(control_trajectory.begin(), control_trajectory.end(), nominal_control_.begin());
+      this->free_energy_statistics_.nominal_state_used = 0;
       nominal_state_trajectory_ = this->state_;
       nominal_control_trajectory_ = this->control_;
+    } else {
+      this->free_energy_statistics_.nominal_state_used = 1;
     }
 
     // Outside of this loop, we will utilize the nominal state trajectory and the nominal control trajectory to compute
@@ -160,6 +179,11 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state) {
   }
   smoothControlTrajectory();
   computeStateTrajectory(state); // Input is the actual state
+
+  this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_/NUM_ROLLOUTS;
+  this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
+  this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_/NUM_ROLLOUTS;
+  this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,

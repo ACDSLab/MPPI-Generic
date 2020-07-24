@@ -8,6 +8,7 @@ namespace tests {
 	const std::string test_map_file = "@TEST_MAP_FOLDER@/track_map.npz";
 	const std::string standard_test_map_file = "@TEST_MAP_FOLDER@/track_map_standard.npz";
 	const std::string robust_test_map_file = "@TEST_MAP_FOLDER@/track_map_robust.npz";
+    const std::string ccrf_map = "@PROJECT_SOURCE_DIR@/resources/ccrf_track.npz";
 }
 }
 #endif // TESTS_COST_FUNCTIONS_AUTORALLY_TEST_MAP_H_

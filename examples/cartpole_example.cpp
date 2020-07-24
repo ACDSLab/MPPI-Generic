@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
   auto time_start = std::chrono::system_clock::now();
   for (int i =0; i < time_horizon; ++i) {
     // Compute the control
-    CartpoleController->computeControl(current_state);
+    CartpoleController->computeControl(current_state, 1);
 
     // Increment the state
     CartpoleDynamics::control_array control;

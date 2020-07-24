@@ -7,6 +7,8 @@
 #include <mppi/core/rmppi_kernel_test.cuh>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
 #include <mppi/utils/test_helper.h>
+#include <vector>
+#include <iostream>
 
 class RMPPIKernels : public ::testing::Test {
 public:
@@ -35,6 +37,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   float dt = 0.01;
   float lambda = 0.75;
   float alpha = 0.5;
+  int crash_status[1] = {0};
 
   Eigen::Matrix<float, 4, num_candidates> x0_candidates;
   x0_candidates << -4 , -3, -2, -1, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 4, 4, 4, 4,
@@ -57,6 +60,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   float* control_d;
   float* control_noise_d;
   float* costs_d;
+
   HANDLE_ERROR(cudaMalloc((void**)&strides_d, sizeof(int)*num_candidates));
   HANDLE_ERROR(cudaMalloc((void**)&exploration_var_d, sizeof(float)*dynamics::CONTROL_DIM));
   HANDLE_ERROR(cudaMalloc((void**)&states_d, sizeof(float)*dynamics::STATE_DIM*num_candidates));
@@ -135,7 +139,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
 
         // compute the cost
         if (k > 0) {
-          cost_current += (cost->computeRunningCost(x_current, candidate_nominal_control.col(k), noise_current, exploration_var, lambda, alpha, k) * dt - cost_current) / (1.0f*k);
+          cost_current += (cost->computeRunningCost(x_current, candidate_nominal_control.col(k), noise_current, exploration_var, lambda, alpha, k, crash_status) - cost_current) / (1.0f*k);
         }
 
         // compute the next state_dot
@@ -173,7 +177,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // Compare with the CPU version
   HANDLE_ERROR(cudaMemcpy(cost_vector_GPU.data(), costs_d, sizeof(float)*num_samples*num_candidates, cudaMemcpyDeviceToHost));
 
-  EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 1e-4);
+  EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 5e-3);
 }
 
 TEST(RMPPITest, RMPPIRolloutKernel) {
@@ -191,6 +195,7 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   float alpha = 0.0001;
   const int num_timesteps = 50;
   const int num_rollouts = 64;
+  int optimization_stride = 1;
 
   float sigma_u[control_dim] = {0.5, 0.05}; // variance to sample noise from
   COST::control_matrix cost_variance = COST::control_matrix::Identity();
@@ -223,6 +228,11 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   }
   // TODO: Figure out nonzero Initial control trajectory
   float u_traj[num_timesteps * control_dim] = {0};
+
+  for (int i = 0; i < num_timesteps*control_dim; i++) {
+    u_traj[i] = 2.0;
+  }
+
   u_traj[0] = 1;
   u_traj[1] = 0.5;
 
@@ -282,18 +292,18 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   std::array<float, num_rollouts> costs_act_GPU, costs_nom_GPU;
   std::array<float, num_rollouts> costs_act_CPU, costs_nom_CPU;
   launchRMPPIRolloutKernelGPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-    num_timesteps, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    num_timesteps, optimization_stride, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_GPU, costs_nom_GPU);
   launchRMPPIRolloutKernelCPU<DYN, COST, num_rollouts>(&model, &cost, dt,
-    num_timesteps, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
+    num_timesteps, optimization_stride, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
     sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
     costs_act_CPU, costs_nom_CPU);
 
-  for (int i = 0; i < costs_nom_CPU.size(); ++i) {
-    std::cout << "Nominal Cost CPU: " << costs_nom_CPU[i] << std::endl;
-    std::cout << "Nominal Cost GPU: " << costs_nom_GPU[i] << std::endl;
-  }
+//  for (int i = 0; i < costs_nom_CPU.size(); ++i) {
+//    std::cout << "Nominal Cost CPU: " << costs_nom_CPU[i] << std::endl;
+//    std::cout << "Nominal Cost GPU: " << costs_nom_GPU[i] << std::endl;
+//  }
 
   float max_diff_nom = -100;
   float max_diff_act = -100;
@@ -319,4 +329,87 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   array_assert_float_eq<num_rollouts>(costs_act_GPU, costs_act_CPU);
   std::cout << "Checking nominal systems differences between CPU and GPU" << std::endl;
   array_assert_float_eq<num_rollouts>(costs_nom_GPU, costs_nom_CPU);
+}
+
+TEST(RMPPITest, RolloutKernelComparison) {
+  /**
+   * If the nominal state and the real state are equal, and we are using the
+   * same noise between the two, then the output result should be equal to the
+   * standard rollout kernel.
+   */
+  using DYN = DoubleIntegratorDynamics;
+  using COST = DoubleIntegratorCircleCost;
+  DYN model;
+  COST cost;
+
+  model.GPUSetup();
+  cost.GPUSetup();
+
+  const int state_dim = DYN::STATE_DIM;
+  const int control_dim = DYN::CONTROL_DIM;
+
+  float dt = 0.01;
+  float lambda = 4.2;
+  float alpha = 0.05;
+  const int num_timesteps = 100;
+  const int num_rollouts = 1920;
+  int optimization_stride = 1;
+
+  std::array<float, control_dim> sigma_u = {0.5, 1.5};
+
+  std::array<float, state_dim> x_real = {2, 0, 1, 1};
+  std::array<float, state_dim> x_nominal = {2, 0, 1, 1};
+
+  std::array<float, control_dim*num_timesteps> u_init_trajectory{};
+  std::default_random_engine generator(7.0);
+  std::normal_distribution<float> distribution(0.0,1.0);
+  for (auto & u_init : u_init_trajectory) {
+    u_init = 2*distribution(generator);
+  }
+
+  std::array<float, num_timesteps*num_rollouts*control_dim> control_noise_array{};
+  for (auto & noise : control_noise_array) {
+    noise = distribution(generator);
+  }
+
+
+  // Create some random feedback gains
+  VanillaMPPIController<DYN, COST, 100, 512, 64, 8>::feedback_gain_trajectory feedback_gains;
+  feedback_gains.resize(num_timesteps);
+  for (auto & feedback_gain : feedback_gains) {
+    feedback_gain = Eigen::Matrix<float, control_dim, state_dim>::Random();
+  }
+
+  std::vector<float> feedback_gain_vector(num_timesteps*state_dim*control_dim);
+  // Copy Feedback Gains into an array
+  for (size_t i = 0; i < feedback_gains.size(); i++) {
+    size_t i_index = i * DYN::STATE_DIM * DYN::CONTROL_DIM;
+    for (size_t j = 0; j < DYN::CONTROL_DIM * DYN::STATE_DIM; j++) {
+      feedback_gain_vector[i_index + j] = feedback_gains[i].data()[j];
+    }
+  }
+
+  // Create objects that will hold the results
+  std::array<float, 2*num_rollouts> rmppi_costs_out{};
+  std::array<float, num_rollouts> mppi_costs_out{};
+
+  // Launch the test kernel...
+  launchComparisonRolloutKernelTest<DYN,COST, num_rollouts, num_timesteps, 64, 8>
+          (&model, &cost, dt, lambda, alpha, x_real, x_nominal,
+           feedback_gain_vector, u_init_trajectory, control_noise_array,
+           sigma_u, rmppi_costs_out, mppi_costs_out, optimization_stride, 0);
+
+
+  for (int i = 0; i < num_rollouts; i++) {
+    ASSERT_FLOAT_EQ(rmppi_costs_out[num_rollouts+i], rmppi_costs_out[i])  <<  i;
+  }
+
+  for (int i = 0; i < num_rollouts; i++) {
+    EXPECT_NEAR(rmppi_costs_out[i], mppi_costs_out[i], 1e-1) << i;
+  }
+
+  for (int i = 0; i < num_rollouts; i++) {
+    EXPECT_NEAR(rmppi_costs_out[num_rollouts+i], mppi_costs_out[i], 1e-1)  << num_rollouts + i;
+  }
+
 }

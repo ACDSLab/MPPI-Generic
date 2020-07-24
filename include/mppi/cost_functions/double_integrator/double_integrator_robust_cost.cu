@@ -6,7 +6,8 @@ DoubleIntegratorRobustCost::DoubleIntegratorRobustCost(cudaStream_t stream) {
 }
 
 __device__ float DoubleIntegratorRobustCost::computeStateCost(float* s,
-                                                              int timestep) {
+                                                              int timestep,
+                                                              int* crash_status) {
   float radial_position = s[0]*s[0] + s[1]*s[1];
   float current_velocity = sqrtf(s[2]*s[2] + s[3]*s[3]);
   float current_angular_momentum = s[0]*s[3] - s[1]*s[2];
@@ -39,7 +40,8 @@ __device__ float DoubleIntegratorRobustCost::computeStateCost(float* s,
 }
 
 float DoubleIntegratorRobustCost::computeStateCost(const Eigen::Ref<const state_array> s,
-                                                   int timestep) {
+                                                   int timestep,
+                                                   int* crash_status) {
   float radial_position = s[0]*s[0] + s[1]*s[1];
   float current_velocity = sqrtf(s[2]*s[2] + s[3]*s[3]);
   float current_angular_momentum = s[0]*s[3] - s[1]*s[2];

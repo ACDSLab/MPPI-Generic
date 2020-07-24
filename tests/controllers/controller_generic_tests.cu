@@ -29,7 +29,7 @@ public:
     this->copyControlStdDevToDevice();
   }
 
-  virtual void computeControl(const Eigen::Ref<const state_array>& state) override {
+  virtual void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) override {
 
   }
 
@@ -201,7 +201,11 @@ TEST(Controller, slideControlSequenceHelper) {
   for(int i = 0; i < controller.num_timesteps_; i++) {
     for(int j = 0; j < MockDynamics::CONTROL_DIM; j++) {
       int val = std::min(i + 1, controller.num_timesteps_ - 1);
-      EXPECT_FLOAT_EQ(u(j, i), val);
+      if (i+1 > controller.num_timesteps_-1) {
+        EXPECT_FLOAT_EQ(u(j, i), 0);
+      } else {
+        EXPECT_FLOAT_EQ(u(j, i), val);
+      }
     }
   }
 
@@ -209,7 +213,11 @@ TEST(Controller, slideControlSequenceHelper) {
   for(int i = 0; i < controller.num_timesteps_; i++) {
     for(int j = 0; j < MockDynamics::CONTROL_DIM; j++) {
       int val = std::min(i + 11, controller.num_timesteps_ - 1);
-      EXPECT_FLOAT_EQ(u(j, i), val);
+      if (i+10 > controller.num_timesteps_-2) {
+        EXPECT_FLOAT_EQ(u(j, i), 0);
+      } else {
+        EXPECT_FLOAT_EQ(u(j, i), val);
+      }
     }
   }
 }
@@ -275,10 +283,9 @@ TEST(Controller, interpolateControl) {
   for(int i = 0; i < controller.getNumTimesteps(); i++) {
     traj.col(i) = TestController::control_array::Ones() * i;
   }
-  controller.updateImportanceSampler(traj);
 
   for(double i = 0; i < controller.getNumTimesteps() - 1; i+= 0.25) {
-    TestController::control_array result = controller.interpolateControls(i*controller.getDt());
+    TestController::control_array result = controller.interpolateControls(i*controller.getDt(), traj);
     EXPECT_FLOAT_EQ(result(0), i) << i;
   }
 }
@@ -309,11 +316,13 @@ TEST(Controller, interpolateFeedback) {
   for(int i = 0; i < controller.getNumTimesteps(); i++) {
     feedback_traj[i] = Eigen::Matrix<float, 1, 1>::Ones() * i;
   }
-  controller.setFeedbackGains(feedback_traj);
+
+  TestController::state_trajectory s_traj = TestController::state_trajectory::Zero();
 
   TestController::state_array state = TestController::state_array::Ones();
   for(double i = 0; i < controller.getNumTimesteps() - 1; i += 0.25) {
-    TestController::control_array result = controller.interpolateFeedback(state, i*controller.getDt());
+    TestController::state_array interpolated_state = controller.interpolateState(s_traj, i*controller.getDt());
+    TestController::control_array result = controller.interpolateFeedback(state, interpolated_state, feedback_traj, i*controller.getDt());
     EXPECT_FLOAT_EQ(result(0), i);
   }
 }
@@ -349,12 +358,14 @@ TEST(Controller, getCurrentControlTest) {
     feedback_traj[i] = Eigen::Matrix<float, 1, 1>::Ones() * i;
     traj.col(i) = TestController::control_array::Ones() * i;
   }
-  controller.setFeedbackGains(feedback_traj);
-  controller.updateImportanceSampler(traj);
+
+  TestController::state_trajectory s_traj = TestController::state_trajectory::Zero();
 
   TestController::state_array state = TestController::state_array::Ones();
   for(double i = 0; i < controller.getNumTimesteps() - 1; i += 0.25) {
-    TestController::control_array result = controller.getCurrentControl(state, i*controller.getDt());
+    TestController::state_array interpolated_state = controller.interpolateState(s_traj, i*controller.getDt());
+    TestController::control_array result = controller.getCurrentControl(state, i*controller.getDt(),
+            interpolated_state, traj, feedback_traj);
     EXPECT_FLOAT_EQ(result(0), i*2);
   }
 }

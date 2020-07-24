@@ -133,6 +133,8 @@ public:
   */
   ~RobustMPPIController();
 
+  std::string getControllerName() {return "Robust MPPI";};
+
   feedback_gain_trajectory getFeedbackGains() override {
     return this->result_.feedback_gain;
   };
@@ -149,13 +151,11 @@ public:
   * @brief Compute the control given the current state of the system.
   * @param state The current state of the autorally system.
   */
-  void computeControl(const Eigen::Ref<const state_array>& state);
+  void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride=1);
 
   control_trajectory getControlSeq() override {return this->control_;};
 
   state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
-
-  state_trajectory getAncillaryStateSeq() {return this->result_.state_trajectory;};
 
   // Does nothing. This reason is because the control sliding happens during the importance sampler update.
   // The control applied to the real system (during the MPPI rollouts) is the nominal control (which slides
@@ -182,10 +182,17 @@ protected:
   float baseline_nominal_ = 100.0; // Cost baseline for the nominal state
   float normalizer_nominal_ = 100.0;  // Normalizer variable for the nominal state
 
+  // Free energy variables
+  float nominal_free_energy_mean_ = 0;
+  float nominal_free_energy_variance_ = 0;
+  float nominal_free_energy_modified_variance_ = 0;
+
   // Storage classes
   control_trajectory nominal_control_trajectory_ = control_trajectory::Zero();
   state_trajectory nominal_state_trajectory_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_nominal_ = sampled_cost_traj::Zero();
+
+
 
   // Make the control history size flexible, related to issue #30
   Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> nominal_control_history_; // History used for nominal_state IS

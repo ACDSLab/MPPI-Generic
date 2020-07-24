@@ -14,8 +14,9 @@ struct DoubleIntegratorCircleCostParams : public CostParams<2> {
   float angular_momentum_desired = 2*velocity_desired; // Enforces the system travels counter clockwise
 
   DoubleIntegratorCircleCostParams() {
-    control_cost_coeff[0] = 2.0;
-    control_cost_coeff[1] = 2.0;
+    control_cost_coeff[0] = 0.01;
+    control_cost_coeff[1] = 0.01;
+    discount = 1.0;
   }
 } ;
 
@@ -24,10 +25,10 @@ class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost,
 public:
   DoubleIntegratorCircleCost(cudaStream_t stream = nullptr);
 
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep=0);
+  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep=0, int* crash_status=nullptr);
   float terminalCost(const Eigen::Ref<const state_array> s);
 
-  __device__ float computeStateCost(float* s, int timestep=0);
+  __device__ float computeStateCost(float* s, int timestep=0, int* crash_status=nullptr);
   __device__ float terminalCost(float* s);
 };
 

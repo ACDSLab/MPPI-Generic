@@ -19,6 +19,11 @@
 #define MPPI_NNET_NONLINEARITY(ans) tanh(ans)
 #define MPPI_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
 
+//Including neural net model
+#ifdef MPPI_NNET_USING_CONSTANT_MEM__
+__device__ __constant__ float NNET_PARAMS[param_counter(6,32,32,4)];
+#endif
+
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 struct NNDynamicsParams {
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
