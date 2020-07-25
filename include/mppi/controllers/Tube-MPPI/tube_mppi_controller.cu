@@ -64,9 +64,12 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
 
     //Generate noise data
     curandGenerateNormal(this->gen_, this->control_noise_d_,
-                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM*2,
+                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
                          0.0, 1.0);
 
+    HANDLE_ERROR(cudaMemcpyAsync(control_noise_nominal_d, this->control_noise_d_,
+                                 NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM *sizeof(float),
+                                 cudaMemcpyDeviceToDevice, this->stream_));
     cudaDeviceSynchronize();
 
     // call rollout kernel with z = 2 since we have a nominal state

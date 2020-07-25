@@ -159,14 +159,14 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeadin
   mppi_math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
 
   // Calculate heading to gate
-  float wx = this->params_.curr_waypoint.x - s[0];
-  float wy = this->params_.curr_waypoint.y - s[1];
-  float w_heading = atan2f(wy, wx);
+  // float wx = this->params_.curr_waypoint.x - s[0];
+  // float wy = this->params_.curr_waypoint.y - s[1];
+  float w_heading = atan2f(s[4], s[3]);
 
 
   float dist_to_gate = distToWaypoint(s, this->params_.curr_waypoint);
   // Far away from the gate, we want to be pointing at the gate
-  if (dist_to_gate > this->params_.gate_margin) {
+  if (dist_to_gate > this->params_.gate_margin || true) {
     cost += this->params_.heading_coeff * powf(yaw - w_heading, 2);
   }
   return cost;
@@ -228,8 +228,14 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
   float w2 = d2 / (d1 + d2 + 0.001);
   float interpolated_height = (1.0 - w1) * this->params_.prev_waypoint.z +
                               (1.0 - w2) * this->params_.curr_waypoint.z;
-  float height_diff = fabs(s[2] - interpolated_height);
-  cost += this->params_.height_coeff * height_diff;
+
+  float height_diff = s[2] - interpolated_height;
+  if (height_diff < 0) {
+    cost += this->params_.crash_coeff;
+  } else {
+    cost += this->params_.height_coeff * height_diff;
+  }
+  // cost += this->params_.height_coeff * height_diff;
   return cost;
 }
 
