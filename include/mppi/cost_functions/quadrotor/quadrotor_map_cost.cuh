@@ -16,6 +16,7 @@ struct QuadrotorMapCostParams : public CostParams<4> {
 
   float attitude_coeff = 10;
   float crash_coeff = 1000;
+  float dist_to_waypoint_coeff = 0.0;
   float heading_coeff = 5;
   float height_coeff = 5;
   float track_coeff = 10;
@@ -111,6 +112,7 @@ public:
 
   __host__ __device__ float computeGateSideCost(float* s);
 
+
   __host__ __device__ float computeHeadingCost(float* s);
 
   __host__ __device__ float computeHeightCost(float* s);
@@ -118,6 +120,8 @@ public:
   __host__ __device__ float computeSpeedCost(float* s);
 
   __host__ __device__ float computeStabilizingCost(float* s);
+
+  __host__ __device__ float computeWaypointCost(float* s);
 
   __host__ __device__ float distToWaypoint(float* s, float4 waypoint);
 

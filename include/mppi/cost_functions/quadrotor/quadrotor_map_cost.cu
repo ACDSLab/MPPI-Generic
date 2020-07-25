@@ -36,6 +36,7 @@ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(
   cost += computeHeadingCost(s.data());
   cost += computeSpeedCost(s.data());
   cost += computeStabilizingCost(s.data());
+  cost += computeWaypointCost(s.data());
 
   // Decrease cost if we pass a gate
   float dist_to_gate = distToWaypoint(s.data(), this->params_.curr_waypoint);
@@ -51,20 +52,23 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(
     float* s, int timestep, int* crash_status) {
   float cost = 0;
   float costmap_cost, gate_cost, height_cost, heading_cost, speed_cost, stable_cost;
+  float waypoint_cost;
   costmap_cost = computeCostmapCost(s);
   gate_cost = computeGateSideCost(s);
   height_cost = computeHeightCost(s);
   heading_cost = computeHeadingCost(s);
   speed_cost = computeSpeedCost(s);
   stable_cost = computeStabilizingCost(s);
+  waypoint_cost = computeWaypointCost(s);
 
   if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
     if (isnan(costmap_cost) || isnan(gate_cost) || isnan(height_cost) ||
-        isnan(heading_cost) || isnan(speed_cost) || isnan(stable_cost)) {
+        isnan(heading_cost) || isnan(speed_cost) || isnan(stable_cost) ||
+        isnan(waypoint_cost)) {
       printf("Costs rollout: Costmap %5.2f, Gate %5.2f, Height %5.2f,"
-             " Heading %5.2f, Speed %5.2f, Stabilization %5.2f\n",
+             " Heading %5.2f, Speed %5.2f, Stabilization %5.2f, Waypoint %5.2f\n",
              costmap_cost, gate_cost, height_cost, heading_cost,
-             speed_cost, stable_cost);
+             speed_cost, stable_cost, waypoint_cost);
     }
   }
 
@@ -174,6 +178,15 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeSpeedC
   float cost = 0;
   float speed = sqrt(s[3] * s[3] + s[4] * s[4]);
   cost = this->params_.speed_coeff * powf(speed - this->params_.desired_speed, 2);
+  return cost;
+}
+
+template <class CLASS_T, class PARAMS_T>
+__host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeWaypointCost(
+    float* s) {
+  float cost = 0;
+  float dist_to_gate = distToWaypoint(s, this->params_.curr_waypoint);
+  cost = this->params_.dist_to_waypoint_coeff * powf(dist_to_gate, 2);
   return cost;
 }
 
