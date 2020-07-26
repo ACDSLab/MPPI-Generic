@@ -62,7 +62,10 @@ protected:
     }
   }
 public:
-
+  // This variable defines what the zero control is
+  // For most systems, it should be zero but for things like a quadrotor,
+  // it should be the command to hover
+  control_array zero_control_ = control_array::Zero();
 
   /**
    * Destructor must be virtual so that children are properly
