@@ -220,9 +220,9 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
 
   // Calculate height cost
   float cost = 0;
-  if (s[2] < 1) {
-    return this->params_.crash_coeff;
-  }
+  // if (s[2] < 1) {
+  //   return this->params_.crash_coeff;
+  // }
   float d1 = sqrtf(powf(s[0] - this->params_.prev_waypoint.x, 2) +
 	                 powf(s[1] - this->params_.prev_waypoint.y, 2));
   float d2 = sqrtf(powf(s[0] - this->params_.curr_waypoint.x, 2) +
@@ -233,7 +233,7 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
   float interpolated_height = (1.0 - w1) * this->params_.prev_waypoint.z +
                               (1.0 - w2) * this->params_.curr_waypoint.z;
 
-  float height_diff = s[2] - interpolated_height;
+  float height_diff = fabs(s[2] - interpolated_height);
   if (height_diff < 0) {
     cost += this->params_.crash_coeff;
   } else {
