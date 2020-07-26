@@ -343,6 +343,9 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
                             this->control_noise_d_, feedback_gain_array_d_, this->control_std_dev_d_,
                             this->trajectory_costs_d_, this->stream_);
 
+    // Copy back sampled trajectories
+    this->copySampledControlFromDevice();
+
     // Return the costs ->  nominal,  real costs
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(),
                                  this->trajectory_costs_d_,
