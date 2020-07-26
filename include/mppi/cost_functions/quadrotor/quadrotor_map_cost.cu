@@ -199,6 +199,7 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeGateSi
                                   powf(s[1] - this->params_.curr_gate_left.y, 2));
   float dist_to_right_side = sqrtf(powf(s[0] - this->params_.curr_gate_right.x, 2) +
                                    powf(s[1] - this->params_.curr_gate_right.y, 2));
+
   float prev_dist_to_left_side = sqrtf(powf(s[0] - this->params_.prev_gate_left.x, 2) +
                                        powf(s[1] - this->params_.prev_gate_left.y, 2));
   float prev_dist_to_right_side = sqrtf(powf(s[0] - this->params_.prev_gate_right.x, 2) +
@@ -219,6 +220,9 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
 
   // Calculate height cost
   float cost = 0;
+  if (s[2] < 1) {
+    return this->params_.crash_coeff;
+  }
   float d1 = sqrtf(powf(s[0] - this->params_.prev_waypoint.x, 2) +
 	                 powf(s[1] - this->params_.prev_waypoint.y, 2));
   float d2 = sqrtf(powf(s[0] - this->params_.curr_waypoint.x, 2) +
