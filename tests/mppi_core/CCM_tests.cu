@@ -231,7 +231,7 @@ public:
   }
 
   // Ugly hack for computeDF() method
-  void setPropoagtedFeedbackState(const Eigen::Ref<const state_array>& next_real_state) {
+  void setPropogatedFeedbackState(const Eigen::Ref<const state_array>& next_real_state) {
     this->propagated_feedback_state_trajectory_.col(1) = next_real_state;
   }
 
@@ -339,7 +339,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   float alpha = 0;
   float value_func_threshold = 20;
 
-  const int mission_length = int(5 / dt); // 100 seconds
+  const int mission_length = int(60 / dt); // 100 seconds
 
   // Create a random number generator
   // Random number generator for system noise
@@ -348,7 +348,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   gen.seed(7); // Seed the 7, so everyone gets the same noise
   normal_distribution = std::normal_distribution<float>(0, 1);
 
-  Eigen::Matrix<float, DYN::STATE_DIM, mission_length> universal_noise;
+  Eigen::Matrix<float, DYN::STATE_DIM, mission_length> universal_noise = Eigen::Matrix<float, DYN::STATE_DIM, mission_length>::Zero();
 
   // Create the noise for all systems
   for (int t = 0; t < mission_length; ++t) {
@@ -428,13 +428,13 @@ TEST(CCMTest, RMPPIRolloutKernel) {
 
     act_free_energy_bound_name = file_prefix + "robust_large_actual_free_energy_bound_CCM_t_" +
                            std::to_string(t) + ".npy";
-    nom_state_used_name = file_prefix + "robust_large_nominal_free_energy_bound_CCM_t_" +
+    nom_free_energy_bound_name = file_prefix + "robust_large_nominal_free_energy_bound_CCM_t_" +
                            std::to_string(t) + ".npy";
-    nom_state_used_name = file_prefix + "robust_large_actual_free_energy_growth_bound_CCM_t_" +
+    act_free_energy_growth_bound_name = file_prefix + "robust_large_actual_free_energy_growth_bound_CCM_t_" +
                            std::to_string(t) + ".npy";
-    nom_state_used_name = file_prefix + "robust_large_actual_free_energy_growth_CCM_t_" +
+    act_free_energy_growth_name = file_prefix + "robust_large_actual_free_energy_growth_CCM_t_" +
                            std::to_string(t) + ".npy";
-    nom_state_used_name = file_prefix + "robust_large_nominal_free_energy_growth_CCM_t_" +
+    nom_free_energy_growth_name = file_prefix + "robust_large_nominal_free_energy_growth_CCM_t_" +
                            std::to_string(t) + ".npy";
     // if (cost.computeStateCost(x) > 1000) {
     //   std::cout << "State Cost is " << cost.computeStateCost(x) << std::endl;
@@ -491,6 +491,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     rmppi_controller.updateImportanceSamplingControl(x, 1);
     rmppi_controller.computeControl(x);
 
+
     auto nominal_trajectory = rmppi_controller.getStateSeq();
     auto fe_stat = rmppi_controller.getFreeEnergyStatistics();
 
@@ -504,21 +505,15 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     // }
 
     // Save everything
-   saveState(x, t, robust_rc_trajectory);
-   saveTraj(nominal_trajectory, t, robust_rc_nominal_traj);
-   robust_rc_nominal_free_energy[t] = fe_stat.nominal_sys.freeEnergyMean;
-   robust_rc_real_free_energy[t] = fe_stat.real_sys.freeEnergyMean;
-   robust_rc_nominal_free_energy_bound[t] = value_func_threshold +
-                                            2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
-   robust_rc_real_free_energy_bound[t] = fe_stat.nominal_sys.freeEnergyMean +
-                                         cost.getLipshitzConstantCost()*1*(x - nominal_trajectory.col(0)).norm();
-   robust_rc_real_free_energy_growth_bound[t] = (value_func_threshold -
-                                                 fe_stat.nominal_sys.freeEnergyMean) +
-                                                 cost.getLipshitzConstantCost()*1*rmppi_controller.computeDF() +
-                                                2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
-   robust_rc_nominal_free_energy_growth[t] = fe_stat.nominal_sys.increase;
-   robust_rc_real_free_energy_growth[t] = fe_stat.real_sys.increase;
-   robust_rc_nominal_state_used[t] = fe_stat.nominal_state_used;
+    saveState(x, t, robust_rc_trajectory);
+    saveTraj(nominal_trajectory, t, robust_rc_nominal_traj);
+    robust_rc_nominal_free_energy[t] = fe_stat.nominal_sys.freeEnergyMean;
+    robust_rc_real_free_energy[t] = fe_stat.real_sys.freeEnergyMean;
+    robust_rc_nominal_free_energy_bound[t] = value_func_threshold +
+                                              2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
+    robust_rc_real_free_energy_bound[t] = fe_stat.nominal_sys.freeEnergyMean +
+                                          cost.getLipshitzConstantCost()*1*(x - nominal_trajectory.col(0)).norm();
+
 
     DYN::state_array x_nom = rmppi_controller.getStateSeq().col(0);
     DYN::control_array current_control = rmppi_controller.getControlSeq().col(0);
@@ -526,10 +521,24 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     current_control += rmppi_controller.getCCMFeedbackGains(x, x_nom, current_control);
     model.computeDynamics(x, current_control, x_dot);
     model.updateState(x, x_dot, dt);
+    rmppi_controller.setPropogatedFeedbackState(x);
 
-    rmppi_controller.setPropoagtedFeedbackState(x);
+    if (x.hasNaN()) {
+      std::cout << "NANANANANA\n\n\n\nNANANANANAN" << std::endl;
+    }
+
+    robust_rc_real_free_energy_growth_bound[t] = (value_func_threshold -
+                                                  fe_stat.nominal_sys.freeEnergyMean) +
+                                                  cost.getLipshitzConstantCost()*1*rmppi_controller.computeDF() +
+                                                  2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
+    robust_rc_nominal_free_energy_growth[t] = fe_stat.nominal_sys.increase;
+    robust_rc_real_free_energy_growth[t] = fe_stat.real_sys.increase;
+    robust_rc_nominal_state_used[t] = fe_stat.nominal_state_used;
 
     x += universal_noise.col(t) * sqrt(model.getParams().system_noise) * dt;
+    if (x.hasNaN()) {
+      std::cout << "NOISEYNOISE\n\n\n\nNANANANANAN" << std::endl;
+    }
     rmppi_controller.slideControlSequence(1);
   }
   // act_traj_file_name = file_prefix + "robust_large_actual_CCM_t_" +

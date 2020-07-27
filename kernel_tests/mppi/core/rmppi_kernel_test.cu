@@ -545,9 +545,9 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
     }
 
     // Compute average cost per timestep
-    state_cost_nom /= (float)num_timesteps;
-    cost_real_w_tracking /= (float)num_timesteps;
-    running_state_cost_real /= (float)num_timesteps;
+    state_cost_nom /= (float)(num_timesteps - 1);
+    cost_real_w_tracking /= (float)(num_timesteps - 1);
+    running_state_cost_real /= (float)(num_timesteps - 1);
 
     state_cost_nom += costs->terminalCost(x_t_nom);
     cost_real_w_tracking += costs->terminalCost(x_t_act);
@@ -574,8 +574,8 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
     //                                                         lambda, alpha);
     // }
     // Compute average cost per timestep
-    running_control_cost_nom /= (float)num_timesteps;
-    running_control_cost_real /= (float)num_timesteps;
+    running_control_cost_nom /= (float) (num_timesteps - 1);
+    running_control_cost_real /= (float)(num_timesteps - 1);
 
     cost_nom += running_control_cost_nom;
     trajectory_costs_nom[traj_i] = cost_nom;
