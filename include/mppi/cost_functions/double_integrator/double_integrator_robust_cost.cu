@@ -15,8 +15,8 @@ __device__ float DoubleIntegratorRobustCost::computeStateCost(float* s,
   float cost = 0;
   float normalized_dist_from_center = mppi_math::normDistFromCenter(sqrt(radial_position),
     sqrt(params_.inner_path_radius2), sqrt(params_.outer_path_radius2));
-  float steep_percent_boundary = 0.75;
-  float steep_cost = 0.1 * params_.crash_cost; // 10 percent of crash cost
+  float steep_percent_boundary = 0.5;
+  float steep_cost = 0.5 * params_.crash_cost; // 10 percent of crash cost
   // Shallow cost region
   if (normalized_dist_from_center <= steep_percent_boundary) {
     cost += mppi_math::linInterp(normalized_dist_from_center, 0, steep_percent_boundary,

@@ -1,4 +1,5 @@
 #include "robust_mppi_controller.cuh"
+#include <Eigen/Eigenvalues>
 #include <exception>
 
 #define RobustMPPI RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, SAMPLES_PER_CONDITION_MULTIPLIER>
@@ -418,5 +419,10 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
   this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
   this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_/NUM_ROLLOUTS;
   this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
+}
 
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+float RobustMPPI::computeDF() {
+  return (this->getFeedbackPropagatedStateSeq().col(0) - this->getFeedbackPropagatedStateSeq().col(1)).norm() +
+  (this->getStateSeq().col(0) - this->getFeedbackPropagatedStateSeq().col(0)).norm();
 }

@@ -171,6 +171,8 @@ public:
 
   Eigen::MatrixXf getCandidateFreeEnergy() {return candidate_free_energy_;};
 
+  float computeDF();
+
 protected:
   bool importance_sampling_cuda_mem_init_ = false;
   int num_candidate_nominal_states_;
