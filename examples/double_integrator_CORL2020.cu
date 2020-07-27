@@ -347,7 +347,7 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   Dyn model(100);
   SCost cost;
   // Value function threshold
-  float value_function_threshold = 10.0;
+  float value_function_threshold = 20.0;
   auto controller = RobustMPPIController<Dyn, SCost, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
                        value_function_threshold, Q, Qf, R,control_var);
@@ -449,7 +449,7 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   params.crash_cost = 100;
   cost.setParams(params);
   // Value function threshold
-  float value_function_threshold = 10.0;
+  float value_function_threshold = 20.0;
   auto controller = RobustMPPIController<Dyn, RCost, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
                        value_function_threshold, Q, Qf, R,control_var);
@@ -513,7 +513,6 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
 int main() {
   // Run the double integrator example on all the controllers with the SAME noise 20 times.
 
-
   // Create a random number generator
   // Random number generator for system noise
   std::mt19937 gen;  // Standard mersenne_twister_engine which will be seeded
@@ -539,80 +538,6 @@ int main() {
   runRobustSc(universal_noise);
 
   runRobustRc(universal_noise);
-
-
-
-
-//  std::vector<float> robust_sc_trajectory(Dyn::STATE_DIM*total_time_horizon, 0);
-//  std::vector<float> robust_sc_nominal_traj(Dyn::STATE_DIM*num_timesteps*total_time_horizon, 0);
-//  std::vector<float> robust_sc_nominal_free_energy(total_time_horizon, 0);
-//  std::vector<float> robust_sc_real_free_energy(total_time_horizon, 0);
-//  std::vector<float> robust_sc_nominal_free_energy_bound(total_time_horizon, 0);
-//  std::vector<float> robust_sc_real_free_energy_bound(total_time_horizon, 0);
-//  std::vector<float> robust_sc_real_free_energy_growth_bound(total_time_horizon, 0);
-//  std::vector<float> robust_sc_nominal_state_used(total_time_horizon, 0);
-//
-//
-//  std::vector<float> robust_rc_trajectory(Dyn::STATE_DIM*total_time_horizon, 0);
-//  std::vector<float> robust_rc_nominal_traj(Dyn::STATE_DIM*num_timesteps*total_time_horizon, 0);
-//  std::vector<float> robust_rc_nominal_free_energy(total_time_horizon, 0);
-//  std::vector<float> robust_rc_real_free_energy(total_time_horizon, 0);
-//  std::vector<float> robust_rc_nominal_free_energy_bound(total_time_horizon, 0);
-//  std::vector<float> robust_rc_real_free_energy_bound(total_time_horizon, 0);
-//  std::vector<float> robust_rc_real_free_energy_growth_bound(total_time_horizon, 0);
-//  std::vector<float> robust_rc_nominal_state_used(total_time_horizon, 0);
-
-
-//  // Initialize the tube MPPI controller
-//  Dyn t_model(100);
-//  SCost t_cost;
-//  auto tube_controller = TubeMPPIController<Dyn,
-//          SCost, num_timesteps,
-//          1024, 64, 1>(&t_model, &t_cost, dt, max_iter, lambda, alpha, Q, Qf, R,
-//                                 control_var);
-//  tube_controller.setNominalThreshold(20);
-//
-//  // Robust controller standard
-//  Dyn rsc_model(100);
-//  SCost rsc_cost;
-//  float value_function_threshold = 10.0;
-//  auto robust_sc_controller = RobustMPPIController<Dyn, SCost, num_timesteps,
-//          1024, 64, 8, 1>(&rsc_model, &rsc_cost, dt, max_iter, lambda, alpha, value_function_threshold, Q, Qf, R, control_var);
-//
-//  // Robust controller robust
-//  Dyn rrc_model(100);
-//  RCost rrc_cost;
-//  // Set the cost parameters
-//  auto params = rrc_cost.getParams();
-//  params.velocity_desired = 2;
-//  params.crash_cost = 100;
-//  rrc_cost.setParams(params);
-//  value_function_threshold = 10.0;
-//  auto robust_rc_controller = RobustMPPIController<Dyn, RCost, num_timesteps,
-//          1024, 64, 8, 1>(&rrc_model, &rrc_cost, dt, max_iter, lambda, alpha, value_function_threshold, Q, Qf, R, control_var);
-
-  // Start the loop
-//  for (int t = 0; t < total_time_horizon; ++t) {
-//
-//
-//
-//    /********************** Tube **********************/
-//
-//    /********************** Robust Standard **********************/
-//
-//    /********************** Robust Robust **********************/
-//  }
-//
-//  /************* Save CNPY *********************/
-//  cnpy::npy_save("vanilla_state_trajectory.npy",van_trajectory.data(),
-//                 {total_time_horizon, DoubleIntegratorDynamics::STATE_DIM},"w");
-//  cnpy::npy_save("vanilla_nominal_trajectory.npy",van_nominal_traj.data(),
-//                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-//  cnpy::npy_save("vanilla_free_energy.npy",van_free_energy.data(),
-//                 {total_time_horizon},"w");
-
-
-
 
     return 0;
 }
