@@ -211,7 +211,7 @@ TEST(DDPSolver_Test, Quadrotor_Tracking) {
 
   std::array<float2, DYN::CONTROL_DIM> control_ranges;
   for(int i = 0; i < 3; i++) {
-    control_ranges[i] = make_float2(-1.5, 1.5);
+    control_ranges[i] = make_float2(-2.5, 2.5);
   }
   control_ranges[3] = make_float2(0, 36);
   DYN model(control_ranges);
@@ -219,7 +219,7 @@ TEST(DDPSolver_Test, Quadrotor_Tracking) {
   DYN::state_array x_goal;
   x_goal << 10, 5, 3,   // position
             0, 0, 0,    // velocity
-            1, 0, 0, 0, // quaternion
+            0.7071068, 0, 0, 0.7071068, // quaternion
             0, 0,  0;   // angular speed
 
   float dt = 0.01;
@@ -234,11 +234,11 @@ TEST(DDPSolver_Test, Quadrotor_Tracking) {
   Q = CONTROLLER::StateCostWeight::Identity();
   R = CONTROLLER::ControlCostWeight::Identity();
   Qf = CONTROLLER::Hessian::Identity();
-  Q.diagonal() << 25, 25, 200,
-                  15,  15,  100,
+  Q.diagonal() << 25, 25, 300,
+                  15,  15,  300,
                   0, 0, 0, 0,
                   30, 30, 30;
-  R.diagonal() << 75, 75, 75, 1;
+  R.diagonal() << 550, 550, 550, 1;
 
   Eigen::MatrixXf control_traj = CONTROLLER::control_trajectory::Zero();
   CONTROLLER::state_trajectory ddp_state_traj = CONTROLLER::state_trajectory::Zero();
@@ -271,13 +271,21 @@ TEST(DDPSolver_Test, Quadrotor_Tracking) {
             1, 0, 0, 0, // quaternion
             0, 0,  0;   // angular speed
 
+  DYN::control_array control_min, control_max;
+  for (int i = 0; i < DYN::CONTROL_DIM; i++) {
+    control_min(i) = control_ranges[i].x;
+    control_max(i) = control_ranges[i].y;
+  }
+
 
   std::cout << "Starting DDP" << std::endl;
   OptimizerResult<ModelWrapperDDP<DYN>> result_ = ddp_solver->run(x_real,
                                                                   control_traj,
                                                                   *ddp_model,
                                                                   *tracking_cost,
-                                                                  *terminal_cost);
+                                                                  *terminal_cost,
+                                                                  control_min,
+                                                                  control_max);
   auto control_feedback_gains = result_.feedback_gain;
   std::cout << "DDP Optimal State Sequence: " << result_.state_trajectory.transpose() << std::endl;
   DYN::state_array x_deriv, x;
