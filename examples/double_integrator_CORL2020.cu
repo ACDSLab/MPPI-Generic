@@ -371,7 +371,8 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
     saveTraj(nominal_trajectory, t, robust_sc_nominal_traj);
     robust_sc_nominal_free_energy[t] = fe_stat.nominal_sys.freeEnergyMean;
     robust_sc_real_free_energy[t] = fe_stat.real_sys.freeEnergyMean;
-    robust_sc_nominal_free_energy_bound[t] = 0;
+    robust_sc_nominal_free_energy_bound[t] = value_function_threshold +
+                                             2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
     robust_sc_real_free_energy_bound[t] = 0;
     robust_sc_real_free_energy_growth_bound[t] = 0;
     robust_sc_nominal_state_used[t] = fe_stat.nominal_state_used;
@@ -404,6 +405,12 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   cnpy::npy_save("robust_sc_real_free_energy.npy",robust_sc_real_free_energy.data(),
                  {total_time_horizon},"w");
   cnpy::npy_save("robust_sc_nominal_state_used.npy",robust_sc_nominal_state_used.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("robust_sc_real_free_energy_bound.npy",robust_sc_nominal_free_energy_bound.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("robust_sc_nominal_free_energy_bound.npy",robust_sc_real_free_energy_bound.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("robust_sc_real_free_energy_growth_bound.npy",robust_sc_real_free_energy_growth_bound.data(),
                  {total_time_horizon},"w");
 }
 
@@ -439,6 +446,8 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   std::vector<float> robust_rc_nominal_free_energy_bound(total_time_horizon, 0);
   std::vector<float> robust_rc_real_free_energy_bound(total_time_horizon, 0);
   std::vector<float> robust_rc_real_free_energy_growth_bound(total_time_horizon, 0);
+  std::vector<float> robust_rc_nominal_free_energy_growth(total_time_horizon, 0);
+  std::vector<float> robust_rc_real_free_energy_growth(total_time_horizon, 0);
   std::vector<float> robust_rc_nominal_state_used(total_time_horizon, 0);
 
 
@@ -456,7 +465,7 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
 
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t) {
-    /********************** Vanilla **********************/
+    /********************** Robust Robust Cost **********************/
     // Compute the control
     controller.updateImportanceSamplingControl(x, 1);
     controller.computeControl(x, 1);
@@ -473,9 +482,16 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
     saveTraj(nominal_trajectory, t, robust_rc_nominal_traj);
     robust_rc_nominal_free_energy[t] = fe_stat.nominal_sys.freeEnergyMean;
     robust_rc_real_free_energy[t] = fe_stat.real_sys.freeEnergyMean;
-    robust_rc_nominal_free_energy_bound[t] = 0;
-    robust_rc_real_free_energy_bound[t] = 0;
-    robust_rc_real_free_energy_growth_bound[t] = 0;
+    robust_rc_nominal_free_energy_bound[t] = value_function_threshold +
+            2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
+    robust_rc_real_free_energy_bound[t] = fe_stat.nominal_sys.freeEnergyMean +
+            cost.getLipshitzConstantCost()*1*(x - nominal_trajectory.col(0)).norm();
+    robust_rc_real_free_energy_growth_bound[t] = (value_function_threshold -
+            fe_stat.nominal_sys.freeEnergyMean) +
+                    cost.getLipshitzConstantCost()*1*controller.computeDF() +
+                    2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
+    robust_rc_nominal_free_energy_growth[t] = fe_stat.nominal_sys.increase;
+    robust_rc_real_free_energy_growth[t] = fe_stat.real_sys.increase;
     robust_rc_nominal_state_used[t] = fe_stat.nominal_state_used;
 
     // Get the open loop control
@@ -506,6 +522,16 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   cnpy::npy_save("robust_rc_real_free_energy.npy",robust_rc_real_free_energy.data(),
                  {total_time_horizon},"w");
   cnpy::npy_save("robust_rc_nominal_state_used.npy",robust_rc_nominal_state_used.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("robust_rc_real_free_energy_bound.npy",robust_rc_real_free_energy_bound.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("robust_rc_nominal_free_energy_bound.npy",robust_rc_nominal_free_energy_bound.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("robust_rc_real_free_energy_growth_bound.npy",robust_rc_real_free_energy_growth_bound.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("robust_rc_real_free_energy_growth.npy",robust_rc_real_free_energy_growth.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("robust_rc_nominal_free_energy_growth.npy",robust_rc_nominal_free_energy_growth.data(),
                  {total_time_horizon},"w");
 }
 

@@ -17,7 +17,7 @@ public:
           int* crash_status=nullptr);
   __device__ float terminalCost(float* s);
 
-  float getLipshitzConstantCost() {return params_.crash_cost/.125;};
+  float getLipshitzConstantCost() {return params_.crash_cost;};
 
 
 };

@@ -20,6 +20,15 @@ def plot_fe_vs_time(fe_array, crash_cost=1000, title=""):
 	plt.plot(time, crash_cost*np.ones_like(time), 'r', label='Crash Threshold')
 	plt.plot(time, fe_array, 'b', label='Free Energy')
 
+def plot_fe_bounded(fe_array, fe_bound, title=""):
+	plt.figure()
+	axis = plt.gca()
+	axis.set_title(title)
+	time = np.linspace(0,fe_array.shape[0]*0.02, fe_array.shape[0])
+	plt.plot(time, fe_array, 'b', alpha=0.7, label='Free Energy')
+	plt.plot(time, fe_bound, 'r', alpha=0.7, label='Free Energy Bound')
+#	plt.yscale('log')
+
 
 def plot_fe_vs_space(fe_array, state_array):
 	pass
@@ -65,6 +74,11 @@ def main(args):
 	robust_rc_nfe = np.load(data_dir + "robust_rc_nominal_free_energy.npy")
 	robust_rc_state_trajectory = np.load(data_dir + "robust_rc_state_trajectory.npy")
 	robust_rc_nominal_state_used = np.load(data_dir + "robust_rc_nominal_state_used.npy");
+	robust_rc_rfe_bound = np.load(data_dir + "robust_rc_real_free_energy_bound.npy")
+	robust_rc_nfe_bound = np.load(data_dir + "robust_rc_nominal_free_energy_bound.npy")
+	robust_rc_rfe_growth_bound = np.load(data_dir + "robust_rc_real_free_energy_growth_bound.npy")
+	robust_rc_rfc_growth = np.load(data_dir + "robust_rc_real_free_energy_growth.npy")
+	robust_rc_nfc_growth = np.load(data_dir + "robust_rc_nominal_free_energy_growth.npy")
 
 
 	plot_fe_vs_time(vanilla_fe, 1000,"Vanilla Real Free Energy")
@@ -83,8 +97,10 @@ def main(args):
 	plot_trajectory(robust_sc_state_trajectory, "Robust Standard State Trajectory")
 	plot_nominal_state_used_vs_time(robust_sc_nominal_state_used)
 
-	plot_fe_vs_time(robust_rc_rfe, 100, "Robust Robust Real Free Energy")
-	plot_fe_vs_time(robust_rc_nfe, 100, "Robust Robust Nominal Free Energy")
+	plot_fe_bounded(robust_rc_rfe, robust_rc_rfe_bound, "Robust Robust Real Free Energy")
+	plot_fe_bounded(robust_rc_rfc_growth, robust_rc_rfe_growth_bound, "Robust Robust Real Free Energy Growth")
+	plot_fe_bounded(robust_rc_nfe, robust_rc_nfe_bound, "Robust Robust Nominal Free Energy")
+	plot_fe_vs_time(robust_rc_nfc_growth, 0,"Robust Robust Nominal Free Energy Growth")
 	plot_trajectory(robust_rc_state_trajectory, "Robust Robust State Trajectory")
 	plot_nominal_state_used_vs_time(robust_rc_nominal_state_used)
 
