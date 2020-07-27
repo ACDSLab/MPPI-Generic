@@ -471,9 +471,9 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   DYNAMICS model(100);  // Initialize the double integrator dynamics
   COST_T cost;  // Initialize the cost function
   float dt = 0.02; // Timestep of dynamics propagation
-  int max_iter = 3; // Maximum running iterations of optimization
-  float lambda = 0.25; // Learning rate parameter
-  float alpha = 0.01;
+  int max_iter = 1; // Maximum running iterations of optimization
+  float lambda = 4; // Learning rate parameter
+  float alpha = 0.00;
   const int num_timesteps = 50;  // Optimization time horizon
   const int total_time_horizon = 5000;
 

@@ -252,6 +252,21 @@ bool tubeFailure(float *s) {
   }
 }
 
+void saveTraj(const Eigen::Ref<const state_trajectory>& traj, int t, std::vector<float>& vec) {
+  for (int i = 0; i < num_timesteps; i++) {
+    for (int j = 0; j < Dyn::STATE_DIM; j++) {
+      vec[t * num_timesteps * Dyn::STATE_DIM +
+          i * Dyn::STATE_DIM + j] = traj(j, i);
+    }
+  }
+}
+
+void saveState(const Eigen::Ref<const Dyn::state_array >& state, int t, std::vector<float>& vec) {
+  for (int j = 0; j < Dyn::STATE_DIM; j++) {
+    vec[t * Dyn::STATE_DIM + j] = state(j);
+  }
+}
+
 TEST(CCMTest, CCMFeedbackTest) {
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
@@ -292,9 +307,12 @@ TEST(CCMTest, CCMFeedbackTest) {
 
 TEST(CCMTest, RMPPIRolloutKernel) {
   using DYN = DoubleIntegratorDynamics;
-  using COST = DoubleIntegratorCircleCost;
+  using COST = DoubleIntegratorRobustCost;
   DYN model(100);
   COST cost;
+  auto params = cost.getParams();
+  params.crash_cost = 100;
+  cost.setParams(params);
   const int num_timesteps = NUM_TIMESTEPS;
   const int num_rollouts = NUM_ROLLOUTS_CONST;
 
@@ -305,18 +323,46 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   const int state_dim = DYN::STATE_DIM;
   const int control_dim = DYN::CONTROL_DIM;
 
-  float dt = 0.02;
+  const float dt = 0.02;
   // int max_iter = 10;
   float lambda = 4;
   float alpha = 0;
   float value_func_threshold = 10;
 
+  const int mission_length = int(5 / dt); // 100 seconds
 
-  int mission_length = int(100 / dt); // 100 seconds
+  // Create a random number generator
+  // Random number generator for system noise
+  std::mt19937 gen;  // Standard mersenne_twister_engine which will be seeded
+  std::normal_distribution<float> normal_distribution;
+  gen.seed(7); // Seed the 7, so everyone gets the same noise
+  normal_distribution = std::normal_distribution<float>(0, 1);
+
+  Eigen::Matrix<float, DYN::STATE_DIM, mission_length> universal_noise;
+
+  // Create the noise for all systems
+  for (int t = 0; t < mission_length; ++t) {
+    for (int i = 2; i < 4; ++i) {
+      universal_noise(i,t) = normal_distribution(gen);
+    }
+  }
 
   std::vector<float> actual_trajectory_save(num_timesteps*mission_length*DYN::STATE_DIM);
   std::vector<float> nominal_trajectory_save(num_timesteps*mission_length*DYN::STATE_DIM);
-  std::string file_prefix = "/data/bvlahov3/RMPPI_CCM_control_trajectories_CoRL2020/";
+
+  // Save actual trajectories, nominal_trajectory, free energy
+//  std::vector<float> robust_rc_trajectory(Dyn::STATE_DIM*total_time_horizon, 0);
+//  std::vector<float> robust_rc_nominal_traj(Dyn::STATE_DIM*num_timesteps*total_time_horizon, 0);
+//  std::vector<float> robust_rc_nominal_free_energy(total_time_horizon, 0);
+//  std::vector<float> robust_rc_real_free_energy(total_time_horizon, 0);
+//  std::vector<float> robust_rc_nominal_free_energy_bound(total_time_horizon, 0);
+//  std::vector<float> robust_rc_real_free_energy_bound(total_time_horizon, 0);
+//  std::vector<float> robust_rc_real_free_energy_growth_bound(total_time_horizon, 0);
+//  std::vector<float> robust_rc_nominal_free_energy_growth(total_time_horizon, 0);
+//  std::vector<float> robust_rc_real_free_energy_growth(total_time_horizon, 0);
+//  std::vector<float> robust_rc_nominal_state_used(total_time_horizon, 0);
+
+  std::string file_prefix = "/home/mgandhi3/RMPPI_CCM_control_trajectories_CoRL2020/";
 
   CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(1.0);
   CONTROLLER::control_trajectory u_traj_eigen = CONTROLLER::control_trajectory::Zero();
@@ -395,6 +441,24 @@ TEST(CCMTest, RMPPIRolloutKernel) {
                                 i*DYN::STATE_DIM + j] = nominal_trajectory(j, i);
       }
     }
+
+    // Save everything
+//    saveState(x, t, robust_rc_trajectory);
+//    saveTraj(nominal_trajectory, t, robust_rc_nominal_traj);
+//    robust_rc_nominal_free_energy[t] = fe_stat.nominal_sys.freeEnergyMean;
+//    robust_rc_real_free_energy[t] = fe_stat.real_sys.freeEnergyMean;
+//    robust_rc_nominal_free_energy_bound[t] = value_function_threshold +
+//                                             2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
+//    robust_rc_real_free_energy_bound[t] = fe_stat.nominal_sys.freeEnergyMean +
+//                                          cost.getLipshitzConstantCost()*1*(x - nominal_trajectory.col(0)).norm();
+//    robust_rc_real_free_energy_growth_bound[t] = (value_function_threshold -
+//                                                  fe_stat.nominal_sys.freeEnergyMean) +
+//                                                 cost.getLipshitzConstantCost()*1*controller.computeDF() +
+//                                                 2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
+//    robust_rc_nominal_free_energy_growth[t] = fe_stat.nominal_sys.increase;
+//    robust_rc_real_free_energy_growth[t] = fe_stat.real_sys.increase;
+//    robust_rc_nominal_state_used[t] = fe_stat.nominal_state_used;
+
     DYN::state_array x_nom = rmppi_controller.getStateSeq().col(0);
     DYN::control_array current_control = rmppi_controller.getControlSeq().col(0);
 
@@ -402,7 +466,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     model.computeDynamics(x, current_control, x_dot);
     model.updateState(x, x_dot, dt);
 
-    model.computeStateDisturbance(dt, x);
+    x += noise.col(t) * sqrt(model.getParams().system_noise) * dt;
     rmppi_controller.slideControlSequence(1);
 
     if (t % 50 == 0) {
