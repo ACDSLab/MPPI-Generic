@@ -119,16 +119,20 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
 
   if ((new_num_candidates * SAMPLES_PER_CONDITION) > NUM_ROLLOUTS) {
     std::cerr << "ERROR: (number of candidates) * (SAMPLES_PER_CONDITION) cannot exceed NUM_ROLLOUTS\n";
+    std::cerr << "number of candidates: " << new_num_candidates  << ", SAMPLES_PER_CONDITION: "
+              << SAMPLES_PER_CONDITION << ", NUM_ROLLOUTS: " << NUM_ROLLOUTS << "\n";
     std::terminate();
   }
 
   // New number must be odd and greater than 3
   if (new_num_candidates < 3) {
     std::cerr << "ERROR: number of candidates must be greater or equal to 3\n";
+    std::cerr << "number of candidates: " << new_num_candidates << "\n";
     std::terminate();
   }
   if (new_num_candidates % 2 == 0) {
     std::cerr << "ERROR: number of candidates must be odd\n";
+    std::cerr << "number of candidates: " << new_num_candidates << "\n";
     std::terminate();
   }
 
@@ -337,6 +341,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
     HANDLE_ERROR( cudaMemcpyAsync(control_noise_nominal_d, this->control_noise_d_,
             DYN_T::CONTROL_DIM*this->num_timesteps_*NUM_ROLLOUTS*sizeof(float), cudaMemcpyDeviceToDevice, this->stream_));
 
+    HANDLE_ERROR( cudaStreamSynchronize(this->stream_));
     // Launch the new rollout kernel
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
             BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_, optimization_stride,

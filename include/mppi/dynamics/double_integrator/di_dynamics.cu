@@ -54,3 +54,11 @@ void DoubleIntegratorDynamics::computeStateDisturbance(float dt, Eigen::Ref<stat
   system_noise << 0.0, 0.0, normal_distribution(gen), normal_distribution(gen);
   state += system_noise*dt;
 }
+
+DoubleIntegratorDynamics::dfdu DoubleIntegratorDynamics::B(const Eigen::Ref<const state_array>& state)
+{
+  dfdu B = dfdu::Zero();
+  B(2,0) = 1;
+  B(3,1) = 1;
+  return B;
+}
