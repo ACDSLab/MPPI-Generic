@@ -574,8 +574,9 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
     //                                                         lambda, alpha);
     // }
     // Compute average cost per timestep
-    running_control_cost_nom /= ((float)num_timesteps-1);
-    running_control_cost_real /= ((float)num_timesteps-1);
+
+    running_control_cost_nom /= (float) (num_timesteps - 1);
+    running_control_cost_real /= (float)(num_timesteps - 1);
 
     cost_nom += running_control_cost_nom;
     trajectory_costs_nom[traj_i] = cost_nom;

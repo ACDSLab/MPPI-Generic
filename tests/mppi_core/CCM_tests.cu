@@ -2,6 +2,7 @@
 #include <mppi/controllers/R-MPPI/robust_mppi_controller.cuh>
 #include <mppi/core/rmppi_kernel_test.cuh>
 #include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
+#include <mppi/cost_functions/double_integrator/double_integrator_robust_cost.cuh>
 #include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 #include <mppi/feedback_controllers/CCM/ccm.h>
 #include <mppi/utils/test_helper.h>
@@ -220,10 +221,18 @@ public:
                                        this->nominal_state_,
                                        this->nominal_control_trajectory_);
 
+    // Ugly hack for computeDF() method
+    this->propagated_feedback_state_trajectory_.col(0) = state;
+
     this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_/NUM_ROLLOUTS;
     this->free_energy_statistics_.real_sys.increase = this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
     this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_/NUM_ROLLOUTS;
     this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
+  }
+
+  // Ugly hack for computeDF() method
+  void setPropogatedFeedbackState(const Eigen::Ref<const state_array>& next_real_state) {
+    this->propagated_feedback_state_trajectory_.col(1) = next_real_state;
   }
 
   void computeNominalFeedbackGains(const Eigen::Ref<const state_array>& state) override {}
@@ -252,18 +261,19 @@ bool tubeFailure(float *s) {
   }
 }
 
-void saveTraj(const Eigen::Ref<const state_trajectory>& traj, int t, std::vector<float>& vec) {
-  for (int i = 0; i < num_timesteps; i++) {
-    for (int j = 0; j < Dyn::STATE_DIM; j++) {
-      vec[t * num_timesteps * Dyn::STATE_DIM +
-          i * Dyn::STATE_DIM + j] = traj(j, i);
+void saveTraj(const Eigen::Ref<const Eigen::Matrix<float,
+        DoubleIntegratorDynamics::STATE_DIM, NUM_TIMESTEPS>>& traj, int t, std::vector<float>& vec) {
+  for (int i = 0; i < NUM_TIMESTEPS; i++) {
+    for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
+      vec[t * NUM_TIMESTEPS * DoubleIntegratorDynamics::STATE_DIM +
+          i * DoubleIntegratorDynamics::STATE_DIM + j] = traj(j, i);
     }
   }
 }
 
-void saveState(const Eigen::Ref<const Dyn::state_array >& state, int t, std::vector<float>& vec) {
-  for (int j = 0; j < Dyn::STATE_DIM; j++) {
-    vec[t * Dyn::STATE_DIM + j] = state(j);
+void saveState(const Eigen::Ref<const DoubleIntegratorDynamics::state_array >& state, int t, std::vector<float>& vec) {
+  for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
+    vec[t * DoubleIntegratorDynamics::STATE_DIM + j] = state(j);
   }
 }
 
@@ -327,9 +337,9 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   // int max_iter = 10;
   float lambda = 4;
   float alpha = 0;
-  float value_func_threshold = 10;
+  float value_func_threshold = 20;
 
-  const int mission_length = int(5 / dt); // 100 seconds
+  const int mission_length = int(60 / dt); // 100 seconds
 
   // Create a random number generator
   // Random number generator for system noise
@@ -338,7 +348,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   gen.seed(7); // Seed the 7, so everyone gets the same noise
   normal_distribution = std::normal_distribution<float>(0, 1);
 
-  Eigen::Matrix<float, DYN::STATE_DIM, mission_length> universal_noise;
+  Eigen::Matrix<float, DYN::STATE_DIM, mission_length> universal_noise = Eigen::Matrix<float, DYN::STATE_DIM, mission_length>::Zero();
 
   // Create the noise for all systems
   for (int t = 0; t < mission_length; ++t) {
@@ -347,22 +357,22 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     }
   }
 
-  std::vector<float> actual_trajectory_save(num_timesteps*mission_length*DYN::STATE_DIM);
-  std::vector<float> nominal_trajectory_save(num_timesteps*mission_length*DYN::STATE_DIM);
+  // std::vector<float> actual_trajectory_save(num_timesteps*mission_length*DYN::STATE_DIM);
+  // std::vector<float> nominal_trajectory_save(num_timesteps*mission_length*DYN::STATE_DIM);
 
   // Save actual trajectories, nominal_trajectory, free energy
-//  std::vector<float> robust_rc_trajectory(Dyn::STATE_DIM*total_time_horizon, 0);
-//  std::vector<float> robust_rc_nominal_traj(Dyn::STATE_DIM*num_timesteps*total_time_horizon, 0);
-//  std::vector<float> robust_rc_nominal_free_energy(total_time_horizon, 0);
-//  std::vector<float> robust_rc_real_free_energy(total_time_horizon, 0);
-//  std::vector<float> robust_rc_nominal_free_energy_bound(total_time_horizon, 0);
-//  std::vector<float> robust_rc_real_free_energy_bound(total_time_horizon, 0);
-//  std::vector<float> robust_rc_real_free_energy_growth_bound(total_time_horizon, 0);
-//  std::vector<float> robust_rc_nominal_free_energy_growth(total_time_horizon, 0);
-//  std::vector<float> robust_rc_real_free_energy_growth(total_time_horizon, 0);
-//  std::vector<float> robust_rc_nominal_state_used(total_time_horizon, 0);
+  std::vector<float> robust_rc_trajectory(DYN::STATE_DIM*mission_length, 0);
+  std::vector<float> robust_rc_nominal_traj(DYN::STATE_DIM*num_timesteps*mission_length, 0);
+  std::vector<float> robust_rc_nominal_free_energy(mission_length, 0);
+  std::vector<float> robust_rc_real_free_energy(mission_length, 0);
+  std::vector<float> robust_rc_nominal_free_energy_bound(mission_length, 0);
+  std::vector<float> robust_rc_real_free_energy_bound(mission_length, 0);
+  std::vector<float> robust_rc_real_free_energy_growth_bound(mission_length, 0);
+  std::vector<float> robust_rc_nominal_free_energy_growth(mission_length, 0);
+  std::vector<float> robust_rc_real_free_energy_growth(mission_length, 0);
+  std::vector<float> robust_rc_nominal_state_used(mission_length, 0);
 
-  std::string file_prefix = "/home/mgandhi3/RMPPI_CCM_control_trajectories_CoRL2020/";
+  std::string file_prefix = "/data/bvlahov3/RMPPI_CCM_control_trajectories_CoRL2020/FreeEnergyRMPPIData/";
 
   CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(1.0);
   CONTROLLER::control_trajectory u_traj_eigen = CONTROLLER::control_trajectory::Zero();
@@ -394,13 +404,38 @@ TEST(CCMTest, RMPPIRolloutKernel) {
 
   // rmppi_controller.computeControl(x_init_act);
   DYN::state_array x = x_init_act;
-
+  std::string act_traj_file_name;
+  std::string nom_traj_file_name;
+  std::string nom_free_energy_name;
+  std::string act_free_energy_name;
+  std::string nom_state_used_name;
+  std::string act_free_energy_bound_name;
+  std::string nom_free_energy_bound_name;
+  std::string act_free_energy_growth_bound_name;
+  std::string act_free_energy_growth_name;
+  std::string nom_free_energy_growth_name;
   for(int t = 0; t < mission_length; t++) {
-    std::string act_file_name = file_prefix + "robust_large_actual_CCM_t_" +
-                                std::to_string(t) + ".npy";
-    std::string nom_file_name = file_prefix + "robust_large_nominal_CCM_t_" +
-                                std::to_string(t) + ".npy";
+    act_traj_file_name = file_prefix + "robust_large_actual_traj_CCM_t_" +
+                         std::to_string(t) + ".npy";
+    nom_traj_file_name = file_prefix + "robust_large_nominal_traj_CCM_t_" +
+                         std::to_string(t) + ".npy";
+    nom_free_energy_name = file_prefix + "robust_large_nominal_free_energy_CCM_t_" +
+                           std::to_string(t) + ".npy";
+    act_free_energy_name = file_prefix + "robust_large_actual_free_energy_CCM_t_" +
+                           std::to_string(t) + ".npy";
+    nom_state_used_name = file_prefix + "robust_large_nominal_state_used_CCM_t_" +
+                           std::to_string(t) + ".npy";
 
+    act_free_energy_bound_name = file_prefix + "robust_large_actual_free_energy_bound_CCM_t_" +
+                           std::to_string(t) + ".npy";
+    nom_free_energy_bound_name = file_prefix + "robust_large_nominal_free_energy_bound_CCM_t_" +
+                           std::to_string(t) + ".npy";
+    act_free_energy_growth_bound_name = file_prefix + "robust_large_actual_free_energy_growth_bound_CCM_t_" +
+                           std::to_string(t) + ".npy";
+    act_free_energy_growth_name = file_prefix + "robust_large_actual_free_energy_growth_CCM_t_" +
+                           std::to_string(t) + ".npy";
+    nom_free_energy_growth_name = file_prefix + "robust_large_nominal_free_energy_growth_CCM_t_" +
+                           std::to_string(t) + ".npy";
     // if (cost.computeStateCost(x) > 1000) {
     //   std::cout << "State Cost is " << cost.computeStateCost(x) << std::endl;
     //   std::cout << "State was " << x.transpose() << std::endl;
@@ -408,10 +443,35 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     // }
 
     if (tubeFailure(x.data())) {
-      cnpy::npy_save(act_file_name, actual_trajectory_save.data(),
-                     {mission_length, num_timesteps, DYN::STATE_DIM},"w");
-      cnpy::npy_save(nom_file_name, nominal_trajectory_save.data(),
-                     {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+      // cnpy::npy_save(act_traj_file_name, actual_trajectory_save.data(),
+      //                {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+      // cnpy::npy_save(nom_traj_file_name, nominal_trajectory_save.data(),
+      //                {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+      // cnpy::npy_save(act_traj_file_name, actual_trajectory_save.data(),
+      //                {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+      // cnpy::npy_save(nom_traj_file_name, nominal_trajectory_save.data(),
+      //                 {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+
+      cnpy::npy_save(act_traj_file_name,robust_rc_trajectory.data(),
+                    {mission_length, DoubleIntegratorDynamics::STATE_DIM},"w");
+      cnpy::npy_save(nom_traj_file_name, robust_rc_nominal_traj.data(),
+                    {mission_length, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+      cnpy::npy_save(nom_free_energy_name, robust_rc_nominal_free_energy.data(),
+                    {mission_length},"w");
+      cnpy::npy_save(act_free_energy_name, robust_rc_real_free_energy.data(),
+                    {mission_length},"w");
+      cnpy::npy_save(nom_state_used_name, robust_rc_nominal_state_used.data(),
+                    {mission_length},"w");
+      cnpy::npy_save(act_free_energy_bound_name, robust_rc_real_free_energy_bound.data(),
+                    {mission_length},"w");
+      cnpy::npy_save(nom_free_energy_bound_name, robust_rc_nominal_free_energy_bound.data(),
+                    {mission_length},"w");
+      cnpy::npy_save(act_free_energy_growth_bound_name, robust_rc_real_free_energy_growth_bound.data(),
+                    {mission_length},"w");
+      cnpy::npy_save(act_free_energy_growth_name, robust_rc_real_free_energy_growth.data(),
+                    {mission_length},"w");
+      cnpy::npy_save(nom_free_energy_growth_name, robust_rc_nominal_free_energy_growth.data(),
+                    {mission_length},"w");
       printf("Current Time: %f    ", t * dt);
       model.printState(x.data());
       std::cout << "\tCandidate Free Energies: "
@@ -431,33 +491,29 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     rmppi_controller.updateImportanceSamplingControl(x, 1);
     rmppi_controller.computeControl(x);
 
-    auto nominal_trajectory = rmppi_controller.getStateSeq();
 
-    for (int i = 0; i < num_timesteps; i++) {
-      for (int j = 0; j < DYN::STATE_DIM; j++) {
-        actual_trajectory_save[t * num_timesteps * DYN::STATE_DIM +
-                               i*DYN::STATE_DIM + j] = x(j);
-        nominal_trajectory_save[t * num_timesteps * DYN::STATE_DIM +
-                                i*DYN::STATE_DIM + j] = nominal_trajectory(j, i);
-      }
-    }
+    auto nominal_trajectory = rmppi_controller.getStateSeq();
+    auto fe_stat = rmppi_controller.getFreeEnergyStatistics();
+
+    // for (int i = 0; i < num_timesteps; i++) {
+    //   for (int j = 0; j < DYN::STATE_DIM; j++) {
+    //     actual_trajectory_save[t * num_timesteps * DYN::STATE_DIM +
+    //                            i*DYN::STATE_DIM + j] = x(j);
+    //     nominal_trajectory_save[t * num_timesteps * DYN::STATE_DIM +
+    //                             i*DYN::STATE_DIM + j] = nominal_trajectory(j, i);
+    //   }
+    // }
 
     // Save everything
-//    saveState(x, t, robust_rc_trajectory);
-//    saveTraj(nominal_trajectory, t, robust_rc_nominal_traj);
-//    robust_rc_nominal_free_energy[t] = fe_stat.nominal_sys.freeEnergyMean;
-//    robust_rc_real_free_energy[t] = fe_stat.real_sys.freeEnergyMean;
-//    robust_rc_nominal_free_energy_bound[t] = value_function_threshold +
-//                                             2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
-//    robust_rc_real_free_energy_bound[t] = fe_stat.nominal_sys.freeEnergyMean +
-//                                          cost.getLipshitzConstantCost()*1*(x - nominal_trajectory.col(0)).norm();
-//    robust_rc_real_free_energy_growth_bound[t] = (value_function_threshold -
-//                                                  fe_stat.nominal_sys.freeEnergyMean) +
-//                                                 cost.getLipshitzConstantCost()*1*controller.computeDF() +
-//                                                 2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
-//    robust_rc_nominal_free_energy_growth[t] = fe_stat.nominal_sys.increase;
-//    robust_rc_real_free_energy_growth[t] = fe_stat.real_sys.increase;
-//    robust_rc_nominal_state_used[t] = fe_stat.nominal_state_used;
+    saveState(x, t, robust_rc_trajectory);
+    saveTraj(nominal_trajectory, t, robust_rc_nominal_traj);
+    robust_rc_nominal_free_energy[t] = fe_stat.nominal_sys.freeEnergyMean;
+    robust_rc_real_free_energy[t] = fe_stat.real_sys.freeEnergyMean;
+    robust_rc_nominal_free_energy_bound[t] = value_func_threshold +
+                                              2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
+    robust_rc_real_free_energy_bound[t] = fe_stat.nominal_sys.freeEnergyMean +
+                                          cost.getLipshitzConstantCost()*1*(x - nominal_trajectory.col(0)).norm();
+
 
     DYN::state_array x_nom = rmppi_controller.getStateSeq().col(0);
     DYN::control_array current_control = rmppi_controller.getControlSeq().col(0);
@@ -465,15 +521,53 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     current_control += rmppi_controller.getCCMFeedbackGains(x, x_nom, current_control);
     model.computeDynamics(x, current_control, x_dot);
     model.updateState(x, x_dot, dt);
+    rmppi_controller.setPropogatedFeedbackState(x);
 
-    x += noise.col(t) * sqrt(model.getParams().system_noise) * dt;
-    rmppi_controller.slideControlSequence(1);
-
-    if (t % 50 == 0) {
-      cnpy::npy_save(act_file_name, actual_trajectory_save.data(),
-                     {mission_length, num_timesteps, DYN::STATE_DIM},"w");
-      cnpy::npy_save(nom_file_name, nominal_trajectory_save.data(),
-                     {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+    if (x.hasNaN()) {
+      std::cout << "NANANANANA\n\n\n\nNANANANANAN" << std::endl;
     }
+
+    robust_rc_real_free_energy_growth_bound[t] = (value_func_threshold -
+                                                  fe_stat.nominal_sys.freeEnergyMean) +
+                                                  cost.getLipshitzConstantCost()*1*rmppi_controller.computeDF() +
+                                                  2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
+    robust_rc_nominal_free_energy_growth[t] = fe_stat.nominal_sys.increase;
+    robust_rc_real_free_energy_growth[t] = fe_stat.real_sys.increase;
+    robust_rc_nominal_state_used[t] = fe_stat.nominal_state_used;
+
+    x += universal_noise.col(t) * sqrt(model.getParams().system_noise) * dt;
+    if (x.hasNaN()) {
+      std::cout << "NOISEYNOISE\n\n\n\nNANANANANAN" << std::endl;
+    }
+    rmppi_controller.slideControlSequence(1);
   }
+  // act_traj_file_name = file_prefix + "robust_large_actual_CCM_t_" +
+  //                   std::to_string(mission_length - 1) + ".npy";
+  // nom_traj_file_name = file_prefix + "robust_large_nominal_CCM_t_" +
+  //                 std::to_string(mission_length - 1) + ".npy";
+  // cnpy::npy_save(act_traj_file_name, actual_trajectory_save.data(),
+  //                    {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+  // cnpy::npy_save(nom_traj_file_name, nominal_trajectory_save.data(),
+  //                 {mission_length, num_timesteps, DYN::STATE_DIM},"w");
+
+  cnpy::npy_save(act_traj_file_name,robust_rc_trajectory.data(),
+                 {mission_length, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save(nom_traj_file_name, robust_rc_nominal_traj.data(),
+                 {mission_length, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save(nom_free_energy_name, robust_rc_nominal_free_energy.data(),
+                 {mission_length},"w");
+  cnpy::npy_save(act_free_energy_name, robust_rc_real_free_energy.data(),
+                 {mission_length},"w");
+  cnpy::npy_save(nom_state_used_name, robust_rc_nominal_state_used.data(),
+                 {mission_length},"w");
+  cnpy::npy_save(act_free_energy_bound_name, robust_rc_real_free_energy_bound.data(),
+                 {mission_length},"w");
+  cnpy::npy_save(nom_free_energy_bound_name, robust_rc_nominal_free_energy_bound.data(),
+                 {mission_length},"w");
+  cnpy::npy_save(act_free_energy_growth_bound_name, robust_rc_real_free_energy_growth_bound.data(),
+                 {mission_length},"w");
+  cnpy::npy_save(act_free_energy_growth_name, robust_rc_real_free_energy_growth.data(),
+                 {mission_length},"w");
+  cnpy::npy_save(nom_free_energy_growth_name, robust_rc_nominal_free_energy_growth.data(),
+                 {mission_length},"w");
 }
