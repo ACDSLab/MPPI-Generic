@@ -26,7 +26,7 @@ const int total_time_horizon = 5000;
 
 // Problem setup
 const float dt = 0.02; // Timestep of dynamics propagation
-const int max_iter = 3; // Maximum running iterations of optimization
+const int max_iter = 1; // Maximum running iterations of optimization
 const float lambda = 2; // Learning rate parameter
 const float alpha = 0.0;
 
@@ -94,6 +94,9 @@ void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tota
 
     // Compute the feedback gains
     controller.computeFeedbackGains(x);
+
+    // Propagate the feedback trajectory
+    controller.computeFeedbackPropagatedStateSeq();
 
     auto nominal_trajectory = controller.getStateSeq();
     auto nominal_control = controller.getControlSeq();
@@ -180,6 +183,9 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
     // Compute the feedback gains
     controller.computeFeedbackGains(x);
 
+    // Propagate the feedback trajectory
+    controller.computeFeedbackPropagatedStateSeq();
+
     auto nominal_trajectory = controller.getStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
@@ -264,6 +270,9 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
 
     // Compute the feedback gains
     controller.computeFeedbackGains(x);
+
+    // Propagate the feedback trajectory
+    controller.computeFeedbackPropagatedStateSeq();
 
     auto nominal_trajectory = controller.getStateSeq();
     auto nominal_control = controller.getControlSeq();
@@ -361,6 +370,9 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
 
     // Compute the feedback gains
     controller.computeFeedbackGains(x);
+
+    // Propagate the feedback trajectory
+    controller.computeFeedbackPropagatedStateSeq();
 
     auto nominal_trajectory = controller.getStateSeq();
     auto nominal_control = controller.getControlSeq();
@@ -473,6 +485,9 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
     // Compute the feedback gains
     controller.computeFeedbackGains(x);
 
+    // Propagate the feedback trajectory
+    controller.computeFeedbackPropagatedStateSeq();
+
     auto nominal_trajectory = controller.getStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
@@ -488,7 +503,7 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
             cost.getLipshitzConstantCost()*1*(x - nominal_trajectory.col(0)).norm();
     robust_rc_real_free_energy_growth_bound[t] = (value_function_threshold -
             fe_stat.nominal_sys.freeEnergyMean) +
-                    cost.getLipshitzConstantCost()*1*controller.computeDF() +
+                    cost.getLipshitzConstantCost()*8*20*controller.computeDF() +
                     2*fe_stat.nominal_sys.freeEnergyModifiedVariance;
     robust_rc_nominal_free_energy_growth[t] = fe_stat.nominal_sys.increase;
     robust_rc_real_free_energy_growth[t] = fe_stat.real_sys.increase;
@@ -547,6 +562,7 @@ int main() {
   normal_distribution = std::normal_distribution<float>(0, 1);
 
   Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon> universal_noise;
+  universal_noise.setZero();
 
   // Create the noise for all systems
   for (int t = 0; t < total_time_horizon; ++t) {

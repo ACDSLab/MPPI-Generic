@@ -20,14 +20,7 @@ namespace mppi_common {
                                float* du_d,
                                float* sigma_u_d,
                                float* trajectory_costs_d) {
-    float mean = 0;
-    if (threadIdx.x == 1 && threadIdx.y == 0 && threadIdx.z == 0) {
-      for(int i = 0; i < NUM_ROLLOUTS * num_timesteps* DYN_T::CONTROL_DIM * blockDim.z; i++) {
-        mean += du_d[i];
-      }
-      mean /= NUM_ROLLOUTS * num_timesteps* DYN_T::CONTROL_DIM * blockDim.z;
-      printf("Mean of Noise: %f\n", mean);
-    }
+
     // Get thread and block id
     int thread_idx = threadIdx.x;
     int thread_idy = threadIdx.y;
