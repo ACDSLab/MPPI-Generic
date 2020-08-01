@@ -156,6 +156,12 @@ public:
   virtual std::string getControllerName() {return "name not set";};
   virtual std::string getCostFunctionName() {return cost_->getCostFunctionName();}
 
+  virtual void calculateSampledStateTrajectories();
+
+  virtual std::vector<state_trajectory> getSampledStateTrajectories() {
+    return sampled_trajectories_;
+  }
+
   /**
    * only used in rmppi, here for generic calls in base_plant. Jank as hell
    * @param state
@@ -459,6 +465,14 @@ public:
    * back from the GPU
    */
   void setPercentageSampledControlTrajectories(float new_perc) {
+    int num_sampled_trajectories = new_perc * NUM_ROLLOUTS;
+
+    HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
+                            sizeof(float)*DYN_T::STATE_DIM*num_timesteps_*num_sampled_trajectories));
+    HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_,
+                            sizeof(float)*DYN_T::CONTROL_DIM*num_timesteps_*num_sampled_trajectories));
+
+    sampled_trajectories_.resize(num_sampled_trajectories);
     perc_sampled_control_trajectories = new_perc;
   }
 
@@ -530,7 +544,12 @@ protected:
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
+
+
+  float* sampled_states_d_; // result of states that have been sampled from state trajectory kernel
+  float* sampled_noise_d_; // noise to be passed to the state trajectory kernel
   std::vector<control_trajectory> sampled_controls_; // Sampled control trajectories from rollout kernel
+  std::vector<state_trajectory> sampled_trajectories_; // sampled state trajectories from state trajectory kernel
 
   // Propagated real state trajectory
   state_trajectory propagated_feedback_state_trajectory_ = state_trajectory::Zero();

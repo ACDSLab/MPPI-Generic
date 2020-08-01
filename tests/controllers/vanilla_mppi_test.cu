@@ -113,6 +113,24 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest) {
   EXPECT_LT(controller.getBaselineCost(), 1.0);
 }
 
+
+TEST_F(Cartpole_VanillaMPPI, getSampledStateTrajectoriesTest) {
+  float dt = 0.01;
+  int max_iter = 1;
+  float lambda = 0.25;
+  float alpha = 0.01;
+
+  CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(5.0);
+
+  auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>(&model, &cost,
+                                                                                                     dt, max_iter, lambda, alpha, control_std_dev);
+  CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
+
+  controller.calculateSampledStateTrajectories();
+  controller.getSampledStateTrajectories();
+
+}
+
 TEST_F(Cartpole_VanillaMPPI, ConstructWithNew) {
   float dt = 0.01;
   int max_iter = 1;
@@ -234,3 +252,4 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest) {
 
   EXPECT_LT(percentage_in_ball, 0.1);
 }
+

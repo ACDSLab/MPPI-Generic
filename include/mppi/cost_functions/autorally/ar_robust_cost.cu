@@ -78,7 +78,6 @@ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 
 template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float *s, int timestep, int* crash_status) {
-  int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
   float stabilizing_cost = getStabilizingCost(s);
   float costmap_cost = getCostmapCost(s);
   float cost = stabilizing_cost + costmap_cost;

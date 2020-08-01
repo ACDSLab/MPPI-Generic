@@ -331,9 +331,71 @@ namespace mppi_common {
         }
     }
 
-    /*******************************************************************************************************************
-     * Launch Functions
-    *******************************************************************************************************************/
+    template<class DYN_T, int BLOCKSIZE_X>
+    __global__ void stateTrajectoryKernel(DYN_T* dynamics, float* control, float* state, float* state_traj,
+            int num_rollouts, int num_timesteps, float dt) {
+      // Get thread and block id
+      int thread_idx = threadIdx.x;
+      int thread_idy = threadIdx.y;
+      int block_idx = blockIdx.x;
+      int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
+
+      // Create shared state and control arrays
+      __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM];
+      __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM];
+      __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM];
+
+      // Create a shared array for the dynamics model to use
+      __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+
+      // Create local state, state dot and controls
+      float* x;
+      float* xdot;
+      float* u;
+
+      //Load global array to shared array
+      if (global_idx < num_rollouts) {
+        x = &x_shared[thread_idx * DYN_T::STATE_DIM];
+        xdot = &xdot_shared[thread_idx * DYN_T::STATE_DIM];
+        u = &u_shared[thread_idx * DYN_T::CONTROL_DIM];
+      }
+
+      // copy global to shared
+      if(global_idx < num_rollouts) {
+        for (int i = thread_idy; i < DYN_T::STATE_DIM; i += blockDim.y) {
+          x[i] = state[i];
+          xdot[i] = 0.0;
+        }
+      }
+
+      // compute state trajectory for the rollouts
+      if(global_idx < num_rollouts) {
+        for(int t = 0; t < num_timesteps; t++) {
+          // get next u
+          for(int i = thread_idy; i < DYN_T::CONTROL_DIM; i+= blockDim.y) {
+            u[i] = control[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM + i];
+          }
+
+
+          //Compute state derivatives
+          dynamics->computeStateDeriv(x, u, xdot, theta_s);
+          __syncthreads();
+
+          //Increment states
+          dynamics->updateState(x, xdot, dt);
+          __syncthreads();
+
+          // save results
+          for(int i = thread_idy; i < DYN_T::STATE_DIM; i+= blockDim.y) {
+            state_traj[global_idx*num_timesteps*DYN_T::STATE_DIM + t*DYN_T::STATE_DIM + i] = x[i];
+          }
+        }
+      }
+    }
+
+  /*******************************************************************************************************************
+   * Launch Functions
+  *******************************************************************************************************************/
     template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
              int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
     void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt,
@@ -367,6 +429,16 @@ namespace mppi_common {
                 (exp_costs_d, du_d, du_new_d, normalizer, num_timesteps);
         CudaCheckError();
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
+    }
+
+    template<class DYN_T, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+    void launchStateTrajectoryKernel(DYN_T* dynamics, float* control_trajectories,
+            float* state, float* state_traj_result, int num_rollouts, int num_timesteps, float dt, cudaStream_t stream) {
+      const int gridsize_x = (num_rollouts - 1) / BLOCKSIZE_X + 1;
+      dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+      dim3 dimGrid(gridsize_x, 1, 1);
+      stateTrajectoryKernel<DYN_T, BLOCKSIZE_X><<<dimGrid, dimBlock, 0, stream>>>(dynamics, control_trajectories, state, state_traj_result,
+              num_rollouts, num_timesteps, dt);
     }
 }
 
@@ -623,8 +695,6 @@ namespace rmppi_kernels {
           }
         }
 
-        int control_index = (NUM_ROLLOUTS * num_timesteps * thread_idz + // z part
-                           global_idx * num_timesteps + t) * DYN_T::CONTROL_DIM;
         for (i = thread_idy; i < DYN_T::CONTROL_DIM; i+= BLOCKSIZE_Y) {
           u[i] += fb_control[i];
           // Make sure feedback is added to the modified control noise pointer

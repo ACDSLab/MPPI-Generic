@@ -25,5 +25,7 @@ public:
   MOCK_METHOD1(updateImportanceSampler, void(const Eigen::Ref<const control_trajectory>& nominal_control));
   MOCK_METHOD0(allocateCUDAMemory, void());
   MOCK_METHOD0(computeFeedbackPropagatedStateSeq, void());
+  MOCK_METHOD0(calculateSampledTrajectories, void());
+  MOCK_METHOD0(getSampledStateTrajectories, void());
 };
 #endif //MPPIGENERIC_MOCK_CONTROLLER_H
