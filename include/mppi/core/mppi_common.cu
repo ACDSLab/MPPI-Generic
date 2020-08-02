@@ -383,8 +383,11 @@ namespace mppi_common {
             u[i] = control[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM + i];
           }
 
-          // only apply feedback if enabled
+          for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
+            fb_control[i] = 0;
+          }
 
+          // only apply feedback if enabled
           if(BLOCKSIZE_Z > 1 && ENABLE_FEEDBACK) {
             fb_gain = &feedback_gains_d[t * DYN_T::CONTROL_DIM * DYN_T::STATE_DIM];
             for (int i = 0; i < DYN_T::STATE_DIM * (1 - thread_idz); i++) {
