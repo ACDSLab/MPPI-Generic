@@ -35,14 +35,10 @@ fig.set_dpi(100)
 fig.set_size_inches(10, 10)
 xdata, ydata = [], []
 xndata, yndata = [], []
-xnt_data, ynt_data = [], []
+
 ax.plot(x_track_outer, y_track_outer, 'k', linewidth=2)
 ax.plot(x_track_inner, y_track_inner, 'k', linewidth=2)
-
-# ax[1].plot(x_track_inner, y_track_inner, 'r', linewidth=2)
-# ax[1].plot(x_track_outer, y_track_outer, 'r', linewidth=2)
 ax.axis('equal')
-# ax[1].axis('equal')
 ln3, = ax.plot([],[], 'g', alpha=0.7, linewidth=2, label='Nominal Trajectory')
 ln2, = ax.plot([], [], 'ro', alpha=0.5, label='Nominal State')
 ln1, = ax.plot([], [], 'bo', alpha=0.5, label='Actual State')
@@ -54,19 +50,17 @@ title = ax.text(0.5,0.85, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':5},
 def init():
     ax.set_xlim(-2.25, 2.25)
     ax.set_ylim(-2.25, 2.25)
-    # ax[1].set_xlim(-2.25, 2.25)
-    # ax[1].set_ylim(-2.25, 2.25)
     return ln1, ln2, ln3
+
 
 def update(frame):
     xndata.append(nominal_state[frame, 0])
     yndata.append(nominal_state[frame, 1])
     xdata.append(actual_state[frame, 0])
     ydata.append(actual_state[frame, 1])
-
     xnt_data = nominal_trajectory[frame,:,0]
     ynt_data = nominal_trajectory[frame,:,1]
-    if (len(xdata) > 20):
+    if len(xdata) > 20:
         xdata.pop(0)
         ydata.pop(0)
         xndata.pop(0)
@@ -82,17 +76,16 @@ def main(args):
     build_dir = args['build_dir']
     data_dir = build_dir + 'examples/'
     controller_name = controller_dict[args['controller']]
+
     # Let us load the data first
-    global actual_state, nominal_trajectory, nominal_state
+    global actual_state, nominal_trajectory, nominal_state, real_fe, nominal_fe
     actual_state = np.load(data_dir + controller_name + 'state_trajectory.npy')
     nominal_trajectory = np.load(data_dir + controller_name + 'nominal_trajectory.npy')
     nominal_state = nominal_trajectory[:,0,:]
-    ax.set_title(title_dict[args['controller']])
-
 
     ani = FuncAnimation(fig, update, frames=np.arange(0,5000,1),
                     init_func=init, blit=True, interval=20, repeat=False)
-    ani.save(title_dict[args['controller']] + '.mp4', writer=writer)
+    # ani.save(title_dict[args['controller']] + '.mp4', writer=writer)
     plt.show()
 
 
@@ -101,6 +94,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Say hello')
     parser.add_argument('--build_dir', help='Location of MPPI-Generic build folder', required=True)
     parser.add_argument('--controller', help="Which controller we are plotting", required=True)
+    parser.add_argument('--free_energy', help='If true, plot the free energy!', required=False, default=0)
     args = vars(parser.parse_args())
 
     main(args)
