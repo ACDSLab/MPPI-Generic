@@ -169,7 +169,12 @@ public:
     if (rhs > 0 || normalize_lhs == 0) {
       return control_array::Zero();
     } else {
-      return rhs / normalize_lhs * lhs;
+      // Pseudo inverse of Ax = B when A  is not square becomes
+      // x = inv(A^T A) A^T B
+      Eigen::Matrix<float, 1, 1> rhs_eigen;
+      rhs_eigen << rhs;
+      control_array u_fb = lhs.transpose().colPivHouseholderQr().solve(rhs_eigen);
+      return u_fb;
     }
 
   }
