@@ -15,7 +15,7 @@ y_track_inner = track_radius_inner*np.sin(theta)
 x_track_outer = track_radius_outer*np.cos(theta)
 y_track_outer = track_radius_outer*np.sin(theta)
 
-def plot_fe_vs_time(fe_array, crash_cost=1000, title=""):
+def plot_fe_vs_time(fe_array, crash_cost=1000, title="", savefig=0):
 	fig = plt.figure()
 	axis = plt.gca()
 	# axis.set_title(title)
@@ -23,9 +23,10 @@ def plot_fe_vs_time(fe_array, crash_cost=1000, title=""):
 	plt.plot(time, np.ones_like(time), 'r', alpha=0.7, label='Crash Threshold')
 	plt.plot(time, fe_array/crash_cost, 'b', alpha=0.7, label='Free Energy')
 	plt.legend()
-	fig.savefig(title+'.pdf', bbox_inches='tight')
+	if savefig:
+		fig.savefig(title+'.pdf', bbox_inches='tight')
 
-def plot_fe_bounded(fe_array, fe_bound, title=""):
+def plot_fe_bounded(fe_array, fe_bound, title="", savefig=0):
 	fig = plt.figure()
 	axis = plt.gca()
 	# axis.set_title(title)
@@ -34,8 +35,8 @@ def plot_fe_bounded(fe_array, fe_bound, title=""):
 	plt.plot(time, fe_array/100, 'b', alpha=0.7, label='FE Increase')
 	plt.plot(time, fe_bound/100, 'r', alpha=0.7, label='Bound')
 	plt.legend(bbox_to_anchor=(1.05, 1),loc='upper left')
-	fig.savefig(title+'.pdf', bbox_inches='tight')
-
+	if savefig:
+		fig.savefig(title+'.pdf', bbox_inches='tight')
 
 def plot_fe_vs_space(fe_array, state_array):
 	pass
@@ -51,7 +52,7 @@ def plot_trajectory(trajectory, title=""):
 	axis.plot(x_track_outer, y_track_outer, 'k', linewidth=2)
 
 
-def plot_nominal_trajectory(trajectory, nominal_trajectory, title=""):
+def plot_nominal_trajectory(trajectory, nominal_trajectory, title="", savefig=0):
 	fig = plt.figure()
 	axis = plt.gca()
 	# axis.set_title(title)
@@ -68,7 +69,10 @@ def plot_nominal_trajectory(trajectory, nominal_trajectory, title=""):
 	axis.plot(x_track_inner, y_track_inner, 'k', linewidth=2)
 	axis.plot(x_track_outer, y_track_outer, 'k', linewidth=2)
 	plt.legend(bbox_to_anchor=(1.05, 1),loc='upper left')
-	fig.savefig(title+'.pdf', bbox_inches='tight')
+	if savefig:
+		fig.savefig(title+'.pdf', bbox_inches='tight')
+
+
 
 
 def plot_nominal_state_used_vs_time(ns_array, title=""):
@@ -147,8 +151,6 @@ def main(args):
 	# # plot_nominal_state_used_vs_time(robust_sc_nominal_state_used)
 	# plot_nominal_trajectory(robust_sc_state_trajectory, robust_sc_nominal_trajectory, "Robust Standard State Trajectory")
 
-	incorrect_bound = (robust_rc_rfe_bound - robust_rc_nfe)
-	correct_bound = 8*incorrect_bound
 	plot_fe_bounded(robust_rc_rfe, robust_rc_rfe_bound, "Robust Robust Real Free Energy")
 	plot_fe_bounded(robust_rc_rfc_growth, robust_rc_rfe_growth_bound-incorrect_bound+correct_bound, "Robust Robust Real Free Energy Growth")
 	plot_fe_bounded(robust_rc_nfe, robust_rc_nfe_bound, "Robust Robust Nominal Free Energy")
@@ -175,7 +177,9 @@ def main(args):
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description = 'Say hello')
 	parser.add_argument('--build_dir', help='Location of MPPI-Generic build folder', required=True)
-	parser.add_argument('show_fig', help='Show the figure upon completion of plotting.', )
+	parser.add_argument('--show_fig', default=0, help='Show the figure upon completion of plotting.', required=False)
+	parser.add_argument('--save_fig', default=0, help='Save the figures after they are generated.', required=False)
+
 	args = vars(parser.parse_args())
 
 	main(args)

@@ -13,6 +13,8 @@ x_track_outer = track_radius_outer*np.cos(theta)
 y_track_outer = track_radius_outer*np.sin(theta)
 
 
+
+
 def plot_trajectories(axis, axis_name, trajectory_array):
     axis.set_title(axis_name)
     time_horizon, trajectory_length, state_dim = trajectory_array.shape
