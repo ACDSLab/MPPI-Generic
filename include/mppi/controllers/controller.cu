@@ -46,7 +46,7 @@ void CONTROLLER::calculateSampledStateTrajectories() {
   HANDLE_ERROR(cudaStreamSynchronize(stream_));
 
   // TODO run kernel
-  mppi_common::launchStateTrajectoryKernel<DYN_T, BDIM_X, BDIM_Y>(model_->model_d_, sampled_noise_d_,
+  mppi_common::launchStateTrajectoryKernel<DYN_T, BDIM_X, BDIM_Y, 1, false>(model_->model_d_, sampled_noise_d_,
                                                                   initial_state_d_, sampled_states_d_,
                                                                   num_sampled_trajectories, num_timesteps_,
                                                                   dt_, stream_);

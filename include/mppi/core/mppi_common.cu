@@ -331,39 +331,46 @@ namespace mppi_common {
         }
     }
 
-    template<class DYN_T, int BLOCKSIZE_X>
-    __global__ void stateTrajectoryKernel(DYN_T* dynamics, float* control, float* state, float* state_traj,
+    template<class DYN_T, int BLOCKSIZE_X, int BLOCKSIZE_Z, bool ENABLE_FEEDBACK>
+    __global__ void stateTrajectoryKernel(DYN_T* dynamics, float* control, float* state, float* state_traj, float* feedback_gains_d,
             int num_rollouts, int num_timesteps, float dt) {
       // Get thread and block id
       int thread_idx = threadIdx.x;
       int thread_idy = threadIdx.y;
+      int thread_idz = threadIdx.z;
       int block_idx = blockIdx.x;
       int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
 
       // Create shared state and control arrays
-      __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM];
-      __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM];
-      __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM];
+      __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+      __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+      __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
 
       // Create a shared array for the dynamics model to use
-      __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X];
+      __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
 
       // Create local state, state dot and controls
       float* x;
+      float* x_other;
       float* xdot;
       float* u;
+      float* fb_gain;
+      float fb_control[DYN_T::CONTROL_DIM];
 
       //Load global array to shared array
       if (global_idx < num_rollouts) {
-        x = &x_shared[thread_idx * DYN_T::STATE_DIM];
-        xdot = &xdot_shared[thread_idx * DYN_T::STATE_DIM];
-        u = &u_shared[thread_idx * DYN_T::CONTROL_DIM];
+        x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+        // The opposite state from above
+        x_other = &x_shared[(blockDim.x * (1 - thread_idz) + thread_idx) * DYN_T::STATE_DIM];
+        xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+        // Base trajectory
+        u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
       }
 
       // copy global to shared
       if(global_idx < num_rollouts) {
         for (int i = thread_idy; i < DYN_T::STATE_DIM; i += blockDim.y) {
-          x[i] = state[i];
+          x[i] = state[DYN_T::STATE_DIM * threadIdx.z + i];
           xdot[i] = 0.0;
         }
       }
@@ -376,6 +383,27 @@ namespace mppi_common {
             u[i] = control[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM + i];
           }
 
+          // only apply feedback if enabled
+
+          if(BLOCKSIZE_Z > 1 && ENABLE_FEEDBACK) {
+            fb_gain = &feedback_gains_d[t * DYN_T::CONTROL_DIM * DYN_T::STATE_DIM];
+            for (int i = 0; i < DYN_T::STATE_DIM * (1 - thread_idz); i++) {
+              // Find difference between nominal and actual
+              float e = x[i] - x_other[i];
+              for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
+                // Assuming column major storage atm.
+                fb_control[j] += fb_gain[i * DYN_T::CONTROL_DIM + j] * e;
+              }
+            }
+
+            for (int i = thread_idy; i < DYN_T::CONTROL_DIM; i+= blockDim.y) {
+              u[i] += fb_control[i];
+            }
+            __syncthreads();
+          }
+
+          dynamics->enforceConstraints(x, u);
+          __syncthreads();
 
           //Compute state derivatives
           dynamics->computeStateDeriv(x, u, xdot, theta_s);
@@ -387,7 +415,8 @@ namespace mppi_common {
 
           // save results
           for(int i = thread_idy; i < DYN_T::STATE_DIM; i+= blockDim.y) {
-            state_traj[global_idx*num_timesteps*DYN_T::STATE_DIM + t*DYN_T::STATE_DIM + i] = x[i];
+            state_traj[threadIdx.z*num_rollouts*num_timesteps*DYN_T::STATE_DIM +
+                global_idx*num_timesteps*DYN_T::STATE_DIM + t*DYN_T::STATE_DIM + i] = x[i];
           }
         }
       }
@@ -431,14 +460,15 @@ namespace mppi_common {
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
-    template<class DYN_T, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+    template<class DYN_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z, bool ENABLE_FEEDBACK>
     void launchStateTrajectoryKernel(DYN_T* dynamics, float* control_trajectories,
-            float* state, float* state_traj_result, int num_rollouts, int num_timesteps, float dt, cudaStream_t stream) {
+            float* state, float* state_traj_result, int num_rollouts, int num_timesteps, float dt, cudaStream_t stream,
+            float* feedback_gains_d = nullptr) {
       const int gridsize_x = (num_rollouts - 1) / BLOCKSIZE_X + 1;
-      dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+      dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
       dim3 dimGrid(gridsize_x, 1, 1);
-      stateTrajectoryKernel<DYN_T, BLOCKSIZE_X><<<dimGrid, dimBlock, 0, stream>>>(dynamics, control_trajectories, state, state_traj_result,
-              num_rollouts, num_timesteps, dt);
+      stateTrajectoryKernel<DYN_T, BLOCKSIZE_X, BLOCKSIZE_Z, ENABLE_FEEDBACK><<<dimGrid, dimBlock, 0, stream>>>(
+              dynamics, control_trajectories, state, state_traj_result, feedback_gains_d, num_rollouts, num_timesteps, dt);
     }
 }
 

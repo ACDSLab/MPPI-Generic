@@ -129,6 +129,8 @@ public:
     // Free the CUDA memory of every object
     model_->freeCudaMem();
     cost_->freeCudaMem();
+    cudaFree(sampled_noise_d_);
+    cudaFree(sampled_states_d_);
 
     // Free the CUDA memory of the controller
     deallocateCUDAMemory();
@@ -464,16 +466,20 @@ public:
    * Set the percentage of sample control trajectories to copy
    * back from the GPU
    */
-  void setPercentageSampledControlTrajectories(float new_perc) {
+  void setPercentageSampledControlTrajectoriesHelper(float new_perc, int multiplier) {
     int num_sampled_trajectories = new_perc * NUM_ROLLOUTS;
 
     HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
-                            sizeof(float)*DYN_T::STATE_DIM*num_timesteps_*num_sampled_trajectories));
+                            sizeof(float)*DYN_T::STATE_DIM*num_timesteps_*num_sampled_trajectories*multiplier));
     HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_,
-                            sizeof(float)*DYN_T::CONTROL_DIM*num_timesteps_*num_sampled_trajectories));
+                            sizeof(float)*DYN_T::CONTROL_DIM*num_timesteps_*num_sampled_trajectories*multiplier));
 
-    sampled_trajectories_.resize(num_sampled_trajectories);
+    sampled_trajectories_.resize(num_sampled_trajectories*multiplier);
     perc_sampled_control_trajectories = new_perc;
+  }
+
+  int getNumberSampledTrajectories() {
+    return perc_sampled_control_trajectories * NUM_ROLLOUTS;
   }
 
   /**
