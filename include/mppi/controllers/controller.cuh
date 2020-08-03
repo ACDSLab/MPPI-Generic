@@ -398,7 +398,7 @@ public:
       int ind = std::min(i + steps, num_timesteps_ - 1);
       u.col(i) = u.col(ind);
       if (i + steps > num_timesteps_ - 1) {
-        u.col(i) = control_array::Zero();
+        u.col(i) = model_->zero_control_;
       }
     }
   }

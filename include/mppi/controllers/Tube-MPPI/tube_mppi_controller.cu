@@ -64,9 +64,12 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
 
     //Generate noise data
     curandGenerateNormal(this->gen_, this->control_noise_d_,
-                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM*2,
+                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
                          0.0, 1.0);
 
+    HANDLE_ERROR(cudaMemcpyAsync(control_noise_nominal_d, this->control_noise_d_,
+                                 NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM *sizeof(float),
+                                 cudaMemcpyDeviceToDevice, this->stream_));
     cudaDeviceSynchronize();
 
     // call rollout kernel with z = 2 since we have a nominal state
@@ -209,6 +212,8 @@ void TubeMPPI::allocateCUDAMemory() {
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
         int BDIM_X, int BDIM_Y>
 void TubeMPPI::slideControlSequence(int steps) {
+  // Propagate the nominal trajectory forward
+  updateNominalState(nominal_control_trajectory_.col(0));
 
   // Save the control history
   this->saveControlHistoryHelper(steps, nominal_control_trajectory_, this->control_history_);
@@ -233,7 +238,6 @@ void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_ac
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void TubeMPPI::updateNominalState(const Eigen::Ref<const control_array> &u) {
   state_array xdot;
-  state_array state;
   this->model_->computeDynamics(nominal_state_trajectory_.col(0), u, xdot);
   this->model_->updateState(nominal_state_trajectory_.col(0), xdot, this->dt_);
 }
