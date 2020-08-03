@@ -15,10 +15,10 @@ title_dict = {'v': 'MPPI Standard Cost',
                    'rs': 'RMPPI Standard Cost',
                    'rr': 'RMPPI Robust Cost'}
 
-rc('font', **{'size': 16})
+rc('font', **{'size': 20})
 # Set up formatting for the movie files
 Writer = animation.writers['ffmpeg']
-writer = Writer(fps=24, metadata=dict(artist='Manan Gandhi'), bitrate=-1)
+writer = Writer(fps=30, metadata=dict(artist='Manan Gandhi'), bitrate=-1)
 
 track_radius_outer = 2 + .125
 track_radius_inner = 2 - .125
@@ -44,8 +44,8 @@ ln2, = ax.plot([], [], 'ro', alpha=0.5, label='Nominal State')
 ln1, = ax.plot([], [], 'bo', alpha=0.5, label='Actual State')
 ax.set_ylabel('Y Pos (m)')
 ax.set_xlabel('X Pos (m)')
-title = ax.text(0.5,0.85, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':5},
-                transform=ax.transAxes, ha="center")
+title = ax.text(0.5,0.5, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':20},
+                transform=ax.transAxes, ha="center", fontsize=30)
 
 def init():
     ax.set_xlim(-2.25, 2.25)
@@ -68,8 +68,8 @@ def update(frame):
     ln3.set_data(xnt_data, ynt_data)
     ln2.set_data(xndata, yndata)
     ln1.set_data(xdata, ydata)
-    fig.legend()
-    title.set_text("Time: {val:.2f} (sec)".format(val=frame*0.02))
+    # fig.legend()
+    title.set_text("Time: {val:05.2f} (sec)".format(val=frame*0.02+0.02))
     return ln1, ln2, ln3, title
 
 def main(args):
@@ -82,10 +82,11 @@ def main(args):
     actual_state = np.load(data_dir + controller_name + 'state_trajectory.npy')
     nominal_trajectory = np.load(data_dir + controller_name + 'nominal_trajectory.npy')
     nominal_state = nominal_trajectory[:,0,:]
+    ax.set_title(title_dict[args['controller']])
 
     ani = FuncAnimation(fig, update, frames=np.arange(0,5000,1),
-                    init_func=init, blit=True, interval=20, repeat=False)
-    # ani.save(title_dict[args['controller']] + '.mp4', writer=writer)
+                    init_func=init, blit=True, interval=33, repeat=False)
+    ani.save(title_dict[args['controller']] + '_trajectory' + '.mp4', writer=writer)
     plt.show()
 
 
