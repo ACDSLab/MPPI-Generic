@@ -254,6 +254,12 @@ void TubeMPPI::calculateSampledStateTrajectories() {
   int nom_corrector = NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM;
   if (this->baseline_ < baseline_nominal_ + nominal_threshold_) {
     nom_corrector = 0;
+    // initial nominal state needs to be real state when we switch to real
+    HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_ + DYN_T::STATE_DIM,
+                                 this->initial_state_d_,
+                                 sizeof(float) * DYN_T::STATE_DIM,
+                                 cudaMemcpyDeviceToDevice,
+                                 this->stream_));
   }
   for(int i = 0; i < num_sampled_trajectories; i++) {
     // copy real over
