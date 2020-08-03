@@ -8,17 +8,17 @@ import argparse
 controller_dict = {'v': 'vanilla_large_',
                    't': 'tube_',
                    'rs': 'robust_sc_',
-                   'rr': 'robust_rc_'}
+                   'rr': 'robust_rc_',
+                   'cc':  'robust_cc_'}
 
 title_dict = {'v': 'MPPI Standard Cost',
                    't': 'Tube-MPPI Standard Cost',
-                   'rs': 'RMPPI Standard Cost',
-                   'rr': 'RMPPI Robust Cost'}
+                   'rs': 'RMPPI LQR Standard Cost',
+                   'rr': 'RMPPI LQR Robust Cost',
+                   'cc': 'RMPPI CCM Robust Cost'}
 
-rc('font', **{'size': 20})
-# Set up formatting for the movie files
-Writer = animation.writers['ffmpeg']
-writer = Writer(fps=30, metadata=dict(artist='Manan Gandhi'), bitrate=-1)
+rc('font', **{'size': 30})
+
 
 track_radius_outer = 2 + .125
 track_radius_inner = 2 - .125
@@ -47,6 +47,7 @@ ax.set_xlabel('X Pos (m)')
 title = ax.text(0.5,0.5, "", bbox={'facecolor':'w', 'alpha':0.5, 'pad':20},
                 transform=ax.transAxes, ha="center", fontsize=30)
 
+
 def init():
     ax.set_xlim(-2.25, 2.25)
     ax.set_ylim(-2.25, 2.25)
@@ -72,10 +73,13 @@ def update(frame):
     title.set_text("Time: {val:05.2f} (sec)".format(val=frame*0.02+0.02))
     return ln1, ln2, ln3, title
 
+
 def main(args):
     build_dir = args['build_dir']
     data_dir = build_dir + 'examples/'
     controller_name = controller_dict[args['controller']]
+    fps = int(args['fps'])
+
 
     # Let us load the data first
     global actual_state, nominal_trajectory, nominal_state, real_fe, nominal_fe
@@ -84,18 +88,24 @@ def main(args):
     nominal_state = nominal_trajectory[:,0,:]
     ax.set_title(title_dict[args['controller']])
 
-    ani = FuncAnimation(fig, update, frames=np.arange(0,5000,1),
-                    init_func=init, blit=True, interval=33, repeat=False)
-    ani.save(title_dict[args['controller']] + '_trajectory' + '.mp4', writer=writer)
+    # Set up formatting for the movie files
+    Writer = animation.writers['ffmpeg']
+    writer = Writer(fps=fps, bitrate=-1)
+    ani = FuncAnimation(fig, update, frames=np.arange(0,actual_state.shape[0],1),
+                    init_func=init, blit=True, interval=1000/fps, repeat=False)
+    if args['save_mp4']:
+        ani.save(title_dict[args['controller']] + '_trajectory' + '.mp4', writer=writer)
+    else:
+        print('Not saving mp4 file, pass --save_mp4=True if you want to save it')
     plt.show()
-
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Say hello')
     parser.add_argument('--build_dir', help='Location of MPPI-Generic build folder', required=True)
     parser.add_argument('--controller', help="Which controller we are plotting", required=True)
-    parser.add_argument('--free_energy', help='If true, plot the free energy!', required=False, default=0)
+    parser.add_argument('--fps', required=False, default=30)
+    parser.add_argument('--save_mp4', required=False, default=False)
     args = vars(parser.parse_args())
 
     main(args)
