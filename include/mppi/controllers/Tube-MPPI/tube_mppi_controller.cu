@@ -252,6 +252,9 @@ void TubeMPPI::calculateSampledStateTrajectories() {
 
   float* sampled_noise_d_nom = this->sampled_noise_d_ + num_sampled_trajectories*this->num_timesteps_*DYN_T::CONTROL_DIM;
   int nom_corrector = NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM;
+  if (this->baseline_ < baseline_nominal_ + nominal_threshold_) {
+    nom_corrector = 0;
+  }
   for(int i = 0; i < num_sampled_trajectories; i++) {
     // copy real over
     HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
