@@ -6,16 +6,20 @@ from matplotlib import rc
 import argparse
 
 controller_dict = {'v': 'vanilla_large_',
+                   'vr': 'vanilla_large_robust_',
                    't': 'tube_',
+                   'tr': 'tube_robust_',
                    'rs': 'robust_sc_',
                    'rr': 'robust_rc_',
                    'cc':  'robust_cc_'}
 
 title_dict = {'v': 'MPPI Standard Cost',
-                   't': 'Tube-MPPI Standard Cost',
-                   'rs': 'RMPPI LQR Standard Cost',
-                   'rr': 'RMPPI LQR Robust Cost',
-                   'cc': 'RMPPI CCM Robust Cost'}
+              't': 'Tube-MPPI Standard Cost',
+              'vr': 'MPPI Robust Cost',
+              'tr': 'Tube-MPPI Robust Cost',
+              'rs': 'RMPPI LQR Standard Cost',
+              'rr': 'RMPPI LQR Robust Cost',
+              'cc': 'RMPPI CCM Robust Cost'}
 
 rc('font', **{'size': 30})
 
@@ -97,7 +101,7 @@ def main(args):
         ani.save(title_dict[args['controller']] + '_trajectory' + '.mp4', writer=writer)
     else:
         print('Not saving mp4 file, pass --save_mp4=True if you want to save it')
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":
@@ -105,7 +109,7 @@ if __name__ == "__main__":
     parser.add_argument('--build_dir', help='Location of MPPI-Generic build folder', required=True)
     parser.add_argument('--controller', help="Which controller we are plotting", required=True)
     parser.add_argument('--fps', required=False, default=30)
-    parser.add_argument('--save_mp4', required=False, default=False)
+    parser.add_argument('--save_mp4', required=False, action="store_true")
     args = vars(parser.parse_args())
 
     main(args)

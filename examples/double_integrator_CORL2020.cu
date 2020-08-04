@@ -223,6 +223,99 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
                  {total_time_horizon},"w");
 }
 
+void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
+  // DDP cost parameters
+  Eigen::MatrixXf Q;
+  Eigen::MatrixXf Qf;
+  Eigen::MatrixXf R;
+  Q = 500 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
+                                      DoubleIntegratorDynamics::STATE_DIM);
+  Q(2, 2) = 100;
+  Q(3, 3) = 100;
+  R = 1 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,
+                                    DoubleIntegratorDynamics::CONTROL_DIM);
+
+  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
+                                 DoubleIntegratorDynamics::STATE_DIM);
+
+  // Set the initial state
+  DoubleIntegratorDynamics::state_array x;
+  x << 2, 0, 0, 1;
+  DoubleIntegratorDynamics::state_array xdot;
+
+  // control variance
+  DoubleIntegratorDynamics::control_array control_var;
+  control_var << 1, 1;
+
+  // Save actual trajectories, nominal_trajectory, free energy
+  std::vector<float> van_large_trajectory(Dyn::STATE_DIM *total_time_horizon,
+  0);
+  std::vector<float> van_large_nominal_traj(Dyn::STATE_DIM *num_timesteps
+  *total_time_horizon, 0);
+  std::vector<float> van_large_free_energy(total_time_horizon, 0);
+
+
+  // Initialize the controllers
+  Dyn model(100);
+
+  RCost cost;
+  auto params = cost.getParams();
+  params.crash_cost = 100;
+  cost.setParams(params);
+
+  auto controller = VanillaMPPIController<Dyn, RCost, num_timesteps,
+          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
+  controller.initDDP(Q, Qf, R);
+
+  // Start the loop
+  for (int t = 0; t < total_time_horizon; ++t) {
+    /********************** Vanilla Large **********************/
+    // Compute the control
+    controller.computeControl(x, 1);
+
+    // Compute the feedback gains
+    controller.computeFeedbackGains(x);
+
+    // Propagate the feedback trajectory
+    controller.computeFeedbackPropagatedStateSeq();
+
+    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_control = controller.getControlSeq();
+    auto fe_stat = controller.getFreeEnergyStatistics();
+
+    // Save everything
+    saveState(x, t, van_large_trajectory);
+    saveTraj(nominal_trajectory, t, van_large_nominal_traj);
+    van_large_free_energy[t] = fe_stat.real_sys.freeEnergyMean;
+
+
+    // Get the open loop control
+    DoubleIntegratorDynamics::control_array current_control = nominal_control.col(
+            0);
+
+    // Apply the feedback given the current state
+    current_control += controller.getFeedbackGains()[0] *
+                       (x - nominal_trajectory.col(0));
+
+    // Propagate the state forward
+    model.computeDynamics(x, current_control, xdot);
+    model.updateState(x, xdot, dt);
+
+    // Add disturbance
+    x += noise.col(t) * sqrt(model.getParams().system_noise) * dt;
+
+    // Slide the control sequence
+    controller.slideControlSequence(1);
+  }
+  /************* Save CNPY *********************/
+  cnpy::npy_save("vanilla_large_robust_state_trajectory.npy",van_large_trajectory.data(),
+                 {total_time_horizon, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save("vanilla_large_robust_nominal_trajectory.npy",van_large_nominal_traj.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save("vanilla_large_robust_free_energy.npy",van_large_free_energy.data(),
+                 {total_time_horizon},"w");
+}
+
 void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
   // DDP cost parameters
   Eigen::MatrixXf Q;
@@ -314,6 +407,103 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
   cnpy::npy_save("tube_real_free_energy.npy",tube_real_free_energy.data(),
                  {total_time_horizon},"w");
   cnpy::npy_save("tube_nominal_state_used.npy",tube_nominal_state_used.data(),
+                 {total_time_horizon},"w");
+}
+
+void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
+  // DDP cost parameters
+  Eigen::MatrixXf Q;
+  Eigen::MatrixXf Qf;
+  Eigen::MatrixXf R;
+  Q = 500 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
+                                      DoubleIntegratorDynamics::STATE_DIM);
+  Q(2, 2) = 100;
+  Q(3, 3) = 100;
+  R = 1 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,
+                                    DoubleIntegratorDynamics::CONTROL_DIM);
+
+  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
+                                 DoubleIntegratorDynamics::STATE_DIM);
+
+  // Set the initial state
+  DoubleIntegratorDynamics::state_array x;
+  x << 2, 0, 0, 1;
+  DoubleIntegratorDynamics::state_array xdot;
+
+  // control variance
+  DoubleIntegratorDynamics::control_array control_var;
+  control_var << 1, 1;
+
+  // Save actual trajectories, nominal_trajectory, free energy
+  std::vector<float> tube_trajectory(Dyn::STATE_DIM*total_time_horizon, 0);
+  std::vector<float> tube_nominal_traj(Dyn::STATE_DIM*num_timesteps*total_time_horizon, 0);
+  std::vector<float> tube_nominal_free_energy(total_time_horizon, 0);
+  std::vector<float> tube_real_free_energy(total_time_horizon, 0);
+  std::vector<float> tube_nominal_state_used(total_time_horizon, 0);
+
+
+  // Initialize the controllers
+  Dyn model(100);
+  RCost cost;
+  auto params = cost.getParams();
+  params.crash_cost = 100;
+  cost.setParams(params);
+  auto controller = TubeMPPIController<Dyn, RCost, num_timesteps,
+          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
+                  Q, Qf, R,control_var);
+  controller.setNominalThreshold(20);
+  // Start the loop
+  for (int t = 0; t < total_time_horizon; ++t) {
+    /********************** Tube **********************/
+    // Compute the control
+    controller.computeControl(x, 1);
+
+    // Compute the feedback gains
+    controller.computeFeedbackGains(x);
+
+    // Propagate the feedback trajectory
+    controller.computeFeedbackPropagatedStateSeq();
+
+    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_control = controller.getControlSeq();
+    auto fe_stat = controller.getFreeEnergyStatistics();
+
+    // Save everything
+    saveState(x, t, tube_trajectory);
+    saveTraj(nominal_trajectory, t, tube_nominal_traj);
+    tube_nominal_free_energy[t] = fe_stat.nominal_sys.freeEnergyMean;
+    tube_real_free_energy[t] = fe_stat.real_sys.freeEnergyMean;
+    tube_nominal_state_used[t] = fe_stat.nominal_state_used;
+
+    // Get the open loop control
+    DoubleIntegratorDynamics::control_array current_control = nominal_control.col(
+            0);
+
+    // Apply the feedback given the current state
+    current_control += controller.getFeedbackGains()[0] *
+                       (x - nominal_trajectory.col(0));
+
+    // Propagate the state forward
+    model.computeDynamics(x, current_control, xdot);
+    model.updateState(x, xdot, dt);
+    controller.updateNominalState(current_control);
+
+    // Add disturbance
+    x += noise.col(t) * sqrt(model.getParams().system_noise) * dt;
+
+    // Slide the control sequence
+    controller.slideControlSequence(1);
+  }
+  /************* Save CNPY *********************/
+  cnpy::npy_save("tube_robust_state_trajectory.npy",tube_trajectory.data(),
+                 {total_time_horizon, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save("tube_robust_nominal_trajectory.npy",tube_nominal_traj.data(),
+                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+  cnpy::npy_save("tube_robust_nominal_free_energy.npy",tube_nominal_free_energy.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("tube_robust_real_free_energy.npy",tube_real_free_energy.data(),
+                 {total_time_horizon},"w");
+  cnpy::npy_save("tube_robust_nominal_state_used.npy",tube_nominal_state_used.data(),
                  {total_time_horizon},"w");
 }
 
@@ -572,14 +762,25 @@ int main() {
   }
 
   runVanilla(universal_noise);
+  std::cout << "Finished Vanilla" << std::endl;
 
   runVanillaLarge(universal_noise);
+  std::cout << "Finished Vanilla Large" << std::endl;
+
+  runVanillaLargeRC(universal_noise);
+  std::cout << "Finished Vanilla Large with Robust Cost" << std::endl;
 
   runTube(universal_noise);
+  std::cout << "Finished Tube with Standard Cost" << std::endl;
+
+  runTubeRC(universal_noise);
+  std::cout << "Finished Tube with Robust Cost" << std::endl;
 
   runRobustSc(universal_noise);
+  std::cout << "Finished RMPPI with Standard Cost" << std::endl;
 
   runRobustRc(universal_noise);
+  std::cout << "Finished RMPPI with Robust Cost" << std::endl;
 
     return 0;
 }
