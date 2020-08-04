@@ -100,7 +100,7 @@ def main(args):
     if args['save_mp4']:
         ani.save(title_dict[args['controller']] + '_trajectory' + '.mp4', writer=writer)
     else:
-        print('Not saving mp4 file, pass --save_mp4=True if you want to save it')
+        print('Not saving mp4 file, pass --save_mp4 if you want to save it')
     # plt.show()
 
 

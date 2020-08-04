@@ -451,7 +451,7 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
   auto controller = TubeMPPIController<Dyn, RCost, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
                   Q, Qf, R,control_var);
-  controller.setNominalThreshold(20);
+  controller.setNominalThreshold(2);
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t) {
     /********************** Tube **********************/
