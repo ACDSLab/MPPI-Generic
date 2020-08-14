@@ -6,7 +6,9 @@ from matplotlib import rc
 import argparse
 
 controller_dict = {'v': 'vanilla_large_',
+                   'vr': 'vanilla_large_robust_',
                    't': 'tube_',
+                   'tr': 'tube_robust_',
                    'rs': 'robust_sc_',
                    'rr': 'robust_rc_',
                    'cc':  'robust_cc_',
@@ -15,11 +17,11 @@ controller_dict = {'v': 'vanilla_large_',
 
 title_dict = {'v': 'MPPI Standard Cost',
               't': 'Tube-MPPI Standard Cost',
+              'vr': 'MPPI Robust Cost',
+              'tr': 'Tube-MPPI Robust Cost',
               'rs': 'RMPPI LQR Standard Cost',
               'rr': 'RMPPI LQR Robust Cost',
-              'cc': 'RMPPI CCM Robust Cost',
-              'vr': 'MPPI Robust Cost',
-              'tr': 'Tube-MPPI Robust Cost'}
+              'cc': 'RMPPI CCM Robust Cost'}
 
 rc('font', **{'size': 30})
 
@@ -100,8 +102,8 @@ def main(args):
     if args['save_mp4']:
         ani.save(title_dict[args['controller']] + '_trajectory' + '.mp4', writer=writer)
     else:
-        print('Not saving mp4 file, pass --save_mp4=True if you want to save it')
-    plt.show()
+        print('Not saving mp4 file, pass --save_mp4 if you want to save it')
+    # plt.show()
 
 
 if __name__ == "__main__":
