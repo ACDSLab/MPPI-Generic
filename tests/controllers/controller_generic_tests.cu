@@ -402,7 +402,7 @@ TEST(Controller, getSampledControlTrajectories) {
     noise[i] = TestController::control_trajectory::Random();
   }
   // Save back a percentage of trajectories
-  controller.setPercentageSampledControlTrajectories(0.3);
+  controller.setPercentageSampledControlTrajectoriesHelper(0.3, 1);
 
   TestController::state_array x = TestController::state_array::Ones();
   controller.computeControl(x, noise);

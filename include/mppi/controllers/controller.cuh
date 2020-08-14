@@ -464,7 +464,8 @@ public:
 
   /**
    * Set the percentage of sample control trajectories to copy
-   * back from the GPU
+   * back from the GPU. Multipler is an integer in case the nominal
+   * control trajectories also need to be saved.
    */
   void setPercentageSampledControlTrajectoriesHelper(float new_perc, int multiplier) {
     int num_sampled_trajectories = new_perc * NUM_ROLLOUTS;
