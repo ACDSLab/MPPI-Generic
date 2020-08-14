@@ -33,6 +33,8 @@ public:
 
   }
 
+  virtual void calculateSampledStateTrajectories() override {};
+
   void computeControl(const Eigen::Ref<const state_array>& state,
                       const std::array<control_trajectory, number_rollouts> noise) {
     int trajectory_size = control_trajectory().size();

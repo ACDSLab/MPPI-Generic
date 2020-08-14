@@ -84,6 +84,8 @@ public:
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 1);
   }
 
+  void calculateSampledStateTrajectories() override;
+
 protected:
 
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);

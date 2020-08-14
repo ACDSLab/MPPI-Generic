@@ -152,13 +152,18 @@ public:
    */
   virtual void slideControlSequence(int optimization_stride) = 0;
 
+  /**
+   * Call a kernel to evaluate the sampled state trajectories for visualization
+   * and debugging.
+   */
+  virtual void calculateSampledStateTrajectories() = 0;
+
   // ================ END OF METHODS WITH NO DEFAULT =============
   // ======== PURE VIRTUAL END =====
 
   virtual std::string getControllerName() {return "name not set";};
   virtual std::string getCostFunctionName() {return cost_->getCostFunctionName();}
 
-  virtual void calculateSampledStateTrajectories();
 
   virtual std::vector<state_trajectory> getSampledStateTrajectories() {
     return sampled_trajectories_;

@@ -26,42 +26,6 @@ void CONTROLLER::copyNominalControlToDevice() {
   HANDLE_ERROR(cudaStreamSynchronize(stream_));
 }
 
-
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-        int BDIM_X, int BDIM_Y>
-void CONTROLLER::calculateSampledStateTrajectories() {
-  int num_sampled_trajectories = perc_sampled_control_trajectories * NUM_ROLLOUTS;
-  std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
-
-  // TODO cudaMalloc and free
-  // get the current controls at sampled locations
-
-  for(int i = 0; i < num_sampled_trajectories; i++) {
-    HANDLE_ERROR(cudaMemcpyAsync(sampled_noise_d_ + i * num_timesteps_ * DYN_T::CONTROL_DIM,
-                                 control_noise_d_ + samples[i] * num_timesteps_ * DYN_T::CONTROL_DIM,
-                                 sizeof(float) * num_timesteps_ * DYN_T::CONTROL_DIM,
-                                 cudaMemcpyDeviceToDevice,
-                                 stream_));
-  }
-  HANDLE_ERROR(cudaStreamSynchronize(stream_));
-
-  // TODO run kernel
-  mppi_common::launchStateTrajectoryKernel<DYN_T, BDIM_X, BDIM_Y, 1, false>(model_->model_d_, sampled_noise_d_,
-                                                                  initial_state_d_, sampled_states_d_,
-                                                                  num_sampled_trajectories, num_timesteps_,
-                                                                  dt_, stream_);
-
-  // TODO copy back results
-  for(int i = 0; i < num_sampled_trajectories; i++) {
-    HANDLE_ERROR(cudaMemcpyAsync(sampled_trajectories_[i].data(),
-                                 sampled_states_d_ + i*num_timesteps_*DYN_T::STATE_DIM,
-                                 num_timesteps_ * DYN_T::STATE_DIM * sizeof(float),
-                                 cudaMemcpyDeviceToHost,
-                                 stream_));
-  }
-  HANDLE_ERROR(cudaStreamSynchronize(stream_));
-}
-
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
         int BDIM_X, int BDIM_Y>
 void CONTROLLER::copySampledControlFromDevice() {
