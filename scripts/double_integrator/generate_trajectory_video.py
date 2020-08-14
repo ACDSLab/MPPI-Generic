@@ -9,13 +9,17 @@ controller_dict = {'v': 'vanilla_large_',
                    't': 'tube_',
                    'rs': 'robust_sc_',
                    'rr': 'robust_rc_',
-                   'cc':  'robust_cc_'}
+                   'cc':  'robust_cc_',
+                   'vr': 'vanilla_large_robust_',
+                   'tr': 'tube_robust_'}
 
 title_dict = {'v': 'MPPI Standard Cost',
-                   't': 'Tube-MPPI Standard Cost',
-                   'rs': 'RMPPI LQR Standard Cost',
-                   'rr': 'RMPPI LQR Robust Cost',
-                   'cc': 'RMPPI CCM Robust Cost'}
+              't': 'Tube-MPPI Standard Cost',
+              'rs': 'RMPPI LQR Standard Cost',
+              'rr': 'RMPPI LQR Robust Cost',
+              'cc': 'RMPPI CCM Robust Cost',
+              'vr': 'MPPI Robust Cost',
+              'tr': 'Tube-MPPI Robust Cost'}
 
 rc('font', **{'size': 30})
 
@@ -104,7 +108,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Say hello')
     parser.add_argument('--build_dir', help='Location of MPPI-Generic build folder', required=True)
     parser.add_argument('--controller', help="Which controller we are plotting", required=True)
-    parser.add_argument('--fps', required=False, default=30)
+    parser.add_argument('--fps', required=False, default=50)
     parser.add_argument('--save_mp4', required=False, default=False)
     args = vars(parser.parse_args())
 

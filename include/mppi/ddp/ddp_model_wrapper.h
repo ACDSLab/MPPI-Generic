@@ -9,7 +9,7 @@
 template<typename T>
 struct HasAnalyticGrad
 {
-    template <typename U> static char Test( typeof(&U::computeGrad) ) ;
+    template <typename U> static char Test( decltype(&U::computeGrad) ) ;
     template <typename U> static long Test(...);
     static const bool Has = sizeof(Test<T>(0)) == sizeof(char);
 };

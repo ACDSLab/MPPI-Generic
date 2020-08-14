@@ -12,7 +12,9 @@ controller_dict = {'v': 'vanilla_large_',
                    'rhv': 'test_mppi_',
                    'rht': 'test_tmppi_',
                    'rhr': 'test_rmppi_',
-                   'cc':  'robust_cc_'}
+                   'cc':  'robust_cc_',
+                   'vr': 'vanilla_large_robust_',
+                   'tr': 'tube_robust_'}
 
 title_dict = {'v': 'MPPI Standard Cost',
                    't': 'Tube-MPPI Standard Cost',
@@ -21,19 +23,22 @@ title_dict = {'v': 'MPPI Standard Cost',
                    'rhv': 'MPPI Autorally',
                    'rht': 'Tube-MPPI Autorally',
                    'rhr': 'RMPPI Autorally',
-                   'cc': 'RMPPI CCM Robust Cost'}
+                   'cc': 'RMPPI CCM Robust Cost',
+                   'vr': 'MPPI Robust Cost',
+                   'tr': 'Tube-MPPI Robust Cost'}
 
 rc('font', **{'size': 30})
 
 
 fig, ax = plt.subplots()
 fig.set_dpi(100)
-fig.set_size_inches(19.2, 10.8)
+fig.set_size_inches(10, 10)
 xdata, ydata, yndata = [], [], []
 
-ax.set_ylabel('Log(Free Energy)')
+ax.set_ylabel('Log(Free Energy)',labelpad=-30, position=(0.5,.6))
 ax.set_xlabel('Time (sec)')
 ax.set_yscale('log')
+
 #ax.xaxis.set_ticklabels([])
 title = None
 ln3, = ax.plot([], [], 'r', alpha=0.7, linewidth=3, label='Nominal')
@@ -124,16 +129,24 @@ def main(args):
         time, nominal_fe, real_fe = index_data(time, nominal_fe, real_fe, 180, 220)
     elif args['controller'] == 'cc':
         time = np.linspace(0.02, 0.02*3000, 3000)
-        real_fe = np.load(data_dir + controller_name + 'real_free_energy.npy')
-        nominal_fe = np.load(data_dir + controller_name + 'nominal_free_energy.npy')
+        real_fe = np.load(data_dir + controller_name + 'real_free_energy.npy')/100
+        nominal_fe = np.load(data_dir + controller_name + 'nominal_free_energy.npy')/100
+    elif args['controller'] == 'vr':
+        time = np.linspace(0.02, 0.02*5000, 5000)
+        real_fe = np.load(data_dir + controller_name + 'real_free_energy.npy')/100
+        nominal_fe = -1*np.ones_like(real_fe)
+    elif args['controller'] == 'tr':
+        time = np.linspace(0.02, 0.02*5000, 5000)
+        real_fe = np.load(data_dir + controller_name + 'real_free_energy.npy')/100
+        nominal_fe = np.load(data_dir + controller_name + 'nominal_free_energy.npy')/100
     elif not args['controller'] == 'rr':
         time = np.linspace(0.02, 0.02*5000, 5000)
         real_fe = np.load(data_dir + controller_name + 'real_free_energy.npy')/1000
         nominal_fe = np.load(data_dir + controller_name + 'nominal_free_energy.npy')/1000
     else:
         time = np.linspace(0.02, 0.02*5000, 5000)
-        real_fe = np.load(data_dir + controller_name + 'real_free_energy.npy')
-        nominal_fe = np.load(data_dir + controller_name + 'nominal_free_energy.npy')
+        real_fe = np.load(data_dir + controller_name + 'real_free_energy.npy')/100
+        nominal_fe = np.load(data_dir + controller_name + 'nominal_free_energy.npy')/100
     ax.set_title(title_dict[args['controller']])
 
     if np.mean(nominal_fe) == -1:
@@ -160,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument('--build_dir', help='Location of MPPI-Generic build folder', required=True)
     parser.add_argument('--controller', help="Which controller we are plotting", required=True)
     parser.add_argument('--time_window', help='Time window size (s)', required=False, default=5)
-    parser.add_argument('--fps', required=False, default=30)
+    parser.add_argument('--fps', required=False, default=50)
     parser.add_argument('--save_mp4', required=False, default=False)
     args = vars(parser.parse_args())
 
