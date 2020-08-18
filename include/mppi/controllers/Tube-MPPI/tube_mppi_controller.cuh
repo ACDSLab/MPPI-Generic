@@ -107,6 +107,12 @@ public:
   float getNominalThreshold() {return nominal_threshold_;}
   void setNominalThreshold(float threshold) {nominal_threshold_ = threshold;}
 
+  void setPercentageSampledControlTrajectories(float new_perc) {
+    this->setPercentageSampledControlTrajectoriesHelper(new_perc, 2);
+  }
+
+  void calculateSampledStateTrajectories() override;
+
 private:
   float normalizer_nominal_; // Variable for the normalizing term from sampling.
   float baseline_nominal_; // Baseline cost of the system.

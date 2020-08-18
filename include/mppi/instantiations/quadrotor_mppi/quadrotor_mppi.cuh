@@ -5,6 +5,7 @@
 #include <mppi/controllers/Tube-MPPI/tube_mppi_controller.cuh>
 #include <mppi/controllers/R-MPPI/robust_mppi_controller.cuh>
 
+#include <mppi/cost_functions/quadrotor/quadrotor_map_cost.cuh>
 #include <mppi/cost_functions/quadrotor/quadrotor_quadratic_cost.cuh>
 #include <mppi/dynamics/quadrotor/quadrotor_dynamics.cuh>
 

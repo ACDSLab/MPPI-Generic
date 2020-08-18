@@ -4,6 +4,7 @@
 #include <mppi/ddp/ddp.h>
 #include <eigen3/Eigen/Dense>
 #include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
+#include <mppi/instantiations/quadrotor_mppi/quadrotor_mppi.cuh>
 
 class ModelWrapper_Test : public testing::Test {
 public:
@@ -199,4 +200,107 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
   for (int i = 0; i < num_timesteps; ++i) {
     ASSERT_NEAR((nominal_state.col(i) - result_.state_trajectory.col(i)).norm(), 0.0f, 1e-2) << "Failed on timestep: " << i;
   }
+}
+
+TEST(DDPSolver_Test, Quadrotor_Tracking) {
+  const int num_timesteps = 200;
+
+  using DYN = QuadrotorDynamics;
+  using COST = QuadrotorQuadraticCost;
+  using CONTROLLER = VanillaMPPIController<DYN, COST, num_timesteps, 2048, 64, 8>;
+
+  std::array<float2, DYN::CONTROL_DIM> control_ranges;
+  for(int i = 0; i < 3; i++) {
+    control_ranges[i] = make_float2(-2.5, 2.5);
+  }
+  control_ranges[3] = make_float2(0, 36);
+  DYN model(control_ranges);
+
+  DYN::state_array x_goal;
+  x_goal << 10, 5, 3,   // position
+            0, 0, 0,    // velocity
+            0.7071068, 0, 0, 0.7071068, // quaternion
+            0, 0,  0;   // angular speed
+
+  float dt = 0.01;
+
+  // Create DDP and find feedback gains
+  util::DefaultLogger logger;
+  bool verbose = false;
+  int num_iterations = 100;
+  CONTROLLER::StateCostWeight Q;
+  CONTROLLER::ControlCostWeight R;
+  CONTROLLER::Hessian Qf;
+  Q = CONTROLLER::StateCostWeight::Identity();
+  R = CONTROLLER::ControlCostWeight::Identity();
+  Qf = CONTROLLER::Hessian::Identity();
+  Q.diagonal() << 25, 25, 300,
+                  15,  15,  300,
+                  0, 0, 0, 0,
+                  30, 30, 30;
+  R.diagonal() << 550, 550, 550, 1;
+
+  Eigen::MatrixXf control_traj = CONTROLLER::control_trajectory::Zero();
+  CONTROLLER::state_trajectory ddp_state_traj = CONTROLLER::state_trajectory::Zero();
+  for(int i = 0; i < num_timesteps; i++) {
+    ddp_state_traj.col(i) = x_goal;
+    control_traj.col(i) = model.zero_control_;
+  }
+
+  auto ddp_model = std::make_shared<ModelWrapperDDP<DYN>>(&model);
+
+  auto ddp_solver = std::make_shared<DDP<ModelWrapperDDP<DYN>>>(dt,
+                                                                num_timesteps,
+                                                                num_iterations,
+                                                                &logger,
+                                                                verbose);
+
+  auto tracking_cost =
+      std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN>>>(Q, R, num_timesteps);
+
+  auto terminal_cost =
+      std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN>>>(Qf);
+
+  tracking_cost->setTargets(ddp_state_traj.data(), control_traj.data(),
+                            num_timesteps);
+  terminal_cost->xf = tracking_cost->traj_target_x_.col(num_timesteps - 1);
+
+  DYN::state_array x_real;
+  x_real << 0, -0.5, 0,   // position
+            0, 0.5, 0,    // velocity
+            1, 0, 0, 0, // quaternion
+            0, 0,  0;   // angular speed
+
+  DYN::control_array control_min, control_max;
+  for (int i = 0; i < DYN::CONTROL_DIM; i++) {
+    control_min(i) = control_ranges[i].x;
+    control_max(i) = control_ranges[i].y;
+  }
+
+
+  std::cout << "Starting DDP" << std::endl;
+  OptimizerResult<ModelWrapperDDP<DYN>> result_ = ddp_solver->run(x_real,
+                                                                  control_traj,
+                                                                  *ddp_model,
+                                                                  *tracking_cost,
+                                                                  *terminal_cost,
+                                                                  control_min,
+                                                                  control_max);
+  auto control_feedback_gains = result_.feedback_gain;
+  std::cout << "DDP Optimal State Sequence: " << result_.state_trajectory.transpose() << std::endl;
+  DYN::state_array x_deriv, x;
+  x = x_real;
+  DYN::control_array u_total, fb_u;
+  for (int t = 0; t < num_timesteps; ++t) {
+    fb_u = control_feedback_gains[t] * (x - result_.state_trajectory.col(t));
+    u_total = fb_u;
+    model.enforceConstraints(x, u_total);
+    std::cout << " t = " << t * dt << ", State_diff norm: "<< (x - x_goal).norm()
+              << ", Control:  " << u_total.transpose() << std::endl;
+    model.computeStateDeriv(x, u_total, x_deriv);
+    model.updateState(x, x_deriv, dt);
+  }
+  std::cout << "X_goal: " << x_goal.transpose() << "\nX_end: " << x.transpose()
+            << "\ndiff in state: " << (x - x_goal).norm() << std::endl;
+  EXPECT_LE((x - x_goal).norm(), 8);
 }

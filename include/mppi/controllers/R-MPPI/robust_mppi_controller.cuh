@@ -171,6 +171,12 @@ public:
 
   Eigen::MatrixXf getCandidateFreeEnergy() {return candidate_free_energy_;};
 
+  void setPercentageSampledControlTrajectories(float new_perc) {
+    this->setPercentageSampledControlTrajectoriesHelper(new_perc, 2);
+  }
+
+  void calculateSampledStateTrajectories() override;
+
 protected:
   bool importance_sampling_cuda_mem_init_ = false;
   int num_candidate_nominal_states_;

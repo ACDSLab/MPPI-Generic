@@ -491,7 +491,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     model.computeDynamics(x, current_control, xdot);
     model.updateState(x, xdot, dt);
 
-    controller.updateNominalState(controller.getControlSeq().col(0));
+    //controller.updateNominalState(controller.getControlSeq().col(0));
 
     // Add the "true" noise of the system
     model.computeStateDisturbance(dt, x);

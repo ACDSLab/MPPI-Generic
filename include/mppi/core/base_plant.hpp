@@ -428,6 +428,8 @@ public:
     // calculate the propogated feedback trajectory
     controller->computeFeedbackPropagatedStateSeq();
 
+    controller->calculateSampledStateTrajectories();
+
     // TODO
     //Increment the state if debug mode is set to true
     // if (status != 0 && debug_mode_){

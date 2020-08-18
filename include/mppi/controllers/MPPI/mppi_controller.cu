@@ -191,4 +191,38 @@ void VanillaMPPI::smoothControlTrajectory() {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
 }
 
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void VanillaMPPI::calculateSampledStateTrajectories() {
+  int num_sampled_trajectories = this->perc_sampled_control_trajectories * NUM_ROLLOUTS;
+  std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
+
+  // TODO cudaMalloc and free
+  // get the current controls at sampled locations
+
+  for(int i = 0; i < num_sampled_trajectories; i++) {
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 cudaMemcpyDeviceToDevice,
+                                 this->stream_));
+  }
+  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+
+  // TODO run kernel
+  mppi_common::launchStateTrajectoryKernel<DYN_T, BDIM_X, BDIM_Y, 1, false>(this->model_->model_d_, this->sampled_noise_d_,
+                                                                            this->initial_state_d_, this->sampled_states_d_,
+                                                                            num_sampled_trajectories, this->num_timesteps_,
+                                                                            this->dt_, this->stream_);
+
+  // TODO copy back results
+  for(int i = 0; i < num_sampled_trajectories; i++) {
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data(),
+                                 this->sampled_states_d_ + i*this->num_timesteps_*DYN_T::STATE_DIM,
+                                 this->num_timesteps_ * DYN_T::STATE_DIM * sizeof(float),
+                                 cudaMemcpyDeviceToHost,
+                                 this->stream_));
+  }
+  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+}
+
 #undef VanillaMPPI
