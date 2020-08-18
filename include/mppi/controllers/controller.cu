@@ -10,6 +10,11 @@ void CONTROLLER::deallocateCUDAMemory() {
   cudaFree(trajectory_costs_d_);
   cudaFree(control_std_dev_d_);
   cudaFree(control_noise_d_);
+  if (sampled_states_CUDA_mem_init_) {
+    cudaFree(sampled_states_d_);
+    cudaFree(sampled_noise_d_);
+    sampled_states_CUDA_mem_init_ = false;
+  }
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,

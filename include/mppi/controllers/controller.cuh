@@ -112,7 +112,7 @@ public:
     }
 
     /**
-     * When implementing your own version make sure to write your own allocateCUDAMemroy and call it from the constructor
+     * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the constructor
      * along with any other methods to copy memory to the device and back
      */
      // TODO pass function pointer?
@@ -129,8 +129,6 @@ public:
     // Free the CUDA memory of every object
     model_->freeCudaMem();
     cost_->freeCudaMem();
-    cudaFree(sampled_noise_d_);
-    cudaFree(sampled_states_d_);
 
     // Free the CUDA memory of the controller
     deallocateCUDAMemory();
@@ -469,16 +467,22 @@ public:
 
   /**
    * Set the percentage of sample control trajectories to copy
-   * back from the GPU. Multipler is an integer in case the nominal
+   * back from the GPU. Multiplier is an integer in case the nominal
    * control trajectories also need to be saved.
    */
   void setPercentageSampledControlTrajectoriesHelper(float new_perc, int multiplier) {
     int num_sampled_trajectories = new_perc * NUM_ROLLOUTS;
 
+    if (sampled_states_CUDA_mem_init_) {
+      cudaFree(sampled_states_d_);
+      cudaFree(sampled_noise_d_);
+      sampled_states_CUDA_mem_init_ = false;
+    }
     HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
                             sizeof(float)*DYN_T::STATE_DIM*num_timesteps_*num_sampled_trajectories*multiplier));
     HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_,
                             sizeof(float)*DYN_T::CONTROL_DIM*num_timesteps_*num_sampled_trajectories*multiplier));
+    sampled_states_CUDA_mem_init_ = true;
 
     sampled_trajectories_.resize(num_sampled_trajectories*multiplier);
     perc_sampled_control_trajectories = new_perc;
@@ -557,7 +561,7 @@ protected:
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
 
-
+  bool sampled_states_CUDA_mem_init_ = false;  // cudaMalloc, cudaFree boolean
   float* sampled_states_d_; // result of states that have been sampled from state trajectory kernel
   float* sampled_noise_d_; // noise to be passed to the state trajectory kernel
   std::vector<control_trajectory> sampled_controls_; // Sampled control trajectories from rollout kernel
