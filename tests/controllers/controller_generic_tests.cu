@@ -33,6 +33,8 @@ public:
 
   }
 
+  virtual void calculateSampledStateTrajectories() override {};
+
   void computeControl(const Eigen::Ref<const state_array>& state,
                       const std::array<control_trajectory, number_rollouts> noise) {
     int trajectory_size = control_trajectory().size();
@@ -402,7 +404,7 @@ TEST(Controller, getSampledControlTrajectories) {
     noise[i] = TestController::control_trajectory::Random();
   }
   // Save back a percentage of trajectories
-  controller.setPercentageSampledControlTrajectories(0.3);
+  controller.setPercentageSampledControlTrajectoriesHelper(0.3, 1);
 
   TestController::state_array x = TestController::state_array::Ones();
   controller.computeControl(x, noise);

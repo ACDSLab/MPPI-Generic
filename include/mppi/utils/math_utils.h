@@ -130,7 +130,7 @@ inline __device__ void Euler2QuatNWU(const float&r, const float& p,
 /*
 * Returns an euler sequence 3-2-1 (roll pitch yaw) that when applied takes you from body to world
 */
-inline __device__ void Quat2EulerNWU(float q[4], float& r, float& p, float& y) {
+inline __host__ __device__ void Quat2EulerNWU(float q[4], float& r, float& p, float& y) {
   r = atan2(2 * q[3] * q[2] + 2 * q[0] * q[1],
             q[0] * q[0] + q[3] * q[3] - q[2] * q[2] - q[1] * q[1]);
   float temp = -2 * q[0] * q[2] + 2 * q[1] * q[3];

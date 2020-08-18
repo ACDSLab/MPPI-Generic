@@ -10,6 +10,11 @@ void CONTROLLER::deallocateCUDAMemory() {
   cudaFree(trajectory_costs_d_);
   cudaFree(control_std_dev_d_);
   cudaFree(control_noise_d_);
+  if (sampled_states_CUDA_mem_init_) {
+    cudaFree(sampled_states_d_);
+    cudaFree(sampled_noise_d_);
+    sampled_states_CUDA_mem_init_ = false;
+  }
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
@@ -27,7 +32,7 @@ void CONTROLLER::copyNominalControlToDevice() {
 }
 
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+        int BDIM_X, int BDIM_Y>
 void CONTROLLER::copySampledControlFromDevice() {
   int num_sampled_trajectories = perc_sampled_control_trajectories * NUM_ROLLOUTS;
   int control_trajectory_size = control_trajectory().size();

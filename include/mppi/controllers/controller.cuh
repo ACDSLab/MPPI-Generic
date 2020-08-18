@@ -112,7 +112,7 @@ public:
     }
 
     /**
-     * When implementing your own version make sure to write your own allocateCUDAMemroy and call it from the constructor
+     * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the constructor
      * along with any other methods to copy memory to the device and back
      */
      // TODO pass function pointer?
@@ -150,11 +150,22 @@ public:
    */
   virtual void slideControlSequence(int optimization_stride) = 0;
 
+  /**
+   * Call a kernel to evaluate the sampled state trajectories for visualization
+   * and debugging.
+   */
+  virtual void calculateSampledStateTrajectories() = 0;
+
   // ================ END OF METHODS WITH NO DEFAULT =============
   // ======== PURE VIRTUAL END =====
 
   virtual std::string getControllerName() {return "name not set";};
   virtual std::string getCostFunctionName() {return cost_->getCostFunctionName();}
+
+
+  virtual std::vector<state_trajectory> getSampledStateTrajectories() {
+    return sampled_trajectories_;
+  }
 
   /**
    * only used in rmppi, here for generic calls in base_plant. Jank as hell
@@ -390,7 +401,7 @@ public:
       int ind = std::min(i + steps, num_timesteps_ - 1);
       u.col(i) = u.col(ind);
       if (i + steps > num_timesteps_ - 1) {
-        u.col(i) = control_array::Zero();
+        u.col(i) = model_->zero_control_;
       }
     }
   }
@@ -456,10 +467,29 @@ public:
 
   /**
    * Set the percentage of sample control trajectories to copy
-   * back from the GPU
+   * back from the GPU. Multiplier is an integer in case the nominal
+   * control trajectories also need to be saved.
    */
-  void setPercentageSampledControlTrajectories(float new_perc) {
+  void setPercentageSampledControlTrajectoriesHelper(float new_perc, int multiplier) {
+    int num_sampled_trajectories = new_perc * NUM_ROLLOUTS;
+
+    if (sampled_states_CUDA_mem_init_) {
+      cudaFree(sampled_states_d_);
+      cudaFree(sampled_noise_d_);
+      sampled_states_CUDA_mem_init_ = false;
+    }
+    HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
+                            sizeof(float)*DYN_T::STATE_DIM*num_timesteps_*num_sampled_trajectories*multiplier));
+    HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_,
+                            sizeof(float)*DYN_T::CONTROL_DIM*num_timesteps_*num_sampled_trajectories*multiplier));
+    sampled_states_CUDA_mem_init_ = true;
+
+    sampled_trajectories_.resize(num_sampled_trajectories*multiplier);
     perc_sampled_control_trajectories = new_perc;
+  }
+
+  int getNumberSampledTrajectories() {
+    return perc_sampled_control_trajectories * NUM_ROLLOUTS;
   }
 
   /**
@@ -530,7 +560,12 @@ protected:
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
+
+  bool sampled_states_CUDA_mem_init_ = false;  // cudaMalloc, cudaFree boolean
+  float* sampled_states_d_; // result of states that have been sampled from state trajectory kernel
+  float* sampled_noise_d_; // noise to be passed to the state trajectory kernel
   std::vector<control_trajectory> sampled_controls_; // Sampled control trajectories from rollout kernel
+  std::vector<state_trajectory> sampled_trajectories_; // sampled state trajectories from state trajectory kernel
 
   // Propagated real state trajectory
   state_trajectory propagated_feedback_state_trajectory_ = state_trajectory::Zero();

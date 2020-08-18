@@ -64,9 +64,12 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
 
     //Generate noise data
     curandGenerateNormal(this->gen_, this->control_noise_d_,
-                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM*2,
+                         NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM,
                          0.0, 1.0);
 
+    HANDLE_ERROR(cudaMemcpyAsync(control_noise_nominal_d, this->control_noise_d_,
+                                 NUM_ROLLOUTS*this->num_timesteps_*DYN_T::CONTROL_DIM *sizeof(float),
+                                 cudaMemcpyDeviceToDevice, this->stream_));
     cudaDeviceSynchronize();
 
     // call rollout kernel with z = 2 since we have a nominal state
@@ -209,6 +212,8 @@ void TubeMPPI::allocateCUDAMemory() {
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
         int BDIM_X, int BDIM_Y>
 void TubeMPPI::slideControlSequence(int steps) {
+  // Propagate the nominal trajectory forward
+  updateNominalState(nominal_control_trajectory_.col(0));
 
   // Save the control history
   this->saveControlHistoryHelper(steps, nominal_control_trajectory_, this->control_history_);
@@ -233,7 +238,58 @@ void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_ac
 template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void TubeMPPI::updateNominalState(const Eigen::Ref<const control_array> &u) {
   state_array xdot;
-  state_array state;
   this->model_->computeDynamics(nominal_state_trajectory_.col(0), u, xdot);
   this->model_->updateState(nominal_state_trajectory_.col(0), xdot, this->dt_);
+}
+
+template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void TubeMPPI::calculateSampledStateTrajectories() {
+  int num_sampled_trajectories = this->perc_sampled_control_trajectories * NUM_ROLLOUTS;
+  std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
+
+  // TODO cudaMalloc and free
+  // get the current controls at sampled locations
+
+  float* sampled_noise_d_nom = this->sampled_noise_d_ + num_sampled_trajectories*this->num_timesteps_*DYN_T::CONTROL_DIM;
+  int nom_corrector = NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM;
+  if (this->baseline_ < baseline_nominal_ + nominal_threshold_) {
+    nom_corrector = 0;
+    // initial nominal state needs to be real state when we switch to real
+    HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_ + DYN_T::STATE_DIM,
+                                 this->initial_state_d_,
+                                 sizeof(float) * DYN_T::STATE_DIM,
+                                 cudaMemcpyDeviceToDevice,
+                                 this->stream_));
+  }
+  for(int i = 0; i < num_sampled_trajectories; i++) {
+    // copy real over
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 cudaMemcpyDeviceToDevice,
+                                 this->stream_));
+    // copy nominal over
+    HANDLE_ERROR(cudaMemcpyAsync(sampled_noise_d_nom + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 this->control_noise_d_ + nom_corrector + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 cudaMemcpyDeviceToDevice,
+                                 this->stream_));
+  }
+  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+
+  // run kernel
+  mppi_common::launchStateTrajectoryKernel<DYN_T, BDIM_X, BDIM_Y, 2, false>(this->model_->model_d_, this->sampled_noise_d_,
+                                                                            this->initial_state_d_, this->sampled_states_d_,
+                                                                            num_sampled_trajectories, this->num_timesteps_,
+                                                                            this->dt_, this->stream_);
+
+  // copy back results
+  for(int i = 0; i < num_sampled_trajectories*2; i++) {
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data(),
+                                 this->sampled_states_d_ + i*this->num_timesteps_*DYN_T::STATE_DIM,
+                                 this->num_timesteps_ * DYN_T::STATE_DIM * sizeof(float),
+                                 cudaMemcpyDeviceToHost,
+                                 this->stream_));
+  }
+  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 }

@@ -4,15 +4,17 @@
 QuadrotorDynamics::QuadrotorDynamics(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream) :
 Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, CONTROL_DIM>(control_rngs, stream) {
   this->params_ = QuadrotorDynamicsParams();
+  zero_control_[3] = mppi_math::GRAVITY;
 }
 
 QuadrotorDynamics::QuadrotorDynamics(cudaStream_t stream) :
 Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, CONTROL_DIM>(stream) {
   this->params_ = QuadrotorDynamicsParams();
   float2 thrust_rng;
-  thrust_rng.x = -mppi_math::GRAVITY;
-  thrust_rng.y = 10;  // TODO Figure out if this is a reasonable amount of thrust
+  thrust_rng.x = 0;
+  thrust_rng.y = 36;  // TODO Figure out if this is a reasonable amount of thrust
   this->control_rngs_[3] = thrust_rng;
+  this->zero_control_[3] = mppi_math::GRAVITY;
 }
 
 void QuadrotorDynamics::printState(float* state) {
@@ -82,7 +84,7 @@ void QuadrotorDynamics::computeDynamics(const Eigen::Ref<const state_array> &sta
   Eigen::Matrix<float, 3, 1> angular_speed, v;
   Eigen::Quaternionf q_d;
   Eigen::Matrix<float, 3, 1> tau_inv;
-  float u_thrust = control[3] + mppi_math::GRAVITY; // TODO generalize the trim control
+  float u_thrust = control[3];
 
   // Assume quaterion is w, x, y, z in state array
   Eigen::Quaternionf q(state[6], state[7], state[8], state[9]);
@@ -150,7 +152,7 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state,
   float* w_d = state_der + 10;
 
   float* u_pqr = control;
-  float u_thrust = control[3] + mppi_math::GRAVITY; // TODO generalize the trim control
+  float u_thrust = control[3];
 
   float dcm_lb[3][3];
 

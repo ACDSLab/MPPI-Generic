@@ -339,7 +339,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   float alpha = 0;
   float value_func_threshold = 20;
 
-  const int mission_length = int(60 / dt); // 100 seconds
+  const int mission_length = int(1 / dt); // 100 seconds
 
   // Create a random number generator
   // Random number generator for system noise
@@ -372,7 +372,8 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   std::vector<float> robust_rc_real_free_energy_growth(mission_length, 0);
   std::vector<float> robust_rc_nominal_state_used(mission_length, 0);
 
-  std::string file_prefix = "/data/bvlahov3/RMPPI_CCM_control_trajectories_CoRL2020/FreeEnergyRMPPIData/";
+//  std::string file_prefix = "/data/bvlahov3/RMPPI_CCM_control_trajectories_CoRL2020/FreeEnergyRMPPIData/";
+  std::string file_prefix = "";
 
   CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(1.0);
   CONTROLLER::control_trajectory u_traj_eigen = CONTROLLER::control_trajectory::Zero();
