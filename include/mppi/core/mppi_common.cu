@@ -20,6 +20,7 @@ namespace mppi_common {
                                float* du_d,
                                float* sigma_u_d,
                                float* trajectory_costs_d) {
+
     // Get thread and block id
     int thread_idx = threadIdx.x;
     int thread_idy = threadIdx.y;

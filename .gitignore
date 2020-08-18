@@ -43,3 +43,7 @@ build
 
 # resouces folder
 resource
+
+# video files
+*.mp4
+*.mpeg

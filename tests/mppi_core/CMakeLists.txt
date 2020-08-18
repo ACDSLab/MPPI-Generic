@@ -61,3 +61,17 @@ target_link_libraries(${RMPPIKERNEL_TARGET_NAME} gtest
 
 gtest_discover_tests(${RMPPIKERNEL_TARGET_NAME})
 set_target_properties(${RMPPIKERNEL_TARGET_NAME} PROPERTIES FOLDER test)
+
+# RMPPI Kernel Test Cases
+set(CCM_TARGET_NAME CCM_tests)
+
+add_executable(${CCM_TARGET_NAME} ../test_main.cpp
+        CCM_tests.cu)
+target_link_libraries(${CCM_TARGET_NAME} gtest
+        gmock
+        gtest_main
+        curand
+        cnpy)
+
+gtest_discover_tests(${CCM_TARGET_NAME})
+set_target_properties(${CCM_TARGET_NAME} PROPERTIES FOLDER test)

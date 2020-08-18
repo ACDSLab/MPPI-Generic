@@ -44,6 +44,34 @@ inline std::vector<int> sample_without_replacement(int k, int N,
   return final_sequence;
 }
 
+/**
+ * Linear interpolation
+ * Given two coordinates (x_min, y_min) and (x_max, y_max)
+ * And the x location of a third (x), return the y location
+ * along the line between the two points
+ */
+__host__ __device__ float linInterp(float x, float x_min, float x_max,
+                                    float y_min, float y_max) {
+  return (x - x_min) / (x_max - x_min) * (y_max - y_min) + y_min;
+}
+
+/**
+ * Calculates the normalized distance from the centerline
+ * @param r - current radius
+ * @param r_in - the inside radius of a track
+ * @param r_out - the outside radius of a track
+ * @return norm_dist - a normalized distance away from the centerline
+ * norm_dist = 0 -> on the centerline
+ * norm_dist = 1 -> on one of the track boundaries inner, or outer
+ */
+__host__ __device__ float normDistFromCenter(float r, float r_in, float r_out) {
+  float r_center = (r_in + r_out) / 2;
+  float r_width = (r_out - r_in);
+  float dist_from_center = fabsf(r - r_center);
+  float norm_dist = dist_from_center / (r_width * 0.5);
+  return norm_dist;
+}
+
 
 /**
  * Multiply two quaternions together which gives you their rotations added together

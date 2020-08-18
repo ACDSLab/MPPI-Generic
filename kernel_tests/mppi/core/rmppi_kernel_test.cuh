@@ -6,6 +6,7 @@
 #define MPPIGENERIC_RMPPI_KERNEL_TEST_CUH
 
 #include <mppi/core/mppi_common.cuh>
+#include <mppi/feedback_controllers/CCM/ccm.h>
 #include <curand.h>
 #include <Eigen/Dense>
 
@@ -40,7 +41,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* dynamics, COST_T* costs,
                                  const std::vector<float>& sigma_u,
                                  const std::vector<float>& nom_control_seq,
                                  const std::vector<float>& feedback_gains_seq,
-                                 const std::vector<float>& sampled_noise,
+                                 std::vector<float>& sampled_noise,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom);
 
@@ -55,6 +56,23 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
                                        std::array<float, 2*NUM_ROLLOUTS>& rmppi_costs_out,
                                        std::array<float, NUM_ROLLOUTS>& mppi_costs_out,
                                        int opt_delay, cudaStream_t stream);
+
+template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
+void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
+                                    ccm::LinearCCM<DYN_T>* fb_controller,
+                                    float dt,
+                                    int num_timesteps,
+                                    int optimization_stride,
+                                    float lambda,
+                                    float alpha,
+                                    float value_func_threshold,
+                                    const std::vector<float>& x0_nom,
+                                    const std::vector<float>& x0_act,
+                                    const std::vector<float>& sigma_u,
+                                    const std::vector<float>& nom_control_seq,
+                                    std::vector<float>& sampled_noise,
+                                    std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
+                                    std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom);
 
 #if __CUDACC__
 #include "rmppi_kernel_test.cu"

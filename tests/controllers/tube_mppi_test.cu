@@ -348,7 +348,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   cost.setParams(params);
   float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
-  float lambda = 4.0; // Learning rate parameter
+  float lambda = 2.0; // Learning rate parameter
   float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
 
@@ -376,6 +376,10 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   Eigen::MatrixXf Qf;
   Eigen::MatrixXf R;
 
+  typedef TubeMPPIController<DoubleIntegratorDynamics,
+                             DoubleIntegratorCircleCost, num_timesteps,
+                             1024, 64, 1> CONTROLLER_T;
+
   /**
    * Q =
    * [500, 0, 0, 0
@@ -383,24 +387,23 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
    *  0, 0, 100, 0
    *  0, 0, 0, 100]
    */
-  Q = 500*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
-  Q(2,2) = 100;
-  Q(3,3) = 100;
+  Q = CONTROLLER_T::StateCostWeight::Identity();
+  Q.diagonal() << 500, 500, 100, 100;
   /**
    * R = I
    */
-  R = 1*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
+  R = CONTROLLER_T::ControlCostWeight::Identity();
 
   /**
    * Qf = I
    */
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
+  Qf = CONTROLLER_T::Hessian::Identity();
 
   // Initialize the tube MPPI controller
-  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, Q, Qf, R, control_var);
+  auto controller = CONTROLLER_T(&model, &cost, dt, max_iter, lambda, alpha, Q, Qf, R,
+                                 control_var);
 
-  controller.setNominalThreshold(20);
+  controller.setNominalThreshold(100);
 
   int fail_count = 0;
   int crash_status[1] = {0};
