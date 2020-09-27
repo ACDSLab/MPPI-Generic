@@ -50,8 +50,8 @@ inline std::vector<int> sample_without_replacement(int k, int N,
  * And the x location of a third (x), return the y location
  * along the line between the two points
  */
-__host__ __device__ float linInterp(float x, float x_min, float x_max,
-                                    float y_min, float y_max) {
+inline __host__ __device__ float linInterp(float x, float x_min, float x_max,
+                                           float y_min, float y_max) {
   return (x - x_min) / (x_max - x_min) * (y_max - y_min) + y_min;
 }
 
@@ -64,7 +64,7 @@ __host__ __device__ float linInterp(float x, float x_min, float x_max,
  * norm_dist = 0 -> on the centerline
  * norm_dist = 1 -> on one of the track boundaries inner, or outer
  */
-__host__ __device__ float normDistFromCenter(float r, float r_in, float r_out) {
+inline __host__ __device__ float normDistFromCenter(float r, float r_in, float r_out) {
   float r_center = (r_in + r_out) / 2;
   float r_width = (r_out - r_in);
   float dist_from_center = fabsf(r - r_center);
