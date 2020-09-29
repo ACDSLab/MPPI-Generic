@@ -14,7 +14,7 @@
 
 template<class CLASS_T, class DYN_T> class GPUFeedbackController : public Managed {
 public:
-
+  typedef DYN_T TEMPLATED_DYNAMICS;
   virtual ~GPUFeedbackController() {
     deallocateCUDAMemory();
   };
@@ -26,12 +26,17 @@ public:
   void deallocateCUDAMemory();
 
   void k(const float * x_act, const float * x_goal,
-         const float t,  const float * theta, float* control_output);
+         const float t, float * theta,
+         float* control_output) {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    derived->k(x_act, x_goal, t, theta, control_output);
+  }
 
   // Abstract method to copy information to GPU
   void copyToDevice();
   void copyFromDevice();
   // Needs the CLASS_T pointer to itself
+  CLASS_T* feedback_d_ = nullptr;
 }
 
 /**
@@ -42,16 +47,14 @@ public:
  * It will then automatically create the right pointer
  */
 
-template<class DYN_T, template<class> GPU_FEEDBACK_T, int NUM_TIMESTEPS> class FeedbackController {
+template<class GPU_FEEDBACK_T, int NUM_TIMESTEPS> class FeedbackController {
 public:
   // Type Defintions and aliases
-
+  typedef GPU_FEEDBACK_T::TEMPLATED_DYNAMICS DYN_T;
   using state_array = typename DYN_T::state_array;
   using control_array = typename DYN_T::control_array;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, NUM_TIMESTEPS> control_trajectory; // A control trajectory
   typedef Eigen::Matrix<float, DYN_T::STATE_DIM, NUM_TIMESTEPS> state_trajectory; // A control trajectory
-  typedef DYN_T TEMPLATED_DYNAMICS;
-  typedef GPU_FEEDBACK_T<DYN_T> GPUFeedback;
 
   // Constructors and Generators
   FeedbackController(cudaStream_t stream=0) {
@@ -73,11 +76,11 @@ public:
   // Abstract method to copy information to GPU using the copyToDevice method in gpu_controller
   virtual sendToGPU() = 0;
   virtual copyFromGPU() = 0;
-  GPUFeeback* getDevicePointer() {
-    return gpu_controller->
+  GPU_FEEDBACK_T* getDevicePointer() {
+    return gpu_controller->feedback_d_;
   }
 private:
-  std::shared_ptr<GPUFeedback> gpu_controller;
+  std::shared_ptr<GPU_FEEDBACK_T> gpu_controller;
 }
 
 
