@@ -12,9 +12,7 @@
 template <class CLASS_T, class DYN_T>
 class DeviceDDPImpl : public GPUFeedbackController<CLASS_T, DYN_T> {
 public:
-  DeviceDDPImpl(int num_timesteps, cudaStream_t stream = 0) :
-    num_timesteps_(num_timesteps),
-    GPUFeedbackController<CLASS_T, DYN_T>(stream) {}
+  DeviceDDPImpl(int num_timesteps, cudaStream_t stream = 0);
 
   void allocateCUDAMemory();
   void deallocateCUDAMemory();
