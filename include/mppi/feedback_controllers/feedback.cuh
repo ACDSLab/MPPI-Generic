@@ -14,13 +14,27 @@
 
 template<class CLASS_T, class DYN_T> class GPUFeedbackController : public Managed {
 public:
+  /**
+   * Type Aliasing
+   */
   typedef DYN_T TEMPLATED_DYNAMICS;
+
+  CLASS_T* feedback_d_ = nullptr;
+
+  /**
+   * =================== METHODS THAT SHOULD NOT BE OVERWRITTEN ================
+   */
   virtual ~GPUFeedbackController() {
-    deallocateCUDAMemory();
+    freeCudaMem();
   };
 
   // Overwrite of Managed->GPUSetup to call allocateCUDAMemory as well
   void GPUSetup();
+  void freeCudaMem();
+
+  /**
+   * ========================== METHODS TO OVERWRITE ===========================
+   */
   // Method to allocate more CUDA memory if needed
   void allocateCUDAMemory();
   void deallocateCUDAMemory();
@@ -34,9 +48,8 @@ public:
 
   // Abstract method to copy information to GPU
   void copyToDevice();
+  // Method to return potential diagnostic information from GPU
   void copyFromDevice();
-  // Needs the CLASS_T pointer to itself
-  CLASS_T* feedback_d_ = nullptr;
 }
 
 /**
@@ -50,15 +63,18 @@ public:
 template<class GPU_FEEDBACK_T, int NUM_TIMESTEPS> class FeedbackController {
 public:
   // Type Defintions and aliases
-  typedef GPU_FEEDBACK_T::TEMPLATED_DYNAMICS DYN_T;
-  using state_array = typename DYN_T::state_array;
-  using control_array = typename DYN_T::control_array;
-  typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, NUM_TIMESTEPS> control_trajectory; // A control trajectory
-  typedef Eigen::Matrix<float, DYN_T::STATE_DIM, NUM_TIMESTEPS> state_trajectory; // A control trajectory
+  typedef GPU_FEEDBACK_T::TEMPLATED_DYNAMICS TEMPLATED_DYNAMICS;
+  using state_array = typename TEMPLATED_DYNAMICS::state_array;
+  using control_array = typename TEMPLATED_DYNAMICS::control_array;
+  typedef Eigen::Matrix<float, TEMPLATED_DYNAMICS::CONTROL_DIM,
+                        NUM_TIMESTEPS> control_trajectory; // A control trajectory
+  typedef Eigen::Matrix<float, TEMPLATED_DYNAMICS::STATE_DIM,
+                        NUM_TIMESTEPS> state_trajectory; // A state trajectory
 
   // Constructors and Generators
   FeedbackController(cudaStream_t stream=0) {
-    gpu_controller = std::make_shared<GPUFeedback>();
+    gpu_controller_ = std::make_shared<GPU_FEEDBACK_T>(stream);
+    gpu_controller_->GPUSetup();
   }
 
   virtual ~FeedbackController() = default;
@@ -73,15 +89,16 @@ public:
   virtual computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
                                const Eigen::Ref<const state_trajector>y& goal_traj,
                                const Eigen::Ref<const control_trajectory>& control_traj);
-  // Abstract method to copy information to GPU using the copyToDevice method in gpu_controller
-  virtual sendToGPU() = 0;
-  virtual copyFromGPU() = 0;
+
   GPU_FEEDBACK_T* getDevicePointer() {
-    return gpu_controller->feedback_d_;
+    return gpu_controller_->feedback_d_;
   }
 private:
-  std::shared_ptr<GPU_FEEDBACK_T> gpu_controller;
+  std::shared_ptr<GPU_FEEDBACK_T> gpu_controller_;
 }
 
+#ifdef __CUDACC__
+#include "feedback.cu"
+#endif
 
 #endif // FEEDBACK_BASE_CUH_
