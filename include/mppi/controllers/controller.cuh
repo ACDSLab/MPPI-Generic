@@ -16,6 +16,7 @@
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <mppi/ddp/ddp_tracking_costs.h>
 #include <mppi/ddp/ddp.h>
+#include <mppi/utils/gpu_err_chk.cuh>
 #include <mppi/utils/math_utils.h>
 
 #include <cfloat>
