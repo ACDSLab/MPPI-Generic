@@ -1,6 +1,8 @@
 set(GTEST_LIBRARIES gtest gmock gtest_main)
 file(GLOB TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
 
+# include_directories(${PROJECT_BINARY_DIR}/include)
+
 foreach(T_FILE IN LISTS TARGET_SRCS)
     get_filename_component(T_NAME ${T_FILE} NAME_WE)
     add_executable(${T_NAME} ../test_main.cpp ${T_FILE})
