@@ -6,10 +6,10 @@
  * and a controller of just MPPI, (not tube or R)
  */
 // Num_timesteps, num_rollouts, blockdim x, blockdim y
-template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>;
-template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 256, 64, 8>;
-template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 150, 512, 64, 8>;
+template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDP<CartpoleDynamics>, 100, 2048, 64, 8>;
+template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDP<CartpoleDynamics>, 100, 256, 64, 8>;
+template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDP<CartpoleDynamics>, 150, 512, 64, 8>;
 
 
 
-template class TubeMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 2048, 64, 8>;
+template class TubeMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDP<CartpoleDynamics>, 100, 2048, 64, 8>;

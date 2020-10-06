@@ -37,7 +37,7 @@ struct MPPIFreeEnergyStatistics {
   freeEnergyEstimate real_sys;
 };
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
 class Controller {
 public:
@@ -48,6 +48,7 @@ public:
    */
   typedef DYN_T TEMPLATED_DYNAMICS;
   typedef COST_T TEMPLATED_COSTS;
+  typedef FB_T TEMPLATED_FEEDBACK;
   // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
   // does not reallocate cuda memory
   int num_timesteps_ = MAX_TIMESTEPS;
@@ -77,7 +78,7 @@ public:
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
-  Controller(DYN_T* model, COST_T* cost, float dt, int max_iter,
+  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
           float lambda, float alpha,
           const Eigen::Ref<const control_array>& control_std_dev,
           int num_timesteps = MAX_TIMESTEPS,
@@ -85,6 +86,7 @@ public:
           cudaStream_t stream = nullptr) {
     model_ = model;
     cost_ = cost;
+    fb_controller_ = fb_controller;
     dt_ = dt;
     num_iters_ = max_iter;
     lambda_ = lambda;
@@ -248,6 +250,7 @@ public:
    */
   virtual control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
           feedback_gain_trajectory& gain_traj, double rel_time) {
+    // TODO call the feedback controller version directly
     int lower_idx = (int) (rel_time / dt_);
     int upper_idx = lower_idx + 1;
     double alpha = (rel_time - lower_idx * dt_) / dt_;
@@ -355,18 +358,23 @@ public:
     terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(Qf_);
   }
 
-  virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& state) {
+  virtual void computeFeedbackGainsHelper(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const state_trajectory>& state_traj,
+                                    const Eigen::Ref<const control_trajectory>& control_traj) {
     if(!enable_feedback_) {
       return;
     }
 
-    run_cost_->setTargets(getStateSeq().data(), getControlSeq().data(),
+    run_cost_->setTargets(state_traj.data(), control_traj.data(),
                           num_timesteps_);
 
     terminal_cost_->xf = run_cost_->traj_target_x_.col(num_timesteps_ - 1);
-    result_ = ddp_solver_->run(state, control_,
+    result_ = ddp_solver_->run(state, control_traj,
                                *ddp_model_, *run_cost_, *terminal_cost_,
                                control_min_, control_max_);
+  }
+
+  virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& state) {
+    computeFeedbackGainsHelper(state, getStateSeq(), getControlSeq());
   }
 
   void smoothControlTrajectoryHelper(Eigen::Ref<control_trajectory> u, const Eigen::Ref<Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>>& control_history) {
@@ -517,6 +525,7 @@ public:
    */
   DYN_T* model_;
   COST_T* cost_;
+  FB_T* fb_controller_;
   cudaStream_t stream_;
 
   float getDt() {return dt_;}
@@ -572,11 +581,13 @@ protected:
   state_trajectory propagated_feedback_state_trajectory_ = state_trajectory::Zero();
 
   // tracking controller variables
+  // TODO move to tracking controller class
   StateCostWeight Q_;
   Hessian Qf_;
   ControlCostWeight R_;
   bool enable_feedback_ = false;
 
+  // TODO move to tracking controller class
   std::shared_ptr<ModelWrapperDDP<DYN_T>> ddp_model_;
   std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
   std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;

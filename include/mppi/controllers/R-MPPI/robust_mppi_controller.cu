@@ -2,11 +2,11 @@
 #include <Eigen/Eigenvalues>
 #include <exception>
 
-#define RobustMPPI RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, SAMPLES_PER_CONDITION_MULTIPLIER>
+#define RobustMPPI RobustMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, SAMPLES_PER_CONDITION_MULTIPLIER>
 
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
-RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                      float lambda, float alpha,
                      float value_function_threshold,
                      const Eigen::Ref<const StateCostWeight>& Q,
@@ -17,8 +17,8 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
                      const Eigen::Ref<const control_trajectory>& init_control_traj,
                      int num_candidate_nominal_states,
                      int optimization_stride,
-                     cudaStream_t stream) : Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        model, cost, dt, max_iter, lambda, alpha, control_std_dev, num_timesteps, init_control_traj, stream),
+                     cudaStream_t stream) : Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+        model, cost, fb_controller, dt, max_iter, lambda, alpha, control_std_dev, num_timesteps, init_control_traj, stream),
         value_function_threshold_(value_function_threshold), optimization_stride_(optimization_stride),
         num_candidate_nominal_states_(num_candidate_nominal_states) {
 
@@ -42,29 +42,31 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_i
 
   // Resize the feedback gain vector to hold the raw data for the feedback gains
   feedback_gain_vector_.resize(MAX_TIMESTEPS*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM);
+
+  this->enable_feedback_ = true;
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 RobustMPPI::~RobustMPPIController() {
   deallocateNominalStateCandidateMemory();
   deallocateCUDAMemory();
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::allocateCUDAMemory() {
-  Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
+  Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
 
   // We need to allocate memory for the feedback gains
   HANDLE_ERROR(cudaMalloc((void**)&feedback_gain_array_d_, sizeof(float)*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM*this->num_timesteps_));
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::deallocateCUDAMemory() {
   HANDLE_ERROR(cudaFree(feedback_gain_array_d_));
 }
 
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::getInitNominalStateCandidates(
         const Eigen::Ref<const state_array>& nominal_x_k,
         const Eigen::Ref<const state_array>& nominal_x_kp1,
@@ -78,7 +80,7 @@ void RobustMPPI::getInitNominalStateCandidates(
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::resetCandidateCudaMem() {
   deallocateNominalStateCandidateMemory();
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_states_d_,
@@ -94,7 +96,7 @@ void RobustMPPI::resetCandidateCudaMem() {
 
 
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::deallocateNominalStateCandidateMemory() {
   if (importance_sampling_cuda_mem_init_) {
     HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
@@ -106,15 +108,14 @@ void RobustMPPI::deallocateNominalStateCandidateMemory() {
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-        int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::copyNominalControlToDevice() {
   HANDLE_ERROR(cudaMemcpyAsync(this->control_d_, nominal_control_trajectory_.data(),
           sizeof(float)*nominal_control_trajectory_.size(), cudaMemcpyHostToDevice, this->stream_));
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::updateNumCandidates(int new_num_candidates) {
 
   if ((new_num_candidates * SAMPLES_PER_CONDITION) > NUM_ROLLOUTS) {
@@ -160,7 +161,7 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates) {
   computeLineSearchWeights();
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeLineSearchWeights() {
   line_search_weights_.resize(3, num_candidate_nominal_states_);
 
@@ -178,7 +179,7 @@ void RobustMPPI::computeLineSearchWeights() {
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeImportanceSamplerStride(int stride) {
   Eigen::MatrixXf stride_vec(1,3);
   stride_vec << 0, stride, stride;
@@ -189,7 +190,7 @@ void RobustMPPI::computeImportanceSamplerStride(int stride) {
 
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 float RobustMPPI::computeCandidateBaseline() {
   float baseline = candidate_trajectory_costs_(0);
   for (int i = 0; i < SAMPLES_PER_CONDITION*num_candidate_nominal_states_; i++){ // TODO What is the reasoning behind only using the first condition to get the baseline?
@@ -200,7 +201,7 @@ float RobustMPPI::computeCandidateBaseline() {
   return baseline;
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeBestIndex() {
   candidate_free_energy_.setZero();
   float baseline = computeCandidateBaseline();
@@ -217,7 +218,7 @@ void RobustMPPI::computeBestIndex() {
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::updateImportanceSamplingControl(const Eigen::Ref<const state_array> &state, int stride) {
   // (Controller Frequency)*(Optimization Time) corresponds to how many timesteps occurred in the last optimization
   real_stride_ = stride;
@@ -240,7 +241,7 @@ void RobustMPPI::updateImportanceSamplingControl(const Eigen::Ref<const state_ar
   computeNominalFeedbackGains(state);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array> &state, int stride) {
   if (!nominal_state_init_){
     nominal_state_ = state;
@@ -287,15 +288,9 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeNominalFeedbackGains(const Eigen::Ref<const state_array> &state) {
-  this->run_cost_->setTargets(nominal_state_trajectory_.data(), nominal_control_trajectory_.data(),
-                        this->num_timesteps_);
-
-  this->terminal_cost_->xf = this->run_cost_->traj_target_x_.col(this->num_timesteps_ - 1);
-  this->result_ = this->ddp_solver_->run(state, nominal_control_trajectory_,
-                             *this->ddp_model_, *this->run_cost_, *this->terminal_cost_,
-                             this->control_min_, this->control_max_);
+  this->computeFeedbackGainsHelper(state, nominal_state_trajectory_, nominal_control_trajectory_);
 
   // Copy the feedback gains into the std::vector (this is useful for easily copying into GPU memory
   // Copy Feedback Gains into an array
@@ -307,7 +302,7 @@ void RobustMPPI::computeNominalFeedbackGains(const Eigen::Ref<const state_array>
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int optimization_stride) {
   // Handy dandy pointers to nominal data
   float * trajectory_costs_nominal_d = this->trajectory_costs_d_ + NUM_ROLLOUTS;
@@ -429,14 +424,14 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
   this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 float RobustMPPI::computeDF() {
   return (this->getFeedbackPropagatedStateSeq().col(0) - this->getFeedbackPropagatedStateSeq().col(1)).norm() +
   (this->getStateSeq().col(0) - this->getFeedbackPropagatedStateSeq().col(0)).norm();
 }
 
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::calculateSampledStateTrajectories() {
   int num_sampled_trajectories = this->perc_sampled_control_trajectories * NUM_ROLLOUTS;
   std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);

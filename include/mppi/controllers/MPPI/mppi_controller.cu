@@ -3,11 +3,11 @@
 #include <algorithm>
 #include <iostream>
 
-#define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+#define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost,
+VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller,
                                    float dt,
                                    int max_iter,
                                    float lambda,
@@ -16,7 +16,7 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost,
                                    int num_timesteps,
                                    const Eigen::Ref<const control_trajectory>& init_control_traj,
                                    cudaStream_t stream) :
-Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(model, cost, dt,
+Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(model, cost, fb_controller, dt,
         max_iter, lambda, alpha, control_std_dev, num_timesteps, init_control_traj, stream) {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
@@ -25,14 +25,14 @@ Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(model, co
   this->copyControlStdDevToDevice();
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 VanillaMPPI::~VanillaMPPIController() {
   // all implemented in standard controller
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) {
   this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
 
@@ -163,20 +163,20 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void VanillaMPPI::allocateCUDAMemory() {
-  Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper();
+  Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper();
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void VanillaMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0) {
   this->computeStateTrajectoryHelper(this->state_, x0, this->control_);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void VanillaMPPI::slideControlSequence(int steps) {
   // TODO does the logic of handling control history reasonable?
 
@@ -186,12 +186,12 @@ void VanillaMPPI::slideControlSequence(int steps) {
   this->slideControlSequenceHelper(steps, this->control_);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void VanillaMPPI::smoothControlTrajectory() {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void VanillaMPPI::calculateSampledStateTrajectories() {
   int num_sampled_trajectories = this->perc_sampled_control_trajectories * NUM_ROLLOUTS;
   std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);

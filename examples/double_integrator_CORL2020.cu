@@ -82,7 +82,7 @@ void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tota
   // Initialize the controllers
   Dyn model;
   SCost cost;
-  auto controller = VanillaMPPIController<Dyn, SCost, num_timesteps,
+  auto controller = VanillaMPPIController<Dyn, SCost, DDP<Dyn>, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
   controller.initDDP(Q, Qf, R);
 
@@ -170,7 +170,7 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
   // Initialize the controllers
   Dyn model(100);
   SCost cost;
-  auto controller = VanillaMPPIController<Dyn, SCost, num_timesteps,
+  auto controller = VanillaMPPIController<Dyn, SCost, DDP<Dyn>, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
   controller.initDDP(Q, Qf, R);
 
@@ -263,7 +263,7 @@ void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DI
   params.crash_cost = 100;
   cost.setParams(params);
 
-  auto controller = VanillaMPPIController<Dyn, RCost, num_timesteps,
+  auto controller = VanillaMPPIController<Dyn, RCost, DDP<Dyn>, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
   controller.initDDP(Q, Qf, R);
 
@@ -351,7 +351,7 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
   // Initialize the controllers
   Dyn model(100);
   SCost cost;
-  auto controller = TubeMPPIController<Dyn, SCost, num_timesteps,
+  auto controller = TubeMPPIController<Dyn, SCost, DDP<Dyn>, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
                   Q, Qf, R,control_var);
   controller.setNominalThreshold(20);
@@ -448,7 +448,7 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
   auto params = cost.getParams();
   params.crash_cost = 100;
   cost.setParams(params);
-  auto controller = TubeMPPIController<Dyn, RCost, num_timesteps,
+  auto controller = TubeMPPIController<Dyn, RCost, DDP<Dyn>, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
                   Q, Qf, R,control_var);
   controller.setNominalThreshold(2);
@@ -547,7 +547,7 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   SCost cost;
   // Value function threshold
   float value_function_threshold = 20.0;
-  auto controller = RobustMPPIController<Dyn, SCost, num_timesteps,
+  auto controller = RobustMPPIController<Dyn, SCost, DDP<Dyn>, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
                        value_function_threshold, Q, Qf, R,control_var);
 
@@ -661,7 +661,7 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   cost.setParams(params);
   // Value function threshold
   float value_function_threshold = 20.0;
-  auto controller = RobustMPPIController<Dyn, RCost, num_timesteps,
+  auto controller = RobustMPPIController<Dyn, RCost, DDP<Dyn>, num_timesteps,
           1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
                        value_function_threshold, Q, Qf, R,control_var);
 

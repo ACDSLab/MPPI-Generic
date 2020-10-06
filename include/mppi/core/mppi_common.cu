@@ -719,7 +719,11 @@ namespace rmppi_kernels {
         for (i = 0; i < DYN_T::CONTROL_DIM; i++) {
           fb_control[i] = 0;
         }
-        // Don't enter for loop if in nominal states (thread_idz == 1)
+
+        // we do not apply feedback on the nominal state z == 0
+        if(thread_idz == 1) {
+
+        }
         for (i = 0; i < DYN_T::STATE_DIM * (1 - thread_idz); i++) {
           // Find difference between nominal and actual
           e = x[i] - x_other[i];

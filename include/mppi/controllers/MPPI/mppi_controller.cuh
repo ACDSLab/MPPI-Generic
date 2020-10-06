@@ -10,9 +10,9 @@
 
 #include <mppi/controllers/controller.cuh>
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
          int BDIM_X, int BDIM_Y>
-class VanillaMPPIController : public Controller<DYN_T, COST_T,
+class VanillaMPPIController : public Controller<DYN_T, COST_T, FB_T,
                                                 MAX_TIMESTEPS,
                                                 NUM_ROLLOUTS,
                                                 BDIM_X,
@@ -21,31 +21,31 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   // need control_array = ... so that we can initialize
   // Eigen::Matrix with Eigen::Matrix::Zero();
-  using control_array = typename Controller<DYN_T, COST_T,
+  using control_array = typename Controller<DYN_T, COST_T, FB_T,
                             MAX_TIMESTEPS,
                             NUM_ROLLOUTS,
                             BDIM_X,
                             BDIM_Y>::control_array;
 
-  using control_trajectory = typename Controller<DYN_T, COST_T,
+  using control_trajectory = typename Controller<DYN_T, COST_T, FB_T,
                             MAX_TIMESTEPS,
                             NUM_ROLLOUTS,
                             BDIM_X,
                             BDIM_Y>::control_trajectory;
 
-  using state_trajectory = typename Controller<DYN_T, COST_T,
+  using state_trajectory = typename Controller<DYN_T, COST_T, FB_T,
                             MAX_TIMESTEPS,
                             NUM_ROLLOUTS,
                             BDIM_X,
                             BDIM_Y>::state_trajectory;
 
-  using state_array = typename Controller<DYN_T, COST_T,
+  using state_array = typename Controller<DYN_T, COST_T, FB_T,
                             MAX_TIMESTEPS,
                             NUM_ROLLOUTS,
                             BDIM_X,
                             BDIM_Y>::state_array;
 
-  using sampled_cost_traj = typename Controller<DYN_T, COST_T,
+  using sampled_cost_traj = typename Controller<DYN_T, COST_T, FB_T,
                             MAX_TIMESTEPS,
                             NUM_ROLLOUTS,
                             BDIM_X,
@@ -57,7 +57,7 @@ public:
    * Public member functions
    */
   // Constructor
-  VanillaMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+  VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                         float lambda, float alpha,
                         const Eigen::Ref<const control_array>& control_std_dev,
                         int num_timesteps = MAX_TIMESTEPS,

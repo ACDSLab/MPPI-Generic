@@ -1,10 +1,11 @@
 #include <mppi/feedback_controllers/feedback.cuh>
 
+// ===================== GPUFeedbackController ========================
 template<class CLASS_T, class DYN_T>
 void GPUFeedbackController<CLASS_T, DYN_T>::freeCudaMem(){
   if(GPUMemStatus_) {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
-    derived->deallocateCudaMemory();
+    derived->deallocateCUDAMemory();
     cudaFree(feedback_d_);
     GPUMemStatus_ = false;
     feedback_d_ = nullptr;
@@ -22,3 +23,5 @@ void GPUFeedbackController<CLASS_T, DYN_T>::GPUSetup(){
   }
   derived->copyToDevice();
 }
+
+// ===================== FeedbackController ========================

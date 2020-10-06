@@ -38,9 +38,9 @@
 #include <mppi/controllers/controller.cuh>
 #include <mppi/core/mppi_common.cuh>
 
-template <class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
           int BDIM_X = 64, int BDIM_Y = 1, int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
-class RobustMPPIController : public Controller<DYN_T, COST_T,
+class RobustMPPIController : public Controller<DYN_T, COST_T, FB_T,
                                             MAX_TIMESTEPS,
                                             NUM_ROLLOUTS,
                                             BDIM_X,
@@ -51,37 +51,37 @@ public:
   /**
    * Set up useful types
    */
-  using control_array = typename Controller<DYN_T, COST_T,
+  using control_array = typename Controller<DYN_T, COST_T, FB_T,
                                             MAX_TIMESTEPS,
                                             NUM_ROLLOUTS,
                                             BDIM_X,
                                             BDIM_Y>::control_array;
 
-  using control_trajectory = typename Controller<DYN_T, COST_T,
+  using control_trajectory = typename Controller<DYN_T, COST_T, FB_T,
                                                  MAX_TIMESTEPS,
                                                  NUM_ROLLOUTS,
                                                  BDIM_X,
                                                  BDIM_Y>::control_trajectory;
 
-  using state_trajectory = typename Controller<DYN_T, COST_T,
+  using state_trajectory = typename Controller<DYN_T, COST_T, FB_T,
                                                MAX_TIMESTEPS,
                                                NUM_ROLLOUTS,
                                                BDIM_X,
                                                BDIM_Y>::state_trajectory;
 
-  using state_array = typename Controller<DYN_T, COST_T,
+  using state_array = typename Controller<DYN_T, COST_T, FB_T,
                                           MAX_TIMESTEPS,
                                           NUM_ROLLOUTS,
                                           BDIM_X,
                                           BDIM_Y>::state_array;
 
-  using sampled_cost_traj = typename Controller<DYN_T, COST_T,
+  using sampled_cost_traj = typename Controller<DYN_T, COST_T, FB_T,
                                                 MAX_TIMESTEPS,
                                                 NUM_ROLLOUTS,
                                                 BDIM_X,
                                                 BDIM_Y>::sampled_cost_traj;
 
-  using feedback_gain_trajectory = typename Controller<DYN_T, COST_T,
+  using feedback_gain_trajectory = typename Controller<DYN_T, COST_T, FB_T,
                                                 MAX_TIMESTEPS,
                                                 NUM_ROLLOUTS,
                                                 BDIM_X,
@@ -115,7 +115,7 @@ public:
   * @param num_timesteps The number of timesteps to look ahead for.
   * TODO Finish this description
   */
-  RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+  RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                        float lambda, float alpha,
                        float value_function_threshold,
                        const Eigen::Ref<const StateCostWeight>& Q,

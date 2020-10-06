@@ -13,9 +13,9 @@
 #include <memory>
 #include <iostream>
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
         int BDIM_X, int BDIM_Y>
-class TubeMPPIController: public Controller<DYN_T, COST_T,
+class TubeMPPIController: public Controller<DYN_T, COST_T, FB_T,
                                             MAX_TIMESTEPS,
                                             NUM_ROLLOUTS,
                                             BDIM_X,
@@ -26,31 +26,31 @@ public:
   /**
    * Set up useful types
    */
-  using control_array = typename Controller<DYN_T, COST_T,
+  using control_array = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
           BDIM_Y>::control_array;
 
-  using control_trajectory = typename Controller<DYN_T, COST_T,
+  using control_trajectory = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
           BDIM_Y>::control_trajectory;
 
-  using state_trajectory = typename Controller<DYN_T, COST_T,
+  using state_trajectory = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
           BDIM_Y>::state_trajectory;
 
-  using state_array = typename Controller<DYN_T, COST_T,
+  using state_array = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
           BDIM_Y>::state_array;
 
-  using sampled_cost_traj = typename Controller<DYN_T, COST_T,
+  using sampled_cost_traj = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
@@ -61,7 +61,7 @@ public:
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
-  TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+  TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                      float lambda, float alpha,
                      const Eigen::Ref<const StateCostWeight>& Q,
                      const Eigen::Ref<const Hessian>& Qf,

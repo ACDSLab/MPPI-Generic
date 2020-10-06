@@ -51,7 +51,7 @@ public:
     return QR_;
   }
 
-  void setTargets(float* traj_target, float* control_target, int timesteps)
+  void setTargets(const float* traj_target, const float* control_target, int timesteps)
   {
     for (int t = 0; t < timesteps; t++){
       for (int i = 0; i < Dynamics::StateSize; i++){

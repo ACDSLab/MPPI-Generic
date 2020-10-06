@@ -1,9 +1,9 @@
 #include <mppi/controllers/controller.cuh>
 
-#define CONTROLLER Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+#define CONTROLLER Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void CONTROLLER::deallocateCUDAMemory() {
   cudaFree(control_d_);
   cudaFree(state_d_);
@@ -17,21 +17,21 @@ void CONTROLLER::deallocateCUDAMemory() {
   }
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-          int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void CONTROLLER::copyControlStdDevToDevice() {
   HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, control_std_dev_.data(), sizeof(float)*control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
   cudaStreamSynchronize(stream_);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void CONTROLLER::copyNominalControlToDevice() {
   HANDLE_ERROR(cudaMemcpyAsync(control_d_, control_.data(), sizeof(float)*control_.size(), cudaMemcpyHostToDevice, stream_));
   HANDLE_ERROR(cudaStreamSynchronize(stream_));
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
         int BDIM_X, int BDIM_Y>
 void CONTROLLER::copySampledControlFromDevice() {
   int num_sampled_trajectories = perc_sampled_control_trajectories * NUM_ROLLOUTS;
@@ -50,8 +50,8 @@ void CONTROLLER::copySampledControlFromDevice() {
   HANDLE_ERROR(cudaStreamSynchronize(stream_));
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void CONTROLLER::setCUDAStream(cudaStream_t stream) {
   stream_ = stream;
   model_->bindToStream(stream);
@@ -59,8 +59,8 @@ void CONTROLLER::setCUDAStream(cudaStream_t stream) {
   curandSetStream(gen_, stream); // requires the generator to be created!
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void CONTROLLER::createAndSeedCUDARandomNumberGen() {
   // Seed the PseudoRandomGenerator with the CPU time.
   curandCreateGenerator(&gen_, CURAND_RNG_PSEUDO_DEFAULT);
@@ -68,8 +68,8 @@ void CONTROLLER::createAndSeedCUDARandomNumberGen() {
   curandSetPseudoRandomGeneratorSeed(gen_, seed);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size,
                                           bool allocate_double_noise) {
   if(nominal_size < 0) {
