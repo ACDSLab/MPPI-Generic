@@ -98,8 +98,8 @@ public:
 
   // might not be a needed method
   virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
-                               const Eigen::Ref<const state_trajectory>& goal_traj,
-                               const Eigen::Ref<const control_trajectory>& control_traj) = 0;
+                                    const Eigen::Ref<const state_trajectory>& goal_traj,
+                                    const Eigen::Ref<const control_trajectory>& control_traj) = 0;
 
   // TODO apply feedback
   virtual control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
