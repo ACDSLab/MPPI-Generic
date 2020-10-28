@@ -61,12 +61,17 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController() {
                                                                1,
                                                                &logger,
                                                                verbose);
-  // TODO: Figure out where q_mat, q_f_mat, and r_mat will be coming from
-  this->params_.Q = q_mat;
-  this->params_.Q_f = q_f_mat;
-  this->params_.R = r_mat;
+  // TODO: Can be done by setParams() in feedback base class
+  // this->params_.Q = q_mat;
+  // this->params_.Q_f = q_f_mat;
+  // this->params_.R = r_mat;
 
-  // TODO: Are these control ranges needed?
+  result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
+  result_.feedback_gain = feedback_gain_trajectory(NUM_TIMESTEPS);
+  for(int i = 0; i < NUM_TIMESTEPS; i++) {
+    result_.feedback_gain[i] = DYN_T::feedback_matrix::Zero();
+  }
+
   for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
     control_min_(i) = model_->control_rngs_[i].x;
     control_max_(i) = model_->control_rngs_[i].y;
@@ -92,5 +97,12 @@ control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
     const Eigen::Ref<const state_array>& init_state,
     const Eigen::Ref<const state_trajectory>& goal_traj,
     const Eigen::Ref<const control_trajectory>& control_traj) {
-  // TODO: Fill in later
+
+  run_cost_->setTargets(goal_traj.data(), control_traj.data(),
+                        NUM_TIMESTEPS);
+
+  terminal_cost_->xf = run_cost_->traj_target_x_.col(NUM_TIMESTEPS - 1);
+  result_ = ddp_solver_->run(state, control_traj,
+                             *ddp_model_, *run_cost_, *terminal_cost_,
+                             control_min_, control_max_);
 }

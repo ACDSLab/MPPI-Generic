@@ -66,8 +66,13 @@ public:
   std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
   std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
   std::shared_ptr<DDP<ModelWrapperDDP<DYN_T>>> ddp_solver_;
+  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
 
-  DDPFeedback();
+  control_array control_min_;
+  control_array control_max_;
+
+
+  DDPFeedback(cudaStream_t stream = 0);
 
   void initTrackingController();
 

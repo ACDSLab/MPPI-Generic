@@ -110,6 +110,8 @@ public:
   }
 protected:
   std::shared_ptr<GPU_FB_T> gpu_controller_;
+  float dt_;
+  int num_timesteps_;
   PARAMS_T params_;
 };
 
