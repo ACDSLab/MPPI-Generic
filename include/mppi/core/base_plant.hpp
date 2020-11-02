@@ -38,7 +38,6 @@ public:
 protected:
 
   std::mutex access_guard_;
-  std::mutex timing_guard_;
 
   int hz_ = 10; // Frequency of control publisher
   bool debug_mode_ = false;
@@ -81,7 +80,7 @@ protected:
    * Wall Clock: always real time per the computer
    */
   // Robot Time: can scale with a simulation
-  double last_used_pose_update_time_ = 0.0; // time of the last pose update that was used for optimization
+  std::atomic<double> last_used_pose_update_time_{0.0}; // time of the last pose update that was used for optimization
   // Wall Clock: always real time
   double last_optimization_time_ = 0; // time of the last optimization
   double optimize_loop_duration_ = 0; // duration of the entire controller run loop
@@ -234,9 +233,7 @@ public:
                            const c_traj& control_seq,
                            const K_traj& feedback_gains,
                            double timestamp) {
-    timing_guard_.lock();
     last_used_pose_update_time_ = timestamp;
-    timing_guard_.unlock();
     std::lock_guard<std::mutex> guard(access_guard_);
     state_traj_ = state_seq;
     control_traj_ = control_seq;
@@ -256,9 +253,7 @@ public:
   virtual void updateState(s_array& state, double time) {
     //printf("update state called with %f\n", time);
     // calculate and update all timing variables
-    timing_guard_.lock();
     double temp_last_pose_update_time = last_used_pose_update_time_;
-    timing_guard_.unlock();
 
     double time_since_last_opt = time - temp_last_pose_update_time;
 
@@ -362,9 +357,7 @@ public:
     }
 
     double temp_last_pose_time = getCurrentTime();
-    timing_guard_.lock();
     double temp_last_used_pose_update_time = last_used_pose_update_time_;
-    timing_guard_.unlock();
 
     // wait for a new pose to compute control sequence from
     int counter = 0;
@@ -484,11 +477,9 @@ public:
       runControlIteration(controller, is_alive);
 
 
-      timing_guard_.lock();
       double wait_until_time = last_used_pose_update_time_ + (1.0/hz_)*optimization_stride_;
       //printf("last used pose update time %f last_stride = %d\n", last_used_pose_update_time_, last_optimization_stride_);
       //printf("wait until time %f current time %f\n", wait_until_time, getCurrentTime());
-      timing_guard_.unlock();
 
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
       while(is_alive->load() && status_ == 0 && wait_until_time > getCurrentTime()) {
