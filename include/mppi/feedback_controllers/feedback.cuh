@@ -65,12 +65,14 @@ public:
  * Write the feedback controller to use the GPUFeedback_act as thee GPU_FEEDBACK_T template option
  * It will then automatically create the right pointer
  */
-template<class GPU_FB_T, class PARAMS_T, int NUM_TIMESTEPS>
+template<class GPU_FB_T, class PARAMS_T, class INTERNAL_STATE_T, int NUM_TIMESTEPS>
 class FeedbackController {
 public:
-  typedef typename GPU_FB_T::DYN_T DYN_T;
 
   // Type Defintions and aliases
+  typedef typename GPU_FB_T::DYN_T DYN_T;
+  typedef INTERNAL_STATE_T TEMPLATED_FEEDBACK_STATE;
+
   using state_array = typename DYN_T::state_array;
   using control_array = typename DYN_T::control_array;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM,
@@ -93,26 +95,33 @@ public:
   }
 
   // CPU Methods
+  // TODO Construct a default version of this method that uses the state_ variable automatically
   virtual control_array k(const Eigen::Ref<state_array>& x_act,
-                          const Eigen::Ref<state_array>& x_goal, float t) = 0;
+                          const Eigen::Ref<state_array>& x_goal, float t,
+                          INTERNAL_STATE_T& fb_state) = 0;
 
   // might not be a needed method
   virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
                                     const Eigen::Ref<const state_trajectory>& goal_traj,
                                     const Eigen::Ref<const control_trajectory>& control_traj) = 0;
 
-  // TODO apply feedback
+  // TODO Construct a default version of this method that uses the state_ variable automatically
   virtual control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
-                                            feedback_gain_trajectory& gain_traj, double rel_time);
+                                            double rel_time, INTERNAL_STATE_T& fb_state) = 0;
 
   GPU_FB_T* getDevicePointer() {
     return gpu_controller_->feedback_d_;
+  }
+
+  INTERNAL_STATE_T getFeedbackInternalState() {
+    return state_;
   }
 protected:
   std::shared_ptr<GPU_FB_T> gpu_controller_;
   float dt_;
   int num_timesteps_;
   PARAMS_T params_;
+  INTERNAL_STATE_T state_;
 };
 
 #ifdef __CUDACC__

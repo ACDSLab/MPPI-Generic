@@ -84,11 +84,13 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController() {
 }
 
 template <class DYN_T, int NUM_TIMESTEPS>
-control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::k(const Eigen::Ref<state_array>& x_act,
-                                                   const Eigen::Ref<state_array>& x_goal,
-                                                   float t) {
-  // print
-  control_array u_output = fb_gain_traj_[t] * (x_act - x_goal);
+control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::k(
+    const Eigen::Ref<state_array>& x_act,
+    const Eigen::Ref<state_array>& x_goal,
+    float t,
+    INTERNAL_STATE_T& fb_state) {
+  // TODO INTERNAL_STATE_T probably won't compile
+  control_array u_output = fb_state.fb_gain_traj_[t] * (x_act - x_goal);
   return u_output;
 }
 
@@ -105,4 +107,22 @@ control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
   result_ = ddp_solver_->run(state, control_traj,
                              *ddp_model_, *run_cost_, *terminal_cost_,
                              control_min_, control_max_);
+  this->state_.fb_gain_traj_ = result_.feedback_gain;
+}
+
+template <class DYN_T, int NUM_TIMESTEPS>
+control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::interpolateFeedback(
+    state_array& state,
+    state_array& target_nominal_state,
+    double rel_time,
+    INTERNAL_STATE_T& fb_state) {
+  // TODO call the feedback controller version directly
+  int lower_idx = (int) (rel_time / dt_);
+  int upper_idx = lower_idx + 1;
+  double alpha = (rel_time - lower_idx * dt_) / dt_;
+
+  control_array u_fb = (1 - alpha) * k(state, target_nominal_state, lower_idx)
+      + alpha*k(state, target_nominal_state, upper_idx);
+
+  return u_fb;
 }

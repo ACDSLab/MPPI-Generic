@@ -56,6 +56,7 @@ void CONTROLLER::setCUDAStream(cudaStream_t stream) {
   stream_ = stream;
   model_->bindToStream(stream);
   cost_->bindToStream(stream);
+  fb_controller_->bindToStream(stream);
   curandSetStream(gen_, stream); // requires the generator to be created!
 }
 

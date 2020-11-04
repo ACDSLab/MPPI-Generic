@@ -49,6 +49,7 @@ public:
   typedef DYN_T TEMPLATED_DYNAMICS;
   typedef COST_T TEMPLATED_COSTS;
   typedef FB_T TEMPLATED_FEEDBACK;
+  typedef FB_T::TEMPLATED_FEEDBACK_STATE TEMPLATED_FEEDBACK_STATE;
   // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
   // does not reallocate cuda memory
   int num_timesteps_ = MAX_TIMESTEPS;
@@ -59,8 +60,8 @@ public:
    // Control typedefs
   using control_array = typename DYN_T::control_array;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, MAX_TIMESTEPS> control_trajectory; // A control trajectory
-//  typedef util::NamedEigenAlignedVector<control_trajectory> sampled_control_traj;
-  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
+  // typedef util::NamedEigenAlignedVector<control_trajectory> sampled_control_traj;
+  // typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
 
   // State typedefs
   using state_array = typename DYN_T::state_array;
@@ -74,9 +75,9 @@ public:
 //  typedef std::array<float, NUM_ROLLOUTS> sampled_cost_traj; // All costs sampled for all rollouts
 
   // tracking controller typedefs
-  using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
-  using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
-  using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
+  // using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
+  // using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
+  // using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
   Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
           float lambda, float alpha,
@@ -103,16 +104,17 @@ public:
     // Bind the model and control to the given stream
     setCUDAStream(stream);
 
-    // Call the GPU setup functions of the model and cost
+    // Call the GPU setup functions of the model, cost and feedback controller
     model_->GPUSetup();
     cost_->GPUSetup();
+    fb_controller_->GPUSetup();
 
     // allocate memory for the optimizer result
-    result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
-    result_.feedback_gain = feedback_gain_trajectory(MAX_TIMESTEPS);
-    for(int i = 0; i < MAX_TIMESTEPS; i++) {
-      result_.feedback_gain[i] = Eigen::Matrix<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>::Zero();
-    }
+    // result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
+    // result_.feedback_gain = feedback_gain_trajectory(MAX_TIMESTEPS);
+    // for(int i = 0; i < MAX_TIMESTEPS; i++) {
+    //   result_.feedback_gain[i] = Eigen::Matrix<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>::Zero();
+    // }
 
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the constructor
@@ -193,7 +195,7 @@ public:
    * @return
    */
   virtual control_array getCurrentControl(state_array& state, double rel_time,
-          state_array& target_nominal_state, control_trajectory& c_traj, feedback_gain_trajectory& gain_traj) {
+          state_array& target_nominal_state, control_trajectory& c_traj, TEMPLATED_FEEDBACK_STATE& gain_traj) {
     // MPPI control
     control_array u_ff = interpolateControls(rel_time, c_traj);
     control_array u_fb = control_array::Zero();
@@ -249,16 +251,17 @@ public:
    * @return
    */
   virtual control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
-          feedback_gain_trajectory& gain_traj, double rel_time) {
+    TEMPLATED_FEEDBACK_STATE& gain_traj, double rel_time) {
     // TODO call the feedback controller version directly
-    int lower_idx = (int) (rel_time / dt_);
-    int upper_idx = lower_idx + 1;
-    double alpha = (rel_time - lower_idx * dt_) / dt_;
+    // int lower_idx = (int) (rel_time / dt_);
+    // int upper_idx = lower_idx + 1;
+    // double alpha = (rel_time - lower_idx * dt_) / dt_;
 
-    control_array u_fb = ((1-alpha)*gain_traj[lower_idx]
-            + alpha*gain_traj[upper_idx])*(state - target_nominal_state);
+    // control_array u_fb = ((1-alpha)*gain_traj[lower_idx]
+    //         + alpha*gain_traj[upper_idx])*(state - target_nominal_state);
 
-    return u_fb;
+    // return u_fb;
+    return fb_controller_->interpolateFeedback(state, target_nominal_state, rel_time, gain_traj);
   }
 
   /**
@@ -285,11 +288,13 @@ public:
   /**
    * Return control feedback gains
    */
-  virtual feedback_gain_trajectory getFeedbackGains() {
+  // TODO: Think of a better name for this method?
+  virtual TEMPLATED_FEEDBACK_STATE getFeedbackInternalState() {
     if(enable_feedback_) {
-      return result_.feedback_gain;
+      return fb_controller_->getFeedbackInternalState();
     } else {
-      return feedback_gain_trajectory();
+      TEMPLATED_FEEDBACK_STATE default_state;
+      return default_state;
     }
   };
 
@@ -313,7 +318,10 @@ public:
     for (int i =0; i < num_timesteps_ - 1; ++i) {
       current_state = propagated_feedback_state_trajectory_.col(i);
       // MPPI control apply feedback at the given timestep against the nominal trajectory at that timestep
-      current_control = getControlSeq().col(i) + getFeedbackGains()[i]*(current_state - getStateSeq().col(i));
+      current_control = getControlSeq().col(i) + fb_controller_->k(current_state,
+                                                                   getStateSeq().col(i),
+                                                                   i,
+                                                                   fb_controller_->getFeedbackInternalState());
       model_->computeStateDeriv(current_state, current_control, xdot);
       model_->updateState(current_state, xdot, dt_);
       propagated_feedback_state_trajectory_.col(i+1) = current_state;
@@ -332,45 +340,49 @@ public:
   float getNormalizerCost() {return normalizer_;};
 
   // TODO is this what we want?
-  state_trajectory getAncillaryStateSeq() {return result_.state_trajectory;};
-
-  virtual void initDDP(const StateCostWeight& q_mat,
-                       const Hessian& q_f_mat,
-                       const ControlCostWeight& r_mat) {
-    enable_feedback_ = true;
-
-    util::DefaultLogger logger;
-    bool verbose = false;
-    ddp_model_  = std::make_shared<ModelWrapperDDP<DYN_T>>(model_);
-    ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DYN_T>>>(dt_,
-            num_timesteps_, 1, &logger, verbose);
-    Q_ = q_mat;
-    Qf_ = q_f_mat;
-    R_ = r_mat;
-
-    for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
-      control_min_(i) = model_->control_rngs_[i].x;
-      control_max_(i) = model_->control_rngs_[i].y;
-    }
-
-    run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(Q_,
-            R_, num_timesteps_);
-    terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(Qf_);
+  state_trajectory getAncillaryStateSeq() {
+    std::cout << "getAncillaryStateSeq is used?" << std::endl;
+    return state_trajectory(); // TODO: this needs to be replaced with a proper state_trajectory
+    //return result_.state_trajectory;};
   }
+
+  // virtual void initDDP(const StateCostWeight& q_mat,
+  //                      const Hessian& q_f_mat,
+  //                      const ControlCostWeight& r_mat) {
+  //   enable_feedback_ = true;
+
+  //   util::DefaultLogger logger;
+  //   bool verbose = false;
+  //   ddp_model_  = std::make_shared<ModelWrapperDDP<DYN_T>>(model_);
+  //   ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DYN_T>>>(dt_,
+  //           num_timesteps_, 1, &logger, verbose);
+  //   Q_ = q_mat;
+  //   Qf_ = q_f_mat;
+  //   R_ = r_mat;
+
+  //   for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
+  //     control_min_(i) = model_->control_rngs_[i].x;
+  //     control_max_(i) = model_->control_rngs_[i].y;
+  //   }
+
+  //   run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(Q_,
+  //           R_, num_timesteps_);
+  //   terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(Qf_);
+  // }
 
   virtual void computeFeedbackGainsHelper(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const state_trajectory>& state_traj,
                                     const Eigen::Ref<const control_trajectory>& control_traj) {
     if(!enable_feedback_) {
       return;
     }
+    fb_controller_->computeFeedbackGains(state, state_traj, control_traj);
+    // run_cost_->setTargets(state_traj.data(), control_traj.data(),
+    //                       num_timesteps_);
 
-    run_cost_->setTargets(state_traj.data(), control_traj.data(),
-                          num_timesteps_);
-
-    terminal_cost_->xf = run_cost_->traj_target_x_.col(num_timesteps_ - 1);
-    result_ = ddp_solver_->run(state, control_traj,
-                               *ddp_model_, *run_cost_, *terminal_cost_,
-                               control_min_, control_max_);
+    // terminal_cost_->xf = run_cost_->traj_target_x_.col(num_timesteps_ - 1);
+    // result_ = ddp_solver_->run(state, control_traj,
+    //                            *ddp_model_, *run_cost_, *terminal_cost_,
+    //                            control_min_, control_max_);
   }
 
   virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& state) {

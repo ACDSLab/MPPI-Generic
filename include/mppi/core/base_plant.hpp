@@ -29,12 +29,15 @@ public:
 
   using s_array = typename CONTROLLER_T::state_array;
   using s_traj = typename CONTROLLER_T::state_trajectory;
-  using K_traj = typename CONTROLLER_T::feedback_gain_trajectory;
+  // using K_traj = typename CONTROLLER_T::feedback_gain_trajectory;
 
   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
   using COST_T = typename CONTROLLER_T::TEMPLATED_COSTS;
   using COST_PARAMS_T = typename COST_T::COST_PARAMS_T;
+
+  // Feedback related aliases
+  using FB_STATE_T = typename CONTROLLER_T::TEMPLATED_FEEDBACK::TEMPLATED_FEEDBACK_STATE;
 protected:
 
   std::mutex access_guard_;
@@ -66,7 +69,7 @@ protected:
 
   // values sometime updated
   // TODO init to zero?
-  K_traj feedback_gains_ ;
+  FB_STATE_T feedback_state_;
 
   // from ROSHandle mppi_node
   int optimization_stride_ = 1;
@@ -118,7 +121,7 @@ public:
     optimization_stride_ = optimization_stride;
     control_traj_ = c_traj::Zero();
     state_traj_ = s_traj::Zero();
-    feedback_gains_ = K_traj(controller->getNumTimesteps());
+    // feedback_gains_ = FB_STATE_T();
   };
   /**
    * Destructor must be virtual so that children are properly
@@ -179,8 +182,8 @@ public:
   c_traj getControlTraj() {
     return control_traj_;
   }
-  K_traj getFeedbackGains() {
-    return feedback_gains_;
+  FB_STATE_T getFeedbackState() {
+    return feedback_state_;
   }
 
   /**
@@ -231,13 +234,13 @@ public:
 
   virtual void setSolution(const s_traj& state_seq,
                            const c_traj& control_seq,
-                           const K_traj& feedback_gains,
+                           const FB_STATE_T& fb_state,
                            double timestamp) {
     last_used_pose_update_time_ = timestamp;
     std::lock_guard<std::mutex> guard(access_guard_);
     state_traj_ = state_seq;
     control_traj_ = control_seq;
-    feedback_gains_ = feedback_gains;
+    feedback_state_ = fb_state;
     /*
     for(int i = 0; i < 5; i++) {
       printf("inside setSolution %d %f, %f\n", i, control_traj_(0, i), control_traj_(1, i));
@@ -267,7 +270,9 @@ public:
     if (time_since_last_opt > 0 && t_within_trajectory){
       s_array target_nominal_state = this->controller_->interpolateState(state_traj_, time_since_last_opt);
       pubNominalState(target_nominal_state);
-      pubControl(controller_->getCurrentControl(state, time_since_last_opt, target_nominal_state, control_traj_, feedback_gains_));
+      pubControl(controller_->getCurrentControl(state, time_since_last_opt,
+                                                target_nominal_state,
+                                                control_traj_, feedback_state_));
       s_array state_diff = state - target_nominal_state;
       pubStateDivergence(state_diff);
     }
@@ -401,17 +406,17 @@ public:
 
     std::chrono::steady_clock::time_point feedback_start = std::chrono::steady_clock::now();
     // TODO make sure this is zero by default
-    K_traj feedback_gains;
-    if(controller_->getFeedbackEnabled()) {
-      controller_->computeFeedbackGains(state);
-      feedback_gains = controller_->getFeedbackGains();
+    FB_STATE_T feedback_state;
+    if(controller->getFeedbackEnabled()) {
+      controller->computeFeedbackGains(state);
+      feedback_state = controller->getFeedbackInternalState();
     }
     feedback_duration_ = (std::chrono::steady_clock::now() - feedback_start).count() / 1e6;
 
     //Set the updated solution for execution
     setSolution(state_traj,
                 control_traj,
-                feedback_gains,
+                feedback_state,
                 temp_last_pose_time);
     pubFreeEnergyStatistics(fe_stats);
 

@@ -21,6 +21,16 @@ struct DDPParams {
   ControlCostWeight R;
 };
 
+template<class DYN_T>
+struct DDPFBState {
+  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
+
+  /**
+   * Variables
+   **/
+  feedback_gain_trajectory fb_gain_traj_ = feedback_gain_trajectory::Zero();
+};
+
 // Class where methods are implemented
 template <class GPU_FB_T, class DYN_T>
 class DeviceDDPImpl : public GPUFeedbackController<DeviceDDPImpl<GPU_FB_T, DYN_T>, DYN_T> {
@@ -51,17 +61,19 @@ public:
 
 
 template <class DYN_T, int NUM_TIMESTEPS>
-class DDPFeedback : public FeedbackController<DeviceDDP<DYN_T>, DDPParams<DYN_T>, NUM_TIMESTEPS> {
+class DDPFeedback : public FeedbackController<DeviceDDP<DYN_T>, DDPParams<DYN_T>,
+                                              DDPFBState<DYN_T>, NUM_TIMESTEPS> {
 public:
   /**
    * Aliases
    **/
   typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
+  using feedback_gain_trajectory = DDPFBState<DYN_T>::feedback_gain_trajectory;
 
   /**
    * Variables
    **/
-  feedback_gain_trajectory fb_gain_traj_;
+  // feedback_gain_trajectory fb_gain_traj_;
   std::shared_ptr<ModelWrapperDDP<DYN_T>> ddp_model_;
   std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
   std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
@@ -74,17 +86,64 @@ public:
 
   DDPFeedback(cudaStream_t stream = 0);
 
+  /**
+   * Copy operator for DDP controller
+   */
+  // DDPFeedback<DYN_T, NUM_TIMESTEPS>& operator=(const DDPFeedback<DYN_T, NUM_TIMESTEPS>& other) {
+  //   if (this != other) {
+  //     // if (ddp_model_ != 0) {
+  //     //   *ddp_model_ = *other.ddp_model_;
+  //     // } else {
+  //     //   ddp_model_ = std::make_shared<ModelWrapperDDP<DYN_T>>(other.model_);
+  //     //   *ddp_model_ = *other.ddp_model_;
+  //     // }
+
+  //     // if (run_cost_ != 0) {
+  //     //   *run_cost_ = *other.run_cost_;
+  //     // } else {
+  //     //   run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(this->params_.Q,
+  //     //                                                                         this->params_.R,
+  //     //                                                                         NUM_TIMESTEPS);
+  //     //   *run_cost_ = *other.run_cost_;
+  //     // }
+
+  //     bool tracking_uninitialized = ddp_model_ == nullptr ||
+  //                                   run_cost_ == nullptr ||
+  //                                   terminal_cost_ == nullptr ||
+  //                                   ddp_solver_ == nullptr;
+  //     // No memory has been allocated yet
+  //     if (tracking_uninitialized) {
+  //       initTrackingController();
+  //     }
+  //     // Deep copy of pointer variables
+  //     *ddp_model_ = *other.ddp_model_;
+  //     *run_cost_ = *other.run_cost_;
+  //     *terminal_cost_ = *other.terminal_cost_;
+  //     *ddp_solver_ = *other.ddp_solver_;
+
+  //     // TODO Figure out what to do about GPU portion
+  //     gpu_controller_ = nullptr;
+
+  //     // Copy of remaining variables
+  //     result_ = other.result_;
+  //     fb_gain_traj_ = other.fb_gain_traj_;
+  //     control_min_ = other.control_min_;
+  //     control_max_ = other.control_max_;
+  //   }
+  // }
+
   void initTrackingController();
 
   control_array k(const Eigen::Ref<state_array>& x_act,
-                  const Eigen::Ref<state_array>& x_goal, float t);
+                  const Eigen::Ref<state_array>& x_goal, float t,
+                  INTERAL_STATE_T& fb_state);
 
   void computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
                             const Eigen::Ref<const state_trajectory>& goal_traj,
                             const Eigen::Ref<const control_trajectory>& control_traj);
 
   control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
-                                    feedback_gain_trajectory& gain_traj, double rel_time);
+                                    double rel_time, INTERAL_STATE_T& fb_state);
 };
 
 #ifdef __CUDACC__
