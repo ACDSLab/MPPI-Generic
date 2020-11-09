@@ -81,16 +81,22 @@ public:
                                                 BDIM_X,
                                                 BDIM_Y>::sampled_cost_traj;
 
-  using feedback_gain_trajectory = typename Controller<DYN_T, COST_T, FB_T,
+  using FEEDBACK_STATE = typename Controller<DYN_T, COST_T, FB_T,
                                                 MAX_TIMESTEPS,
                                                 NUM_ROLLOUTS,
                                                 BDIM_X,
-                                                BDIM_Y>::feedback_gain_trajectory;
+                                                BDIM_Y>::TEMPLATED_FEEDBACK_STATE;
+
+  using FEEDBACK_PARAMS = typename Controller<DYN_T, COST_T, FB_T,
+                                                MAX_TIMESTEPS,
+                                                NUM_ROLLOUTS,
+                                                BDIM_X,
+                                                BDIM_Y>::TEMPLATED_FEEDBACK_PARAMS;
 
   // using m_dyn = typename ModelWrapperDDP<DYN_T>::Scalar;
-  using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
-  using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
-  using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
+  // using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
+  // using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
+  // using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
   using NominalCandidateVector = typename util::NamedEigenAlignedVector<state_array>;
 
   static const int BLOCKSIZE_X = BDIM_X;
@@ -118,9 +124,7 @@ public:
   RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                        float lambda, float alpha,
                        float value_function_threshold,
-                       const Eigen::Ref<const StateCostWeight>& Q,
-                       const Eigen::Ref<const Hessian>& Qf,
-                       const Eigen::Ref<const ControlCostWeight>& R,
+                       FEEDBACK_PARAMS fb_params,
                        const Eigen::Ref<const control_array>& control_std_dev,
                        int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
@@ -135,8 +139,8 @@ public:
 
   std::string getControllerName() {return "Robust MPPI";};
 
-  feedback_gain_trajectory getFeedbackGains() override {
-    return this->result_.feedback_gain;
+  FEEDBACK_STATE getFeedbackInternalState() override {
+    return this->fb_controller_->getFeedbackInternalState();
   };
 
   // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
@@ -210,7 +214,7 @@ protected:
   Eigen::MatrixXi importance_sampler_strides_; // Time index where control trajectory starts for each nominal state candidate
   Eigen::MatrixXf candidate_trajectory_costs_;
   Eigen::MatrixXf candidate_free_energy_;
-  std::vector<float> feedback_gain_vector_;
+  // std::vector<float> feedback_gain_vector_;
 
   void allocateCUDAMemory();
 

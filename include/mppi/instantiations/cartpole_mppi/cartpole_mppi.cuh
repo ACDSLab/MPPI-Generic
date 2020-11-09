@@ -6,6 +6,6 @@
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
 #include <mppi/controllers/Tube-MPPI/tube_mppi_controller.cuh>
 #include <mppi/core/mppi_common.cuh>
-
+#include <mppi/feedback_controllers/DDP/ddp.cuh>
 
 #endif //MPPIGENERIC_CONTROLLERERS_CARTPOLE_MPPI_CUH

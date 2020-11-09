@@ -9,9 +9,7 @@ template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLO
 RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                      float lambda, float alpha,
                      float value_function_threshold,
-                     const Eigen::Ref<const StateCostWeight>& Q,
-                     const Eigen::Ref<const Hessian>& Qf,
-                     const Eigen::Ref<const ControlCostWeight>& R,
+                     FEEDBACK_PARAMS fb_params,
                      const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps,
                      const Eigen::Ref<const control_trajectory>& init_control_traj,
@@ -34,14 +32,15 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
 
-  // Initialize DDP
-  this->initDDP(Q, Qf, R);
+  // Initialize Feedback
+  this->fb_controller_->setParams(fb_params);
+  this->fb_controller_->initTrackingController();
 
   // Initialize the nominal control trajectory
   nominal_control_trajectory_ = init_control_traj;
 
   // Resize the feedback gain vector to hold the raw data for the feedback gains
-  feedback_gain_vector_.resize(MAX_TIMESTEPS*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM);
+  // feedback_gain_vector_.resize(MAX_TIMESTEPS*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM);
 
   this->enable_feedback_ = true;
 }
@@ -294,12 +293,12 @@ void RobustMPPI::computeNominalFeedbackGains(const Eigen::Ref<const state_array>
 
   // Copy the feedback gains into the std::vector (this is useful for easily copying into GPU memory
   // Copy Feedback Gains into an array
-  for (size_t i = 0; i < this->result_.feedback_gain.size(); i++) {
-    int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
-    for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {
-      feedback_gain_vector_[i_index + j] = this->result_.feedback_gain[i].data()[j];
-    }
-  }
+  // for (size_t i = 0; i < this->result_.feedback_gain.size(); i++) {
+  //   int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
+  //   for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {
+  //     feedback_gain_vector_[i_index + j] = this->result_.feedback_gain[i].data()[j];
+  //   }
+  // }
 }
 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
@@ -314,12 +313,14 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
   this->free_energy_statistics_.nominal_sys.previousBaseline = this->baseline_nominal_;
 
   // Transfer the feedback gains to the GPU
-  HANDLE_ERROR(cudaMemcpyAsync(feedback_gain_array_d_, feedback_gain_vector_.data(),
-                               sizeof(float)*this->num_timesteps_*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM,
-                               cudaMemcpyHostToDevice, this->stream_));
+  // HANDLE_ERROR(cudaMemcpyAsync(feedback_gain_array_d_, feedback_gain_vector_.data(),
+  //                              sizeof(float)*this->num_timesteps_*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM,
+  //                              cudaMemcpyHostToDevice, this->stream_));
+  this->fb_controller_->copyToDevice();
+
   // Transfer the real initial state to the GPU
   HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, state.data(), sizeof(float)*DYN_T::STATE_DIM,
-          cudaMemcpyHostToDevice, this->stream_));
+                               cudaMemcpyHostToDevice, this->stream_));
   // Transfer the nominal state to the GPU: recall that the device GPU has the augmented state [real state, nominal state]
   HANDLE_ERROR(cudaMemcpyAsync(initial_state_nominal_d, nominal_state_.data(), sizeof(float)*DYN_T::STATE_DIM,
                                cudaMemcpyHostToDevice, this->stream_));
@@ -338,6 +339,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
 
     HANDLE_ERROR( cudaStreamSynchronize(this->stream_));
     // Launch the new rollout kernel
+    // TODO Change call to use gpu feedback rather than feedback_gain_array_d
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
             BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_, optimization_stride,
                             this->lambda_, this->alpha_, value_function_threshold_, this->initial_state_d_, this->control_d_,
@@ -457,6 +459,7 @@ void RobustMPPI::calculateSampledStateTrajectories() {
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
   // run kernel
+  // TODO Change call to use gpu feedback rather than feedback_gain_array_d
   mppi_common::launchStateTrajectoryKernel<DYN_T, BDIM_X, BDIM_Y, 2, true>(this->model_->model_d_, this->sampled_noise_d_,
                                                                             this->initial_state_d_, this->sampled_states_d_,
                                                                             num_sampled_trajectories, this->num_timesteps_,

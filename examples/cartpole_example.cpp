@@ -32,8 +32,21 @@ int main(int argc, char** argv) {
   CartpoleDynamics::control_array control_var;
   control_var = CartpoleDynamics::control_array::Constant(1.0);
 
-  auto CartpoleController = new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, 2048, 64, 8>(model, cost,
-                                                                                                             dt, max_iter, lambda, alpha, control_var);
+  // Feedback Controller
+  auto fb_controller = new DDPFeedback<CartpoleDynamics, num_timesteps>(model, dt);
+
+  auto CartpoleController = new VanillaMPPIController<CartpoleDynamics,
+                                                      CartpoleQuadraticCost,
+                                                      DDPFeedback<CartpoleDynamics, num_timesteps>,
+                                                      num_timesteps,
+                                                      2048,  64,  8>(model,
+                                                                     cost,
+                                                                     fb_controller,
+                                                                     dt,
+                                                                     max_iter,
+                                                                     lambda,
+                                                                     alpha,
+                                                                     control_var);
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
 

@@ -8,14 +8,14 @@
 #include <array>
 #include <Eigen/Core>
 #include <chrono>
-#include <mppi/ddp/util.h>
+// #include <mppi/ddp/util.h>
 #include "curand.h"
 
 #include <mppi/core/mppi_common.cuh>
 
-#include <mppi/ddp/ddp_model_wrapper.h>
-#include <mppi/ddp/ddp_tracking_costs.h>
-#include <mppi/ddp/ddp.h>
+// #include <mppi/ddp/ddp_model_wrapper.h>
+// #include <mppi/ddp/ddp_tracking_costs.h>
+// #include <mppi/ddp/ddp.h>
 #include <mppi/utils/gpu_err_chk.cuh>
 #include <mppi/utils/math_utils.h>
 
@@ -49,7 +49,8 @@ public:
   typedef DYN_T TEMPLATED_DYNAMICS;
   typedef COST_T TEMPLATED_COSTS;
   typedef FB_T TEMPLATED_FEEDBACK;
-  typedef FB_T::TEMPLATED_FEEDBACK_STATE TEMPLATED_FEEDBACK_STATE;
+  using TEMPLATED_FEEDBACK_STATE = typename FB_T::TEMPLATED_FEEDBACK_STATE;
+  using TEMPLATED_FEEDBACK_PARAMS = typename FB_T::TEMPLATED_PARAMS;
   // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
   // does not reallocate cuda memory
   int num_timesteps_ = MAX_TIMESTEPS;
@@ -107,7 +108,7 @@ public:
     // Call the GPU setup functions of the model, cost and feedback controller
     model_->GPUSetup();
     cost_->GPUSetup();
-    fb_controller_->GPUSetup();
+    // fb_controller_->GPUSetup();
 
     // allocate memory for the optimizer result
     // result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
@@ -289,9 +290,9 @@ public:
    * Return control feedback gains
    */
   // TODO: Think of a better name for this method?
-  virtual TEMPLATED_FEEDBACK_STATE getFeedbackInternalState() {
+  virtual TEMPLATED_FEEDBACK_STATE getFeedbackState() {
     if(enable_feedback_) {
-      return fb_controller_->getFeedbackInternalState();
+      return fb_controller_->getFeedbackState();
     } else {
       TEMPLATED_FEEDBACK_STATE default_state;
       return default_state;
@@ -320,8 +321,7 @@ public:
       // MPPI control apply feedback at the given timestep against the nominal trajectory at that timestep
       current_control = getControlSeq().col(i) + fb_controller_->k(current_state,
                                                                    getStateSeq().col(i),
-                                                                   i,
-                                                                   fb_controller_->getFeedbackInternalState());
+                                                                   i);
       model_->computeStateDeriv(current_state, current_control, xdot);
       model_->updateState(current_state, xdot, dt_);
       propagated_feedback_state_trajectory_.col(i+1) = current_state;
@@ -339,7 +339,6 @@ public:
   float getBaselineCost() {return baseline_;};
   float getNormalizerCost() {return normalizer_;};
 
-  // TODO is this what we want?
   state_trajectory getAncillaryStateSeq() {
     std::cout << "getAncillaryStateSeq is used?" << std::endl;
     return state_trajectory(); // TODO: this needs to be replaced with a proper state_trajectory
@@ -594,22 +593,22 @@ protected:
 
   // tracking controller variables
   // TODO move to tracking controller class
-  StateCostWeight Q_;
-  Hessian Qf_;
-  ControlCostWeight R_;
+  // StateCostWeight Q_;
+  // Hessian Qf_;
+  // ControlCostWeight R_;
   bool enable_feedback_ = false;
 
-  // TODO move to tracking controller class
-  std::shared_ptr<ModelWrapperDDP<DYN_T>> ddp_model_;
-  std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
-  std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
-  std::shared_ptr<DDP<ModelWrapperDDP<DYN_T>>> ddp_solver_;
+  // // TODO move to tracking controller class
+  // std::shared_ptr<ModelWrapperDDP<DYN_T>> ddp_model_;
+  // std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
+  // std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
+  // std::shared_ptr<DDP<ModelWrapperDDP<DYN_T>>> ddp_solver_;
 
-  // for DDP
-  control_array control_min_;
-  control_array control_max_;
+  // // for DDP
+  // control_array control_min_;
+  // control_array control_max_;
 
-  OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
+  // OptimizerResult<ModelWrapperDDP<DYN_T>> result_;
 
   void copyControlStdDevToDevice();
 

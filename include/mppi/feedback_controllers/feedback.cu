@@ -17,7 +17,7 @@ void GPUFeedbackController<CLASS_T, DYN_T>::GPUSetup(){
   CLASS_T* derived = static_cast<CLASS_T*>(this);
   if(!GPUMemStatus_) {
     feedback_d_ = Managed::GPUSetup(derived);
-    derived->allocateCudaMemory();
+    derived->allocateCUDAMemory();
   } else {
     std::cout << "GPU Memory already set" << std::endl;
   }

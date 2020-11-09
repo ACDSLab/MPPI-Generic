@@ -22,7 +22,7 @@ public:
 
   GPU_FB_T* feedback_d_ = nullptr;
 
-  explicit GPUFeedbackController(cudaStream_t stream) : Managed(stream) {}
+  GPUFeedbackController() = default;
 
   /**
    * =================== METHODS THAT SHOULD NOT BE OVERWRITTEN ================
@@ -65,13 +65,15 @@ public:
  * Write the feedback controller to use the GPUFeedback_act as thee GPU_FEEDBACK_T template option
  * It will then automatically create the right pointer
  */
-template<class GPU_FB_T, class PARAMS_T, class INTERNAL_STATE_T, int NUM_TIMESTEPS>
+template<class GPU_FB_T, class PARAMS_T, class FEEDBACK_STATE_T, int NUM_TIMESTEPS>
 class FeedbackController {
 public:
 
   // Type Defintions and aliases
   typedef typename GPU_FB_T::DYN_T DYN_T;
-  typedef INTERNAL_STATE_T TEMPLATED_FEEDBACK_STATE;
+  typedef FEEDBACK_STATE_T TEMPLATED_FEEDBACK_STATE;
+  typedef PARAMS_T TEMPLATED_PARAMS;
+  typedef GPU_FB_T TEMPLATED_GPU_FEEDBACK;
 
   using state_array = typename DYN_T::state_array;
   using control_array = typename DYN_T::control_array;
@@ -81,7 +83,8 @@ public:
                         NUM_TIMESTEPS> state_trajectory; // A state trajectory
 
   // Constructors and Generators
-  FeedbackController(cudaStream_t stream=0) {
+  FeedbackController(float dt = 0.01, int num_timesteps = NUM_TIMESTEPS,
+                     cudaStream_t stream=0) :  dt_(dt), num_timesteps_(num_timesteps) {
     gpu_controller_ = std::make_shared<GPU_FB_T>(stream);
     gpu_controller_->GPUSetup();
   }
@@ -98,7 +101,7 @@ public:
   // TODO Construct a default version of this method that uses the state_ variable automatically
   virtual control_array k(const Eigen::Ref<state_array>& x_act,
                           const Eigen::Ref<state_array>& x_goal, float t,
-                          INTERNAL_STATE_T& fb_state) = 0;
+                          FEEDBACK_STATE_T& fb_state) = 0;
 
   // might not be a needed method
   virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
@@ -107,21 +110,42 @@ public:
 
   // TODO Construct a default version of this method that uses the state_ variable automatically
   virtual control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
-                                            double rel_time, INTERNAL_STATE_T& fb_state) = 0;
+                                            double rel_time, FEEDBACK_STATE_T& fb_state) {
+    // TODO call the feedback controller version directly
+    int lower_idx = (int) (rel_time / dt_);
+    int upper_idx = lower_idx + 1;
+    double alpha = (rel_time - lower_idx * dt_) / dt_;
+
+    control_array u_fb = (1 - alpha) * k(state, target_nominal_state, lower_idx, feedback_state_)
+        + alpha*k(state, target_nominal_state, upper_idx, feedback_state_);
+
+    return u_fb;
+  }
 
   GPU_FB_T* getDevicePointer() {
     return gpu_controller_->feedback_d_;
   }
 
-  INTERNAL_STATE_T getFeedbackInternalState() {
-    return state_;
+  void bindToStream(cudaStream_t stream) {
+    gpu_controller_->bindToStream(stream);
+  }
+
+  /**
+   * Calls GPU version
+   */
+  void copyToDevice() {
+    this->gpu_controller_->copyToDevice();
+  }
+
+  FEEDBACK_STATE_T getFeedbackState() { // TODO change to getFeedbackState()
+    return feedback_state_;
   }
 protected:
   std::shared_ptr<GPU_FB_T> gpu_controller_;
   float dt_;
   int num_timesteps_;
   PARAMS_T params_;
-  INTERNAL_STATE_T state_;
+  FEEDBACK_STATE_T feedback_state_;
 };
 
 #ifdef __CUDACC__

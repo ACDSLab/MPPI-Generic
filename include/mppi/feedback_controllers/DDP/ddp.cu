@@ -21,14 +21,14 @@ void DeviceDDPImpl<GPU_FB_T, DYN_T>::deallocateCUDAMemory() {
 }
 
 template <class GPU_FB_T, class DYN_T>
-void DeviceDDPImpl<GPU_FB_T, DYN_T>::k(const float * x_act, const float * x_goal,
+__device__ void DeviceDDPImpl<GPU_FB_T, DYN_T>::k(const float * x_act, const float * x_goal,
                                        const float t, float * theta,
                                        float* control_output) {
   float * fb_gain_t = &fb_gains_[DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * t];
   float e = 0;
   for (int i = 0; i < DYN_T::STATE_DIM; i++) {
     e = x_act[i] - x_goal[i];
-    for(int j = 0; j < DYN_CONTROL_DIM; j++) {
+    for(int j = 0; j < DYN_T::CONTROL_DIM; j++) {
       control_output[j] += fb_gain_t[i * DYN_T::CONTROL_DIM + j] * e;
     }
   }
@@ -46,8 +46,13 @@ void DeviceDDPImpl<GPU_FB_T, DYN_T>::copyToDevice() {
 }
 
 template <class DYN_T, int NUM_TIMESTEPS>
-void DDPFeedback<DYN_T, NUM_TIMESTEPS>::DDPFeedback(cudaStream_t stream) {
-  this->gpu_controller_ = std::make_shared<DeviceDDP<DYN_T>>(NUM_TIMESTEPS, stream);
+DDPFeedback<DYN_T, NUM_TIMESTEPS>::DDPFeedback(DYN_T* model, float dt,
+                                               int num_timesteps,
+                                               cudaStream_t stream) {
+  model_ = model;
+  this->dt_ = dt;
+  this->num_timesteps_ = std::max(num_timesteps, NUM_TIMESTEPS);
+  this->gpu_controller_ = std::make_shared<DeviceDDP<DYN_T>>(this->num_timesteps_, stream);
   this->gpu_controller_->GPUSetup();
 }
 
@@ -56,8 +61,8 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController() {
   util::DefaultLogger logger;
   bool verbose = false;
   ddp_model_  = std::make_shared<ModelWrapperDDP<DYN_T>>(model_);
-  ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DYN_T>>>(dt_,
-                                                               num_timesteps_,
+  ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DYN_T>>>(this->dt_,
+                                                               this->num_timesteps_,
                                                                1,
                                                                &logger,
                                                                verbose);
@@ -83,19 +88,19 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController() {
   terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(this->params_.Q_f);
 }
 
-template <class DYN_T, int NUM_TIMESTEPS>
-control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::k(
-    const Eigen::Ref<state_array>& x_act,
-    const Eigen::Ref<state_array>& x_goal,
-    float t,
-    INTERNAL_STATE_T& fb_state) {
-  // TODO INTERNAL_STATE_T probably won't compile
-  control_array u_output = fb_state.fb_gain_traj_[t] * (x_act - x_goal);
-  return u_output;
-}
+// template <class DYN_T, int NUM_TIMESTEPS>
+// DDPFeedback<DYN_T, NUM_TIMESTEPS>::control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::k(
+//     const Eigen::Ref<state_array>& x_act,
+//     const Eigen::Ref<state_array>& x_goal,
+//     float t,
+//     INTERNAL_STATE_T& fb_state) {
+//   // TODO INTERNAL_STATE_T probably won't compile
+//   control_array u_output = fb_state.fb_gain_traj_[t] * (x_act - x_goal);
+//   return u_output;
+// }
 
 template <class DYN_T, int NUM_TIMESTEPS>
-control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
+void DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
     const Eigen::Ref<const state_array>& init_state,
     const Eigen::Ref<const state_trajectory>& goal_traj,
     const Eigen::Ref<const control_trajectory>& control_traj) {
@@ -104,25 +109,33 @@ control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
                         NUM_TIMESTEPS);
 
   terminal_cost_->xf = run_cost_->traj_target_x_.col(NUM_TIMESTEPS - 1);
-  result_ = ddp_solver_->run(state, control_traj,
+  result_ = ddp_solver_->run(init_state, control_traj,
                              *ddp_model_, *run_cost_, *terminal_cost_,
                              control_min_, control_max_);
-  this->state_.fb_gain_traj_ = result_.feedback_gain;
+  this->feedback_state_.fb_gain_traj_ = result_.feedback_gain;
+
+  // Copy Feedback Gains into GPU array
+  for (size_t i = 0; i < this->result_.feedback_gain.size(); i++) {
+    int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
+    for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {
+      this->gpu_controller_->fb_gains_[i_index + j] = this->result_.feedback_gain[i].data()[j];
+    }
+  }
 }
 
-template <class DYN_T, int NUM_TIMESTEPS>
-control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::interpolateFeedback(
-    state_array& state,
-    state_array& target_nominal_state,
-    double rel_time,
-    INTERNAL_STATE_T& fb_state) {
-  // TODO call the feedback controller version directly
-  int lower_idx = (int) (rel_time / dt_);
-  int upper_idx = lower_idx + 1;
-  double alpha = (rel_time - lower_idx * dt_) / dt_;
+// template <class DYN_T, int NUM_TIMESTEPS>
+// control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::interpolateFeedback(
+//     state_array& state,
+//     state_array& target_nominal_state,
+//     double rel_time,
+//     INTERNAL_STATE_T& fb_state) {
+//   // TODO call the feedback controller version directly
+//   int lower_idx = (int) (rel_time / dt_);
+//   int upper_idx = lower_idx + 1;
+//   double alpha = (rel_time - lower_idx * dt_) / dt_;
 
-  control_array u_fb = (1 - alpha) * k(state, target_nominal_state, lower_idx)
-      + alpha*k(state, target_nominal_state, upper_idx);
+//   control_array u_fb = (1 - alpha) * k(state, target_nominal_state, lower_idx)
+//       + alpha*k(state, target_nominal_state, upper_idx);
 
-  return u_fb;
-}
+//   return u_fb;
+// }
