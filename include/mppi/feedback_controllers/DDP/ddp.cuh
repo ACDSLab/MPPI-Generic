@@ -41,6 +41,7 @@ public:
 
   float * fb_gains_ = nullptr;
   DeviceDDPImpl(int num_timesteps, cudaStream_t stream = 0);
+  DeviceDDPImpl(cudaStream_t stream = 0) : GPUFeedbackController<DeviceDDPImpl<GPU_FB_T, DYN_T>, DYN_T>(stream) {};
 
   void allocateCUDAMemory();
   void deallocateCUDAMemory();
@@ -53,7 +54,7 @@ public:
   void copyFromDevice() {}
 protected:
   // Needed for allocating memory for feedback gains
-  int num_timesteps_ = 0;
+  int num_timesteps_ = 1;
 };
 
 // Alias class for
@@ -62,6 +63,9 @@ class DeviceDDP : public DeviceDDPImpl<DeviceDDP<DYN_T>, DYN_T> {
 public:
   DeviceDDP(int num_timesteps, cudaStream_t stream=0) :
     DeviceDDPImpl<DeviceDDP<DYN_T>, DYN_T>(num_timesteps, stream) {};
+
+  DeviceDDP(cudaStream_t stream=0) :
+    DeviceDDPImpl<DeviceDDP<DYN_T>, DYN_T>(stream) {};
 };
 
 

@@ -24,6 +24,8 @@ public:
 
   GPUFeedbackController() = default;
 
+  GPUFeedbackController(cudaStream_t stream = 0) : Managed(stream) {}
+
   /**
    * =================== METHODS THAT SHOULD NOT BE OVERWRITTEN ================
    */
@@ -88,6 +90,8 @@ public:
     gpu_controller_ = std::make_shared<GPU_FB_T>(stream);
     gpu_controller_->GPUSetup();
   }
+
+  // virtual GPUFeedbackSetup()
 
   virtual ~FeedbackController() = default;
 

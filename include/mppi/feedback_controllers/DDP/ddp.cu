@@ -2,13 +2,15 @@
 
 template <class GPU_FB_T, class DYN_T>
 DeviceDDPImpl<GPU_FB_T, DYN_T>::DeviceDDPImpl(int num_timesteps, cudaStream_t stream) :
-  num_timesteps_(num_timesteps), GPUFeedbackController<GPU_FB_T, DYN_T>(stream) {
+  num_timesteps_(num_timesteps), GPUFeedbackController<DeviceDDPImpl<GPU_FB_T, DYN_T>, DYN_T>(stream) {
 
 }
 
 template <class GPU_FB_T, class DYN_T>
 void DeviceDDPImpl<GPU_FB_T, DYN_T>::allocateCUDAMemory() {
   int fb_size = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * num_timesteps_;
+  std::cout << "fb_size: " << fb_size << std::endl;
+  std::cout << "feedback_d_: " << this->feedback_d_ << std::endl;
   cudaMalloc((void**)&this->feedback_d_->fb_gains_, fb_size * sizeof(float));
 }
 
@@ -24,7 +26,7 @@ template <class GPU_FB_T, class DYN_T>
 __device__ void DeviceDDPImpl<GPU_FB_T, DYN_T>::k(const float * x_act, const float * x_goal,
                                        const float t, float * theta,
                                        float* control_output) {
-  float * fb_gain_t = &fb_gains_[DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * t];
+  float * fb_gain_t = &fb_gains_[DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * (int) t];
   float e = 0;
   for (int i = 0; i < DYN_T::STATE_DIM; i++) {
     e = x_act[i] - x_goal[i];
@@ -52,6 +54,7 @@ DDPFeedback<DYN_T, NUM_TIMESTEPS>::DDPFeedback(DYN_T* model, float dt,
   model_ = model;
   this->dt_ = dt;
   this->num_timesteps_ = std::max(num_timesteps, NUM_TIMESTEPS);
+  this->gpu_controller_->freeCudaMem(); // Remove allocated CUDA mem from default constructor
   this->gpu_controller_ = std::make_shared<DeviceDDP<DYN_T>>(this->num_timesteps_, stream);
   this->gpu_controller_->GPUSetup();
 }
