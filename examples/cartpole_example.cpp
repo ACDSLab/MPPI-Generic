@@ -85,6 +85,7 @@ int main(int argc, char** argv) {
   delete(CartpoleController);
   delete(cost);
   delete(model);
+  delete(fb_controller);
 
   return 0;
 }

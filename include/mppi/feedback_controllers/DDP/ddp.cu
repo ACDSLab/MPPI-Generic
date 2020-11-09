@@ -10,15 +10,30 @@ template <class GPU_FB_T, class DYN_T>
 void DeviceDDPImpl<GPU_FB_T, DYN_T>::allocateCUDAMemory() {
   int fb_size = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * num_timesteps_;
   std::cout << "fb_size: " << fb_size << std::endl;
-  std::cout << "feedback_d_: " << this->feedback_d_ << std::endl;
-  cudaMalloc((void**)&this->feedback_d_->fb_gains_, fb_size * sizeof(float));
+  // std::cout << "feedback_d_: " << this->feedback_d_->fb_gains_ << std::endl;
+  // float * fb_gains_d_;
+  cudaMalloc((void**)&fb_gains_d_, fb_size * sizeof(float));
+  // cudaMalloc((void**)&this->feedback_d_->fb_gains_, fb_size * sizeof(float));
+  HANDLE_ERROR(cudaMemcpyAsync(&this->feedback_d_->fb_gains_,
+                               &fb_gains_d_,
+                               sizeof(float*),
+                               cudaMemcpyHostToDevice,
+                               this->stream_));
+  HANDLE_ERROR( cudaStreamSynchronize(this->stream_) );
 }
 
 template <class GPU_FB_T, class DYN_T>
 void DeviceDDPImpl<GPU_FB_T, DYN_T>::deallocateCUDAMemory() {
-  if (this->feedback_d_->fb_gains_ != nullptr) {
-    cudaFree(this->feedback_d_->fb_gains_);
-    this->feedback_d_->fb_gains_ = nullptr;
+  if (this->fb_gains_d_ != nullptr) {
+    // float* fb_gains_d_;
+    // HANDLE_ERROR(cudaMemcpyAsync(&fb_gains_d_,
+    //                              &this->feedback_d_->fb_gains_,
+    //                             sizeof(float*),
+    //                             cudaMemcpyDeviceToHost,
+    //                             this->stream_));
+    // HANDLE_ERROR( cudaStreamSynchronize(this->stream_) );
+    cudaFree(fb_gains_d_);
+    fb_gains_d_ = nullptr;
   }
 }
 
@@ -39,7 +54,7 @@ __device__ void DeviceDDPImpl<GPU_FB_T, DYN_T>::k(const float * x_act, const flo
 template <class GPU_FB_T, class DYN_T>
 void DeviceDDPImpl<GPU_FB_T, DYN_T>::copyToDevice() {
   int fb_size = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * num_timesteps_;
-  HANDLE_ERROR(cudaMemcpyAsync(this->feedback_d_->fb_gains_,
+  HANDLE_ERROR(cudaMemcpyAsync(fb_gains_d_,
                                fb_gains_,
                                sizeof(float) * fb_size,
                                cudaMemcpyHostToDevice,

@@ -40,6 +40,7 @@ public:
   // using TEMPLATED_DYNAMICS = typename GPUFeedbackController<DeviceDDPImpl<GPU_FB_T, DYN_T>, DYN_T>::DYN_T;
 
   float * fb_gains_ = nullptr;
+  float * fb_gains_d_ = nullptr;
   DeviceDDPImpl(int num_timesteps, cudaStream_t stream = 0);
   DeviceDDPImpl(cudaStream_t stream = 0) : GPUFeedbackController<DeviceDDPImpl<GPU_FB_T, DYN_T>, DYN_T>(stream) {};
 
