@@ -108,7 +108,6 @@ public:
     // Call the GPU setup functions of the model, cost and feedback controller
     model_->GPUSetup();
     cost_->GPUSetup();
-    // fb_controller_->GPUSetup();
 
     // allocate memory for the optimizer result
     // result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();

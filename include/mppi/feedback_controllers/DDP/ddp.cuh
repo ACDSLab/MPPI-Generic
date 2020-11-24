@@ -20,6 +20,7 @@ struct DDPParams {
   StateCostWeight Q;
   Hessian Q_f;
   ControlCostWeight R;
+  int num_iterations = 1;
 };
 
 template<class DYN_T>

@@ -6,8 +6,8 @@ int main(int argc, char** argv) {
   auto model = new CartpoleDynamics(1.0, 1.0, 1.0);
   auto cost = new CartpoleQuadraticCost;
 
-  model->control_rngs_->x = -1;
-  model->control_rngs_->y = 1;
+  model->control_rngs_->x = -5;
+  model->control_rngs_->y = 5;
 
   CartpoleQuadraticCostParams new_params;
   new_params.cart_position_coeff = 50;
@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
   const int num_timesteps = 100;
 
   CartpoleDynamics::control_array control_var;
-  control_var = CartpoleDynamics::control_array::Constant(1.0);
+  control_var = CartpoleDynamics::control_array::Constant(5.0);
 
   // Feedback Controller
   auto fb_controller = new DDPFeedback<CartpoleDynamics, num_timesteps>(model, dt);

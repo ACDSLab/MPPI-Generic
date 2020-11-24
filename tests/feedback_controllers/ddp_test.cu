@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
-#include <mppi/ddp/ddp_model_wrapper.h>
-#include <mppi/ddp/ddp_tracking_costs.h>
-#include <mppi/ddp/ddp.h>
-#include <eigen3/Eigen/Dense>
+// #include <mppi/ddp/ddp_model_wrapper.h>
+// #include <mppi/ddp/ddp_tracking_costs.h>
+// #include <mppi/ddp/ddp.h>
+// #include <eigen3/Eigen/Dense>
 #include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
 #include <mppi/instantiations/quadrotor_mppi/quadrotor_mppi.cuh>
 
@@ -41,8 +41,8 @@ TEST_F(ModelWrapper_Test, StateDerivative_2) {
 }
 
 TEST_F(ModelWrapper_Test, Jacobian_1) {
-  Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM> result;
-  Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM> known_result;
+  CartpoleDynamics::Jacobian result;
+  CartpoleDynamics::Jacobian known_result;
 
   CartpoleDynamics::dfdx A = CartpoleDynamics::dfdx::Zero();
   CartpoleDynamics::dfdu B = CartpoleDynamics::dfdu::Zero();
@@ -61,7 +61,7 @@ TEST_F(ModelWrapper_Test, Jacobian_1) {
 
 class TrackingCosts_Test : public testing::Test {
 public:
-  Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM> Q;
+  CartpoleDynamics::dfdx Q;
   Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM> R;
   Eigen::Matrix<float, CartpoleDynamics::STATE_DIM+CartpoleDynamics::CONTROL_DIM,
           CartpoleDynamics::STATE_DIM+CartpoleDynamics::CONTROL_DIM> QR;
@@ -75,7 +75,7 @@ public:
 
 protected:
   void SetUp() override {
-    Q = Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM>::Identity();
+    Q = CartpoleDynamics::dfdx::Identity();
     R = Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM>::Identity();
     QR = Eigen::Matrix<float, CartpoleDynamics::STATE_DIM+CartpoleDynamics::CONTROL_DIM,
             CartpoleDynamics::STATE_DIM+CartpoleDynamics::CONTROL_DIM>::Identity();
@@ -145,11 +145,29 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
   float lambda = 0.25;
   float alpha = 0.001;
   const int num_timesteps = 100;
+  auto fb_controller = DDPFeedback<CartpoleDynamics, num_timesteps>(&model, dt);
+
+  DDPParams<CartpoleDynamics> fb_params;
+  fb_params.Q = 100*Eigen::MatrixXf::Identity(CartpoleDynamics::STATE_DIM,CartpoleDynamics::STATE_DIM);
+  fb_params.R = Eigen::MatrixXf::Identity(CartpoleDynamics::CONTROL_DIM,CartpoleDynamics::CONTROL_DIM);
+  fb_params.Q_f = fb_params.Q;
+  fb_params.num_iterations = 20;
+  fb_controller.setParams(fb_params);
+  fb_controller.initTrackingController();
+
 
   CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
 
-  auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, num_timesteps, 2048, 64, 8>(&model, &cost,
-                                                                                                     dt, max_iter, lambda, alpha, control_var);
+  auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
+                                          DDPFeedback<CartpoleDynamics, num_timesteps>,
+                                          num_timesteps, 2048, 64, 8>(&model,
+                                                                      &cost,
+                                                                      &fb_controller,
+                                                                      dt,
+                                                                      max_iter,
+                                                                      lambda,
+                                                                      alpha,
+                                                                      control_var);
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
   // Compute the control
   controller.computeControl(current_state, 0);
@@ -159,46 +177,49 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
   // END MPPI CONTROLLER
 
 
-  util::DefaultLogger logger;
-  bool verbose = false;
-  int num_iterations = 20;
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf R;
-  Eigen::MatrixXf QR;
-  Q = 100*Eigen::MatrixXf::Identity(CartpoleDynamics::STATE_DIM,CartpoleDynamics::STATE_DIM);
-  R = Eigen::MatrixXf::Identity(CartpoleDynamics::CONTROL_DIM,CartpoleDynamics::CONTROL_DIM);
-  QR = Eigen::MatrixXf(CartpoleDynamics::STATE_DIM+ CartpoleDynamics::CONTROL_DIM,
-                       CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM);
-  QR.template topLeftCorner<CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM>() = Q;
-  QR.template bottomRightCorner<CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM>() = R;
+  // util::DefaultLogger logger;
+  // bool verbose = false;
+  // int num_iterations = 20;
+
+  // Eigen::MatrixXf Q;
+  // Eigen::MatrixXf R;
+  // Eigen::MatrixXf QR;
+  // Q = 100*Eigen::MatrixXf::Identity(CartpoleDynamics::STATE_DIM,CartpoleDynamics::STATE_DIM);
+  // R = Eigen::MatrixXf::Identity(CartpoleDynamics::CONTROL_DIM,CartpoleDynamics::CONTROL_DIM);
+  // QR = Eigen::MatrixXf(CartpoleDynamics::STATE_DIM+ CartpoleDynamics::CONTROL_DIM,
+  //                      CartpoleDynamics::STATE_DIM + CartpoleDynamics::CONTROL_DIM);
+  // QR.template topLeftCorner<CartpoleDynamics::STATE_DIM, CartpoleDynamics::STATE_DIM>() = Q;
+  // QR.template bottomRightCorner<CartpoleDynamics::CONTROL_DIM, CartpoleDynamics::CONTROL_DIM>() = R;
 
 
-  std::shared_ptr<ModelWrapperDDP<CartpoleDynamics>> ddp_model = std::make_shared<ModelWrapperDDP<CartpoleDynamics>>(&model);
+  // std::shared_ptr<ModelWrapperDDP<CartpoleDynamics>> ddp_model = std::make_shared<ModelWrapperDDP<CartpoleDynamics>>(&model);
 
-  std::shared_ptr<DDP<ModelWrapperDDP<CartpoleDynamics>>> ddp_solver_ =
-          std::make_shared<DDP<ModelWrapperDDP<CartpoleDynamics>>>(dt, num_timesteps, num_iterations, &logger, verbose);
+  // std::shared_ptr<DDP<ModelWrapperDDP<CartpoleDynamics>>> ddp_solver_ =
+  //         std::make_shared<DDP<ModelWrapperDDP<CartpoleDynamics>>>(dt, num_timesteps, num_iterations, &logger, verbose);
 
-  std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>> tracking_cost =
-          std::make_shared<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>>(Q,R,num_timesteps);
+  // std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>> tracking_cost =
+  //         std::make_shared<TrackingCostDDP<ModelWrapperDDP<CartpoleDynamics>>>(Q,R,num_timesteps);
 
-  std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>> terminal_cost =
-          std::make_shared<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>>(Q);
+  // std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>> terminal_cost =
+  //         std::make_shared<TrackingTerminalCost<ModelWrapperDDP<CartpoleDynamics>>>(Q);
 
-  tracking_cost->setTargets(nominal_state.data(), nominal_control.data(), num_timesteps);
-  terminal_cost->xf = tracking_cost->traj_target_x_.col(num_timesteps - 1);
+  // tracking_cost->setTargets(nominal_state.data(), nominal_control.data(), num_timesteps);
+  // terminal_cost->xf = tracking_cost->traj_target_x_.col(num_timesteps - 1);
 
   Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, 1> s;
   s << 0.0, 0.0, 0.0, 0.0;
 
   Eigen::MatrixXf control_traj = Eigen::MatrixXf::Zero(CartpoleDynamics::CONTROL_DIM, num_timesteps);
 
-  OptimizerResult<ModelWrapperDDP<CartpoleDynamics>> result_ = ddp_solver_->run(s, control_traj,
-                                                                     *ddp_model, *tracking_cost, *terminal_cost);
+  fb_controller.computeFeedbackGains(s, nominal_state, nominal_control);
+
+  // OptimizerResult<ModelWrapperDDP<CartpoleDynamics>> result_ = ddp_solver_->run(s, control_traj,
+  //                                                                    *ddp_model, *tracking_cost, *terminal_cost);
 
 //  std::cout << result_.state_trajectory << std::endl;
 
   for (int i = 0; i < num_timesteps; ++i) {
-    ASSERT_NEAR((nominal_state.col(i) - result_.state_trajectory.col(i)).norm(), 0.0f, 1e-2) << "Failed on timestep: " << i;
+    ASSERT_NEAR((nominal_state.col(i) - fb_controller.result_.state_trajectory.col(i)).norm(), 0.0f, 1e-2) << "Failed on timestep: " << i;
   }
 }
 
@@ -207,7 +228,9 @@ TEST(DDPSolver_Test, Quadrotor_Tracking) {
 
   using DYN = QuadrotorDynamics;
   using COST = QuadrotorQuadraticCost;
-  using CONTROLLER = VanillaMPPIController<DYN, COST, num_timesteps, 2048, 64, 8>;
+  using CONTROLLER = VanillaMPPIController<DYN, COST,
+                                           DDPFeedback<DYN, num_timesteps>,
+                                           num_timesteps, 2048, 64, 8>;
 
   std::array<float2, DYN::CONTROL_DIM> control_ranges;
   for(int i = 0; i < 3; i++) {
@@ -227,18 +250,20 @@ TEST(DDPSolver_Test, Quadrotor_Tracking) {
   // Create DDP and find feedback gains
   util::DefaultLogger logger;
   bool verbose = false;
-  int num_iterations = 100;
-  CONTROLLER::StateCostWeight Q;
-  CONTROLLER::ControlCostWeight R;
-  CONTROLLER::Hessian Qf;
-  Q = CONTROLLER::StateCostWeight::Identity();
-  R = CONTROLLER::ControlCostWeight::Identity();
-  Qf = CONTROLLER::Hessian::Identity();
-  Q.diagonal() << 25, 25, 300,
-                  15,  15,  300,
-                  0, 0, 0, 0,
-                  30, 30, 30;
-  R.diagonal() << 550, 550, 550, 1;
+
+  // CONTROLLER::StateCostWeight Q;
+  // CONTROLLER::ControlCostWeight R;
+  // CONTROLLER::Hessian Qf;
+  DDPParams<DYN> fb_params;
+  fb_params.Q = DDPParams<DYN>::StateCostWeight::Identity();
+  fb_params.R = DDPParams<DYN>::ControlCostWeight::Identity();
+  fb_params.Q_f = DDPParams<DYN>::Hessian::Identity();
+  fb_params.Q.diagonal() << 25, 25, 300,
+                            15,  15,  300,
+                            0, 0, 0, 0,
+                            30, 30, 30;
+  fb_params.R.diagonal() << 550, 550, 550, 1;
+  fb_params.num_iterations = 100;
 
   Eigen::MatrixXf control_traj = CONTROLLER::control_trajectory::Zero();
   CONTROLLER::state_trajectory ddp_state_traj = CONTROLLER::state_trajectory::Zero();
@@ -247,23 +272,27 @@ TEST(DDPSolver_Test, Quadrotor_Tracking) {
     control_traj.col(i) = model.zero_control_;
   }
 
-  auto ddp_model = std::make_shared<ModelWrapperDDP<DYN>>(&model);
+  auto fb_controller = DDPFeedback<DYN, num_timesteps>(&model, dt);
+  fb_controller.setParams(fb_params);
+  fb_controller.initTrackingController();
 
-  auto ddp_solver = std::make_shared<DDP<ModelWrapperDDP<DYN>>>(dt,
-                                                                num_timesteps,
-                                                                num_iterations,
-                                                                &logger,
-                                                                verbose);
+  // auto ddp_model = std::make_shared<ModelWrapperDDP<DYN>>(&model);
 
-  auto tracking_cost =
-      std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN>>>(Q, R, num_timesteps);
+  // auto ddp_solver = std::make_shared<DDP<ModelWrapperDDP<DYN>>>(dt,
+  //                                                               num_timesteps,
+  //                                                               num_iterations,
+  //                                                               &logger,
+  //                                                               verbose);
 
-  auto terminal_cost =
-      std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN>>>(Qf);
+  // auto tracking_cost =
+  //     std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN>>>(Q, R, num_timesteps);
 
-  tracking_cost->setTargets(ddp_state_traj.data(), control_traj.data(),
-                            num_timesteps);
-  terminal_cost->xf = tracking_cost->traj_target_x_.col(num_timesteps - 1);
+  // auto terminal_cost =
+  //     std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN>>>(Qf);
+
+  // tracking_cost->setTargets(ddp_state_traj.data(), control_traj.data(),
+  //                           num_timesteps);
+  // terminal_cost->xf = tracking_cost->traj_target_x_.col(num_timesteps - 1);
 
   DYN::state_array x_real;
   x_real << 0, -0.5, 0,   // position
@@ -271,28 +300,29 @@ TEST(DDPSolver_Test, Quadrotor_Tracking) {
             1, 0, 0, 0, // quaternion
             0, 0,  0;   // angular speed
 
-  DYN::control_array control_min, control_max;
-  for (int i = 0; i < DYN::CONTROL_DIM; i++) {
-    control_min(i) = control_ranges[i].x;
-    control_max(i) = control_ranges[i].y;
-  }
+  // DYN::control_array control_min, control_max;
+  // for (int i = 0; i < DYN::CONTROL_DIM; i++) {
+  //   control_min(i) = control_ranges[i].x;
+  //   control_max(i) = control_ranges[i].y;
+  // }
 
 
   std::cout << "Starting DDP" << std::endl;
-  OptimizerResult<ModelWrapperDDP<DYN>> result_ = ddp_solver->run(x_real,
-                                                                  control_traj,
-                                                                  *ddp_model,
-                                                                  *tracking_cost,
-                                                                  *terminal_cost,
-                                                                  control_min,
-                                                                  control_max);
-  auto control_feedback_gains = result_.feedback_gain;
-  std::cout << "DDP Optimal State Sequence: " << result_.state_trajectory.transpose() << std::endl;
+  fb_controller.computeFeedbackGains(x_real, ddp_state_traj, control_traj);
+  // OptimizerResult<ModelWrapperDDP<DYN>> result_ = ddp_solver->run(x_real,
+  //                                                                 control_traj,
+  //                                                                 *ddp_model,
+  //                                                                 *tracking_cost,
+  //                                                                 *terminal_cost,
+  //                                                                 control_min,
+  //                                                                 control_max);
+  auto control_feedback_gains = fb_controller.result_.feedback_gain;
+  std::cout << "DDP Optimal State Sequence: " << fb_controller.result_.state_trajectory.transpose() << std::endl;
   DYN::state_array x_deriv, x;
   x = x_real;
   DYN::control_array u_total, fb_u;
   for (int t = 0; t < num_timesteps; ++t) {
-    fb_u = control_feedback_gains[t] * (x - result_.state_trajectory.col(t));
+    fb_u = control_feedback_gains[t] * (x - fb_controller.result_.state_trajectory.col(t));
     u_total = fb_u;
     model.enforceConstraints(x, u_total);
     std::cout << " t = " << t * dt << ", State_diff norm: "<< (x - x_goal).norm()

@@ -9,9 +9,13 @@ DeviceDDPImpl<GPU_FB_T, DYN_T>::DeviceDDPImpl(int num_timesteps, cudaStream_t st
 template <class GPU_FB_T, class DYN_T>
 void DeviceDDPImpl<GPU_FB_T, DYN_T>::allocateCUDAMemory() {
   int fb_size = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * num_timesteps_;
+
+  // Allocate CPU side memery
+  fb_gains_ = new float[fb_size];
   std::cout << "fb_size: " << fb_size << std::endl;
   // std::cout << "feedback_d_: " << this->feedback_d_->fb_gains_ << std::endl;
   // float * fb_gains_d_;
+  // Allocate GPU side memory
   cudaMalloc((void**)&fb_gains_d_, fb_size * sizeof(float));
   // cudaMalloc((void**)&this->feedback_d_->fb_gains_, fb_size * sizeof(float));
   HANDLE_ERROR(cudaMemcpyAsync(&this->feedback_d_->fb_gains_,
@@ -34,6 +38,10 @@ void DeviceDDPImpl<GPU_FB_T, DYN_T>::deallocateCUDAMemory() {
     // HANDLE_ERROR( cudaStreamSynchronize(this->stream_) );
     cudaFree(fb_gains_d_);
     fb_gains_d_ = nullptr;
+  }
+  if (fb_gains_ != nullptr) {
+    delete [] fb_gains_;
+    fb_gains_ = nullptr;
   }
 }
 
@@ -81,7 +89,7 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController() {
   ddp_model_  = std::make_shared<ModelWrapperDDP<DYN_T>>(model_);
   ddp_solver_ = std::make_shared< DDP<ModelWrapperDDP<DYN_T>>>(this->dt_,
                                                                this->num_timesteps_,
-                                                               1,
+                                                               this->params_.num_iterations,
                                                                &logger,
                                                                verbose);
   // TODO: Can be done by setParams() in feedback base class
@@ -133,6 +141,8 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
   this->feedback_state_.fb_gain_traj_ = result_.feedback_gain;
 
   // Copy Feedback Gains into GPU array
+  // Doesn't work because feedback_gain is a vector of matrices
+  // this->gpu_controller_->fb_gains_ = this->result_.feedback_gain.data();
   for (size_t i = 0; i < this->result_.feedback_gain.size(); i++) {
     int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
     for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {

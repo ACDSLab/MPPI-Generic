@@ -130,6 +130,10 @@ public:
     return gpu_controller_->feedback_d_;
   }
 
+  std::shared_ptr<GPU_FB_T> getHostPointer() {
+    return gpu_controller_;
+  }
+
   void bindToStream(cudaStream_t stream) {
     gpu_controller_->bindToStream(stream);
   }
