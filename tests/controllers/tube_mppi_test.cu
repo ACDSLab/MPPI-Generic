@@ -3,6 +3,7 @@
 #include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
 #include <mppi/controllers/Tube-MPPI/tube_mppi_controller.cuh>
+#include <mppi/feedback_controllers/DDP/ddp.cuh>
 #include <mppi/core/mppi_common.cuh>
 #include <cnpy.h>
 
@@ -20,15 +21,26 @@ bool tubeFailure(float *s) {
 
 const int total_time_horizon = 500;
 
+
 TEST(TubeMPPITest, Construction) {
+  // Create Type Aliases
+  const int num_timesteps = 100;
+  using DYN = DoubleIntegratorDynamics;
+  using COST = DoubleIntegratorCircleCost;
+  using FB_CONTROLLER = DDPFeedback<DYN, num_timesteps>;
+  using VANILLA_CONTROLLER = VanillaMPPIController<DYN, COST, FB_CONTROLLER,
+                                                   num_timesteps, 512, 64, 8>;
+  using TUBE_CONTROLLER = TubeMPPIController<DYN, COST, FB_CONTROLLER,
+                                             num_timesteps, 512, 64, 8>;
+
   // Define the model and cost
-  DoubleIntegratorDynamics model;
-  DoubleIntegratorCircleCost cost;
+  DYN model;
+  COST cost;
   float dt = 0.01;
+  auto fb_controller = FB_CONTROLLER(&model, dt);
   int max_iter = 10;
   float lambda = 0.5;
   float alpha = 0.0;
-  const int num_timesteps = 100;
 
   // control variance
   DoubleIntegratorDynamics::control_array control_var;
@@ -38,11 +50,12 @@ TEST(TubeMPPITest, Construction) {
   Eigen::MatrixXf Q;
   Eigen::MatrixXf R;
 
-  Q = 100*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
-  R = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
+  Q = 100*Eigen::MatrixXf::Identity(DYN::STATE_DIM,DYN::STATE_DIM);
+  R = Eigen::MatrixXf::Identity(DYN::CONTROL_DIM,DYN::CONTROL_DIM);
 
-  auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-                                      512, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
+  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller,
+                                               dt, max_iter, lambda, alpha,
+                                               control_var);
 
   auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
                                         512, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, Q, Q, R, control_var);
