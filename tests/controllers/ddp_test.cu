@@ -203,7 +203,7 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
 }
 
 TEST(DDPSolver_Test, Quadrotor_Tracking) {
-  const int num_timesteps = 200;
+  const int num_timesteps = 500;
 
   using DYN = QuadrotorDynamics;
   using COST = QuadrotorQuadraticCost;
