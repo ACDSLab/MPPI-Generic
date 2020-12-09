@@ -159,14 +159,14 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeadin
   mppi_math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
 
   // Calculate heading to gate
-  // float wx = this->params_.curr_waypoint.x - s[0];
-  // float wy = this->params_.curr_waypoint.y - s[1];
-  float w_heading = atan2f(s[4], s[3]);
+  float wx = this->params_.curr_waypoint.x - s[0];
+  float wy = this->params_.curr_waypoint.y - s[1];
+  float w_heading = atan2f(wy, wx);
 
 
   float dist_to_gate = distToWaypoint(s, this->params_.curr_waypoint);
   // Far away from the gate, we want to be pointing at the gate
-  if (dist_to_gate > this->params_.gate_margin || true) {
+  if (dist_to_gate > this->params_.gate_margin) {
     cost += this->params_.heading_coeff * powf(yaw - w_heading, 2);
   }
   return cost;
