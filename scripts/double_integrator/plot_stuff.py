@@ -15,7 +15,7 @@ y_track_inner = track_radius_inner*np.sin(theta)
 x_track_outer = track_radius_outer*np.cos(theta)
 y_track_outer = track_radius_outer*np.sin(theta)
 
-def plot_fe_vs_time(fe_array, crash_cost=1000, title="", savefig=0):
+def plot_fe_vs_time(fe_array, crash_cost=1.0, title="", savefig=0):
 	fig = plt.figure()
 	axis = plt.gca()
 	# axis.set_title(title)
@@ -30,10 +30,10 @@ def plot_fe_bounded(fe_array, fe_bound, title="", savefig=0):
 	fig = plt.figure()
 	axis = plt.gca()
 	# axis.set_title(title)
-	plt.yscale('log')
+	# plt.yscale('log')
 	time = np.linspace(0,fe_array.shape[0]*0.02, fe_array.shape[0])
-	plt.plot(time, fe_array/100, 'b', alpha=0.7, label='FE Increase')
-	plt.plot(time, fe_bound/100, 'r', alpha=0.7, label='Bound')
+	plt.plot(time, fe_array, 'b', alpha=0.7, label='FE Increase')
+	plt.plot(time, fe_bound, 'r', alpha=0.7, label='Bound')
 	plt.legend(bbox_to_anchor=(1.05, 1),loc='upper left')
 	if savefig:
 		fig.savefig(title+'.pdf', bbox_inches='tight')
@@ -125,22 +125,24 @@ def main(args):
 	robust_rc_nominal_state_used = np.load(data_dir + "robust_rc_nominal_state_used.npy")
 	robust_rc_rfe_bound = np.load(data_dir + "robust_rc_real_free_energy_bound.npy")
 	robust_rc_nfe_bound = np.load(data_dir + "robust_rc_nominal_free_energy_bound.npy")
-	robust_rc_rfe_growth_bound = np.load(data_dir + "robust_rc_real_free_energy_growth_bound.npy")
-	robust_rc_rfc_growth = np.load(data_dir + "robust_rc_real_free_energy_growth.npy")
+	robust_rc_rfe_growth_bound = np.load(data_dir + "robust_rc_real_free_energy_growth_bound.npy")[1:]
+	# robust_rc_rfc_growth = np.load(data_dir + "robust_rc_real_free_energy_growth.npy")
+	robust_rc_rfc_growth = robust_rc_rfe[1:] - robust_rc_rfe[:-1]
 	robust_rc_nfc_growth = np.load(data_dir + "robust_rc_nominal_free_energy_growth.npy")
 	robust_rc_nominal_trajectory = np.load(data_dir + "robust_rc_nominal_trajectory.npy")
 
 
 	robust_ccm_rfe = np.load(data_dir + "robust_large_actual_free_energy_CCM_t_2999.npy")
-	# robust_ccm_nfe = np.load(data_dir + "robust_large_nominal_free_energy_CCM_t_2999.npy")
-	robust_ccm_state_trajectory = np.load(data_dir + "robust_cc_state_trajectory.npy")
+	robust_ccm_nfe = np.load(data_dir + "robust_large_nominal_free_energy_CCM_t_2999.npy")
+	robust_ccm_state_trajectory = np.load(data_dir + "robust_large_actual_traj_CCM_t_2999.npy")
 	robust_ccm_nominal_state_used = np.load(data_dir + "robust_large_nominal_state_used_CCM_t_2999.npy")
 	robust_ccm_rfe_bound = np.load(data_dir + "robust_large_actual_free_energy_bound_CCM_t_2999.npy")
 	robust_ccm_nfe_bound = np.load(data_dir + "robust_large_nominal_free_energy_bound_CCM_t_2999.npy")
 	robust_ccm_rfe_growth_bound = np.load(data_dir + "robust_large_actual_free_energy_growth_bound_CCM_t_2999.npy")
-	robust_ccm_rfc_growth = np.load(data_dir + "robust_large_actual_free_energy_growth_CCM_t_2999.npy")
+	# robust_ccm_rfc_growth = np.load(data_dir + "robust_large_actual_free_energy_growth_CCM_t_2999.npy")
+	robust_ccm_rfc_growth = robust_ccm_rfe[1:] - robust_ccm_rfe[:-1]
 	robust_ccm_nfc_growth = np.load(data_dir + "robust_large_nominal_free_energy_growth_CCM_t_2999.npy")
-	robust_ccm_nominal_trajectory = np.load(data_dir + "robust_cc_nominal_trajectory.npy")
+	robust_ccm_nominal_trajectory = np.load(data_dir + "robust_large_nominal_traj_CCM_t_2999.npy")
 
 
 
@@ -162,14 +164,14 @@ def main(args):
 
 # # plot_nominal_state_used_vs_time(tube_large_nominal_state_used)
 	#
-	plot_fe_vs_time(robust_sc_rfe, 1000, "Robust Standard Real Free Energy", save_fig)
+	# plot_fe_vs_time(robust_sc_rfe, 1000, "Robust Standard Real Free Energy", save_fig)
 	# plot_fe_vs_time(robust_sc_nfe, 1000, "Robust Standard Nominal Free Energy")
 	# plot_trajectory(robust_sc_state_trajectory, "Robust Standard State Trajectory")
 	# # plot_nominal_state_used_vs_time(robust_sc_nominal_state_used)
 	# plot_nominal_trajectory(robust_sc_state_trajectory, robust_sc_nominal_trajectory, "Robust Standard State Trajectory", save_fig)
 
-	plot_fe_vs_time(robust_rc_rfe, 100, "Robust Robust Real Free Energy", save_fig)
-	# plot_fe_bounded(robust_rc_rfc_growth, robust_rc_rfe_growth_bound-incorrect_bound+correct_bound, "Robust Robust Real Free Energy Growth")
+	# plot_fe_vs_time(robust_rc_rfe, 100, "Robust Robust Real Free Energy", save_fig)
+	plot_fe_bounded(robust_rc_rfc_growth, robust_rc_rfe_growth_bound, "Robust Robust Real Free Energy Growth")
 	# plot_fe_bounded(robust_rc_nfe, robust_rc_nfe_bound, "Robust Robust Nominal Free Energy")
 	# plot_fe_vs_time(robust_rc_nfc_growth, 0,"Robust Robust Nominal Free Energy Growth")
 	# plot_trajectory(robust_rc_state_trajectory, "Robust Robust State Trajectory")
@@ -177,11 +179,11 @@ def main(args):
 
 	# plot_nominal_state_used_vs_time(robust_rc_nominal_state_used)
 
-	## Correct bound
-	# incorrect_bound = (robust_ccm_rfe_bound - robust_ccm_nfe)
-	# correct_bound = 8*incorrect_bound
-	plot_fe_vs_time(robust_ccm_rfe, 100, "Robust CCM Real Free Energy", save_fig)
-	# plot_fe_bounded(robust_ccm_rfc_growth, robust_ccm_rfe_growth_bound-incorrect_bound+correct_bound, "Robust CCM Real Free Energy Growth")
+	# Correct bound
+	incorrect_bound = (robust_ccm_rfe_bound - robust_ccm_nfe)
+	correct_bound = 8*incorrect_bound
+	# plot_fe_vs_time(robust_ccm_rfe, 100, "Robust CCM Real Free Energy", save_fig)
+	plot_fe_bounded(robust_ccm_rfc_growth, (robust_ccm_rfe_growth_bound-incorrect_bound+correct_bound)[1:], "Robust CCM Real Free Energy Growth")
 	# plot_fe_bounded(robust_ccm_nfe, robust_ccm_nfe_bound, "Robust CCM Nominal Free Energy")
 	# plot_fe_vs_time(robust_ccm_nfc_growth, 0,"Robust CCM Nominal Free Energy Growth")
 	# plot_trajectory(robust_ccm_state_trajectory, "Robust CCM State Trajectory")
