@@ -180,7 +180,7 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 5e-3);
 }
 
-TEST(RMPPITest, RMPPIRolloutKernel) {
+TEST(RMPPITest, RMPPIRolloutKernel_CPU_v_GPU) {
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
   DYN model;
@@ -192,7 +192,7 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   float dt = 0.01;
   // int max_iter = 10;
   float lambda = 1.0;
-  float alpha = 0.0001;
+  float alpha = 0.1;
   const int num_timesteps = 50;
   const int num_rollouts = 64;
   int optimization_stride = 1;
@@ -243,7 +243,7 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   u_traj[15] = 0.5;
 
   // TODO: Generate feedback gain trajectories
-  VanillaMPPIController<DYN, COST, 100, 512, 64, 8>::feedback_gain_trajectory feedback_gains;
+  VanillaMPPIController<DYN, COST, num_timesteps, num_rollouts, 64, 8>::feedback_gain_trajectory feedback_gains;
   for (int i = 0; i < num_timesteps; i++) {
     feedback_gains.push_back(DYN::feedback_matrix::Constant(-15));
   }
@@ -251,8 +251,8 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   // Copy Feedback Gains into an array
   float feedback_array[num_timesteps * control_dim * state_dim];
   for (size_t i = 0; i < feedback_gains.size(); i++) {
-    // std::cout << "Matrix " << i << ":\n";
-    // std::cout << feedback_gains[i] << std::endl;
+//     std::cout << "Matrix " << i << ":\n";
+//     std::cout << feedback_gains[i] << std::endl;
     int i_index = i * control_dim * state_dim;
 
     for (size_t j = 0; j < control_dim * state_dim; j++) {
@@ -274,23 +274,23 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
 
   sampled_noise_vec.reserve(control_traj_size * 2);
   for(int i = 0; i < control_traj_size; i++) {
-    sampled_noise_vec[i] = sampled_noise_vec[i];
+    sampled_noise_vec[i] = sampled_noise[i];
     sampled_noise_vec[control_traj_size + i] = sampled_noise_vec[i];
   }
 
   float value_func_threshold = 50000;
 
-  std::cout <<  "X_init_act_vec " << std::endl;
-  for (int i = 0; i < x_init_act_vec.size(); ++i) {
-    std::cout <<  " " << x_init_act_vec[i];
-  }
-  std::cout << std::endl;
-
-  std::cout <<  "X_init_nom_vec " << std::endl;
-  for (int i = 0; i < x_init_nom_vec.size(); ++i) {
-    std::cout <<  " " << x_init_nom_vec[i];
-  }
-  std::cout << std::endl;
+//  std::cout <<  "X_init_act_vec " << std::endl;
+//  for (int i = 0; i < x_init_act_vec.size(); ++i) {
+//    std::cout <<  " " << x_init_act_vec[i];
+//  }
+//  std::cout << std::endl;
+//
+//  std::cout <<  "X_init_nom_vec " << std::endl;
+//  for (int i = 0; i < x_init_nom_vec.size(); ++i) {
+//    std::cout <<  " " << x_init_nom_vec[i];
+//  }
+//  std::cout << std::endl;
 
 
   // Output Trajectory Costs
@@ -336,7 +336,7 @@ TEST(RMPPITest, RMPPIRolloutKernel) {
   array_assert_float_eq<num_rollouts>(costs_nom_GPU, costs_nom_CPU);
 }
 
-TEST(RMPPITest, RolloutKernelComparison) {
+TEST(RMPPITest, TwoSystemRolloutKernelComparison) {
   /**
    * If the nominal state and the real state are equal, and we are using the
    * same noise between the two, then the output result should be equal to the
@@ -357,7 +357,7 @@ TEST(RMPPITest, RolloutKernelComparison) {
   float lambda = 4.2;
   float alpha = 0.05;
   const int num_timesteps = 100;
-  const int num_rollouts = 1920;
+  const int num_rollouts = 256;
   int optimization_stride = 1;
 
   std::array<float, control_dim> sigma_u = {0.5, 1.5};
@@ -379,7 +379,7 @@ TEST(RMPPITest, RolloutKernelComparison) {
 
 
   // Create some random feedback gains
-  VanillaMPPIController<DYN, COST, 100, 512, 64, 8>::feedback_gain_trajectory feedback_gains;
+  VanillaMPPIController<DYN, COST, num_timesteps, num_rollouts, 64, 8>::feedback_gain_trajectory feedback_gains;
   feedback_gains.resize(num_timesteps);
   for (auto & feedback_gain : feedback_gains) {
     feedback_gain = Eigen::Matrix<float, control_dim, state_dim>::Random();

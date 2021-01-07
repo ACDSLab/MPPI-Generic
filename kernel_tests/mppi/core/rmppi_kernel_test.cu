@@ -391,6 +391,7 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
                   opt_delay, lambda, alpha,
                   10, state_d, U_d, du_d,
                   feedback_gains_d, nu_d, costs_d);
+  CudaCheckError();
 
   // Copy data back
   HANDLE_ERROR(cudaMemcpyAsync(rmppi_costs_out.data(), costs_d,
