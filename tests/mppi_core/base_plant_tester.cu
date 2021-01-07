@@ -335,6 +335,8 @@ TEST(BasePlant, runControlIterationDebugFalseNoFeedbackTest) {
 
     EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(0);
     EXPECT_CALL(*mockController, getFeedbackGains()).Times(0);
+    EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
+    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
 
     EXPECT_EQ(testPlant.getDebugMode(), false);
 
@@ -404,7 +406,8 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
     EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
     MockController::feedback_gain_trajectory feedback;
     EXPECT_CALL(*mockController, getFeedbackGains()).Times(1).WillRepeatedly(testing::Return(feedback));
-
+    EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
+    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
     EXPECT_EQ(testPlant.getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
@@ -426,7 +429,7 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
     EXPECT_LT(testPlant.getOptimizationAvg(), wait_ms + small_time_ms);
     EXPECT_THAT(testPlant.getFeedbackDuration(),
-                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+                testing::AllOf(testing::Ge(wait_ms), testing::Le((wait_ms + small_time_ms)*2)));
     // TODO should be range as well
     EXPECT_LT(testPlant.getFeedbackAvg(), wait_ms + small_time_ms);
     EXPECT_THAT(testPlant.getLoopDuration(),
@@ -467,6 +470,8 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackAvgTest) {
     EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
     MockController::feedback_gain_trajectory feedback;
     EXPECT_CALL(*mockController, getFeedbackGains()).Times(1).WillRepeatedly(testing::Return(feedback));
+    EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
+    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
 
     EXPECT_EQ(testPlant.getDebugMode(), false);
 
@@ -537,8 +542,12 @@ TEST(BasePlant, runControlLoop) {
   EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(iterations/2).WillRepeatedly(testing::Invoke(wait_function));
   MockController::feedback_gain_trajectory feedback;
   EXPECT_CALL(*mockController, getFeedbackGains()).Times(iterations/2).WillRepeatedly(testing::Return(feedback));
+  EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(iterations/2);
+  EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(iterations/2);
 
-  std::atomic<bool> is_alive(true);
+
+
+    std::atomic<bool> is_alive(true);
   std::thread optimizer(&MockTestPlant::runControlLoop, &testPlant, mockController.get(), &is_alive);
 
   std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
@@ -579,7 +588,7 @@ TEST(BasePlant, runControlLoop) {
   EXPECT_THAT(testPlant.getLoopDuration(),
               testing::AllOf(testing::Ge(wait_ms*2), testing::Le((wait_ms + small_time_ms)*2)));
   EXPECT_THAT(testPlant.getLoopAvg(),
-              testing::AllOf(testing::Ge((wait_ms)*2), testing::Le((wait_ms + small_time_ms)*2)));
+              testing::AllOf(testing::Ge((wait_ms*2)), testing::Le((wait_ms + small_time_ms)*5)));
   EXPECT_THAT(testPlant.getFeedbackDuration(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
   EXPECT_THAT(testPlant.getFeedbackAvg(),
