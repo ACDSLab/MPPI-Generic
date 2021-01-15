@@ -2,8 +2,6 @@
 if(BUILD_TESTS)
     message("")
     find_package(PythonInterp)
-    # Set location of test map
-    set(TEST_MAP_FOLDER "${PROJECT_BINARY_DIR}")
 
     # Create test map
     execute_process(COMMAND ${PYTHON_EXECUTABLE}
@@ -12,13 +10,6 @@ if(BUILD_TESTS)
                     OUTPUT_FILE /dev/null
                     )
     message(STATUS "Created folder ${TEST_MAP_FOLDER}/*.npz")
-
-    # Create header file pointing to test map
-    set(TEST_MAP_HEADER_FILE ${PROJECT_BINARY_DIR}/include/autorally_test_map.h)
-    configure_file(autorally_test_map.h.in ${TEST_MAP_HEADER_FILE})
-    message(STATUS "Generated ${TEST_MAP_HEADER_FILE}")
-    # Add the generated header file to list of includes
-    include_directories(${PROJECT_BINARY_DIR}/include)
     message("")
 endif()
 

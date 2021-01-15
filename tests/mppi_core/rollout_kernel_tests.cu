@@ -7,6 +7,9 @@
 
 #include <mppi/utils/test_helper.h>
 #include <random>
+
+#include <autorally_test_network.h>
+#include <autorally_test_map.h>
 /*
  * Here we will test various device functions that are related to cuda kernel things.
  */
@@ -289,8 +292,8 @@ TEST(RolloutKernel, comparisonTestAutorallyMPPI_Generic_AR) {
   costs->setParams(params);
 
   std::string model_path, map_path;
-  model_path = "/home/mgandhi3/git/MPPI-Generic/resources/autorally_nnet_09_12_2018.npz";
-  map_path = "/home/mgandhi3/git/MPPI-Generic/resources/ccrf_track.npz";
+  model_path = mppi::tests::old_autorally_network_file;
+  map_path = mppi::tests::ccrf_map;
 
   // Call the GPU setup functions of the model and cost
   dynamics->GPUSetup();
