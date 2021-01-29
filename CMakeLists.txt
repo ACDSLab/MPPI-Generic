@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.8)
 project(MPPIGeneric LANGUAGES C CXX CUDA)
 
+# https://cmake.org/cmake/help/latest/policy/CMP0104.html
+if (POLICY CMP0104)
+    cmake_policy(SET CMP0104 OLD)
+endif()
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CUDA_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
