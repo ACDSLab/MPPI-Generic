@@ -33,7 +33,9 @@
 
 # clion ide
 .idea
-cmake-build-debug
+cmake-build-debug*
+cmake-build-release*
+.clion*
 
 # vscode ide
 .vscode

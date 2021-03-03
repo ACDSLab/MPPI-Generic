@@ -15,19 +15,19 @@ target_link_libraries(vanilla_mppi_tests gtest
 gtest_discover_tests(vanilla_mppi_tests)
 set_target_properties(vanilla_mppi_tests PROPERTIES FOLDER test)
 
-add_executable(controller_generic_tests
-        ../test_main.cpp
-        controller_generic_tests.cu)
-
-target_link_libraries(controller_generic_tests gtest
-        gmock
-        gtest_main
-        ${CUDA_LIBRARIES}
-        ${OpenCV_LIBRARIES}
-        curand
-        cnpy)
-gtest_discover_tests(controller_generic_tests)
-set_target_properties(controller_generic_tests PROPERTIES FOLDER test)
+#add_executable(controller_generic_tests
+#        ../test_main.cpp
+#        controller_generic_tests.cu)
+#
+#target_link_libraries(controller_generic_tests gtest
+#        gmock
+#        gtest_main
+#        ${CUDA_LIBRARIES}
+#        ${OpenCV_LIBRARIES}
+#        curand
+#        cnpy)
+#gtest_discover_tests(controller_generic_tests)
+#set_target_properties(controller_generic_tests PROPERTIES FOLDER test)
 
 
 add_executable(tube_mppi_tests

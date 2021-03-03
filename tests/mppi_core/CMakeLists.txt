@@ -37,17 +37,17 @@ gtest_discover_tests(${WEIGHTRED_TARGET_NAME})
 set_target_properties(${WEIGHTRED_TARGET_NAME} PROPERTIES FOLDER test)
 
 # Base Plant test cases
-set(PLANT_TARGET_NAME base_plant_tests)
-
-add_executable(${PLANT_TARGET_NAME} ../test_main.cpp base_plant_tester.cu)
-target_link_libraries(${PLANT_TARGET_NAME} gtest
-        gmock
-        gtest_main
-        ${OpenCV_LIBRARIES}
-        )
-
-gtest_discover_tests(${PLANT_TARGET_NAME})
-set_target_properties(${PLANT_TARGET_NAME} PROPERTIES FOLDER test)
+#set(PLANT_TARGET_NAME base_plant_tests)
+#
+#add_executable(${PLANT_TARGET_NAME} ../test_main.cpp base_plant_tester.cu)
+#target_link_libraries(${PLANT_TARGET_NAME} gtest
+#        gmock
+#        gtest_main
+#        ${OpenCV_LIBRARIES}
+#        )
+#
+#gtest_discover_tests(${PLANT_TARGET_NAME})
+#set_target_properties(${PLANT_TARGET_NAME} PROPERTIES FOLDER test)
 
 # RMPPI Kernel Test Cases
 set(RMPPIKERNEL_TARGET_NAME rmppi_kernel_tests)
