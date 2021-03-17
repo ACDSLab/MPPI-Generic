@@ -7,6 +7,8 @@
 
 #include <mppi/shaping_functions/shaping_function.cuh>
 
+#include <mppi/shaping_functions/shaping_function_kernels_tests.cuh>
+
 class ShapingFunctionTest: public testing::Test {
 protected:
   void SetUp() override {
@@ -45,22 +47,6 @@ TEST_F(ShapingFunctionTest, computeWeightTest) {
   }
 }
 
-template<class CLASS_T, int NUM_ROLLOUTS, int BDIM_X>
-void launchShapingFunction_KernelTest(std::array<float, NUM_ROLLOUTS>& trajectory_costs_host, CLASS_T& shape_function, float baseline, std::array<float, NUM_ROLLOUTS>& normalized_compute) {
-  // Allocate CUDA memory
-  float* trajectory_costs_d;
-  HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d, sizeof(float)*trajectory_costs_host.size()))
-
-  HANDLE_ERROR(cudaMemcpy(trajectory_costs_d, trajectory_costs_host.data(), sizeof(float)*trajectory_costs_host.size(), cudaMemcpyHostToDevice))
-
-  mppi_common::weightKernel<CLASS_T, NUM_ROLLOUTS><<<1,NUM_ROLLOUTS>>>(trajectory_costs_d, baseline, shape_function.shaping_function_d_);
-  CudaCheckError();
-
-  HANDLE_ERROR(cudaMemcpy(normalized_compute.data(), trajectory_costs_d, sizeof(float)*trajectory_costs_host.size(), cudaMemcpyDeviceToHost))
-
-  cudaFree(trajectory_costs_d);
-}
-
 TEST_F(ShapingFunctionTest, weightKernelTest) {
   const int num_rollouts = 500;
   std::array<float, num_rollouts> cost_vec = {0};
@@ -86,23 +72,7 @@ TEST_F(ShapingFunctionTest, weightKernelTest) {
   }
 }
 
-template<class CLASS_T, int NUM_ROLLOUTS>
-void launchShapingFunction_KernelTest(typename CLASS_T::cost_traj& trajectory_costs_host, CLASS_T& shape_function,
-                                      float baseline, std::array<float, NUM_ROLLOUTS>& normalized_compute,
-                                      cudaStream_t stream=nullptr) {
-  // Allocate CUDA memory
-  float* trajectory_costs_d;
-  HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d, sizeof(float)*trajectory_costs_host.size()))
 
-  HANDLE_ERROR(cudaMemcpy(trajectory_costs_d, trajectory_costs_host.data(), sizeof(float)*trajectory_costs_host.size(), cudaMemcpyHostToDevice))
-
-  shape_function.launchWeightKernel(trajectory_costs_d, baseline, stream);
-  CudaCheckError();
-
-  HANDLE_ERROR(cudaMemcpy(normalized_compute.data(), trajectory_costs_d, sizeof(float)*trajectory_costs_host.size(), cudaMemcpyDeviceToHost))
-
-  cudaFree(trajectory_costs_d);
-}
 
 TEST_F(ShapingFunctionTest, launchWeightKernelTest) {
   const int num_rollouts = 500;

@@ -50,7 +50,7 @@ public:
 
   CLASS_T* shaping_function_d_ = nullptr;
 
-private:
+protected:
   PARAMS_T params_;
   float baseline_;
   float normalizer_;
