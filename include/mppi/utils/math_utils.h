@@ -81,7 +81,7 @@ inline __host__ __device__ float normDistFromCenter(float r, float r_in, float r
  *  q_2 - second quaternion
  *  q_3 - output quaternion
  */
-inline __device__ void QuadMultiply(float q_1[4], float q_2[4], float q_3[4]) {
+inline __device__ void QuatMultiply(float q_1[4], float q_2[4], float q_3[4]) {
   q_3[0] = q_1[0] * q_2[0] - q_1[1] * q_2[1] - q_1[2] * q_2[2] - q_1[3] * q_2[3];
   q_3[1] = q_1[1] * q_2[0] + q_1[0] * q_2[1] - q_1[3] * q_2[2] + q_1[2] * q_2[3];
   q_3[2] = q_1[2] * q_2[0] + q_1[3] * q_2[1] + q_1[0] * q_2[2] - q_1[1] * q_2[3];
@@ -108,7 +108,7 @@ inline __device__ void QuatInv(float q[4], float q_inv[4]) {
 inline __device__ void QuatSubtract(float q_1[4], float q_2[4], float q_3[4]) {
   float q_1_inv[4];
   QuatInv(q_1, q_1_inv);
-  QuadMultiply(q_2, q_1_inv, q_3);
+  QuatMultiply(q_2, q_1_inv, q_3);
 }
 
 /*
@@ -158,7 +158,7 @@ inline void QuatSubtract(const Eigen::Quaternionf& q_1,
   q_3 = q_2 * q_1.inverse();
 }
 
-inline void QuadMultiply(const Eigen::Quaternionf& q_1,
+inline void QuatMultiply(const Eigen::Quaternionf& q_1,
                          const Eigen::Quaternionf& q_2,
                          Eigen::Quaternionf& q_3) {
   q_3 = q_1 * q_2;
