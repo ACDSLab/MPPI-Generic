@@ -86,14 +86,14 @@ inline __device__ void QuadMultiply(float q_1[4], float q_2[4], float q_3[4]) {
   q_3[1] = q_1[1] * q_2[0] + q_1[0] * q_2[1] - q_1[3] * q_2[2] + q_1[2] * q_2[3];
   q_3[2] = q_1[2] * q_2[0] + q_1[3] * q_2[1] + q_1[0] * q_2[2] - q_1[1] * q_2[3];
   q_3[3] = q_1[3] * q_2[0] - q_1[2] * q_2[1] + q_1[1] * q_2[2] + q_1[0] * q_2[3];
-  float norm = powf(q_3[0], 2) + powf(q_3[1], 2) + powf(q_3[2], 2) + powf(q_3[3], 2);
+  float norm = sqrtf(powf(q_3[0], 2) + powf(q_3[1], 2) + powf(q_3[2], 2) + powf(q_3[3], 2));
   for(int i = 0; i < 4; i++) {
     q_3[i] /= norm;
   }
 }
 
 inline __device__ void QuatInv(float q[4], float q_inv[4]) {
-  float norm = powf(q[0], 2) + powf(q[1], 2) + powf(q[2], 2) + powf(q[3], 2);
+  float norm = sqrtf(powf(q[0], 2) + powf(q[1], 2) + powf(q[2], 2) + powf(q[3], 2));
   q_inv[0] = q[0] / norm;
   q_inv[1] = -q[1] / norm;
   q_inv[2] = -q[2] / norm;
