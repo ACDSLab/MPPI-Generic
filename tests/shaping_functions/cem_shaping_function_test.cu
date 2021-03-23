@@ -47,7 +47,7 @@ TEST_F(CEMShapingFunctionTest, computeWeightTest) {
     for (int i = 0; i < cost_vec.size(); i++) {
       float weight = shaping_function.computeWeight(cost_vec.data(), target_cost, i);
       if(cost_vec[i] > target_cost) {
-        EXPECT_FLOAT_EQ(weight, 1.0 / ((int) num_rollouts*params.gamma));
+        EXPECT_FLOAT_EQ(weight, 1.0 / ((int) num_rollouts*params.gamma+1));
       } else {
         EXPECT_FLOAT_EQ(weight, 0.0);
       }
@@ -77,7 +77,7 @@ TEST_F(CEMShapingFunctionTest, weightKernelTest) {
                                                                                         baseline, result_cost_vec);
     for (int i = 0; i < cost_vec.size(); i++) {
       if(cost_vec[i] > baseline) {
-        EXPECT_FLOAT_EQ(result_cost_vec[i], 1.0 / ((int) num_rollouts*params.gamma));
+        EXPECT_FLOAT_EQ(result_cost_vec[i], 1.0 / ((int) num_rollouts*params.gamma+1));
       } else {
         EXPECT_FLOAT_EQ(result_cost_vec[i], 0.0);
       }
@@ -116,9 +116,9 @@ EXPECT_FLOAT_EQ(result_cost_vec[i], expf(-lambda_inv * (cost_traj(i) - min_cost_
 
 
 TEST_F(CEMShapingFunctionTest, computeWeightsTest) {
-  const int num_rollouts = 10;
+  const int num_rollouts = 500;
   CEMShapingFunction<num_rollouts, 1>::cost_traj cost_traj;
-  CEMShapingFunction<num_rollouts, 1>::cost_traj result_cost_traj;
+  CEMShapingFunction<num_rollouts, 1>::cost_traj cost_traj_copy;
 
   CEMShapingFunctionParams params;
   CEMShapingFunction<num_rollouts, 1> shaping_function;
@@ -126,45 +126,51 @@ TEST_F(CEMShapingFunctionTest, computeWeightsTest) {
 
   // Use a range based for loop to set the cost
   cost_traj = ShapingFunction<num_rollouts, 1>::cost_traj::Zero();
-  for (int i = 0; i < num_rollouts; i++) {
-    cost_traj(i) = distribution(generator);
-    result_cost_traj(i) = cost_traj(i);
-  }
-
-  std::sort(cost_traj.data(), cost_traj.data()+num_rollouts, std::greater<float>());
-  const float gamma_total = 0.2;
+  cost_traj_copy = ShapingFunction<num_rollouts, 1>::cost_traj::Zero();
+  const float gamma_total = 1.0;
   const float gamma_inc = 0.1;
-  const float gamma_start = 0.1;
-  std::vector<float> pivots;
-  for(float gamma = gamma_start; gamma < gamma_total/gamma_inc; gamma++) {
-    int index = gamma * num_rollouts;
-    pivots.push_back(cost_traj[index]);
-  }
-  std::random_shuffle(cost_traj.data(), cost_traj.data()+num_rollouts);
-
-  float* trajectory_costs_d;
-  HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d, sizeof(float)*num_rollouts));
-  HANDLE_ERROR(cudaMemcpy(trajectory_costs_d, cost_traj.data(), sizeof(float)*cost_traj.size(), cudaMemcpyHostToDevice))
+  const float gamma_start = 0.0;
 
   int index = 0;
-  for (float gamma = 0.1; gamma <= gamma_total; gamma += gamma_inc) {
+  for (float gamma = gamma_start; gamma <= gamma_total; gamma += gamma_inc) {
+    // create the random vector
+    for (int i = 0; i < num_rollouts; i++) {
+      cost_traj(i) = distribution(generator);
+    }
+
+    // find the correct costs for the baseline
+    std::sort(cost_traj.data(), cost_traj.data()+num_rollouts, std::greater<float>());
+    float pivot = cost_traj[gamma * num_rollouts];
+    std::random_shuffle(cost_traj.data(), cost_traj.data()+num_rollouts);
+    for(int i = 0; i < num_rollouts; i++) {
+      cost_traj_copy(i) = cost_traj(i);
+    }
+
+    float* trajectory_costs_d;
+    HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d, sizeof(float)*num_rollouts));
+    HANDLE_ERROR(cudaMemcpy(trajectory_costs_d, cost_traj.data(), sizeof(float)*cost_traj.size(), cudaMemcpyHostToDevice))
+
     params.gamma = gamma;
     shaping_function.setParams(params);
 
     shaping_function.computeWeights(cost_traj, trajectory_costs_d);
 
-    EXPECT_EQ(shaping_function.getBaseline(), pivots[index]);
+    EXPECT_FLOAT_EQ(shaping_function.getBaseline(), pivot);
+    if(gamma == 0) {
+      EXPECT_FLOAT_EQ(shaping_function.getBaseline(), cost_traj_copy.maxCoeff());
+    }
+    if(gamma == 1.0) {
+      EXPECT_FLOAT_EQ(shaping_function.getBaseline(), cost_traj_copy.minCoeff());
+    }
     EXPECT_EQ(shaping_function.getNormalizer(), 1.0);
-    EXPECT_EQ(cost_traj.sum(), 1.0);
-    /*
+    EXPECT_NEAR(cost_traj.sum(), 1.0, 1e-5) << cost_traj.sum();
     for (int i = 0; i < cost_traj.size(); i++) {
-      if(cost_traj(i) > gamma_cost) {
-        EXPECT_FLOAT_EQ(result_cost_traj(i), 1.0 / ((int) num_rollouts*params.gamma));
+      if(cost_traj_copy(i) >= pivot) {
+        EXPECT_FLOAT_EQ(cost_traj(i), 1.0 / ((int) num_rollouts*params.gamma+1));
       } else {
-        EXPECT_FLOAT_EQ(result_cost_traj(i), 0.0);
+        EXPECT_FLOAT_EQ(cost_traj(i), 0.0);
       }
     }
-     */
     index++;
   }
 }
