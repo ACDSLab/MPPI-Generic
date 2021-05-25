@@ -57,7 +57,10 @@ Note: If using Pop!\_OS you can `sudo apt install system76-cuda` instead of inst
 The default is to build the library with tests ON. If you would like to turn off the tests when building, pass the flag `DBUILD_TESTS=OFF` when configuring cmake.
 
 ```bash
+mkdir build
+cd build
 cmake .. -DBUILD_TESTS=OFF
+make
 ```
 
 ## TODO
