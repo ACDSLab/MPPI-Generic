@@ -470,7 +470,6 @@ public:
       }
     }
     controller->resetControls();
-    last_used_pose_update_time_ = getCurrentTime();
 
     //Start the control loop.
     while (is_alive->load()) {
