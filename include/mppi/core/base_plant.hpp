@@ -80,7 +80,7 @@ protected:
    * Wall Clock: always real time per the computer
    */
   // Robot Time: can scale with a simulation
-  std::atomic<double> last_used_pose_update_time_{0.0}; // time of the last pose update that was used for optimization
+  std::atomic<double> last_used_pose_update_time_{-1.0}; // time of the last pose update that was used for optimization
   // Wall Clock: always real time
   double last_optimization_time_ = 0; // time of the last optimization
   double optimize_loop_duration_ = 0; // duration of the entire controller run loop
