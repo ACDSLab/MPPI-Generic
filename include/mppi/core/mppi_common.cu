@@ -66,6 +66,8 @@ namespace mppi_common {
 
     if (global_idx < NUM_ROLLOUTS) {
     /*<----Start of simulation loop-----> */
+      dynamics->initializeDynamics(x, u, theta_s, 0.0, dt);
+      __syncthreads();
       for (int t = 0; t < num_timesteps; t++) {
         //Load noise trajectories scaled by the exploration factor
         injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,

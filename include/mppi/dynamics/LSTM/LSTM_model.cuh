@@ -9,6 +9,7 @@
 #include <cuda_runtime.h>
 #include <eigen3/Eigen/Dense>
 #include <opencv2/core/core.hpp>
+#include <memory>
 #include <vector>
 
 /**
@@ -34,16 +35,16 @@ float ReLU(float x) {
 
 // history of states and controls - roughly 10 (initializer network) (inside paramsToDevice()?)
 
-template <int S_DIM, int C_DIM, int K_DIM, int HIDDEN_DIM, int BUFFER_SIZE = 10, int INITIALIZATION_LAYER = 1000>
+template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER = 10, int INIT_DIM = 1000>
 struct LSTMDynamicsParams {
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
   // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
   // static const int PRIME_PADDING = 1; ///< Extra padding to largest layer to avoid shared mem bank conflicts
   // static const int LARGEST_LAYER = neuron_counter(layer_args...) + PRIME_PADDING; ///< Number of neurons in the largest layer(including in/out neurons)
   // static const int NUM_PARAMS = param_counter(layer_args...); ///< Total number of model parameters;
-  static const int HIDDEN_DIM = HIDDEN_DIM;
+  static const int HIDDEN_DIM = H_DIM;
   static const int LSTM_NUM_WEIGHTS = (4 * DYNAMICS_DIM + 4 * HIDDEN_DIM + 4) * HIDDEN_DIM;
-  static const int INITIALIZATION_WEIGHTS = 2 * (BUFFER_SIZE * (DYNAMICS_DIM + C_DIM) * INITIALIZATION_LAYER + INITIALIZATION_LAYER * HIDDEN_DIM);
+  static const int INITIALIZATION_WEIGHTS = 2 * (BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM + INIT_DIM * HIDDEN_DIM);
   static const int OUTPUT_WEIGHTS = DYNAMICS_DIM * HIDDEN_DIM + DYNAMICS_DIM + INITIALIZATION_WEIGHTS;
   static const int NUM_PARAMS = LSTM_NUM_WEIGHTS + OUTPUT_WEIGHTS;
   static const int SHARED_MEM_REQUEST_GRD = 0; ///< Amount of shared memory we need per BLOCK.
@@ -57,11 +58,12 @@ struct LSTMDynamicsParams {
   * output gate output - HIDDEN_DIM
   * intermediate cell update output - HIDDEN_DIM
   * intermediate state update output - DYNAMICS_DIM
+  * starting input sequence - DYNAMICS_DIM + CONTROL_DIM
   */
-  static const int SHARED_MEM_REQUEST_BLK = 8 * HIDDEN_DIM + DYNAMICS_DIM; ///< Amount of shared memory we need per ROLLOUT.
+  static const int SHARED_MEM_REQUEST_BLK = 8 * HIDDEN_DIM + 2 * DYNAMICS_DIM + C_DIM; ///< Amount of shared memory we need per ROLLOUT.
 
-  int HIDDEN_HIDDEN_SIZE = HIDDEN_DIM * HIDDEN_DIM;
-  int STATE_HIDDEN_SIZE = HIDDEN_DIM * DYNAMICS_DIM;
+  static const int HIDDEN_HIDDEN_SIZE = HIDDEN_DIM * HIDDEN_DIM;
+  static const int STATE_HIDDEN_SIZE = HIDDEN_DIM * DYNAMICS_DIM;
   typedef float HIDDEN_HIDDEN_MAT[HIDDEN_HIDDEN_SIZE];
   typedef float STATE_HIDDEN_MAT[STATE_HIDDEN_SIZE];
   // typedef int NetStructureArr[NUM_LAYERS];
@@ -84,23 +86,27 @@ struct LSTMDynamicsParams {
 
   float initial_hidden[HIDDEN_DIM] = {0.0};
   float initial_cell[HIDDEN_DIM] = {0.0};
-  bool copy_everything = true;
-
-  float W_hidden_input[BUFFER_SIZE * (DYNAMICS_DIM + C_DIM) * INITIALIZATION_LAYER] = {0.0};
-  float W_cell_input[BUFFER_SIZE * (DYNAMICS_DIM + C_DIM) * INITIALIZATION_LAYER] = {0.0};
-  float b_hidden_input[INITIALIZATION_LAYER] = {0.0};
-  float b_cell_input[INITIALIZATION_LAYER] = {0.0};
-  float W_hidden_output[HIDDEN_DIM * INITIALIZATION_LAYER] = {0.0};
-  float W_cell_output[HIDDEN_DIM * INITIALIZATION_LAYER] = {0.0};
+  // Initialization Network - might want to make these float* and allocate size in constructor
+  std::shared_ptr<float> W_hidden_input;
+  // float W_hidden_input[BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM] = {0.0};
+  float b_hidden_input[INIT_DIM] = {0.0};
+  float W_cell_input[BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM] = {0.0};
+  float b_cell_input[INIT_DIM] = {0.0};
+  float W_hidden_output[HIDDEN_DIM * INIT_DIM] = {0.0};
   float b_hidden_output[HIDDEN_DIM] = {0.0};
+  float W_cell_output[HIDDEN_DIM * INIT_DIM] = {0.0};
   float b_cell_output[HIDDEN_DIM] = {0.0};
 
-  float buffer[(C_DIM + DYNAMICS_DIM) * BUFFER_SIZE] = {0.0};
+  float buffer[(C_DIM + DYNAMICS_DIM) * BUFFER] = {0.0};
   float latest_state[DYNAMICS_DIM] = {0.0};
-  float latest_control[DYNAMICS_DIM] = {0.0};
+  float latest_control[C_DIM] = {0.0};
+  int buffer_state_size = DYNAMICS_DIM * BUFFER;
+  int buffer_control_size = C_DIM * BUFFER;
+  float dt = 0.01;
+
+  // Boolean flags
   bool update_buffer = true;
-  int buffer_state_size = DYNAMICS_DIM * BUFFER_SIZE;
-  int buffer_control_size = C_DIM * BUFFER_SIZE;
+  bool copy_everything = true;
 
   // packed by all weights that connect layer 1 to layer 2 neuron 1, bias for all connections from layer 1 to layer 2
   // then layer 2 neuron 2, etc
@@ -114,6 +120,9 @@ struct LSTMDynamicsParams {
   // NetStructureArr net_structure = {layer_args...};
 
   LSTMDynamicsParams() {
+    std::shared_ptr<float> W_hidden_input_tmp(new float[BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM],
+                                              std::default_delete<float []>());
+    W_hidden_input = W_hidden_input_tmp;
   //   int stride = 0;
   //   for(int i = 0; i < NUM_LAYERS - 1; i++) {
   //     stride_idcs[2 * i] = stride;
@@ -122,6 +131,10 @@ struct LSTMDynamicsParams {
   //     stride += net_structure[i+1];
   //   }
   };
+
+  ~LSTMDynamicsParams() {
+    // delete W_hidden_input;
+  }
   // TODO implement circular array? Not worth due to how this buffer is to be used
   void updateBuffer(float* s, float* c) {
     int i, j;
@@ -129,7 +142,7 @@ struct LSTMDynamicsParams {
     float* buffer_state = &buffer[0];
     float* buffer_control = &buffer[buffer_control_size];
     // push every state and control back one position in the buffer
-    for (i = 1; i < BUFFER_SIZE; i++) {
+    for (i = 1; i < BUFFER; i++) {
       for (j = 0; j < DYNAMICS_DIM; j++) {
         buffer_state[(i - 1) * DYNAMICS_DIM + j] = buffer_state[i * DYNAMICS_DIM + j];
       }
@@ -150,18 +163,18 @@ struct LSTMDynamicsParams {
   // Calculate new initial cell and hidden state
   __host__ void updateInitialLSTMState() {
     // Create Eigen types
-    using W_input = Eigen::Mat<float, INITIALIZATION_LAYER, BUFFER_SIZE * (DYNAMICS_DIM + C_DIM), Eigen::RowMajor>;
-    using W_output = Eigen::Mat<float, HIDDEN_DIM, INITIALIZATION_LAYER, Eigen::RowMajor>;
-    using input_layer = Eigen::Mat<float, BUFFER_SIZE * (DYNAMICS_DIM + C_DIM), 1>;
-    using intermediate_layer = Eigen::Mat<float, INITIALIZATION_LAYER, 1>;
-    using output_layer = Eigen::Mat<float, HIDDEN_DIM, 1>;
+    using W_input = Eigen::Matrix<float, INIT_DIM, BUFFER * (DYNAMICS_DIM + C_DIM), Eigen::RowMajor>;
+    using W_output = Eigen::Matrix<float, HIDDEN_DIM, INIT_DIM, Eigen::RowMajor>;
+    using input_layer = Eigen::Matrix<float, BUFFER * (DYNAMICS_DIM + C_DIM), 1>;
+    using intermediate_layer = Eigen::Matrix<float, INIT_DIM, 1>;
+    using output_layer = Eigen::Matrix<float, HIDDEN_DIM, 1>;
 
     // Input/Outputs
     Eigen::Map<const input_layer> input_mat(buffer);
     Eigen::Map<output_layer> hidden_output(initial_hidden);
     Eigen::Map<output_layer> cell_output(initial_cell);
     // Weights
-    Eigen::Map<const W_input> W_hidden_input_mat(W_hidden_input);
+    Eigen::Map<const W_input> W_hidden_input_mat(W_hidden_input.get());
     Eigen::Map<const W_input> W_cell_input_mat(W_cell_input);
     Eigen::Map<const W_output> W_hidden_output_mat(W_hidden_output);
     Eigen::Map<const W_output> W_cell_output_mat(W_cell_output);
@@ -178,8 +191,10 @@ struct LSTMDynamicsParams {
     intermediate_hidden = W_hidden_input_mat * input_mat + b_hidden_input_mat;
     intermediate_cell = W_cell_input_mat * input_mat + b_cell_input_mat;
     // relu
-    intermediate_hidden = intermediate_hidden.unaryExpr(&ReLU);
-    intermediate_cell = intermediate_cell.unaryExpr(&ReLU);
+    // Apply ReLU with lambda (should work as this is the Eigen example)
+    intermediate_hidden.unaryExpr([](float x) { return fmaxf(0, x);});
+    // Apply ReLU with function pointer (might not work)
+    intermediate_cell.unaryExpr(&ReLU);
     // calculate layer 2
     hidden_output = W_hidden_output_mat * intermediate_hidden + b_hidden_output_mat;
     cell_output = W_cell_output_mat * intermediate_cell + b_cell_output_mat;
@@ -202,61 +217,67 @@ struct LSTMDynamicsParams {
 
 using namespace MPPI_internal;
 
-template <int S_DIM, int C_DIM, int K_DIM, int HIDDEN_DIM, int BUFFER_SIZE = 10, int INITIALIZATION_LAYER = 1000>
-class LSTMModel : public Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>,
-                                  LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>,
+template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER = 10, int INIT_DIM = 1000>
+class LSTMModel : public Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
+                                  LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
                                   S_DIM, C_DIM> {
 public:
   // TODO remove duplication of calculation of values, pull from the structure
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  using LSTM_MODEL = typename LSTMModel<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>;
-  using LSTM_PARAMS = typename LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>;
+  // using LSTM_MODEL = LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
+  // using LSTM_PARAMS = LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
 
   // Define Eigen fixed size matrices
-  using state_array = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM,
-                                        C_DIM>::state_array;
-  using control_array = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM,
-                                          C_DIM>::control_array;
-  using dfdx = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::dfdx;
-  using dfdu = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::dfdu;
+  using state_array = typename Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
+                                        LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
+                                        S_DIM, C_DIM>::state_array;
+  using control_array = typename Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
+                                          LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
+                                          S_DIM, C_DIM>::control_array;
+  using dfdx = typename Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
+                                 LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
+                                 S_DIM, C_DIM>::dfdx;
+  using dfdu = typename Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
+                                 LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
+                                 S_DIM, C_DIM>::dfdu;
 
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
-  static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
-  static const int PRIME_PADDING = 1; ///< Extra padding to largest layer to avoid shared mem bank conflicts
-  static const int LARGEST_LAYER = neuron_counter(layer_args...) + PRIME_PADDING; ///< Number of neurons in the largest layer(including in/out neurons)
-  static const int NUM_PARAMS = param_counter(layer_args...); ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = 0; ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = 2*LARGEST_LAYER; ///< Amount of shared memory we need per ROLLOUT.
+  // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
+  // static const int PRIME_PADDING = 1; ///< Extra padding to largest layer to avoid shared mem bank conflicts
+  // static const int LARGEST_LAYER = neuron_counter(layer_args...) + PRIME_PADDING; ///< Number of neurons in the largest layer(including in/out neurons)
+  // static const int NUM_PARAMS = param_counter(layer_args...); ///< Total number of model parameters;
+  // static const int SHARED_MEM_REQUEST_GRD = 0; ///< Amount of shared memory we need per BLOCK.
+  // static const int SHARED_MEM_REQUEST_BLK = 2*LARGEST_LAYER; ///< Amount of shared memory we need per ROLLOUT.
 
   LSTMModel(cudaStream_t stream=0);
   LSTMModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream=0);
 
   ~LSTMModel();
 
-  std::array<int, NUM_LAYERS> getNetStructure() {
-    std::array<int, NUM_LAYERS> array;
-    for(int i = 0; i < NUM_LAYERS; i++) {
-      array[i] = this->params_.net_structure[i];
-    }
-    return array;
-  }
-  std::array<int, (NUM_LAYERS - 1) * 2> getStideIdcs() {
-    std::array<int, (NUM_LAYERS - 1) * 2> array;
-    for(int i = 0; i < (NUM_LAYERS - 1)*2; i++) {
-      array[i] = this->params_.stride_idcs[i];
-    }
-    return array;
-  }
-  std::array<float, NUM_PARAMS> getTheta() {
-    std::array<float, NUM_PARAMS> array;
-    for(int i = 0; i < NUM_PARAMS; i++) {
-      array[i] = this->params_.theta[i];
-    }
-    return array;
-  }
-  __device__ int* getNetStructurePtr(){return this->params_.net_structure;}
-  __device__ int* getStrideIdcsPtr(){return this->params_.stride_idcs;}
-  __device__ float* getThetaPtr(){return this->params_.theta;}
+  // std::array<int, NUM_LAYERS> getNetStructure() {
+  //   std::array<int, NUM_LAYERS> array;
+  //   for(int i = 0; i < NUM_LAYERS; i++) {
+  //     array[i] = this->params_.net_structure[i];
+  //   }
+  //   return array;
+  // }
+  // std::array<int, (NUM_LAYERS - 1) * 2> getStideIdcs() {
+  //   std::array<int, (NUM_LAYERS - 1) * 2> array;
+  //   for(int i = 0; i < (NUM_LAYERS - 1)*2; i++) {
+  //     array[i] = this->params_.stride_idcs[i];
+  //   }
+  //   return array;
+  // }
+  // std::array<float, NUM_PARAMS> getTheta() {
+  //   std::array<float, NUM_PARAMS> array;
+  //   for(int i = 0; i < NUM_PARAMS; i++) {
+  //     array[i] = this->params_.theta[i];
+  //   }
+  //   return array;
+  // }
+  // __device__ int* getNetStructurePtr(){return this->params_.net_structure;}
+  // __device__ int* getStrideIdcsPtr(){return this->params_.stride_idcs;}
+  // __device__ float* getThetaPtr(){return this->params_.theta;}
 
   void CPUSetup();
 
@@ -272,41 +293,46 @@ public:
 
   void updateModel(std::vector<int> description, std::vector<float> data);
 
-  bool computeGrad(const Eigen::Ref<const state_array>& state,
-                   const Eigen::Ref<const control_array>& control,
-                   Eigen::Ref<dfdx> A,
-                   Eigen::Ref<dfdu> B);
+  // bool computeGrad(const Eigen::Ref<const state_array>& state,
+  //                  const Eigen::Ref<const control_array>& control,
+  //                  Eigen::Ref<dfdx> A,
+  //                  Eigen::Ref<dfdu> B);
 
-  void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-          Eigen::Ref<state_array> state_der);
-  void computeKinematics(const Eigen::Ref<const state_array>& state, Eigen::Ref<state_array> s_der);
+  void computeDynamics(const Eigen::Ref<const state_array>& state,
+                       const Eigen::Ref<const control_array>& control,
+                       Eigen::Ref<state_array> state_der);
+  void computeKinematics(const Eigen::Ref<const state_array>& state,
+                         Eigen::Ref<state_array> s_der);
 
-  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
+  __device__ void computeDynamics(float* state, float* control,
+                                  float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
+  __device__ void initializeDynamics(float* state, float* control,
+                                     float* theta_s, float t_0, float dt);
 
 private:
-  Eigen::MatrixXf* weighted_in_ = nullptr;
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* weights_ = nullptr;
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* biases_ = nullptr;
+  // Eigen::MatrixXf* weighted_in_ = nullptr;
+  // Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* weights_ = nullptr;
+  // Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* biases_ = nullptr;
 };
 
-template <int S_DIM, int C_DIM, int K_DIM, int HIDDEN_DIM, int BUFFER_SIZE, int INITIALIZATION_LAYER>
-const int LSTMModel<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>::DYNAMICS_DIM;
+template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
+const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::DYNAMICS_DIM;
 
-template <int S_DIM, int C_DIM, int K_DIM, int HIDDEN_DIM, int BUFFER_SIZE, int INITIALIZATION_LAYER>
-const int LSTMModel<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>::NUM_LAYERS;
+// template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
+// const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::NUM_LAYERS;
 
-template <int S_DIM, int C_DIM, int K_DIM, int HIDDEN_DIM, int BUFFER_SIZE, int INITIALIZATION_LAYER>
-const int LSTMModel<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>::LARGEST_LAYER;
+// template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
+// const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::LARGEST_LAYER;
 
-template <int S_DIM, int C_DIM, int K_DIM, int HIDDEN_DIM, int BUFFER_SIZE, int INITIALIZATION_LAYER>
-const int LSTMModel<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>::NUM_PARAMS;
+// template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
+// const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::NUM_PARAMS;
 
-template <int S_DIM, int C_DIM, int K_DIM, int HIDDEN_DIM, int BUFFER_SIZE, int INITIALIZATION_LAYER>
-const int LSTMModel<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>::SHARED_MEM_REQUEST_GRD;
+// template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
+// const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::SHARED_MEM_REQUEST_GRD;
 
-template <int S_DIM, int C_DIM, int K_DIM, int HIDDEN_DIM, int BUFFER_SIZE, int INITIALIZATION_LAYER>
-const int LSTMModel<S_DIM, C_DIM, K_DIM, HIDDEN_DIM, BUFFER_SIZE, INITIALIZATION_LAYER>::SHARED_MEM_REQUEST_BLK;
+// template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
+// const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::SHARED_MEM_REQUEST_BLK;
 
 #if __CUDACC__
 #include "LSTM_model.cu"
