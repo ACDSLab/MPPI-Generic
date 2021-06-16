@@ -568,8 +568,7 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   float* g_f = &theta_s[block_idx + 5 * H_DIM]; // forget gate
   float* g_o = &theta_s[block_idx + 6 * H_DIM]; // output gate
   float* cell_update = &theta_s[block_idx + 7 * H_DIM];
-  float* intermediate_y = &theta_s[block_idx + 8 * H_DIM];
-  float* x = &theta_s[block_idx + 8 * H_DIM + DYNAMICS_DIM];
+  float* x = &theta_s[block_idx + 8 * H_DIM];
 
   // float* g_i, *g_f, *g_o, *cell_update; // hidden_size
 
@@ -675,44 +674,68 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   __syncthreads();
   // outputs in parallel
   for (i = tdy; i < hidden_size; i += blockDim.y) {
-    next_cell_state[i] = g_i[i] * cell_update[i] + g_f[i] * c[j];
+    next_cell_state[i] = g_i[i] * cell_update[i] + g_f[i] * c[i];
     next_hidden_state[i] = tanhf(next_cell_state[i]) * g_o[i];
   }
   __syncthreads();
-  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
-    printf("W_ii[6]: %f\n", W_ii[6]);
-    printf("Initial state: ");
-    for (i = 0; i < input_size; i++) {
-      printf("%f, ", x[i]);
-    }
-    printf("\n");
-    printf("Hidden state: ");
-    for (i = 0; i < hidden_size; i++) {
-      printf("%f, ", h[i]);
-    }
-    printf("\n");
-    printf("Cell state: ");
-    for (i = 0; i < hidden_size; i++) {
-      printf("%f, ", c[i]);
-    }
-    printf("\n");
-    printf("Next hidden state: ");
-    for (i = 0; i < hidden_size; i++) {
-      printf("%f, ", next_hidden_state[i]);
-    }
-    printf("\n");
-    printf("Next cell state: ");
-    for (i = 0; i < hidden_size; i++) {
-      printf("%f, ", next_cell_state[i]);
-    }
-    printf("\n");
-    printf("Cell Update: ");
-    for (i = 0; i < hidden_size; i++) {
-      printf("%f, ", cell_update[i]);
-    }
-    printf("\n");
-  }
+  // if (threadIdx.x == 0 && threadIdx.y == 1 && threadIdx.z == 0) {
+  //   printf("W_ii[6]: %f\n", W_ii[6]);
+  //   printf("Initial state: ");
+  //   for (i = 0; i < input_size; i++) {
+  //     printf("%f, ", x[i]);
+  //   }
+  //   printf("\n");
+  //   printf("Hidden state: ");
+  //   for (i = 0; i < hidden_size; i++) {
+  //     printf("%f, ", h[i]);
+  //   }
+  //   printf("\n");
+  //   printf("Cell state: ");
+  //   for (i = 0; i < hidden_size; i++) {
+  //     printf("%f, ", c[i]);
+  //   }
+  //   printf("\n");
+  //   printf("\033[1;32mIn gate after sigmoid: ");
+  //   for (i = 0; i < hidden_size; i++) {
+  //     printf("%f, ", g_i[i]);
+  //   }
+  //   printf("\033[0m\n");
+  //   printf("\033[1;33mForget gate after sigmoid: ");
+  //   for (i = 0; i < hidden_size; i++) {
+  //     printf("%f, ", g_f[i]);
+  //   }
+  //   printf("\033[0m\n");
+  //   printf("\033[1;34mOut gate after sigmoid: ");
+  //   for (i = 0; i < hidden_size; i++) {
+  //     printf("%f, ", g_o[i]);
+  //   }
+  //   printf("\033[0m\n");
+  //   printf("\033[1;35mCell gate after sigmoid: ");
+  //   for (i = 0; i < hidden_size; i++) {
+  //     printf("%f, ", cell_update[i]);
+  //   }
+  //   printf("\033[0m\n");
+  //   printf("Next hidden state: ");
+  //   for (i = 0; i < hidden_size; i++) {
+  //     printf("%f, ", next_hidden_state[i]);
+  //   }
+  //   printf("\n");
+  //   printf("Next cell state: ");
+  //   for (i = 0; i < hidden_size; i++) {
+  //     printf("%f, ", next_cell_state[i]);
+  //   }
+  //   printf("\n");
+  //   printf("Cell Update: ");
+  //   for (i = 0; i < hidden_size; i++) {
+  //     printf("%f, ", cell_update[i]);
+  //   }
+  //   printf("\n");
+  // }
   // TODO: Copy next hidden/cell state into previous hidden/cell
+  for (i = tdy; i < hidden_size; i += blockDim.y) {
+    c[i] = next_cell_state[i];
+    h[i] = next_hidden_state[i];
+  }
 
   for (i = tdy; i < DYNAMICS_DIM; i += blockDim.y) {
     state_der[i + (S_DIM - DYNAMICS_DIM)] = 0;
