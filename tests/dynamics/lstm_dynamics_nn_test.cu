@@ -287,6 +287,11 @@ TEST_F(LSTMDynamicsTest, LoadWeights) {
     }
     std::cout << std::endl;
   }
+  float expected_state_deriv[4] = {-0.2720,  0.8784, -1.1101,  1.3801};
+  for (int i = 0; i < num_rollouts; i++) {
+    assert_float_array_eq(&state_der_cpu[i * DYNAMICS::STATE_DIM + 3], expected_state_deriv, 4);
+  }
+
 
   // HANDLE_ERROR(cudaMalloc((void **)&access_gpu_model_d_, sizeof(ModelExposer)));
   // HANDLE_ERROR(cudaMemcpyAsync(access_gpu_model_d_, &access_gpu_model, sizeof(ModelExposer),cudaMemcpyHostToDevice, stream));
