@@ -18,11 +18,11 @@
  * LSTMModel<7,2,3,6,32,32,4> model(dt, u_constraint);
  * DYNAMICS_DIM = 4
  */
-#define LSTM_NNET_NONLINEARITY(ans) tanh(ans)
-#define LSTM_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
+// #define LSTM_NNET_NONLINEARITY(ans) tanh(ans)
+// #define LSTM_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
 
 #define RELU(ans) fmaxf(0, ans)
-#define SIGMOID(ans) (1 / (1 + expf(-ans)))
+#define SIGMOID(ans) (1.0f / (1 + expf(-ans)))
 
 float ReLU(float x) {
   return fmaxf(0, x);
@@ -35,7 +35,7 @@ float ReLU(float x) {
 
 // history of states and controls - roughly 10 (initializer network) (inside paramsToDevice()?)
 
-template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER = 10, int INIT_DIM = 1000>
+template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER = 11, int INIT_DIM = 200>
 struct LSTMDynamicsParams {
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
   // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
@@ -48,6 +48,7 @@ struct LSTMDynamicsParams {
   static const int OUTPUT_WEIGHTS = DYNAMICS_DIM * HIDDEN_DIM + DYNAMICS_DIM + INITIALIZATION_WEIGHTS;
   static const int NUM_PARAMS = LSTM_NUM_WEIGHTS + OUTPUT_WEIGHTS;
   static const int SHARED_MEM_REQUEST_GRD = 0; ///< Amount of shared memory we need per BLOCK.
+  static const int INTER_DIM = INIT_DIM;
   /** Shared memory components
   * cell state - HIDDEN_DIM
   * hidden state - HIDDEN_DIM
@@ -57,19 +58,20 @@ struct LSTMDynamicsParams {
   * forget gate output - HIDDEN_DIM
   * output gate output - HIDDEN_DIM
   * intermediate cell update output - HIDDEN_DIM
-  * intermediate state update output - DYNAMICS_DIM
   * starting input sequence - DYNAMICS_DIM + CONTROL_DIM
   */
-  static const int SHARED_MEM_REQUEST_BLK = 8 * HIDDEN_DIM + 2 * DYNAMICS_DIM + C_DIM; ///< Amount of shared memory we need per ROLLOUT.
+  static const int SHARED_MEM_REQUEST_BLK = 8 * HIDDEN_DIM + DYNAMICS_DIM + C_DIM; ///< Amount of shared memory we need per ROLLOUT.
 
   static const int HIDDEN_HIDDEN_SIZE = HIDDEN_DIM * HIDDEN_DIM;
-  static const int STATE_HIDDEN_SIZE = HIDDEN_DIM * DYNAMICS_DIM;
+  static const int STATE_HIDDEN_SIZE = HIDDEN_DIM * (DYNAMICS_DIM + C_DIM);
+  static const int BUFFER_INTER_SIZE = BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM;
+  static const int INTER_HIDDEN_SIZE = HIDDEN_DIM * INIT_DIM;
   typedef float HIDDEN_HIDDEN_MAT[HIDDEN_HIDDEN_SIZE];
   typedef float STATE_HIDDEN_MAT[STATE_HIDDEN_SIZE];
   // typedef int NetStructureArr[NUM_LAYERS];
   // typedef int StrideIcsArr[(NUM_LAYERS - 1) * 2];
   HIDDEN_HIDDEN_MAT W_im = {0.0};
-  HIDDEN_HIDDEN_MAT W_fm = {0.0};
+  HIDDEN_HIDDEN_MAT W_fm = {1.0, 0.5};
   HIDDEN_HIDDEN_MAT W_om = {0.0};
   HIDDEN_HIDDEN_MAT W_cm = {0.0};
   STATE_HIDDEN_MAT W_ii = {0.0};
@@ -88,14 +90,22 @@ struct LSTMDynamicsParams {
   float initial_cell[HIDDEN_DIM] = {0.0};
   // Initialization Network - might want to make these float* and allocate size in constructor
   std::shared_ptr<float> W_hidden_input;
+  std::shared_ptr<float> b_hidden_input;
+  std::shared_ptr<float> W_cell_input;
+  std::shared_ptr<float> b_cell_input;
+  std::shared_ptr<float> W_hidden_output;
+  std::shared_ptr<float> b_hidden_output;
+  std::shared_ptr<float> W_cell_output;
+  std::shared_ptr<float> b_cell_output;
+
   // float W_hidden_input[BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM] = {0.0};
-  float b_hidden_input[INIT_DIM] = {0.0};
-  float W_cell_input[BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM] = {0.0};
-  float b_cell_input[INIT_DIM] = {0.0};
-  float W_hidden_output[HIDDEN_DIM * INIT_DIM] = {0.0};
-  float b_hidden_output[HIDDEN_DIM] = {0.0};
-  float W_cell_output[HIDDEN_DIM * INIT_DIM] = {0.0};
-  float b_cell_output[HIDDEN_DIM] = {0.0};
+  // float b_hidden_input[INIT_DIM] = {0.0};
+  // float W_cell_input[BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM] = {0.0};
+  // float b_cell_input[INIT_DIM] = {0.0};
+  // float W_hidden_output[HIDDEN_DIM * INIT_DIM] = {0.0};
+  // float b_hidden_output[HIDDEN_DIM] = {0.0};
+  // float W_cell_output[HIDDEN_DIM * INIT_DIM] = {0.0};
+  // float b_cell_output[HIDDEN_DIM] = {0.0};
 
   float buffer[(C_DIM + DYNAMICS_DIM) * BUFFER] = {0.0};
   float latest_state[DYNAMICS_DIM] = {0.0};
@@ -120,9 +130,32 @@ struct LSTMDynamicsParams {
   // NetStructureArr net_structure = {layer_args...};
 
   LSTMDynamicsParams() {
-    std::shared_ptr<float> W_hidden_input_tmp(new float[BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM],
+    std::shared_ptr<float> W_hidden_input_tmp(new float[BUFFER_INTER_SIZE],
+                                              std::default_delete<float []>());
+    std::shared_ptr<float> W_cell_input_tmp(new float[BUFFER_INTER_SIZE],
+                                            std::default_delete<float []>());
+    std::shared_ptr<float> b_cell_input_tmp(new float[INIT_DIM],
+                                            std::default_delete<float []>());
+    std::shared_ptr<float> b_hidden_input_tmp(new float[INIT_DIM],
+                                              std::default_delete<float []>());
+    std::shared_ptr<float> W_hidden_output_tmp(new float[INTER_HIDDEN_SIZE],
+                                               std::default_delete<float []>());
+    std::shared_ptr<float> W_cell_output_tmp(new float[INTER_HIDDEN_SIZE],
+                                             std::default_delete<float []>());
+
+    std::shared_ptr<float> b_hidden_output_tmp(new float[HIDDEN_DIM],
+                                              std::default_delete<float []>());
+    std::shared_ptr<float> b_cell_output_tmp(new float[HIDDEN_DIM],
                                               std::default_delete<float []>());
     W_hidden_input = W_hidden_input_tmp;
+    b_hidden_input = b_hidden_input_tmp;
+    W_cell_input = W_cell_input_tmp;
+    b_cell_input = b_cell_input_tmp;
+
+    W_hidden_output = W_hidden_output_tmp;
+    b_hidden_output = b_hidden_output_tmp;
+    W_cell_output = W_cell_output_tmp;
+    b_cell_output = b_cell_output_tmp;
   //   int stride = 0;
   //   for(int i = 0; i < NUM_LAYERS - 1; i++) {
   //     stride_idcs[2 * i] = stride;
@@ -136,26 +169,23 @@ struct LSTMDynamicsParams {
     // delete W_hidden_input;
   }
   // TODO implement circular array? Not worth due to how this buffer is to be used
-  void updateBuffer(float* s, float* c) {
+  void updateBuffer() {
     int i, j;
     // Update state and control buffer
-    float* buffer_state = &buffer[0];
-    float* buffer_control = &buffer[buffer_control_size];
+    // float* buffer_control = &buffer[buffer_control_size];
     // push every state and control back one position in the buffer
+    int s_c_dim = DYNAMICS_DIM + C_DIM;
     for (i = 1; i < BUFFER; i++) {
-      for (j = 0; j < DYNAMICS_DIM; j++) {
-        buffer_state[(i - 1) * DYNAMICS_DIM + j] = buffer_state[i * DYNAMICS_DIM + j];
-      }
-      for (j = 0; j < C_DIM; j++) {
-        buffer_control[(i - 1) * C_DIM + j] = buffer_control[i * C_DIM + j];
+      for (j = 0; j < s_c_dim; j++) {
+        buffer[(i - 1) * (s_c_dim) + j] = buffer[i * (s_c_dim) + j];
       }
     }
     // copy new state and control to last position in the buffer
     for (j = 0; j < DYNAMICS_DIM; j++) {
-      buffer_state[(i - 1) * DYNAMICS_DIM + j] = latest_state[j];
+      buffer[(i - 1) * (s_c_dim) + j] = latest_state[j];
     }
     for (j = 0; j < C_DIM; j++) {
-      buffer_control[(i - 1) * C_DIM + j] = latest_control[j];
+      buffer[(i - 1) * (s_c_dim) + DYNAMICS_DIM + j] = latest_control[j];
     }
     update_buffer = false;
   }
@@ -175,14 +205,14 @@ struct LSTMDynamicsParams {
     Eigen::Map<output_layer> cell_output(initial_cell);
     // Weights
     Eigen::Map<const W_input> W_hidden_input_mat(W_hidden_input.get());
-    Eigen::Map<const W_input> W_cell_input_mat(W_cell_input);
-    Eigen::Map<const W_output> W_hidden_output_mat(W_hidden_output);
-    Eigen::Map<const W_output> W_cell_output_mat(W_cell_output);
+    Eigen::Map<const W_input> W_cell_input_mat(W_cell_input.get());
+    Eigen::Map<const W_output> W_hidden_output_mat(W_hidden_output.get());
+    Eigen::Map<const W_output> W_cell_output_mat(W_cell_output.get());
     // Biases
-    Eigen::Map<const intermediate_layer> b_hidden_input_mat(b_hidden_input);
-    Eigen::Map<const intermediate_layer> b_cell_input_mat(b_cell_input);
-    Eigen::Map<const output_layer> b_hidden_output_mat(b_hidden_output);
-    Eigen::Map<const output_layer> b_cell_output_mat(b_cell_output);
+    Eigen::Map<const intermediate_layer> b_hidden_input_mat(b_hidden_input.get());
+    Eigen::Map<const intermediate_layer> b_cell_input_mat(b_cell_input.get());
+    Eigen::Map<const output_layer> b_hidden_output_mat(b_hidden_output.get());
+    Eigen::Map<const output_layer> b_cell_output_mat(b_cell_output.get());
     // Temporary mats
     intermediate_layer intermediate_hidden;
     intermediate_layer intermediate_cell;
@@ -192,9 +222,8 @@ struct LSTMDynamicsParams {
     intermediate_cell = W_cell_input_mat * input_mat + b_cell_input_mat;
     // relu
     // Apply ReLU with lambda (should work as this is the Eigen example)
-    intermediate_hidden.unaryExpr([](float x) { return fmaxf(0, x);});
-    // Apply ReLU with function pointer (might not work)
-    intermediate_cell.unaryExpr(&ReLU);
+    intermediate_hidden = intermediate_hidden.unaryExpr([](float x) { return fmaxf(0, x);});
+    intermediate_cell = intermediate_cell.unaryExpr([](float x) { return fmaxf(0, x);});
     // calculate layer 2
     hidden_output = W_hidden_output_mat * intermediate_hidden + b_hidden_output_mat;
     cell_output = W_cell_output_mat * intermediate_cell + b_cell_output_mat;
@@ -217,29 +246,23 @@ struct LSTMDynamicsParams {
 
 using namespace MPPI_internal;
 
-template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER = 10, int INIT_DIM = 1000>
+template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER = 11, int INIT_DIM = 200>
 class LSTMModel : public Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
                                   LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
                                   S_DIM, C_DIM> {
 public:
   // TODO remove duplication of calculation of values, pull from the structure
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  // using LSTM_MODEL = LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
-  // using LSTM_PARAMS = LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
+  using LSTM_MODEL = LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
+  using LSTM_PARAMS = LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
 
   // Define Eigen fixed size matrices
-  using state_array = typename Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                        LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                        S_DIM, C_DIM>::state_array;
-  using control_array = typename Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                          LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                          S_DIM, C_DIM>::control_array;
-  using dfdx = typename Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                 LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                 S_DIM, C_DIM>::dfdx;
-  using dfdu = typename Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                 LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                 S_DIM, C_DIM>::dfdu;
+  using state_array = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM,
+                                        C_DIM>::state_array;
+  using control_array = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM,
+                                          C_DIM>::control_array;
+  using dfdx = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::dfdx;
+  using dfdu = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::dfdu;
 
   static const int DYNAMICS_DIM = S_DIM - K_DIM; ///< number of inputs from state
   // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
@@ -289,7 +312,10 @@ public:
 
   void printParams();
 
-  void loadParams(const std::string& model_path);
+  void loadParams(const std::string& lstm_model_path,
+                  const std::string& hidden_model_path,
+                  const std::string& cell_model_path,
+                  const std::string& output_model_path);
 
   void updateModel(std::vector<int> description, std::vector<float> data);
 
