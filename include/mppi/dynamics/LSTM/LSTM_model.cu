@@ -167,7 +167,7 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::paramsToDevice() {
     //                               this->params_.DYNAMICS_DIM*sizeof(float),
     //                               cudaMemcpyHostToDevice, this->stream_) );
     this->params_.copy_everything = false;
-    std::cout << "\033[1;33mCopied everything\033[0m" << std::endl;
+    // std::cout << "\033[1;33mCopied everything\033[0m" << std::endl;
   } else {
     HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.initial_hidden,
                                   this->params_.initial_hidden,
@@ -177,11 +177,11 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::paramsToDevice() {
                                   this->params_.initial_cell,
                                   this->params_.HIDDEN_DIM*sizeof(float),
                                   cudaMemcpyHostToDevice, this->stream_) );
-    std::cout << "\033[1;33mCopy only latest hidden/cell state\033[0m" << std::endl;
+    // std::cout << "\033[1;33mCopy only latest hidden/cell state\033[0m" << std::endl;
   }
 
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
-  std::cout << "\033[1;34mEnd of Copy\033[0m" << std::endl;
+  // std::cout << "\033[1;34mEnd of Copy\033[0m" << std::endl;
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
@@ -189,7 +189,6 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::loadParams(const s
                                             const std::string& hidden_model_path,
                                             const std::string& cell_model_path,
                                             const std::string& output_model_path) {
-  int i,j,k;
   std::cout << "File Path: " << lstm_model_path << std::endl;
   std::string bias_name = "";
   std::string weight_name = "";
@@ -515,7 +514,8 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initializeDynamics(float* state, float* control, float* theta_s,
     float t_0, float dt) {
-  int block_idx = blockDim.x * threadIdx.z + threadIdx.x;
+  int shared_mem_size = this->params_.SHARED_MEM_REQUEST_BLK;
+  int block_idx = (blockDim.x*threadIdx.z + threadIdx.x) * (shared_mem_size);
 
   float* c = &theta_s[block_idx];
   float* h = &theta_s[block_idx + H_DIM];
@@ -523,6 +523,7 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initial
     c[i] = this->params_.initial_cell[i];
     h[i] = this->params_.initial_hidden[i];
   }
+  __syncthreads();
   this->params_.dt = dt;
 }
 
@@ -538,7 +539,6 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   // float* next_act;
   // float* tmp_act;
   int tdy = threadIdx.y;
-  float tmp;
   // Weights
   float* W_ii = (float*) &(this->params_.W_ii);
   float* W_im = (float*) &(this->params_.W_im);
@@ -559,7 +559,8 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   float* b_o = (float*) &(this->params_.b_o); // hidden_size
   float* b_c = (float*) &(this->params_.b_c); // hidden_size
   // Intermediate outputs
-  int block_idx = blockDim.x*threadIdx.z + threadIdx.x;
+  int shared_mem_size = this->params_.SHARED_MEM_REQUEST_BLK;
+  int block_idx = (blockDim.x*threadIdx.z + threadIdx.x) * (shared_mem_size);
   float* c = &theta_s[block_idx];
   float* h = &theta_s[block_idx + H_DIM];
   float* next_cell_state = &theta_s[block_idx + 2 * H_DIM];
@@ -574,7 +575,7 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
 
   float* W_y = (float*) &(this->params_.W_y); // state * hidden
   float* b_y = (float*) &(this->params_.b_y); // state
-  int i,j,k;
+  int i,j;
   int input_size = DYNAMICS_DIM + C_DIM;
   int hidden_size = H_DIM;
 
@@ -678,6 +679,7 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
     next_hidden_state[i] = tanhf(next_cell_state[i]) * g_o[i];
   }
   __syncthreads();
+
   // if (threadIdx.x == 0 && threadIdx.y == 1 && threadIdx.z == 0) {
   //   printf("W_ii[6]: %f\n", W_ii[6]);
   //   printf("Initial state: ");
@@ -731,6 +733,8 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   //   }
   //   printf("\n");
   // }
+
+  // __syncthreads();
   // TODO: Copy next hidden/cell state into previous hidden/cell
   for (i = tdy; i < hidden_size; i += blockDim.y) {
     c[i] = next_cell_state[i];

@@ -49,6 +49,9 @@ struct LSTMDynamicsParams {
   static const int NUM_PARAMS = LSTM_NUM_WEIGHTS + OUTPUT_WEIGHTS;
   static const int SHARED_MEM_REQUEST_GRD = 0; ///< Amount of shared memory we need per BLOCK.
   static const int INTER_DIM = INIT_DIM;
+
+  float theta[1] = {0.0}; // DO NOT USE, FOR AUTORALLY PLANT COMPATIBILITY ONLY
+  int stride_idcs[1] = {0}; // DO NOT USE, FOR AUTORALLY PLANT COMPATIBILITY ONLY
   /** Shared memory components
   * cell state - HIDDEN_DIM
   * hidden state - HIDDEN_DIM
@@ -270,7 +273,7 @@ public:
   // static const int LARGEST_LAYER = neuron_counter(layer_args...) + PRIME_PADDING; ///< Number of neurons in the largest layer(including in/out neurons)
   // static const int NUM_PARAMS = param_counter(layer_args...); ///< Total number of model parameters;
   // static const int SHARED_MEM_REQUEST_GRD = 0; ///< Amount of shared memory we need per BLOCK.
-  // static const int SHARED_MEM_REQUEST_BLK = 2*LARGEST_LAYER; ///< Amount of shared memory we need per ROLLOUT.
+  static const int SHARED_MEM_REQUEST_BLK = 8 * H_DIM + DYNAMICS_DIM + C_DIM; ///< Amount of shared memory we need per ROLLOUT.
 
   LSTMModel(cudaStream_t stream=0);
   LSTMModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream=0);
@@ -357,8 +360,8 @@ const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::DYNAMICS_DIM;
 // template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 // const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::SHARED_MEM_REQUEST_GRD;
 
-// template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
-// const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::SHARED_MEM_REQUEST_BLK;
+template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
+const int LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::SHARED_MEM_REQUEST_BLK;
 
 #if __CUDACC__
 #include "LSTM_model.cu"

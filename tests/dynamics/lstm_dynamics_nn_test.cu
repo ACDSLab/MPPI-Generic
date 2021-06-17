@@ -67,6 +67,10 @@ __global__ void run_dynamics(DYN_T* dynamics, float* initial_state,
 
   // Create a shared array for the dynamics model to use
   __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
+  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
+    printf("Amount shared memory jsut for theta %d\n",
+      DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z);
+  }
   float* x;
   float* xdot;
   float* u;
@@ -162,6 +166,8 @@ TEST_F(LSTMDynamicsTest, LoadWeights) {
   DYNAMICS model(u_constraint, stream);
 
   int BUFFER_SIZE = 11 * 6;
+  const int num_rollouts = 10;
+  const int blocksize_x = 32;
 
   model.GPUSetup();
   model.loadParams(mppi::tests::autorally_lstm_network_file,
@@ -247,8 +253,6 @@ TEST_F(LSTMDynamicsTest, LoadWeights) {
   assert_float_array_eq(dyn_params.initial_hidden, python_initial_hidden, HIDDEN_DIM);
   assert_float_array_eq(dyn_params.initial_cell, python_initial_cell, HIDDEN_DIM);
 
-  const int num_rollouts = 1;
-  const int blocksize_x = 32;
   float initial_state_cpu[DYNAMICS::STATE_DIM] = {0.0, 0.0, 0.0, 7.2980e-04,  5.7185e+00,  2.0501e-02, -4.2951e-02};
   float control_cpu[DYNAMICS::CONTROL_DIM] = {-5.5691e-03, 2.5228e-01};
   float state_der_cpu[num_rollouts * DYNAMICS::STATE_DIM] = {0.0};
