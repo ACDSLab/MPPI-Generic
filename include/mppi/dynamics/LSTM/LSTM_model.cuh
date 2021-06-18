@@ -333,12 +333,19 @@ public:
   void computeKinematics(const Eigen::Ref<const state_array>& state,
                          Eigen::Ref<state_array> s_der);
 
+  void initializeDynamics(const Eigen::Ref<const state_array>& state,
+                          const Eigen::Ref<const control_array>& control,
+                          float t_0, float dt);
+
   __device__ void computeDynamics(float* state, float* control,
                                   float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
   __device__ void initializeDynamics(float* state, float* control,
                                      float* theta_s, float t_0, float dt);
 
+protected:
+  Eigen::Matrix<float, H_DIM, 1> hidden_state_;
+  Eigen::Matrix<float, H_DIM, 1> cell_state_;
 private:
   // Eigen::MatrixXf* weighted_in_ = nullptr;
   // Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* weights_ = nullptr;

@@ -283,6 +283,14 @@ public:
    * Method to allow setup of dynamics on the GPU. This is needed for
    * initializing the memory of an LSTM for example
    */
+   void initializeDynamics(const Eigen::Ref<const state_array>& state,
+                           const Eigen::Ref<const control_array>& control,
+                           float t_0, float dt) {}
+
+  /**
+   * Method to allow setup of dynamics on the GPU. This is needed for
+   * initializing the memory of an LSTM for example
+   */
   __device__ void initializeDynamics(float* state, float* control, float* theta_s,
                                      float t_0, float dt) {}
 

@@ -109,65 +109,7 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::paramsToDevice() {
                                   &this->params_,
                                   sizeof(this->params_),
                                   cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.W_im,
-    //                               this->params_.W_im,
-    //                               this->params_.HIDDEN_HIDDEN_SIZE*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.W_fm,
-    //                               this->params_.W_fm,
-    //                               this->params_.HIDDEN_HIDDEN_SIZE*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.W_om,
-    //                               this->params_.W_om,
-    //                               this->params_.HIDDEN_HIDDEN_SIZE*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.W_cm,
-    //                               this->params_.W_cm,
-    //                               this->params_.HIDDEN_HIDDEN_SIZE*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.W_ii,
-    //                               this->params_.W_ii,
-    //                               this->params_.STATE_HIDDEN_SIZE*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.W_fi,
-    //                               this->params_.W_fi,
-    //                               this->params_.STATE_HIDDEN_SIZE*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.W_oi,
-    //                               this->params_.W_oi,
-    //                               this->params_.STATE_HIDDEN_SIZE*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.W_ci,
-    //                               this->params_.W_ci,
-    //                               this->params_.STATE_HIDDEN_SIZE*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.W_y,
-    //                               this->params_.W_y,
-    //                               this->params_.STATE_HIDDEN_SIZE*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // // Copy bias matrices
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.b_i,
-    //                               this->params_.b_i,
-    //                               this->params_.HIDDEN_DIM*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.b_f,
-    //                               this->params_.b_f,
-    //                               this->params_.HIDDEN_DIM*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.b_o,
-    //                               this->params_.b_o,
-    //                               this->params_.HIDDEN_DIM*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.b_c,
-    //                               this->params_.b_c,
-    //                               this->params_.HIDDEN_DIM*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
-    // HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.b_y,
-    //                               this->params_.b_y,
-    //                               this->params_.DYNAMICS_DIM*sizeof(float),
-    //                               cudaMemcpyHostToDevice, this->stream_) );
     this->params_.copy_everything = false;
-    // std::cout << "\033[1;33mCopied everything\033[0m" << std::endl;
   } else {
     HANDLE_ERROR( cudaMemcpyAsync(this->model_d_->params_.initial_hidden,
                                   this->params_.initial_hidden,
@@ -177,11 +119,9 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::paramsToDevice() {
                                   this->params_.initial_cell,
                                   this->params_.HIDDEN_DIM*sizeof(float),
                                   cudaMemcpyHostToDevice, this->stream_) );
-    // std::cout << "\033[1;33mCopy only latest hidden/cell state\033[0m" << std::endl;
   }
 
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
-  // std::cout << "\033[1;34mEnd of Copy\033[0m" << std::endl;
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
@@ -189,7 +129,6 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::loadParams(const s
                                             const std::string& hidden_model_path,
                                             const std::string& cell_model_path,
                                             const std::string& output_model_path) {
-  std::cout << "File Path: " << lstm_model_path << std::endl;
   std::string bias_name = "";
   std::string weight_name = "";
   if (!fileExists(lstm_model_path)){
@@ -322,37 +261,6 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::loadParams(const s
     }
   }
 
-
-
-  // double* weight_i = weight_i_raw.data<double>();
-  // std::cout << "Hidden Cell W1[0]" << weight_i[0] << std::endl;
-
-
-  // for (i = 0; i < NUM_LAYERS - 1; i++){
-  //   // NN index from 1
-  //   bias_name = "dynamics_b" + std::to_string(i + 1);
-  //   weight_name = "dynamics_W" + std::to_string(i + 1);
-
-  //   cnpy::NpyArray weight_i_raw = param_dict[weight_name];
-  //   cnpy::NpyArray bias_i_raw = param_dict[bias_name];
-  //   double* weight_i = weight_i_raw.data<double>();
-  //   double* bias_i = bias_i_raw.data<double>();
-
-  //   // copy over the weights
-  //   for (j = 0; j < this->params_.net_structure[i + 1]; j++){
-  //     for (k = 0; k < this->params_.net_structure[i]; k++){
-  //       // TODO why i - 1?
-  //       this->params_.theta[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k] =
-  //               (float)weight_i[j*this->params_.net_structure[i] + k];
-  //       weights_[i](j,k) = (float)weight_i[j*this->params_.net_structure[i] + k];
-  //     }
-  //   }
-  //   // copy over the bias
-  //   for (j = 0; j < this->params_.net_structure[i+1]; j++){
-  //     this->params_.theta[this->params_.stride_idcs[2*i + 1] + j] = (float)bias_i[j];
-  //     biases_[i](j,0) = (float)bias_i[j];
-  //   }
-  // }
   //Save parameters to GPU memory
   this->params_.copy_everything = true;
   if(this->GPUMemStatus_) {
@@ -414,31 +322,51 @@ template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::computeDynamics(const Eigen::Ref<const state_array>& state,
         const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der) {
   // TODO: FIgure out LSTM on CPU
-  // int i,j;
-  // Eigen::MatrixXf acts(this->params_.net_structure[0], 1);
-  // for (i = 0; i < DYNAMICS_DIM; i++){
-  //   acts(i) = state(i + (S_DIM - DYNAMICS_DIM));
-  // }
-  // for (i = 0; i < C_DIM; i++){
-  //   acts(DYNAMICS_DIM + i) = control(i);
-  // }
-  // for (i = 0; i < NUM_LAYERS - 1; i++){
-  //   weighted_in_[i] = (weights_[i]*acts + biases_[i]).eval();
-  //   acts = Eigen::MatrixXf::Zero(this->params_.net_structure[i+1], 1);
-  //   if (i < NUM_LAYERS - 2) { //Last layer doesn't apply any non-linearity
-  //     for (j = 0; j < this->params_.net_structure[i+1]; j++){
-  //       acts(j) = MPPI_NNET_NONLINEARITY( (weighted_in_[i])(j) ); //Nonlinear component.
-  //     }
-  //   }
-  //   else {
-  //     for (j = 0; j < this->params_.net_structure[i+1]; j++){
-  //       acts(j) = (weighted_in_[i])(j) ;
-  //     }
-  //   }
-  // }
-  // for (i = 0; i < DYNAMICS_DIM; i++){
-  //   state_der(i + (S_DIM - DYNAMICS_DIM)) = acts(i);
-  // }
+  using W_hh = Eigen::Matrix<float, H_DIM, H_DIM, Eigen::RowMajor>;
+  using W_hi = Eigen::Matrix<float, H_DIM, C_DIM + DYNAMICS_DIM, Eigen::RowMajor>;
+  using W_ih = Eigen::Matrix<float, C_DIM + DYNAMICS_DIM, H_DIM, Eigen::RowMajor>;
+  using b_output = Eigen::Matrix<float, C_DIM + DYNAMICS_DIM, 1>;
+  using output_layer = Eigen::Matrix<float, H_DIM, 1>;
+
+  // Create eigen matrices for all the weights and biases
+  Eigen::Map<const W_hh> W_im_mat(this->params_.W_im);
+  Eigen::Map<const W_hh> W_fm_mat(this->params_.W_fm);
+  Eigen::Map<const W_hh> W_om_mat(this->params_.W_om);
+  Eigen::Map<const W_hh> W_cm_mat(this->params_.W_cm);
+
+  Eigen::Map<const W_hi> W_ii_mat(this->params_.W_ii);
+  Eigen::Map<const W_hi> W_fi_mat(this->params_.W_fi);
+  Eigen::Map<const W_hi> W_oi_mat(this->params_.W_oi);
+  Eigen::Map<const W_hi> W_ci_mat(this->params_.W_ci);
+  Eigen::Map<const W_ih> W_y_mat(this->params_.W_y);
+
+  Eigen::Map<const output_layer> b_i_mat(this->params_.b_i);
+  Eigen::Map<const output_layer> b_f_mat(this->params_.b_f);
+  Eigen::Map<const output_layer> b_o_mat(this->params_.b_o);
+  Eigen::Map<const output_layer> b_c_mat(this->params_.b_c);
+  Eigen::Map<const b_output> b_y_mat(this->params_.b_y);
+
+  b_output input_mat;
+  input_mat << state[3], state[4], state[5], state[6], control[0], control[1];
+  output_layer g_i = W_im_mat * hidden_state_ + W_ii_mat * input_mat + b_i_mat;
+  output_layer g_f = W_fm_mat * hidden_state_ + W_fi_mat * input_mat + b_f_mat;
+  output_layer g_o = W_om_mat * hidden_state_ + W_oi_mat * input_mat + b_o_mat;
+  output_layer g_c = W_cm_mat * hidden_state_ + W_ci_mat * input_mat + b_c_mat;
+  g_i = g_i.unaryExpr([] (float x) {return 1.0f / (1 + expf(-x));});
+  g_f = g_f.unaryExpr([] (float x) {return 1.0f / (1 + expf(-x));});
+  g_o = g_o.unaryExpr([] (float x) {return 1.0f / (1 + expf(-x));});
+  g_c = g_c.unaryExpr([] (float x) {return tanhf(x);});
+
+  output_layer c_next = g_i.cwiseProduct(g_c) + g_f.cwiseProduct(cell_state_);
+  output_layer h_next = g_o.cwiseProduct(c_next.unaryExpr([](float x) {return tanhf(x);}));
+  b_output state_der_small;
+  state_der_small = W_y_mat * h_next + b_y_mat;
+  for (int i; i < DYNAMICS_DIM; i++) {
+    state_der[i + (S_DIM - DYNAMICS_DIM)] = state_der_small[i];
+  }
+  state_der[6] *= -1;
+  hidden_state_ = h_next;
+  cell_state_ = c_next;
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
@@ -525,6 +453,17 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initial
   }
   __syncthreads();
   this->params_.dt = dt;
+}
+
+template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
+void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initializeDynamics(
+  const Eigen::Ref<const state_array>& state,
+  const Eigen::Ref<const control_array>& control,
+  float t_0, float dt) {
+    Eigen::Map<Eigen::Matrix<float, H_DIM, 1>> init_hidden(this->params_.initial_hidden);
+    Eigen::Map<Eigen::Matrix<float, H_DIM, 1>> init_cell(this->params_.initial_cell);
+    hidden_state_ = init_hidden;
+    cell_state_ = init_cell;
 }
 
 // x = v_k
@@ -680,7 +619,7 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   }
   __syncthreads();
 
-  // if (threadIdx.x == 0 && threadIdx.y == 1 && threadIdx.z == 0) {
+  // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
   //   printf("W_ii[6]: %f\n", W_ii[6]);
   //   printf("Initial state: ");
   //   for (i = 0; i < input_size; i++) {
@@ -692,6 +631,7 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   //     printf("%f, ", h[i]);
   //   }
   //   printf("\n");
+
   //   printf("Cell state: ");
   //   for (i = 0; i < hidden_size; i++) {
   //     printf("%f, ", c[i]);
@@ -712,7 +652,7 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   //     printf("%f, ", g_o[i]);
   //   }
   //   printf("\033[0m\n");
-  //   printf("\033[1;35mCell gate after sigmoid: ");
+  //   printf("\033[1;35mCell gate after tanh: ");
   //   for (i = 0; i < hidden_size; i++) {
   //     printf("%f, ", cell_update[i]);
   //   }
@@ -725,11 +665,6 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   //   printf("Next cell state: ");
   //   for (i = 0; i < hidden_size; i++) {
   //     printf("%f, ", next_cell_state[i]);
-  //   }
-  //   printf("\n");
-  //   printf("Cell Update: ");
-  //   for (i = 0; i < hidden_size; i++) {
-  //     printf("%f, ", cell_update[i]);
   //   }
   //   printf("\n");
   // }
@@ -765,5 +700,9 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   //   intermediate_y[i] = intermediate_y;
   //   state_der[i] = x[i] + intermediate_y[i] * this->params_.dt;
   // }
+  __syncthreads();
+  if (threadIdx.y == 0) {
+    state_der[6] *= -1;
+  }
   __syncthreads();
 }

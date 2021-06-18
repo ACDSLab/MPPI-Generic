@@ -4,13 +4,18 @@
 
 #include <gtest/gtest.h>
 #include <mppi/dynamics/LSTM/LSTM_model.cuh>
+#include <mppi/dynamics/autorally/ar_nn_model.cuh>
 #include <mppi/dynamics/autorally/ar_nn_dynamics_kernel_test.cuh>
 #include <stdio.h>
 #include <math.h>
+#include <mppi/controllers/MPPI/mppi_controller.cuh>
+#include <mppi/cost_functions/autorally/ar_standard_cost.cuh>
 
-// Auto-generated header file
+// Auto-generated header files
 #include <autorally_test_network.h>
+#include <autorally_test_map.h>
 
+#include <chrono>
 
 const int CONTROL_DIM = 2;
 const int HIDDEN_DIM = 15;
@@ -22,7 +27,7 @@ using DYN_PARAMS = DYNAMICS::DYN_PARAMS_T;
 
 void assert_float_array_eq(float* pred, float* gt, int max) {
   for (int i = 0; i < max; i++) {
-    ASSERT_NEAR(pred[i], gt[i], 0.001 * abs(gt[i])) << "Expected "
+    ASSERT_NEAR(pred[i], gt[i], 0.01 * abs(gt[i])) << "Expected "
       << gt[i] << " but saw " << pred[i] << " at " << i << std::endl;
   }
 }
@@ -67,13 +72,11 @@ __global__ void run_dynamics(DYN_T* dynamics, float* initial_state,
 
   // Create a shared array for the dynamics model to use
   __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
-  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0) {
-    printf("Amount shared memory jsut for theta %d\n",
-      DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z);
-  }
+
   float* x;
   float* xdot;
   float* u;
+  float dt = 0.02;
   // float* du;
   // int* crash_status;
   if (global_idx < NUM_ROLLOUTS) {
@@ -95,6 +98,12 @@ __global__ void run_dynamics(DYN_T* dynamics, float* initial_state,
     /*<----Start of simulation loop-----> */
     dynamics->initializeDynamics(x, u, theta_s, 0.0, 0.0);
     dynamics->computeStateDeriv(x, u, xdot, theta_s);
+    // __syncthreads();
+    // dynamics->updateState(x, xdot, dt);
+    // __syncthreads();
+    // u[0] = -2.2619e-03;
+    // u[1] = 2.3031e-01;
+    // dynamics->computeStateDeriv(x, u, xdot, theta_s);
 
     __syncthreads();
     for (int i = threadIdx.y; i < DYN_T::STATE_DIM; i += blockDim.y) {
@@ -285,29 +294,165 @@ TEST_F(LSTMDynamicsTest, LoadWeights) {
   std::cout << "Finished dynamics kernel" << std::endl;
   std::cout << "State Der:\n";
   for (int i = 0; i < num_rollouts; i++) {
-    std::cout << "Rollout " << i << ": ";
+    std::cout << "\tRollout " << i << ": ";
     for (int j = 0; j < DYNAMICS::STATE_DIM; j++) {
       std::cout << state_der_cpu[i * DYNAMICS::STATE_DIM + j] << ", ";
     }
     std::cout << std::endl;
   }
-  float expected_state_deriv[4] = {-0.2720,  0.8784, -1.1101,  1.3801};
+  float expected_state_deriv[4] = {-0.2720,  0.8784, -1.1101,  -1.3801};
   for (int i = 0; i < num_rollouts; i++) {
     assert_float_array_eq(&state_der_cpu[i * DYNAMICS::STATE_DIM + 3], expected_state_deriv, 4);
   }
+  // Check CPU Method
+  std::cout << "Check CPU computeDynamics()" << std::endl;
+  Eigen::Map<DYNAMICS::state_array> initial_state_mat(initial_state_cpu);
+  Eigen::Map<DYNAMICS::control_array> control_cpu_mat(control_cpu);
+  DYNAMICS::state_array state_der_mat;
+  model.initializeDynamics(initial_state_mat, control_cpu_mat, 0.0, 0.02);
+  model.computeDynamics(initial_state_mat, control_cpu_mat, state_der_mat);
+  auto dyn_cpu_params = model.getParams();
 
-
-  // HANDLE_ERROR(cudaMalloc((void **)&access_gpu_model_d_, sizeof(ModelExposer)));
-  // HANDLE_ERROR(cudaMemcpyAsync(access_gpu_model_d_, &access_gpu_model, sizeof(ModelExposer),cudaMemcpyHostToDevice, stream));
-
+  assert_float_array_eq(&state_der_mat.data()[3], expected_state_deriv, 4);
   HANDLE_ERROR(cudaStreamDestroy(stream));
 }
 
-TEST_F(LSTMDynamicsTest, NewConstructor) {
-  DYNAMICS* model = new DYNAMICS(u_constraint, stream);
-  std::cout << "Float Size: " << sizeof(float) << " bytes" << std::endl;
+TEST_F(LSTMDynamicsTest, CheckInitializationNetworkSpeed) {
+  DYNAMICS model(u_constraint, stream);
+  using micro = std::chrono::microseconds;
 
-  EXPECT_EQ(model->stream_, stream) << "Stream binding failure.";
-  // delete model;
-  HANDLE_ERROR(cudaStreamDestroy(stream));
+  model.GPUSetup();
+  auto dyn_params = model.getParams();
+  dyn_params.W_fm[0] = 5.0;
+  dyn_params.copy_everything = true;
+  dyn_params.dt = 5;
+  dyn_params.W_hidden_input.get()[0] = 13;
+  model.setParams(dyn_params);
+  ModelExposer access_cpu_model(&model);
+  const int iterations = 1000;
+  std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+  for (int i = 0; i < iterations; i++) {
+    dyn_params.updateInitialLSTMState();
+  }
+  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+  std::cout << "updateInitialLSTMState() avg time for " << iterations << " runs: "
+            << std::chrono::duration_cast<micro>(end - begin).count() / iterations
+            << " µs" << std::endl;
+
+  begin = std::chrono::steady_clock::now();
+  for (int i = 0; i < iterations; i++) {
+    dyn_params.updateBuffer();
+  }
+  end = std::chrono::steady_clock::now();
+  std::cout << "updateBuffer() avg time for " << iterations << " runs: "
+            << std::chrono::duration_cast<micro>(end - begin).count() / iterations
+            << " µs" << std::endl;
+}
+
+TEST_F(LSTMDynamicsTest, CompareComputeControl) {
+  using LSTM_DYNAMICS = DYNAMICS;
+  typedef NeuralNetModel<7,2,3,6,32,32,4> FF_DYNAMICS;
+  using micro = std::chrono::microseconds;
+
+  const int num_rollouts = 1920;
+  const int num_timesteps = 10;
+  const int blocksize_x = 8;
+  const int blocksize_y = 16;
+  typedef VanillaMPPIController<LSTM_DYNAMICS, ARStandardCost, num_timesteps,
+                                num_rollouts, blocksize_x, blocksize_y> LSTM_CONTROLLER;
+  typedef VanillaMPPIController<FF_DYNAMICS, ARStandardCost, num_timesteps,
+                                num_rollouts, blocksize_x, blocksize_y> FF_CONTROLLER;
+
+  /** ========== Set up Dynamics Models ==========**/
+  LSTM_DYNAMICS LSTM_model(u_constraint, stream);
+  FF_DYNAMICS FF_model(u_constraint, stream);
+  ARStandardCost* costs = new ARStandardCost();
+
+  LSTM_model.GPUSetup();
+
+
+  FF_model.GPUSetup();
+
+  float dt = 0.02;
+  int max_iter = 1;
+  float lambda = 6.66;
+  float alpha = 0.0;
+
+
+
+  LSTM_CONTROLLER::control_array control_std_dev = 0.5 * LSTM_CONTROLLER::control_array::Ones();
+
+  LSTM_CONTROLLER lstm_controller(&LSTM_model, costs, dt, max_iter, lambda,
+                                  alpha, control_std_dev );
+  FF_CONTROLLER ff_controller(&FF_model, costs, dt, max_iter, lambda,
+                              alpha, control_std_dev );
+  lstm_controller.setCUDAStream(stream);
+  ff_controller.setCUDAStream(stream);
+
+  // Load networks and maps
+  costs->loadTrackData(mppi::tests::standard_test_map_file);
+  FF_model.loadParams(mppi::tests::old_autorally_network_file);
+  LSTM_model.loadParams(mppi::tests::autorally_lstm_network_file,
+    mppi::tests::autorally_hidden_network_file,
+    mppi::tests::autorally_cell_network_file,
+    mppi::tests::autorally_output_network_file);
+
+  std::cout << "LSTM Num params: " << LSTM_model.getParams().LSTM_NUM_WEIGHTS << std::endl;
+  std::cout << "FF Num params: " << FF_model.getParams().NUM_PARAMS << std::endl;
+
+
+  std::vector<float> x_0 = {2.9642e-04,  5.7054e+00,  1.1859e-03,  1.3721e-01,  2.4944e-02, 1.2798e-01};
+  std::vector<float> x_1 = {7.8346e-04,  5.6928e+00, -1.4520e-02,  1.7258e-01, -3.1522e-03,
+          8.4512e-02};
+  std::vector<float> x_2 = {7.5389e-04,  5.6884e+00, -1.9062e-02,  4.5813e-04, -2.3523e-02,
+          6.8172e-02};
+  std::vector<float> x_3 = {1.5670e-03,  5.6779e+00,  5.7993e-03, -9.1165e-02, -2.5202e-02,
+          9.0036e-02};
+  std::vector<float> x_4 = {2.0307e-03,  5.6623e+00,  3.5971e-02, -1.4233e-01, -1.4520e-02,
+          1.3751e-01};
+  std::vector<float> x_5 = {6.6427e-04,  5.6565e+00,  4.3000e-02, -2.1955e-02, -2.1740e-03,
+          1.9203e-01};
+  std::vector<float> x_6 = {2.1942e-04,  5.6636e+00,  1.6840e-02, -5.7120e-03,  3.3988e-03,
+          2.3751e-01};
+  std::vector<float> x_7 = {6.9824e-04,  5.6656e+00, -4.1707e-04, -4.3693e-02,  2.9118e-03,
+          2.6795e-01};
+  std::vector<float> x_8 = {1.2957e-03,  5.6861e+00,  2.8441e-03, -1.1037e-01, -6.0677e-04,
+          2.7991e-01};
+  std::vector<float> x_9 = {8.7452e-04,  5.7010e+00,  2.2052e-02, -2.5667e-02, -4.2457e-03,
+          2.7212e-01};
+  std::vector<float> x_10 = {7.2980e-04,  5.7185e+00,  2.0501e-02, -4.2951e-02, -5.5691e-03,
+          2.5228e-01};
+  std::vector<int> description = {4, 2};
+  LSTM_model.updateModel(description, x_0);
+  LSTM_model.updateModel(description, x_1);
+  LSTM_model.updateModel(description, x_2);
+  LSTM_model.updateModel(description, x_3);
+  LSTM_model.updateModel(description, x_4);
+  LSTM_model.updateModel(description, x_5);
+  LSTM_model.updateModel(description, x_6);
+  LSTM_model.updateModel(description, x_7);
+  LSTM_model.updateModel(description, x_8);
+  LSTM_model.updateModel(description, x_9);
+  LSTM_model.updateModel(description, x_10);
+
+  LSTM_CONTROLLER::state_array initial_state = LSTM_CONTROLLER::state_array::Zero();
+
+  const int iterations = 1000;
+  std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+  for (int i = 0; i < iterations; i++) {
+    lstm_controller.computeControl(initial_state, 1);
+  }
+  std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+  std::cout << "LSTM dynamics in computeControl avg time for " << iterations << " runs: "
+            << std::chrono::duration_cast<micro>(end - begin).count() / iterations
+            << " µs" << std::endl;
+
+  begin = std::chrono::steady_clock::now();
+  for (int i = 0; i < iterations; i++) {
+    ff_controller.computeControl(initial_state, 1);
+  }
+  end = std::chrono::steady_clock::now();
+  std::cout << "FF dynamics in computeControl avg time for " << iterations << " runs: "
+            << std::chrono::duration_cast<micro>(end - begin).count() / iterations
+            << " µs" << std::endl;
 }
