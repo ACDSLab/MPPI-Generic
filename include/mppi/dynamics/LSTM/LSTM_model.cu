@@ -361,7 +361,7 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::computeDynamics(co
   output_layer h_next = g_o.cwiseProduct(c_next.unaryExpr([](float x) {return tanhf(x);}));
   b_output state_der_small;
   state_der_small = W_y_mat * h_next + b_y_mat;
-  for (int i; i < DYNAMICS_DIM; i++) {
+  for (int i = 0; i < DYNAMICS_DIM; i++) {
     state_der[i + (S_DIM - DYNAMICS_DIM)] = state_der_small[i];
   }
   state_der[6] *= -1;
