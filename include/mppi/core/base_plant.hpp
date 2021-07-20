@@ -460,14 +460,6 @@ public:
 
     double temp_last_pose_time = getCurrentTime();
 
-    //Set the loop rate
-    std::chrono::milliseconds ms{(int)(optimization_stride_*1000.0/hz_)};
-    if (!debug_mode_){
-      while(last_used_pose_update_time_ == temp_last_pose_time && is_alive->load()){
-        usleep(50);
-        temp_last_pose_time = getCurrentTime();
-      }
-    }
     controller_->resetControls();
 
     //Start the control loop.
