@@ -107,7 +107,7 @@ void QuadrotorDynamics::computeDynamics(const Eigen::Ref<const state_array> &sta
   v_d(2) -= mppi_math::GRAVITY;
 
   // q_d = H(q) w
-  mppi_math::omega2edot(u_pqr(0), u_pqr(1), u_pqr(2), q, q_d);
+  mppi_math::omega2edot(angular_speed(0), angular_speed(1), angular_speed(2), q, q_d);
 
   // w_d = (u_pqr - w)/ tau
   // Note we assume that a low level controller makes angular velocity tracking
@@ -174,7 +174,7 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state,
   }
 
   // q_d = H(q) w
-  mppi_math::omega2edot(u_pqr[0], u_pqr[1], u_pqr[2], q, q_d);
+  mppi_math::omega2edot(w[0], w[1], w[2], q, q_d);
 
   // w_d = (u - w) / tau
   w_d[0] = (u_pqr[0] - w[0]) / this->params_.tau_roll;
