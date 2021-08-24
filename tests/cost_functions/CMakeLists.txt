@@ -14,10 +14,6 @@ if(BUILD_TESTS)
 endif()
 
 set(GTEST_LIBRARIES gtest gmock gtest_main)
-# set(TARGETS autorally_roboust_cost_test autorally_standard_cost_test
-#     cartpole_quadratic_cost_test double_integrator_circle_cost_test
-#     quadrotor_quadratic_cost_test)
-
 file(GLOB TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
 
 foreach(T_FILE IN LISTS TARGET_SRCS)
@@ -27,6 +23,6 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
                         ${GTEST_LIBRARIES}
                         cnpy)
 #  add_test(NAME ${T_NAME} COMMAND ${T_NAME})
-  gtest_discover_tests(${T_NAME})
+  gtest_add_tests(TARGET ${T_NAME})
   set_target_properties(${T_NAME} PROPERTIES FOLDER test)
 endforeach()

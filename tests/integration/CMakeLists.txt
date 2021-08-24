@@ -1,15 +1,16 @@
-cmake_minimum_required(VERSION 3.8)
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(numerical_integration_test
-        ../test_main.cpp
-        integrator_tests.cu)
+set(GTEST_LIBRARIES gtest gmock gtest_main)
+file(GLOB TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
 
-target_link_libraries(numerical_integration_test gtest
-        gmock
-        gtest_main
-        cnpy)
-gtest_discover_tests(numerical_integration_test)
-set_target_properties(numerical_integration_test PROPERTIES FOLDER test)
+foreach(T_FILE IN LISTS TARGET_SRCS)
+    get_filename_component(T_NAME ${T_FILE} NAME_WE)
+    add_executable(${T_NAME} ../test_main.cpp ${T_FILE})
+    target_link_libraries(${T_NAME}
+            ${GTEST_LIBRARIES}
+            cnpy)
+    gtest_add_tests(TARGET ${T_NAME})
+    set_target_properties(${T_NAME} PROPERTIES FOLDER test)
+endforeach()
 
 
