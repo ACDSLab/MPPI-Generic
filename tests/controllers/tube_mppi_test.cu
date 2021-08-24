@@ -18,7 +18,7 @@ bool tubeFailure(float *s) {
   }
 }
 
-const int total_time_horizon = 5000;
+const int total_time_horizon = 500;
 
 TEST(TubeMPPITest, Construction) {
   // Define the model and cost

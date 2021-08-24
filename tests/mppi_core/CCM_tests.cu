@@ -316,7 +316,7 @@ TEST(CCMTest, CCMFeedbackTest) {
 }
 
 TEST(CCMTest, RMPPIRolloutKernel) {
-  GTEST_SKIP();
+  // GTEST_SKIP();
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorRobustCost;
   DYN model(100);
@@ -340,7 +340,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   float alpha = 0;
   float value_func_threshold = 20;
 
-  const int mission_length = int(1 / dt); // 100 seconds
+  const int mission_length = int(0.06 / dt);
 
   // Create a random number generator
   // Random number generator for system noise
