@@ -99,7 +99,7 @@ TEST(BasePlant, Constructor) {
   EXPECT_EQ(plant.getHz(), 20);
   EXPECT_EQ(plant.getTargetOptimizationStride(), 1);
   EXPECT_EQ(plant.getNumIter(), 0);
-  EXPECT_EQ(plant.getLastUsedPoseUpdateTime(), 0);
+  EXPECT_EQ(plant.getLastUsedPoseUpdateTime(), -1);
   EXPECT_EQ(plant.getStatus(), 1);
   EXPECT_EQ(mockController->getFeedbackEnabled(), false);
 
@@ -214,7 +214,7 @@ TEST(BasePlant, updateParametersAllFalse) {
   EXPECT_CALL(mockCost, updateCostmap(testing::_, testing::_)).Times(0);
 
   MockDynamics::state_array state = MockDynamics::state_array::Zero();
-  testPlant.updateParameters(mockController.get(), state);
+  testPlant.updateParameters(state);
 }
 
 
@@ -239,7 +239,7 @@ TEST(BasePlant, updateParametersAllTrue) {
   testPlant.setCostParams(MockCost::COST_PARAMS_T());
 
   MockDynamics::state_array state = MockDynamics::state_array::Zero();
-  testPlant.updateParameters(mockController.get(), state);
+  testPlant.updateParameters(state);
 }
 
 TEST(BasePlant, updateStateOutsideTimeTest) {
@@ -301,7 +301,7 @@ TEST(BasePlant, runControlIterationStoppedTest) {
   EXPECT_CALL(*mockController, computeControl(testing::_, testing::_)).Times(0);
 
   std::atomic<bool> is_alive(false);
-  //testPlant.runControlIteration(mockController.get(), &is_alive);
+  testPlant.runControlIteration(&is_alive);
 }
 
 // TODO speed up to make tests run faster
@@ -341,7 +341,7 @@ TEST(BasePlant, runControlIterationDebugFalseNoFeedbackTest) {
     EXPECT_EQ(testPlant.getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
-    testPlant.runControlIteration(mockController.get(), &is_alive);
+    testPlant.runControlIteration(&is_alive);
     testPlant.incrementTime();
 
     EXPECT_EQ(testPlant.checkStatus(), 1);
@@ -411,7 +411,7 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
     EXPECT_EQ(testPlant.getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
-    testPlant.runControlIteration(mockController.get(), &is_alive);
+    testPlant.runControlIteration(&is_alive);
     testPlant.incrementTime();
 
     EXPECT_EQ(testPlant.checkStatus(), 1);
@@ -476,7 +476,7 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackAvgTest) {
     EXPECT_EQ(testPlant.getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
-    testPlant.runControlIteration(mockController.get(), &is_alive);
+    testPlant.runControlIteration(&is_alive);
     testPlant.incrementTime();
 
     EXPECT_EQ(testPlant.checkStatus(), 1);
@@ -516,7 +516,7 @@ TEST(BasePlant, runControlLoop) {
 
   MockTestPlant testPlant(mockController);
   int hz = testPlant.getHz();
-  double time = 1.0; // in seconds
+  double test_duration = 1.0; // in seconds for how long to run the test
 
   int init_time = 78;
   testPlant.setLastTime(init_time);
@@ -532,8 +532,8 @@ TEST(BasePlant, runControlLoop) {
   auto wait_function = [wait_s]() {
     usleep(wait_s*1e6);
   };
-  int iterations = int(std::round((hz*1.0) / (time * 1.0))); // number of times the method will be called
-  EXPECT_CALL(*mockController, slideControlSequence(1)).Times(iterations/2);
+  int iterations = int(std::round((hz*1.0) / (test_duration))); // number of times the method will be called
+  EXPECT_CALL(*mockController, slideControlSequence(1)).Times(iterations/2 - 1);
   EXPECT_CALL(*mockController, computeControl(testing::_, testing::_)).Times(iterations/2).WillRepeatedly(testing::Invoke(wait_function));
   MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
   EXPECT_CALL(*mockController, getControlSeq()).Times(iterations/2).WillRepeatedly(testing::Return(control_seq));
@@ -545,21 +545,18 @@ TEST(BasePlant, runControlLoop) {
   EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(iterations/2);
   EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(iterations/2);
 
-
-
-    std::atomic<bool> is_alive(true);
-  std::thread optimizer(&MockTestPlant::runControlLoop, &testPlant, mockController.get(), &is_alive);
+  std::atomic<bool> is_alive(true);
+  std::thread optimizer(&MockTestPlant::runControlLoop, &testPlant, &is_alive);
 
   std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
   std::chrono::duration<double, std::milli> loop_duration = std::chrono::steady_clock::now() - loop_start;
-  int counter = 0;
-  while(loop_duration.count() < time*1e3) {
-    counter++;
-    while(loop_duration.count() < (time/hz)*1e3*counter) {
+  for(int counter = 1; loop_duration.count() < test_duration*1e3; counter++) {
+    // wait until the correct hz has passed to tick the time
+    while(loop_duration.count() < (test_duration/hz)*1e3*counter) {
       usleep(50);
       loop_duration = std::chrono::steady_clock::now() - loop_start;
     }
-    if(counter >= iterations / 2) { // this forces it to block
+    if(counter > iterations / 2) { // this forces it to block
       testPlant.incrementTime();
     }
   }
