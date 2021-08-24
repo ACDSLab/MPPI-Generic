@@ -316,6 +316,7 @@ TEST(CCMTest, CCMFeedbackTest) {
 }
 
 TEST(CCMTest, RMPPIRolloutKernel) {
+  GTEST_SKIP();
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorRobustCost;
   DYN model(100);
