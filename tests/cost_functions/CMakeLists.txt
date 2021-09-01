@@ -1,4 +1,3 @@
-
 if(BUILD_TESTS)
     message("")
     find_package(PythonInterp)
