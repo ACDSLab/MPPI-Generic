@@ -55,6 +55,7 @@ add_executable(${PLANT_TARGET_NAME} ../test_main.cpp buffered_plant_tester.cu)
 target_link_libraries(${PLANT_TARGET_NAME} gtest
         gmock
         gtest_main
+        fitpackpp
         ${OpenCV_LIBRARIES}
         )
 
