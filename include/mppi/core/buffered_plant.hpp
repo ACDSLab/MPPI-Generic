@@ -57,12 +57,18 @@ public:
     prev_states_.push_back(std::make_pair<>(bufferState, time));
 
     // remove old states from the buffer
+    int counter = 0;
+    printf("can pop %f < %f - %f => %f\n", prev_states_.front().second, time, buffer_time_horizon_, time - buffer_time_horizon_);
     while(prev_states_.front().second < time - buffer_time_horizon_) {
       prev_states_.pop_front();
+      counter++;
     }
 
     // 2*k + 2 from curfit routine
+    printf("\n\nsize %d popped %d\n", prev_states_.size(), counter);
     if (prev_states_.size() > 8) {
+      printf("calling get smoothed buffer size %d", prev_states_.size());
+      std::cout << std::endl;
       getSmoothedBuffer();
     }
   }
@@ -71,6 +77,7 @@ public:
     // TODO create smooth sampling of the states using the latest state time
     // TODO this cannot be multithreaded
     if(!new_control_or_state_) {
+      std::cout << "not new control or state, skipping" << std::endl;
       return smoothed_buffer_;
     }
 
@@ -81,7 +88,8 @@ public:
       double time = it->second;
 
       times.push_back(time);
-      for(int i = 0; i < s.cols(); i++) {
+      for(int i = 0; i < s.rows(); i++) {
+        //printf("at state index %d pushing %f into buffer\n", i, s(i));
         states[i].push_back(s(i));
       }
     }
@@ -90,6 +98,7 @@ public:
 
     // if the buffer isn't long enough return garbage
     if(final_time < *times.begin() + buffer_tau_) {
+      std::cout << "does not have a full buffer, exiting" << std::endl;
       return buffer_trajectory::Zero();
     }
 
@@ -99,7 +108,6 @@ public:
       new_times.push_back(start_time + i*buffer_dt_);
     }
 
-
     std::vector<double> correct_knots;
     double knot_dt = (buffer_tau_)/(std::floor(times.size()/3) - 1);
     for(int i = 0; i < times.size()/3; i++) {
@@ -108,7 +116,9 @@ public:
     correct_knots.pop_back();
     correct_knots.erase(correct_knots.begin());
 
-    for(int j = 0; j < CONTROLLER_T::TEMPLATED_DYNAMICS::STATE_DIM; j++) {
+    for(int j = 0; j < smoothed_buffer_.rows(); j++) {
+      printf("at index %d: times size %d, states size %d, knots size %d", j, times.size(), states[j].size(), correct_knots.size());
+      std::cout << std::endl;
       auto curve = fitpackpp::BSplineCurve(times, states[j], correct_knots);
       std::vector<double> knots = curve.knotX();
       std::vector<double> coeff = curve.coefs();
@@ -153,9 +163,9 @@ public:
 
 protected:
   std::list<std::pair<buffer_state, double>> prev_states_;
-  double buffer_time_horizon_ = 2.0; // how long to store values in the buffer
-  double buffer_tau_ = 0.5; // how in history to create well sampled positions from
-  double buffer_dt_ = 0.2; // the spacing between well sampled buffer positions
+  double buffer_time_horizon_ = 0.5; // how long to store values in the buffer
+  double buffer_tau_ = 0.2; // how in history to create well sampled positions from
+  double buffer_dt_ = 0.02; // the spacing between well sampled buffer positions
 
   std::atomic<bool> new_control_or_state_{true};
   buffer_trajectory smoothed_buffer_;
