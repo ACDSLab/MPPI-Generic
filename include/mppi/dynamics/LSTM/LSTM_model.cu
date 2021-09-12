@@ -55,36 +55,10 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::updateModel(std::v
                   << description[0] << ", " << description[1] << std::endl;
         exit(1);
       }
-      for (int i = 0; i < DYNAMICS_DIM; i++) {
-        this->params_.latest_state[i] = data[i];
-      }
-      for (int i = 0; i < C_DIM; i++) {
-        this->params_.latest_control[i] = data[DYNAMICS_DIM + i];
-      }
-      this->params_.update_buffer = true;
     } else { // Online uppdating of weights
       this->params_.copy_everything = true; // Double check if this is needed?
+      // TODO
     }
-  // for(int i = 0; i < description.size(); i++) {
-  //   if(description[i] != this->params_.net_structure[i]) {
-  //     std::cerr << "Invalid model trying to to be set for NN" << std::endl;
-  //     exit(0);
-  //   }
-  // }
-  // for (int i = 0; i < NUM_LAYERS - 1; i++){
-  //   for (int j = 0; j < this->params_.net_structure[i+1]; j++){
-  //     for (int k = 0; k < this->params_.net_structure[i]; k++){
-  //       weights_[i](j,k) = data[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k];
-  //       this->params_.theta[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k] = data[this->params_.stride_idcs[2*i] + j*this->params_.net_structure[i] + k];
-  //     }
-  //   }
-  // }
-  // for (int i = 0; i < NUM_LAYERS - 1; i++){
-  //   for (int j = 0; j < this->params_.net_structure[i+1]; j++){
-  //     biases_[i](j,0) = data[this->params_.stride_idcs[2*i + 1] + j];
-  //     this->params_.theta[this->params_.stride_idcs[2*i + 1] + j] = data[this->params_.stride_idcs[2*i + 1] + j];
-  //   }
-  // }
   if(this->GPUMemStatus_) {
     paramsToDevice();
   }
@@ -97,10 +71,6 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::paramsToDevice() {
                                 this->control_rngs_,
                                 2*C_DIM*sizeof(float), cudaMemcpyHostToDevice,
                                 this->stream_) );
-
-  if (this->params_.update_buffer) {
-    this->params_.updateBuffer();
-  }
 
   this->params_.updateInitialLSTMState();
   if (this->params_.copy_everything) {
@@ -452,7 +422,6 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initial
     h[i] = this->params_.initial_hidden[i];
   }
   __syncthreads();
-  this->params_.dt = dt;
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>

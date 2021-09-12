@@ -10,9 +10,15 @@
 #include <mppi/dynamics/dynamics.cuh>
 
 // ===== mock dynamics ====
-typedef struct {
+struct mockDynamicsParams {
   int test = 2;
-} mockDynamicsParams;
+  bool copy_everything = false;
+  float buffer[(1 + 1) * 10] = {0.0};
+
+  void updateBuffer(Eigen::Matrix<float, 2, 11> new_buffer) {
+
+  }
+};
 
 class MockDynamics : public MPPI_internal::Dynamics<MockDynamics, mockDynamicsParams, 1, 1> {
 public:

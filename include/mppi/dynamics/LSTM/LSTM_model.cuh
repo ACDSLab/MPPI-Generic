@@ -101,24 +101,9 @@ struct LSTMDynamicsParams {
   std::shared_ptr<float> W_cell_output;
   std::shared_ptr<float> b_cell_output;
 
-  // float W_hidden_input[BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM] = {0.0};
-  // float b_hidden_input[INIT_DIM] = {0.0};
-  // float W_cell_input[BUFFER * (DYNAMICS_DIM + C_DIM) * INIT_DIM] = {0.0};
-  // float b_cell_input[INIT_DIM] = {0.0};
-  // float W_hidden_output[HIDDEN_DIM * INIT_DIM] = {0.0};
-  // float b_hidden_output[HIDDEN_DIM] = {0.0};
-  // float W_cell_output[HIDDEN_DIM * INIT_DIM] = {0.0};
-  // float b_cell_output[HIDDEN_DIM] = {0.0};
-
   float buffer[(C_DIM + DYNAMICS_DIM) * BUFFER] = {0.0};
-  float latest_state[DYNAMICS_DIM] = {0.0};
-  float latest_control[C_DIM] = {0.0};
-  int buffer_state_size = DYNAMICS_DIM * BUFFER;
-  int buffer_control_size = C_DIM * BUFFER;
-  float dt = 0.01;
 
   // Boolean flags
-  bool update_buffer = true;
   bool copy_everything = true;
 
   // packed by all weights that connect layer 1 to layer 2 neuron 1, bias for all connections from layer 1 to layer 2
@@ -171,27 +156,16 @@ struct LSTMDynamicsParams {
   ~LSTMDynamicsParams() {
     // delete W_hidden_input;
   }
-  // TODO implement circular array? Not worth due to how this buffer is to be used
-  void updateBuffer() {
-    int i, j;
-    // Update state and control buffer
-    // float* buffer_control = &buffer[buffer_control_size];
-    // push every state and control back one position in the buffer
+
+  void updateBuffer(Eigen::Matrix<float, S_DIM+C_DIM, BUFFER> new_buffer) {
     int s_c_dim = DYNAMICS_DIM + C_DIM;
-    for (i = 1; i < BUFFER; i++) {
-      for (j = 0; j < s_c_dim; j++) {
-        buffer[(i - 1) * (s_c_dim) + j] = buffer[i * (s_c_dim) + j];
+    for(int i = 0; i < BUFFER; i++) {
+      for(int j = 0; j < s_c_dim; j++) {
+        buffer[i*(s_c_dim) + j] = new_buffer(K_DIM + j);
       }
     }
-    // copy new state and control to last position in the buffer
-    for (j = 0; j < DYNAMICS_DIM; j++) {
-      buffer[(i - 1) * (s_c_dim) + j] = latest_state[j];
-    }
-    for (j = 0; j < C_DIM; j++) {
-      buffer[(i - 1) * (s_c_dim) + DYNAMICS_DIM + j] = latest_control[j];
-    }
-    update_buffer = false;
   }
+
 
   // Calculate new initial cell and hidden state
   __host__ void updateInitialLSTMState() {
