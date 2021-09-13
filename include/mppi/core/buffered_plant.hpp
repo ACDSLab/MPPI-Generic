@@ -58,17 +58,17 @@ public:
 
     // remove old states from the buffer
     int counter = 0;
-    printf("can pop %f < %f - %f => %f\n", prev_states_.front().second, time, buffer_time_horizon_, time - buffer_time_horizon_);
+    //printf("can pop %f < %f - %f => %f\n", prev_states_.front().second, time, buffer_time_horizon_, time - buffer_time_horizon_);
     while(prev_states_.front().second < time - buffer_time_horizon_) {
       prev_states_.pop_front();
       counter++;
     }
 
     // 2*k + 2 from curfit routine
-    printf("\n\nsize %d popped %d\n", prev_states_.size(), counter);
+    //printf("\n\nsize %d popped %d\n", prev_states_.size(), counter);
     if (prev_states_.size() > 8) {
-      printf("calling get smoothed buffer size %d", prev_states_.size());
-      std::cout << std::endl;
+      //printf("calling get smoothed buffer size %d", prev_states_.size());
+      //std::cout << std::endl;
       getSmoothedBuffer();
     }
   }
@@ -117,8 +117,8 @@ public:
     correct_knots.erase(correct_knots.begin());
 
     for(int j = 0; j < smoothed_buffer_.rows(); j++) {
-      printf("at index %d: times size %d, states size %d, knots size %d", j, times.size(), states[j].size(), correct_knots.size());
-      std::cout << std::endl;
+      //printf("at index %d: times size %d, states size %d, knots size %d", j, times.size(), states[j].size(), correct_knots.size());
+      //std::cout << std::endl;
       auto curve = fitpackpp::BSplineCurve(times, states[j], correct_knots);
       std::vector<double> knots = curve.knotX();
       std::vector<double> coeff = curve.coefs();
@@ -126,6 +126,7 @@ public:
         smoothed_buffer_(j, i) = curve.eval(new_times[i]);
       }
     }
+    //std::cout << "smoothed buffer " << smoothed_buffer_ << std::endl;
     new_control_or_state_ = false;
     // TODO set new dynamics params and set flag to copy a initial hidden and cell state
     this->has_new_dynamics_params_ = true;
@@ -163,11 +164,11 @@ public:
 
 protected:
   std::list<std::pair<buffer_state, double>> prev_states_;
-  double buffer_time_horizon_ = 0.5; // how long to store values in the buffer
+  double buffer_time_horizon_ = 0.25; // how long to store values in the buffer
   double buffer_tau_ = 0.2; // how in history to create well sampled positions from
   double buffer_dt_ = 0.02; // the spacing between well sampled buffer positions
 
-  std::atomic<bool> new_control_or_state_{true};
+  std::atomic<bool> new_control_or_state_{false};
   buffer_trajectory smoothed_buffer_;
 };
 

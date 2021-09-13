@@ -119,6 +119,8 @@ public:
     control_traj_ = c_traj::Zero();
     state_traj_ = s_traj::Zero();
     feedback_gains_ = K_traj(controller->getNumTimesteps());
+    dynamics_params_ = controller->model_->getParams();
+    cost_params_ = controller_->cost_->getParams();
   };
   /**
    * Destructor must be virtual so that children are properly
@@ -373,7 +375,7 @@ public:
 
     // calculate how much we should slide the control sequence
     double dt = temp_last_pose_time - temp_last_used_pose_update_time;
-    if(temp_last_used_pose_update_time == -1) {
+    if(temp_last_used_pose_update_time == -1) {//
       // should only happen on the first iteration
       dt = 0;
       last_optimization_stride_ = 0;
@@ -395,7 +397,17 @@ public:
     MPPIFreeEnergyStatistics fe_stats = controller_->getFreeEnergyStatistics();
 
     c_traj control_traj = controller_->getControlSeq();
+    if(!control_traj.allFinite()) {
+      std::cerr << "ERROR: Nan in control" << std::endl;
+      std::cerr << control_traj << std::endl;
+      exit(-1);
+    }
     s_traj state_traj = controller_->getStateSeq();
+    if(!state_traj.allFinite()) {
+      std::cerr << "ERROR: Nan in state" << std::endl;
+      std::cerr << state_traj << std::endl;
+      exit(-1);
+    }
     optimization_duration_ = (std::chrono::steady_clock::now() - optimization_start).count() / 1e6;
     //printf("optimization_duration %f\n", optimization_duration_);
 

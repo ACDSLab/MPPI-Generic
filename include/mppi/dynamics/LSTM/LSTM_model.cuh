@@ -48,7 +48,6 @@ struct LSTMDynamicsParams {
   static const int OUTPUT_WEIGHTS = DYNAMICS_DIM * HIDDEN_DIM + DYNAMICS_DIM + INITIALIZATION_WEIGHTS;
   static const int NUM_PARAMS = LSTM_NUM_WEIGHTS + OUTPUT_WEIGHTS;
   static const int SHARED_MEM_REQUEST_GRD = 0; ///< Amount of shared memory we need per BLOCK.
-  static const int INTER_DIM = INIT_DIM;
 
   float theta[1] = {0.0}; // DO NOT USE, FOR AUTORALLY PLANT COMPATIBILITY ONLY
   int stride_idcs[1] = {0}; // DO NOT USE, FOR AUTORALLY PLANT COMPATIBILITY ONLY
@@ -151,17 +150,59 @@ struct LSTMDynamicsParams {
   //     stride_idcs[2*i + 1] = stride;
   //     stride += net_structure[i+1];
   //   }
+
+
+    for (int i = 0; i < BUFFER_INTER_SIZE; i++) {
+      W_hidden_input.get()[i] = 0;
+      W_cell_input.get()[i] = 0;
+    }
+    for (int i = 0; i < INTER_HIDDEN_SIZE; i++) {
+      W_hidden_output.get()[i] = 0;
+      W_cell_output.get()[i] = 0;
+    }
+    for (int i = 0; i < INIT_DIM; i++) {
+      b_hidden_input.get()[i] = 0;
+      b_cell_input.get()[i] = 0;
+    }
+    for (int i = 0; i < HIDDEN_DIM; i++) {
+      b_hidden_output.get()[i] = 0;
+      b_cell_output.get()[i] = 0;
+    }
+    for (int i = 0; i < STATE_HIDDEN_SIZE; i++) {
+      W_y[i] = 0;
+    }
+    for (int i = 0; i < DYNAMICS_DIM; i++) {
+      b_y[i] = 0;
+    }
+    for (int i = 0; i < STATE_HIDDEN_SIZE; i++) {
+      W_ii[i] = 0;
+      W_fi[i] = 0;
+      W_ci[i] = 0;
+      W_oi[i] = 0;
+    }
+    for (int i = 0; i < HIDDEN_HIDDEN_SIZE; i++) {
+      W_im[i] = 0;
+      W_fm[i] = 0;
+      W_cm[i] = 0;
+      W_om[i] = 0;
+    }
+    for (int i = 0; i < HIDDEN_DIM; i++) {
+      b_i[i] = 0;
+      b_f[i] = 0;
+      b_c[i] = 0;
+      b_o[i] = 0;
+    }
   };
 
   ~LSTMDynamicsParams() {
     // delete W_hidden_input;
   }
 
-  void updateBuffer(Eigen::Matrix<float, S_DIM+C_DIM, BUFFER> new_buffer) {
+  void updateBuffer(const Eigen::Matrix<float, S_DIM+C_DIM, BUFFER>& new_buffer) {
     int s_c_dim = DYNAMICS_DIM + C_DIM;
-    for(int i = 0; i < BUFFER; i++) {
-      for(int j = 0; j < s_c_dim; j++) {
-        buffer[i*(s_c_dim) + j] = new_buffer(K_DIM + j);
+    for(int col = 0; col < BUFFER; col++) {
+      for(int row = 0; row < s_c_dim; row++) {
+        buffer[col*(s_c_dim) + row] = new_buffer(K_DIM + row, col);
       }
     }
   }
@@ -169,6 +210,12 @@ struct LSTMDynamicsParams {
 
   // Calculate new initial cell and hidden state
   __host__ void updateInitialLSTMState() {
+    for(int i = 0; i < (C_DIM + DYNAMICS_DIM) * BUFFER; i++) {
+      if(!isfinite(buffer[i])) {
+        std::cout << "biffer not finite " << i << " " << buffer[i] << std::endl;
+      }
+    }
+
     // Create Eigen types
     using W_input = Eigen::Matrix<float, INIT_DIM, BUFFER * (DYNAMICS_DIM + C_DIM), Eigen::RowMajor>;
     using W_output = Eigen::Matrix<float, HIDDEN_DIM, INIT_DIM, Eigen::RowMajor>;
@@ -197,13 +244,34 @@ struct LSTMDynamicsParams {
     // calculate layer 1
     intermediate_hidden = W_hidden_input_mat * input_mat + b_hidden_input_mat;
     intermediate_cell = W_cell_input_mat * input_mat + b_cell_input_mat;
+    if(!intermediate_hidden.allFinite()) {
+      std::cout << "W_hidden_input mat\n" << W_hidden_input_mat << std::endl;
+      std::cout << "input mat\n" << input_mat << std::endl;
+      std::cout << "bias input mat\n" << b_cell_input_mat << std::endl;
+      std::cout << "result:\n" << intermediate_hidden << std::endl;
+      std::cout << "intermediate hidden is not finite" << std::endl;
+    }
+    if(!intermediate_cell.allFinite()) {
+      std::cout << intermediate_cell << std::endl;
+      std::cout << "intermediate cell is not finite" << std::endl;
+    }
+    assert(intermediate_hidden.allFinite());
+    assert(intermediate_cell.allFinite());
     // relu
     // Apply ReLU with lambda (should work as this is the Eigen example)
     intermediate_hidden = intermediate_hidden.unaryExpr([](float x) { return fmaxf(0, x);});
     intermediate_cell = intermediate_cell.unaryExpr([](float x) { return fmaxf(0, x);});
     // calculate layer 2
+    //std::cout << "W_hidden_input_map: " << W_hidden_input_mat.transpose() << std::endl;
+    //std::cout << "intermedaite hidden: " << intermediate_hidden.transpose() << std::endl;
+    //std::cout << "bias output: " << b_hidden_output_mat.transpose() << std::endl;
     hidden_output = W_hidden_output_mat * intermediate_hidden + b_hidden_output_mat;
     cell_output = W_cell_output_mat * intermediate_cell + b_cell_output_mat;
+    //std::cout << "hidden: \n" << hidden_output.transpose() << std::endl;
+    //std::cout << "cell: \n" << cell_output.transpose() << std::endl;
+    //for(int i = 0; i < 15; i++) {
+    //  std::cout << "at index " << i << ": " << initial_hidden[i] << ", " << initial_cell[i] << std::endl;
+    //}
   };
 };
 
@@ -281,6 +349,14 @@ public:
 
   void CPUSetup();
 
+  void GPUSetup() {
+    if (!this->GPUMemStatus_) {
+      this->model_d_ = Managed::GPUSetup(this);
+    } else {
+      std::cout << "GPU Memory already set" << std::endl; //TODO should this be an exception?
+    }
+  }
+
   void paramsToDevice();
 
   void freeCudaMem();
@@ -320,6 +396,7 @@ public:
 protected:
   Eigen::Matrix<float, H_DIM, 1> hidden_state_;
   Eigen::Matrix<float, H_DIM, 1> cell_state_;
+  bool init_ = false;
 private:
   // Eigen::MatrixXf* weighted_in_ = nullptr;
   // Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* weights_ = nullptr;

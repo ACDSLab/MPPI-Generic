@@ -43,26 +43,26 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::CPUSetup() {
   // }
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
-void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::updateModel(std::vector<int> description,
-        std::vector<float> data) {
-    // Updating only the latest state and control
-    if (description.size() == 2) {
-      if (description[0] != this->params_.DYNAMICS_DIM ||
-          description[1] != C_DIM) {
-        std::cerr << "Invalid update for LSTM Dyanmics. Expected "
-                  << this->params_.DYNAMICS_DIM << ", " << C_DIM << " and received"
-                  << description[0] << ", " << description[1] << std::endl;
-        exit(1);
-      }
-    } else { // Online uppdating of weights
-      this->params_.copy_everything = true; // Double check if this is needed?
-      // TODO
-    }
-  if(this->GPUMemStatus_) {
-    paramsToDevice();
-  }
-}
+//template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
+//void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::updateModel(std::vector<int> description,
+//        std::vector<float> data) {
+//    // Updating only the latest state and control
+//    if (description.size() == 2) {
+//      if (description[0] != this->params_.DYNAMICS_DIM ||
+//          description[1] != C_DIM) {
+//        std::cerr << "Invalid update for LSTM Dyanmics. Expected "
+//                  << this->params_.DYNAMICS_DIM << ", " << C_DIM << " and received"
+//                  << description[0] << ", " << description[1] << std::endl;
+//        exit(1);
+//      }
+//    } else { // Online uppdating of weights
+//      this->params_.copy_everything = true; // Double check if this is needed?
+//      // TODO
+//    }
+//  if(this->GPUMemStatus_) {
+//    paramsToDevice();
+//  }
+//}
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::paramsToDevice() {
@@ -71,8 +71,9 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::paramsToDevice() {
                                 this->control_rngs_,
                                 2*C_DIM*sizeof(float), cudaMemcpyHostToDevice,
                                 this->stream_) );
-
-  this->params_.updateInitialLSTMState();
+  if (init_) {
+    this->params_.updateInitialLSTMState();
+  }
   if (this->params_.copy_everything) {
     // Copy Weight Matrices
     HANDLE_ERROR( cudaMemcpyAsync(&this->model_d_->params_,
@@ -168,6 +169,11 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::loadParams(const s
   double* output_bias = output_bias_raw.data<double>();
   for (int i = 0; i < this->params_.STATE_HIDDEN_SIZE; i++) {
     this->params_.W_y[i] = output_weight[i];
+    if(!isfinite(this->params_.W_y[i])) {
+      std::cout << "setting W_y to 0" << std::endl;
+      this->params_.W_y[i] = 0;
+    }
+    //std::cout << "output weight" << i << " " << this->params_.W_y[i] << " " << output_weight[i] << std::endl;
   }
   for (int i = 0; i < this->params_.DYNAMICS_DIM; i++) {
     this->params_.b_y[i] = output_bias[i];
@@ -231,6 +237,50 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::loadParams(const s
     }
   }
 
+  // TODO ensure all finite
+  std::cout << "loaded NN" << std::endl;
+  for (int i = 0; i < this->params_.BUFFER_INTER_SIZE; i++) {
+    assert(isfinite(this->params_.W_hidden_input.get()[i]));
+    assert(isfinite(this->params_.W_cell_input.get()[i]));
+  }
+  for (int i = 0; i < this->params_.INTER_HIDDEN_SIZE; i++) {
+    assert(isfinite(this->params_.W_hidden_output.get()[i]));
+    assert(isfinite(this->params_.W_cell_output.get()[i]));
+  }
+  for (int i = 0; i < INIT_DIM; i++) {
+    assert(isfinite(this->params_.b_hidden_input.get()[i]));
+    assert(isfinite(this->params_.b_cell_input.get()[i]));
+  }
+  for (int i = 0; i < this->params_.HIDDEN_DIM; i++) {
+    assert(isfinite(this->params_.b_hidden_output.get()[i]));
+    assert(isfinite(this->params_.b_cell_output.get()[i]));
+  }
+  for (int i = 0; i < this->params_.STATE_HIDDEN_SIZE; i++) {
+    assert(isfinite(this->params_.W_y[i]));
+  }
+  for (int i = 0; i < this->params_.DYNAMICS_DIM; i++) {
+    assert(isfinite(this->params_.b_y[i]));
+  }
+  for (int i = 0; i < this->params_.STATE_HIDDEN_SIZE; i++) {
+    assert(isfinite(this->params_.W_ii[i]));
+    assert(isfinite(this->params_.W_fi[i]));
+    assert(isfinite(this->params_.W_ci[i]));
+    assert(isfinite(this->params_.W_oi[i]));
+  }
+  for (int i = 0; i < this->params_.HIDDEN_HIDDEN_SIZE; i++) {
+    assert(isfinite(this->params_.W_im[i]));
+    assert(isfinite(this->params_.W_fm[i]));
+    assert(isfinite(this->params_.W_cm[i]));
+    assert(isfinite(this->params_.W_om[i]));
+  }
+  for (int i = 0; i < this->params_.HIDDEN_DIM; i++) {
+    assert(isfinite(this->params_.b_i[i]));
+    assert(isfinite(this->params_.b_f[i]));
+    assert(isfinite(this->params_.b_c[i]));
+    assert(isfinite(this->params_.b_o[i]));
+  }
+
+  this->init_ = true;
   //Save parameters to GPU memory
   this->params_.copy_everything = true;
   if(this->GPUMemStatus_) {
