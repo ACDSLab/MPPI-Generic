@@ -341,7 +341,7 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::computeKinematics(
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::computeDynamics(const Eigen::Ref<const state_array>& state,
         const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der) {
-  // TODO: FIgure out LSTM on CPU
+  // TODO: Figure out LSTM on CPU
   using W_hh = Eigen::Matrix<float, H_DIM, H_DIM, Eigen::RowMajor>;
   using W_hi = Eigen::Matrix<float, H_DIM, C_DIM + DYNAMICS_DIM, Eigen::RowMajor>;
   using W_ih = Eigen::Matrix<float, C_DIM + DYNAMICS_DIM, H_DIM, Eigen::RowMajor>;
@@ -384,7 +384,7 @@ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::computeDynamics(co
   for (int i = 0; i < DYNAMICS_DIM; i++) {
     state_der[i + (S_DIM - DYNAMICS_DIM)] = state_der_small[i];
   }
-  state_der[6] *= -1;
+  //state_der[6] *= -1;
   hidden_state_ = h_next;
   cell_state_ = c_next;
 }
@@ -397,68 +397,6 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   state_der[2] = -state[6]; //Pose estimate actually gives the negative yaw derivative
 }
 
-// template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
-// __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
-// {
-//   float* curr_act;
-//   float* next_act;
-//   float* tmp_act;
-//   float tmp;
-//   float* W;
-//   float* b;
-//   int tdx = threadIdx.x;
-//   int tdy = threadIdx.y;
-//   int tdz = threadIdx.z;
-//   int i,j,k;
-//   curr_act = &theta_s[(2*LARGEST_LAYER)*(blockDim.x*tdz + tdx)];
-//   next_act = &theta_s[(2*LARGEST_LAYER)*(blockDim.x*tdz + tdx) + LARGEST_LAYER];
-//   // iterate through the part of the state that should be an input to the NN
-//   for (i = tdy; i < DYNAMICS_DIM; i+= blockDim.y){
-//     curr_act[i] = state[i + (S_DIM - DYNAMICS_DIM)];
-//   }
-//   // iterate through the control to put into first layer
-//   for (i = tdy; i < C_DIM; i+= blockDim.y){
-//     curr_act[DYNAMICS_DIM + i] = control[i];
-//   }
-//   __syncthreads();
-//   // iterate through each layer
-//   for (i = 0; i < NUM_LAYERS - 1; i++){
-//     //Conditional compilation depending on if we're using a global constant memory array or not.
-// #if defined(MPPI_NNET_USING_CONSTANT_MEM__) //Use constant memory.
-//     W = &NNET_PARAMS[this->params_.stride_idcs[2*i]]; // weights
-//     b = &NNET_PARAMS[this->params_.stride_idcs[2*i + 1]]; // biases
-// #else //Use (slow) global memory.
-//     W = &this->params_.theta[this->params_.stride_idcs[2*i]]; // weights
-//     b = &this->params_.theta[this->params_.stride_idcs[2*i + 1]]; // biases
-// #endif
-//     // for first non input layer until last layer this thread deals with
-//     // calculates the next activation based on current
-//     for (j = tdy; j < this->params_.net_structure[i+1]; j += blockDim.y) {
-//       tmp = 0;
-//       // apply each neuron activation from current layer
-//       for (k = 0; k < this->params_.net_structure[i]; k++) {
-//         //No atomic add necessary.
-//         tmp += W[j*this->params_.net_structure[i] + k]*curr_act[k];
-//       }
-//       // add bias from next layer and neuron
-//       tmp += b[j];
-//       if (i < NUM_LAYERS - 2){
-//         tmp = MPPI_NNET_NONLINEARITY(tmp);
-//       }
-//       next_act[j] = tmp;
-//     }
-//     //Swap the two pointers
-//     tmp_act = curr_act;
-//     curr_act = next_act;
-//     next_act = tmp_act;
-//     __syncthreads();
-//   }
-//   // copies results back into state derivative
-//   for (i = tdy; i < DYNAMICS_DIM; i+= blockDim.y){
-//     state_der[i + (S_DIM - DYNAMICS_DIM)] = curr_act[i];
-//   }
-//   __syncthreads();
-// }
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initializeDynamics(float* state, float* control, float* theta_s,
     float t_0, float dt) {
@@ -720,8 +658,8 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   //   state_der[i] = x[i] + intermediate_y[i] * this->params_.dt;
   // }
   __syncthreads();
-  if (threadIdx.y == 0) {
-    state_der[6] *= -1;
-  }
-  __syncthreads();
+  //if (threadIdx.y == 0) {
+  //  state_der[6] *= -1;
+  //}
+  //__syncthreads();
 }
