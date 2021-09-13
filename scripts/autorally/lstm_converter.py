@@ -5,7 +5,8 @@ import pickle
 from torch import Tensor
 from torch.nn.parameter import Parameter
 
-filename = "/home/jason/Documents/research/MPPI-Generic-Model-Learning/Results/train/autorally/PF_1000_integrated_fixed_1/LSTM_1X15-1000X10_0.02-0_I/model_store/LSTM_1X15-1000X10_0.02-0_I_37_1.npz"
+#filename = "/home/jason/Documents/research/MPPI-Generic-Model-Learning/Results/train/autorally/PF_1000_integrated_fixed_1/LSTM_1X15-1000X10_0.02-0_I/model_store/LSTM_1X15-1000X10_0.02-0_I_37_1.npz"
+filename = "/home/jason/Documents/research/MPPI-Generic-Model-Learning/Results/train/autorally/PF_200_fixed/LSTM_1X15-200X10_0.02-0_I/LSTM_1X15-200X10_0.02-0_I.npz"
 
 
 network = np.load(open(filename, 'rb'), allow_pickle=True)
@@ -14,10 +15,10 @@ cell_init = network["cell_init"].item()
 output = network["output"].item()
 lstm = network["lstm"].item()
 
-np.savez("PF_1000_hidden_init.npz", **hidden_init)
-np.savez("PF_1000_cell_init.npz", **cell_init)
-np.savez("PF_1000_output.npz", **output)
-np.savez("PF_1000_lstm.npz", **lstm)
+np.savez("PF_200_hidden_init.npz", **hidden_init)
+np.savez("PF_200_cell_init.npz", **cell_init)
+np.savez("PF_200_output.npz", **output)
+np.savez("PF_200_lstm.npz", **lstm)
 
 test = np.load(open("/home/jason/catkin_ws/ar/src/MPPI-ROS/"
                     "submodules/MPPI-Generic/resources/hidden_init.npz", 'rb'), allow_pickle=True)
