@@ -97,9 +97,9 @@ public:
     double final_time = times.back();
 
     // if the buffer isn't long enough return garbage
-    if(final_time < *times.begin() + buffer_tau_) {
+    if(final_time < *times.begin() + buffer_tau_ - buffer_dt_) {
       std::cout << "does not have a full buffer, exiting" << std::endl;
-      return buffer_trajectory::Zero();
+      return smoothed_buffer_;
     }
 
     double start_time = final_time - buffer_tau_;
@@ -111,7 +111,7 @@ public:
     std::vector<double> correct_knots;
     double knot_dt = (buffer_tau_)/(std::floor(times.size()/3) - 1);
     for(int i = 0; i < times.size()/3; i++) {
-      std::cout << "knots " << i << " " << start_time + i*knot_dt << std::endl;
+      //std::cout << "knots " << i << " " << start_time + i*knot_dt << std::endl;
       correct_knots.push_back(start_time + i*knot_dt);
     }
     correct_knots.pop_back();
@@ -165,7 +165,7 @@ public:
 
 protected:
   std::list<std::pair<buffer_state, double>> prev_states_;
-  double buffer_time_horizon_ = 0.22; // how long to store values in the buffer
+  double buffer_time_horizon_ = 0.24	; // how long to store values in the buffer
   double buffer_tau_ = 0.2; // how in history to create well sampled positions from
   double buffer_dt_ = 0.02; // the spacing between well sampled buffer positions
 
