@@ -98,7 +98,8 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   ############################################################
   # Download and unpack googletest at configure time
   if (NOT TARGET gtest_main)
-    configure_file(${CMAKE_MODULE_PATH}/CMakeLists.txt.gtest.in
+    list(GET CMAKE_MODULE_PATH -1 MPPI_GENERIC_MODULES)
+    configure_file(${MPPI_GENERIC_MODULES}/CMakeLists.txt.gtest.in
 	${PROJECT_BINARY_DIR}/googletest-download/CMakeLists.txt)
     execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
       RESULT_VARIABLE result
