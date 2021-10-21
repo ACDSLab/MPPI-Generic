@@ -7,9 +7,9 @@
  */
 // Num_timesteps, num_rollouts, blockdim x, blockdim y
 const int NUMBER_TIMESTEPS = 100;
-template class GPUFeedbackController<DeviceDDPImpl<DeviceDDP<CartpoleDynamics>, CartpoleDynamics>, CartpoleDynamics>;
-template class DeviceDDPImpl<DeviceDDP<CartpoleDynamics>, CartpoleDynamics>;
-template class DeviceDDP<CartpoleDynamics>;
+// template class GPUFeedbackController<DeviceDDPImpl<DeviceDDP<CartpoleDynamics>, CartpoleDynamics>, CartpoleDynamics>;
+// template class DeviceDDPImpl<DeviceDDP<CartpoleDynamics>, CartpoleDynamics>;
+// template class DeviceDDP<CartpoleDynamics>;
 template class DDPFeedback<CartpoleDynamics, 150>;
 
 template class DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>;
