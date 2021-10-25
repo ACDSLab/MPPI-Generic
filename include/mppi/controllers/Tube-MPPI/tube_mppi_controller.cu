@@ -7,10 +7,6 @@ template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLO
         int BDIM_X, int BDIM_Y>
 TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                              float lambda, float alpha,
-                            //  const Eigen::Ref<const StateCostWeight>& Q,
-                            //  const Eigen::Ref<const Hessian>& Qf,
-                            //  const Eigen::Ref<const ControlCostWeight>& R,
-                             FEEDBACK_PARAMS& fb_params,
                              const Eigen::Ref<const control_array>& control_std_dev,
                              int num_timesteps,
                              const Eigen::Ref<const control_trajectory>& init_control_traj,
@@ -27,8 +23,8 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, fl
   this->copyControlStdDevToDevice();
 
   // Initialize Feedback
-  this->fb_controller_->setParams(fb_params);
   this->fb_controller_->initTrackingController();
+  this->enable_feedback_ = true;
 }
 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,

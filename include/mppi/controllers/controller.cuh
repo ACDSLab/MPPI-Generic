@@ -18,6 +18,7 @@
 // #include <mppi/ddp/ddp.h>
 #include <mppi/utils/gpu_err_chk.cuh>
 #include <mppi/utils/math_utils.h>
+#include <mppi/feedback_controllers/feedback.cuh>
 
 #include <cfloat>
 
@@ -51,6 +52,8 @@ public:
   typedef FB_T TEMPLATED_FEEDBACK;
   using TEMPLATED_FEEDBACK_STATE = typename FB_T::TEMPLATED_FEEDBACK_STATE;
   using TEMPLATED_FEEDBACK_PARAMS = typename FB_T::TEMPLATED_PARAMS;
+  using TEMPLATED_FEEDBACK_GPU = typename FB_T::TEMPLATED_GPU_FEEDBACK;
+  static const int TEMPLATED_FEEDBACK_TIMESTEPS = FB_T::FB_TIMESTEPS;
   // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
   // does not reallocate cuda memory
   int num_timesteps_ = MAX_TIMESTEPS;
@@ -108,6 +111,7 @@ public:
     // Call the GPU setup functions of the model, cost and feedback controller
     model_->GPUSetup();
     cost_->GPUSetup();
+    fb_controller_->GPUSetup();
 
     // allocate memory for the optimizer result
     // result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
@@ -134,6 +138,7 @@ public:
     // Free the CUDA memory of every object
     model_->freeCudaMem();
     cost_->freeCudaMem();
+    fb_controller_->freeCudaMem();
 
     // Free the CUDA memory of the controller
     deallocateCUDAMemory();
@@ -298,6 +303,15 @@ public:
     }
   };
 
+  virtual TEMPLATED_FEEDBACK_PARAMS getFeedbackParams() {
+    if (enable_feedback_) {
+      return fb_controller_->getParams();
+    } else {
+      TEMPLATED_FEEDBACK_PARAMS default_fb_params;
+      return default_fb_params;
+    }
+  }
+
   // Indicator for algorithm health, should be between 0.01 and 0.1 anecdotally
   float getNormalizerPercent() {return this->normalizer_/(float)NUM_ROLLOUTS;}
 
@@ -311,16 +325,17 @@ public:
       return;
     }
     // Compute the nominal trajectory
-    propagated_feedback_state_trajectory_.col(0) = getAncillaryStateSeq().col(0); // State that we optimized from
+    propagated_feedback_state_trajectory_.col(0) = getActualStateSeq().col(0); // State that we optimized from
     state_array xdot;
     state_array current_state;
     control_array current_control;
-    for (int i =0; i < num_timesteps_ - 1; ++i) {
+    for (int i = 0; i < num_timesteps_ - 1; ++i) {
       current_state = propagated_feedback_state_trajectory_.col(i);
       // MPPI control apply feedback at the given timestep against the nominal trajectory at that timestep
-      current_control = getControlSeq().col(i) + fb_controller_->k(current_state,
-                                                                   getStateSeq().col(i),
-                                                                   i);
+      current_control = getControlSeq().col(i)
+                        + computeFeedbackControl(current_state,
+                                                 getStateSeq().col(i),
+                                                 i);
       model_->computeStateDeriv(current_state, current_control, xdot);
       model_->updateState(current_state, xdot, dt_);
       propagated_feedback_state_trajectory_.col(i+1) = current_state;
@@ -338,11 +353,10 @@ public:
   float getBaselineCost() {return baseline_;};
   float getNormalizerCost() {return normalizer_;};
 
-  state_trajectory getAncillaryStateSeq() {
-    std::cout << "getAncillaryStateSeq is used?" << std::endl;
-    return state_trajectory(); // TODO: this needs to be replaced with a proper state_trajectory
-    //return result_.state_trajectory;};
-  }
+  /**
+   * returns the current state sequence
+   */
+  state_trajectory getActualStateSeq() { return state_;};
 
   // virtual void initDDP(const StateCostWeight& q_mat,
   //                      const Hessian& q_f_mat,
@@ -368,8 +382,9 @@ public:
   //   terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(Qf_);
   // }
 
-  virtual void computeFeedbackGainsHelper(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const state_trajectory>& state_traj,
-                                    const Eigen::Ref<const control_trajectory>& control_traj) {
+  virtual void computeFeedbackGainsHelper(const Eigen::Ref<const state_array>& state,
+                                          const Eigen::Ref<const state_trajectory>& state_traj,
+                                          const Eigen::Ref<const control_trajectory>& control_traj) {
     if(!enable_feedback_) {
       return;
     }
@@ -385,6 +400,12 @@ public:
 
   virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& state) {
     computeFeedbackGainsHelper(state, getStateSeq(), getControlSeq());
+  }
+
+  virtual control_array computeFeedbackControl(const Eigen::Ref<const state_array>& state,
+                                               const Eigen::Ref<const state_array>& goal_state,
+                                               float t) {
+    return fb_controller_->k(state, goal_state, t);
   }
 
   void smoothControlTrajectoryHelper(Eigen::Ref<control_trajectory> u, const Eigen::Ref<Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>>& control_history) {
@@ -482,6 +503,11 @@ public:
   void setFeedbackController(bool enable_feedback) {
     enable_feedback_ = enable_feedback;
   }
+
+  void setFeedbackParams(TEMPLATED_FEEDBACK_PARAMS fb_params) {
+    fb_controller_->setParams(fb_params);
+  }
+
   bool getFeedbackEnabled() {return enable_feedback_;}
 
   /**

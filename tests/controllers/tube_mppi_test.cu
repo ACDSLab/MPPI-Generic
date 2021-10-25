@@ -38,6 +38,7 @@ TEST(TubeMPPITest, Construction) {
   COST cost;
   float dt = 0.01;
   auto fb_controller = FB_CONTROLLER(&model, dt);
+  auto fb_params = fb_controller.getParams();
   int max_iter = 10;
   float lambda = 0.5;
   float alpha = 0.0;
@@ -49,16 +50,17 @@ TEST(TubeMPPITest, Construction) {
   // DDP cost parameters
   Eigen::MatrixXf Q;
   Eigen::MatrixXf R;
-
-  Q = 100*Eigen::MatrixXf::Identity(DYN::STATE_DIM,DYN::STATE_DIM);
-  R = Eigen::MatrixXf::Identity(DYN::CONTROL_DIM,DYN::CONTROL_DIM);
+  fb_params.Q = 100 * FB_CONTROLLER::square_state_matrix::Identity();
+  fb_params.Q_f = fb_params.Q;
+  fb_params.R = FB_CONTROLLER::square_control_matrix::Identity();
+  fb_controller.setParams(fb_params);
 
   auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller,
                                                dt, max_iter, lambda, alpha,
                                                control_var);
 
-  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-                                        512, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, Q, Q, R, control_var);
+  auto controller = TUBE_CONTROLLER(&model, &cost, &fb_controller, dt,
+                                    max_iter, lambda, alpha, control_var);
 
 //  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
 //                                      512, 64, 8>(&model, &cost, dt, max_iter,
@@ -84,7 +86,8 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   float lambda = 4; // Learning rate parameter
   float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
-
+  typedef DDPFeedback<DoubleIntegratorDynamics, num_timesteps> FB_CONTROLLER;
+  FB_CONTROLLER fb_controller = FB_CONTROLLER(&model, dt);
 
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
 
@@ -99,8 +102,10 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
   control_var << 1, 1;
 
   // Initialize the vanilla MPPI controller
-  auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
+  auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics,
+          DoubleIntegratorCircleCost, FB_CONTROLLER, num_timesteps,
+          1024, 64, 8>(&model, &cost, &fb_controller, dt, max_iter, lambda,
+                       alpha, control_var);
 
   int fail_count = 0;
   int crash_status[1] = {0};
@@ -166,6 +171,8 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   float lambda = 4; // Learning rate parameter
   float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
+  typedef DDPFeedback<DoubleIntegratorDynamics, num_timesteps> FB_CONTROLLER;
+  FB_CONTROLLER fb_controller = FB_CONTROLLER(&model, dt);
 
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
 
@@ -181,8 +188,10 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
   control_var << 1, 1;
 
   // Initialize the vanilla MPPI controller
-  auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
+  auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics,
+          DoubleIntegratorCircleCost, FB_CONTROLLER, num_timesteps,
+          1024, 64, 8>(&model, &cost, &fb_controller, dt, max_iter, lambda,
+                       alpha, control_var);
 
   //bool success = false;
   int fail_count = 0;
@@ -251,6 +260,8 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
   float lambda = 4; // Learning rate parameter
   float alpha = 0.0;
   const int num_timesteps = 50;  // Optimization time horizon
+  typedef DDPFeedback<DoubleIntegratorDynamics, num_timesteps> FB_CONTROLLER;
+  FB_CONTROLLER fb_controller = FB_CONTROLLER(&model, dt);
 
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
   std::vector<float> actual_feedback_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
@@ -268,22 +279,19 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
   control_var << 1, 1;
 
   // Initialize the vanilla MPPI controller
-  auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-          1024, 64, 8>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
+  auto vanilla_controller = VanillaMPPIController<DoubleIntegratorDynamics,
+          DoubleIntegratorCircleCost, FB_CONTROLLER, num_timesteps,
+          1024, 64, 8>(&model, &cost, &fb_controller, dt, max_iter, lambda,
+                       alpha, control_var);
 
   // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
+  auto fb_params = vanilla_controller.getFeedbackParams();
+  fb_params.Q = FB_CONTROLLER::square_state_matrix::Identity();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
+  fb_params.Q_f = FB_CONTROLLER::square_state_matrix::Identity();
+  fb_params.R = FB_CONTROLLER::square_control_matrix::Identity();
 
-  Q = 500*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
-  Q(2,2) = 100;
-  Q(3,3) = 100;
-  R = 1*Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,DoubleIntegratorDynamics::CONTROL_DIM);
-
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,DoubleIntegratorDynamics::STATE_DIM);
-
-  vanilla_controller.initDDP(Q, Qf, R);
+  vanilla_controller.setFeedbackParams(fb_params);
 
   //bool success = false;
   int fail_count = 0;
@@ -332,7 +340,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
     //    std::cout << current_control << std::endl;
 
     // Apply the feedback given the current state
-    current_control += vanilla_controller.getFeedbackGains()[0]*(x - nominal_trajectory.col(0));
+    current_control += vanilla_controller.computeFeedbackControl(x, nominal_trajectory.col(0), 0);
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -354,8 +362,16 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
 
 TEST(TubeMPPITest, TubeMPPILargeVariance) {
   // Noise enters the system during the "true" state propagation. In this case the noise is nominal
-  DoubleIntegratorDynamics model(100);  // Initialize the double integrator dynamics
-  DoubleIntegratorCircleCost cost;  // Initialize the cost function
+  using DYN = DoubleIntegratorDynamics;
+  using COST = DoubleIntegratorCircleCost;
+  const int num_timesteps = 50;  // Optimization time horizon
+  using FB_CONTROLLER = DDPFeedback<DYN, num_timesteps>;
+
+  typedef TubeMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps,
+                             1024, 64, 1> CONTROLLER_T;
+
+  DYN model(100);  // Initialize the double integrator dynamics
+  COST cost;  // Initialize the cost function
   auto params = cost.getParams();
   params.velocity_desired = 2;
   cost.setParams(params);
@@ -363,36 +379,9 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
   int max_iter = 3; // Maximum running iterations of optimization
   float lambda = 2.0; // Learning rate parameter
   float alpha = 0.0;
-  const int num_timesteps = 50;  // Optimization time horizon
-
-  // To pass it should be lambda = 4, vel desired = 2, vel cost = 1 crash cost 1000, nom threshold 20
-
-  std::vector<float> actual_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
-  std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
-  std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
-  std::vector<float> feedback_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
-
-
-
-  // Set the initial state
-  DoubleIntegratorDynamics::state_array x;
-  x << 2, 0, 0, 1;
-
-  DoubleIntegratorDynamics::state_array xdot;
-
-  // control variance
-  DoubleIntegratorDynamics::control_array control_var;
-  control_var << 1, 1;
-
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-
-  typedef TubeMPPIController<DoubleIntegratorDynamics,
-                             DoubleIntegratorCircleCost, num_timesteps,
-                             1024, 64, 1> CONTROLLER_T;
-
+  // Set feedback controller
+  auto fb_controller = FB_CONTROLLER(&model, dt);
+  auto fb_params = fb_controller.getParams();
   /**
    * Q =
    * [500, 0, 0, 0
@@ -400,21 +389,39 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
    *  0, 0, 100, 0
    *  0, 0, 0, 100]
    */
-  Q = CONTROLLER_T::StateCostWeight::Identity();
-  Q.diagonal() << 500, 500, 100, 100;
-  /**
-   * R = I
-   */
-  R = CONTROLLER_T::ControlCostWeight::Identity();
-
+  fb_params.Q = FB_CONTROLLER::square_state_matrix::Identity();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
   /**
    * Qf = I
    */
-  Qf = CONTROLLER_T::Hessian::Identity();
+  fb_params.Q_f = FB_CONTROLLER::square_state_matrix::Identity();
+  /**
+   * R = I
+   */
+  fb_params.R = FB_CONTROLLER::square_control_matrix::Identity();
+  fb_controller.setParams(fb_params);
+
+  // To pass it should be lambda = 4, vel desired = 2, vel cost = 1 crash cost 1000, nom threshold 20
+
+  std::vector<float> actual_trajectory_save(num_timesteps*total_time_horizon*DYN::STATE_DIM);
+  std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DYN::STATE_DIM);
+  // std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DYN::STATE_DIM);
+  std::vector<float> feedback_trajectory_save(num_timesteps*total_time_horizon*DYN::STATE_DIM);
+
+
+  // Set the initial state
+  DYN::state_array x;
+  x << 2, 0, 0, 1;
+
+  DYN::state_array xdot;
+
+  // control variance
+  DYN::control_array control_var;
+  control_var << 1, 1;
 
   // Initialize the tube MPPI controller
-  auto controller = CONTROLLER_T(&model, &cost, dt, max_iter, lambda, alpha, Q, Qf, R,
-                                 control_var);
+  auto controller = CONTROLLER_T(&model, &cost, &fb_controller, dt, max_iter,
+                                 lambda, alpha, control_var);
 
   controller.setNominalThreshold(100);
 
@@ -451,8 +458,8 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
       std::cout << "Algorithm Health Normalizer: [" << controller.getNormalizerPercent() << "]\n" << std::endl;
       cnpy::npy_save("tube_large_actual.npy", actual_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-      cnpy::npy_save("tube_ancillary.npy", ancillary_trajectory_save.data(),
-                     {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+      // cnpy::npy_save("tube_ancillary.npy", ancillary_trajectory_save.data(),
+      //                {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       cnpy::npy_save("tube_large_nominal.npy",nominal_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       cnpy::npy_save("tube_large_feedback.npy",feedback_trajectory_save.data(),
@@ -472,7 +479,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     controller.computeFeedbackGains(x);
 
     // Save the ancillary trajectory
-    auto ancillary_trajectory = controller.getAncillaryStateSeq();
+    // auto ancillary_trajectory = controller.getAncillaryStateSeq();
 
     // Compute the propagated feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
@@ -482,8 +489,8 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
       for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
         actual_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
                                 i*DoubleIntegratorDynamics::STATE_DIM + j] = actual_trajectory(j, i);
-        ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
-                                i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
+        // ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+        //                         i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
         nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
                                i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
         feedback_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
@@ -497,7 +504,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0]*(x - controller.getStateSeq().col(0));
+    current_control += controller.computeFeedbackControl(x, controller.getStateSeq().col(0), 0);
 
 //    std::cout << "Current State: " << x.transpose() << std::endl;
 //    std::cout << "Nominal State: " << controller.getStateSeq().col(0).transpose()  << std::endl;
@@ -518,8 +525,8 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
   cnpy::npy_save("tube_large_actual.npy",actual_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-  cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
-                 {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
+  // cnpy::npy_save("tube_ancillary.npy",ancillary_trajectory_save.data(),
+  //                {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
   cnpy::npy_save("tube_large_nominal.npy",nominal_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
   cnpy::npy_save("tube_large_feedback.npy",feedback_trajectory_save.data(),

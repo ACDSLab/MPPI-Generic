@@ -69,10 +69,6 @@ public:
 
   TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                      float lambda, float alpha,
-                    //  const Eigen::Ref<const StateCostWeight>& Q,
-                    //  const Eigen::Ref<const Hessian>& Qf,
-                    //  const Eigen::Ref<const ControlCostWeight>& R,
-                    FEEDBACK_PARAMS& fb_params,
                      const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps = MAX_TIMESTEPS,
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
@@ -83,12 +79,12 @@ public:
   std::string getControllerName() {return "Tube MPPI";};
 
   /**
-   * returns the current control sequence
+   * returns the current nominal control sequence
    */
   control_trajectory getControlSeq() override { return nominal_control_trajectory_;};
 
   /**
-   * returns the current state sequence
+   * returns the current nominal state sequence
    */
   state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
 
@@ -96,11 +92,6 @@ public:
    * returns the current control sequence
    */
   control_trajectory getActualControlSeq() { return this->control_;};
-
-  /**
-   * returns the current state sequence
-   */
-  state_trajectory getActualStateSeq() {return this->state_;};
 
   /**
    * Slide the control sequence back n steps

@@ -119,6 +119,8 @@ public:
   using INTERNAL_STATE_T = typename FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>, DDPParams<DYN_T>,
                                                        NUM_TIMESTEPS>::TEMPLATED_FEEDBACK_STATE;
   using feedback_gain_matrix = typename DYN_T::feedback_matrix;
+  using square_state_matrix = typename DDPParams<DYN_T>::StateCostWeight;
+  using square_control_matrix = typename DDPParams<DYN_T>::ControlCostWeight;
 
   /**
    * Variables
@@ -184,20 +186,15 @@ public:
   //   }
   // }
 
+  void setParams(DDPParams<DYN_T>& params);
+
   void initTrackingController();
 
-  control_array k(const Eigen::Ref<state_array>& x_act,
-                  const Eigen::Ref<state_array>& x_goal, float t) {
-    INTERNAL_STATE_T* gpu_feedback_state = this->getFeedbackStatePointer();
-    return k(x_act, x_goal, t, *gpu_feedback_state);
-  }
-
-  control_array k(const Eigen::Ref<state_array>& x_act,
-                  const Eigen::Ref<state_array>& x_goal, float t,
-                  INTERNAL_STATE_T& fb_state) {
-    // TODO INTERNAL_STATE_T probably won't compile
+  control_array k_(const Eigen::Ref<const state_array>& x_act,
+                   const Eigen::Ref<const state_array>& x_goal, float t,
+                   INTERNAL_STATE_T& fb_state) {
     int index = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * int(t);
-    Eigen::Map<const feedback_gain_matrix> fb_gain(&fb_state.fb_gain_traj_[index]);
+    Eigen::Map<feedback_gain_matrix> fb_gain(&(fb_state.fb_gain_traj_[index]));
     control_array u_output = fb_gain * (x_act - x_goal);
     return u_output;
   }
@@ -205,9 +202,6 @@ public:
   void computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
                             const Eigen::Ref<const state_trajectory>& goal_traj,
                             const Eigen::Ref<const control_trajectory>& control_traj);
-
-  // control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
-  //                                   double rel_time, INTERNAL_STATE_T& fb_state);
 };
 
 #ifdef __CUDACC__

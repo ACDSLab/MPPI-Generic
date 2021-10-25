@@ -79,7 +79,6 @@ DDPFeedback<DYN_T, NUM_TIMESTEPS>::DDPFeedback(DYN_T* model, float dt,
   this->num_timesteps_ = std::max(num_timesteps, NUM_TIMESTEPS);
   this->gpu_controller_->freeCudaMem(); // Remove allocated CUDA mem from default constructor
   this->gpu_controller_ = std::make_shared<DeviceDDP<DYN_T, NUM_TIMESTEPS>>(this->num_timesteps_, stream);
-  this->gpu_controller_->GPUSetup();
 }
 
 template <class DYN_T, int NUM_TIMESTEPS>
@@ -92,10 +91,6 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController() {
                                                                this->params_.num_iterations,
                                                                &logger,
                                                                verbose);
-  // TODO: Can be done by setParams() in feedback base class
-  // this->params_.Q = q_mat;
-  // this->params_.Q_f = q_f_mat;
-  // this->params_.R = r_mat;
 
   result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
   result_.feedback_gain = feedback_gain_trajectory(NUM_TIMESTEPS);
@@ -108,6 +103,15 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController() {
     control_max_(i) = model_->control_rngs_[i].y;
   }
 
+  run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(this->params_.Q,
+                                                                        this->params_.R,
+                                                                        NUM_TIMESTEPS);
+  terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(this->params_.Q_f);
+}
+
+template <class DYN_T, int NUM_TIMESTEPS>
+void DDPFeedback<DYN_T, NUM_TIMESTEPS>::setParams(DDPParams<DYN_T>& params) {
+  this->params_ = params;
   run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(this->params_.Q,
                                                                         this->params_.R,
                                                                         NUM_TIMESTEPS);

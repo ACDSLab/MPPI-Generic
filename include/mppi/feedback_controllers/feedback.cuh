@@ -86,7 +86,8 @@ public:
    * ===================== OPTIONAL METHODS TO OVERWRITE ======================
    */
   /**
-   * Only needed to allocate/deallocate additional CUDA memory when appropriate, GPU pointer is already handled.
+   * Only needed to allocate/deallocate additional CUDA memory when appropriate,
+   * GPU pointer is already handled.
    */
   void allocateCUDAMemory() {}
   void deallocateCUDAMemory() {}
@@ -119,6 +120,7 @@ public:
   typedef PARAMS_T TEMPLATED_PARAMS;
   typedef GPU_FB_T TEMPLATED_GPU_FEEDBACK;
   typedef typename GPU_FB_T::FEEDBACK_STATE_T TEMPLATED_FEEDBACK_STATE;
+  static const int FB_TIMESTEPS = NUM_TIMESTEPS;
 
   using state_array = typename DYN_T::state_array;
   using control_array = typename DYN_T::control_array;
@@ -131,10 +133,19 @@ public:
   FeedbackController(float dt = 0.01, int num_timesteps = NUM_TIMESTEPS,
                      cudaStream_t stream=0) :  dt_(dt), num_timesteps_(num_timesteps) {
     gpu_controller_ = std::make_shared<GPU_FB_T>(stream);
+  }
+
+  virtual ~FeedbackController() {
+    freeCudaMem();
+  };
+
+  virtual void GPUSetup() {
     gpu_controller_->GPUSetup();
   }
 
-  virtual ~FeedbackController() = default;
+  virtual void freeCudaMem() {
+    gpu_controller_->freeCudaMem();
+  }
 
   virtual void initTrackingController() = 0;
 
@@ -142,10 +153,29 @@ public:
     params_ = params;
   }
 
+  PARAMS_T getParams() {
+    return params_;
+  }
+
   // CPU Methods
-  // TODO Construct a default version of this method that uses the state_ variable automatically
-  virtual control_array k(const Eigen::Ref<state_array>& x_act,
-                          const Eigen::Ref<state_array>& x_goal, float t,
+  /**
+   * Compute feedback control method that should not be overwritten.
+   * Input:
+   *  - x_act: the state where the system is
+   *  - x_goal: the state we want to be at
+   *  - index: the number of timesteps from the initial time we are
+   */
+  virtual control_array k(const Eigen::Ref<const state_array>& x_act,
+                          const Eigen::Ref<const state_array>& x_goal,
+                          float t) {
+    TEMPLATED_FEEDBACK_STATE* gpu_feedback_state = getFeedbackStatePointer();
+    return k_(x_act, x_goal, t, *gpu_feedback_state);
+  }
+  /**
+   * Feeback Control Method to overwrite.
+   */
+  virtual control_array k_(const Eigen::Ref<const state_array>& x_act,
+                          const Eigen::Ref<const state_array>& x_goal, float t,
                           TEMPLATED_FEEDBACK_STATE& fb_state) = 0;
 
   // might not be a needed method
@@ -154,17 +184,24 @@ public:
                                     const Eigen::Ref<const control_trajectory>& control_traj) = 0;
 
   // TODO Construct a default version of this method that uses the state_ variable automatically
-  virtual control_array interpolateFeedback(state_array& state, state_array& target_nominal_state,
-                                            double rel_time, TEMPLATED_FEEDBACK_STATE& fb_state) {
-    // TODO call the feedback controller version directly
+  virtual control_array interpolateFeedback_(const Eigen::Ref<const state_array>& state,
+                                             const Eigen::Ref<const state_array>& goal_state,
+                                             double rel_time, TEMPLATED_FEEDBACK_STATE& fb_state) {
     int lower_idx = (int) (rel_time / dt_);
     int upper_idx = lower_idx + 1;
     double alpha = (rel_time - lower_idx * dt_) / dt_;
 
-    control_array u_fb = (1 - alpha) * k(state, target_nominal_state, lower_idx, fb_state)
-        + alpha*k(state, target_nominal_state, upper_idx, fb_state);
+    control_array u_fb = (1 - alpha) * k_(state, goal_state, lower_idx, fb_state)
+        + alpha*k_(state, goal_state, upper_idx, fb_state);
 
     return u_fb;
+  }
+
+  virtual control_array interpolateFeedback(const Eigen::Ref<const state_array>& state,
+                                            const Eigen::Ref<const state_array>& goal_state,
+                                            double rel_time) {
+    TEMPLATED_FEEDBACK_STATE* fb_state = getFeedbackStatePointer();
+    return interpolateFeedback_(state, goal_state, rel_time, *fb_state);
   }
 
   GPU_FB_T* getDevicePointer() {
@@ -186,11 +223,11 @@ public:
     this->gpu_controller_->copyToDevice();
   }
 
-  TEMPLATED_FEEDBACK_STATE getFeedbackState() { // TODO change to getFeedbackState()
+  TEMPLATED_FEEDBACK_STATE getFeedbackState() {
     return this->gpu_controller_->getFeedbackState();
   }
 
-  TEMPLATED_FEEDBACK_STATE* getFeedbackStatePointer() { // TODO change to getFeedbackState()
+  TEMPLATED_FEEDBACK_STATE* getFeedbackStatePointer() {
     return this->gpu_controller_->getFeedbackStatePointer();
   }
 
@@ -202,7 +239,6 @@ protected:
   float dt_;
   int num_timesteps_;
   PARAMS_T params_;
-  // FEEDBACK_STATE_T feedback_state_;
 };
 
 #ifdef __CUDACC__
