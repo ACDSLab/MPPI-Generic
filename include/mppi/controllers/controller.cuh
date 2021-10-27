@@ -266,7 +266,7 @@ public:
     //         + alpha*gain_traj[upper_idx])*(state - target_nominal_state);
 
     // return u_fb;
-    return fb_controller_->interpolateFeedback(state, target_nominal_state, rel_time, gain_traj);
+    return fb_controller_->interpolateFeedback(state, target_nominal_state, rel_time);
   }
 
   /**

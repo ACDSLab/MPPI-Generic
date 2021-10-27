@@ -276,10 +276,11 @@ void TubeMPPI::calculateSampledStateTrajectories() {
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
   // run kernel
-  mppi_common::launchStateTrajectoryKernel<DYN_T, BDIM_X, BDIM_Y, 2, false>(this->model_->model_d_, this->sampled_noise_d_,
-                                                                            this->initial_state_d_, this->sampled_states_d_,
-                                                                            num_sampled_trajectories, this->num_timesteps_,
-                                                                            this->dt_, this->stream_);
+  mppi_common::launchStateTrajectoryKernel<DYN_T, FEEDBACK_GPU, BDIM_X, BDIM_Y,
+    2, false>(this->model_->model_d_, this->fb_controller_->getDevicePointer(),
+              this->sampled_noise_d_, this->initial_state_d_,
+              this->sampled_states_d_, num_sampled_trajectories,
+              this->num_timesteps_, this->dt_, this->stream_);
 
   // copy back results
   for(int i = 0; i < num_sampled_trajectories*2; i++) {

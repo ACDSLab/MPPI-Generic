@@ -12,6 +12,10 @@
 #include <memory>
 #include <tuple>
 
+struct GPUState {
+  static const int SHARED_MEM_SIZE = 1; // minimum of 1 is required
+};
+
 /**
   * This is the begining of the mess. So we have a GPU Feedback class that houses the methods and data
   * that are used on the GPU. The first template argument is for that cool thing that Jason knows the name of.
@@ -30,6 +34,7 @@
 template<class GPU_FB_T, class TEMPLATED_DYNAMICS, class GPU_STATE_T>
 class GPUFeedbackController : public Managed {
 public:
+  static const int SHARED_MEM_SIZE = GPU_STATE_T::SHARED_MEM_SIZE;
   /**
    * Type Aliasing
    */
@@ -76,9 +81,8 @@ public:
   /**
    * ==================== NECESSARY METHODS TO OVERWRITE =====================
    */
-  __device__ void k(const float * x_act, const float * x_goal,
-         const float t, float * theta,
-         float* control_output) {
+  __device__ void k(const float* x_act, const float* x_goal, const float t,
+                    float* theta, float* control_output) {
     //CLASS_T* derived = static_cast<CLASS_T*>(this);
     //derived->k(x_act, x_goal, t, theta, control_output);
   }

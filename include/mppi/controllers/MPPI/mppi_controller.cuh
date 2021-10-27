@@ -51,6 +51,11 @@ public:
                             BDIM_X,
                             BDIM_Y>::sampled_cost_traj;
 
+  using FEEDBACK_GPU = typename Controller<DYN_T, COST_T, FB_T,
+                                           MAX_TIMESTEPS, NUM_ROLLOUTS,
+                                           BDIM_X,
+                                           BDIM_Y>::TEMPLATED_FEEDBACK_GPU;
+
 
   /**
    *

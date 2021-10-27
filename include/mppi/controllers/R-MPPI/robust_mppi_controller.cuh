@@ -38,13 +38,16 @@
 #include <mppi/controllers/controller.cuh>
 #include <mppi/core/mppi_common.cuh>
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
-          int BDIM_X = 64, int BDIM_Y = 1, int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
+// Needed for list of candidate states
+#include <mppi/ddp/util.h>
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS,
+          int NUM_ROLLOUTS = 2560, int BDIM_X = 64, int BDIM_Y = 1,
+          int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
 class RobustMPPIController : public Controller<DYN_T, COST_T, FB_T,
-                                            MAX_TIMESTEPS,
-                                            NUM_ROLLOUTS,
-                                            BDIM_X,
-                                            BDIM_Y> {
+                                               MAX_TIMESTEPS,
+                                               NUM_ROLLOUTS,
+                                               BDIM_X, BDIM_Y> {
 
 public:
 
@@ -88,10 +91,14 @@ public:
                                                 BDIM_Y>::TEMPLATED_FEEDBACK_STATE;
 
   using FEEDBACK_PARAMS = typename Controller<DYN_T, COST_T, FB_T,
-                                                MAX_TIMESTEPS,
-                                                NUM_ROLLOUTS,
-                                                BDIM_X,
-                                                BDIM_Y>::TEMPLATED_FEEDBACK_PARAMS;
+                                              MAX_TIMESTEPS,
+                                              NUM_ROLLOUTS, BDIM_X,
+                                              BDIM_Y>::TEMPLATED_FEEDBACK_PARAMS;
+
+  using FEEDBACK_GPU = typename Controller<DYN_T, COST_T, FB_T,
+                                           MAX_TIMESTEPS,
+                                           NUM_ROLLOUTS, BDIM_X,
+                                           BDIM_Y>::TEMPLATED_FEEDBACK_GPU;
 
   // using m_dyn = typename ModelWrapperDDP<DYN_T>::Scalar;
   // using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
@@ -124,7 +131,6 @@ public:
   RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                        float lambda, float alpha,
                        float value_function_threshold,
-                       FEEDBACK_PARAMS fb_params,
                        const Eigen::Ref<const control_array>& control_std_dev,
                        int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
@@ -138,10 +144,6 @@ public:
   ~RobustMPPIController();
 
   std::string getControllerName() {return "Robust MPPI";};
-
-  FEEDBACK_STATE getFeedbackInternalState() override {
-    return this->fb_controller_->getFeedbackInternalState();
-  };
 
   // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
   // and allocates the associated CUDA memory
@@ -160,6 +162,10 @@ public:
   control_trajectory getControlSeq() override {return this->control_;};
 
   state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
+
+  state_array getNominalState() {return nominal_state_;}
+
+  int getBestIndex() {return best_index_;};
 
   // Does nothing. This reason is because the control sliding happens during the importance sampler update.
   // The control applied to the real system (during the MPPI rollouts) is the nominal control (which slides
@@ -214,11 +220,8 @@ protected:
   Eigen::MatrixXi importance_sampler_strides_; // Time index where control trajectory starts for each nominal state candidate
   Eigen::MatrixXf candidate_trajectory_costs_;
   Eigen::MatrixXf candidate_free_energy_;
-  // std::vector<float> feedback_gain_vector_;
 
   void allocateCUDAMemory();
-
-  void deallocateCUDAMemory();
 
   void copyNominalControlToDevice();
 

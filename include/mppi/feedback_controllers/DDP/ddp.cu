@@ -2,7 +2,7 @@
 
 template <class GPU_FB_T, class DYN_T, int NUM_TIMESTEPS>
 DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::DeviceDDPImpl(int num_timesteps, cudaStream_t stream) :
-  num_timesteps_(num_timesteps), GPUFeedbackController<DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>>(stream) {
+  num_timesteps_(num_timesteps), GPUFeedbackController<GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>>(stream) {
 
 }
 
@@ -46,10 +46,10 @@ DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::DeviceDDPImpl(int num_timesteps, 
 // }
 
 template <class GPU_FB_T, class DYN_T, int NUM_TIMESTEPS>
-__device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(const float * x_act, const float * x_goal,
-                                       const float t, float * theta,
-                                       float* control_output) {
-  float * fb_gain_t = &(this->params_.fb_gain_traj_[DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * (int) t]);
+__device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(
+    const float* x_act, const float* x_goal,
+    const float t, float* theta, float* control_output) {
+  float * fb_gain_t = &(this->state_.fb_gain_traj_[DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * ((int) t)]);
   float e = 0;
   for (int i = 0; i < DYN_T::STATE_DIM; i++) {
     e = x_act[i] - x_goal[i];
@@ -93,8 +93,8 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController() {
                                                                verbose);
 
   result_ = OptimizerResult<ModelWrapperDDP<DYN_T>>();
-  result_.feedback_gain = feedback_gain_trajectory(NUM_TIMESTEPS);
-  for(int i = 0; i < NUM_TIMESTEPS; i++) {
+  result_.feedback_gain = feedback_gain_trajectory(this->num_timesteps_);
+  for(int i = 0; i < this->num_timesteps_; i++) {
     result_.feedback_gain[i] = DYN_T::feedback_matrix::Zero();
   }
 
@@ -105,7 +105,7 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController() {
 
   run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(this->params_.Q,
                                                                         this->params_.R,
-                                                                        NUM_TIMESTEPS);
+                                                                        this->num_timesteps_);
   terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(this->params_.Q_f);
 }
 
@@ -114,7 +114,7 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::setParams(DDPParams<DYN_T>& params) {
   this->params_ = params;
   run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(this->params_.Q,
                                                                         this->params_.R,
-                                                                        NUM_TIMESTEPS);
+                                                                        this->num_timesteps_);
   terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(this->params_.Q_f);
 }
 
@@ -136,28 +136,22 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
     const Eigen::Ref<const control_trajectory>& control_traj) {
 
   run_cost_->setTargets(goal_traj.data(), control_traj.data(),
-                        NUM_TIMESTEPS);
+                        this->num_timesteps_);
 
-  terminal_cost_->xf = run_cost_->traj_target_x_.col(NUM_TIMESTEPS - 1);
+  terminal_cost_->xf = run_cost_->traj_target_x_.col(this->num_timesteps_ - 1);
   result_ = ddp_solver_->run(init_state, control_traj,
                              *ddp_model_, *run_cost_, *terminal_cost_,
                              control_min_, control_max_);
-  // this->feedback_state_.fb_gain_traj_ = result_.feedback_gain;
 
   // Copy Feedback Gains into GPU state
-  // Doesn't work because feedback_gain is a vector of matrices
-  // this->gpu_controller_->fb_gains_ = result_.feedback_gain.data();
   for (size_t i = 0; i < result_.feedback_gain.size(); i++) {
     int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
     for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {
-      // this->gpu_controller_->fb_gains_[i_index + j] = result_.feedback_gain[i].data()[j];
-      // this->gpu_controller_->params_.fb_gain_traj_[i_index + j] = result_.feedback_gain[i].data()[j];
-      // this->feedback_state_.fb_gain_traj_[i_index + j] = result_.feedback_gain[i].data()[j];
       this->getFeedbackStatePointer()->fb_gain_traj_[i_index + j] = result_.feedback_gain[i].data()[j];
     }
   }
   // Actually put new feedback gain trajectory onto the GPU
-  this->gpu_controller_->copyToDevice();
+  // this->gpu_controller_->copyToDevice();
 }
 
 // template <class DYN_T, int NUM_TIMESTEPS>

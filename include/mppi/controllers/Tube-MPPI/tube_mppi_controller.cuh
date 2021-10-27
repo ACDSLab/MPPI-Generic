@@ -62,6 +62,11 @@ public:
                                               BDIM_X,
                                               BDIM_Y>::TEMPLATED_FEEDBACK_PARAMS;
 
+  using FEEDBACK_GPU = typename Controller<DYN_T, COST_T, FB_T,
+                                           MAX_TIMESTEPS, NUM_ROLLOUTS,
+                                           BDIM_X,
+                                           BDIM_Y>::TEMPLATED_FEEDBACK_GPU;
+
   // using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
   // using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
   // using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;

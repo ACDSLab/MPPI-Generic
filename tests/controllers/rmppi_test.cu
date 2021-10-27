@@ -6,26 +6,27 @@
 #include <cnpy.h>
 #include <random> // Used to generate random noise for control trajectories
 
+#include <mppi/feedback_controllers/DDP/ddp.cuh>
 
 
 /******************************************************************************
  * Test class for RobustControllerPrivateMethods
  ******************************************************************************/
+using DYN = DoubleIntegratorDynamics;
+using COST = DoubleIntegratorCircleCost;
+const int NUM_TIMESTEPS = 100;
 class TestRobust: public RobustMPPIController<
-         DoubleIntegratorDynamics, DoubleIntegratorCircleCost, 100, 2048, 64, 8>{
+         DYN, COST, DDPFeedback<DYN, NUM_TIMESTEPS>, NUM_TIMESTEPS, 2048, 64, 8>{
  public:
-  TestRobust(DoubleIntegratorDynamics *model,
-          DoubleIntegratorCircleCost *cost,
-          float dt, int max_iter, float lambda, float alpha,
-          float value_function_threshold,
-          const Eigen::Ref<const StateCostWeight>& Q,
-          const Eigen::Ref<const Hessian>& Qf,
-          const Eigen::Ref<const ControlCostWeight>& R,
-          const Eigen::Ref<const control_array>& control_std_dev,
-          int num_timesteps,
-          const Eigen::Ref<const control_trajectory>& init_control_traj,
-          cudaStream_t stream) :
-  RobustMPPIController(model, cost, dt,  max_iter, lambda, alpha, value_function_threshold, Q, Qf, R, control_std_dev, num_timesteps, init_control_traj, 9, 1, stream) {}
+  TestRobust(DYN *model, COST *cost,
+             DDPFeedback<DYN, NUM_TIMESTEPS>* fb_controller,
+             float dt, int max_iter, float lambda, float alpha,
+             float value_function_threshold,
+             const Eigen::Ref<const control_array>& control_std_dev,
+             int num_timesteps,
+             const Eigen::Ref<const control_trajectory>& init_control_traj,
+             cudaStream_t stream) :
+  RobustMPPIController(model, cost, fb_controller, dt,  max_iter, lambda, alpha, value_function_threshold, control_std_dev, num_timesteps, init_control_traj, 9, 1, stream) {}
 
   // Test to make sure that its nonzero
   // Test to make sure that cuda memory is allocated
@@ -85,8 +86,12 @@ class TestRobust: public RobustMPPIController<
     return nominal_state_;
   }
 
-  std::vector<float> getFeedbackGainVector() {
-    return this->feedback_gain_vector_;
+  float* getFeedbackGainVector() {
+    return this->fb_controller_->getFeedbackState().fb_gain_traj_;
+  }
+
+  TEMPLATED_FEEDBACK::feedback_gain_trajectory getFeedbackGainsEigen() {
+    return this->fb_controller_->getFeedbackGainsEigen();
   }
 
  };
@@ -96,31 +101,35 @@ class RMPPINominalStateCandidates : public ::testing::Test {
 public:
   using dynamics = DoubleIntegratorDynamics;
   using cost_function = DoubleIntegratorCircleCost;
+  using FEEDBACK_CONTROL = DDPFeedback<dynamics, NUM_TIMESTEPS>;
 
 protected:
   void SetUp() override {
     model = new dynamics(10);  // Initialize the double integrator dynamics
     cost = new cost_function;  // Initialize the cost function
+    fb_controller = new FEEDBACK_CONTROL(model, dt);
     control_std_dev << 0.0001, 0.0001;
     init_control_traj.setZero();
     // Q, Qf, R
-    dynamics::dfdx Q, Qf;  // Get a N x N matrix
-    cost_function::control_matrix R; // Get a M x M matrix
-    Q.setIdentity();
-    Qf.setIdentity();
-    R.setIdentity();
-    test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, 1000.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
+    auto fb_params = fb_controller->getParams();
+    fb_params.Q.setIdentity();
+    fb_params.Q_f.setIdentity();
+    fb_params.R.setIdentity();
+    fb_controller->setParams(fb_params);
+    test_controller = new TestRobust(model, cost, fb_controller, dt, 3, lambda, alpha, 1000.0, control_std_dev, 100, init_control_traj, 0);
   }
 
   void TearDown() override {
     delete test_controller;
     delete model;
     delete cost;
+    delete fb_controller;
   }
 
   dynamics* model;
   cost_function* cost;
   TestRobust* test_controller;
+  FEEDBACK_CONTROL* fb_controller;
   dynamics::control_array control_std_dev;
   TestRobust::control_trajectory init_control_traj;
   float dt = 0.01;
@@ -244,6 +253,7 @@ class RMPPINominalStateSelection : public ::testing::Test {
 public:
   using dynamics = DoubleIntegratorDynamics;
   using cost_function = DoubleIntegratorCircleCost;
+  using FEEDBACK_CONTROL = DDPFeedback<dynamics, NUM_TIMESTEPS>;
   int num_samples = 64;
   int num_candidates = 9;
   Eigen::MatrixXf trajectory_costs;
@@ -251,17 +261,18 @@ protected:
   void SetUp() override {
     model = new dynamics(10);  // Initialize the double integrator dynamics
     cost = new cost_function;  // Initialize the cost function
+    fb_controller = new FEEDBACK_CONTROL(model, dt);
     control_std_dev << 0.0001, 0.0001;
     init_control_traj.setZero();
 
     // Q, Qf, R
-    dynamics::dfdx Q, Qf;  // Get a N x N matrix
-    cost_function::control_matrix R; // Get a M x M matrix
-    Q.setIdentity();
-    Qf.setIdentity();
-    R.setIdentity();
+    auto fb_params = fb_controller->getParams();
+    fb_params.Q.setIdentity();
+    fb_params.Q_f.setIdentity();
+    fb_params.R.setIdentity();
+    fb_controller->setParams(fb_params);
 
-    test_controller = new TestRobust(model, cost, dt, 3, lambda, alpha, 1000.0, Q, Qf, R, control_std_dev, 100, init_control_traj, 0);
+    test_controller = new TestRobust(model, cost, fb_controller, dt, 3, lambda, alpha, 1000.0, control_std_dev, 100, init_control_traj, 0);
 
     // Set the size of the trajectory costs function
     trajectory_costs.resize(num_samples*num_candidates, 1);
@@ -274,11 +285,13 @@ protected:
     delete test_controller;
     delete cost;
     delete model;
+    delete fb_controller;
   }
 
   dynamics* model;
   cost_function* cost;
   TestRobust* test_controller;
+  FEEDBACK_CONTROL* fb_controller;
   dynamics::control_array control_std_dev;
   TestRobust::control_trajectory init_control_traj;
   float dt = 0.01;
@@ -433,22 +446,20 @@ TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_CurrentReal) {
   ASSERT_EQ(real_x_kp1, nominal_state) << "\nExpected state << \n" << real_x_kp1 << "\nComputed state: \n" << nominal_state;
 }
 
-TEST_F(RMPPINominalStateSelection, FeedbackGainInternalStorage) {
+TEST_F(RMPPINominalStateSelection, DDPFeedbackGainInternalStorage) {
   dynamics::state_array x;
   x << 2, 0, 0, 0;
   int stride = 1;
   test_controller->updateImportanceSamplingControl(x, stride);
   test_controller->updateImportanceSamplingControl(x, stride);
 
-  std::vector<float> feedback_gain_vector = test_controller->getFeedbackGainVector();
-
-  auto feedback_gain_eigen_aligned = test_controller->getFeedbackGains();
-
+  auto fb_parm = test_controller->getFeedbackState();
+  auto feedback_gain_eigen_aligned = test_controller->getFeedbackGainsEigen();
 
   for (size_t i = 0; i < feedback_gain_eigen_aligned.size(); i++) {
     int i_index = i * dynamics::STATE_DIM * dynamics::CONTROL_DIM;
     for (size_t j = 0; j < dynamics::CONTROL_DIM * dynamics::STATE_DIM; j++) {
-      ASSERT_FLOAT_EQ(feedback_gain_vector[i_index + j] , feedback_gain_eigen_aligned[i].data()[j]);
+      ASSERT_FLOAT_EQ(fb_parm.fb_gain_traj_[i_index + j] , feedback_gain_eigen_aligned[i].data()[j]) << " at i = " << i;
     }
   }
 }
@@ -467,6 +478,8 @@ bool tubeFailure(float *s) {
 TEST(RMPPITest, RobustMPPILargeVariance) {
   using DYNAMICS = DoubleIntegratorDynamics;
   using COST_T = DoubleIntegratorCircleCost;
+  const int num_timesteps = 50;  // Optimization time horizon
+  using FEEDBACK_T = DDPFeedback<DYNAMICS, num_timesteps>;
   // Noise enters the system during the "true" state propagation. In this case the noise is nominal
   DYNAMICS model(100);  // Initialize the double integrator dynamics
   COST_T cost;  // Initialize the cost function
@@ -474,12 +487,12 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   int max_iter = 1; // Maximum running iterations of optimization
   float lambda = 4; // Learning rate parameter
   float alpha = 0.00;
-  const int num_timesteps = 50;  // Optimization time horizon
   const int total_time_horizon = 5000;
+  FEEDBACK_T fb_controller(&model, dt);
 
   std::vector<float> actual_trajectory_save(num_timesteps*total_time_horizon*DYNAMICS::STATE_DIM);
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DYNAMICS::STATE_DIM);
-  std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DYNAMICS::STATE_DIM);
+  // std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DYNAMICS::STATE_DIM);
 
 
   // Set the initial state
@@ -493,10 +506,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   control_var << 1, 1;
 
   // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-
+  auto fb_params = fb_controller.getParams();
   /**
    * Q =
    * [500, 0, 0, 0
@@ -504,18 +514,17 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
    *  0, 0, 100, 0
    *  0, 0, 0, 100]
    */
-  Q = 500*DoubleIntegratorDynamics::dfdx::Identity();
-  Q(2,2) = 100;
-  Q(3,3) = 100;
-  /**
-   * R = I
-   */
-  R = 1*DoubleIntegratorCircleCost::control_matrix::Identity();
-
+  fb_params.Q = DYNAMICS::dfdx::Identity();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
   /**
    * Qf = I
    */
-  Qf = DoubleIntegratorDynamics::dfdx::Identity();
+  fb_params.Q_f = DYNAMICS::dfdx::Identity();
+  /**
+   * R = I
+   */
+  fb_params.R = FEEDBACK_T::square_control_matrix::Identity();
+  fb_controller.setParams(fb_params);
 
   // Value function threshold
   float value_function_threshold = 10.0;
@@ -525,8 +534,8 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
   // Initialize the R MPPI controller
-  auto controller = RobustMPPIController<DYNAMICS, COST_T, num_timesteps,
-          1024, 64, 8, 1>(&model, &cost, dt, max_iter, lambda, alpha, value_function_threshold, Q, Qf, R, control_var);
+  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps,
+          1024, 64, 8, 1>(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
 
   int fail_count = 0;
 
@@ -534,9 +543,9 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
   for (int t = 0; t < total_time_horizon; ++t) {
     // Print the system state
     if (t % 100 == 0) {
-      printf("Current Time: %f    ", t * dt);
+      printf("Current Time: %f  ", t * dt);
       model.printState(x.data());
-      std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
+      std::cout << "                    Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
     }
 
     if (cost.computeStateCost(x) > 1000) {
@@ -546,13 +555,13 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
     if (tubeFailure(x.data())) {
       cnpy::npy_save("robust_sc_large_actual.npy", actual_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
-      cnpy::npy_save("robust_sc_ancillary.npy", ancillary_trajectory_save.data(),
-                     {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+      // cnpy::npy_save("robust_sc_ancillary.npy", ancillary_trajectory_save.data(),
+      //                {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
       cnpy::npy_save("robust_sc_large_nominal.npy",nominal_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
-      printf("Current Time: %f    ", t * dt);
+      printf("Current Time: %f  ", t * dt);
       model.printState(x.data());
-      std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
+      std::cout << "                    Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
       std::cout << "Tube failure!!" << std::endl;
       FAIL() << "Visualize the trajectories by running scripts/double_integrator/plot_DI_test_trajectories; "
                 "the argument to this python file is the build directory of MPPI-Generic";
@@ -567,15 +576,15 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
     auto nominal_trajectory = controller.getStateSeq();
 
     // Save the ancillary trajectory
-    auto ancillary_trajectory = controller.getAncillaryStateSeq();
+    // auto ancillary_trajectory = controller.getAncillaryStateSeq();
 
 
     for (int i = 0; i < num_timesteps; i++) {
       for (int j = 0; j < DYNAMICS::STATE_DIM; j++) {
         actual_trajectory_save[t * num_timesteps * DYNAMICS::STATE_DIM +
                                i*DYNAMICS::STATE_DIM + j] = x(j);
-        ancillary_trajectory_save[t * num_timesteps * DYNAMICS::STATE_DIM +
-                                  i*DYNAMICS::STATE_DIM + j] = ancillary_trajectory(j, i);
+        // ancillary_trajectory_save[t * num_timesteps * DYNAMICS::STATE_DIM +
+        //                           i*DYNAMICS::STATE_DIM + j] = ancillary_trajectory(j, i);
         nominal_trajectory_save[t * num_timesteps * DYNAMICS::STATE_DIM +
                                 i*DYNAMICS::STATE_DIM + j] = nominal_trajectory(j, i);
       }
@@ -586,7 +595,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
 
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0]*(x - controller.getStateSeq().col(0));
+    current_control += controller.computeFeedbackControl(x, controller.getStateSeq().col(0), 0);
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -601,8 +610,8 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
 
   cnpy::npy_save("robust_sc_large_actual.npy",actual_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
-  cnpy::npy_save("robust_sc_ancillary.npy",ancillary_trajectory_save.data(),
-                 {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+  // cnpy::npy_save("robust_sc_ancillary.npy",ancillary_trajectory_save.data(),
+  //                {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
   cnpy::npy_save("robust_sc_large_nominal.npy",nominal_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
 }
@@ -610,24 +619,27 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
 TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
   using DYNAMICS = DoubleIntegratorDynamics;
   using COST_T = DoubleIntegratorRobustCost;
+  const int num_timesteps = 50;  // Optimization time horizon
+  using FEEDBACK_T = DDPFeedback<DYNAMICS, num_timesteps>;
+
+  float dt = 0.02; // Timestep of dynamics propagation
   // Noise enters the system during the "true" state propagation. In this case the noise is nominal
   DYNAMICS model(100);  // Initialize the double integrator dynamics
   COST_T cost;  // Initialize the cost function
+  FEEDBACK_T fb_controller(&model, dt);
   auto params = cost.getParams();
   params.velocity_desired = 2;
   params.crash_cost = 100;
   cost.setParams(params);
-  float dt = 0.02; // Timestep of dynamics propagation
   int max_iter = 3; // Maximum running iterations of optimization
   float lambda = 2.0; // Learning rate parameter
   float alpha = 0.0;
   int crash_status[1] = {0};
-  const int num_timesteps = 50;  // Optimization time horizon
   const int total_time_horizon = 5000;
 
   std::vector<float> actual_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
   std::vector<float> nominal_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
-  std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
+  // std::vector<float> ancillary_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
   std::vector<float> feedback_trajectory_save(num_timesteps*total_time_horizon*DoubleIntegratorDynamics::STATE_DIM);
 
   // Set the initial state
@@ -640,12 +652,8 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
   DYNAMICS::control_array control_var;
   control_var << 1, 1;
 
-
   // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-
+  auto fb_params = fb_controller.getParams();
   /**
    * Q =
    * [500, 0, 0, 0
@@ -653,18 +661,18 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
    *  0, 0, 100, 0
    *  0, 0, 0, 100]
    */
-  Q = 500*DoubleIntegratorDynamics::dfdx::Identity();
-  Q(2,2) = 100;
-  Q(3,3) = 100;
-  /**
-   * R = I
-   */
-  R = 1*DoubleIntegratorCircleCost::control_matrix::Identity();
-
+  fb_params.Q = DYNAMICS::dfdx::Identity();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
   /**
    * Qf = I
    */
-  Qf = DoubleIntegratorDynamics::dfdx::Identity();
+  fb_params.Q_f = DYNAMICS::dfdx::Identity();
+  /**
+   * R = I
+   */
+  fb_params.R = FEEDBACK_T::square_control_matrix::Identity();
+  // fb_params.num_iterations = 4;
+  fb_controller.setParams(fb_params);
 
   // Value function threshold
   float value_function_threshold = 10.0;
@@ -674,8 +682,8 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
   //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
   // Initialize the R MPPI controller
-  auto controller = RobustMPPIController<DYNAMICS, COST_T, num_timesteps,
-          1024, 64, 8, 1>(&model, &cost, dt, max_iter, lambda, alpha, value_function_threshold, Q, Qf, R, control_var);
+  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps,
+          1024, 64, 8, 1>(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
 
   int fail_count = 0;
 
@@ -689,15 +697,15 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
     if (tubeFailure(x.data())) {
       cnpy::npy_save("robust_rc_large_actual.npy", actual_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
-      cnpy::npy_save("robust_rc_ancillary.npy", ancillary_trajectory_save.data(),
-                     {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+      // cnpy::npy_save("robust_rc_ancillary.npy", ancillary_trajectory_save.data(),
+      //                {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
       cnpy::npy_save("robust_rc_large_nominal.npy",nominal_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
       cnpy::npy_save("robust_rc_large_feedback.npy",feedback_trajectory_save.data(),
                      {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
-      printf("Current Time: %f    ", t * dt);
+      printf("Current Time: %f  ", t * dt);
       model.printState(x.data());
-      std::cout << "                          Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
+      std::cout << "                    Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
       std::cout << "Tube failure!!" << std::endl;
       FAIL() << "Visualize the trajectories by running scripts/double_integrator/plot_DI_test_trajectories; "
                 "the argument to this python file is the build directory of MPPI-Generic";
@@ -711,10 +719,10 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
 
     // Print the system state
     if (t % 100 == 0) {
-      printf("Current Time: %f    ", t * dt);
+      printf("Current Time: %f  ", t * dt);
       model.printState(x.data());
       auto free_energy_stats = controller.getFreeEnergyStatistics();
-      std::cout << "                           Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
+      std::cout << "                    Candidate Free Energies: " << controller.getCandidateFreeEnergy().transpose() << std::endl;
       std::cout << "Real    FE [mean, variance]: [" << free_energy_stats.real_sys.freeEnergyMean << ", " << free_energy_stats.real_sys.freeEnergyVariance << "]" << std::endl;
       std::cout << "Nominal FE [mean, variance]: [" << free_energy_stats.nominal_sys.freeEnergyMean << ", " << free_energy_stats.nominal_sys.freeEnergyVariance << "]" << std::endl;
       std::cout << "Algorithm Health Normalizer: [" << controller.getNormalizerPercent() << "]" << std::endl;
@@ -725,7 +733,7 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
     auto nominal_trajectory = controller.getStateSeq();
 
     // Save the ancillary trajectory
-    auto ancillary_trajectory = controller.getAncillaryStateSeq();
+    // auto ancillary_trajectory = controller.getAncillaryStateSeq();
 
     // Compute the propagated state trajectory
     auto propagated_trajectory = controller.getFeedbackPropagatedStateSeq();
@@ -739,8 +747,8 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
       for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
         actual_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
                                i*DoubleIntegratorDynamics::STATE_DIM + j] = actual_trajectory(j,i);
-        ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
-                                  i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
+        // ancillary_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
+        //                           i*DoubleIntegratorDynamics::STATE_DIM + j] = ancillary_trajectory(j, i);
         nominal_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
                                 i*DoubleIntegratorDynamics::STATE_DIM + j] = nominal_trajectory(j, i);
         feedback_trajectory_save[t * num_timesteps * DoubleIntegratorDynamics::STATE_DIM +
@@ -753,7 +761,8 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
 
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0]*(x - controller.getStateSeq().col(0));
+    DYNAMICS::control_array fb_control = controller.computeFeedbackControl(x, controller.getStateSeq().col(0), 0);
+    current_control += fb_control;
 
     // Compute real free energy bound
 
@@ -776,8 +785,8 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
 
   cnpy::npy_save("robust_rc_large_actual.npy",actual_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
-  cnpy::npy_save("robust_rc_ancillary.npy",ancillary_trajectory_save.data(),
-                 {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
+  // cnpy::npy_save("robust_rc_ancillary.npy",ancillary_trajectory_save.data(),
+  //                {total_time_horizon, num_timesteps, DYNAMICS::STATE_DIM},"w");
   cnpy::npy_save("robust_rc_large_nominal.npy",nominal_trajectory_save.data(),
                  {total_time_horizon, num_timesteps, DoubleIntegratorDynamics::STATE_DIM},"w");
   cnpy::npy_save("robust_rc_large_feedback.npy",feedback_trajectory_save.data(),

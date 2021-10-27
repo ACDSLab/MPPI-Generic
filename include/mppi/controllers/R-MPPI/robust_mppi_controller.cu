@@ -9,7 +9,6 @@ template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLO
 RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                      float lambda, float alpha,
                      float value_function_threshold,
-                     FEEDBACK_PARAMS fb_params,
                      const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps,
                      const Eigen::Ref<const control_trajectory>& init_control_traj,
@@ -33,14 +32,10 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller
   this->copyControlStdDevToDevice();
 
   // Initialize Feedback
-  this->fb_controller_->setParams(fb_params);
   this->fb_controller_->initTrackingController();
 
   // Initialize the nominal control trajectory
   nominal_control_trajectory_ = init_control_traj;
-
-  // Resize the feedback gain vector to hold the raw data for the feedback gains
-  // feedback_gain_vector_.resize(MAX_TIMESTEPS*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM);
 
   this->enable_feedback_ = true;
 }
@@ -48,22 +43,12 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 RobustMPPI::~RobustMPPIController() {
   deallocateNominalStateCandidateMemory();
-  deallocateCUDAMemory();
 }
 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::allocateCUDAMemory() {
   Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
-
-  // We need to allocate memory for the feedback gains
-  HANDLE_ERROR(cudaMalloc((void**)&feedback_gain_array_d_, sizeof(float)*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM*this->num_timesteps_));
 }
-
-template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
-void RobustMPPI::deallocateCUDAMemory() {
-  HANDLE_ERROR(cudaFree(feedback_gain_array_d_));
-}
-
 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::getInitNominalStateCandidates(
@@ -290,15 +275,6 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeNominalFeedbackGains(const Eigen::Ref<const state_array> &state) {
   this->computeFeedbackGainsHelper(state, nominal_state_trajectory_, nominal_control_trajectory_);
-
-  // Copy the feedback gains into the std::vector (this is useful for easily copying into GPU memory
-  // Copy Feedback Gains into an array
-  // for (size_t i = 0; i < this->result_.feedback_gain.size(); i++) {
-  //   int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
-  //   for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {
-  //     feedback_gain_vector_[i_index + j] = this->result_.feedback_gain[i].data()[j];
-  //   }
-  // }
 }
 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
@@ -313,9 +289,6 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
   this->free_energy_statistics_.nominal_sys.previousBaseline = this->baseline_nominal_;
 
   // Transfer the feedback gains to the GPU
-  // HANDLE_ERROR(cudaMemcpyAsync(feedback_gain_array_d_, feedback_gain_vector_.data(),
-  //                              sizeof(float)*this->num_timesteps_*DYN_T::STATE_DIM*DYN_T::CONTROL_DIM,
-  //                              cudaMemcpyHostToDevice, this->stream_));
   this->fb_controller_->copyToDevice();
 
   // Transfer the real initial state to the GPU
@@ -339,11 +312,11 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
 
     HANDLE_ERROR( cudaStreamSynchronize(this->stream_));
     // Launch the new rollout kernel
-    // TODO Change call to use gpu feedback rather than feedback_gain_array_d
-    rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
-            BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_, optimization_stride,
+    rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, FEEDBACK_GPU, NUM_ROLLOUTS, BLOCKSIZE_X,
+            BLOCKSIZE_Y, 2>(this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(),
+                            this->dt_, this->num_timesteps_, optimization_stride,
                             this->lambda_, this->alpha_, value_function_threshold_, this->initial_state_d_, this->control_d_,
-                            this->control_noise_d_, feedback_gain_array_d_, this->control_std_dev_d_,
+                            this->control_noise_d_, this->control_std_dev_d_,
                             this->trajectory_costs_d_, this->stream_);
 
     // Copy back sampled trajectories
@@ -459,11 +432,11 @@ void RobustMPPI::calculateSampledStateTrajectories() {
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
   // run kernel
-  // TODO Change call to use gpu feedback rather than feedback_gain_array_d
-  mppi_common::launchStateTrajectoryKernel<DYN_T, BDIM_X, BDIM_Y, 2, true>(this->model_->model_d_, this->sampled_noise_d_,
-                                                                            this->initial_state_d_, this->sampled_states_d_,
-                                                                            num_sampled_trajectories, this->num_timesteps_,
-                                                                            this->dt_, this->stream_, this->feedback_gain_array_d_);
+  mppi_common::launchStateTrajectoryKernel<DYN_T, FEEDBACK_GPU, BDIM_X, BDIM_Y,
+    2, true>(this->model_->model_d_, this->fb_controller_->getDevicePointer(),
+             this->sampled_noise_d_, this->initial_state_d_,
+             this->sampled_states_d_, num_sampled_trajectories,
+             this->num_timesteps_, this->dt_, this->stream_);
 
   // copy back results
   for(int i = 0; i < num_sampled_trajectories*2; i++) {

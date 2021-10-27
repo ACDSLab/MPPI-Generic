@@ -34,7 +34,7 @@ struct DDPFBState {
 };
 
 template<class DYN_T, int N_TIMESTEPS>
-struct DDPFeedbackState {
+struct DDPFeedbackState : GPUState {
   static const int FEEDBACK_SIZE = DYN_T::CONTROL_DIM * DYN_T::STATE_DIM * N_TIMESTEPS;
   static const int NUM_TIMESTEPS = N_TIMESTEPS;
 
@@ -51,7 +51,7 @@ struct DDPFeedbackState {
   */
 template <class GPU_FB_T, class DYN_T, int NUM_TIMESTEPS = 1>
 class DeviceDDPImpl : public GPUFeedbackController<
-  DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>> {
+  GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>> {
 public:
 
   // using TEMPLATED_DYNAMICS = typename GPUFeedbackController<DeviceDDPImpl<GPU_FB_T, DYN_T>, DYN_T>::DYN_T;
@@ -59,7 +59,7 @@ public:
   float * fb_gains_ = nullptr;
   float * fb_gains_d_ = nullptr;
   DeviceDDPImpl(int num_timesteps, cudaStream_t stream = 0);
-  DeviceDDPImpl(cudaStream_t stream = 0) : GPUFeedbackController<DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>>(stream) {};
+  DeviceDDPImpl(cudaStream_t stream = 0) : GPUFeedbackController<GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>>(stream) {};
 
   void allocateCUDAMemory() {};
   void deallocateCUDAMemory() {};
@@ -102,8 +102,7 @@ public:
   /**
    * Aliases
    **/
-  // typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
-  using feedback_gain_trajectory = typename DDPFBState<DYN_T>::feedback_gain_trajectory;
+  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
 
   using control_array = typename FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>,
                                                     DDPParams<DYN_T>,
@@ -125,7 +124,6 @@ public:
   /**
    * Variables
    **/
-  // feedback_gain_trajectory fb_gain_traj_;
   std::shared_ptr<ModelWrapperDDP<DYN_T>> ddp_model_;
   std::shared_ptr<TrackingCostDDP<ModelWrapperDDP<DYN_T>>> run_cost_;
   std::shared_ptr<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>> terminal_cost_;
@@ -197,6 +195,10 @@ public:
     Eigen::Map<feedback_gain_matrix> fb_gain(&(fb_state.fb_gain_traj_[index]));
     control_array u_output = fb_gain * (x_act - x_goal);
     return u_output;
+  }
+
+  feedback_gain_trajectory getFeedbackGainsEigen() {
+    return result_.feedback_gain;
   }
 
   void computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
