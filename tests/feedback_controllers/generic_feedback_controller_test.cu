@@ -7,6 +7,12 @@ struct DynamicsTesterParams {
   float4 var_4;
 };
 
+struct FeedbackParams {
+  int var_10 = 10;
+  int var_20 = 20;
+  float var_30 = 3.14;
+};
+
 template<int STATE_DIM = 1, int CONTROL_DIM = 1>
 class DynamicsTester : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM> {
 public:
@@ -39,11 +45,16 @@ public:
   }
 };
 
-class TestGPUFeedbackController : public GPUFeedbackController<TestGPUFeedbackController, DynamicsTester<>> {
+struct TestGPUState : GPUState {
+  int testing = 5;
+};
+
+class TestGPUFeedbackController : public GPUFeedbackController<TestGPUFeedbackController, DynamicsTester<>, TestGPUState> {
 public:
   typedef MockDynamics DYN_T;
+  typedef GPUFeedbackController<TestGPUFeedbackController, DynamicsTester<>, TestGPUState> PARENT_CLASS;
 
-  TestGPUFeedbackController(cudaStream_t stream = 0) : GPUFeedbackController<TestGPUFeedbackController, DynamicsTester<>>(stream) {}
+  TestGPUFeedbackController(cudaStream_t stream = 0) : PARENT_CLASS(stream) {}
 
   void allocateCudaMemory() {
 
@@ -63,23 +74,28 @@ public:
 
 };
 
-class TestFeedbackController : public FeedbackController<TestGPUFeedbackController, 10> {
+class TestFeedbackController : public FeedbackController<TestGPUFeedbackController, FeedbackParams, 10> {
 public:
-  TestFeedbackController(cudaStream_t stream = 0) : FeedbackController<TestGPUFeedbackController, 10>(stream) {}
+  typedef FeedbackController<TestGPUFeedbackController, FeedbackParams, 10>
+    PARENT_CLASS;
+  using INTERNAL_STATE_T = typename PARENT_CLASS::TEMPLATED_FEEDBACK_STATE;
 
-  std::shared_ptr<TestGPUFeedbackController> getGPUPointer() {return this->gpu_controller_;}
+  TestFeedbackController(float dt = 0.01, int num_timesteps = 10,
+    cudaStream_t stream=0) : PARENT_CLASS(dt, num_timesteps, stream) {}
 
-  control_array k(const Eigen::Ref<state_array>& x_act,
-                          const Eigen::Ref<state_array>& x_goal, float t) override {
+  control_array k_(const Eigen::Ref<const state_array>& x_act,
+                   const Eigen::Ref<const state_array>& x_goal,
+                   float t, INTERNAL_STATE_T& fb_state) override {
 
   }
 
   // might not be a needed method
-  void computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
-                                    const Eigen::Ref<const state_trajectory>& goal_traj,
-                                    const Eigen::Ref<const control_trajectory>& control_traj) override {
+  void computeFeedback(const Eigen::Ref<const state_array>& init_state,
+                       const Eigen::Ref<const state_trajectory>& goal_traj,
+                       const Eigen::Ref<const control_trajectory>& control_traj) override {
 
   }
+  void initTrackingController() override { }
 };
 
 TEST(FeedbackController, Constructor) {
@@ -87,15 +103,16 @@ TEST(FeedbackController, Constructor) {
 
   HANDLE_ERROR(cudaStreamCreate(&stream));
 
-  TestFeedbackController feedbackController(stream);
+  TestFeedbackController feedbackController(0.01, 10, stream);
+  feedbackController.GPUSetup();
 
-  EXPECT_EQ(feedbackController.getGPUPointer()->stream_, stream) << "Stream binding failure.";
-  EXPECT_EQ(feedbackController.getGPUPointer()->GPUMemStatus_, true);
-  EXPECT_NE(feedbackController.getDevicePointer(), nullptr);
+  EXPECT_EQ(feedbackController.getHostPointer()->stream_, stream) << "Stream binding failure.";
+  EXPECT_EQ(feedbackController.getHostPointer()->GPUMemStatus_, true) << "GPU not set up";
+  EXPECT_NE(feedbackController.getDevicePointer(), nullptr) << "GPU is not in device pointer";
 
   HANDLE_ERROR(cudaStreamDestroy(stream));
 }
 
-TEST(FeedbackController, ) {
+TEST(FeedbackController, test) {
 
 }

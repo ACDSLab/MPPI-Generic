@@ -214,7 +214,7 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
 
   Eigen::MatrixXf control_traj = Eigen::MatrixXf::Zero(CartpoleDynamics::CONTROL_DIM, num_timesteps);
 
-  fb_controller.computeFeedbackGains(s, nominal_state, nominal_control);
+  fb_controller.computeFeedback(s, nominal_state, nominal_control);
 
   // OptimizerResult<ModelWrapperDDP<CartpoleDynamics>> result_ = ddp_solver_->run(s, control_traj,
   //                                                                    *ddp_model, *tracking_cost, *terminal_cost);
@@ -315,7 +315,7 @@ TEST(DDPSolver_Test, Quadrotor_Tracking) {
 
 
   std::cout << "Starting DDP" << std::endl;
-  fb_controller.computeFeedbackGains(x_real, ddp_state_traj, control_traj);
+  fb_controller.computeFeedback(x_real, ddp_state_traj, control_traj);
   // OptimizerResult<ModelWrapperDDP<DYN>> result_ = ddp_solver->run(x_real,
   //                                                                 control_traj,
   //                                                                 *ddp_model,

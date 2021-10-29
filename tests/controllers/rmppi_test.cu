@@ -514,7 +514,6 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
    *  0, 0, 100, 0
    *  0, 0, 0, 100]
    */
-  fb_params.Q = DYNAMICS::dfdx::Identity();
   fb_params.Q.diagonal() << 500, 500, 100, 100;
   /**
    * Qf = I
@@ -595,7 +594,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
 
 
     // Apply the feedback given the current state
-    current_control += controller.computeFeedbackControl(x, controller.getStateSeq().col(0), 0);
+    current_control += controller.getFeedbackControl(x, controller.getStateSeq().col(0), 0);
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -661,7 +660,6 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
    *  0, 0, 100, 0
    *  0, 0, 0, 100]
    */
-  fb_params.Q = DYNAMICS::dfdx::Identity();
   fb_params.Q.diagonal() << 500, 500, 100, 100;
   /**
    * Qf = I
@@ -761,7 +759,7 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
 
 
     // Apply the feedback given the current state
-    DYNAMICS::control_array fb_control = controller.computeFeedbackControl(x, controller.getStateSeq().col(0), 0);
+    DYNAMICS::control_array fb_control = controller.getFeedbackControl(x, controller.getStateSeq().col(0), 0);
     current_control += fb_control;
 
     // Compute real free energy bound

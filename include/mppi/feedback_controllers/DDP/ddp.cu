@@ -6,45 +6,6 @@ DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::DeviceDDPImpl(int num_timesteps, 
 
 }
 
-// template <class GPU_FB_T, class DYN_T>
-// void DeviceDDPImpl<GPU_FB_T, DYN_T>::allocateCUDAMemory() {
-//   int fb_size = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * num_timesteps_;
-
-//   // Allocate CPU side memery
-//   fb_gains_ = new float[fb_size];
-//   std::cout << "fb_size: " << fb_size << std::endl;
-//   // std::cout << "feedback_d_: " << this->feedback_d_->fb_gains_ << std::endl;
-//   // float * fb_gains_d_;
-//   // Allocate GPU side memory
-//   cudaMalloc((void**)&fb_gains_d_, fb_size * sizeof(float));
-//   // cudaMalloc((void**)&this->feedback_d_->fb_gains_, fb_size * sizeof(float));
-//   HANDLE_ERROR(cudaMemcpyAsync(&this->feedback_d_->fb_gains_,
-//                                &fb_gains_d_,
-//                                sizeof(float*),
-//                                cudaMemcpyHostToDevice,
-//                                this->stream_));
-//   HANDLE_ERROR( cudaStreamSynchronize(this->stream_) );
-// }
-
-// template <class GPU_FB_T, class DYN_T>
-// void DeviceDDPImpl<GPU_FB_T, DYN_T>::deallocateCUDAMemory() {
-//   if (this->fb_gains_d_ != nullptr) {
-//     // float* fb_gains_d_;
-//     // HANDLE_ERROR(cudaMemcpyAsync(&fb_gains_d_,
-//     //                              &this->feedback_d_->fb_gains_,
-//     //                             sizeof(float*),
-//     //                             cudaMemcpyDeviceToHost,
-//     //                             this->stream_));
-//     // HANDLE_ERROR( cudaStreamSynchronize(this->stream_) );
-//     cudaFree(fb_gains_d_);
-//     fb_gains_d_ = nullptr;
-//   }
-//   if (fb_gains_ != nullptr) {
-//     delete [] fb_gains_;
-//     fb_gains_ = nullptr;
-//   }
-// }
-
 template <class GPU_FB_T, class DYN_T, int NUM_TIMESTEPS>
 __device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(
     const float* x_act, const float* x_goal,
@@ -59,17 +20,9 @@ __device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(
   }
 }
 
-// template <class GPU_FB_T, class DYN_T>
-// void DeviceDDPImpl<GPU_FB_T, DYN_T>::copyToDevice() {
-//   int fb_size = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * num_timesteps_;
-//   HANDLE_ERROR(cudaMemcpyAsync(fb_gains_d_,
-//                                fb_gains_,
-//                                sizeof(float) * fb_size,
-//                                cudaMemcpyHostToDevice,
-//                                this->stream_));
-//   HANDLE_ERROR( cudaStreamSynchronize(this->stream_) );
-// }
-
+/**
+ * CPU Class for DDP Methods
+ */
 template <class DYN_T, int NUM_TIMESTEPS>
 DDPFeedback<DYN_T, NUM_TIMESTEPS>::DDPFeedback(DYN_T* model, float dt,
                                                int num_timesteps,
@@ -118,19 +71,8 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::setParams(DDPParams<DYN_T>& params) {
   terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(this->params_.Q_f);
 }
 
-// template <class DYN_T, int NUM_TIMESTEPS>
-// DDPFeedback<DYN_T, NUM_TIMESTEPS>::control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::k(
-//     const Eigen::Ref<state_array>& x_act,
-//     const Eigen::Ref<state_array>& x_goal,
-//     float t,
-//     INTERNAL_STATE_T& fb_state) {
-//   // TODO INTERNAL_STATE_T probably won't compile
-//   control_array u_output = fb_state.fb_gain_traj_[t] * (x_act - x_goal);
-//   return u_output;
-// }
-
 template <class DYN_T, int NUM_TIMESTEPS>
-void DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
+void DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedback(
     const Eigen::Ref<const state_array>& init_state,
     const Eigen::Ref<const state_trajectory>& goal_traj,
     const Eigen::Ref<const control_trajectory>& control_traj) {
@@ -143,7 +85,7 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
                              *ddp_model_, *run_cost_, *terminal_cost_,
                              control_min_, control_max_);
 
-  // Copy Feedback Gains into GPU state
+  // Copy Feedback Gains into Feedback State
   for (size_t i = 0; i < result_.feedback_gain.size(); i++) {
     int i_index = i * DYN_T::STATE_DIM * DYN_T::CONTROL_DIM;
     for (size_t j = 0; j < DYN_T::CONTROL_DIM * DYN_T::STATE_DIM; j++) {
@@ -153,20 +95,3 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedbackGains(
   // Actually put new feedback gain trajectory onto the GPU
   // this->gpu_controller_->copyToDevice();
 }
-
-// template <class DYN_T, int NUM_TIMESTEPS>
-// control_array DDPFeedback<DYN_T, NUM_TIMESTEPS>::interpolateFeedback(
-//     state_array& state,
-//     state_array& target_nominal_state,
-//     double rel_time,
-//     INTERNAL_STATE_T& fb_state) {
-//   // TODO call the feedback controller version directly
-//   int lower_idx = (int) (rel_time / dt_);
-//   int upper_idx = lower_idx + 1;
-//   double alpha = (rel_time - lower_idx * dt_) / dt_;
-
-//   control_array u_fb = (1 - alpha) * k(state, target_nominal_state, lower_idx)
-//       + alpha*k(state, target_nominal_state, upper_idx);
-
-//   return u_fb;
-// }

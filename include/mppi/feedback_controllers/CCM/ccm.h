@@ -5,6 +5,7 @@
 #define FEEDBACK_CONTROLLERS_CCM_CCM_H_
 
 #include <Eigen/Core>
+#include <mppi/feedback_controllers/feedback.cuh>
 
 #include <tuple>
 #include <cmath>
@@ -72,8 +73,23 @@ Eigen::Matrix<float, D, N> chebyshevPolynomialDerivative(
   return dT;
 }
 
+/**
+ * Empty GPU Class for now
+ **/
+template<class DYN_T>
+class LinearCCMGPU : public GPUFeedbackController<LinearCCMGPU<DYN_T>, DYN_T, GPUState> {
+public:
+  // using DYN_T = typename GPUFeedbackController<LinearCCMGPU<DYN_T>, DYN_T, GPUState>::DYN_T;
+  LinearCCMGPU(cudaStream_t stream = 0) : GPUFeedbackController<LinearCCMGPU<DYN_T>, DYN_T, GPUState>(stream) {};
+
+};
+
+struct CCMParams {
+  int a = 0;
+};
+
 template<class DYN_T, int NUM_TIMESTEPS = 100>
-class LinearCCM {
+class LinearCCM : public FeedbackController<LinearCCMGPU<DYN_T>, CCMParams, NUM_TIMESTEPS> {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   // Typedefs
@@ -81,6 +97,9 @@ public:
   using control_array = typename DYN_T::control_array;
   using B_matrix = typename DYN_T::dfdu;
   using RiemannianMetric = typename DYN_T::dfdx;
+  typedef FeedbackController<LinearCCMGPU<DYN_T>, CCMParams, NUM_TIMESTEPS>
+    PARENT_CLASS;
+  using TEMPLATED_FEEDBACK_STATE = typename PARENT_CLASS::TEMPLATED_FEEDBACK_STATE;
 
   typedef Eigen::Matrix<float, DYN_T::STATE_DIM, NUM_TIMESTEPS> state_trajectory;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, NUM_TIMESTEPS> control_trajectory;
@@ -92,6 +111,24 @@ public:
     model_ = dyn;
     M_ = RiemannianMetric::Identity();
     std::cout << "\033[1;33mCALLED CONSTRUCTOR\033[0m" << std::endl;
+  }
+  /**
+   * Methods that have to be overwritten for FeedbackController
+   **/
+  void initTrackingController() {};
+  void computeFeedback(const Eigen::Ref<const state_array>& init_state,
+                       const Eigen::Ref<const state_trajectory>& goal_traj,
+                       const Eigen::Ref<const control_trajectory>& control_traj) {
+    // setNominalControlTrajectory(control_traj);
+    // setNominalStateTrajectory(goal_traj);
+  }
+
+  control_array k_(const Eigen::Ref<const state_array>& x_act,
+                   const Eigen::Ref<const state_array>& x_goal, float t,
+                   TEMPLATED_FEEDBACK_STATE& fb_state) {
+    control_array u_nom_t = u_nominal_traj_.col((int) t);
+
+    return u_feedback(x_act, x_goal, u_nom_t);
   }
 
   // Generic Method for calculating the Metric based on state x

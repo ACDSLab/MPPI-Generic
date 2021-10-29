@@ -155,7 +155,7 @@ public:
    * to ouput to another system
    * @param avg_loop_ms          Average duration of a single iteration in ms
    * @param avg_optimize_ms      Average time to call computeControl
-   * @param avg_feedback_ms      Average time to call computeFeedbackGains
+   * @param avg_feedback_ms      Average time to call computeFeedback
    */
   virtual void setTimingInfo(double avg_loop_ms,
                              double avg_optimize_ms,
@@ -408,8 +408,8 @@ public:
     // TODO make sure this is zero by default
     FB_STATE_T feedback_state;
     if(controller->getFeedbackEnabled()) {
-      controller->computeFeedbackGains(state);
-      feedback_state = controller->getFeedbackInternalState();
+      controller->computeFeedback(state);
+      feedback_state = controller->getFeedbackState();
     }
     feedback_duration_ = (std::chrono::steady_clock::now() - feedback_start).count() / 1e6;
 

@@ -17,20 +17,10 @@ struct DDPParams {
   using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
   using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
-  StateCostWeight Q;
-  Hessian Q_f;
-  ControlCostWeight R;
+  StateCostWeight Q = StateCostWeight::Identity();
+  Hessian Q_f = Hessian::Identity();
+  ControlCostWeight R = ControlCostWeight::Identity();
   int num_iterations = 1;
-};
-
-template<class DYN_T>
-struct DDPFBState {
-  typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
-
-  /**
-   * Variables
-   **/
-  feedback_gain_trajectory fb_gain_traj_ = feedback_gain_trajectory(0);
 };
 
 template<class DYN_T, int N_TIMESTEPS>
@@ -42,6 +32,26 @@ struct DDPFeedbackState : GPUState {
    * Variables
    **/
   float fb_gain_traj_[FEEDBACK_SIZE] = {0.0};
+
+  /**
+   * Methods
+   **/
+  bool isEqual(const DDPFeedbackState<DYN_T, N_TIMESTEPS>& other) const {
+    for(int i = 0; i < FEEDBACK_SIZE; i++) {
+      if (this->fb_gain_traj_[i] != other.fb_gain_traj_[i]) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+/**
+ * Needed for Test in base_plant_tester.cu
+ **/
+template<class DYN_T, int N_TIMESTEPS>
+bool operator==(const DDPFeedbackState<DYN_T, N_TIMESTEPS>& lhs, const DDPFeedbackState<DYN_T, N_TIMESTEPS>& rhs) {
+  return lhs.isEqual(rhs);
 };
 
 /**
@@ -103,20 +113,14 @@ public:
    * Aliases
    **/
   typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
+  typedef FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>, DDPParams<DYN_T>,
+                             NUM_TIMESTEPS> PARENT_CLASS;
 
-  using control_array = typename FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>,
-                                                    DDPParams<DYN_T>,
-                                                    NUM_TIMESTEPS>::control_array;
-  using state_array = typename FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>,
-                                                  DDPParams<DYN_T>,
-                                                  NUM_TIMESTEPS>::state_array;
-  using state_trajectory = typename FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>,
-                                                       DDPParams<DYN_T>,
-                                                       NUM_TIMESTEPS>::state_trajectory;
-  using control_trajectory = typename FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>, DDPParams<DYN_T>,
-                                                         NUM_TIMESTEPS>::control_trajectory;
-  using INTERNAL_STATE_T = typename FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>, DDPParams<DYN_T>,
-                                                       NUM_TIMESTEPS>::TEMPLATED_FEEDBACK_STATE;
+  using control_array = typename PARENT_CLASS::control_array;
+  using state_array = typename PARENT_CLASS::state_array;
+  using state_trajectory = typename PARENT_CLASS::state_trajectory;
+  using control_trajectory = typename PARENT_CLASS::control_trajectory;
+  using INTERNAL_STATE_T = typename PARENT_CLASS::TEMPLATED_FEEDBACK_STATE;
   using feedback_gain_matrix = typename DYN_T::feedback_matrix;
   using square_state_matrix = typename DDPParams<DYN_T>::StateCostWeight;
   using square_control_matrix = typename DDPParams<DYN_T>::ControlCostWeight;
@@ -138,52 +142,6 @@ public:
   DDPFeedback(DYN_T* model, float dt, int num_timesteps = NUM_TIMESTEPS,
               cudaStream_t stream = 0);
 
-  /**
-   * Copy operator for DDP controller
-   */
-  // DDPFeedback<DYN_T, NUM_TIMESTEPS>& operator=(const DDPFeedback<DYN_T, NUM_TIMESTEPS>& other) {
-  //   if (this != other) {
-  //     // if (ddp_model_ != 0) {
-  //     //   *ddp_model_ = *other.ddp_model_;
-  //     // } else {
-  //     //   ddp_model_ = std::make_shared<ModelWrapperDDP<DYN_T>>(other.model_);
-  //     //   *ddp_model_ = *other.ddp_model_;
-  //     // }
-
-  //     // if (run_cost_ != 0) {
-  //     //   *run_cost_ = *other.run_cost_;
-  //     // } else {
-  //     //   run_cost_ = std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(this->params_.Q,
-  //     //                                                                         this->params_.R,
-  //     //                                                                         NUM_TIMESTEPS);
-  //     //   *run_cost_ = *other.run_cost_;
-  //     // }
-
-  //     bool tracking_uninitialized = ddp_model_ == nullptr ||
-  //                                   run_cost_ == nullptr ||
-  //                                   terminal_cost_ == nullptr ||
-  //                                   ddp_solver_ == nullptr;
-  //     // No memory has been allocated yet
-  //     if (tracking_uninitialized) {
-  //       initTrackingController();
-  //     }
-  //     // Deep copy of pointer variables
-  //     *ddp_model_ = *other.ddp_model_;
-  //     *run_cost_ = *other.run_cost_;
-  //     *terminal_cost_ = *other.terminal_cost_;
-  //     *ddp_solver_ = *other.ddp_solver_;
-
-  //     // TODO Figure out what to do about GPU portion
-  //     gpu_controller_ = nullptr;
-
-  //     // Copy of remaining variables
-  //     result_ = other.result_;
-  //     fb_gain_traj_ = other.fb_gain_traj_;
-  //     control_min_ = other.control_min_;
-  //     control_max_ = other.control_max_;
-  //   }
-  // }
-
   void setParams(DDPParams<DYN_T>& params);
 
   void initTrackingController();
@@ -201,9 +159,9 @@ public:
     return result_.feedback_gain;
   }
 
-  void computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
-                            const Eigen::Ref<const state_trajectory>& goal_traj,
-                            const Eigen::Ref<const control_trajectory>& control_traj);
+  void computeFeedback(const Eigen::Ref<const state_array>& init_state,
+                       const Eigen::Ref<const state_trajectory>& goal_traj,
+                       const Eigen::Ref<const control_trajectory>& control_traj);
 };
 
 #ifdef __CUDACC__

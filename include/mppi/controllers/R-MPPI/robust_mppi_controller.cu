@@ -14,7 +14,7 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller
                      const Eigen::Ref<const control_trajectory>& init_control_traj,
                      int num_candidate_nominal_states,
                      int optimization_stride,
-                     cudaStream_t stream) : Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+                     cudaStream_t stream) : PARENT_CLASS(
         model, cost, fb_controller, dt, max_iter, lambda, alpha, control_std_dev, num_timesteps, init_control_traj, stream),
         value_function_threshold_(value_function_threshold), optimization_stride_(optimization_stride),
         num_candidate_nominal_states_(num_candidate_nominal_states) {
@@ -47,7 +47,7 @@ RobustMPPI::~RobustMPPIController() {
 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::allocateCUDAMemory() {
-  Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
+  PARENT_CLASS::allocateCUDAMemoryHelper(1);
 }
 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
@@ -274,7 +274,7 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::computeNominalFeedbackGains(const Eigen::Ref<const state_array> &state) {
-  this->computeFeedbackGainsHelper(state, nominal_state_trajectory_, nominal_control_trajectory_);
+  this->computeFeedbackHelper(state, nominal_state_trajectory_, nominal_control_trajectory_);
 }
 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>

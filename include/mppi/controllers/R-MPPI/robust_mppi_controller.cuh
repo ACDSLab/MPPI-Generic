@@ -50,60 +50,20 @@ class RobustMPPIController : public Controller<DYN_T, COST_T, FB_T,
                                                BDIM_X, BDIM_Y> {
 
 public:
-
   /**
    * Set up useful types
    */
-  using control_array = typename Controller<DYN_T, COST_T, FB_T,
-                                            MAX_TIMESTEPS,
-                                            NUM_ROLLOUTS,
-                                            BDIM_X,
-                                            BDIM_Y>::control_array;
+  typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X,
+                     BDIM_Y> PARENT_CLASS;
 
-  using control_trajectory = typename Controller<DYN_T, COST_T, FB_T,
-                                                 MAX_TIMESTEPS,
-                                                 NUM_ROLLOUTS,
-                                                 BDIM_X,
-                                                 BDIM_Y>::control_trajectory;
-
-  using state_trajectory = typename Controller<DYN_T, COST_T, FB_T,
-                                               MAX_TIMESTEPS,
-                                               NUM_ROLLOUTS,
-                                               BDIM_X,
-                                               BDIM_Y>::state_trajectory;
-
-  using state_array = typename Controller<DYN_T, COST_T, FB_T,
-                                          MAX_TIMESTEPS,
-                                          NUM_ROLLOUTS,
-                                          BDIM_X,
-                                          BDIM_Y>::state_array;
-
-  using sampled_cost_traj = typename Controller<DYN_T, COST_T, FB_T,
-                                                MAX_TIMESTEPS,
-                                                NUM_ROLLOUTS,
-                                                BDIM_X,
-                                                BDIM_Y>::sampled_cost_traj;
-
-  using FEEDBACK_STATE = typename Controller<DYN_T, COST_T, FB_T,
-                                                MAX_TIMESTEPS,
-                                                NUM_ROLLOUTS,
-                                                BDIM_X,
-                                                BDIM_Y>::TEMPLATED_FEEDBACK_STATE;
-
-  using FEEDBACK_PARAMS = typename Controller<DYN_T, COST_T, FB_T,
-                                              MAX_TIMESTEPS,
-                                              NUM_ROLLOUTS, BDIM_X,
-                                              BDIM_Y>::TEMPLATED_FEEDBACK_PARAMS;
-
-  using FEEDBACK_GPU = typename Controller<DYN_T, COST_T, FB_T,
-                                           MAX_TIMESTEPS,
-                                           NUM_ROLLOUTS, BDIM_X,
-                                           BDIM_Y>::TEMPLATED_FEEDBACK_GPU;
-
-  // using m_dyn = typename ModelWrapperDDP<DYN_T>::Scalar;
-  // using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
-  // using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
-  // using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
+  using control_array = typename PARENT_CLASS::control_array;
+  using control_trajectory = typename PARENT_CLASS::control_trajectory;
+  using state_trajectory = typename PARENT_CLASS::state_trajectory;
+  using state_array = typename PARENT_CLASS::state_array;
+  using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
+  using FEEDBACK_STATE = typename PARENT_CLASS::TEMPLATED_FEEDBACK_STATE;
+  using FEEDBACK_PARAMS = typename PARENT_CLASS::TEMPLATED_FEEDBACK_PARAMS;
+  using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
   using NominalCandidateVector = typename util::NamedEigenAlignedVector<state_array>;
 
   static const int BLOCKSIZE_X = BDIM_X;
@@ -177,7 +137,7 @@ public:
   // during the importance sampling update does not change after the optimization, thus the feedback gains will
   // not change either. In the current implementation of runControlIteration, the compute feedback gains is called
   // after the computation of the optimal control.
-  void computeFeedbackGains(const Eigen::Ref<const state_array>& state) override {};
+  void computeFeedback(const Eigen::Ref<const state_array>& state) override {};
 
   Eigen::MatrixXf getCandidateFreeEnergy() {return candidate_free_energy_;};
 

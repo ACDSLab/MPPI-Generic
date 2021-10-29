@@ -286,11 +286,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
 
   // DDP cost parameters
   auto fb_params = vanilla_controller.getFeedbackParams();
-  fb_params.Q = FB_CONTROLLER::square_state_matrix::Identity();
   fb_params.Q.diagonal() << 500, 500, 100, 100;
-  fb_params.Q_f = FB_CONTROLLER::square_state_matrix::Identity();
-  fb_params.R = FB_CONTROLLER::square_control_matrix::Identity();
-
   vanilla_controller.setFeedbackParams(fb_params);
 
   //bool success = false;
@@ -318,7 +314,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
     vanilla_controller.computeControl(x, 1);
 
     // Compute the feedback gains
-    vanilla_controller.computeFeedbackGains(x);
+    vanilla_controller.computeFeedback(x);
 
     // Save the nominal trajectory
     auto nominal_trajectory = vanilla_controller.getStateSeq();
@@ -340,7 +336,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
     //    std::cout << current_control << std::endl;
 
     // Apply the feedback given the current state
-    current_control += vanilla_controller.computeFeedbackControl(x, nominal_trajectory.col(0), 0);
+    current_control += vanilla_controller.getFeedbackControl(x, nominal_trajectory.col(0), 0);
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -389,7 +385,6 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
    *  0, 0, 100, 0
    *  0, 0, 0, 100]
    */
-  fb_params.Q = FB_CONTROLLER::square_state_matrix::Identity();
   fb_params.Q.diagonal() << 500, 500, 100, 100;
   /**
    * Qf = I
@@ -476,7 +471,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     auto actual_trajectory = controller.getActualStateSeq();
 
     // Get the feedback gains associated with the nominal state and control trajectory
-    controller.computeFeedbackGains(x);
+    controller.computeFeedback(x);
 
     // Save the ancillary trajectory
     // auto ancillary_trajectory = controller.getAncillaryStateSeq();
@@ -504,7 +499,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
 
     // Apply the feedback given the current state
-    current_control += controller.computeFeedbackControl(x, controller.getStateSeq().col(0), 0);
+    current_control += controller.getFeedbackControl(x, controller.getStateSeq().col(0), 0);
 
 //    std::cout << "Current State: " << x.transpose() << std::endl;
 //    std::cout << "Nominal State: " << controller.getStateSeq().col(0).transpose()  << std::endl;

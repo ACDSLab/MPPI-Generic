@@ -179,13 +179,13 @@ public:
    * Feeback Control Method to overwrite.
    */
   virtual control_array k_(const Eigen::Ref<const state_array>& x_act,
-                          const Eigen::Ref<const state_array>& x_goal, float t,
-                          TEMPLATED_FEEDBACK_STATE& fb_state) = 0;
+                           const Eigen::Ref<const state_array>& x_goal, float t,
+                           TEMPLATED_FEEDBACK_STATE& fb_state) = 0;
 
   // might not be a needed method
-  virtual void computeFeedbackGains(const Eigen::Ref<const state_array>& init_state,
-                                    const Eigen::Ref<const state_trajectory>& goal_traj,
-                                    const Eigen::Ref<const control_trajectory>& control_traj) = 0;
+  virtual void computeFeedback(const Eigen::Ref<const state_array>& init_state,
+                               const Eigen::Ref<const state_trajectory>& goal_traj,
+                               const Eigen::Ref<const control_trajectory>& control_traj) = 0;
 
   // TODO Construct a default version of this method that uses the state_ variable automatically
   virtual control_array interpolateFeedback_(const Eigen::Ref<const state_array>& state,
@@ -237,6 +237,11 @@ public:
 
   void setFeedbackState(TEMPLATED_FEEDBACK_STATE& gpu_fb_state) {
     this->gpu_controller_->setFeedbackState(gpu_fb_state);
+  }
+
+  float getDt() { return dt_; }
+  void setDt(float dt) {
+    dt_ = dt;
   }
 protected:
   std::shared_ptr<GPU_FB_T> gpu_controller_;

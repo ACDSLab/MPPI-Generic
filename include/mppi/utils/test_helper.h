@@ -27,7 +27,14 @@ template<int size>
 inline void array_assert_float_eq(const std::array<float, size>& known,const std::array<float, size>& compute) {
     ASSERT_EQ(compute.size(), size) << "The computed array size is not the given size!";
     for (int i = 0; i < size; i++) {
+        if (isnan(known[i]) || isnan(compute[i])) {
+            ASSERT_EQ(isnan(known[i]), isnan(compute[i])) << "NaN check failed at index: " << i;
+        } else if (isinf(known[i]) || isinf(compute[i])) {
+            ASSERT_EQ(isinf(known[i]), isinf(compute[i])) << "inf check failed at index: " << i;
+        } else {
+
         ASSERT_FLOAT_EQ(known[i], compute[i]) << "Failed at index: " << i;
+        }
     }
 }
 
