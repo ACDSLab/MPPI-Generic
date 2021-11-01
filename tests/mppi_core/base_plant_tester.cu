@@ -115,7 +115,7 @@ TEST_F(BasePlantTest, Constructor) {
   EXPECT_EQ(plant->getHz(), 20);
   EXPECT_EQ(plant->getTargetOptimizationStride(), 1);
   EXPECT_EQ(plant->getNumIter(), 0);
-  EXPECT_EQ(plant->getLastUsedPoseUpdateTime(), 0);
+  EXPECT_EQ(plant->getLastUsedPoseUpdateTime(), -1);
   EXPECT_EQ(plant->getStatus(), 1);
   EXPECT_EQ(mockController->getFeedbackEnabled(), false);
   EXPECT_EQ(plant->hasNewCostParams(), false);
@@ -361,7 +361,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest) {
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
     EXPECT_LT(plant->getOptimizationAvg(), wait_ms + small_time_ms);
     EXPECT_THAT(plant->getFeedbackDuration(),
-                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)*2));
+                testing::AllOf(testing::Ge(wait_ms), testing::Le((wait_ms + small_time_ms)*2)));
     // TODO should be range as well
     EXPECT_LT(plant->getFeedbackAvg(), wait_ms + small_time_ms);
     EXPECT_THAT(plant->getLoopDuration(),
@@ -478,7 +478,7 @@ TEST_F(BasePlantTest, runControlLoop) {
       usleep(50);
       loop_duration = std::chrono::steady_clock::now() - loop_start;
     }
-    if(counter >= iterations / 2) { // this forces it to block
+    if(counter > iterations / 2) { // this forces it to block
       plant->incrementTime();
     }
   }

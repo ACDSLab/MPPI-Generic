@@ -407,9 +407,9 @@ public:
     std::chrono::steady_clock::time_point feedback_start = std::chrono::steady_clock::now();
     // TODO make sure this is zero by default
     FB_STATE_T feedback_state;
-    if(controller->getFeedbackEnabled()) {
-      controller->computeFeedback(state);
-      feedback_state = controller->getFeedbackState();
+    if(controller_->getFeedbackEnabled()) {
+      controller_->computeFeedback(state);
+      feedback_state = controller_->getFeedbackState();
     }
     feedback_duration_ = (std::chrono::steady_clock::now() - feedback_start).count() / 1e6;
 
