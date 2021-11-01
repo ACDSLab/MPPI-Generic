@@ -359,7 +359,6 @@ namespace mppi_common {
       float* x_other;
       float* xdot;
       float* u;
-      float* fb_gain;
       float fb_control[DYN_T::CONTROL_DIM];
 
       //Load global array to shared array
@@ -666,14 +665,13 @@ namespace rmppi_kernels {
     float* xdot;
     float* u;
     float* du;
-    float* fb_gain;
     int* crash_status;
     // The array to hold K(x,x*)
     float fb_control[DYN_T::CONTROL_DIM];
 
     int t = 0;
     int i = 0;
-    int j = 0;
+    // int j = 0;
 
     // Initialize running costs
     float running_state_cost_real = 0;
@@ -716,7 +714,6 @@ namespace rmppi_kernels {
         __syncthreads();
 
         // Now find feedback control
-        float e;
         for (i = 0; i < DYN_T::CONTROL_DIM; i++) {
           fb_control[i] = 0;
         }
