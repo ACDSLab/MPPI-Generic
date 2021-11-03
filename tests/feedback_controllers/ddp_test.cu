@@ -174,7 +174,7 @@ TEST(DDPSolver_Test, Cartpole_Tracking) {
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
   // Compute the control
   controller.computeControl(current_state, 0);
-  auto nominal_state = controller.getStateSeq();
+  auto nominal_state = controller.getTargetStateSeq();
   auto nominal_control = controller.getControlSeq();
 //  std::cout << nominal_state << std::endl;
   // END MPPI CONTROLLER

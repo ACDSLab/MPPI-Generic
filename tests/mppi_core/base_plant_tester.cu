@@ -268,7 +268,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest) {
     MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
     EXPECT_CALL(*mockController, getControlSeq()).Times(1).WillRepeatedly(testing::Return(control_seq));
     MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-    EXPECT_CALL(*mockController, getStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
+    EXPECT_CALL(*mockController, getTargetStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
 
     EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(0);
     EXPECT_CALL(*mockController, getFeedbackControl(testing::_,testing::_,testing::_)).Times(0);
@@ -332,7 +332,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest) {
     MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
     EXPECT_CALL(*mockController, getControlSeq()).Times(1).WillRepeatedly(testing::Return(control_seq));
     MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-    EXPECT_CALL(*mockController, getStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
+    EXPECT_CALL(*mockController, getTargetStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
 
     EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
     MockController::TEMPLATED_FEEDBACK_STATE feedback;
@@ -392,7 +392,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest) {
     MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
     EXPECT_CALL(*mockController, getControlSeq()).Times(1).WillRepeatedly(testing::Return(control_seq));
     MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-    EXPECT_CALL(*mockController, getStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
+    EXPECT_CALL(*mockController, getTargetStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
 
     EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
     MockController::TEMPLATED_FEEDBACK_STATE feedback;
@@ -460,7 +460,7 @@ TEST_F(BasePlantTest, runControlLoop) {
   MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
   EXPECT_CALL(*mockController, getControlSeq()).Times(iterations/2).WillRepeatedly(testing::Return(control_seq));
   MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-  EXPECT_CALL(*mockController, getStateSeq()).Times(iterations/2).WillRepeatedly(testing::Return(state_seq));
+  EXPECT_CALL(*mockController, getTargetStateSeq()).Times(iterations/2).WillRepeatedly(testing::Return(state_seq));
   EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(iterations/2).WillRepeatedly(testing::Invoke(wait_function));
   MockController::TEMPLATED_FEEDBACK_STATE feedback;
   EXPECT_CALL(*mockController, getFeedbackState()).Times(iterations/2).WillRepeatedly(testing::Return(feedback));

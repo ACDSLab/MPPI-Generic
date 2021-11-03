@@ -91,7 +91,7 @@ public:
   /**
    * returns the current nominal state sequence
    */
-  state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
+  state_trajectory getTargetStateSeq() override {return nominal_state_trajectory_;};
 
   /**
    * returns the current control sequence

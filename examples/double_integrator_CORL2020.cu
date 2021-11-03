@@ -93,7 +93,7 @@ void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tota
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -174,7 +174,7 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -260,7 +260,7 @@ void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DI
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -340,7 +340,7 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -429,7 +429,7 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -521,7 +521,7 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -629,7 +629,7 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 

@@ -474,7 +474,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     rmppi_controller.updateImportanceSamplingControl(x, 1);
     rmppi_controller.computeControl(x);
 
-    auto nominal_trajectory = rmppi_controller.getStateSeq();
+    auto nominal_trajectory = rmppi_controller.getTargetStateSeq();
     auto fe_stat = rmppi_controller.getFreeEnergyStatistics();
 
     // for (int i = 0; i < num_timesteps; i++) {
@@ -497,7 +497,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
                                           cost.getLipshitzConstantCost()*1*(x - nominal_trajectory.col(0)).norm();
 
 
-    DYN::state_array x_nom = rmppi_controller.getStateSeq().col(0);
+    DYN::state_array x_nom = rmppi_controller.getTargetStateSeq().col(0);
     DYN::control_array current_control = rmppi_controller.getControlSeq().col(0);
 
     current_control += rmppi_controller.getCCMFeedbackGains(x, x_nom, current_control);

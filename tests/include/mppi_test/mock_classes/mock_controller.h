@@ -25,7 +25,7 @@ public:
   MOCK_METHOD5(getCurrentControl, control_array(state_array&, double, state_array&, control_trajectory&, TEMPLATED_FEEDBACK_STATE&));
   MOCK_METHOD2(computeControl, void(const Eigen::Ref<const state_array>& state, int optimization_stride));
   MOCK_METHOD0(getControlSeq, control_trajectory());
-  MOCK_METHOD0(getStateSeq, state_trajectory());
+  MOCK_METHOD0(getTargetStateSeq, state_trajectory());
   MOCK_METHOD0(getFeedbackState, TEMPLATED_FEEDBACK_STATE());
   MOCK_METHOD3(getFeedbackControl, control_array(const Eigen::Ref<const state_array>&, const Eigen::Ref<const state_array>&, float));
   MOCK_METHOD1(updateImportanceSampler, void(const Eigen::Ref<const control_trajectory>& nominal_control));

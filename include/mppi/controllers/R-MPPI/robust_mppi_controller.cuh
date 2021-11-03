@@ -121,7 +121,7 @@ public:
 
   control_trajectory getControlSeq() override {return this->control_;};
 
-  state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
+  state_trajectory getTargetStateSeq() override {return nominal_state_trajectory_;};
 
   state_array getNominalState() {return nominal_state_;}
 

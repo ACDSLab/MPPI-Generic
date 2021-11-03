@@ -572,7 +572,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
     controller.computeControl(x);
 
     // Save the trajectory from the nominal state
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
 
     // Save the ancillary trajectory
     // auto ancillary_trajectory = controller.getAncillaryStateSeq();
@@ -594,7 +594,7 @@ TEST(RMPPITest, RobustMPPILargeVariance) {
 
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackControl(x, controller.getStateSeq().col(0), 0);
+    current_control += controller.getFeedbackControl(x, controller.getTargetStateSeq().col(0), 0);
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -728,7 +728,7 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
     }
 
     // Save the trajectory from the nominal state
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
 
     // Save the ancillary trajectory
     // auto ancillary_trajectory = controller.getAncillaryStateSeq();
@@ -737,7 +737,7 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
     auto propagated_trajectory = controller.getFeedbackPropagatedStateSeq();
 
     // Compute the actual trajectory with no feedback
-    auto actual_trajectory = controller.getStateSeq();
+    auto actual_trajectory = controller.getTargetStateSeq();
     controller.computeStateTrajectoryHelper(actual_trajectory, x, controller.getControlSeq());
 
 
@@ -759,7 +759,7 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost) {
 
 
     // Apply the feedback given the current state
-    DYNAMICS::control_array fb_control = controller.getFeedbackControl(x, controller.getStateSeq().col(0), 0);
+    DYNAMICS::control_array fb_control = controller.getFeedbackControl(x, controller.getTargetStateSeq().col(0), 0);
     current_control += fb_control;
 
     // Compute real free energy bound

@@ -132,7 +132,7 @@ TEST(TubeMPPITest, VanillaMPPINominalVariance) {
     vanilla_controller.computeControl(x, 1);
 
     // Save the nominal trajectory
-    auto nominal_trajectory = vanilla_controller.getStateSeq();
+    auto nominal_trajectory = vanilla_controller.getTargetStateSeq();
 
     for (int i = 0; i < num_timesteps; i++) {
       for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
@@ -218,7 +218,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVariance) {
     vanilla_controller.computeControl(x, 1);
 
     // Save the nominal trajectory
-    auto nominal_trajectory = vanilla_controller.getStateSeq();
+    auto nominal_trajectory = vanilla_controller.getTargetStateSeq();
 
     for (int i = 0; i < num_timesteps; i++) {
       for (int j = 0; j < DoubleIntegratorDynamics::STATE_DIM; j++) {
@@ -317,7 +317,7 @@ TEST(TubeMPPITest, VanillaMPPILargeVarianceTracking) {
     vanilla_controller.computeFeedback(x);
 
     // Save the nominal trajectory
-    auto nominal_trajectory = vanilla_controller.getStateSeq();
+    auto nominal_trajectory = vanilla_controller.getTargetStateSeq();
     auto nominal_control = vanilla_controller.getControlSeq();
     vanilla_controller.computeFeedbackPropagatedStateSeq();
     auto feedback_state_trajectory = vanilla_controller.getFeedbackPropagatedStateSeq();
@@ -467,7 +467,7 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
     controller.computeControl(x, 1);
 
     // Save the trajectory from the nominal state
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto actual_trajectory = controller.getActualStateSeq();
 
     // Get the feedback gains associated with the nominal state and control trajectory
@@ -499,10 +499,10 @@ TEST(TubeMPPITest, TubeMPPILargeVariance) {
 
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackControl(x, controller.getStateSeq().col(0), 0);
+    current_control += controller.getFeedbackControl(x, controller.getTargetStateSeq().col(0), 0);
 
 //    std::cout << "Current State: " << x.transpose() << std::endl;
-//    std::cout << "Nominal State: " << controller.getStateSeq().col(0).transpose()  << std::endl;
+//    std::cout << "Nominal State: " << controller.getTargetStateSeq().col(0).transpose()  << std::endl;
 
 
     // Propagate the state forward

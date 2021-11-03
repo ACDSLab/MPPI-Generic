@@ -400,7 +400,7 @@ public:
     MPPIFreeEnergyStatistics fe_stats = controller_->getFreeEnergyStatistics();
 
     c_traj control_traj = controller_->getControlSeq();
-    s_traj state_traj = controller_->getStateSeq();
+    s_traj state_traj = controller_->getTargetStateSeq();
     optimization_duration_ = (std::chrono::steady_clock::now() - optimization_start).count() / 1e6;
     //printf("optimization_duration %f\n", optimization_duration_);
 

@@ -258,7 +258,7 @@ public:
   /**
    * Gets the state sequence of the nominal trajectory
    */
-  virtual state_trajectory getStateSeq() {
+  virtual state_trajectory getTargetStateSeq() {
     return state_;
   }
 
@@ -313,7 +313,7 @@ public:
       // MPPI control apply feedback at the given timestep against the nominal trajectory at that timestep
       current_control = getControlSeq().col(i)
                         + getFeedbackControl(current_state,
-                                             getStateSeq().col(i), i);
+                                             getTargetStateSeq().col(i), i);
       model_->computeStateDeriv(current_state, current_control, xdot);
       model_->updateState(current_state, xdot, dt_);
       propagated_feedback_state_trajectory_.col(i+1) = current_state;
@@ -346,7 +346,7 @@ public:
   }
 
   virtual void computeFeedback(const Eigen::Ref<const state_array>& state) {
-    computeFeedbackHelper(state, getStateSeq(), getControlSeq());
+    computeFeedbackHelper(state, getTargetStateSeq(), getControlSeq());
   }
 
   virtual control_array getFeedbackControl(const Eigen::Ref<const state_array>& state,

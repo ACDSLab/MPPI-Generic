@@ -402,7 +402,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array> &state, int 
 template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y, int SAMPLES_PER_CONDITION_MULTIPLIER>
 float RobustMPPI::computeDF() {
   return (this->getFeedbackPropagatedStateSeq().col(0) - this->getFeedbackPropagatedStateSeq().col(1)).norm() +
-  (this->getStateSeq().col(0) - this->getFeedbackPropagatedStateSeq().col(0)).norm();
+  (this->getTargetStateSeq().col(0) - this->getFeedbackPropagatedStateSeq().col(0)).norm();
 }
 
 
