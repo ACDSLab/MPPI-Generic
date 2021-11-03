@@ -351,7 +351,7 @@ public:
 
   virtual control_array getFeedbackControl(const Eigen::Ref<const state_array>& state,
                                            const Eigen::Ref<const state_array>& goal_state,
-                                           float t) {
+                                           int t) {
     return fb_controller_->k(state, goal_state, t);
   }
 

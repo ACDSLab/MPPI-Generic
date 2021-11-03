@@ -63,11 +63,6 @@ template <class GPU_FB_T, class DYN_T, int NUM_TIMESTEPS = 1>
 class DeviceDDPImpl : public GPUFeedbackController<
   GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>> {
 public:
-
-  // using TEMPLATED_DYNAMICS = typename GPUFeedbackController<DeviceDDPImpl<GPU_FB_T, DYN_T>, DYN_T>::DYN_T;
-
-  float * fb_gains_ = nullptr;
-  float * fb_gains_d_ = nullptr;
   DeviceDDPImpl(int num_timesteps, cudaStream_t stream = 0);
   DeviceDDPImpl(cudaStream_t stream = 0) : GPUFeedbackController<GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>>(stream) {};
 
@@ -75,7 +70,7 @@ public:
   void deallocateCUDAMemory() {};
 
   __device__ void k(const float * x_act, const float * x_goal,
-                           const float t, float * theta,
+                           const int t, float * theta,
                            float* control_output);
   // void copyToDevice();
   // Nothing to copy back
@@ -147,9 +142,9 @@ public:
   void initTrackingController();
 
   control_array k_(const Eigen::Ref<const state_array>& x_act,
-                   const Eigen::Ref<const state_array>& x_goal, float t,
+                   const Eigen::Ref<const state_array>& x_goal, int t,
                    INTERNAL_STATE_T& fb_state) {
-    int index = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * int(t);
+    int index = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * t;
     Eigen::Map<feedback_gain_matrix> fb_gain(&(fb_state.fb_gain_traj_[index]));
     control_array u_output = fb_gain * (x_act - x_goal);
     return u_output;

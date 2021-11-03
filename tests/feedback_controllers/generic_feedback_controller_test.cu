@@ -85,7 +85,7 @@ public:
 
   control_array k_(const Eigen::Ref<const state_array>& x_act,
                    const Eigen::Ref<const state_array>& x_goal,
-                   float t, INTERNAL_STATE_T& fb_state) override {
+                   int t, INTERNAL_STATE_T& fb_state) override {
 
   }
 

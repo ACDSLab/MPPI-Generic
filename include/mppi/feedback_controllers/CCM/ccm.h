@@ -124,9 +124,9 @@ public:
   }
 
   control_array k_(const Eigen::Ref<const state_array>& x_act,
-                   const Eigen::Ref<const state_array>& x_goal, float t,
+                   const Eigen::Ref<const state_array>& x_goal, int t,
                    TEMPLATED_FEEDBACK_STATE& fb_state) {
-    control_array u_nom_t = u_nominal_traj_.col((int) t);
+    control_array u_nom_t = u_nominal_traj_.col(t);
 
     return u_feedback(x_act, x_goal, u_nom_t);
   }

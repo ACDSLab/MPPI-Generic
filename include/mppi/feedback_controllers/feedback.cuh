@@ -81,7 +81,7 @@ public:
   /**
    * ==================== NECESSARY METHODS TO OVERWRITE =====================
    */
-  __device__ void k(const float* x_act, const float* x_goal, const float t,
+  __device__ void k(const float* x_act, const float* x_goal, const int t,
                     float* theta, float* control_output) {
     //CLASS_T* derived = static_cast<CLASS_T*>(this);
     //derived->k(x_act, x_goal, t, theta, control_output);
@@ -171,7 +171,7 @@ public:
    */
   virtual control_array k(const Eigen::Ref<const state_array>& x_act,
                           const Eigen::Ref<const state_array>& x_goal,
-                          float t) {
+                          int t) {
     TEMPLATED_FEEDBACK_STATE* gpu_feedback_state = getFeedbackStatePointer();
     return k_(x_act, x_goal, t, *gpu_feedback_state);
   }
@@ -179,7 +179,7 @@ public:
    * Feeback Control Method to overwrite.
    */
   virtual control_array k_(const Eigen::Ref<const state_array>& x_act,
-                           const Eigen::Ref<const state_array>& x_goal, float t,
+                           const Eigen::Ref<const state_array>& x_goal, int t,
                            TEMPLATED_FEEDBACK_STATE& fb_state) = 0;
 
   // might not be a needed method

@@ -9,8 +9,8 @@ DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::DeviceDDPImpl(int num_timesteps, 
 template <class GPU_FB_T, class DYN_T, int NUM_TIMESTEPS>
 __device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(
     const float* x_act, const float* x_goal,
-    const float t, float* theta, float* control_output) {
-  float * fb_gain_t = &(this->state_.fb_gain_traj_[DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * ((int) t)]);
+    const int t, float* theta, float* control_output) {
+  float * fb_gain_t = &(this->state_.fb_gain_traj_[DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * t]);
   float e = 0;
   for (int i = 0; i < DYN_T::STATE_DIM; i++) {
     e = x_act[i] - x_goal[i];
