@@ -257,7 +257,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest) {
   for(int i = 0; i < 2; i++) {
     double wait_ms = 50*i;
 
-    auto wait_function = [wait_ms]() {
+    auto wait_function = [wait_ms](const Eigen::Ref<const MockController::state_array>& state, int optimization_stride = 0) {
       usleep(wait_ms*1e3);
     };
 
@@ -321,7 +321,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest) {
   for(int i = 0; i < 10; i++) {
     double wait_ms = 50*i;
 
-    auto wait_function = [wait_ms]() {
+    auto wait_function = [wait_ms](const Eigen::Ref<const MockController::state_array>& state, int optimization_stride = 0) {
       usleep(wait_ms*1e3);
     };
 
@@ -381,7 +381,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest) {
   for(int i = 0; i < 10; i++) {
     double wait_ms = 50;
 
-    auto wait_function = [wait_ms]() {
+    auto wait_function = [wait_ms](const Eigen::Ref<const MockController::state_array>& state, int optimization_stride = 0) {
       usleep(wait_ms*1e3);
     };
 
@@ -451,7 +451,7 @@ TEST_F(BasePlantTest, runControlLoop) {
 
   double wait_s = (1.0/hz)/2; // divide by 2 since wait is evenly split across computeFeedback and computeControl
 
-  auto wait_function = [wait_s]() {
+  auto wait_function = [wait_s](const Eigen::Ref<const MockController::state_array>& state, int optimization_stride = 0) {
     usleep(wait_s*1e6);
   };
   int iterations = int(std::round((hz*1.0) / (test_duration))); // number of times the method will be called
