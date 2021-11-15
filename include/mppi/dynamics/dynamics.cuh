@@ -175,9 +175,21 @@ public:
    * @param s_der
    */
   void updateState(Eigen::Ref<state_array> state,
-                   Eigen::Ref<state_array> state_der, float dt) {
+                   Eigen::Ref<state_array> state_der, const float dt) {
     state += state_der * dt;
     state_der.setZero();
+  }
+
+  /**
+   * does a linear interpolation of states
+   * @param state_1
+   * @param state_2
+   * @param alpha
+   * @return
+   */
+  state_array interpolateState(const Eigen::Ref<state_array> state_1,
+                                           const Eigen::Ref<state_array> state_2, const double alpha) {
+    return (1 - alpha)*state_1 + alpha*state_2;
   }
 
   /**
@@ -206,7 +218,6 @@ public:
     derived->computeKinematics(state, state_der);
     derived->computeDynamics(state, control, state_der);
   }
-
 
   /**
    * computes the section of the state derivative that comes form the dyanmics
@@ -253,7 +264,7 @@ public:
    * @param state_der
    * @param dt
    */
-  __device__ void updateState(float* state, float* state_der, float dt) {
+  __device__ void updateState(float* state, float* state_der, const float dt) {
     int i;
     int tdy = threadIdx.y;
     //Add the state derivative time dt to the current state.
