@@ -170,9 +170,10 @@ namespace rmppi_kernels {
                             float* costs_d,
                             cudaStream_t stream);
 
-  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
-      int NUM_ROLLOUTS, int BLOCKSIZE_Z = 2>
+  template<class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X,
+      int BLOCKSIZE_Y, int NUM_ROLLOUTS, int BLOCKSIZE_Z = 2>
   __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
+                                     FB_T* fb_controller,
                                      float dt,
                                      int num_timesteps,
                                      int optimization_stride,
@@ -182,13 +183,13 @@ namespace rmppi_kernels {
                                      float* x_d,
                                      float* u_d,
                                      float* du_d,
-                                     float* feedback_gains_d,
                                      float* sigma_u_d,
                                      float* trajectory_costs_d);
 
-  template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
-           int BLOCKSIZE_Y, int BLOCKSIZE_Z = 2>
+  template<class DYN_T, class COST_T, class FB_T, int NUM_ROLLOUTS,
+           int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 2>
   void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
+                                FB_T* fb_controller,
                                 float dt,
                                 int num_timesteps,
                                 int optimization_stride,
@@ -198,7 +199,6 @@ namespace rmppi_kernels {
                                 float* x_d,
                                 float* u_d,
                                 float* du_d,
-                                float* feedback_gains_d,
                                 float* sigma_u_d,
                                 float* trajectory_costs,
                                 cudaStream_t stream);

@@ -1,20 +1,17 @@
 #include "tube_mppi_controller.cuh"
 
 
-#define TubeMPPI TubeMPPIController<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+#define TubeMPPI TubeMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
         int BDIM_X, int BDIM_Y>
-TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                              float lambda, float alpha,
-                             const Eigen::Ref<const StateCostWeight>& Q,
-                             const Eigen::Ref<const Hessian>& Qf,
-                             const Eigen::Ref<const ControlCostWeight>& R,
                              const Eigen::Ref<const control_array>& control_std_dev,
                              int num_timesteps,
                              const Eigen::Ref<const control_trajectory>& init_control_traj,
-                             cudaStream_t stream) :Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-                                     model, cost, dt, max_iter, lambda, alpha,
+                             cudaStream_t stream) : Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+                                     model, cost, fb_controller, dt, max_iter, lambda, alpha,
                                      control_std_dev, num_timesteps, init_control_traj, stream) {
 
   nominal_control_trajectory_ = init_control_traj;
@@ -25,12 +22,13 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
 
-  // Initialize DDP
-  this->initDDP(Q, Qf, R);
+  // Initialize Feedback
+  this->fb_controller_->initTrackingController();
+  this->enable_feedback_ = true;
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) {
   if (!nominalStateInit_){
     // set the nominal state to the actual state
@@ -189,8 +187,8 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
   this->free_energy_statistics_.nominal_sys.increase = this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void TubeMPPI::copyControlToDevice() {
     HANDLE_ERROR(cudaMemcpyAsync(this->control_d_, this->control_.data(),
                                  sizeof(float) * this->control_.size(),
@@ -203,13 +201,13 @@ void TubeMPPI::copyControlToDevice() {
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-         int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+        int BDIM_X, int BDIM_Y>
 void TubeMPPI::allocateCUDAMemory() {
-  Controller<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
+  Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper(1);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
         int BDIM_X, int BDIM_Y>
 void TubeMPPI::slideControlSequence(int steps) {
   // Propagate the nominal trajectory forward
@@ -222,12 +220,12 @@ void TubeMPPI::slideControlSequence(int steps) {
   this->slideControlSequenceHelper(steps, this->control_);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void TubeMPPI::smoothControlTrajectory() {
   this->smoothControlTrajectoryHelper(nominal_control_trajectory_, this->control_history_);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_actual) {
   // update the nominal state
   this->computeStateTrajectoryHelper(nominal_state_trajectory_, nominal_state_trajectory_.col(0), nominal_control_trajectory_);
@@ -235,14 +233,14 @@ void TubeMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0_ac
   this->computeStateTrajectoryHelper(this->state_, x0_actual, this->control_);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void TubeMPPI::updateNominalState(const Eigen::Ref<const control_array> &u) {
   state_array xdot;
   this->model_->computeDynamics(nominal_state_trajectory_.col(0), u, xdot);
   this->model_->updateState(nominal_state_trajectory_.col(0), xdot, this->dt_);
 }
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void TubeMPPI::calculateSampledStateTrajectories() {
   int num_sampled_trajectories = this->perc_sampled_control_trajectories * NUM_ROLLOUTS;
   std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
@@ -278,10 +276,11 @@ void TubeMPPI::calculateSampledStateTrajectories() {
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
   // run kernel
-  mppi_common::launchStateTrajectoryKernel<DYN_T, BDIM_X, BDIM_Y, 2, false>(this->model_->model_d_, this->sampled_noise_d_,
-                                                                            this->initial_state_d_, this->sampled_states_d_,
-                                                                            num_sampled_trajectories, this->num_timesteps_,
-                                                                            this->dt_, this->stream_);
+  mppi_common::launchStateTrajectoryKernel<DYN_T, FEEDBACK_GPU, BDIM_X, BDIM_Y,
+    2, false>(this->model_->model_d_, this->fb_controller_->getDevicePointer(),
+              this->sampled_noise_d_, this->initial_state_d_,
+              this->sampled_states_d_, num_sampled_trajectories,
+              this->num_timesteps_, this->dt_, this->stream_);
 
   // copy back results
   for(int i = 0; i < num_sampled_trajectories*2; i++) {

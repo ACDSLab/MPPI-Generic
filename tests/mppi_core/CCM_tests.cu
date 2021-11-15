@@ -15,55 +15,37 @@ const int NUM_ROLLOUTS_CONST = 1024;
 template<class DYN_T = DoubleIntegratorDynamics, class COST_T = DoubleIntegratorCircleCost,
          int MAX_TIMESTEPS = NUM_TIMESTEPS, int NUM_ROLLOUTS = NUM_ROLLOUTS_CONST,
          int B_X = 64, int B_Y = 1, int S = 1>
-class RMPPICCMDoubleIntegratorController : public RobustMPPIController<DYN_T, COST_T,
+class RMPPICCMDoubleIntegratorController : public RobustMPPIController<DYN_T, COST_T, ccm::LinearCCM<DYN_T, MAX_TIMESTEPS>,
     MAX_TIMESTEPS, NUM_ROLLOUTS, B_X, B_Y, S> {
 
 protected:
   std::mt19937 rng_gen_;
   std::normal_distribution<float> control_dist_;
-  ccm::LinearCCM<DYN_T> CCM_feedback_controller_;
+  ccm::LinearCCM<DYN_T, MAX_TIMESTEPS> CCM_feedback_controller_;
 public:
-  using Q_MAT = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                              NUM_ROLLOUTS, B_X, B_Y,
-                                              S>::StateCostWeight;
+  typedef RobustMPPIController<DYN_T, COST_T, ccm::LinearCCM<DYN_T, MAX_TIMESTEPS>,
+    MAX_TIMESTEPS, NUM_ROLLOUTS, B_X, B_Y, S> PARENT_CLASS;
 
-  using Qf_MAT = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                               NUM_ROLLOUTS, B_X, B_Y,
-                                               S>::Hessian;
-
-  using R_MAT = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                              NUM_ROLLOUTS, B_X, B_Y,
-                                              S>::ControlCostWeight;
-
-  using control_array = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                                      NUM_ROLLOUTS, B_X, B_Y,
-                                                      S>::control_array;
-
-  using control_trajectory = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                                      NUM_ROLLOUTS, B_X, B_Y,
-                                                      S>::control_trajectory;
-
-  using state_array = typename RobustMPPIController<DYN_T, COST_T, MAX_TIMESTEPS,
-                                                      NUM_ROLLOUTS, B_X, B_Y,
-                                                      S>::state_array;
+  using control_array = typename PARENT_CLASS::control_array;
+  using control_trajectory = typename PARENT_CLASS::control_trajectory;
+  using state_array = typename PARENT_CLASS::state_array;
 
   // Constructor... Yeah It ain't pretty
-  RMPPICCMDoubleIntegratorController(DYN_T* model, COST_T* cost, float dt, float lambda,
+  RMPPICCMDoubleIntegratorController(DYN_T* model, COST_T* cost,
+      ccm::LinearCCM<DYN_T, MAX_TIMESTEPS>* fb_controller,
+      float dt, float lambda,
       float alpha, float value_function_threshold,
       const Eigen::Ref<const control_array>& control_std_dev,
       int num_timesteps = MAX_TIMESTEPS,
       const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
       int num_candidate_nominal_states = 9, int optimization_stride = 1,
-      cudaStream_t stream = nullptr) : RobustMPPIController<DYN_T, COST_T,
-      MAX_TIMESTEPS, NUM_ROLLOUTS, 64, 1, 1>(model, cost, dt, 1, lambda, alpha,
-      value_function_threshold, Q_MAT::Zero(), Qf_MAT::Zero(), R_MAT::Zero(),
+      cudaStream_t stream = nullptr) : PARENT_CLASS(model, cost, fb_controller, dt, 1, lambda, alpha,
+      value_function_threshold,
       control_std_dev, num_timesteps, init_control_traj,
       num_candidate_nominal_states, optimization_stride, stream) {
 
     control_dist_ = std::normal_distribution<float>(0, 1);
-    CCM_feedback_controller_ = ccm::LinearCCM<DYN_T>(model);
-    // Q_MAT M_new = Q_MAT::Identity();
-    // CCM_feedback_controller_.setM(M_new);
+    CCM_feedback_controller_ = ccm::LinearCCM<DYN_T, MAX_TIMESTEPS>(model);
   }
 
   void ptrToVec(const float* input, int num, std::vector<float>& output) {
@@ -109,7 +91,7 @@ public:
       // Launch rollout kernel using CCM
       // TODO pass in alpha
       std::array<float, NUM_ROLLOUTS> costs_act_CPU, costs_nom_CPU;
-      launchRMPPIRolloutKernelCCMCPU<DYN_T, COST_T, NUM_ROLLOUTS>(this->model_,
+      launchRMPPIRolloutKernelCCMCPU<DYN_T, COST_T, MAX_TIMESTEPS, NUM_ROLLOUTS>(this->model_,
         this->cost_, &CCM_feedback_controller_, this->dt_,
         this->num_timesteps_, optimization_stride, this->lambda_, this->alpha_,
         this->value_function_threshold_, x_init_nom_vec, x_init_act_vec,
@@ -380,12 +362,11 @@ TEST(CCMTest, RMPPIRolloutKernel) {
   CONTROLLER::control_trajectory u_traj_eigen = CONTROLLER::control_trajectory::Zero();
   // Set first control to 1 across entire time
   u_traj_eigen.row(0) = CONTROLLER::cost_trajectory::Constant(1.0);
-
-  CONTROLLER rmppi_controller = CONTROLLER(&model, &cost, dt, lambda, alpha,
-                                           value_func_threshold,
+  ccm::LinearCCM<DYN, num_timesteps> fb_controller(&model);
+  CONTROLLER rmppi_controller = CONTROLLER(&model, &cost, &fb_controller, dt,
+                                           lambda, alpha, value_func_threshold,
                                            control_std_dev, num_timesteps,
                                            u_traj_eigen);
-
 
   // float x[num_rollouts * state_dim * 2];
   // float x_dot[num_rollouts * state_dim * 2];
@@ -493,8 +474,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
     rmppi_controller.updateImportanceSamplingControl(x, 1);
     rmppi_controller.computeControl(x);
 
-
-    auto nominal_trajectory = rmppi_controller.getStateSeq();
+    auto nominal_trajectory = rmppi_controller.getTargetStateSeq();
     auto fe_stat = rmppi_controller.getFreeEnergyStatistics();
 
     // for (int i = 0; i < num_timesteps; i++) {
@@ -517,7 +497,7 @@ TEST(CCMTest, RMPPIRolloutKernel) {
                                           cost.getLipshitzConstantCost()*1*(x - nominal_trajectory.col(0)).norm();
 
 
-    DYN::state_array x_nom = rmppi_controller.getStateSeq().col(0);
+    DYN::state_array x_nom = rmppi_controller.getTargetStateSeq().col(0);
     DYN::control_array current_control = rmppi_controller.getControlSeq().col(0);
 
     current_control += rmppi_controller.getCCMFeedbackGains(x, x_nom, current_control);

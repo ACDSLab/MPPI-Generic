@@ -7,8 +7,11 @@ TEST(QuadrotorMapCost, checkHeadingCost) {
   COST cost;
   COST::state_array curr_state = COST::state_array::Zero();
   Eigen::Quaternionf temp_quat;
+  float deg2rad = M_PI /180;
+  // Have velocity in the y direction
+  curr_state[4] = 1;
   // Get quaternion for yaw of 30 degrees
-  mppi_math::Euler2QuatNWU(0, 0, 30.0 * M_PI / 180, temp_quat);
+  mppi_math::Euler2QuatNWU(0, 0, 30.0 * deg2rad, temp_quat);
   temp_quat.normalize();
   curr_state[6] = temp_quat.w();
   curr_state[7] = temp_quat.x();
@@ -21,7 +24,7 @@ TEST(QuadrotorMapCost, checkHeadingCost) {
   params.curr_waypoint = make_float4(0, 1, 0, 0);
   cost.setParams(params);
 
-  float expected_cost = params.heading_coeff * powf(M_PI_2 - 30 * M_PI/ 180, 2);
+  float expected_cost = params.heading_coeff * powf(M_PI_2 - 30 * deg2rad, 2);
   float calculated_cost = cost.computeHeadingCost(curr_state.data());
   EXPECT_FLOAT_EQ(expected_cost, calculated_cost);
 }

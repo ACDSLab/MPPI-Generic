@@ -7,9 +7,9 @@
 const int BLOCKSIZE_X = 32;
 const int BLOCKSIZE_Y = 8;
 
-template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
+template<class DYN_T, class COST_T, class FB_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
-                                 float dt,
+                                 FB_T* fb_controller, float dt,
                                  int num_timesteps,
                                  int optimization_stride,
                                  float lambda,
@@ -19,7 +19,6 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
                                  const std::vector<float>& x0_act,
                                  const std::vector<float>& sigma_u,
                                  const std::vector<float>& nom_control_seq,
-                                 const std::vector<float>& feedback_gains_seq,
                                  const std::vector<float>& sampled_noise,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom,
@@ -29,16 +28,17 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
   float* control_noise_d; // du
   float* control_std_dev_d;
   float* control_d;
-  float* feedback_gains_d;
 
   /**
    * Ensure dynamics and costs exist on GPU
    */
   dynamics->bindToStream(stream);
   costs->bindToStream(stream);
+  fb_controller->bindToStream(stream);
   // Call the GPU setup functions of the model and cost
   dynamics->GPUSetup();
   costs->GPUSetup();
+  fb_controller->GPUSetup();
 
   int control_noise_size = NUM_ROLLOUTS * num_timesteps * DYN_T::CONTROL_DIM;
   // Create x init cuda array
@@ -58,10 +58,6 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
   HANDLE_ERROR(cudaMalloc((void**)&control_noise_d,
                           sizeof(float) * DYN_T::CONTROL_DIM *
                           num_timesteps * NUM_ROLLOUTS * 2));
-  // Create feedback_gains sequence array
-  HANDLE_ERROR(cudaMalloc((void**)&feedback_gains_d,
-                          sizeof(float) * DYN_T::CONTROL_DIM *
-                          DYN_T::STATE_DIM * num_timesteps));
   // Create random noise generator
   // curandGenerator_t gen;
   // curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT);
@@ -88,12 +84,6 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
                                sizeof(float) * DYN_T::CONTROL_DIM * num_timesteps,
                                cudaMemcpyHostToDevice, stream));
 
-  HANDLE_ERROR(cudaMemcpyAsync(feedback_gains_d,
-                               feedback_gains_seq.data(),
-                               sizeof(float) * DYN_T::CONTROL_DIM *
-                               DYN_T::STATE_DIM * num_timesteps,
-                               cudaMemcpyHostToDevice, stream));
-
   HANDLE_ERROR(cudaMemcpyAsync(control_noise_d,
                                sampled_noise.data(),
                                sizeof(float) * control_noise_size,
@@ -112,10 +102,10 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
   // Ensure copying finishes?
   HANDLE_ERROR(cudaStreamSynchronize(stream));
   // Launch rollout kernel
-  rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BLOCKSIZE_X,
-    BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, dt, num_timesteps,
+  rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, typename FB_T::TEMPLATED_GPU_FEEDBACK, NUM_ROLLOUTS, BLOCKSIZE_X,
+    BLOCKSIZE_Y, 2>(dynamics->model_d_, costs->cost_d_, fb_controller->getDevicePointer(), dt, num_timesteps,
                     optimization_stride, lambda, alpha, value_func_threshold, initial_state_d, control_d,
-                    control_noise_d, feedback_gains_d, control_std_dev_d,
+                    control_noise_d, control_std_dev_d,
                     trajectory_costs_d, stream);
 
 
@@ -134,12 +124,12 @@ void launchRMPPIRolloutKernelGPU(DYN_T* dynamics, COST_T* costs,
   cudaFree(control_std_dev_d);
   cudaFree(control_d);
   cudaFree(trajectory_costs_d);
-  cudaFree(feedback_gains_d);
   cudaFree(control_noise_d);
 }
 
-template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
+template<class DYN_T, class COST_T, class FB_T, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
+                                 FB_T* fb_controller,
                                  float dt,
                                  int num_timesteps,
                                  int optimization_stride,
@@ -150,7 +140,6 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
                                  const std::vector<float>& x0_act,
                                  const std::vector<float>& sigma_u,
                                  const std::vector<float>& nom_control_seq,
-                                 const std::vector<float>& feedback_gains_seq,
                                  std::vector<float>& sampled_noise,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_act,
                                  std::array<float, NUM_ROLLOUTS>& trajectory_costs_nom) {
@@ -196,8 +185,6 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
           pure_noise_nom(sampled_noise.data() + control_traj_size +
                          (traj_index + t) * control_dim); // ptr to noise for nominal
       control_array eps_t = cost_std_dev.cwiseProduct(pure_noise_act);
-      Eigen::Map<const feedback_matrix>
-          feedback_gains_t(feedback_gains_seq.data() + t * control_dim * state_dim); // Feedback gains at time t
 
       // Create newly calculated values at time t in rollout i
       state_array x_dot_t_nom;
@@ -212,8 +199,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
          u_nom = u_t + eps_t;
       }
 
-
-      control_array fb_u_t = feedback_gains_t * (x_t_act - x_t_nom);
+      control_array fb_u_t = fb_controller->k(x_t_act, x_t_nom, t);
       control_array u_act = u_nom + fb_u_t;
 
       // Cost update
@@ -280,11 +266,11 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs,
   }
 }
 
-template<class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
-void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
+template<class DYNAMICS_T, class COSTS_T, class FB_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
+void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, FB_T* fb_controller,
+                                       float dt, float lambda, float alpha,
                                        std::array<float, DYNAMICS_T::STATE_DIM> state_array,
                                        std::array<float, DYNAMICS_T::STATE_DIM> state_array_nominal,
-                                       std::vector<float> feedback_gain_vector,
                                        std::array<float, NUM_TIMESTEPS*DYNAMICS_T::CONTROL_DIM> control_array,
                                        std::array<float, NUM_TIMESTEPS*NUM_ROLLOUTS*DYNAMICS_T::CONTROL_DIM> control_noise_array,
                                        std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u,
@@ -337,15 +323,12 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
 
   /*************************** RMPPI ******************************************/
 
-  float* feedback_gains_d;
-
   // Allocate CUDA memory for the rollout
   HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float)*2*state_array.size()));
   HANDLE_ERROR(cudaMalloc((void**)&U_d, sizeof(float)*2*control_array.size()));
   HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float)*2*DYNAMICS_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS));
   HANDLE_ERROR(cudaMalloc((void**)&nu_d, sizeof(float)*sigma_u.size()));
   HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float)*rmppi_costs_out.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&feedback_gains_d, sizeof(float)*feedback_gain_vector.size()));
 
 
   // Copy the initial values
@@ -368,12 +351,6 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
                                sizeof(float) * DYNAMICS_T::CONTROL_DIM * NUM_TIMESTEPS,
                                cudaMemcpyHostToDevice, stream));
 
-  HANDLE_ERROR(cudaMemcpyAsync(feedback_gains_d,
-                               feedback_gain_vector.data(),
-                               sizeof(float) * DYNAMICS_T::CONTROL_DIM *
-                                       DYNAMICS_T::STATE_DIM * NUM_TIMESTEPS,
-                               cudaMemcpyHostToDevice, stream));
-
   HANDLE_ERROR(cudaMemcpyAsync(du_d, control_noise_array.data(),
                                sizeof(float) * control_noise_array.size(),
                                cudaMemcpyHostToDevice, stream));
@@ -385,13 +362,11 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
   dimBlock = dim3(BLOCKSIZE_X, BLOCKSIZE_Y, 2);
   dimGrid = dim3(gridsize_x, 1, 1);
 
-  rmppi_kernels::RMPPIRolloutKernel<DYNAMICS_T, COSTS_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
+  rmppi_kernels::RMPPIRolloutKernel<DYNAMICS_T, COSTS_T, typename FB_T::TEMPLATED_GPU_FEEDBACK, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
           2><<<dimGrid, dimBlock, 0, stream>>>(
-                  dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS,
-                  opt_delay, lambda, alpha,
-                  10, state_d, U_d, du_d,
-                  feedback_gains_d, nu_d, costs_d);
-  CudaCheckError();
+                  dynamics->model_d_, costs->cost_d_, fb_controller->getDevicePointer(), dt, NUM_TIMESTEPS,
+                  opt_delay, lambda, alpha, 10, state_d, U_d, du_d,  nu_d,
+                  costs_d);
 
   // Copy data back
   HANDLE_ERROR(cudaMemcpyAsync(rmppi_costs_out.data(), costs_d,
@@ -403,13 +378,12 @@ void launchComparisonRolloutKernelTest(DYNAMICS_T* dynamics, COSTS_T* costs, flo
   HANDLE_ERROR(cudaFree(du_d));
   HANDLE_ERROR(cudaFree(nu_d));
   HANDLE_ERROR(cudaFree(costs_d));
-  HANDLE_ERROR(cudaFree(feedback_gains_d));
 }
 
 
-template<class DYN_T, class COST_T, int NUM_ROLLOUTS>
+template<class DYN_T, class COST_T, int NUM_TIMESTEPS, int NUM_ROLLOUTS>
 void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs,
-                                    ccm::LinearCCM<DYN_T>* fb_controller,
+                                    ccm::LinearCCM<DYN_T, NUM_TIMESTEPS>* fb_controller,
                                     float dt,
                                     int num_timesteps,
                                     int optimization_stride,
