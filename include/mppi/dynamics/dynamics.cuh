@@ -55,11 +55,8 @@ protected:
    * @param control_rngs
    * @param stream
    */
-  Dynamics(std::array<float2, C_DIM> control_rngs, cudaStream_t stream=0) : Managed(stream) {
-    for(int i = 0; i < C_DIM; i++) {
-      control_rngs_[i].x = control_rngs[i].x;
-      control_rngs_[i].y = control_rngs[i].y;
-    }
+  Dynamics(std::array<float2, C_DIM>& control_rngs, cudaStream_t stream=0) : Managed(stream) {
+    setControlRanges(control_rngs);
   }
 public:
   // This variable defines what the zero control is
@@ -89,6 +86,13 @@ public:
   }
   __host__ __device__ float2* getControlRangesRaw() {
     return control_rngs_;
+  }
+
+  void setControlRanges(std::array<float2, C_DIM>& control_rngs) {
+    for(int i = 0; i < C_DIM; i++) {
+      control_rngs_[i].x = control_rngs[i].x;
+      control_rngs_[i].y = control_rngs[i].y;
+    }
   }
 
   void setParams(const PARAMS_T& params) {
