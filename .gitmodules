@@ -1,3 +1,3 @@
 [submodule "submodules/cnpy"]
 	path = submodules/cnpy
-	url = ../../ACDS/cnpy.git
+	url = https://gitlab.robotics.caltech.edu/racer/planner/mppi/cnpy.git
