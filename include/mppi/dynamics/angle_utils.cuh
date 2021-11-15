@@ -13,12 +13,6 @@ namespace angle_utils {
     if (result <= 0.0) return result+M_PI;
     return result - M_PI;
   }
-
-  /**
-   *
-   * @param angle
-   * @return
-   */
   __host__ __device__ static inline float normalizeAngle(float angle) {
     const float result = fmodf(angle+M_PI, 2.0*M_PI);
     if (result <= 0.0) return result+M_PI;
@@ -34,13 +28,6 @@ namespace angle_utils {
   __host__ __device__ static inline double shortestAngularDistance(double from, double to) {
     return normalizeAngle(to-from);
   }
-
-  /**
-   *
-   * @param from
-   * @param to
-   * @return
-   */
   __host__ __device__ static inline float shortestAngularDistance(float from, float to) {
     return normalizeAngle(to-from);
   }
@@ -57,7 +44,6 @@ namespace angle_utils {
     double angle_diff = shortestAngularDistance(angle_1, angle_2);
     return normalizeAngle(angle_1 + alpha*angle_diff);
   }
-
   __host__ __device__ static inline float interpolateEulerAngleLinear(float angle_1, float angle_2, float alpha) {
     float angle_diff = shortestAngularDistance(angle_1, angle_2);
     return normalizeAngle(angle_1 + alpha*angle_diff);
