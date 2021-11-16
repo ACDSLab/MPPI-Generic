@@ -16,7 +16,13 @@ bool DubinsDynamics::computeGrad(const Eigen::Ref<const state_array> &state,
                                            const Eigen::Ref<const control_array> &control,
                                            Eigen::Ref<dfdx> A,
                                            Eigen::Ref<dfdu> B) {
-  return false;
+  A(0, 2) = -control(0) * sin(state(2));
+  A(1, 2) = control(0) * cos(state(2));
+
+  B(0, 0) = cos(state(2));
+  B(1, 0) = sin(state(2));
+  B(2, 1) = 1;
+  return true;
 }
 
 void DubinsDynamics::updateState(Eigen::Ref<state_array> state,
