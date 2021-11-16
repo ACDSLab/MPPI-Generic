@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include <mppi/dynamics/dubins/dubins.cuh>
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
+#include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 
 TEST(DubinsDynamics, Template) {
@@ -144,29 +145,39 @@ TEST(DubinsDynamics, TestUpdateStateGPU) {
   dynamics.freeCudaMem();
 }
 
-//TEST(DubinsDynamics, TestComputeGradComputation) {
-//  Eigen::Matrix<float, DubinsDynamics::STATE_DIM, DubinsDynamics::STATE_DIM + DubinsDynamics::CONTROL_DIM> numeric_jac;
-//  Eigen::Matrix<float, DubinsDynamics::STATE_DIM, DubinsDynamics::STATE_DIM + DubinsDynamics::CONTROL_DIM> analytic_jac;
-//  DubinsDynamics::state_array state;
-//  state << 1, 2, 3, 4;
-//  DubinsDynamics::control_array control;
-//  control << 5;
-//
-//  auto analytic_grad_model = DubinsDynamics(1,1,1);
-//
-//  DubinsDynamics::dfdx A_analytic = DubinsDynamics::dfdx::Zero();
-//  DubinsDynamics::dfdu B_analytic = DubinsDynamics::dfdu::Zero();
-//
-//  analytic_grad_model.computeGrad(state, control, A_analytic, B_analytic);
-//
-//  auto numerical_grad_model = DubinsDummy(1,1,1);
-//
-//  std::shared_ptr<ModelWrapperDDP<DubinsDummy>> ddp_model = std::make_shared<ModelWrapperDDP<DubinsDummy>>(&numerical_grad_model);
-//
-//  analytic_jac.leftCols<DubinsDynamics::STATE_DIM>() = A_analytic;
-//  analytic_jac.rightCols<DubinsDynamics::CONTROL_DIM>() = B_analytic;
-//  numeric_jac = ddp_model->df(state, control);
-//
-//  ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n" << numeric_jac << "\nAnalytic Jacobian\n" << analytic_jac;
-//}
-//
+class DubinsDummy : public DubinsDynamics {
+public:
+  bool computeGrad(const Eigen::Ref<const state_array> & state,
+                   const Eigen::Ref<const control_array>& control,
+                   Eigen::Ref<dfdx> A,
+                   Eigen::Ref<dfdu> B) {
+    return false;
+  };
+};
+
+TEST(DubinsDynamics, TestComputeGradComputation) {
+  Eigen::Matrix<float, DubinsDynamics::STATE_DIM, DubinsDynamics::STATE_DIM + DubinsDynamics::CONTROL_DIM> numeric_jac;
+  Eigen::Matrix<float, DubinsDynamics::STATE_DIM, DubinsDynamics::STATE_DIM + DubinsDynamics::CONTROL_DIM> analytic_jac;
+  DubinsDynamics::state_array state;
+  state << 1, 2, 3, 4;
+  DubinsDynamics::control_array control;
+  control << 5;
+
+  auto analytic_grad_model = DubinsDynamics();
+
+  DubinsDynamics::dfdx A_analytic = DubinsDynamics::dfdx::Zero();
+  DubinsDynamics::dfdu B_analytic = DubinsDynamics::dfdu::Zero();
+
+  analytic_grad_model.computeGrad(state, control, A_analytic, B_analytic);
+
+  auto numerical_grad_model = DubinsDummy();
+
+  std::shared_ptr<ModelWrapperDDP<DubinsDummy>> ddp_model = std::make_shared<ModelWrapperDDP<DubinsDummy>>(&numerical_grad_model);
+
+  analytic_jac.leftCols<DubinsDynamics::STATE_DIM>() = A_analytic;
+  analytic_jac.rightCols<DubinsDynamics::CONTROL_DIM>() = B_analytic;
+  numeric_jac = ddp_model->df(state, control);
+
+  ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n" << numeric_jac << "\nAnalytic Jacobian\n" << analytic_jac;
+}
+
