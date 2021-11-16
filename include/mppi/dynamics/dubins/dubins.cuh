@@ -4,7 +4,7 @@
 #define DUBINS_CUH_
 
 #include <mppi/dynamics/dynamics.cuh>
-#include <mppi/dynamics/angle_utils.cuh>
+#include <mppi/utils/angle_utils.cuh>
 #include <random>
 
 struct DubinsParams{
@@ -13,7 +13,10 @@ struct DubinsParams{
 };
 
 using namespace MPPI_internal;
-
+/**
+ * state: x, y, theta
+ * control: forward velocity, angular velocity
+ */
 class DubinsDynamics : public Dynamics<DubinsDynamics, DubinsParams, 3, 2>
 {
 public:

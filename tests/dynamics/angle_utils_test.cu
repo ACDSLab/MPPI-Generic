@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <cuda_runtime.h>
-#include <mppi/dynamics/angle_utils.cuh>
+#include <mppi/utils/angle_utils.cuh>
 #include <random>
 
 TEST(AngleUtils, normalizeAngleKnownDouble) {
@@ -70,7 +70,6 @@ TEST(AngleUtils, shortestAngularDistanceDouble) {
   angle_2 = M_PI_2;
   EXPECT_FLOAT_EQ(angle_utils::shortestAngularDistance(angle_1, angle_2), M_PI_2);
 
-  // TODO is right?
   angle_1 = 0;
   angle_2 = -M_PI;
   EXPECT_FLOAT_EQ(angle_utils::shortestAngularDistance(angle_1, angle_2), M_PI);
