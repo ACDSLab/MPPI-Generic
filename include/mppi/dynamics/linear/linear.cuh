@@ -1,25 +1,27 @@
-#pragma once
-
-#ifndef DUBINS_CUH_
-#define DUBINS_CUH_
+#ifndef MPPIGENERIC_LINEAR_CUH
+#define MPPIGENERIC_LINEAR_CUH
 
 #include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/angle_utils.cuh>
 
-struct DubinsParams{
-  DubinsParams() = default;
-  ~DubinsParams() = default;
+struct LinearModelParams {
+  float c_t = 1.3;
+  float c_b = 2.5;
+  float c_v = 3.7;
+  float c_0 = 4.9;
+  float wheel_base = 0.3;
 };
 
 using namespace MPPI_internal;
 /**
- * state: x, y, theta
- * control: forward velocity, angular velocity
+ * state: v, theta, p_x, p_y
+ * control: throttle, brake, steering angle, gear selector
  */
-class DubinsDynamics : public Dynamics<DubinsDynamics, DubinsParams, 3, 2>
-{
+class LinearModel : public Dynamics<LinearModel, LinearModelParams, 4, 4> {
 public:
-  DubinsDynamics(cudaStream_t stream = nullptr);
+  LinearModel(cudaStream_t stream = nullptr) : Dynamics<LinearModel, LinearModelParams, 4, 4>(stream) {}
+  LinearModel(LinearModelParams& params, cudaStream_t stream = nullptr) :
+            Dynamics<LinearModel, LinearModelParams, 4, 4>(params, stream) {}
 
   void computeDynamics(const Eigen::Ref<const state_array> &state,
                        const Eigen::Ref<const control_array> &control,
@@ -33,7 +35,7 @@ public:
   state_array interpolateState(const Eigen::Ref<state_array> state_1,
                                const Eigen::Ref<state_array> state_2, const double alpha);
 
-    bool computeGrad(const Eigen::Ref<const state_array> & state,
+  bool computeGrad(const Eigen::Ref<const state_array> & state,
                    const Eigen::Ref<const control_array>& control,
                    Eigen::Ref<dfdx> A,
                    Eigen::Ref<dfdu> B);
@@ -42,12 +44,11 @@ public:
                                   float* control,
                                   float* state_der,
                                   float* theta = nullptr);
-private:
 
 };
 
 #if __CUDACC__
-#include "dubins.cu"
+#include "linear.cu"
 #endif
 
-#endif //!DUBINS_CUH_
+#endif //MPPIGENERIC_LINEAR_CUH
