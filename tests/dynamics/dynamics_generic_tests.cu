@@ -174,11 +174,18 @@ TEST(Dynamics, SetControlRanges) {
   EXPECT_FLOAT_EQ(ranges[0].x, -2);
   EXPECT_FLOAT_EQ(ranges[0].y, 5);
 
+  tester_ranges[0].x = -5;
+  tester_ranges[0].y = 6;
+  tester.setControlRanges(tester_ranges);
+  ranges = tester.getControlRanges();
+  EXPECT_FLOAT_EQ(ranges[0].x, tester_ranges[0].x) << "failed at index: " << 0;
+  EXPECT_FLOAT_EQ(ranges[0].y, tester_ranges[0].y) << "failed at index: " << 0;
+
   std::array<float2, 2> tester_2_ranges {};
-  tester_2_ranges[0].x = -5;
-  tester_2_ranges[0].y = 6;
-  tester_2_ranges[1].x = -10;
-  tester_2_ranges[1].y = 20;
+  tester_ranges[0].x = -3;
+  tester_ranges[0].y = 8;
+  tester_ranges[1].x = -11;
+  tester_ranges[1].y = 23;
   DynamicsTester<4, 2> tester_2(tester_2_ranges);
   auto ranges_2 = tester_2.getControlRanges();
   for(int i = 0; i < ranges_2.size(); i++) {
@@ -411,4 +418,36 @@ TEST(Dynamics, computeStateDerivGPU) {
     EXPECT_FLOAT_EQ(u[0][0], 3) << "j = " << j;
 
   }
+}
+
+TEST(Dynamics, interpolateState) {
+  DynamicsTester<3, 1> tester;
+  DynamicsTester<3, 1>::state_array s1;
+  DynamicsTester<3, 1>::state_array s2;
+
+  s1(0) = 1.5;
+  s2(0) = 2.0;
+
+  s1(1) = -3.0;
+  s2(1) = -3.5;
+
+  s1(2) = -0.25;
+  s2(2) = 0.25;
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0)(0), 1.5);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0.25)(0), 1.625);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0.5)(0), 1.75);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0.75)(0), 1.875);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 1.0)(0), 2.0);
+
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0)(1), -3.0);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0.25)(1), -3.125);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0.5)(1), -3.25);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0.75)(1), -3.375);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 1.0)(1), -3.5);
+
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0)(2), -0.25);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0.25)(2), -0.125);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0.5)(2), 0);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 0.75)(2), 0.125);
+  EXPECT_FLOAT_EQ(tester.interpolateState(s1, s2, 1.0)(2), 0.25);
 }

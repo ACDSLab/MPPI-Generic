@@ -229,9 +229,7 @@ public:
     int upper_idx = lower_idx + 1;
     double alpha = (rel_time - lower_idx * dt_) / dt_;
 
-    state_array desired_state;
-    desired_state = (1 - alpha)*s_traj.col(lower_idx) + alpha*s_traj.col(upper_idx);
-    return desired_state;
+    return model_->interpolateState(s_traj.col(lower_idx), s_traj.col(upper_idx), alpha);
   }
 
   /**
