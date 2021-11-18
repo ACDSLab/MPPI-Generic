@@ -47,7 +47,7 @@ TEST(LinearModel, ComputeModel) {
   x << 1, M_PI_2, 0, 3;
   u << 1, 0, 0, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9+1.3);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 1.3 - 3.7);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_NEAR(next_x(2), 0, 1e-7);
   EXPECT_FLOAT_EQ(next_x(3), 1);
@@ -55,7 +55,7 @@ TEST(LinearModel, ComputeModel) {
   x << 1, 0, 0, 3;
   u << 0, 1, 0, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9-2.5);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 2.5 - 3.7);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_FLOAT_EQ(next_x(2), 1);
   EXPECT_FLOAT_EQ(next_x(3), 0);
@@ -71,7 +71,7 @@ TEST(LinearModel, ComputeModel) {
   x << 1, M_PI, 0, 3;
   u << 0, 0, 0, 1;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7);
   EXPECT_FLOAT_EQ(next_x(1), (1/.3)*tan(1));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);

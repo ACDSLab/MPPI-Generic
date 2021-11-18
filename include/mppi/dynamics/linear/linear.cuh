@@ -15,7 +15,7 @@ struct LinearModelParams {
 using namespace MPPI_internal;
 /**
  * state: v, theta, p_x, p_y
- * control: throttle, brake, steering angle, gear selector
+ * control: throttle, brake, gear selector, steering angle
  */
 class LinearModel : public Dynamics<LinearModel, LinearModelParams, 4, 4> {
 public:
