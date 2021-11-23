@@ -52,36 +52,6 @@ struct QuadraticCostTrajectoryParams : public CostParams<DYN_T::CONTROL_DIM> {
   }
 };
 
-// template<class DYN_T>
-// struct QuadraticCostParams : public CostParams<DYN_T::CONTROL_DIM> {
-// /**
-//  * Defines a general desired state and coeffs
-//  */
-//   float s_goal[DYN_T::STATE_DIM] = {0};
-
-//   float s_coeffs[DYN_T::STATE_DIM] = {0};
-
-//   int current_time = 0;
-
-//   QuadraticCostParams() {
-//     for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
-//       this->control_cost_coeff[i] = 0;
-//     }
-//     for (int i = 0; i < DYN_T::STATE_DIM; i++) {
-//       this->s_coeffs[i] = 1;
-//     }
-//   }
-
-//   __device__ float * getGoalStatePointer(int t) {
-//     return s_goal;
-//   }
-
-//   Eigen::Matrix<float, DYN_T::STATE_DIM, 1> getDesiredState(int t) {
-//     Eigen::Matrix<float, DYN_T::STATE_DIM, 1> s(s_goal);
-//     return s;
-//   }
-// };
-
 template <class CLASS_T, class DYN_T, class PARAMS_T>
 class QuadraticCostImpl : public Cost<CLASS_T,
                                   PARAMS_T,
