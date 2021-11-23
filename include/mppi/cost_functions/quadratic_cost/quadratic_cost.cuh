@@ -89,8 +89,8 @@ class QuadraticCostImpl : public Cost<CLASS_T,
                                   DYN_T::CONTROL_DIM> {
 
 public:
-  using state_array = typename Cost<CLASS_T, PARAMS_T, DYN_T::STATE_DIM,
-                                    DYN_T::CONTROL_DIM>::state_array;
+  typedef Cost<CLASS_T, PARAMS_T, DYN_T::STATE_DIM, DYN_T::CONTROL_DIM> PARENT_CLASS;
+  using state_array = typename PARENT_CLASS::state_array;
   QuadraticCostImpl(cudaStream_t stream = nullptr);
   static constexpr float MAX_COST_VALUE = 1e16;
 
@@ -103,9 +103,9 @@ public:
 
   float getLipshitzConstantCost() {
     // Find the spectral radius of the state matrix
-    float rho_Q = absf(this->params_.s_coeffs[0]);
+    float rho_Q = fabsf(this->params_.s_coeffs[0]);
     for (int i = 1; i < DYN_T::STATE_DIM; i++) {
-      rho_Q = fmaxf(rho_Q, this->params_.s_coeffs[i]);
+      rho_Q = fmaxf(rho_Q, fabsf(this->params_.s_coeffs[i]));
     }
     return 2 * rho_Q;
   };
