@@ -1,6 +1,7 @@
 #include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 #include <mppi/cost_functions/quadratic_cost/quadratic_cost.cuh>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
+#include <mppi/feedback_controllers/DDP/ddp.cuh>
 
 #include <iomanip>
 // #include <sstream>
@@ -10,8 +11,10 @@ const int NUM_ROLLOUTS = 128;
 
 using DYN = DoubleIntegratorDynamics;
 using COST = QuadraticCost<DYN>;
+using FB_CONTROLLER = DDPFeedback<DYN, TIMESTEPS>;
 
 int main() {
+  float dt = 0.015;
 
   // Set the initial state
   DYN::state_array x;
@@ -22,9 +25,10 @@ int main() {
   DYN::control_array control_std_dev;
   control_std_dev << 0.1, 0.1;
 
-  // Create the dynamics and cost function
+  // Create the dynamics, cost function, and feedback controller
   DYN model;
   COST cost;
+  FB_CONTROLLER fb_controller = FB_CONTROLLER(&model, dt);
   auto cost_params = cost.getParams();
 
   // Set up cost function
@@ -41,13 +45,11 @@ int main() {
   // Create MPPI Controller
   float lambda = 1;
   float alpha = 1.0;
-  float dt = 0.015;
   int max_iter = 1;
   int total_time_horizon = 300;
 
-  auto controller = VanillaMPPIController<DYN, COST, TIMESTEPS,
-          NUM_ROLLOUTS, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
-                               control_std_dev);
+  auto controller = VanillaMPPIController<DYN, COST, FB_CONTROLLER, TIMESTEPS, NUM_ROLLOUTS, 64, 1>(
+      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_std_dev);
   controller.setFeedbackController(false);
 
   /********************** Vanilla MPPI **********************/
