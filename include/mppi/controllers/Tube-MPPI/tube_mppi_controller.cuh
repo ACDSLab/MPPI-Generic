@@ -13,9 +13,9 @@
 #include <memory>
 #include <iostream>
 
-template<class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+template<class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
         int BDIM_X, int BDIM_Y>
-class TubeMPPIController: public Controller<DYN_T, COST_T,
+class TubeMPPIController: public Controller<DYN_T, COST_T, FB_T,
                                             MAX_TIMESTEPS,
                                             NUM_ROLLOUTS,
                                             BDIM_X,
@@ -26,46 +26,54 @@ public:
   /**
    * Set up useful types
    */
-  using control_array = typename Controller<DYN_T, COST_T,
+  using control_array = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
           BDIM_Y>::control_array;
 
-  using control_trajectory = typename Controller<DYN_T, COST_T,
+  using control_trajectory = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
           BDIM_Y>::control_trajectory;
 
-  using state_trajectory = typename Controller<DYN_T, COST_T,
+  using state_trajectory = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
           BDIM_Y>::state_trajectory;
 
-  using state_array = typename Controller<DYN_T, COST_T,
+  using state_array = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
           BDIM_Y>::state_array;
 
-  using sampled_cost_traj = typename Controller<DYN_T, COST_T,
+  using sampled_cost_traj = typename Controller<DYN_T, COST_T, FB_T,
           MAX_TIMESTEPS,
           NUM_ROLLOUTS,
           BDIM_X,
           BDIM_Y>::sampled_cost_traj;
 
-  using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
-  using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
-  using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
-  using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
+  using FEEDBACK_PARAMS = typename Controller<DYN_T, COST_T, FB_T,
+                                              MAX_TIMESTEPS,
+                                              NUM_ROLLOUTS,
+                                              BDIM_X,
+                                              BDIM_Y>::TEMPLATED_FEEDBACK_PARAMS;
 
-  TubeMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+  using FEEDBACK_GPU = typename Controller<DYN_T, COST_T, FB_T,
+                                           MAX_TIMESTEPS, NUM_ROLLOUTS,
+                                           BDIM_X,
+                                           BDIM_Y>::TEMPLATED_FEEDBACK_GPU;
+
+  // using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
+  // using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
+  // using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
+  // using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
+
+  TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                      float lambda, float alpha,
-                     const Eigen::Ref<const StateCostWeight>& Q,
-                     const Eigen::Ref<const Hessian>& Qf,
-                     const Eigen::Ref<const ControlCostWeight>& R,
                      const Eigen::Ref<const control_array>& control_std_dev,
                      int num_timesteps = MAX_TIMESTEPS,
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
@@ -76,24 +84,19 @@ public:
   std::string getControllerName() {return "Tube MPPI";};
 
   /**
-   * returns the current control sequence
+   * returns the current nominal control sequence
    */
   control_trajectory getControlSeq() override { return nominal_control_trajectory_;};
 
   /**
-   * returns the current state sequence
+   * returns the current nominal state sequence
    */
-  state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
+  state_trajectory getTargetStateSeq() override {return nominal_state_trajectory_;};
 
   /**
    * returns the current control sequence
    */
   control_trajectory getActualControlSeq() { return this->control_;};
-
-  /**
-   * returns the current state sequence
-   */
-  state_trajectory getActualStateSeq() {return this->state_;};
 
   /**
    * Slide the control sequence back n steps

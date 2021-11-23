@@ -32,9 +32,13 @@ inline std::vector<int> sample_without_replacement(int k, int N,
 
   // For loop runs k times
   for (int r = N - k; r < N; r++) {
+    if (r == 0) {
+      samples.insert(N - 1);
+      continue;
+    }
     int v = std::uniform_int_distribution<>(1, r)(g); // sample between 1 and r
-    if (!samples.insert(v).second) { // if v exists in the set
-      samples.insert(r);
+    if (!samples.insert(v - 1).second) { // if v exists in the set
+      samples.insert(r - 1);
     }
   }
   // Copy set into a vector

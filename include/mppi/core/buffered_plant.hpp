@@ -36,10 +36,11 @@ public:
     bool t_within_trajectory = time >= this->last_used_pose_update_time_ &&
                                time < this->last_used_pose_update_time_ + this->controller_->getDt()*this->controller_->getNumTimesteps();
     if (!t_within_trajectory) {
+      // TODO handle this case better
       return;
     }
     StateArray target_nominal_state = this->controller_->interpolateState(this->state_traj_, time_since_last_opt);
-    auto c_array = this->controller_->getCurrentControl(state, time_since_last_opt, target_nominal_state, this->control_traj_, this->feedback_gains_);
+    auto c_array = this->controller_->getCurrentControl(state, time_since_last_opt, target_nominal_state, this->control_traj_, this->feedback_state_);
 
     // add new state to the buffer
 
@@ -58,17 +59,13 @@ public:
 
     // remove old states from the buffer
     int counter = 0;
-    //printf("can pop %f < %f - %f => %f\n", prev_states_.front().second, time, buffer_time_horizon_, time - buffer_time_horizon_);
     while(prev_states_.front().second < time - buffer_time_horizon_) {
       prev_states_.pop_front();
       counter++;
     }
 
     // 2*k + 2 from curfit routine
-    //printf("\n\nsize %d popped %d\n", prev_states_.size(), counter);
     if (prev_states_.size() > 8) {
-      //printf("calling get smoothed buffer size %d", prev_states_.size());
-      //std::cout << std::endl;
       getSmoothedBuffer();
     }
   }

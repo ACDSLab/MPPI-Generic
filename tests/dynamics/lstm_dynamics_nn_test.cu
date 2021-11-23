@@ -10,6 +10,7 @@
 #include <math.h>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
 #include <mppi/cost_functions/autorally/ar_standard_cost.cuh>
+#include <mppi/feedback_controllers/DDP/ddp.cuh>
 
 // Auto-generated header files
 #include <autorally_test_network.h>
@@ -429,9 +430,11 @@ TEST_F(LSTMDynamicsTest, CompareComputeControl) {
   const int num_timesteps = 10;
   const int blocksize_x = 8;
   const int blocksize_y = 16;
-  typedef VanillaMPPIController<LSTM_DYNAMICS, ARStandardCost, num_timesteps,
+
+
+  typedef VanillaMPPIController<LSTM_DYNAMICS, ARStandardCost, DDPFeedback<LSTM_DYNAMICS , num_timesteps>, num_timesteps,
                                 num_rollouts, blocksize_x, blocksize_y> LSTM_CONTROLLER;
-  typedef VanillaMPPIController<FF_DYNAMICS, ARStandardCost, num_timesteps,
+  typedef VanillaMPPIController<FF_DYNAMICS, ARStandardCost, DDPFeedback<FF_DYNAMICS , num_timesteps>, num_timesteps,
                                 num_rollouts, blocksize_x, blocksize_y> FF_CONTROLLER;
 
   /** ========== Set up Dynamics Models ==========**/
@@ -451,9 +454,12 @@ TEST_F(LSTMDynamicsTest, CompareComputeControl) {
 
   LSTM_CONTROLLER::control_array control_std_dev = 0.5 * LSTM_CONTROLLER::control_array::Ones();
 
-  LSTM_CONTROLLER lstm_controller(&LSTM_model, costs, dt, max_iter, lambda,
+  auto ff_fb_controller = DDPFeedback<FF_DYNAMICS, num_timesteps>(&FF_model, dt);
+  auto lstm_fb_controller = DDPFeedback<LSTM_DYNAMICS, num_timesteps>(&LSTM_model, dt);
+
+  LSTM_CONTROLLER lstm_controller(&LSTM_model, costs, &lstm_fb_controller, dt, max_iter, lambda,
                                   alpha, control_std_dev );
-  FF_CONTROLLER ff_controller(&FF_model, costs, dt, max_iter, lambda,
+  FF_CONTROLLER ff_controller(&FF_model, costs, &ff_fb_controller, dt, max_iter, lambda,
                               alpha, control_std_dev );
   lstm_controller.setCUDAStream(stream);
   ff_controller.setCUDAStream(stream);
@@ -542,8 +548,8 @@ TEST_F(LSTMDynamicsTest, CompareComputeControl) {
     lstm_controller.computeControl(initial_state, 1);
     LSTM_CONTROLLER::control_trajectory control = lstm_controller.getControlSeq();
     EXPECT_TRUE(control.allFinite());
-    EXPECT_TRUE(lstm_controller.getStateSeq().allFinite());
-    if(!control.allFinite() && !lstm_controller.getStateSeq().allFinite()) {
+    EXPECT_TRUE(lstm_controller.getTargetStateSeq().allFinite());
+    if(!control.allFinite() && !lstm_controller.getTargetStateSeq().allFinite()) {
       exit(-1);
     }
   }

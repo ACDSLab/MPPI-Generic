@@ -30,7 +30,6 @@ public:
 
   using s_array = typename CONTROLLER_T::state_array;
   using s_traj = typename CONTROLLER_T::state_trajectory;
-  using K_mat = typename CONTROLLER_T::feedback_gain_trajectory;
 
   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
@@ -44,6 +43,7 @@ public:
     this->buffer_time_horizon_ = buffer_time_horizon;
     this->buffer_tau_ = 0.2;
     this->buffer_dt_ = 0.02;
+    controller->setDt(this->buffer_dt_);
   }
 
 
@@ -89,93 +89,80 @@ public:
 
 typedef TestPlant<MockController, 10> MockTestPlant;
 
-TEST(BufferedPlant, EmptyCheck) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  mockController->setDt(0.02);
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
+class BufferedPlantTest : public ::testing::Test {
+protected:
+  void SetUp() override {
+    mockController = std::make_shared<MockController>();
+    mockFeedback = new FEEDBACK_T(&mockDynamics, mockController->getDt());
+    mockController->cost_ = &mockCost;
+    mockController->model_ = &mockDynamics;
+    mockController->fb_controller_ = mockFeedback;
 
-  MockTestPlant plant(mockController);
+    EXPECT_CALL(*mockController->cost_, getParams()).Times(1);
+    EXPECT_CALL(*mockController->model_, getParams()).Times(1);
 
-  EXPECT_EQ(plant.getLatestTimeInBuffer(), -1);
-  EXPECT_EQ(plant.getEarliestTimeInBuffer(), -1);
-}
-
-TEST(BufferedPlant, UpdateStateCheck) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  mockController->setDt(0.02);
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant plant(mockController, 2.0);
-  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(6);
-
-  plant.setLastTime(8.0);
-
-  MockDynamics::state_array state = MockDynamics::state_array::Zero();
-  EXPECT_EQ(plant.getBufferSize(), 0);
-  plant.updateState(state, 8.534);
-  EXPECT_EQ(plant.getBufferSize(), 1);
-  EXPECT_EQ(plant.getEarliestTimeInBuffer(), 8.534);
-  EXPECT_EQ(plant.getLatestTimeInBuffer(), 8.534);
-
-  plant.updateState(state, 9.09);
-  EXPECT_EQ(plant.getBufferSize(), 2);
-  EXPECT_EQ(plant.getEarliestTimeInBuffer(), 8.534);
-  EXPECT_EQ(plant.getLatestTimeInBuffer(), 9.09);
-
-  plant.updateState(state, 9.08);
-  EXPECT_EQ(plant.getBufferSize(), 2);
-  EXPECT_EQ(plant.getEarliestTimeInBuffer(), 8.534);
-  EXPECT_EQ(plant.getLatestTimeInBuffer(), 9.09);
-
-
-  // TODO no set solution so time does not increment
-  //plant.updateState(state, 10.535);
-  //EXPECT_EQ(plant.getBufferSize(), 2);
-  //EXPECT_EQ(plant.getEarliestTimeInBuffer(), 9.09);
-  //EXPECT_EQ(plant.getLatestTimeInBuffer(), 10.535);
-}
-
-TEST(BufferedPlant, getBufferTestZeros) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  mockController->setDt(0.02);
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant plant(mockController);
-  plant.setLastTime(10.0);
-
-  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(401);
-
-  MockDynamics::state_array state = MockDynamics::state_array::Zero();
-  for(double i = 10;  i < 12; i+=0.01) {
-    plant.updateState(state, i);
+    plant = std::make_shared<MockTestPlant>(mockController);
   }
-  auto buffer = plant.getSmoothedBuffer();
+
+  void TearDown() override {
+    plant = nullptr;
+    mockController = nullptr;
+    delete mockFeedback;
+  }
+  MockDynamics mockDynamics;
+  MockCost mockCost;
+  FEEDBACK_T* mockFeedback;
+  std::shared_ptr<MockController> mockController;
+  std::shared_ptr<MockTestPlant> plant;
+};
+
+TEST_F(BufferedPlantTest, EmptyCheck) {
+  EXPECT_EQ(plant->getLatestTimeInBuffer(), -1);
+  EXPECT_EQ(plant->getEarliestTimeInBuffer(), -1);
+}
+
+TEST_F(BufferedPlantTest, UpdateStateCheck) {
+  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(5);
+
+  plant->setLastTime(8.0);
+
+  MockDynamics::state_array state = MockDynamics::state_array::Zero();
+  EXPECT_EQ(plant->getBufferSize(), 0);
+  plant->updateState(state, 8.0);
+  EXPECT_EQ(plant->getBufferSize(), 1);
+  EXPECT_EQ(plant->getEarliestTimeInBuffer(), 8.0);
+  EXPECT_EQ(plant->getLatestTimeInBuffer(), 8.0);
+
+  plant->updateState(state, 8.15);
+  EXPECT_EQ(plant->getBufferSize(), 2);
+  EXPECT_EQ(plant->getEarliestTimeInBuffer(), 8.0);
+  EXPECT_EQ(plant->getLatestTimeInBuffer(), 8.15);
+
+  plant->updateState(state, 8.25);
+  EXPECT_EQ(plant->getBufferSize(), 2);
+  EXPECT_EQ(plant->getEarliestTimeInBuffer(), 8.15);
+  EXPECT_EQ(plant->getLatestTimeInBuffer(), 8.25);
+}
+
+TEST_F(BufferedPlantTest, getBufferTestZeros) {
+  plant->setLastTime(10.0);
+
+  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(41);
+
+  MockDynamics::state_array state = MockDynamics::state_array::Zero();
+  for(double i = 10;  i < 10.2; i+=0.01) {
+    plant->updateState(state, i);
+  }
+  auto buffer = plant->getSmoothedBuffer();
   for(int row = 0; row < buffer.rows(); row++) {
     for(int col = 0; col < buffer.cols(); col++) {
-      EXPECT_DOUBLE_EQ(buffer(row,col), 0);
+      EXPECT_DOUBLE_EQ(buffer(row,col), 0) << "row " << row << " col " << col;
     }
   }
 }
 
-TEST(BufferedPlant, getBufferTestValues) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  mockController->setDt(0.02);
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant plant(mockController);
-  plant.setLastTime(10.0);
+TEST_F(BufferedPlantTest, getBufferTestValues) {
+  plant->setLastTime(10.0);
   EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(39);
 
   std::array<double, 20> old_times = {10.0, 10.010526315789473, 10.021052631578947, 10.031578947368422, 10.042105263157895, 10.052631578947368, 10.063157894736841, 10.073684210526315, 10.08421052631579, 10.094736842105263, 10.105263157894736, 10.11578947368421, 10.126315789473685, 10.136842105263158, 10.147368421052631, 10.157894736842104, 10.168421052631578, 10.178947368421053, 10.189473684210526, 10.2};
@@ -186,10 +173,10 @@ TEST(BufferedPlant, getBufferTestValues) {
   for(int i = 0; i < 20; i++) {
     MockDynamics::state_array state = MockDynamics::state_array::Zero();
     state(0, 0) = y[i];
-    plant.updateState(state, old_times[i]);
+    plant->updateState(state, old_times[i]);
   }
-  EXPECT_EQ(plant.getBufferSize(), 20);
-  auto buffer = plant.getSmoothedBuffer();
+  EXPECT_EQ(plant->getBufferSize(), 20);
+  auto buffer = plant->getSmoothedBuffer();
 
   for(int col = 0; col < buffer.cols(); col++) {
     EXPECT_FLOAT_EQ(buffer(0,col), result[col]);

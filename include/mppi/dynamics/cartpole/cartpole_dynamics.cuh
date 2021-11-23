@@ -1,5 +1,3 @@
-#pragma once
-
 #ifndef CARTPOLE_CUH_
 #define CARTPOLE_CUH_
 

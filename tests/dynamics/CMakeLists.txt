@@ -13,9 +13,6 @@ if(BUILD_TESTS)
 endif()
 
 set(GTEST_LIBRARIES gtest gmock gtest_main)
-# set(TARGETS ar_dynamics_nn_test quadrotor_dynamics_tests
-#     cartpole_dynamics_tests dynamics_generic_tests)
-
 file(GLOB TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
 
 foreach(T_FILE IN LISTS TARGET_SRCS)
@@ -30,12 +27,12 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
 endforeach()
 
 ## Autorally Dynamics Constant Memory Tests
-add_executable(ar_dynamics_nn_test_constant ../test_main.cpp ar_dynamics_nn_test.cu)
-target_compile_definitions(ar_dynamics_nn_test_constant PRIVATE MPPI_NNET_USING_CONSTANT_MEM__)
-target_link_libraries(ar_dynamics_nn_test_constant
-                      ${GTEST_LIBRARIES}
-                      cnpy)
-
-gtest_discover_tests(ar_dynamics_nn_test_constant)
-
-set_target_properties(ar_dynamics_nn_test_constant PROPERTIES FOLDER test)
+#add_executable(ar_dynamics_nn_test_constant ../test_main.cpp ar_dynamics_nn_test.cu)
+#target_compile_definitions(ar_dynamics_nn_test_constant PRIVATE MPPI_NNET_USING_CONSTANT_MEM__)
+#target_link_libraries(ar_dynamics_nn_test_constant
+#                      ${GTEST_LIBRARIES}
+#                      cnpy)
+#
+#gtest_add_tests(TARGET ar_dynamics_nn_test_constant)
+#
+#set_target_properties(ar_dynamics_nn_test_constant PROPERTIES FOLDER test)

@@ -16,6 +16,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
 set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G --keep")
 
 option(BUILD_TESTS "BUILD_TESTS" ON)
+option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 
 # Allow the lib location to be overwritten from command line
 if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
@@ -37,22 +38,28 @@ add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=0)
 find_package(OpenCV REQUIRED)
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 
-# find yaml-cpp
-find_package(yaml-cpp REQUIRED)
-include_directories(${YAML_CPP_INCLUDE_DIR})
+if (BUILD_TESTS OR BUILD_EXAMPLES)
+    # find yaml-cpp
+    find_package(yaml-cpp REQUIRED)
+    include_directories(${YAML_CPP_INCLUDE_DIR})
 
-# set up cnpy
-# Don't install cnpy to user package registry
-set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
-set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
-add_subdirectory(submodules/cnpy)
-include_directories(submodules/cnpy)
-# Set the no package registry back to default
-set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
+    # set up cnpy
+    # Don't install cnpy to user package registry
+    set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
+    set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
+    add_subdirectory(submodules/cnpy)
+    include_directories(submodules/cnpy)
+    # Set the no package registry back to default
+    set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
+endif()
 
-#add fitpackpp
-include_directories(submodules/fitpackpp/include)
-add_subdirectory(submodules/fitpackpp)
+# TODO a better way to detect if fortran compiler exists
+if (EXISTS /usr/bin/gfortran)
+    message("detected fortran compiler, building buffered plant")
+    #add fitpackpp
+    include_directories(submodules/fitpackpp/include)
+    add_subdirectory(submodules/fitpackpp)
+endif()
 
 # required for curand on some systems
 find_package(CUDA REQUIRED)
@@ -76,8 +83,12 @@ install(
         DESTINATION include
 )
 
-add_subdirectory(src)
-add_subdirectory(examples)
+if (BUILD_TESTS OR BUILD_EXAMPLES)
+    add_subdirectory(src)
+endif()
+if (BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 # Add custom cmake finds
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
@@ -95,7 +106,8 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   ############################################################
   # Download and unpack googletest at configure time
   if (NOT TARGET gtest_main)
-    configure_file(${CMAKE_MODULE_PATH}/CMakeLists.txt.gtest.in
+    list(GET CMAKE_MODULE_PATH -1 MPPI_GENERIC_MODULES)
+    configure_file(${MPPI_GENERIC_MODULES}/CMakeLists.txt.gtest.in
 	${PROJECT_BINARY_DIR}/googletest-download/CMakeLists.txt)
     execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
       RESULT_VARIABLE result

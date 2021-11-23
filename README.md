@@ -52,6 +52,13 @@ sudo apt install cmake libeigen3-dev libopencv-dev python3-pil
 
 Note: If using Pop!\_OS you can `sudo apt install system76-cuda` instead of installing CUDA manually.
 
+## Download the repo
+```bash
+cd /path/to/repos
+git clone https://github.gatech.edu/ACDS/MPPI-Generic.git
+cd MPPI-Generic
+git submodule update --init --recursive
+```
 ## Building MPPI-Generic with tests
 
 The default is to build the library with tests ON. If you would like to turn off the tests when building, pass the flag `DBUILD_TESTS=OFF` when configuring cmake.

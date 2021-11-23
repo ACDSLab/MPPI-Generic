@@ -6,6 +6,7 @@
 #include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
 #include <mppi/core/rmppi_kernel_test.cuh>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
+#include <mppi/feedback_controllers/DDP/ddp.cuh>
 #include <mppi/utils/test_helper.h>
 #include <vector>
 #include <iostream>
@@ -71,13 +72,13 @@ TEST_F(RMPPIKernels, InitEvalRollout) {
   // We need to generate a nominal trajectory for the control
   Eigen::Matrix<float, dynamics::CONTROL_DIM, num_timesteps> nominal_control = Eigen::MatrixXf::Random(dynamics::CONTROL_DIM, num_timesteps);
 
-//  std::cout << "Nominal Control" << nominal_control << std::endl;
+  // std::cout << "Nominal Control" << nominal_control << std::endl;
 
   // Exploration variance
   Eigen::Matrix<float, dynamics::CONTROL_DIM, 1> exploration_var;
   exploration_var << 2, 2;
 
-//  std::cout << exploration_var << std::endl;
+  // std::cout << exploration_var << std::endl;
 
   // Generate noise to perturb the nominal control
   // Seed the PseudoRandomGenerator with the CPU time.
@@ -186,14 +187,17 @@ TEST(RMPPITest, RMPPIRolloutKernel_CPU_v_GPU) {
   DYN model;
   COST cost;
 
+  const int num_timesteps = 50;
+  float dt = 0.01;
+  using FB_T = DDPFeedback<DYN, num_timesteps>;
+  FB_T fb_controller(&model, dt);
+
   const int state_dim = DYN::STATE_DIM;
   const int control_dim = DYN::CONTROL_DIM;
 
-  float dt = 0.01;
   // int max_iter = 10;
   float lambda = 1.0;
   float alpha = 0.1;
-  const int num_timesteps = 50;
   const int num_rollouts = 64;
   int optimization_stride = 1;
 
@@ -242,23 +246,11 @@ TEST(RMPPITest, RMPPIRolloutKernel_CPU_v_GPU) {
   u_traj[14] = -1;
   u_traj[15] = 0.5;
 
-  // TODO: Generate feedback gain trajectories
-  VanillaMPPIController<DYN, COST, num_timesteps, num_rollouts, 64, 8>::feedback_gain_trajectory feedback_gains;
-  for (int i = 0; i < num_timesteps; i++) {
-    feedback_gains.push_back(DYN::feedback_matrix::Constant(-15));
+  auto fb_state = fb_controller.getFeedbackStatePointer();
+  for (int i = 0; i < num_timesteps * state_dim * control_dim; i++) {
+    fb_state->fb_gain_traj_[i] = -15;
   }
 
-  // Copy Feedback Gains into an array
-  float feedback_array[num_timesteps * control_dim * state_dim];
-  for (size_t i = 0; i < feedback_gains.size(); i++) {
-//     std::cout << "Matrix " << i << ":\n";
-//     std::cout << feedback_gains[i] << std::endl;
-    int i_index = i * control_dim * state_dim;
-
-    for (size_t j = 0; j < control_dim * state_dim; j++) {
-      feedback_array[i_index + j] = feedback_gains[i].data()[j];
-    }
-  }
   /**
    * Create vectors of data for GPU/CPU test
    */
@@ -268,8 +260,6 @@ TEST(RMPPITest, RMPPIRolloutKernel_CPU_v_GPU) {
   sigma_u_vec.assign(sigma_u, sigma_u + control_dim);
   u_traj_vec.assign(u_traj, u_traj + num_timesteps * control_dim);
   std::vector<float> feedback_gains_seq_vec, sampled_noise_vec;
-  feedback_gains_seq_vec.assign(feedback_array, feedback_array +
-    num_timesteps * control_dim * state_dim);
   int control_traj_size = num_rollouts * num_timesteps * control_dim;
 
   sampled_noise_vec.reserve(control_traj_size * 2);
@@ -296,13 +286,13 @@ TEST(RMPPITest, RMPPIRolloutKernel_CPU_v_GPU) {
   // Output Trajectory Costs
   std::array<float, num_rollouts> costs_act_GPU, costs_nom_GPU;
   std::array<float, num_rollouts> costs_act_CPU, costs_nom_CPU;
-  launchRMPPIRolloutKernelGPU<DYN, COST, num_rollouts>(&model, &cost, dt,
+  launchRMPPIRolloutKernelGPU<DYN, COST, FB_T, num_rollouts>(&model, &cost, &fb_controller, dt,
     num_timesteps, optimization_stride, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
-    sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
+    sigma_u_vec, u_traj_vec, sampled_noise_vec,
     costs_act_GPU, costs_nom_GPU);
-  launchRMPPIRolloutKernelCPU<DYN, COST, num_rollouts>(&model, &cost, dt,
+  launchRMPPIRolloutKernelCPU<DYN, COST, FB_T, num_rollouts>(&model, &cost, &fb_controller, dt,
     num_timesteps, optimization_stride, lambda, alpha, value_func_threshold, x_init_act_vec, x_init_nom_vec,
-    sigma_u_vec, u_traj_vec, feedback_gains_seq_vec, sampled_noise_vec,
+    sigma_u_vec, u_traj_vec, sampled_noise_vec,
     costs_act_CPU, costs_nom_CPU);
 
 //  for (int i = 0; i < costs_nom_CPU.size(); ++i) {
@@ -344,19 +334,23 @@ TEST(RMPPITest, TwoSystemRolloutKernelComparison) {
    */
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
+  const int num_timesteps = 100;
+  using FB_T = DDPFeedback<DYN, num_timesteps>;
+
   DYN model;
   COST cost;
+  float dt = 0.01;
+  FB_T fb_controller(&model, dt);
 
   model.GPUSetup();
   cost.GPUSetup();
+  fb_controller.GPUSetup();
 
   const int state_dim = DYN::STATE_DIM;
   const int control_dim = DYN::CONTROL_DIM;
 
-  float dt = 0.01;
   float lambda = 4.2;
   float alpha = 0.05;
-  const int num_timesteps = 100;
   const int num_rollouts = 256;
   int optimization_stride = 1;
 
@@ -379,30 +373,23 @@ TEST(RMPPITest, TwoSystemRolloutKernelComparison) {
 
 
   // Create some random feedback gains
-  VanillaMPPIController<DYN, COST, num_timesteps, num_rollouts, 64, 8>::feedback_gain_trajectory feedback_gains;
-  feedback_gains.resize(num_timesteps);
-  for (auto & feedback_gain : feedback_gains) {
-    feedback_gain = Eigen::Matrix<float, control_dim, state_dim>::Random();
+  using feedback_gain_traj_matrix = Eigen::Matrix<float, control_dim * state_dim * num_timesteps, 1>;
+  feedback_gain_traj_matrix random_noise = feedback_gain_traj_matrix::Random();
+  auto fb_state = fb_controller.getFeedbackStatePointer();
+  for (int i = 0; i < num_timesteps * state_dim * control_dim; i++) {
+    fb_state->fb_gain_traj_[i] = random_noise.data()[i];
   }
-
-  std::vector<float> feedback_gain_vector(num_timesteps*state_dim*control_dim);
-  // Copy Feedback Gains into an array
-  for (size_t i = 0; i < feedback_gains.size(); i++) {
-    size_t i_index = i * DYN::STATE_DIM * DYN::CONTROL_DIM;
-    for (size_t j = 0; j < DYN::CONTROL_DIM * DYN::STATE_DIM; j++) {
-      feedback_gain_vector[i_index + j] = feedback_gains[i].data()[j];
-    }
-  }
+  fb_controller.copyToDevice();
 
   // Create objects that will hold the results
   std::array<float, 2*num_rollouts> rmppi_costs_out{};
   std::array<float, num_rollouts> mppi_costs_out{};
 
   // Launch the test kernel...
-  launchComparisonRolloutKernelTest<DYN,COST, num_rollouts, num_timesteps, 64, 8>
-          (&model, &cost, dt, lambda, alpha, x_real, x_nominal,
-           feedback_gain_vector, u_init_trajectory, control_noise_array,
-           sigma_u, rmppi_costs_out, mppi_costs_out, optimization_stride, 0);
+  launchComparisonRolloutKernelTest<DYN, COST, FB_T, num_rollouts, num_timesteps, 64, 8>
+          (&model, &cost, &fb_controller, dt, lambda, alpha, x_real, x_nominal,
+           u_init_trajectory, control_noise_array, sigma_u, rmppi_costs_out,
+           mppi_costs_out, optimization_stride, 0);
 
 
   for (int i = 0; i < num_rollouts; i++) {

@@ -4,6 +4,8 @@
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
 #include <mppi/controllers/Tube-MPPI/tube_mppi_controller.cuh>
 #include <mppi/controllers/R-MPPI/robust_mppi_controller.cuh>
+#include <mppi/feedback_controllers/DDP/ddp.cuh>
+
 #include <cnpy.h>
 #include <random> // Used to generate random noise for control trajectories
 
@@ -23,6 +25,7 @@ using SCost = DoubleIntegratorCircleCost;
 using RCost = DoubleIntegratorRobustCost;
 const int num_timesteps = 50;  // Optimization time horizon
 const int total_time_horizon = 5000;
+using Feedback = DDPFeedback<Dyn, num_timesteps>;
 
 // Problem setup
 const float dt = 0.02; // Timestep of dynamics propagation
@@ -48,27 +51,13 @@ void saveState(const Eigen::Ref<const Dyn::state_array >& state, int t, std::vec
 }
 
 void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-  Q = 500 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                      DoubleIntegratorDynamics::STATE_DIM);
-  Q(2, 2) = 100;
-  Q(3, 3) = 100;
-  R = 1 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,
-                                    DoubleIntegratorDynamics::CONTROL_DIM);
-
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                 DoubleIntegratorDynamics::STATE_DIM);
-
   // Set the initial state
-  DoubleIntegratorDynamics::state_array x;
+  Dyn::state_array x;
   x << 2, 0, 0, 1;
-  DoubleIntegratorDynamics::state_array xdot;
+  Dyn::state_array xdot;
 
   // control variance
-  DoubleIntegratorDynamics::control_array control_var;
+  Dyn::control_array control_var;
   control_var << 1, 1;
 
   // Save actual trajectories, nominal_trajectory, free energy
@@ -82,9 +71,15 @@ void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tota
   // Initialize the controllers
   Dyn model;
   SCost cost;
-  auto controller = VanillaMPPIController<Dyn, SCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
-  controller.initDDP(Q, Qf, R);
+  // DDP cost parameters
+  Feedback fb_controller(&model, dt);
+  auto fb_params = fb_controller.getParams();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
+  fb_controller.setParams(fb_params);
+  auto controller = VanillaMPPIController<Dyn, SCost, Feedback, num_timesteps,
+          1024, 64, 1>(&model, &cost, &fb_controller, dt, max_iter, lambda,
+                       alpha, control_var);
+  controller.initFeedback();
 
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t) {
@@ -93,12 +88,12 @@ void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tota
     controller.computeControl(x, 1);
 
     // Compute the feedback gains
-    controller.computeFeedbackGains(x);
+    controller.computeFeedback(x);
 
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -113,8 +108,9 @@ void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tota
             0);
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0] *
-                       (x - nominal_trajectory.col(0));
+    Dyn::control_array fb_control = controller.getFeedbackControl(x,
+      nominal_trajectory.col(0), 0);
+    current_control += fb_control;
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -136,20 +132,6 @@ void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tota
 }
 
 void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-  Q = 500 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                      DoubleIntegratorDynamics::STATE_DIM);
-  Q(2, 2) = 100;
-  Q(3, 3) = 100;
-  R = 1 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,
-                                    DoubleIntegratorDynamics::CONTROL_DIM);
-
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                 DoubleIntegratorDynamics::STATE_DIM);
-
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
   x << 2, 0, 0, 1;
@@ -170,9 +152,15 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
   // Initialize the controllers
   Dyn model(100);
   SCost cost;
-  auto controller = VanillaMPPIController<Dyn, SCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
-  controller.initDDP(Q, Qf, R);
+  // DDP cost parameters
+  Feedback fb_controller(&model, dt);
+  auto fb_params = fb_controller.getParams();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
+  fb_controller.setParams(fb_params);
+  auto controller = VanillaMPPIController<Dyn, SCost, Feedback, num_timesteps,
+          1024, 64, 1>(&model, &cost, &fb_controller, dt, max_iter, lambda,
+                       alpha, control_var);
+  controller.initFeedback();
 
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t) {
@@ -181,12 +169,12 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
     controller.computeControl(x, 1);
 
     // Compute the feedback gains
-    controller.computeFeedbackGains(x);
+    controller.computeFeedback(x);
 
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -201,8 +189,9 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
             0);
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0] *
-                       (x - nominal_trajectory.col(0));
+    Dyn::control_array fb_control = controller.getFeedbackControl(x,
+      nominal_trajectory.col(0), 0);
+    current_control += fb_control;
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -224,20 +213,6 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
 }
 
 void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-  Q = 500 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                      DoubleIntegratorDynamics::STATE_DIM);
-  Q(2, 2) = 100;
-  Q(3, 3) = 100;
-  R = 1 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,
-                                    DoubleIntegratorDynamics::CONTROL_DIM);
-
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                 DoubleIntegratorDynamics::STATE_DIM);
-
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
   x << 2, 0, 0, 1;
@@ -262,10 +237,16 @@ void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DI
   auto params = cost.getParams();
   params.crash_cost = 100;
   cost.setParams(params);
+  // DDP cost parameters
+  Feedback fb_controller(&model, dt);
+  auto fb_params = fb_controller.getParams();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
+  fb_controller.setParams(fb_params);
 
-  auto controller = VanillaMPPIController<Dyn, RCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha, control_var);
-  controller.initDDP(Q, Qf, R);
+  auto controller = VanillaMPPIController<Dyn, RCost, Feedback, num_timesteps,
+          1024, 64, 1>(&model, &cost, &fb_controller, dt, max_iter, lambda,
+                       alpha, control_var);
+  controller.initFeedback();
 
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t) {
@@ -274,12 +255,12 @@ void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DI
     controller.computeControl(x, 1);
 
     // Compute the feedback gains
-    controller.computeFeedbackGains(x);
+    controller.computeFeedback(x);
 
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -294,8 +275,9 @@ void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DI
             0);
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0] *
-                       (x - nominal_trajectory.col(0));
+    Dyn::control_array fb_control = controller.getFeedbackControl(x,
+      nominal_trajectory.col(0), 0);
+    current_control += fb_control;
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -317,20 +299,6 @@ void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DI
 }
 
 void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-  Q = 500 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                      DoubleIntegratorDynamics::STATE_DIM);
-  Q(2, 2) = 100;
-  Q(3, 3) = 100;
-  R = 1 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,
-                                    DoubleIntegratorDynamics::CONTROL_DIM);
-
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                 DoubleIntegratorDynamics::STATE_DIM);
-
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
   x << 2, 0, 0, 1;
@@ -351,9 +319,14 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
   // Initialize the controllers
   Dyn model(100);
   SCost cost;
-  auto controller = TubeMPPIController<Dyn, SCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
-                  Q, Qf, R,control_var);
+  // DDP cost parameters
+  Feedback fb_controller(&model, dt);
+  auto fb_params = fb_controller.getParams();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
+  fb_controller.setParams(fb_params);
+  auto controller = TubeMPPIController<Dyn, SCost, Feedback, num_timesteps,
+          1024, 64, 1>(&model, &cost, &fb_controller, dt, max_iter, lambda,
+                       alpha, control_var);
   controller.setNominalThreshold(20);
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t) {
@@ -362,12 +335,12 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
     controller.computeControl(x, 1);
 
     // Compute the feedback gains
-    controller.computeFeedbackGains(x);
+    controller.computeFeedback(x);
 
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -383,8 +356,9 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
             0);
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0] *
-                       (x - nominal_trajectory.col(0));
+    Dyn::control_array fb_control = controller.getFeedbackControl(x,
+      nominal_trajectory.col(0), 0);
+    current_control += fb_control;
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -411,20 +385,6 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
 }
 
 void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-  Q = 500 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                      DoubleIntegratorDynamics::STATE_DIM);
-  Q(2, 2) = 100;
-  Q(3, 3) = 100;
-  R = 1 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,
-                                    DoubleIntegratorDynamics::CONTROL_DIM);
-
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                 DoubleIntegratorDynamics::STATE_DIM);
-
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
   x << 2, 0, 0, 1;
@@ -448,9 +408,14 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
   auto params = cost.getParams();
   params.crash_cost = 100;
   cost.setParams(params);
-  auto controller = TubeMPPIController<Dyn, RCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
-                  Q, Qf, R,control_var);
+  // DDP cost parameters
+  Feedback fb_controller(&model, dt);
+  auto fb_params = fb_controller.getParams();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
+  fb_controller.setParams(fb_params);
+  auto controller = TubeMPPIController<Dyn, RCost, Feedback, num_timesteps,
+          1024, 64, 1>(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha,
+                       control_var);
   controller.setNominalThreshold(2);
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t) {
@@ -459,12 +424,12 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
     controller.computeControl(x, 1);
 
     // Compute the feedback gains
-    controller.computeFeedbackGains(x);
+    controller.computeFeedback(x);
 
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -480,8 +445,9 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
             0);
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0] *
-                       (x - nominal_trajectory.col(0));
+    Dyn::control_array fb_control = controller.getFeedbackControl(x,
+      nominal_trajectory.col(0), 0);
+    current_control += fb_control;
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -508,20 +474,6 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
 }
 
 void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-  Q = 500 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                      DoubleIntegratorDynamics::STATE_DIM);
-  Q(2, 2) = 100;
-  Q(3, 3) = 100;
-  R = 1 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,
-                                    DoubleIntegratorDynamics::CONTROL_DIM);
-
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                 DoubleIntegratorDynamics::STATE_DIM);
-
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
   x << 2, 0, 0, 1;
@@ -545,11 +497,16 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   // Initialize the controllers
   Dyn model(100);
   SCost cost;
+  // DDP cost parameters
+  Feedback fb_controller(&model, dt);
+  auto fb_params = fb_controller.getParams();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
+  fb_controller.setParams(fb_params);
   // Value function threshold
   float value_function_threshold = 20.0;
-  auto controller = RobustMPPIController<Dyn, SCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
-                       value_function_threshold, Q, Qf, R,control_var);
+  auto controller = RobustMPPIController<Dyn, SCost, Feedback, num_timesteps,
+          1024, 64, 1>(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha,
+                       value_function_threshold, control_var);
 
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t) {
@@ -559,12 +516,12 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
     controller.computeControl(x, 1);
 
     // Compute the feedback gains
-    controller.computeFeedbackGains(x);
+    controller.computeFeedback(x);
 
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -584,8 +541,9 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
             0);
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0] *
-                       (x - nominal_trajectory.col(0));
+    Dyn::control_array fb_control = controller.getFeedbackControl(x,
+      nominal_trajectory.col(0), 0);
+    current_control += fb_control;
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
@@ -617,20 +575,6 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
 }
 
 void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_time_horizon>>& noise) {
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf Qf;
-  Eigen::MatrixXf R;
-  Q = 500 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                      DoubleIntegratorDynamics::STATE_DIM);
-  Q(2, 2) = 100;
-  Q(3, 3) = 100;
-  R = 1 * Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::CONTROL_DIM,
-                                    DoubleIntegratorDynamics::CONTROL_DIM);
-
-  Qf = Eigen::MatrixXf::Identity(DoubleIntegratorDynamics::STATE_DIM,
-                                 DoubleIntegratorDynamics::STATE_DIM);
-
   // Set the initial state
   DoubleIntegratorDynamics::state_array x;
   x << 2, 0, 0, 1;
@@ -659,11 +603,18 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   auto params = cost.getParams();
   params.crash_cost = 100;
   cost.setParams(params);
+
+  // DDP cost parameters
+  Feedback fb_controller(&model, dt);
+  auto fb_params = fb_controller.getParams();
+  fb_params.Q.diagonal() << 500, 500, 100, 100;
+  fb_controller.setParams(fb_params);
+
   // Value function threshold
   float value_function_threshold = 20.0;
-  auto controller = RobustMPPIController<Dyn, RCost, num_timesteps,
-          1024, 64, 1>(&model, &cost, dt, max_iter, lambda, alpha,
-                       value_function_threshold, Q, Qf, R,control_var);
+  auto controller = RobustMPPIController<Dyn, RCost, Feedback, num_timesteps,
+          1024, 64, 1>(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha,
+                       value_function_threshold, control_var);
 
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t) {
@@ -673,12 +624,12 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
     controller.computeControl(x, 1);
 
     // Compute the feedback gains
-    controller.computeFeedbackGains(x);
+    controller.computeFeedback(x);
 
     // Propagate the feedback trajectory
     controller.computeFeedbackPropagatedStateSeq();
 
-    auto nominal_trajectory = controller.getStateSeq();
+    auto nominal_trajectory = controller.getTargetStateSeq();
     auto nominal_control = controller.getControlSeq();
     auto fe_stat = controller.getFreeEnergyStatistics();
 
@@ -704,8 +655,9 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
             0);
 
     // Apply the feedback given the current state
-    current_control += controller.getFeedbackGains()[0] *
-                       (x - nominal_trajectory.col(0));
+    Dyn::control_array fb_control = controller.getFeedbackControl(x,
+      nominal_trajectory.col(0), 0);
+    current_control += fb_control;
 
     // Propagate the state forward
     model.computeDynamics(x, current_control, xdot);
