@@ -156,7 +156,7 @@ TEST_F(BufferedPlantTest, getBufferTestZeros) {
   auto buffer = plant->getSmoothedBuffer();
   for(int row = 0; row < buffer.rows(); row++) {
     for(int col = 0; col < buffer.cols(); col++) {
-      EXPECT_DOUBLE_EQ(buffer(row,col), 0) << "row " << row << " col " << col;
+      EXPECT_NEAR(buffer(row,col), 0, 1e-10) << "row " << row << " col " << col;
     }
   }
 }
