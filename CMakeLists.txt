@@ -70,7 +70,20 @@ endif()
 
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -maxrregcount=32 -arch=sm_35 -w")
+# Autodetect Cuda Architecture on system and add to executables
+# More info for autodetection:
+# https://stackoverflow.com/questions/35485087/determining-which-gencode-compute-arch-values-i-need-for-nvcc-within-cmak
+CUDA_SELECT_NVCC_ARCH_FLAGS(MPPI_ARCH_FLAGS ${CUDA_ARCH_LIST})
+
+if (MPPI_ARCH_FLAGS STREQUAL "")
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -maxrregcount=32 -arch=sm_35 -w")
+else()
+  string(REGEX REPLACE "-gencode;arch" "-gencode=arch" MPPI_ARCH_FLAGS "${MPPI_ARCH_FLAGS}")
+  string(REPLACE ";" " " MPPI_ARCH_FLAGS "${MPPI_ARCH_FLAGS}")
+  # string(REGEX REPLACE "^-gencode=arch" "-arch" MPPI_ARCH_FLAGS "${MPPI_ARCH_FLAGS}")
+  message(STATUS "Additional Architectures: ${MPPI_ARCH_FLAGS}")
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -maxrregcount=32 ${MPPI_ARCH_FLAGS} -w")
+endif()
 
 # Add debug flags so cuda-gdb can be used to stop inside a kernel.
 # NOTE: You may have to run make multiple times for it to compile successfully.
