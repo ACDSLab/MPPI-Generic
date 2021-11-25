@@ -38,59 +38,32 @@
 #include <mppi/controllers/controller.cuh>
 #include <mppi/core/mppi_common.cuh>
 
-template <class DYN_T, class COST_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
-          int BDIM_X = 64, int BDIM_Y = 1, int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
-class RobustMPPIController : public Controller<DYN_T, COST_T,
-                                            MAX_TIMESTEPS,
-                                            NUM_ROLLOUTS,
-                                            BDIM_X,
-                                            BDIM_Y> {
+// Needed for list of candidate states
+#include <mppi/ddp/util.h>
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS,
+          int NUM_ROLLOUTS = 2560, int BDIM_X = 64, int BDIM_Y = 1,
+          int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
+class RobustMPPIController : public Controller<DYN_T, COST_T, FB_T,
+                                               MAX_TIMESTEPS,
+                                               NUM_ROLLOUTS,
+                                               BDIM_X, BDIM_Y> {
 
 public:
-
   /**
    * Set up useful types
    */
-  using control_array = typename Controller<DYN_T, COST_T,
-                                            MAX_TIMESTEPS,
-                                            NUM_ROLLOUTS,
-                                            BDIM_X,
-                                            BDIM_Y>::control_array;
+  typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X,
+                     BDIM_Y> PARENT_CLASS;
 
-  using control_trajectory = typename Controller<DYN_T, COST_T,
-                                                 MAX_TIMESTEPS,
-                                                 NUM_ROLLOUTS,
-                                                 BDIM_X,
-                                                 BDIM_Y>::control_trajectory;
-
-  using state_trajectory = typename Controller<DYN_T, COST_T,
-                                               MAX_TIMESTEPS,
-                                               NUM_ROLLOUTS,
-                                               BDIM_X,
-                                               BDIM_Y>::state_trajectory;
-
-  using state_array = typename Controller<DYN_T, COST_T,
-                                          MAX_TIMESTEPS,
-                                          NUM_ROLLOUTS,
-                                          BDIM_X,
-                                          BDIM_Y>::state_array;
-
-  using sampled_cost_traj = typename Controller<DYN_T, COST_T,
-                                                MAX_TIMESTEPS,
-                                                NUM_ROLLOUTS,
-                                                BDIM_X,
-                                                BDIM_Y>::sampled_cost_traj;
-
-  using feedback_gain_trajectory = typename Controller<DYN_T, COST_T,
-                                                MAX_TIMESTEPS,
-                                                NUM_ROLLOUTS,
-                                                BDIM_X,
-                                                BDIM_Y>::feedback_gain_trajectory;
-
-  // using m_dyn = typename ModelWrapperDDP<DYN_T>::Scalar;
-  using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
-  using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
-  using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
+  using control_array = typename PARENT_CLASS::control_array;
+  using control_trajectory = typename PARENT_CLASS::control_trajectory;
+  using state_trajectory = typename PARENT_CLASS::state_trajectory;
+  using state_array = typename PARENT_CLASS::state_array;
+  using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
+  using FEEDBACK_STATE = typename PARENT_CLASS::TEMPLATED_FEEDBACK_STATE;
+  using FEEDBACK_PARAMS = typename PARENT_CLASS::TEMPLATED_FEEDBACK_PARAMS;
+  using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
   using NominalCandidateVector = typename util::NamedEigenAlignedVector<state_array>;
 
   static const int BLOCKSIZE_X = BDIM_X;
@@ -115,12 +88,9 @@ public:
   * @param num_timesteps The number of timesteps to look ahead for.
   * TODO Finish this description
   */
-  RobustMPPIController(DYN_T* model, COST_T* cost, float dt, int max_iter,
+  RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                        float lambda, float alpha,
                        float value_function_threshold,
-                       const Eigen::Ref<const StateCostWeight>& Q,
-                       const Eigen::Ref<const Hessian>& Qf,
-                       const Eigen::Ref<const ControlCostWeight>& R,
                        const Eigen::Ref<const control_array>& control_std_dev,
                        int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
@@ -134,10 +104,6 @@ public:
   ~RobustMPPIController();
 
   std::string getControllerName() {return "Robust MPPI";};
-
-  feedback_gain_trajectory getFeedbackGains() override {
-    return this->result_.feedback_gain;
-  };
 
   // Initializes the num_candidates, candidate_nominal_states, linesearch_weights,
   // and allocates the associated CUDA memory
@@ -155,7 +121,11 @@ public:
 
   control_trajectory getControlSeq() override {return this->control_;};
 
-  state_trajectory getStateSeq() override {return nominal_state_trajectory_;};
+  state_trajectory getTargetStateSeq() override {return nominal_state_trajectory_;};
+
+  state_array getNominalState() {return nominal_state_;}
+
+  int getBestIndex() {return best_index_;};
 
   // Does nothing. This reason is because the control sliding happens during the importance sampler update.
   // The control applied to the real system (during the MPPI rollouts) is the nominal control (which slides
@@ -167,7 +137,7 @@ public:
   // during the importance sampling update does not change after the optimization, thus the feedback gains will
   // not change either. In the current implementation of runControlIteration, the compute feedback gains is called
   // after the computation of the optimal control.
-  void computeFeedbackGains(const Eigen::Ref<const state_array>& state) override {};
+  void computeFeedback(const Eigen::Ref<const state_array>& state) override {};
 
   Eigen::MatrixXf getCandidateFreeEnergy() {return candidate_free_energy_;};
 
@@ -210,11 +180,8 @@ protected:
   Eigen::MatrixXi importance_sampler_strides_; // Time index where control trajectory starts for each nominal state candidate
   Eigen::MatrixXf candidate_trajectory_costs_;
   Eigen::MatrixXf candidate_free_energy_;
-  std::vector<float> feedback_gain_vector_;
 
   void allocateCUDAMemory();
-
-  void deallocateCUDAMemory();
 
   void copyNominalControlToDevice();
 

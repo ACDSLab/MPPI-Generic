@@ -16,6 +16,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
 set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G --keep")
 
 option(BUILD_TESTS "BUILD_TESTS" ON)
+option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 
 # Allow the lib location to be overwritten from command line
 if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
@@ -37,18 +38,20 @@ add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=0)
 find_package(OpenCV REQUIRED)
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
 
-# find yaml-cpp
-find_package(yaml-cpp REQUIRED)
-include_directories(${YAML_CPP_INCLUDE_DIR})
+if (BUILD_TESTS OR BUILD_EXAMPLES)
+    # find yaml-cpp
+    find_package(yaml-cpp REQUIRED)
+    include_directories(${YAML_CPP_INCLUDE_DIR})
 
-# set up cnpy
-# Don't install cnpy to user package registry
-set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
-set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
-add_subdirectory(submodules/cnpy)
-include_directories(submodules/cnpy)
-# Set the no package registry back to default
-set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
+    # set up cnpy
+    # Don't install cnpy to user package registry
+    set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
+    set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
+    add_subdirectory(submodules/cnpy)
+    include_directories(submodules/cnpy)
+    # Set the no package registry back to default
+    set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
+endif()
 
 # required for curand on some systems
 find_package(CUDA REQUIRED)
@@ -59,7 +62,20 @@ endif()
 
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -maxrregcount=32 -arch=sm_35 -w")
+# Autodetect Cuda Architecture on system and add to executables
+# More info for autodetection:
+# https://stackoverflow.com/questions/35485087/determining-which-gencode-compute-arch-values-i-need-for-nvcc-within-cmak
+CUDA_SELECT_NVCC_ARCH_FLAGS(MPPI_ARCH_FLAGS ${CUDA_ARCH_LIST})
+
+if (MPPI_ARCH_FLAGS STREQUAL "")
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -maxrregcount=32 -arch=sm_35 -w")
+else()
+  string(REGEX REPLACE "-gencode;arch" "-gencode=arch" MPPI_ARCH_FLAGS "${MPPI_ARCH_FLAGS}")
+  string(REPLACE ";" " " MPPI_ARCH_FLAGS "${MPPI_ARCH_FLAGS}")
+  # string(REGEX REPLACE "^-gencode=arch" "-arch" MPPI_ARCH_FLAGS "${MPPI_ARCH_FLAGS}")
+  message(STATUS "Additional Architectures: ${MPPI_ARCH_FLAGS}")
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -maxrregcount=32 ${MPPI_ARCH_FLAGS} -w")
+endif()
 
 # Add debug flags so cuda-gdb can be used to stop inside a kernel.
 # NOTE: You may have to run make multiple times for it to compile successfully.
@@ -72,8 +88,12 @@ install(
         DESTINATION include
 )
 
-add_subdirectory(src)
-add_subdirectory(examples)
+if (BUILD_TESTS OR BUILD_EXAMPLES)
+    add_subdirectory(src)
+endif()
+if (BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 # Add custom cmake finds
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules")
@@ -91,7 +111,8 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   ############################################################
   # Download and unpack googletest at configure time
   if (NOT TARGET gtest_main)
-    configure_file(${CMAKE_MODULE_PATH}/CMakeLists.txt.gtest.in
+    list(GET CMAKE_MODULE_PATH -1 MPPI_GENERIC_MODULES)
+    configure_file(${MPPI_GENERIC_MODULES}/CMakeLists.txt.gtest.in
 	${PROJECT_BINARY_DIR}/googletest-download/CMakeLists.txt)
     execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
       RESULT_VARIABLE result

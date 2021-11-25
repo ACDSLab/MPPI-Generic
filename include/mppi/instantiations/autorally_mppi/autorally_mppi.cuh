@@ -1,10 +1,10 @@
 #ifndef MPPIGENERIC_CONTROLLERERS_AUTORALLY_MPPI_CUH
 #define MPPIGENERIC_CONTROLLERERS_AUTORALLY_MPPI_CUH
 
-#include <mppi/dynamics/autorally/ar_nn_model.cuh>
-#include <mppi/cost_functions/autorally/ar_standard_cost.cuh>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
-#include <mppi/core/mppi_common.cuh>
+#include <mppi/cost_functions/autorally/ar_standard_cost.cuh>
+#include <mppi/dynamics/autorally/ar_nn_model.cuh>
+#include <mppi/feedback_controllers/DDP/ddp.cuh>
 
 // #ifdef USE_NEURAL_NETWORK_MODEL__ /*Use neural network dynamics model*/
 const int MPPI_NUM_ROLLOUTS__ = 1920;

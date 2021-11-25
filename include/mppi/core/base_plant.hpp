@@ -29,12 +29,15 @@ public:
 
   using s_array = typename CONTROLLER_T::state_array;
   using s_traj = typename CONTROLLER_T::state_trajectory;
-  using K_traj = typename CONTROLLER_T::feedback_gain_trajectory;
+  // using K_traj = typename CONTROLLER_T::feedback_gain_trajectory;
 
   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
   using COST_T = typename CONTROLLER_T::TEMPLATED_COSTS;
   using COST_PARAMS_T = typename COST_T::COST_PARAMS_T;
+
+  // Feedback related aliases
+  using FB_STATE_T = typename CONTROLLER_T::TEMPLATED_FEEDBACK::TEMPLATED_FEEDBACK_STATE;
 protected:
 
   std::mutex access_guard_;
@@ -66,7 +69,7 @@ protected:
 
   // values sometime updated
   // TODO init to zero?
-  K_traj feedback_gains_ ;
+  FB_STATE_T feedback_state_;
 
   // from ROSHandle mppi_node
   int optimization_stride_ = 1;
@@ -80,7 +83,7 @@ protected:
    * Wall Clock: always real time per the computer
    */
   // Robot Time: can scale with a simulation
-  std::atomic<double> last_used_pose_update_time_{0.0}; // time of the last pose update that was used for optimization
+  std::atomic<double> last_used_pose_update_time_{-1.0}; // time of the last pose update that was used for optimization
   // Wall Clock: always real time
   double last_optimization_time_ = 0; // time of the last optimization
   double optimize_loop_duration_ = 0; // duration of the entire controller run loop
@@ -118,7 +121,7 @@ public:
     optimization_stride_ = optimization_stride;
     control_traj_ = c_traj::Zero();
     state_traj_ = s_traj::Zero();
-    feedback_gains_ = K_traj(controller->getNumTimesteps());
+    // feedback_gains_ = FB_STATE_T();
   };
   /**
    * Destructor must be virtual so that children are properly
@@ -152,7 +155,7 @@ public:
    * to ouput to another system
    * @param avg_loop_ms          Average duration of a single iteration in ms
    * @param avg_optimize_ms      Average time to call computeControl
-   * @param avg_feedback_ms      Average time to call computeFeedbackGains
+   * @param avg_feedback_ms      Average time to call computeFeedback
    */
   virtual void setTimingInfo(double avg_loop_ms,
                              double avg_optimize_ms,
@@ -179,8 +182,8 @@ public:
   c_traj getControlTraj() {
     return control_traj_;
   }
-  K_traj getFeedbackGains() {
-    return feedback_gains_;
+  FB_STATE_T getFeedbackState() {
+    return feedback_state_;
   }
 
   /**
@@ -231,13 +234,13 @@ public:
 
   virtual void setSolution(const s_traj& state_seq,
                            const c_traj& control_seq,
-                           const K_traj& feedback_gains,
+                           const FB_STATE_T& fb_state,
                            double timestamp) {
     last_used_pose_update_time_ = timestamp;
     std::lock_guard<std::mutex> guard(access_guard_);
     state_traj_ = state_seq;
     control_traj_ = control_seq;
-    feedback_gains_ = feedback_gains;
+    feedback_state_ = fb_state;
     /*
     for(int i = 0; i < 5; i++) {
       printf("inside setSolution %d %f, %f\n", i, control_traj_(0, i), control_traj_(1, i));
@@ -267,7 +270,9 @@ public:
     if (time_since_last_opt > 0 && t_within_trajectory){
       s_array target_nominal_state = this->controller_->interpolateState(state_traj_, time_since_last_opt);
       pubNominalState(target_nominal_state);
-      pubControl(controller_->getCurrentControl(state, time_since_last_opt, target_nominal_state, control_traj_, feedback_gains_));
+      pubControl(controller_->getCurrentControl(state, time_since_last_opt,
+                                                target_nominal_state,
+                                                control_traj_, feedback_state_));
       s_array state_diff = state - target_nominal_state;
       pubStateDivergence(state_diff);
     }
@@ -304,24 +309,24 @@ public:
    * @param state
    * @return
    */
-  bool updateParameters(CONTROLLER_T* controller, s_array& state) {
+  bool updateParameters(s_array& state) {
     bool changed = false;
-    if (debug_mode_ && controller->cost_->getDebugDisplayEnabled()) { //Display the debug window.
+    if (debug_mode_ && controller_->cost_->getDebugDisplayEnabled()) { //Display the debug window.
       changed = true;
-      cv::Mat debug_img = controller->cost_->getDebugDisplay(state.data());
+      cv::Mat debug_img = controller_->cost_->getDebugDisplay(state.data());
       setDebugImage(debug_img, debug_window_name_);
     }
     //Update the cost parameters
     if(hasNewCostParams()) {
       changed = true;
       COST_PARAMS_T cost_params = getNewCostParams();
-      controller->cost_->setParams(cost_params);
+      controller_->cost_->setParams(cost_params);
     }
     // update dynamics params
     if (hasNewDynamicsParams()) {
       changed = true;
       DYN_PARAMS_T dyn_params = getNewDynamicsParams();
-      controller->model_->setParams(dyn_params);
+      controller_->model_->setParams(dyn_params);
     }
     //Update any obstacles
     /*
@@ -336,7 +341,7 @@ public:
       changed = true;
       // TODO define generic
       getNewCostmap(costmapDescription_, costmapData_);
-      controller->cost_->updateCostmap(costmapDescription_, costmapData_);
+      controller_->cost_->updateCostmap(costmapDescription_, costmapData_);
     }
     return changed;
   }
@@ -349,7 +354,7 @@ public:
    * @param is_alive
    * @return the millisecond number that the loop iteration started at
    */
-  void runControlIteration(CONTROLLER_T* controller, std::atomic<bool>* is_alive) {
+  void runControlIteration(std::atomic<bool>* is_alive) {
     std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
     if(!is_alive->load()) {
       // break out if it should stop
@@ -369,11 +374,11 @@ public:
 
     s_array state = getState();
     num_iter_++;
-    updateParameters(controller, state);
+    updateParameters(state);
 
     // calculate how much we should slide the control sequence
     double dt = temp_last_pose_time - temp_last_used_pose_update_time;
-    if(temp_last_used_pose_update_time == 0) {
+    if(temp_last_used_pose_update_time == -1) {
       // should only happen on the first iteration
       dt = 0;
       last_optimization_stride_ = 0;
@@ -383,35 +388,35 @@ public:
     //printf("calc optimization stride %f %f %f %d\n", dt, temp_last_used_pose_update_time, temp_last_pose_time, last_optimization_stride_);
     // determine how long we should stride based off of robot time
 
-    if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller->num_timesteps_){
-      controller->updateImportanceSamplingControl(state, last_optimization_stride_);
-      controller->slideControlSequence(last_optimization_stride_);
+    if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller_->num_timesteps_){
+      controller_->updateImportanceSamplingControl(state, last_optimization_stride_);
+      controller_->slideControlSequence(last_optimization_stride_);
     }
 
     // Compute a new control sequence
     std::chrono::steady_clock::time_point optimization_start = std::chrono::steady_clock::now();
-    controller->computeControl(state, last_optimization_stride_); // Compute the nominal control sequence
+    controller_->computeControl(state, last_optimization_stride_); // Compute the nominal control sequence
 
     MPPIFreeEnergyStatistics fe_stats = controller_->getFreeEnergyStatistics();
 
-    c_traj control_traj = controller->getControlSeq();
-    s_traj state_traj = controller->getStateSeq();
+    c_traj control_traj = controller_->getControlSeq();
+    s_traj state_traj = controller_->getTargetStateSeq();
     optimization_duration_ = (std::chrono::steady_clock::now() - optimization_start).count() / 1e6;
     //printf("optimization_duration %f\n", optimization_duration_);
 
     std::chrono::steady_clock::time_point feedback_start = std::chrono::steady_clock::now();
     // TODO make sure this is zero by default
-    K_traj feedback_gains;
-    if(controller->getFeedbackEnabled()) {
-      controller->computeFeedbackGains(state);
-      feedback_gains = controller->getFeedbackGains();
+    FB_STATE_T feedback_state;
+    if(controller_->getFeedbackEnabled()) {
+      controller_->computeFeedback(state);
+      feedback_state = controller_->getFeedbackState();
     }
     feedback_duration_ = (std::chrono::steady_clock::now() - feedback_start).count() / 1e6;
 
     //Set the updated solution for execution
     setSolution(state_traj,
                 control_traj,
-                feedback_gains,
+                feedback_state,
                 temp_last_pose_time);
     pubFreeEnergyStatistics(fe_stats);
 
@@ -419,9 +424,9 @@ public:
     status_ = checkStatus();
 
     // calculate the propogated feedback trajectory
-    controller->computeFeedbackPropagatedStateSeq();
+    controller_->computeFeedbackPropagatedStateSeq();
 
-    controller->calculateSampledStateTrajectories();
+    controller_->calculateSampledStateTrajectories();
 
     // TODO
     //Increment the state if debug mode is set to true
@@ -451,8 +456,7 @@ public:
     setTimingInfo(avg_loop_time_ms_, avg_optimize_time_ms_, avg_feedback_time_ms_);
   }
 
-  void runControlLoop(CONTROLLER_T* controller,
-                      std::atomic<bool>* is_alive) {
+  void runControlLoop(std::atomic<bool>* is_alive) {
     //Initial condition of the robot
     state_ = init_state_;
 
@@ -461,21 +465,11 @@ public:
 
     double temp_last_pose_time = getCurrentTime();
 
-    //Set the loop rate
-    std::chrono::milliseconds ms{(int)(optimization_stride_*1000.0/hz_)};
-    if (!debug_mode_){
-      while(last_used_pose_update_time_ == temp_last_pose_time && is_alive->load()){
-        usleep(50);
-        temp_last_pose_time = getCurrentTime();
-      }
-    }
-    controller->resetControls();
-    last_used_pose_update_time_ = getCurrentTime();
+    controller_->resetControls();
 
     //Start the control loop.
     while (is_alive->load()) {
-      runControlIteration(controller, is_alive);
-
+      runControlIteration(is_alive);
 
       double wait_until_time = last_used_pose_update_time_ + (1.0/hz_)*optimization_stride_;
       //printf("last used pose update time %f last_stride = %d\n", last_used_pose_update_time_, last_optimization_stride_);

@@ -332,9 +332,12 @@ namespace mppi_common {
         }
     }
 
-    template<class DYN_T, int BLOCKSIZE_X, int BLOCKSIZE_Z, bool ENABLE_FEEDBACK>
-    __global__ void stateTrajectoryKernel(DYN_T* dynamics, float* control, float* state, float* state_traj, float* feedback_gains_d,
-            int num_rollouts, int num_timesteps, float dt) {
+    template<class DYN_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Z, bool ENABLE_FEEDBACK>
+    __global__ void stateTrajectoryKernel(DYN_T* dynamics, FB_T* fb_controller,
+                                          float* control, float* state,
+                                          float* state_traj,
+                                          int num_rollouts, int num_timesteps,
+                                          float dt) {
       // Get thread and block id
       int thread_idx = threadIdx.x;
       int thread_idy = threadIdx.y;
@@ -349,13 +352,13 @@ namespace mppi_common {
 
       // Create a shared array for the dynamics model to use
       __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
+      __shared__ float theta_fb[FB_T::SHARED_MEM_SIZE];
 
       // Create local state, state dot and controls
       float* x;
       float* x_other;
       float* xdot;
       float* u;
-      float* fb_gain;
       float fb_control[DYN_T::CONTROL_DIM];
 
       //Load global array to shared array
@@ -389,16 +392,9 @@ namespace mppi_common {
           }
 
           // only apply feedback if enabled
+          // TODO: Check feedback is only applied on real state
           if(BLOCKSIZE_Z > 1 && ENABLE_FEEDBACK) {
-            fb_gain = &feedback_gains_d[t * DYN_T::CONTROL_DIM * DYN_T::STATE_DIM];
-            for (int i = 0; i < DYN_T::STATE_DIM * (1 - thread_idz); i++) {
-              // Find difference between nominal and actual
-              float e = x[i] - x_other[i];
-              for (int j = 0; j < DYN_T::CONTROL_DIM; j++) {
-                // Assuming column major storage atm.
-                fb_control[j] += fb_gain[i * DYN_T::CONTROL_DIM + j] * e;
-              }
-            }
+            fb_controller->k(x, x_other, t, theta_fb, fb_control);
 
             for (int i = thread_idy; i < DYN_T::CONTROL_DIM; i+= blockDim.y) {
               u[i] += fb_control[i];
@@ -464,15 +460,19 @@ namespace mppi_common {
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
-    template<class DYN_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z, bool ENABLE_FEEDBACK>
-    void launchStateTrajectoryKernel(DYN_T* dynamics, float* control_trajectories,
-            float* state, float* state_traj_result, int num_rollouts, int num_timesteps, float dt, cudaStream_t stream,
-            float* feedback_gains_d = nullptr) {
+    template<class DYN_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
+             int BLOCKSIZE_Z, bool ENABLE_FEEDBACK>
+    void launchStateTrajectoryKernel(DYN_T* dynamics, FB_T* fb_controller,
+            float* control_trajectories, float* state,
+            float* state_traj_result, int num_rollouts, int num_timesteps,
+            float dt, cudaStream_t stream) {
       const int gridsize_x = (num_rollouts - 1) / BLOCKSIZE_X + 1;
       dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
       dim3 dimGrid(gridsize_x, 1, 1);
-      stateTrajectoryKernel<DYN_T, BLOCKSIZE_X, BLOCKSIZE_Z, ENABLE_FEEDBACK><<<dimGrid, dimBlock, 0, stream>>>(
-              dynamics, control_trajectories, state, state_traj_result, feedback_gains_d, num_rollouts, num_timesteps, dt);
+      stateTrajectoryKernel<DYN_T, FB_T, BLOCKSIZE_X, BLOCKSIZE_Z,
+        ENABLE_FEEDBACK><<<dimGrid, dimBlock, 0, stream>>>(dynamics,
+          fb_controller, control_trajectories, state, state_traj_result,
+          /**feedback_gains_d,**/ num_rollouts, num_timesteps, dt);
     }
 }
 
@@ -620,9 +620,10 @@ namespace rmppi_kernels {
   }
 
   // Newly Written
-  template<class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
-         int NUM_ROLLOUTS, int BLOCKSIZE_Z>
+  template<class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X,
+           int BLOCKSIZE_Y, int NUM_ROLLOUTS, int BLOCKSIZE_Z>
   __global__ void RMPPIRolloutKernel(DYN_T * dynamics, COST_T* costs,
+                                     FB_T* fb_controller,
                                      float dt,
                                      int num_timesteps,
                                      int optimization_stride,
@@ -632,7 +633,6 @@ namespace rmppi_kernels {
                                      float* x_d,
                                      float* u_d,
                                      float* du_d,
-                                     float* feedback_gains_d,
                                      float* sigma_u_d,
                                      float* trajectory_costs_d) {
     int thread_idx = threadIdx.x;
@@ -656,20 +656,22 @@ namespace rmppi_kernels {
     // Create a shared array for the dynamics model to use
     __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
 
+    // Create a shared array for the feedback controller to use
+    __shared__ float theta_fb[FB_T::SHARED_MEM_SIZE];
+
     // Create local state, state dot and controls
     float* x;
     float* x_other;
     float* xdot;
     float* u;
     float* du;
-    float* fb_gain;
     int* crash_status;
     // The array to hold K(x,x*)
     float fb_control[DYN_T::CONTROL_DIM];
 
     int t = 0;
     int i = 0;
-    int j = 0;
+    // int j = 0;
 
     // Initialize running costs
     float running_state_cost_real = 0;
@@ -712,21 +714,13 @@ namespace rmppi_kernels {
         __syncthreads();
 
         // Now find feedback control
-        float e;
-        // Feedback gains at time t
-        fb_gain = &feedback_gains_d[t * DYN_T::CONTROL_DIM * DYN_T::STATE_DIM];
-
         for (i = 0; i < DYN_T::CONTROL_DIM; i++) {
           fb_control[i] = 0;
         }
-        // Don't enter for loop if in nominal states (thread_idz == 1)
-        for (i = 0; i < DYN_T::STATE_DIM * (1 - thread_idz); i++) {
-          // Find difference between nominal and actual
-          e = x[i] - x_other[i];
-          for (j = 0; j < DYN_T::CONTROL_DIM; j++) {
-            // Assuming column major storage atm.
-            fb_control[j] += fb_gain[i * DYN_T::CONTROL_DIM + j] * e;
-          }
+
+        // we do not apply feedback on the nominal state z == 1
+        if (thread_idz == 0) {
+          fb_controller->k(x, x_other, t, theta_fb, fb_control);
         }
 
         for (i = thread_idy; i < DYN_T::CONTROL_DIM; i+= BLOCKSIZE_Y) {
@@ -737,7 +731,6 @@ namespace rmppi_kernels {
 
         __syncthreads();
         // Clamp the control in both the importance sampling sequence and the disturbed sequence.
-//        dynamics->enforceConstraints(x, du); // TODO unnecessary
         dynamics->enforceConstraints(x, u);
 
         __syncthreads();
@@ -819,9 +812,10 @@ namespace rmppi_kernels {
   /*******************************************************************************************************************
    * Launch Functions
    *******************************************************************************************************************/
-  template<class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
+  template<class DYN_T, class COST_T, class FB_T, int NUM_ROLLOUTS, int BLOCKSIZE_X,
             int BLOCKSIZE_Y, int BLOCKSIZE_Z>
   void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs,
+                                FB_T* fb_controller,
                                 float dt,
                                 int num_timesteps,
                                 int optimization_stride,
@@ -831,18 +825,17 @@ namespace rmppi_kernels {
                                 float* x_d,
                                 float* u_d,
                                 float* du_d,
-                                float* feedback_gains_d,
                                 float* sigma_u_d,
                                 float* trajectory_costs,
                                 cudaStream_t stream) {
     const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
     dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
     dim3 dimGrid(gridsize_x, 1, 1);
-    RMPPIRolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS,
-                      BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
-                        dynamics, costs, dt, num_timesteps, optimization_stride, lambda, alpha,
-                        value_func_threshold, x_d, u_d, du_d,
-                        feedback_gains_d, sigma_u_d, trajectory_costs);
+    RMPPIRolloutKernel<DYN_T, COST_T, FB_T, BLOCKSIZE_X, BLOCKSIZE_Y,
+      NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(dynamics,
+        costs, fb_controller, dt, num_timesteps, optimization_stride, lambda,
+        alpha, value_func_threshold, x_d, u_d, du_d, sigma_u_d,
+        trajectory_costs);
     CudaCheckError();
     HANDLE_ERROR( cudaStreamSynchronize(stream) );
   }

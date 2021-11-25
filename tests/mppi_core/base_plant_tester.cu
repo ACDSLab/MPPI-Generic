@@ -30,7 +30,6 @@ public:
 
   using s_array = typename CONTROLLER_T::state_array;
   using s_traj = typename CONTROLLER_T::state_trajectory;
-  using K_mat = typename CONTROLLER_T::feedback_gain_trajectory;
 
   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
@@ -86,41 +85,50 @@ public:
 
 typedef TestPlant<MockController> MockTestPlant;
 
-TEST(BasePlant, Constructor) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
+class BasePlantTest : public ::testing::Test {
+protected:
+  void SetUp() override {
+    mockController = std::make_shared<MockController>();
+    mockFeedback = new FEEDBACK_T(&mockDynamics, mockController->getDt());
+    mockController->cost_ = &mockCost;
+    mockController->model_ = &mockDynamics;
+    mockController->fb_controller_ = mockFeedback;
+
+    plant = std::make_shared<MockTestPlant>(mockController);
+
+  }
+
+  void TearDown() override {
+    plant = nullptr;
+    mockController = nullptr;
+    delete mockFeedback;
+  }
   MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
+  MockCost mockCost;
+  FEEDBACK_T* mockFeedback;
+  std::shared_ptr<MockController> mockController;
+  std::shared_ptr<MockTestPlant> plant;
+};
 
-  MockTestPlant plant(mockController);
-
-  EXPECT_EQ(plant.controller_, mockController);
-  EXPECT_EQ(plant.getHz(), 20);
-  EXPECT_EQ(plant.getTargetOptimizationStride(), 1);
-  EXPECT_EQ(plant.getNumIter(), 0);
-  EXPECT_EQ(plant.getLastUsedPoseUpdateTime(), 0);
-  EXPECT_EQ(plant.getStatus(), 1);
+TEST_F(BasePlantTest, Constructor) {
+  EXPECT_EQ(plant->controller_, mockController);
+  EXPECT_EQ(plant->getHz(), 20);
+  EXPECT_EQ(plant->getTargetOptimizationStride(), 1);
+  EXPECT_EQ(plant->getNumIter(), 0);
+  EXPECT_EQ(plant->getLastUsedPoseUpdateTime(), -1);
+  EXPECT_EQ(plant->getStatus(), 1);
   EXPECT_EQ(mockController->getFeedbackEnabled(), false);
-
-  EXPECT_EQ(plant.hasNewCostParams(), false);
-  EXPECT_EQ(plant.hasNewDynamicsParams(), false);
-  EXPECT_EQ(plant.hasNewModel(), false);
-  EXPECT_EQ(plant.hasNewCostmap(), false);
-  EXPECT_EQ(plant.hasNewObstacles(), false);
+  EXPECT_EQ(plant->hasNewCostParams(), false);
+  EXPECT_EQ(plant->hasNewDynamicsParams(), false);
+  EXPECT_EQ(plant->hasNewModel(), false);
+  EXPECT_EQ(plant->hasNewCostmap(), false);
+  EXPECT_EQ(plant->hasNewObstacles(), false);
 }
 
-TEST(BasePlant, getAndSetState) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant plant(mockController);
+TEST_F(BasePlantTest, getAndSetState) {
   // check initial state is zerod
 
-  MockController::state_array state = plant.getState();
+  MockController::state_array state = plant->getState();
   for(int i = 0; i < 1; i++) {
     EXPECT_EQ(state(i), 0.0);
   }
@@ -129,84 +137,53 @@ TEST(BasePlant, getAndSetState) {
   for(int i = 0; i < 1; i++) {
     new_state(i) = i;
   }
-  plant.setState(new_state);
-  state = plant.getState();
+  plant->setState(new_state);
+  state = plant->getState();
   for(int i = 0; i < 1; i++) {
     EXPECT_EQ(state(i), i);
   }
 }
 
-TEST(BasePlant, getSetOptimizationStride) {
-
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant plant(mockController);
-  int optimization_stride = plant.getTargetOptimizationStride();
+TEST_F(BasePlantTest, getSetOptimizationStride) {
+  int optimization_stride = plant->getTargetOptimizationStride();
 
   EXPECT_EQ(optimization_stride, 1);
 
-  plant.setTargetOptimizationStride(5);
-  optimization_stride = plant.getTargetOptimizationStride();
+  plant->setTargetOptimizationStride(5);
+  optimization_stride = plant->getTargetOptimizationStride();
 
   EXPECT_EQ(optimization_stride, 5);
 }
 
-TEST(BasePlant, getSetDynamicsParams) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant plant(mockController);
-
-  EXPECT_EQ(plant.hasNewDynamicsParams(), false);
+TEST_F(BasePlantTest, getSetDynamicsParams) {
+  EXPECT_EQ(plant->hasNewDynamicsParams(), false);
   MockTestPlant::DYN_PARAMS_T params;
 
   params.test = 3;
 
-  plant.setDynamicsParams(params);
-  EXPECT_EQ(plant.hasNewDynamicsParams(), true);
+  plant->setDynamicsParams(params);
+  EXPECT_EQ(plant->hasNewDynamicsParams(), true);
 
-  MockTestPlant::DYN_PARAMS_T new_params = plant.getNewDynamicsParams();
-  EXPECT_EQ(plant.hasNewDynamicsParams(), false);
+  MockTestPlant::DYN_PARAMS_T new_params = plant->getNewDynamicsParams();
+  EXPECT_EQ(plant->hasNewDynamicsParams(), false);
   EXPECT_EQ(new_params.test, params.test);
 }
 
-TEST(BasePlant, getSetCostParams) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant plant(mockController);
-  EXPECT_EQ(plant.hasNewCostParams(), false);
+TEST_F(BasePlantTest, getSetCostParams) {
+  EXPECT_EQ(plant->hasNewCostParams(), false);
 
   MockTestPlant::COST_PARAMS_T params;
   params.test = 100;
 
-  plant.setCostParams(params);
-  EXPECT_EQ(plant.hasNewCostParams(), true);
+  plant->setCostParams(params);
+  EXPECT_EQ(plant->hasNewCostParams(), true);
 
-  auto new_params = plant.getNewCostParams();
-  EXPECT_EQ(plant.hasNewCostParams(), false);
+  auto new_params = plant->getNewCostParams();
+  EXPECT_EQ(plant->hasNewCostParams(), false);
   EXPECT_EQ(params.test, new_params.test);
 }
 
-TEST(BasePlant, updateParametersAllFalse) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant testPlant(mockController);
-
+TEST_F(BasePlantTest, updateParametersAllFalse) {
   EXPECT_CALL(mockCost, getDebugDisplayEnabled()).Times(0);
   EXPECT_CALL(mockCost, getDebugDisplay(testing::_)).Times(0);
   EXPECT_CALL(mockCost, setParams(testing::_)).Times(0);
@@ -214,19 +191,11 @@ TEST(BasePlant, updateParametersAllFalse) {
   EXPECT_CALL(mockCost, updateCostmap(testing::_, testing::_)).Times(0);
 
   MockDynamics::state_array state = MockDynamics::state_array::Zero();
-  testPlant.updateParameters(mockController.get(), state);
+  plant->updateParameters(state);
 }
 
 
-TEST(BasePlant, updateParametersAllTrue) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant testPlant(mockController);
-
+TEST_F(BasePlantTest, updateParametersAllTrue) {
   EXPECT_CALL(mockCost, getDebugDisplayEnabled()).Times(1).WillRepeatedly(testing::Return(true));
   EXPECT_CALL(mockCost, getDebugDisplay(testing::_)).Times(1);
   EXPECT_CALL(mockCost, setParams(testing::_)).Times(1);
@@ -234,93 +203,61 @@ TEST(BasePlant, updateParametersAllTrue) {
   // TODO implement updating costmap
   EXPECT_CALL(mockCost, updateCostmap(testing::_, testing::_)).Times(0);
 
-  testPlant.setDebugMode(true);
-  testPlant.setDynamicsParams(MockDynamics::DYN_PARAMS_T());
-  testPlant.setCostParams(MockCost::COST_PARAMS_T());
+  plant->setDebugMode(true);
+  plant->setDynamicsParams(MockDynamics::DYN_PARAMS_T());
+  plant->setCostParams(MockCost::COST_PARAMS_T());
 
   MockDynamics::state_array state = MockDynamics::state_array::Zero();
-  testPlant.updateParameters(mockController.get(), state);
+  plant->updateParameters(state);
 }
 
-TEST(BasePlant, updateStateOutsideTimeTest) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
+TEST_F(BasePlantTest, updateStateOutsideTimeTest) {
   mockController->setDt(0.05);
-
-  MockTestPlant testPlant(mockController);
-  testPlant.setLastTime(0);
+  plant->setLastTime(0);
 
   EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(0);
 
   MockController::state_array state = MockController::state_array::Zero();
-  testPlant.updateState(state, mockController->getDt() * mockController->getNumTimesteps() + 0.01);
-  EXPECT_EQ(testPlant.getState(), state);
+  plant->updateState(state, mockController->getDt() * mockController->getNumTimesteps() + 0.01);
+  EXPECT_EQ(plant->getState(), state);
 
-  testPlant.setLastTime(100);
-  testPlant.updateState(state, 99.99);
-  EXPECT_EQ(testPlant.getState(), state);
+  plant->setLastTime(100);
+  plant->updateState(state, 99.99);
+  EXPECT_EQ(plant->getState(), state);
 }
 
-TEST(BasePlant, updateStateTest) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
+TEST_F(BasePlantTest, updateStateTest) {
   mockController->setDt(0.05);
-
-  MockTestPlant testPlant(mockController);
-  testPlant.setLastTime(0);
+  plant->setLastTime(0);
 
   MockController::state_array state = MockController::state_array::Zero();
   EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(1);
-  testPlant.updateState(state, mockController->getDt());
-  EXPECT_EQ(testPlant.getState(), state);
+  plant->updateState(state, mockController->getDt());
+  EXPECT_EQ(plant->getState(), state);
 
   //EXPECT_CALL(*mockController, getCurrentControl(state, mockController->getDt()+100)).Times(1);
-  //testPlant.setLastTime(100);
-  //testPlant.updateState(state, 100+mockController->getDt());
-  //EXPECT_EQ(testPlant.getState(), state);
+  //plant->setLastTime(100);
+  //plant->updateState(state, 100+mockController->getDt());
+  //EXPECT_EQ(plant->getState(), state);
 }
 
-TEST(BasePlant, runControlIterationStoppedTest) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant testPlant(mockController);
-
+TEST_F(BasePlantTest, runControlIterationStoppedTest) {
   EXPECT_CALL(*mockController, slideControlSequence(testing::_)).Times(0);
   EXPECT_CALL(*mockController, computeControl(testing::_, testing::_)).Times(0);
 
   std::atomic<bool> is_alive(false);
-  //testPlant.runControlIteration(mockController.get(), &is_alive);
+  plant->runControlIteration(&is_alive);
 }
 
 // TODO speed up to make tests run faster
-TEST(BasePlant, runControlIterationDebugFalseNoFeedbackTest) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
-
-  MockTestPlant testPlant(mockController);
-
+TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest) {
   double init_time = 100;
-  testPlant.setLastTime(init_time);
+  plant->setLastTime(init_time);
 
   for(int i = 0; i < 2; i++) {
     double wait_ms = 50*i;
 
-    auto wait_function = [wait_ms]() {
+    auto wait_function = [wait_ms](const Eigen::Ref<const MockController::state_array>& state, int optimization_stride = 0) {
       usleep(wait_ms*1e3);
     };
 
@@ -331,23 +268,23 @@ TEST(BasePlant, runControlIterationDebugFalseNoFeedbackTest) {
     MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
     EXPECT_CALL(*mockController, getControlSeq()).Times(1).WillRepeatedly(testing::Return(control_seq));
     MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-    EXPECT_CALL(*mockController, getStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
+    EXPECT_CALL(*mockController, getTargetStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
 
-    EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(0);
-    EXPECT_CALL(*mockController, getFeedbackGains()).Times(0);
+    EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(0);
+    EXPECT_CALL(*mockController, getFeedbackControl(testing::_,testing::_,testing::_)).Times(0);
     EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
     EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
 
-    EXPECT_EQ(testPlant.getDebugMode(), false);
+    EXPECT_EQ(plant->getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
-    testPlant.runControlIteration(mockController.get(), &is_alive);
-    testPlant.incrementTime();
+    plant->runControlIteration(&is_alive);
+    plant->incrementTime();
 
-    EXPECT_EQ(testPlant.checkStatus(), 1);
-    EXPECT_EQ(testPlant.getStateTraj(), state_seq);
-    EXPECT_EQ(testPlant.getControlTraj(), control_seq);
-    MockController::feedback_gain_trajectory feedback = testPlant.getFeedbackGains();
+    EXPECT_EQ(plant->checkStatus(), 1);
+    EXPECT_EQ(plant->getStateTraj(), state_seq);
+    EXPECT_EQ(plant->getControlTraj(), control_seq);
+    MockController::TEMPLATED_FEEDBACK_STATE feedback = plant->getFeedbackState();
     MockController::state_array state = MockController::state_array::Ones();
     for(int j = 0; j < 100; j++) {
       // TODO check that feedback is correct
@@ -357,40 +294,34 @@ TEST(BasePlant, runControlIterationDebugFalseNoFeedbackTest) {
     }
 
     // check last pose update
-    EXPECT_FLOAT_EQ(testPlant.getLastUsedPoseUpdateTime(), 0.05*i + init_time);
-    EXPECT_EQ(testPlant.getNumIter(), i+1);
-    EXPECT_EQ(testPlant.getLastOptimizationStride(), expect_opt_stride);
+    EXPECT_FLOAT_EQ(plant->getLastUsedPoseUpdateTime(), 0.05*i + init_time);
+    EXPECT_EQ(plant->getNumIter(), i+1);
+    EXPECT_EQ(plant->getLastOptimizationStride(), expect_opt_stride);
 
     double small_time_ms = 4; // how long we should expect a non delayed call to take
-    EXPECT_THAT(testPlant.getOptimizationDuration(),
+    EXPECT_THAT(plant->getOptimizationDuration(),
             testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_LT(testPlant.getOptimizationAvg(), wait_ms + small_time_ms);
-    EXPECT_THAT(testPlant.getLoopDuration(),
+    EXPECT_LT(plant->getOptimizationAvg(), wait_ms + small_time_ms);
+    EXPECT_THAT(plant->getLoopDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_LT(testPlant.getLoopAvg(), wait_ms + small_time_ms);
-    EXPECT_LE(testPlant.getFeedbackDuration(), small_time_ms);
-    EXPECT_LE(testPlant.getFeedbackAvg(), small_time_ms);
+    EXPECT_LT(plant->getLoopAvg(), wait_ms + small_time_ms);
+    EXPECT_LE(plant->getFeedbackDuration(), small_time_ms);
+    EXPECT_LE(plant->getFeedbackAvg(), small_time_ms);
   }
 
 }
 
-TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
+TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest) {
   mockController->setFeedbackController(true);
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
+  mockController->initFeedback();
 
   double init_time = 51789;
-
-  MockTestPlant testPlant(mockController);
-  testPlant.setLastTime(init_time);
+  plant->setLastTime(init_time);
 
   for(int i = 0; i < 10; i++) {
     double wait_ms = 50*i;
 
-    auto wait_function = [wait_ms]() {
+    auto wait_function = [wait_ms](const Eigen::Ref<const MockController::state_array>& state, int optimization_stride = 0) {
       usleep(wait_ms*1e3);
     };
 
@@ -401,60 +332,56 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackTest) {
     MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
     EXPECT_CALL(*mockController, getControlSeq()).Times(1).WillRepeatedly(testing::Return(control_seq));
     MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-    EXPECT_CALL(*mockController, getStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
+    EXPECT_CALL(*mockController, getTargetStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
 
-    EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
-    MockController::feedback_gain_trajectory feedback;
-    EXPECT_CALL(*mockController, getFeedbackGains()).Times(1).WillRepeatedly(testing::Return(feedback));
+    EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
+    MockController::TEMPLATED_FEEDBACK_STATE feedback;
+    EXPECT_CALL(*mockController, getFeedbackState()).Times(1).WillRepeatedly(testing::Return(feedback));
     EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
     EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
-    EXPECT_EQ(testPlant.getDebugMode(), false);
+
+    EXPECT_EQ(plant->getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
-    testPlant.runControlIteration(mockController.get(), &is_alive);
-    testPlant.incrementTime();
+    plant->runControlIteration(&is_alive);
+    plant->incrementTime();
 
-    EXPECT_EQ(testPlant.checkStatus(), 1);
-    EXPECT_EQ(testPlant.getStateTraj(), state_seq);
-    EXPECT_EQ(testPlant.getControlTraj(), control_seq);
-    EXPECT_EQ(testPlant.getFeedbackGains(), feedback);
+    EXPECT_EQ(plant->checkStatus(), 1);
+    EXPECT_EQ(plant->getStateTraj(), state_seq);
+    EXPECT_EQ(plant->getControlTraj(), control_seq);
+    EXPECT_EQ(plant->getFeedbackState(), feedback);
 
     // check last pose update
-    EXPECT_FLOAT_EQ(testPlant.getLastUsedPoseUpdateTime(), 0.05*i + init_time);
-    EXPECT_EQ(testPlant.getNumIter(), i+1);
-    EXPECT_EQ(testPlant.getLastOptimizationStride(), expect_opt_stride);
+    EXPECT_FLOAT_EQ(plant->getLastUsedPoseUpdateTime(), 0.05*i + init_time);
+    EXPECT_EQ(plant->getNumIter(), i+1);
+    EXPECT_EQ(plant->getLastOptimizationStride(), expect_opt_stride);
 
     double small_time_ms = 4; // how long we should expect a non delayed call to take
-    EXPECT_THAT(testPlant.getOptimizationDuration(),
+    EXPECT_THAT(plant->getOptimizationDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_LT(testPlant.getOptimizationAvg(), wait_ms + small_time_ms);
-    EXPECT_THAT(testPlant.getFeedbackDuration(),
+    EXPECT_LT(plant->getOptimizationAvg(), wait_ms + small_time_ms);
+    EXPECT_THAT(plant->getFeedbackDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le((wait_ms + small_time_ms)*2)));
     // TODO should be range as well
-    EXPECT_LT(testPlant.getFeedbackAvg(), wait_ms + small_time_ms);
-    EXPECT_THAT(testPlant.getLoopDuration(),
+    EXPECT_LT(plant->getFeedbackAvg(), wait_ms + small_time_ms);
+    EXPECT_THAT(plant->getLoopDuration(),
                 testing::AllOf(testing::Ge(wait_ms*2), testing::Le((wait_ms + small_time_ms)*2)));
-    EXPECT_LT(testPlant.getLoopAvg(), (wait_ms + small_time_ms)*2);
+    EXPECT_LT(plant->getLoopAvg(), (wait_ms + small_time_ms)*2);
   }
 
 }
 
-TEST(BasePlant, runControlIterationDebugFalseFeedbackAvgTest) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
+TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest) {
   mockController->setFeedbackController(true);
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
+  mockController->initFeedback();
 
   double init_time = 51531;
-  MockTestPlant testPlant(mockController);
-  testPlant.setLastTime(init_time);
+  plant->setLastTime(init_time);
 
   for(int i = 0; i < 10; i++) {
     double wait_ms = 50;
 
-    auto wait_function = [wait_ms]() {
+    auto wait_function = [wait_ms](const Eigen::Ref<const MockController::state_array>& state, int optimization_stride = 0) {
       usleep(wait_ms*1e3);
     };
 
@@ -465,61 +392,56 @@ TEST(BasePlant, runControlIterationDebugFalseFeedbackAvgTest) {
     MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
     EXPECT_CALL(*mockController, getControlSeq()).Times(1).WillRepeatedly(testing::Return(control_seq));
     MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-    EXPECT_CALL(*mockController, getStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
+    EXPECT_CALL(*mockController, getTargetStateSeq()).Times(1).WillRepeatedly(testing::Return(state_seq));
 
-    EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
-    MockController::feedback_gain_trajectory feedback;
-    EXPECT_CALL(*mockController, getFeedbackGains()).Times(1).WillRepeatedly(testing::Return(feedback));
+    EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(1).WillRepeatedly(testing::Invoke(wait_function));
+    MockController::TEMPLATED_FEEDBACK_STATE feedback;
+    EXPECT_CALL(*mockController, getFeedbackState()).Times(1).WillRepeatedly(testing::Return(feedback));
     EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
     EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
 
-    EXPECT_EQ(testPlant.getDebugMode(), false);
+    EXPECT_EQ(plant->getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
-    testPlant.runControlIteration(mockController.get(), &is_alive);
-    testPlant.incrementTime();
+    plant->runControlIteration(&is_alive);
+    plant->incrementTime();
 
-    EXPECT_EQ(testPlant.checkStatus(), 1);
-    EXPECT_EQ(testPlant.getStateTraj(), state_seq);
-    EXPECT_EQ(testPlant.getControlTraj(), control_seq);
-    EXPECT_EQ(testPlant.getFeedbackGains(), feedback);
+    EXPECT_EQ(plant->checkStatus(), 1);
+    EXPECT_EQ(plant->getStateTraj(), state_seq);
+    EXPECT_EQ(plant->getControlTraj(), control_seq);
+    EXPECT_EQ(plant->getFeedbackState(), feedback);
 
     // check last pose update
-    EXPECT_FLOAT_EQ(testPlant.getLastUsedPoseUpdateTime(), 0.05*i + init_time);
-    EXPECT_EQ(testPlant.getNumIter(), i+1);
-    EXPECT_EQ(testPlant.getLastOptimizationStride(), expect_opt_stride);
+    EXPECT_FLOAT_EQ(plant->getLastUsedPoseUpdateTime(), 0.05*i + init_time);
+    EXPECT_EQ(plant->getNumIter(), i+1);
+    EXPECT_EQ(plant->getLastOptimizationStride(), expect_opt_stride);
 
     double small_time_ms = 4; // how long we should expect a non delayed call to take
-    EXPECT_THAT(testPlant.getOptimizationDuration(),
+    EXPECT_THAT(plant->getOptimizationDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_THAT(testPlant.getOptimizationAvg(),
+    EXPECT_THAT(plant->getOptimizationAvg(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_THAT(testPlant.getLoopDuration(),
+    EXPECT_THAT(plant->getLoopDuration(),
                 testing::AllOf(testing::Ge(wait_ms*2), testing::Le((wait_ms + small_time_ms)*2)));
-    EXPECT_THAT(testPlant.getLoopAvg(),
+    EXPECT_THAT(plant->getLoopAvg(),
                 testing::AllOf(testing::Ge((wait_ms)*2), testing::Le((wait_ms + small_time_ms)*2)));
-    EXPECT_THAT(testPlant.getFeedbackDuration(),
+    EXPECT_THAT(plant->getFeedbackDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_THAT(testPlant.getFeedbackAvg(),
+    EXPECT_THAT(plant->getFeedbackAvg(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
   }
 
 }
 
-TEST(BasePlant, runControlLoop) {
-  std::shared_ptr<MockController> mockController = std::make_shared<MockController>();
+TEST_F(BasePlantTest, runControlLoop) {
   mockController->setFeedbackController(true);
-  MockCost mockCost;
-  MockDynamics mockDynamics;
-  mockController->cost_ = &mockCost;
-  mockController->model_ = &mockDynamics;
+  mockController->initFeedback();
 
-  MockTestPlant testPlant(mockController);
-  int hz = testPlant.getHz();
-  double time = 1.0; // in seconds
+  int hz = plant->getHz();
+  double test_duration = 1.0; // in seconds for how long to run the test
 
   int init_time = 78;
-  testPlant.setLastTime(init_time);
+  plant->setLastTime(init_time);
 
   // setup mock expected calls
   EXPECT_CALL(mockCost, getDebugDisplayEnabled()).Times(0);
@@ -527,72 +449,69 @@ TEST(BasePlant, runControlLoop) {
   EXPECT_CALL(mockDynamics, setParams(testing::_)).Times(0);
   EXPECT_CALL(*mockController, resetControls()).Times(1);
 
-  double wait_s = (1.0/hz)/2; // divide by 2 since wait is evenly split across computeFeedbackGains and computeControl
+  double wait_s = (1.0/hz)/2; // divide by 2 since wait is evenly split across computeFeedback and computeControl
 
-  auto wait_function = [wait_s]() {
+  auto wait_function = [wait_s](const Eigen::Ref<const MockController::state_array>& state, int optimization_stride = 0) {
     usleep(wait_s*1e6);
   };
-  int iterations = int(std::round((hz*1.0) / (time * 1.0))); // number of times the method will be called
-  EXPECT_CALL(*mockController, slideControlSequence(1)).Times(iterations/2);
+  int iterations = int(std::round((hz*1.0) / (test_duration))); // number of times the method will be called
+  EXPECT_CALL(*mockController, slideControlSequence(1)).Times(iterations/2 - 1);
   EXPECT_CALL(*mockController, computeControl(testing::_, testing::_)).Times(iterations/2).WillRepeatedly(testing::Invoke(wait_function));
   MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
   EXPECT_CALL(*mockController, getControlSeq()).Times(iterations/2).WillRepeatedly(testing::Return(control_seq));
   MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-  EXPECT_CALL(*mockController, getStateSeq()).Times(iterations/2).WillRepeatedly(testing::Return(state_seq));
-  EXPECT_CALL(*mockController, computeFeedbackGains(testing::_)).Times(iterations/2).WillRepeatedly(testing::Invoke(wait_function));
-  MockController::feedback_gain_trajectory feedback;
-  EXPECT_CALL(*mockController, getFeedbackGains()).Times(iterations/2).WillRepeatedly(testing::Return(feedback));
+  EXPECT_CALL(*mockController, getTargetStateSeq()).Times(iterations/2).WillRepeatedly(testing::Return(state_seq));
+  EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(iterations/2).WillRepeatedly(testing::Invoke(wait_function));
+  MockController::TEMPLATED_FEEDBACK_STATE feedback;
+  EXPECT_CALL(*mockController, getFeedbackState()).Times(iterations/2).WillRepeatedly(testing::Return(feedback));
   EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(iterations/2);
   EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(iterations/2);
 
-
-
-    std::atomic<bool> is_alive(true);
-  std::thread optimizer(&MockTestPlant::runControlLoop, &testPlant, mockController.get(), &is_alive);
+  std::atomic<bool> is_alive(true);
+  std::thread optimizer(&MockTestPlant::runControlLoop, plant.get(), &is_alive);
 
   std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
   std::chrono::duration<double, std::milli> loop_duration = std::chrono::steady_clock::now() - loop_start;
-  int counter = 0;
-  while(loop_duration.count() < time*1e3) {
-    counter++;
-    while(loop_duration.count() < (time/hz)*1e3*counter) {
+  for(int counter = 1; loop_duration.count() < test_duration*1e3; counter++) {
+    // wait until the correct hz has passed to tick the time
+    while(loop_duration.count() < (test_duration/hz)*1e3*counter) {
       usleep(50);
       loop_duration = std::chrono::steady_clock::now() - loop_start;
     }
-    if(counter >= iterations / 2) { // this forces it to block
-      testPlant.incrementTime();
+    if(counter > iterations / 2) { // this forces it to block
+      plant->incrementTime();
     }
   }
   is_alive.store(false);
   optimizer.join();
 
   // check all the things
-  EXPECT_EQ(testPlant.checkStatus(), 1);
+  EXPECT_EQ(plant->checkStatus(), 1);
 
-  EXPECT_EQ(testPlant.checkStatus(), 1);
-  EXPECT_EQ(testPlant.getStateTraj(), state_seq);
-  EXPECT_EQ(testPlant.getControlTraj(), control_seq);
-  EXPECT_EQ(testPlant.getFeedbackGains(), feedback);
+  EXPECT_EQ(plant->checkStatus(), 1);
+  EXPECT_EQ(plant->getStateTraj(), state_seq);
+  EXPECT_EQ(plant->getControlTraj(), control_seq);
+  EXPECT_EQ(plant->getFeedbackState(), feedback);
 
   // check last pose update
-  EXPECT_NE(testPlant.getLastUsedPoseUpdateTime(), 0.0);
-  EXPECT_EQ(testPlant.getNumIter(), iterations/2);
-  EXPECT_EQ(testPlant.getLastOptimizationStride(), 1);
+  EXPECT_NE(plant->getLastUsedPoseUpdateTime(), 0.0);
+  EXPECT_EQ(plant->getNumIter(), iterations/2);
+  EXPECT_EQ(plant->getLastOptimizationStride(), 1);
 
   double small_time_ms = 4; // how long we should expect a non delayed call to take
   double wait_ms = wait_s*1e3;
-  EXPECT_THAT(testPlant.getOptimizationDuration(),
+  EXPECT_THAT(plant->getOptimizationDuration(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(testPlant.getOptimizationAvg(),
+  EXPECT_THAT(plant->getOptimizationAvg(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(testPlant.getLoopDuration(),
+  EXPECT_THAT(plant->getLoopDuration(),
               testing::AllOf(testing::Ge(wait_ms*2), testing::Le((wait_ms + small_time_ms)*2)));
-  EXPECT_THAT(testPlant.getLoopAvg(),
-              testing::AllOf(testing::Ge((wait_ms*2)), testing::Le((wait_ms + small_time_ms)*5)));
-  EXPECT_THAT(testPlant.getFeedbackDuration(),
+  EXPECT_THAT(plant->getLoopAvg(),
+              testing::AllOf(testing::Ge((wait_ms)*2), testing::Le((wait_ms + small_time_ms)*5)));
+  EXPECT_THAT(plant->getFeedbackDuration(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(testPlant.getFeedbackAvg(),
+  EXPECT_THAT(plant->getFeedbackAvg(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(testPlant.getSleepTimeAvg(),
+  EXPECT_THAT(plant->getSleepTimeAvg(),
               testing::AllOf(testing::Gt(0), testing::Le(small_time_ms)));
 }

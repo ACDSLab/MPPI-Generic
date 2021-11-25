@@ -6,6 +6,8 @@
 #include <mppi/dynamics/autorally/ar_nn_model.cuh>
 
 #include <mppi/utils/test_helper.h>
+#include <autorally_test_map.h>
+#include <autorally_test_network.h>
 #include <random>
 
 #include <autorally_test_network.h>

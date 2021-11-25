@@ -7,7 +7,7 @@
  */
 
 //Convenience typedef for the MPPI Controller.
-template class VanillaMPPIController<DynamicsModel, ARStandardCost, NUM_TIMESTEPS,
+template class VanillaMPPIController<DynamicsModel, ARStandardCost, DDPFeedback<DynamicsModel, NUM_TIMESTEPS>, NUM_TIMESTEPS,
 									 MPPI_NUM_ROLLOUTS__, BLOCKSIZE_X, BLOCKSIZE_Y>;
 
 // template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, 100, 150, 64, 8>;

@@ -32,9 +32,13 @@ inline std::vector<int> sample_without_replacement(int k, int N,
 
   // For loop runs k times
   for (int r = N - k; r < N; r++) {
+    if (r == 0) {
+      samples.insert(N - 1);
+      continue;
+    }
     int v = std::uniform_int_distribution<>(1, r)(g); // sample between 1 and r
-    if (!samples.insert(v).second) { // if v exists in the set
-      samples.insert(r);
+    if (!samples.insert(v - 1).second) { // if v exists in the set
+      samples.insert(r - 1);
     }
   }
   // Copy set into a vector
@@ -81,19 +85,19 @@ inline __host__ __device__ float normDistFromCenter(float r, float r_in, float r
  *  q_2 - second quaternion
  *  q_3 - output quaternion
  */
-inline __device__ void QuadMultiply(float q_1[4], float q_2[4], float q_3[4]) {
+inline __host__ __device__ void QuatMultiply(float q_1[4], float q_2[4], float q_3[4]) {
   q_3[0] = q_1[0] * q_2[0] - q_1[1] * q_2[1] - q_1[2] * q_2[2] - q_1[3] * q_2[3];
   q_3[1] = q_1[1] * q_2[0] + q_1[0] * q_2[1] - q_1[3] * q_2[2] + q_1[2] * q_2[3];
   q_3[2] = q_1[2] * q_2[0] + q_1[3] * q_2[1] + q_1[0] * q_2[2] - q_1[1] * q_2[3];
   q_3[3] = q_1[3] * q_2[0] - q_1[2] * q_2[1] + q_1[1] * q_2[2] + q_1[0] * q_2[3];
-  float norm = powf(q_3[0], 2) + powf(q_3[1], 2) + powf(q_3[2], 2) + powf(q_3[3], 2);
+  float norm = sqrtf(powf(q_3[0], 2) + powf(q_3[1], 2) + powf(q_3[2], 2) + powf(q_3[3], 2));
   for(int i = 0; i < 4; i++) {
     q_3[i] /= norm;
   }
 }
 
-inline __device__ void QuatInv(float q[4], float q_inv[4]) {
-  float norm = powf(q[0], 2) + powf(q[1], 2) + powf(q[2], 2) + powf(q[3], 2);
+inline __host__ __device__ void QuatInv(float q[4], float q_inv[4]) {
+  float norm = sqrtf(powf(q[0], 2) + powf(q[1], 2) + powf(q[2], 2) + powf(q[3], 2));
   q_inv[0] = q[0] / norm;
   q_inv[1] = -q[1] / norm;
   q_inv[2] = -q[2] / norm;
@@ -108,7 +112,7 @@ inline __device__ void QuatInv(float q[4], float q_inv[4]) {
 inline __device__ void QuatSubtract(float q_1[4], float q_2[4], float q_3[4]) {
   float q_1_inv[4];
   QuatInv(q_1, q_1_inv);
-  QuadMultiply(q_2, q_1_inv, q_3);
+  QuatMultiply(q_2, q_1_inv, q_3);
 }
 
 /*
@@ -158,7 +162,7 @@ inline void QuatSubtract(const Eigen::Quaternionf& q_1,
   q_3 = q_2 * q_1.inverse();
 }
 
-inline void QuadMultiply(const Eigen::Quaternionf& q_1,
+inline void QuatMultiply(const Eigen::Quaternionf& q_1,
                          const Eigen::Quaternionf& q_2,
                          Eigen::Quaternionf& q_3) {
   q_3 = q_1 * q_2;

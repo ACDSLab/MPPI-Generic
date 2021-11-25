@@ -55,11 +55,8 @@ protected:
    * @param control_rngs
    * @param stream
    */
-  Dynamics(std::array<float2, C_DIM> control_rngs, cudaStream_t stream=0) : Managed(stream) {
-    for(int i = 0; i < C_DIM; i++) {
-      control_rngs_[i].x = control_rngs[i].x;
-      control_rngs_[i].y = control_rngs[i].y;
-    }
+  Dynamics(std::array<float2, C_DIM>& control_rngs, cudaStream_t stream=0) : Managed(stream) {
+    setControlRanges(control_rngs);
   }
 public:
   // This variable defines what the zero control is
@@ -89,6 +86,13 @@ public:
   }
   __host__ __device__ float2* getControlRangesRaw() {
     return control_rngs_;
+  }
+
+  void setControlRanges(std::array<float2, C_DIM>& control_rngs) {
+    for(int i = 0; i < C_DIM; i++) {
+      control_rngs_[i].x = control_rngs[i].x;
+      control_rngs_[i].y = control_rngs[i].y;
+    }
   }
 
   void setParams(const PARAMS_T& params) {
@@ -171,9 +175,21 @@ public:
    * @param s_der
    */
   void updateState(Eigen::Ref<state_array> state,
-                   Eigen::Ref<state_array> state_der, float dt) {
+                   Eigen::Ref<state_array> state_der, const float dt) {
     state += state_der * dt;
     state_der.setZero();
+  }
+
+  /**
+   * does a linear interpolation of states
+   * @param state_1
+   * @param state_2
+   * @param alpha
+   * @return
+   */
+  state_array interpolateState(const Eigen::Ref<state_array> state_1,
+                                           const Eigen::Ref<state_array> state_2, const double alpha) {
+    return (1 - alpha)*state_1 + alpha*state_2;
   }
 
   /**
@@ -202,7 +218,6 @@ public:
     derived->computeKinematics(state, state_der);
     derived->computeDynamics(state, control, state_der);
   }
-
 
   /**
    * computes the section of the state derivative that comes form the dyanmics
@@ -249,7 +264,7 @@ public:
    * @param state_der
    * @param dt
    */
-  __device__ void updateState(float* state, float* state_der, float dt) {
+  __device__ void updateState(float* state, float* state_der, const float dt) {
     int i;
     int tdy = threadIdx.y;
     //Add the state derivative time dt to the current state.
