@@ -5,9 +5,16 @@ target_link_libraries(cartpole_example
                       cnpy
                       cartpole_mppi)
 
-add_executable(double_integrator_CORL2020 double_integrator_CORL2020.cu)
-target_include_directories(double_integrator_CORL2020 PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-target_link_libraries(double_integrator_CORL2020
-        curand
-        ${CUDA_LIBRARIES}
-        cnpy)
+file(GLOB CUDA_TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
+
+foreach(T_FILE IN LISTS CUDA_TARGET_SRCS)
+  # Get filename without extension to use as target name
+  get_filename_component(T_NAME ${T_FILE} NAME_WE)
+  add_executable(${T_NAME} ${T_FILE})
+  target_include_directories(${T_NAME} PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+  target_link_libraries(${T_NAME}
+                        curand
+				        ${CUDA_LIBRARIES}
+				        cnpy)
+  # set_target_properties(${T_NAME} PROPERTIES FOLDER test)
+endforeach()
