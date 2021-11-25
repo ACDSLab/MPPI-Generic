@@ -93,8 +93,9 @@ TEST_F(NormExpKernel, comparisonTestAutorallyMPPI_Generic) {
     launchGenericNormExpKernelTest<num_rollouts, blocksize_x>
             (cost_vec, gamma, baseline, normalized_generic);
 
-    launchAutorallyNormExpKernelTest<num_rollouts, blocksize_x, blocksize_y>
-            (cost_vec, gamma, baseline, normalized_autorally);
-
-    array_assert_float_eq<num_rollouts>(normalized_autorally, normalized_generic);
+    for(int i = 0; i < num_rollouts; i++) {
+      float cost = cost_vec[i] - baseline;
+      cost = expf(-gamma * cost);
+      EXPECT_FLOAT_EQ(normalized_generic[i], cost);
+    }
 }

@@ -5,6 +5,7 @@
 
 #include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/angle_utils.cuh>
+#include <random>
 
 struct DubinsParams{
   DubinsParams() = default;
