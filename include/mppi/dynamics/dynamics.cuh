@@ -58,6 +58,15 @@ protected:
   Dynamics(std::array<float2, C_DIM>& control_rngs, cudaStream_t stream=0) : Managed(stream) {
     setControlRanges(control_rngs);
   }
+
+  Dynamics(PARAMS_T& params, std::array<float2, C_DIM>& control_rngs, cudaStream_t stream=0) : Managed(stream) {
+    setParams(params);
+    setControlRanges(control_rngs);
+  }
+
+  Dynamics(PARAMS_T& params, cudaStream_t stream=0) : Managed(stream) {
+    setParams(params);
+  }
 public:
   // This variable defines what the zero control is
   // For most systems, it should be zero but for things like a quadrotor,
@@ -92,6 +101,9 @@ public:
     for(int i = 0; i < C_DIM; i++) {
       control_rngs_[i].x = control_rngs[i].x;
       control_rngs_[i].y = control_rngs[i].y;
+    }
+    if(GPUMemStatus_) {
+      HANDLE_ERROR( cudaMemcpy(this->model_d_->control_rngs_, this->control_rngs_, C_DIM*sizeof(float2), cudaMemcpyHostToDevice) );
     }
   }
 
