@@ -53,12 +53,17 @@ if (BUILD_TESTS OR BUILD_EXAMPLES)
     set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 endif()
 
-# TODO a better way to detect if fortran compiler exists
-if (EXISTS /usr/bin/gfortran)
-    message("detected fortran compiler, building buffered plant")
+# Detect if fortran compiler exists
+include(CheckLanguage)
+check_language(Fortran)
+if (CMAKE_Fortran_COMPILER)
+    enable_language(Fortran)
+    message(STATUS "detected fortran compiler, building buffered plant")
     #add fitpackpp
     include_directories(submodules/fitpackpp/include)
     add_subdirectory(submodules/fitpackpp)
+else()
+  message(WARNING "Fortran not found. Do not try to use LSTM Dynamics")
 endif()
 
 # required for curand on some systems
