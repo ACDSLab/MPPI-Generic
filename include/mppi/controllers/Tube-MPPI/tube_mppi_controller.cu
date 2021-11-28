@@ -276,11 +276,11 @@ void TubeMPPI::calculateSampledStateTrajectories() {
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
   // run kernel
-  mppi_common::launchStateTrajectoryKernel<DYN_T, FEEDBACK_GPU, BDIM_X, BDIM_Y,
-    2, false>(this->model_->model_d_, this->fb_controller_->getDevicePointer(),
+  mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y,2>
+          (this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(),
               this->sampled_noise_d_, this->initial_state_d_,
-              this->sampled_states_d_, num_sampled_trajectories,
-              this->num_timesteps_, this->dt_, this->stream_);
+              this->sampled_states_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+              num_sampled_trajectories, this->num_timesteps_, this->dt_, this->stream_);
 
   // copy back results
   for(int i = 0; i < num_sampled_trajectories*2; i++) {
@@ -290,5 +290,9 @@ void TubeMPPI::calculateSampledStateTrajectories() {
                                  cudaMemcpyDeviceToHost,
                                  this->stream_));
   }
+  HANDLE_ERROR(cudaMemcpyAsync(this->sampled_costs_.data(), this->sampled_costs_d_,
+                               this->num_timesteps_*2*sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+  HANDLE_ERROR(cudaMemcpyAsync(this->sampled_crash_status_.data(), this->sampled_crash_status_d_,
+                               this->num_timesteps_*2*sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 }

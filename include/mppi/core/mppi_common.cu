@@ -332,12 +332,12 @@ namespace mppi_common {
         }
     }
 
-    template<class DYN_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Z, bool ENABLE_FEEDBACK>
-    __global__ void stateTrajectoryKernel(DYN_T* dynamics, FB_T* fb_controller,
+    template<class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Z>
+    __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_controller,
                                           float* control, float* state,
-                                          float* state_traj,
+                                          float* state_traj_d, float* cost_traj_d, int* crash_status_d,
                                           int num_rollouts, int num_timesteps,
-                                          float dt) {
+                                          float dt, float value_func_threshold) {
       // Get thread and block id
       int thread_idx = threadIdx.x;
       int thread_idy = threadIdx.y;
@@ -350,6 +350,11 @@ namespace mppi_common {
       __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
       __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
 
+      // Create a shared array for the nominal costs calculations
+      __shared__ float running_state_cost_nom_shared[BLOCKSIZE_X];
+      __shared__ float running_control_cost_nom_shared[BLOCKSIZE_X];
+      __shared__ int crash_status_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
+
       // Create a shared array for the dynamics model to use
       __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK*BLOCKSIZE_X*BLOCKSIZE_Z];
       __shared__ float theta_fb[FB_T::SHARED_MEM_SIZE];
@@ -359,6 +364,7 @@ namespace mppi_common {
       float* x_other;
       float* xdot;
       float* u;
+      int* crash_status;
       float fb_control[DYN_T::CONTROL_DIM];
 
       //Load global array to shared array
@@ -381,29 +387,66 @@ namespace mppi_common {
 
       // compute state trajectory for the rollouts
       if(global_idx < num_rollouts) {
+        // Actual or nominal
+        x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+        // The opposite state from above
+        x_other = &x_shared[(blockDim.x * (1 - thread_idz) + thread_idx) * DYN_T::STATE_DIM];
+        xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+        // Base trajectory
+        u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+        // Nominal State Cost
+        crash_status = &crash_status_shared[thread_idz*blockDim.x + thread_idx];
+        crash_status[0] = 0; // We have not crashed yet as of the first trajectory.
+
+        // Load memory into appropriate arrays
+        for (int i = thread_idy; i < DYN_T::STATE_DIM; i += blockDim.y) {
+          x[i] = state[DYN_T::STATE_DIM * threadIdx.z + i];
+          xdot[i] = 0.0;
+        }
+        __syncthreads();
+        float curr_state_cost = 0.0;
+
         for(int t = 0; t < num_timesteps; t++) {
           // get next u
           for(int i = thread_idy; i < DYN_T::CONTROL_DIM; i+= blockDim.y) {
             u[i] = control[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM + i];
           }
 
-          for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
-            fb_control[i] = 0;
-          }
-
           // only apply feedback if enabled
           // TODO: Check feedback is only applied on real state
-          if(BLOCKSIZE_Z > 1 && ENABLE_FEEDBACK) {
+          if(BLOCKSIZE_Z > 1 && value_func_threshold == -1 && thread_idz == 0) {
             fb_controller->k(x, x_other, t, theta_fb, fb_control);
 
             for (int i = thread_idy; i < DYN_T::CONTROL_DIM; i+= blockDim.y) {
               u[i] += fb_control[i];
             }
-            __syncthreads();
           }
+          __syncthreads();
 
           dynamics->enforceConstraints(x, u);
           __syncthreads();
+
+          if (thread_idy == 0) {
+            curr_state_cost = costs->computeStateCost(x, t, crash_status);
+            crash_status_d[threadIdx.z*num_rollouts*num_timesteps +
+                       global_idx*num_timesteps + t] = crash_status[0];
+            cost_traj_d[threadIdx.z*num_rollouts*num_timesteps +
+                        global_idx*num_timesteps + t] = curr_state_cost;
+            __syncthreads();
+
+            // Nominal system is where thread_idz == 1
+            if (thread_idz == 1 && thread_idy == 0) {
+              // compute the nominal system cost
+              cost_traj_d[threadIdx.z*num_rollouts*num_timesteps +
+                          global_idx*num_timesteps + t] = 0.5 * curr_state_cost +
+                                                          fmaxf(fminf(cost_traj_d[global_idx*num_timesteps + t], value_func_threshold), curr_state_cost);
+            }
+          }
+          __syncthreads();
+          // reset crash status
+          if(t == 0) {
+            crash_status[0] = 0;
+          }
 
           //Compute state derivatives
           dynamics->computeStateDeriv(x, u, xdot, theta_s);
@@ -415,7 +458,7 @@ namespace mppi_common {
 
           // save results
           for(int i = thread_idy; i < DYN_T::STATE_DIM; i+= blockDim.y) {
-            state_traj[threadIdx.z*num_rollouts*num_timesteps*DYN_T::STATE_DIM +
+            state_traj_d[threadIdx.z*num_rollouts*num_timesteps*DYN_T::STATE_DIM +
                 global_idx*num_timesteps*DYN_T::STATE_DIM + t*DYN_T::STATE_DIM + i] = x[i];
           }
         }
@@ -460,19 +503,21 @@ namespace mppi_common {
         HANDLE_ERROR( cudaStreamSynchronize(stream) );
     }
 
-    template<class DYN_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
-             int BLOCKSIZE_Z, bool ENABLE_FEEDBACK>
-    void launchStateTrajectoryKernel(DYN_T* dynamics, FB_T* fb_controller,
+    template<class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y,
+             int BLOCKSIZE_Z = 1>
+    void launchStateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* cost, FB_T* fb_controller,
             float* control_trajectories, float* state,
-            float* state_traj_result, int num_rollouts, int num_timesteps,
-            float dt, cudaStream_t stream) {
+            float* state_traj_result, float* cost_traj_result,
+            int* crash_status_result, int num_rollouts,
+            int num_timesteps, float dt, cudaStream_t stream, float value_func_threshold = -1) {
       const int gridsize_x = (num_rollouts - 1) / BLOCKSIZE_X + 1;
       dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
       dim3 dimGrid(gridsize_x, 1, 1);
-      stateTrajectoryKernel<DYN_T, FB_T, BLOCKSIZE_X, BLOCKSIZE_Z,
-        ENABLE_FEEDBACK><<<dimGrid, dimBlock, 0, stream>>>(dynamics,
+      stateAndCostTrajectoryKernel<DYN_T, COST_T, FB_T, BLOCKSIZE_X, BLOCKSIZE_Z>
+              <<<dimGrid, dimBlock, 0, stream>>>(dynamics, cost,
           fb_controller, control_trajectories, state, state_traj_result,
-          /**feedback_gains_d,**/ num_rollouts, num_timesteps, dt);
+          cost_traj_result, crash_status_result, num_rollouts,
+          num_timesteps, dt, value_func_threshold);
     }
 }
 

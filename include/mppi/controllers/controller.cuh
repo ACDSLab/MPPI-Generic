@@ -160,6 +160,14 @@ public:
     return sampled_trajectories_;
   }
 
+  virtual std::vector<float> getSampledCosts() {
+    return sampled_costs_;
+  }
+
+  virtual std::vector<int> getCrashStatus() {
+    return sampled_crash_status_;
+  }
+
   /**
    * only used in rmppi, here for generic calls in base_plant. Jank as hell
    * @param state
@@ -466,15 +474,19 @@ public:
     if (sampled_states_CUDA_mem_init_) {
       cudaFree(sampled_states_d_);
       cudaFree(sampled_noise_d_);
+      cudaFree(sampled_costs_d_);
       sampled_states_CUDA_mem_init_ = false;
     }
     HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
                             sizeof(float)*DYN_T::STATE_DIM*num_timesteps_*num_sampled_trajectories*multiplier));
     HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_,
                             sizeof(float)*DYN_T::CONTROL_DIM*num_timesteps_*num_sampled_trajectories*multiplier));
+    HANDLE_ERROR(cudaMalloc((void**)&sampled_costs_d_,
+                            sizeof(float)*num_timesteps_*num_sampled_trajectories*multiplier));
     sampled_states_CUDA_mem_init_ = true;
 
     sampled_trajectories_.resize(num_sampled_trajectories*multiplier);
+    sampled_costs_.resize(num_sampled_trajectories*multiplier);
     perc_sampled_control_trajectories = new_perc;
   }
 
@@ -558,8 +570,12 @@ protected:
   bool sampled_states_CUDA_mem_init_ = false;  // cudaMalloc, cudaFree boolean
   float* sampled_states_d_; // result of states that have been sampled from state trajectory kernel
   float* sampled_noise_d_; // noise to be passed to the state trajectory kernel
+  float* sampled_costs_d_; // result of cost that have been sampled from state and cost trajectory kernel
+  int* sampled_crash_status_d_; // result of crash_status that have been sampled
   std::vector<control_trajectory> sampled_controls_; // Sampled control trajectories from rollout kernel
   std::vector<state_trajectory> sampled_trajectories_; // sampled state trajectories from state trajectory kernel
+  std::vector<float> sampled_costs_;
+  std::vector<int> sampled_crash_status_;
 
   // Propagated real state trajectory
   state_trajectory propagated_feedback_state_trajectory_ = state_trajectory::Zero();

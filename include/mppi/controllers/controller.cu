@@ -13,6 +13,7 @@ void CONTROLLER::deallocateCUDAMemory() {
   if (sampled_states_CUDA_mem_init_) {
     cudaFree(sampled_states_d_);
     cudaFree(sampled_noise_d_);
+    cudaFree(sampled_costs_d_);
     sampled_states_CUDA_mem_init_ = false;
   }
 }
