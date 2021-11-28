@@ -13,7 +13,8 @@ using DYN = DoubleIntegratorDynamics;
 using COST = QuadraticCost<DYN>;
 using FB_CONTROLLER = DDPFeedback<DYN, TIMESTEPS>;
 
-int main() {
+int main()
+{
   float dt = 0.015;
 
   // Set the initial state
@@ -36,9 +37,10 @@ int main() {
   x_goal << -4, -4, 0, 0;
   DYN::state_array q_coeffs;
   q_coeffs << 0.5, 0.5, 0.0, 0.0;
-  for (int i = 0; i < DYN::STATE_DIM; i++) {
-	  cost_params.s_coeffs[i] = q_coeffs[i];
-	  cost_params.s_goal[i] = x_goal[i];
+  for (int i = 0; i < DYN::STATE_DIM; i++)
+  {
+    cost_params.s_coeffs[i] = q_coeffs[i];
+    cost_params.s_goal[i] = x_goal[i];
   }
   cost.setParams(cost_params);
 
@@ -55,8 +57,8 @@ int main() {
   /********************** Vanilla MPPI **********************/
   float cumulative_cost = 0;
   int crash = 0;
-  for (int t = 0; t < total_time_horizon; ++t) {
-
+  for (int t = 0; t < total_time_horizon; ++t)
+  {
     // Compute the control
     controller.computeControl(x, 1);
 
@@ -67,7 +69,8 @@ int main() {
     // Propagate dynamics forward
     model.computeDynamics(x, current_control, xdot);
     model.updateState(x, xdot, dt);
-    if (t % 10 == 0) {
+    if (t % 10 == 0)
+    {
       std::cout << "T: " << std::fixed << std::setprecision(3) << t * dt;
       // << "s Free Energy: " << fe_stat.real_sys.freeEnergyMean
       // << " +- " << fe_stat.real_sys.freeEnergyVariance << std::endl;
@@ -76,10 +79,8 @@ int main() {
 
     // Slide the control sequence
     controller.slideControlSequence(1);
-    cumulative_cost += cost.computeRunningCost(x, current_control,
-                                               current_control,
-                                               control_std_dev, lambda, alpha,
-                                               t, &crash);
+    cumulative_cost +=
+        cost.computeRunningCost(x, current_control, current_control, control_std_dev, lambda, alpha, t, &crash);
   }
   std::cout << "Total Cost: " << cumulative_cost << std::endl;
 

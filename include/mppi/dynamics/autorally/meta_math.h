@@ -10,40 +10,46 @@
 #ifndef MPPIGENERIC_META_MATH_H
 #define MPPIGENERIC_META_MATH_H
 
-template<typename... Args>
-constexpr int param_counter(int first) {
+template <typename... Args>
+constexpr int param_counter(int first)
+{
   return first;
 }
 
-template<typename... Args>
-constexpr int param_counter(int first, int next) {
-  return (first+1)*next;
+template <typename... Args>
+constexpr int param_counter(int first, int next)
+{
+  return (first + 1) * next;
 }
 
-template<typename... Args>
-constexpr int param_counter(int first, int next, Args... args) {
-  return (first+1)*next + param_counter(next, args...);
+template <typename... Args>
+constexpr int param_counter(int first, int next, Args... args)
+{
+  return (first + 1) * next + param_counter(next, args...);
 }
 
-template<typename... Args>
-constexpr int layer_counter(int first) {
+template <typename... Args>
+constexpr int layer_counter(int first)
+{
   return 1;
 }
 
-template<typename... Args>
-constexpr int layer_counter(int first, Args... args) {
+template <typename... Args>
+constexpr int layer_counter(int first, Args... args)
+{
   return 1 + layer_counter(args...);
 }
 
-template<typename... Args>
-constexpr int neuron_counter(int first) {
+template <typename... Args>
+constexpr int neuron_counter(int first)
+{
   return first;
 }
 
-template<typename... Args>
-constexpr int neuron_counter(int first, Args... args) {
+template <typename... Args>
+constexpr int neuron_counter(int first, Args... args)
+{
   return (first > neuron_counter(args...)) ? first : neuron_counter(args...);
 }
 
-
-#endif //MPPIGENERIC_META_MATH_H
+#endif  // MPPIGENERIC_META_MATH_H

@@ -9,4 +9,4 @@
 #include <mppi/dynamics/quadrotor/quadrotor_dynamics.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
 
-#endif //MPPI_GENERIC_CONTROLLERS_QUADROTOR_MPPI_CUH_
+#endif  // MPPI_GENERIC_CONTROLLERS_QUADROTOR_MPPI_CUH_

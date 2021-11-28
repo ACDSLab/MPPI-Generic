@@ -2,12 +2,13 @@
 #include <mppi/cost_functions/quadrotor/quadrotor_map_cost.cuh>
 #include <mppi/utils/test_helper.h>
 
-TEST(QuadrotorMapCost, checkHeadingCost) {
+TEST(QuadrotorMapCost, checkHeadingCost)
+{
   using COST = QuadrotorMapCost;
   COST cost;
   COST::state_array curr_state = COST::state_array::Zero();
   Eigen::Quaternionf temp_quat;
-  float deg2rad = M_PI /180;
+  float deg2rad = M_PI / 180;
   // Have velocity in the y direction
   curr_state[4] = 1;
   // Get quaternion for yaw of 30 degrees
@@ -29,7 +30,8 @@ TEST(QuadrotorMapCost, checkHeadingCost) {
   EXPECT_FLOAT_EQ(expected_cost, calculated_cost);
 }
 
-TEST(QuadrotorMapCost, checkSpeedCost) {
+TEST(QuadrotorMapCost, checkSpeedCost)
+{
   using COST = QuadrotorMapCost;
   COST cost;
   COST::state_array curr_state = COST::state_array::Zero();

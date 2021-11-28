@@ -8,8 +8,9 @@
 #include <string>
 #include <unistd.h>
 
-inline bool fileExists (const std::string& name) {
-  return ( access( name.c_str(), F_OK ) != -1 );
+inline bool fileExists(const std::string& name)
+{
+  return (access(name.c_str(), F_OK) != -1);
 }
 
-#endif //MPPIGENERIC_FILE_UTILS_H
+#endif  // MPPIGENERIC_FILE_UTILS_H

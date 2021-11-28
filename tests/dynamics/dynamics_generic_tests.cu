@@ -5,46 +5,61 @@
 
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 
-struct DynamicsTesterParams {
+struct DynamicsTesterParams
+{
   int var_1 = 1;
   int var_2 = 2;
   float4 var_4;
 };
 
-template<int STATE_DIM = 1, int CONTROL_DIM = 1>
-class DynamicsTester : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM> {
+template <int STATE_DIM = 1, int CONTROL_DIM = 1>
+class DynamicsTester
+  : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>
+{
 public:
+  using state_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams,
+                                                       STATE_DIM, CONTROL_DIM>::state_array;
+  using control_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams,
+                                                         STATE_DIM, CONTROL_DIM>::control_array;
 
-    using state_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>::state_array;
-    using control_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>::control_array;
+  DynamicsTester(cudaStream_t stream = 0)
+    : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(
+          stream)
+  {
+  }
 
-  DynamicsTester(cudaStream_t stream=0)
-    : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(stream) {}
+  DynamicsTester(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream = 0)
+    : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(
+          control_rngs, stream)
+  {
+  }
 
-  DynamicsTester(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream=0)
-    : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(control_rngs, stream) {}
-
-  void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der) {
+  void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                       Eigen::Ref<state_array> state_der)
+  {
     state_der(1) = control(0);
   }
 
-  void computeKinematics(const Eigen::Ref<const state_array> &state, Eigen::Ref<state_array> s_der) {
+  void computeKinematics(const Eigen::Ref<const state_array>& state, Eigen::Ref<state_array> s_der)
+  {
     s_der(0) = state(0) + state(1);
   };
 
   // TODO must be properly parallelized
-  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr) {
+  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr)
+  {
     state_der[1] = control[0];
   }
 
   // TODO must be properly parallelized
-  __device__ void computeKinematics(float* state, float* state_der) {
+  __device__ void computeKinematics(float* state, float* state_der)
+  {
     state_der[0] = state[0] + state[1];
   }
 };
 
-
-TEST(Dynamics, BindStream) {
+TEST(Dynamics, BindStream)
+{
   cudaStream_t stream;
 
   HANDLE_ERROR(cudaStreamCreate(&stream));
@@ -57,7 +72,7 @@ TEST(Dynamics, BindStream) {
 
   HANDLE_ERROR(cudaStreamCreate(&stream));
 
-  std::array<float2, 1> tester_ranges {};
+  std::array<float2, 1> tester_ranges{};
   tester = DynamicsTester<>(tester_ranges, stream);
 
   EXPECT_EQ(tester.stream_, stream) << "Stream binding failure.";
@@ -65,8 +80,8 @@ TEST(Dynamics, BindStream) {
   HANDLE_ERROR(cudaStreamDestroy(stream));
 }
 
-
-TEST(Dynamics, GPUSetupAndCudaFree) {
+TEST(Dynamics, GPUSetupAndCudaFree)
+{
   DynamicsTester<> tester;
   EXPECT_EQ(tester.model_d_, nullptr);
   EXPECT_EQ(tester.GPUMemStatus_, false);
@@ -80,8 +95,8 @@ TEST(Dynamics, GPUSetupAndCudaFree) {
   EXPECT_EQ(tester.GPUMemStatus_, false);
 }
 
-
-TEST(Dynamics, setParamsCPU) {
+TEST(Dynamics, setParamsCPU)
+{
   DynamicsTester<> tester;
   DynamicsTesterParams params_result = tester.getParams();
   EXPECT_EQ(params_result.var_1, 1);
@@ -106,7 +121,8 @@ TEST(Dynamics, setParamsCPU) {
   EXPECT_EQ(params_result.var_4.w, params.var_4.w);
 }
 
-TEST(Dynamics, setParamsGPU) {
+TEST(Dynamics, setParamsGPU)
+{
   DynamicsTester<> tester;
   tester.GPUSetup();
   DynamicsTesterParams params_result = tester.getParams();
@@ -132,8 +148,8 @@ TEST(Dynamics, setParamsGPU) {
   EXPECT_EQ(params_result.var_4.w, params.var_4.w);
 }
 
-
-TEST(Dynamics, ClassConstants) {
+TEST(Dynamics, ClassConstants)
+{
   DynamicsTester<> tester;
   EXPECT_EQ(tester.STATE_DIM, 1);
   EXPECT_EQ(tester.CONTROL_DIM, 1);
@@ -151,7 +167,8 @@ TEST(Dynamics, ClassConstants) {
   EXPECT_EQ(shared_mem_request_blk, 0);
 }
 
-TEST(Dynamics, SetControlRangesDefault) {
+TEST(Dynamics, SetControlRangesDefault)
+{
   DynamicsTester<> tester;
   auto ranges = tester.getControlRanges();
   EXPECT_FLOAT_EQ(ranges[0].x, -FLT_MAX);
@@ -159,14 +176,16 @@ TEST(Dynamics, SetControlRangesDefault) {
 
   DynamicsTester<4, 2> tester_2;
   auto ranges_2 = tester.getControlRanges();
-  for(int i = 0; i < ranges_2.size(); i++) {
+  for (int i = 0; i < ranges_2.size(); i++)
+  {
     EXPECT_FLOAT_EQ(ranges[i].x, -FLT_MAX);
     EXPECT_FLOAT_EQ(ranges[i].y, FLT_MAX);
   }
 }
 
-TEST(Dynamics, SetControlRanges) {
-  std::array<float2, 1> tester_ranges {};
+TEST(Dynamics, SetControlRanges)
+{
+  std::array<float2, 1> tester_ranges{};
   tester_ranges[0].x = -2;
   tester_ranges[0].y = 5;
   DynamicsTester<> tester(tester_ranges);
@@ -181,21 +200,23 @@ TEST(Dynamics, SetControlRanges) {
   EXPECT_FLOAT_EQ(ranges[0].x, tester_ranges[0].x) << "failed at index: " << 0;
   EXPECT_FLOAT_EQ(ranges[0].y, tester_ranges[0].y) << "failed at index: " << 0;
 
-  std::array<float2, 2> tester_2_ranges {};
+  std::array<float2, 2> tester_2_ranges{};
   tester_ranges[0].x = -3;
   tester_ranges[0].y = 8;
   tester_ranges[1].x = -11;
   tester_ranges[1].y = 23;
   DynamicsTester<4, 2> tester_2(tester_2_ranges);
   auto ranges_2 = tester_2.getControlRanges();
-  for(int i = 0; i < ranges_2.size(); i++) {
+  for (int i = 0; i < ranges_2.size(); i++)
+  {
     EXPECT_FLOAT_EQ(ranges_2[i].x, tester_2_ranges[i].x) << "failed at index: " << i;
     EXPECT_FLOAT_EQ(ranges_2[i].y, tester_2_ranges[i].y) << "failed at index: " << i;
   }
 }
 
-TEST(Dynamics, SetControlRangesGPU) {
-  std::array<float2, 1> tester_ranges {};
+TEST(Dynamics, SetControlRangesGPU)
+{
+  std::array<float2, 1> tester_ranges{};
   tester_ranges[0].x = -2;
   tester_ranges[0].y = 5;
   DynamicsTester<> tester(tester_ranges);
@@ -205,7 +226,7 @@ TEST(Dynamics, SetControlRangesGPU) {
   EXPECT_FLOAT_EQ(ranges_result[0].x, -2);
   EXPECT_FLOAT_EQ(ranges_result[0].y, 5);
 
-  std::array<float2, 2> tester_2_ranges {};
+  std::array<float2, 2> tester_2_ranges{};
   tester_2_ranges[0].x = -5;
   tester_2_ranges[0].y = 6;
   tester_2_ranges[1].x = -10;
@@ -214,21 +235,22 @@ TEST(Dynamics, SetControlRangesGPU) {
   tester_2.GPUSetup();
   std::array<float2, 2> ranges_result_2 = {};
   launchControlRangesTestKernel<DynamicsTester<4, 2>, 2>(tester_2, ranges_result_2);
-  for(int i = 0; i < ranges_result_2.size(); i++) {
+  for (int i = 0; i < ranges_result_2.size(); i++)
+  {
     EXPECT_FLOAT_EQ(ranges_result_2[i].x, tester_2_ranges[i].x) << "failed at index: " << i;
     EXPECT_FLOAT_EQ(ranges_result_2[i].y, tester_2_ranges[i].y) << "failed at index: " << i;
   }
 }
 
-
-TEST(Dynamics, enforceConstraintsCPU) {
-  std::array<float2, 1> tester_ranges {};
+TEST(Dynamics, enforceConstraintsCPU)
+{
+  std::array<float2, 1> tester_ranges{};
   tester_ranges[0].x = -2;
   tester_ranges[0].y = 5;
   DynamicsTester<> tester(tester_ranges);
 
-  DynamicsTester<>::state_array s(1,1);
-  DynamicsTester<>::control_array u(1,1);
+  DynamicsTester<>::state_array s(1, 1);
+  DynamicsTester<>::control_array u(1, 1);
 
   u(0) = 100;
   tester.enforceConstraints(s, u);
@@ -247,15 +269,16 @@ TEST(Dynamics, enforceConstraintsCPU) {
   EXPECT_FLOAT_EQ(u(0), -1.5);
 }
 
-TEST(Dynamics, enforceConstraintsGPU) {
-  std::array<float2, 3> tester_ranges {};
+TEST(Dynamics, enforceConstraintsGPU)
+{
+  std::array<float2, 3> tester_ranges{};
   tester_ranges[0].x = -2;
   tester_ranges[0].y = 5;
   tester_ranges[1].x = -6;
   tester_ranges[1].y = 8;
   tester_ranges[2].x = -11;
   tester_ranges[2].y = 16;
-  DynamicsTester<1,3> tester(tester_ranges);
+  DynamicsTester<1, 3> tester(tester_ranges);
   tester.GPUSetup();
 
   std::vector<std::array<float, 1>> states(4);
@@ -280,7 +303,8 @@ TEST(Dynamics, enforceConstraintsGPU) {
   controls[3][2] = -1.5;
 
   // try a bunch of different y dim
-  for(int j = 1; j < 6; j++) {
+  for (int j = 1; j < 6; j++)
+  {
     states[0][0] = 48;
     states[1][0] = 4518;
     states[2][0] = 451;
@@ -321,7 +345,8 @@ TEST(Dynamics, enforceConstraintsGPU) {
   }
 }
 
-TEST(Dynamics, updateStateCPU) {
+TEST(Dynamics, updateStateCPU)
+{
   DynamicsTester<> tester;
   DynamicsTester<>::state_array s;
   DynamicsTester<>::state_array s_der;
@@ -335,7 +360,8 @@ TEST(Dynamics, updateStateCPU) {
   EXPECT_FLOAT_EQ(s_der(0), 0);
 }
 
-TEST(Dynamics, updateStateGPU) {
+TEST(Dynamics, updateStateGPU)
+{
   DynamicsTester<4, 1> tester;
   std::vector<std::array<float, 4>> s(1);
   std::vector<std::array<float, 4>> s_der(1);
@@ -350,7 +376,8 @@ TEST(Dynamics, updateStateGPU) {
   s_der[0][2] = 2;
   s_der[0][3] = 3;
 
-  for(int i = 1; i < 6; i++) {
+  for (int i = 1; i < 6; i++)
+  {
     s[0][0] = 0;
     s[0][1] = 1;
     s[0][2] = 2;
@@ -372,10 +399,10 @@ TEST(Dynamics, updateStateGPU) {
     EXPECT_FLOAT_EQ(s_der[0][2], 0);
     EXPECT_FLOAT_EQ(s_der[0][3], 0);
   }
-
 }
 
-TEST(Dynamics, computeStateDerivCPU) {
+TEST(Dynamics, computeStateDerivCPU)
+{
   DynamicsTester<2, 1> tester;
   DynamicsTester<2, 1>::state_array s;
   DynamicsTester<2, 1>::state_array s_der;
@@ -385,7 +412,7 @@ TEST(Dynamics, computeStateDerivCPU) {
   s(1) = 10;
   s_der(0) = 10;
   s_der(1) = 20;
-  u(0)=  3;
+  u(0) = 3;
 
   tester.computeStateDeriv(s, u, s_der);
 
@@ -396,13 +423,15 @@ TEST(Dynamics, computeStateDerivCPU) {
   EXPECT_FLOAT_EQ(u(0), 3);
 }
 
-TEST(Dynamics, computeStateDerivGPU) {
+TEST(Dynamics, computeStateDerivGPU)
+{
   DynamicsTester<2, 1> tester;
   std::vector<std::array<float, 2>> s(1);
   std::vector<std::array<float, 1>> u(1);
   std::vector<std::array<float, 2>> s_der(1);
 
-  for(int j = 1; j < 6; j++) {
+  for (int j = 1; j < 6; j++)
+  {
     s[0][0] = 5;
     s[0][1] = 10;
     s_der[0][0] = 10;
@@ -416,11 +445,11 @@ TEST(Dynamics, computeStateDerivGPU) {
     EXPECT_FLOAT_EQ(s_der[0][0], 15) << "j = " << j;
     EXPECT_FLOAT_EQ(s_der[0][1], 3) << "j = " << j;
     EXPECT_FLOAT_EQ(u[0][0], 3) << "j = " << j;
-
   }
 }
 
-TEST(Dynamics, interpolateState) {
+TEST(Dynamics, interpolateState)
+{
   DynamicsTester<3, 1> tester;
   DynamicsTester<3, 1>::state_array s1;
   DynamicsTester<3, 1>::state_array s2;

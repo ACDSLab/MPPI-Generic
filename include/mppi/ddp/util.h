@@ -10,8 +10,8 @@
 /**
  * @namespace util  Miscellaneous utilities, convenience items, and type definitions.
  */
-namespace util {
-
+namespace util
+{
 /**
  * @tparam T    Scalar type of the Eigen::Matrix being stored
  * @tparam R    Number of Matrix rows
@@ -36,11 +36,11 @@ template <typename Dynamics>
  * @param u Control vector
  * @return  Combined State and Control vector of size StateSize + ControlSize
  */
-inline typename Dynamics::StateControl combine_xu(const Eigen::Ref<const typename Dynamics::State> &x,
-                                                  const Eigen::Ref<const typename Dynamics::Control> &u)
+inline typename Dynamics::StateControl combine_xu(const Eigen::Ref<const typename Dynamics::State>& x,
+                                                  const Eigen::Ref<const typename Dynamics::Control>& u)
 {
-    using StateControl = typename Dynamics::StateControl;
-    return (StateControl() << x, u).finished();
+  using StateControl = typename Dynamics::StateControl;
+  return (StateControl() << x, u).finished();
 }
 
 /**
@@ -51,7 +51,7 @@ inline typename Dynamics::StateControl combine_xu(const Eigen::Ref<const typenam
  */
 inline int time_steps(double tf, double dt)
 {
-    return static_cast<int>(std::ceil(tf / dt));
+  return static_cast<int>(std::ceil(tf / dt));
 }
 
 /**
@@ -60,73 +60,73 @@ inline int time_steps(double tf, double dt)
 class Logger
 {
 public:
-    Logger() = default;
-    Logger(const Logger &other) = default;
-    Logger(Logger &&other) = default;
-    virtual ~Logger() = default;
-    Logger& operator=(const Logger &other) = default;
-    Logger& operator=(Logger &&other) = default;
+  Logger() = default;
+  Logger(const Logger& other) = default;
+  Logger(Logger&& other) = default;
+  virtual ~Logger() = default;
+  Logger& operator=(const Logger& other) = default;
+  Logger& operator=(Logger&& other) = default;
 
-    /**
-     * @brief       Pure virtual function to log informational messages.
-     * @param fmt   Format string (if additional arguments are passed) or message to display
-     */
-    virtual void info(const char *fmt, ...) = 0;
-    /**
-     * @brief       Pure virtual function to log warnings.
-     * @param fmt   Format string (if additional arguments are passed) or message to display
-     */
-    virtual void warning(const char *fmt, ...) = 0;
-    /**
-     * @brief       Pure virtual function to log errors.
-     * @param fmt   Format string (if additional arguments are passed) or message to display
-     */
-    virtual void error(const char *fmt, ...) = 0;
+  /**
+   * @brief       Pure virtual function to log informational messages.
+   * @param fmt   Format string (if additional arguments are passed) or message to display
+   */
+  virtual void info(const char* fmt, ...) = 0;
+  /**
+   * @brief       Pure virtual function to log warnings.
+   * @param fmt   Format string (if additional arguments are passed) or message to display
+   */
+  virtual void warning(const char* fmt, ...) = 0;
+  /**
+   * @brief       Pure virtual function to log errors.
+   * @param fmt   Format string (if additional arguments are passed) or message to display
+   */
+  virtual void error(const char* fmt, ...) = 0;
 };
 
 /**
  * @brief   A logger that outputs to stdout for info messages and stderr for warnings and errors.
  */
-class DefaultLogger: public Logger
+class DefaultLogger : public Logger
 {
 public:
-    /**
-     * @brief       Log info messages to stdout.
-     * @param fmt   Format string (if additional arguments are passed) or message to display
-     */
-    virtual void info(const char *fmt, ...)
-    {
-        std::va_list argptr;
-        va_start(argptr, fmt);
-        std::vprintf(fmt, argptr);
-        va_end(argptr);
-    }
+  /**
+   * @brief       Log info messages to stdout.
+   * @param fmt   Format string (if additional arguments are passed) or message to display
+   */
+  virtual void info(const char* fmt, ...)
+  {
+    std::va_list argptr;
+    va_start(argptr, fmt);
+    std::vprintf(fmt, argptr);
+    va_end(argptr);
+  }
 
-    /**
-     * @brief       Log warnings to stderr.
-     * @param fmt   Format string (if additional arguments are passed) or message to display
-     */
-    virtual void warning(const char *fmt, ...)
-    {
-        std::va_list argptr;
-        va_start(argptr, fmt);
-        std::vfprintf(stderr, fmt, argptr);
-        va_end(argptr);
-    }
+  /**
+   * @brief       Log warnings to stderr.
+   * @param fmt   Format string (if additional arguments are passed) or message to display
+   */
+  virtual void warning(const char* fmt, ...)
+  {
+    std::va_list argptr;
+    va_start(argptr, fmt);
+    std::vfprintf(stderr, fmt, argptr);
+    va_end(argptr);
+  }
 
-    /**
-     * @brief       Log errors to stderr.
-     * @param fmt   Format string (if additional arguments are passed) or message to display
-     */
-    virtual void error(const char *fmt, ...)
-    {
-        std::va_list argptr;
-        va_start(argptr, fmt);
-        std::vfprintf(stderr, fmt, argptr);
-        va_end(argptr);
-    }
+  /**
+   * @brief       Log errors to stderr.
+   * @param fmt   Format string (if additional arguments are passed) or message to display
+   */
+  virtual void error(const char* fmt, ...)
+  {
+    std::va_list argptr;
+    va_start(argptr, fmt);
+    std::vfprintf(stderr, fmt, argptr);
+    va_end(argptr);
+  }
 };
 
-} // namespace util
+}  // namespace util
 
-#endif // TRAJOPT_UTIL_HPP
+#endif  // TRAJOPT_UTIL_HPP

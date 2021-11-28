@@ -16,18 +16,21 @@ const int NUM_TIMESTEPS = 100;
 typedef DDPFeedback<MockDynamics, NUM_TIMESTEPS> FEEDBACK_T;
 
 // ===== mock controller ====
-class MockController : public Controller<MockDynamics, MockCost, FEEDBACK_T, NUM_TIMESTEPS, 500, 32, 2> {
+class MockController : public Controller<MockDynamics, MockCost, FEEDBACK_T, NUM_TIMESTEPS, 500, 32, 2>
+{
 public:
   MOCK_METHOD0(calculateSampledStateTrajectories, void());
   MOCK_METHOD0(resetControls, void());
   MOCK_METHOD1(computeFeedback, void(const Eigen::Ref<const state_array>& state));
   MOCK_METHOD1(slideControlSequence, void(int stride));
-  MOCK_METHOD5(getCurrentControl, control_array(state_array&, double, state_array&, control_trajectory&, TEMPLATED_FEEDBACK_STATE&));
+  MOCK_METHOD5(getCurrentControl,
+               control_array(state_array&, double, state_array&, control_trajectory&, TEMPLATED_FEEDBACK_STATE&));
   MOCK_METHOD2(computeControl, void(const Eigen::Ref<const state_array>& state, int optimization_stride));
   MOCK_METHOD0(getControlSeq, control_trajectory());
   MOCK_METHOD0(getTargetStateSeq, state_trajectory());
   MOCK_METHOD0(getFeedbackState, TEMPLATED_FEEDBACK_STATE());
-  MOCK_METHOD3(getFeedbackControl, control_array(const Eigen::Ref<const state_array>&, const Eigen::Ref<const state_array>&, float));
+  MOCK_METHOD3(getFeedbackControl,
+               control_array(const Eigen::Ref<const state_array>&, const Eigen::Ref<const state_array>&, float));
   MOCK_METHOD1(updateImportanceSampler, void(const Eigen::Ref<const control_trajectory>& nominal_control));
   MOCK_METHOD0(allocateCUDAMemory, void());
   MOCK_METHOD0(computeFeedbackPropagatedStateSeq, void());
@@ -36,4 +39,4 @@ public:
   MOCK_METHOD1(setPercentageSampledControlTrajectories, void(float new_perc));
   MOCK_METHOD0(getSampledNoise, std::vector<float>());
 };
-#endif //MPPIGENERIC_MOCK_CONTROLLER_H
+#endif  // MPPIGENERIC_MOCK_CONTROLLER_H

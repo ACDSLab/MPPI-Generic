@@ -11,7 +11,8 @@
 #include <cuda_runtime.h>
 #include <cnpy.h>
 
-struct ARStandardCostParams : public CostParams<2> {
+struct ARStandardCostParams : public CostParams<2>
+{
   float desired_speed = 6.0;
   float speed_coeff = 4.25;
   float track_coeff = 200.0;
@@ -28,20 +29,22 @@ struct ARStandardCostParams : public CostParams<2> {
    * r_c1.y, r_c2.y, trs.y
    * r_c1.z, r_c2.z, trs.z
    */
-  float3 r_c1; // R matrix col 1
-  float3 r_c2; // R matrix col 2
-  float3 trs; // translation vector
+  float3 r_c1;  // R matrix col 1
+  float3 r_c2;  // R matrix col 2
+  float3 trs;   // translation vector
 
-  ARStandardCostParams() {
-    control_cost_coeff[0] = 0.0; // steering_coeff
-    control_cost_coeff[1] = 0.0; // throttle_coeff
+  ARStandardCostParams()
+  {
+    control_cost_coeff[0] = 0.0;  // steering_coeff
+    control_cost_coeff[1] = 0.0;  // throttle_coeff
   }
 };
 
 template <class CLASS_T, class PARAMS_T = ARStandardCostParams>
-class ARStandardCostImpl : public Cost<CLASS_T, PARAMS_T, 7, 2> {
+class ARStandardCostImpl : public Cost<CLASS_T, PARAMS_T, 7, 2>
+{
 public:
-//  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static constexpr float MAX_COST_VALUE = 1e16;
 
   /**
@@ -49,9 +52,10 @@ public:
    * @param width
    * @param height
    */
-  ARStandardCostImpl(cudaStream_t stream=0);
+  ARStandardCostImpl(cudaStream_t stream = 0);
 
-  std::string getCostFunctionName() {
+  std::string getCostFunctionName()
+  {
     return "AutoRally standard cost function";
   }
 
@@ -61,16 +65,23 @@ public:
    */
   // void freeCudaMem();
 
-  inline __host__ __device__ int getHeight() const {return height_;}
-  inline __host__ __device__ int getWidth() const {return width_;}
-  inline std::vector<float4> getTrackCostCPU()  const {return track_costs_;}
+  inline __host__ __device__ int getHeight() const
+  {
+    return height_;
+  }
+  inline __host__ __device__ int getWidth() const
+  {
+    return width_;
+  }
+  inline std::vector<float4> getTrackCostCPU() const
+  {
+    return track_costs_;
+  }
   inline Eigen::Matrix3f getRotation();
   inline Eigen::Array3f getTranslation();
-  //inline __host__ __device__ cudaArray* getCudaArray() {return costmapArray_d_;}
-  //inline __host__ __device__ cudaArray_t* getCudaArrayPointer() {return &costmapArray_d_;}
-  //inline __host__ __device__ cudaTextureObject_t* getCostmapTex(){return &costmap_tex_d_;};
-
-
+  // inline __host__ __device__ cudaArray* getCudaArray() {return costmapArray_d_;}
+  // inline __host__ __device__ cudaArray_t* getCudaArrayPointer() {return &costmapArray_d_;}
+  // inline __host__ __device__ cudaTextureObject_t* getCostmapTex(){return &costmap_tex_d_;};
 
   /**
    * Copies the parameters to the GPU object
@@ -90,12 +101,12 @@ public:
    *
    * Initializes a float4 vector to the correct width and height and sets every value to zero on the CPU.
    * default leaves the sizes alone
-  */
-  void clearCostmapCPU(int width=-1, int height=-1);
+   */
+  void clearCostmapCPU(int width = -1, int height = -1);
 
   /**
-  * @brief Binds the member variable costmap to a CUDA texture.
-  */
+   * @brief Binds the member variable costmap to a CUDA texture.
+   */
   void costmapToTexture();
 
   __device__ float4 queryTexture(float x, float y) const;
@@ -128,35 +139,38 @@ public:
   /**
    *@brief Initializes the debug window for a default 20x20 meter window.
    */
-  //void debugDisplayInit();
+  // void debugDisplayInit();
 
   /**
    * @brief Initialize and allocate memory for debug window display
    */
-  //void debugDisplayInit(int width_m, int height_m, int ppm);
+  // void debugDisplayInit(int width_m, int height_m, int ppm);
 
-  bool getDebugDisplayEnabled() {return false;}
+  bool getDebugDisplayEnabled()
+  {
+    return false;
+  }
 
   /**
    * @brief Display the debug view centered around x and y.
    * @param x float representing the current x-coordinate
    * @param y float representing the current y-coordinate
    */
-  //cv::Mat getDebugDisplay(float x, float y, float heading);
+  // cv::Mat getDebugDisplay(float x, float y, float heading);
 
   /**
    *
    * @param description
    * @param data
    */
-  //void updateCostmap(std::vector<int> description, std::vector<float> data);
+  // void updateCostmap(std::vector<int> description, std::vector<float> data);
 
   /**
    *
    * @param description
    * @param data
    */
-  //void updateObstacles(std::vector<int> description, std::vector<float> data);
+  // void updateObstacles(std::vector<int> description, std::vector<float> data);
 
   /**
    * @brief Returns whether or not the vehicle has crashed or not
@@ -188,51 +202,48 @@ public:
    * @brief Compute all of the individual cost terms and adds them together.
    */
   inline __device__ float computeStateCost(float* s, int timestep, int* crash_status);
-  inline __device__ float computeRunningCost(float* s, float* u, float *noise, float* std_dev, float lambda, float alpha,
-                                      int timestep, int* crash_status);
+  inline __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda,
+                                             float alpha, int timestep, int* crash_status);
 
   /**
    * @brief Computes the terminal cost from a state
    */
   __device__ float terminalCost(float* s);
 
-  //Constant variables
-  const float FRONT_D = 0.5; ///< Distance from GPS receiver to front of car.
-  const float BACK_D = -0.5; ///< Distance from GPS receiver to back of car.
+  // Constant variables
+  const float FRONT_D = 0.5;  ///< Distance from GPS receiver to front of car.
+  const float BACK_D = -0.5;  ///< Distance from GPS receiver to back of car.
 
 protected:
+  bool l1_cost_ = false;  // Whether to use L1 speed cost (if false it is L2)
 
-  bool l1_cost_ = false; //Whether to use L1 speed cost (if false it is L2)
-
-  //Primary variables
-  int width_ =  -1; ///< width of costmap
-  int height_ = -1; ///< height of costmap.
-  cudaArray *costmapArray_d_; ///< Cuda array for texture binding.
-  cudaChannelFormatDesc channelDesc_; ///< Cuda texture channel description.
-  cudaTextureObject_t costmap_tex_d_; ///< Cuda texture object.
+  // Primary variables
+  int width_ = -1;                     ///< width of costmap
+  int height_ = -1;                    ///< height of costmap.
+  cudaArray* costmapArray_d_;          ///< Cuda array for texture binding.
+  cudaChannelFormatDesc channelDesc_;  ///< Cuda texture channel description.
+  cudaTextureObject_t costmap_tex_d_;  ///< Cuda texture object.
   // TODO what does this look like on GPU side
   std::vector<float4> track_costs_;
 
-  //Debugging variables
-  float* debug_data_; ///< Host array for holding debug info.
-  //float* debug_data_d_; ///< Device array for holding debug info.
-  int debug_img_width_; ///Width (in meters) of area imaged by debug view.
-  int debug_img_height_; ///< Height (in meters) of area imaged by debug view.
-  int debug_img_ppm_; ///< Pixels per meter for resolution of debug view.
-  int debug_img_size_; ///< Number of pixels in the debug image.
-  bool debugging_; ///< Indicator for if we're in debugging mode
-
+  // Debugging variables
+  float* debug_data_;  ///< Host array for holding debug info.
+  // float* debug_data_d_; ///< Device array for holding debug info.
+  int debug_img_width_;   /// Width (in meters) of area imaged by debug view.
+  int debug_img_height_;  ///< Height (in meters) of area imaged by debug view.
+  int debug_img_ppm_;     ///< Pixels per meter for resolution of debug view.
+  int debug_img_size_;    ///< Number of pixels in the debug image.
+  bool debugging_;        ///< Indicator for if we're in debugging mode
 };
-
-
 
 #if __CUDACC__
 #include "ar_standard_cost.cu"
 #endif
 
-class ARStandardCost : public ARStandardCostImpl<ARStandardCost> {
+class ARStandardCost : public ARStandardCostImpl<ARStandardCost>
+{
 public:
-  ARStandardCost(cudaStream_t stream=0) : ARStandardCostImpl<ARStandardCost>(stream) {};
+  ARStandardCost(cudaStream_t stream = 0) : ARStandardCostImpl<ARStandardCost>(stream){};
 };
 
-#endif // AR_STANDARD_COST_CUH_
+#endif  // AR_STANDARD_COST_CUH_

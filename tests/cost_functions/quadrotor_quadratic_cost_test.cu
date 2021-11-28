@@ -4,18 +4,20 @@
 
 #include <array>
 
-TEST(QuadrotorQuadraticCost, Constructor) {
+TEST(QuadrotorQuadraticCost, Constructor)
+{
   QuadrotorQuadraticCost();
 }
 
 template <class COST_T>
-void __global__ StateCostKernel(COST_T* costs, float* s_d,
-                                  float* result) {
+void __global__ StateCostKernel(COST_T* costs, float* s_d, float* result)
+{
   result[0] = costs->computeStateCost(s_d);
   result[1] = costs->terminalCost(s_d);
 }
 
-TEST(QuadrotorQuadraticCost, ControlCost) {
+TEST(QuadrotorQuadraticCost, ControlCost)
+{
   using COST = QuadrotorQuadraticCost;
   const int num_results = 2;
 
@@ -54,8 +56,7 @@ TEST(QuadrotorQuadraticCost, ControlCost) {
   HANDLE_ERROR(cudaMalloc((void**)&GPU_result_d, sizeof(float) * num_results));
 
   // Copy data to GPU
-  HANDLE_ERROR(cudaMemcpyAsync(s_d, s.data(), state_size,
-                               cudaMemcpyHostToDevice, stream_t));
+  HANDLE_ERROR(cudaMemcpyAsync(s_d, s.data(), state_size, cudaMemcpyHostToDevice, stream_t));
   // HANDLE_ERROR(cudaMemcpyAsync(eps_d, eps.data(), state_size,
   //                              cudaMemcpyHostToDevice, stream_t));
   // HANDLE_ERROR(cudaMemcpyAsync(std_dev_d, std_dev.data(), state_size,
@@ -70,15 +71,12 @@ TEST(QuadrotorQuadraticCost, ControlCost) {
   std::array<float, num_results> GPU_result;
   dim3 dimBlock(1, 1, 1);
   dim3 dimGrid(1, 1, 1);
-  StateCostKernel<COST><<<dimGrid, dimBlock, 0, stream_t>>>(cost.cost_d_,
-                                                            s_d,
-                                                            GPU_result_d);
+  StateCostKernel<COST><<<dimGrid, dimBlock, 0, stream_t>>>(cost.cost_d_, s_d, GPU_result_d);
   CudaCheckError();
   HANDLE_ERROR(cudaStreamSynchronize(stream_t));
   // Copy GPU results back to Host
-  HANDLE_ERROR(cudaMemcpyAsync(GPU_result.data(), GPU_result_d,
-                               sizeof(float) * num_results,
-                               cudaMemcpyDeviceToHost, stream_t));
+  HANDLE_ERROR(
+      cudaMemcpyAsync(GPU_result.data(), GPU_result_d, sizeof(float) * num_results, cudaMemcpyDeviceToHost, stream_t));
   HANDLE_ERROR(cudaStreamSynchronize(stream_t));
   std::cout << "State Cost: " << CPU_result[0] << std::endl;
   array_assert_float_eq<num_results>(CPU_result, GPU_result);
