@@ -416,6 +416,7 @@ public:
     result.col(0) = x0;
     state_array xdot;
     state_array state;
+    model_->initializeDynamics(state.col(0), u.col(0), 0, dt_);
     for (int i =0; i < num_timesteps_ - 1; ++i) {
       state = result.col(i);
       model_->computeStateDeriv(state, u.col(i), xdot);
@@ -517,6 +518,7 @@ public:
 
   float getDebug() {return debug_;}
   void setDebug(float debug) {debug_ = debug;}
+  void setCUDAStream(cudaStream_t stream);
 
 protected:
   // no default protected members
@@ -577,8 +579,6 @@ protected:
    * du_d becomes the sampled controls
    */
   void copySampledControlFromDevice();
-
-  void setCUDAStream(cudaStream_t stream);
 
   void createAndSeedCUDARandomNumberGen();
 

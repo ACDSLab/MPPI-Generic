@@ -227,9 +227,9 @@ public:
    * @param theta_s shared memory that can be used when computation is computed across the same block
    */
   __device__ void computeDynamics(float* state,
-                                float* control,
-                                float* state_der,
-                                float* theta_s = nullptr);
+                                  float* control,
+                                  float* state_der,
+                                  float* theta_s = nullptr);
 
   /**
    * computes the parts of the state that are based off of kinematics
@@ -293,6 +293,21 @@ public:
       //printf("finished thread index = %d, %d, control %f\n", threadIdx.x, tdy, control[i]);
     }
   }
+
+  /**
+   * Method to allow setup of dynamics on the GPU. This is needed for
+   * initializing the memory of an LSTM for example
+   */
+   void initializeDynamics(const Eigen::Ref<const state_array>& state,
+                           const Eigen::Ref<const control_array>& control,
+                           float t_0, float dt) {}
+
+  /**
+   * Method to allow setup of dynamics on the GPU. This is needed for
+   * initializing the memory of an LSTM for example
+   */
+  __device__ void initializeDynamics(float* state, float* control, float* theta_s,
+                                     float t_0, float dt) {}
 
 
   // control ranges [.x, .y]

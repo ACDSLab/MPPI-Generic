@@ -66,6 +66,8 @@ namespace mppi_common {
 
     if (global_idx < NUM_ROLLOUTS) {
     /*<----Start of simulation loop-----> */
+      dynamics->initializeDynamics(x, u, theta_s, 0.0, dt);
+      __syncthreads();
       for (int t = 0; t < num_timesteps; t++) {
         //Load noise trajectories scaled by the exploration factor
         injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps,
@@ -381,6 +383,7 @@ namespace mppi_common {
 
       // compute state trajectory for the rollouts
       if(global_idx < num_rollouts) {
+        dynamics->initializeDynamics(x, u, theta_s, 0.0, dt);
         for(int t = 0; t < num_timesteps; t++) {
           // get next u
           for(int i = thread_idy; i < DYN_T::CONTROL_DIM; i+= blockDim.y) {
@@ -543,7 +546,7 @@ namespace rmppi_kernels {
     }
 
     __syncthreads();
-
+    dynamics->initializeDynamics(state, control, theta_s, 0.0, dt);
     for (i = 0; i < num_timesteps; ++i) { // Outer loop iterates on timesteps
       // Inject the control noise
       for (j = tdy; j < DYN_T::CONTROL_DIM; j += blockDim.y) {
@@ -706,6 +709,7 @@ namespace rmppi_kernels {
       *running_state_cost_nom = 0;
       *running_control_cost_nom = 0;
       float curr_state_cost = 0.0;
+      dynamics->initializeDynamics(x, u, theta_s, 0.0, dt);
       for (t = 0; t < num_timesteps; t++) {
         mppi_common::injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y,
                                         NUM_ROLLOUTS, num_timesteps, t,
