@@ -15,3 +15,7 @@ find . -name "*.cpp" ! -path "*build*" ! -path "*submodules*" | xargs -I % bash 
 # Format h source files
 echo "Formatting h files..."
 find . -name "*.h" ! -path "*build*" ! -path "*submodules*" | xargs -I % bash -c "clang-format --style=file -i %"
+
+# Format hpp source files
+echo "Formatting hpp files..."
+find . -name "*.hpp" ! -path "*build*" ! -path "*submodules*" | xargs -I % bash -c "clang-format --style=file -i %"
