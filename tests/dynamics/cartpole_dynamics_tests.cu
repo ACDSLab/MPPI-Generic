@@ -7,6 +7,7 @@
 #include <mppi/dynamics/cartpole/cartpole_dynamics_kernel_test.cuh>
 #include <cuda_runtime.h>
 #include <mppi/ddp/ddp_model_wrapper.h>
+#include <memory>
 
 TEST(CartPole, StateDim) {
     auto CP = CartpoleDynamics(1, 1, 1);
