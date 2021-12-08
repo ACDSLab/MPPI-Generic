@@ -4,7 +4,8 @@
 
 typedef QuadraticCost<DoubleIntegratorDynamics> DIQuadCost;
 
-TEST(DIQuadraticCost, Constructor) {
+TEST(DIQuadraticCost, Constructor)
+{
   DIQuadCost();
 }
 

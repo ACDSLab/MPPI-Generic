@@ -15,4 +15,4 @@ void launchParameterTestKernel(const CartpoleQuadraticCost& cost, CartpoleQuadra
 
 #include "cartpole_quadratic_cost_kernel_test.cu"
 
-#endif //!MPPIGENERIC_CARTPOLE_QUADRATIC_COST_KERNEL_TEST_CUH
+#endif  //! MPPIGENERIC_CARTPOLE_QUADRATIC_COST_KERNEL_TEST_CUH

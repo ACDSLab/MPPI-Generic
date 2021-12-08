@@ -10,17 +10,19 @@
 #include <mppi/dynamics/dynamics.cuh>
 
 // ===== mock dynamics ====
-struct mockDynamicsParams {
+struct mockDynamicsParams
+{
   int test = 2;
   bool copy_everything = false;
-  float buffer[(1 + 1) * 10] = {0.0};
+  float buffer[(1 + 1) * 10] = { 0.0 };
 
-  void updateBuffer(Eigen::Matrix<float, 2, 11> new_buffer) {
-
+  void updateBuffer(Eigen::Matrix<float, 2, 11> new_buffer)
+  {
   }
 };
 
-class MockDynamics : public MPPI_internal::Dynamics<MockDynamics, mockDynamicsParams, 1, 1> {
+class MockDynamics : public MPPI_internal::Dynamics<MockDynamics, mockDynamicsParams, 1, 1>
+{
 public:
   MOCK_METHOD1(bindToStream, void(cudaStream_t stream));
   MOCK_METHOD1(setParams, void(mockDynamicsParams params));
@@ -28,19 +30,17 @@ public:
   MOCK_METHOD0(getControlRanges, std::array<float2, 1>());
   MOCK_METHOD0(getControlRangesRaw, void());
   MOCK_METHOD0(getParams, mockDynamicsParams());
-  //MOCK_METHOD0(freeCudaMem, void());
+  // MOCK_METHOD0(freeCudaMem, void());
   MOCK_METHOD0(paramsToDevice, void());
   MOCK_METHOD3(computeDynamics, void(const Eigen::Ref<const state_array>&, const Eigen::Ref<const control_array>&,
-          Eigen::Ref<state_array>));
+                                     Eigen::Ref<state_array>));
   MOCK_METHOD2(computeKinematics, void(Eigen::Ref<const state_array>&, Eigen::Ref<state_array>));
   MOCK_METHOD3(computeStateDeriv, void(const Eigen::Ref<const state_array>&, const Eigen::Ref<const control_array>&,
-          Eigen::Ref<state_array>));
+                                       Eigen::Ref<state_array>));
   MOCK_METHOD3(updateState, void(Eigen::Ref<state_array>, Eigen::Ref<state_array>, float));
   MOCK_METHOD2(enforceConstraints, void(Eigen::Ref<state_array>, Eigen::Ref<control_array>));
-  MOCK_METHOD4(computeGrad, bool(const Eigen::Ref<const state_array>&,
-          const Eigen::Ref<const control_array>,
-                  Eigen::Ref<dfdx>,
-                  Eigen::Ref<dfdu>));
+  MOCK_METHOD4(computeGrad, bool(const Eigen::Ref<const state_array>&, const Eigen::Ref<const control_array>,
+                                 Eigen::Ref<dfdx>, Eigen::Ref<dfdu>));
 };
 
-#endif //MPPIGENERIC_MOCK_DYNAMICS_H
+#endif  // MPPIGENERIC_MOCK_DYNAMICS_H

@@ -11,7 +11,7 @@ const int MPPI_NUM_ROLLOUTS__ = 1920;
 const int BLOCKSIZE_X = 8;
 const int BLOCKSIZE_Y = 16;
 const int NUM_TIMESTEPS = 150;
-typedef NeuralNetModel<7,2,3,6,32,32,4> DynamicsModel;
+typedef NeuralNetModel<7, 2, 3, 6, 32, 32, 4> DynamicsModel;
 typedef ARStandardCost CostFunctionClass;
 // #elif USE_BASIS_FUNC_MODEL__ /*Use the basis function model* */
 // const int MPPI_NUM_ROLLOUTS__ = 2560;
@@ -19,4 +19,4 @@ typedef ARStandardCost CostFunctionClass;
 // const int BLOCKSIZE_Y = 4;
 // typedef GeneralizedLinear<CarBasisFuncs, 7, 2, 25, CarKinematics, 3> DynamicsModel;
 // #endif
-#endif //MPPIGENERIC_CONTROLLERERS_AUTORALLY_MPPI_CUH
+#endif  // MPPIGENERIC_CONTROLLERERS_AUTORALLY_MPPI_CUH
