@@ -7,4 +7,4 @@
 #include <mppi/dynamics/cartpole/cartpole_dynamics.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
 
-#endif //MPPIGENERIC_CONTROLLERERS_CARTPOLE_MPPI_CUH
+#endif  // MPPIGENERIC_CONTROLLERERS_CARTPOLE_MPPI_CUH

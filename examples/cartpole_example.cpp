@@ -2,7 +2,8 @@
 #include <iostream>
 #include <chrono>
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
   auto model = new CartpoleDynamics(1.0, 1.0, 1.0);
   auto cost = new CartpoleQuadraticCost;
 
@@ -35,18 +36,10 @@ int main(int argc, char** argv) {
   // Feedback Controller
   auto fb_controller = new DDPFeedback<CartpoleDynamics, num_timesteps>(model, dt);
 
-  auto CartpoleController = new VanillaMPPIController<CartpoleDynamics,
-                                                      CartpoleQuadraticCost,
-                                                      DDPFeedback<CartpoleDynamics, num_timesteps>,
-                                                      num_timesteps,
-                                                      2048,  64,  8>(model,
-                                                                     cost,
-                                                                     fb_controller,
-                                                                     dt,
-                                                                     max_iter,
-                                                                     lambda,
-                                                                     alpha,
-                                                                     control_var);
+  auto CartpoleController =
+      new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, num_timesteps>,
+                                num_timesteps, 2048, 64, 8>(model, cost, fb_controller, dt, max_iter, lambda, alpha,
+                                                            control_var);
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
 
@@ -55,7 +48,8 @@ int main(int argc, char** argv) {
   CartpoleDynamics::state_array xdot = CartpoleDynamics::state_array::Zero();
 
   auto time_start = std::chrono::system_clock::now();
-  for (int i =0; i < time_horizon; ++i) {
+  for (int i = 0; i < time_horizon; ++i)
+  {
     // Compute the control
     CartpoleController->computeControl(current_state, 1);
 
@@ -66,11 +60,12 @@ int main(int argc, char** argv) {
     model->computeStateDeriv(current_state, control, xdot);
     model->updateState(current_state, xdot, dt);
 
-    if (i % 50 == 0) {
+    if (i % 50 == 0)
+    {
       printf("Current Time: %f    ", i * dt);
       printf("Current Baseline Cost: %f    ", CartpoleController->getBaselineCost());
       model->printState(current_state.data());
-//      std::cout << control << std::endl;
+      //      std::cout << control << std::endl;
     }
 
     // Slide the controls down before calling the optimizer again
@@ -79,13 +74,14 @@ int main(int argc, char** argv) {
   auto time_end = std::chrono::system_clock::now();
   auto diff = std::chrono::duration<double, std::milli>(time_end - time_start);
   printf("The elapsed time is: %f milliseconds\n", diff.count());
-//    std::cout << "The current control at timestep " << i << " is: " << CartpoleController.get_control_seq()[i] << std::endl;
+  //    std::cout << "The current control at timestep " << i << " is: " << CartpoleController.get_control_seq()[i] <<
+  //    std::endl;
 
   // cost->freeCudaMem();
-  delete(CartpoleController);
-  delete(cost);
-  delete(model);
-  delete(fb_controller);
+  delete (CartpoleController);
+  delete (cost);
+  delete (model);
+  delete (fb_controller);
 
   return 0;
 }

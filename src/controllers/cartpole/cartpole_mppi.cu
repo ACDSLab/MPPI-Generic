@@ -13,10 +13,12 @@ const int NUMBER_TIMESTEPS = 100;
 template class DDPFeedback<CartpoleDynamics, 150>;
 
 template class DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>;
-template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 2048, 64, 8>;
-template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 256, 64, 8>;
-template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 150>, 150, 512, 64, 8>;
+template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
+                                     DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 2048, 64, 8>;
+template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
+                                     DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 256, 64, 8>;
+template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 150>, 150,
+                                     512, 64, 8>;
 
-
-
-template class TubeMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 2048, 64, 8>;
+template class TubeMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
+                                  DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 2048, 64, 8>;

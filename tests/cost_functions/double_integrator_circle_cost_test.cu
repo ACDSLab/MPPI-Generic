@@ -4,25 +4,27 @@
 
 #include <array>
 
-TEST(DoubleIntegratorCost, Constructor) {
+TEST(DoubleIntegratorCost, Constructor)
+{
   DoubleIntegratorCircleCost();
 }
 
 template <class COST_T>
-void __global__ ControlCostKernel(COST_T* costs, float* u_d, float* eps_d,
-                                  float* std_dev_d, float lambda,
-                                  float* result) {
+void __global__ ControlCostKernel(COST_T* costs, float* u_d, float* eps_d, float* std_dev_d, float lambda,
+                                  float* result)
+{
   // Create u as on the GPU
   float u_noise[COST_T::CONTROL_DIM];
-  for(int i = 0; i < COST_T::CONTROL_DIM; i++) {
+  for (int i = 0; i < COST_T::CONTROL_DIM; i++)
+  {
     u_noise[i] = u_d[i] + eps_d[i];
   }
-  result[0] = costs->computeLikelihoodRatioCost(u_noise, eps_d, std_dev_d,
-                                                lambda);
+  result[0] = costs->computeLikelihoodRatioCost(u_noise, eps_d, std_dev_d, lambda);
   result[1] = costs->computeFeedbackCost(u_d, std_dev_d, lambda);
 }
 
-TEST(DoubleIntegratorCost, ControlCost) {
+TEST(DoubleIntegratorCost, ControlCost)
+{
   using COST = DoubleIntegratorCircleCost;
   const int num_results = 2;
 
@@ -53,12 +55,9 @@ TEST(DoubleIntegratorCost, ControlCost) {
   HANDLE_ERROR(cudaMalloc((void**)&GPU_result_d, sizeof(float) * num_results));
 
   // Copy data to GPU
-  HANDLE_ERROR(cudaMemcpyAsync(u_d, u.data(), control_size,
-                               cudaMemcpyHostToDevice, stream_t));
-  HANDLE_ERROR(cudaMemcpyAsync(eps_d, eps.data(), control_size,
-                               cudaMemcpyHostToDevice, stream_t));
-  HANDLE_ERROR(cudaMemcpyAsync(std_dev_d, std_dev.data(), control_size,
-                               cudaMemcpyHostToDevice, stream_t));
+  HANDLE_ERROR(cudaMemcpyAsync(u_d, u.data(), control_size, cudaMemcpyHostToDevice, stream_t));
+  HANDLE_ERROR(cudaMemcpyAsync(eps_d, eps.data(), control_size, cudaMemcpyHostToDevice, stream_t));
+  HANDLE_ERROR(cudaMemcpyAsync(std_dev_d, std_dev.data(), control_size, cudaMemcpyHostToDevice, stream_t));
   HANDLE_ERROR(cudaStreamSynchronize(stream_t));
 
   std::array<float, num_results> CPU_result;
@@ -69,17 +68,13 @@ TEST(DoubleIntegratorCost, ControlCost) {
   std::array<float, num_results> GPU_result;
   dim3 dimBlock(1, 1, 1);
   dim3 dimGrid(1, 1, 1);
-  ControlCostKernel<COST><<<dimGrid, dimBlock, 0, stream_t>>>(cost.cost_d_,
-                                                              u_d, eps_d,
-                                                              std_dev_d,
-                                                              lambda,
-                                                              GPU_result_d);
+  ControlCostKernel<COST>
+      <<<dimGrid, dimBlock, 0, stream_t>>>(cost.cost_d_, u_d, eps_d, std_dev_d, lambda, GPU_result_d);
   CudaCheckError();
   HANDLE_ERROR(cudaStreamSynchronize(stream_t));
   // Copy GPU results back to Host
-  HANDLE_ERROR(cudaMemcpyAsync(GPU_result.data(), GPU_result_d,
-                               sizeof(float) * num_results,
-                               cudaMemcpyDeviceToHost, stream_t));
+  HANDLE_ERROR(
+      cudaMemcpyAsync(GPU_result.data(), GPU_result_d, sizeof(float) * num_results, cudaMemcpyDeviceToHost, stream_t));
   HANDLE_ERROR(cudaStreamSynchronize(stream_t));
 
   array_assert_float_eq<num_results>(CPU_result, GPU_result);

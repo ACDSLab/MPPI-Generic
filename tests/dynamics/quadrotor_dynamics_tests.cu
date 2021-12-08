@@ -3,23 +3,25 @@
 #include <mppi/utils/test_helper.h>
 
 template <class DYN_T>
-void __global__ DynamicsDerivKernel(DYN_T* model, float* state_d, float* u_d,
-                                    float* state_deriv_d) {
+void __global__ DynamicsDerivKernel(DYN_T* model, float* state_d, float* u_d, float* state_deriv_d)
+{
   model->computeDynamics(state_d, u_d, state_deriv_d);
 }
 
 template <class DYN_T>
-void __global__ UpdateStateKernel(DYN_T* model, float* state_d, float* u_d,
-                                    float* state_deriv_d, float dt) {
+void __global__ UpdateStateKernel(DYN_T* model, float* state_d, float* u_d, float* state_deriv_d, float dt)
+{
   model->computeDynamics(state_d, u_d, state_deriv_d);
   model->updateState(state_d, state_deriv_d, dt);
 }
 
-TEST(QuadrotorDynamics, Constructor) {
+TEST(QuadrotorDynamics, Constructor)
+{
   QuadrotorDynamics();
 }
 
-TEST(QuadrotorDynamics, CompareDynamics_CPU_GPU) {
+TEST(QuadrotorDynamics, CompareDynamics_CPU_GPU)
+{
   using DYN = QuadrotorDynamics;
   DYN model;
 
@@ -50,10 +52,8 @@ TEST(QuadrotorDynamics, CompareDynamics_CPU_GPU) {
   HANDLE_ERROR(cudaMalloc((void**)&state_deriv_GPU, sizeof(float) * DYN::STATE_DIM));
 
   // Copy data to GPU
-  HANDLE_ERROR(cudaMemcpyAsync(u_d, u.data(), sizeof(float) * DYN::CONTROL_DIM,
-                               cudaMemcpyHostToDevice, s1));
-  HANDLE_ERROR(cudaMemcpyAsync(s_d, s.data(), sizeof(float) * DYN::STATE_DIM,
-                               cudaMemcpyHostToDevice, s1));
+  HANDLE_ERROR(cudaMemcpyAsync(u_d, u.data(), sizeof(float) * DYN::CONTROL_DIM, cudaMemcpyHostToDevice, s1));
+  HANDLE_ERROR(cudaMemcpyAsync(s_d, s.data(), sizeof(float) * DYN::STATE_DIM, cudaMemcpyHostToDevice, s1));
   HANDLE_ERROR(cudaStreamSynchronize(s1));
 
   model.computeDynamics(s, u, state_deriv_cpu);
@@ -61,20 +61,18 @@ TEST(QuadrotorDynamics, CompareDynamics_CPU_GPU) {
   // Call GPU Kernel
   dim3 dimBlock(1, 5, 1);
   dim3 dimGrid(1, 1, 1);
-  DynamicsDerivKernel<DYN><<<dimGrid, dimBlock, 0, s1>>>(model.model_d_,
-                                                              s_d, u_d,
-                                                              state_deriv_GPU);
+  DynamicsDerivKernel<DYN><<<dimGrid, dimBlock, 0, s1>>>(model.model_d_, s_d, u_d, state_deriv_GPU);
   CudaCheckError();
   HANDLE_ERROR(cudaStreamSynchronize(s1));
   // Copy GPU results back to Host
-  HANDLE_ERROR(cudaMemcpyAsync(state_deriv_gpu.data(), state_deriv_GPU,
-                               sizeof(float) * DYN::STATE_DIM,
+  HANDLE_ERROR(cudaMemcpyAsync(state_deriv_gpu.data(), state_deriv_GPU, sizeof(float) * DYN::STATE_DIM,
                                cudaMemcpyDeviceToHost, s1));
   HANDLE_ERROR(cudaStreamSynchronize(s1));
   eigen_assert_float_eq<DYN::state_array>(state_deriv_cpu, state_deriv_gpu);
 }
 
-TEST(QuadrotorDynamics, UpdateState_CPU_GPU) {
+TEST(QuadrotorDynamics, UpdateState_CPU_GPU)
+{
   using DYN = QuadrotorDynamics;
   DYN model;
   QuadrotorDynamicsParams params = QuadrotorDynamicsParams(2.5);
@@ -110,10 +108,8 @@ TEST(QuadrotorDynamics, UpdateState_CPU_GPU) {
   HANDLE_ERROR(cudaMalloc((void**)&state_deriv_GPU, sizeof(float) * DYN::STATE_DIM));
 
   // Copy data to GPU
-  HANDLE_ERROR(cudaMemcpyAsync(u_d, u.data(), sizeof(float) * DYN::CONTROL_DIM,
-                               cudaMemcpyHostToDevice, s1));
-  HANDLE_ERROR(cudaMemcpyAsync(s_d, s_gpu.data(), sizeof(float) * DYN::STATE_DIM,
-                               cudaMemcpyHostToDevice, s1));
+  HANDLE_ERROR(cudaMemcpyAsync(u_d, u.data(), sizeof(float) * DYN::CONTROL_DIM, cudaMemcpyHostToDevice, s1));
+  HANDLE_ERROR(cudaMemcpyAsync(s_d, s_gpu.data(), sizeof(float) * DYN::STATE_DIM, cudaMemcpyHostToDevice, s1));
   HANDLE_ERROR(cudaStreamSynchronize(s1));
 
   model.computeDynamics(s_cpu, u, state_deriv_cpu);
@@ -122,16 +118,12 @@ TEST(QuadrotorDynamics, UpdateState_CPU_GPU) {
   // Call GPU Kernel
   dim3 dimBlock(1, 5, 1);
   dim3 dimGrid(1, 1, 1);
-  UpdateStateKernel<DYN><<<dimGrid, dimBlock, 0, s1>>>(model.model_d_, s_d, u_d,
-                                                       state_deriv_GPU, dt);
+  UpdateStateKernel<DYN><<<dimGrid, dimBlock, 0, s1>>>(model.model_d_, s_d, u_d, state_deriv_GPU, dt);
   CudaCheckError();
   HANDLE_ERROR(cudaStreamSynchronize(s1));
   // Copy GPU results back to Host
-  HANDLE_ERROR(cudaMemcpyAsync(s_gpu.data(), s_d,
-                               sizeof(float) * DYN::STATE_DIM,
-                               cudaMemcpyDeviceToHost, s1));
-  HANDLE_ERROR(cudaMemcpyAsync(state_deriv_gpu.data(), state_deriv_GPU,
-                               sizeof(float) * DYN::STATE_DIM,
+  HANDLE_ERROR(cudaMemcpyAsync(s_gpu.data(), s_d, sizeof(float) * DYN::STATE_DIM, cudaMemcpyDeviceToHost, s1));
+  HANDLE_ERROR(cudaMemcpyAsync(state_deriv_gpu.data(), state_deriv_GPU, sizeof(float) * DYN::STATE_DIM,
                                cudaMemcpyDeviceToHost, s1));
   HANDLE_ERROR(cudaStreamSynchronize(s1));
   eigen_assert_float_eq<DYN::state_array>(s_cpu, s_gpu);

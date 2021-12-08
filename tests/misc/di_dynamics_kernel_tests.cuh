@@ -7,7 +7,6 @@
 
 __global__ void CheckModelSize(DoubleIntegratorDynamics* DI, long* model_size_check);
 
-
 #include "di_dynamics_kernel_tests.cu"
 
-#endif //!KERNEL_TESTS_DYNAMICS_CARTPOLE_CARTPOLE_KERNEL_TEST_CUH_
+#endif  //! KERNEL_TESTS_DYNAMICS_CARTPOLE_CARTPOLE_KERNEL_TEST_CUH_

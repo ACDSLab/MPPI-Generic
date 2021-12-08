@@ -9,5 +9,4 @@
 #include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
 
-
-#endif //MPPIGENERIC_CONTROLLERERS_DOUBLE_INTEGRATOR_CUH
+#endif  // MPPIGENERIC_CONTROLLERERS_DOUBLE_INTEGRATOR_CUH

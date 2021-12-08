@@ -5,13 +5,15 @@
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 
-TEST(LinearModel, Template) {
+TEST(LinearModel, Template)
+{
   auto dynamics = LinearModel();
   EXPECT_EQ(4, LinearModel::STATE_DIM);
   EXPECT_EQ(4, LinearModel::CONTROL_DIM);
 }
 
-TEST(LinearModel, BindStream) {
+TEST(LinearModel, BindStream)
+{
   cudaStream_t stream;
 
   HANDLE_ERROR(cudaStreamCreate(&stream));
@@ -31,7 +33,8 @@ float c_0 = 4.9;
 float wheel_base = 0.3;
  */
 
-TEST(LinearModel, ComputeModel) {
+TEST(LinearModel, ComputeModel)
+{
   LinearModel dynamics = LinearModel();
   LinearModelParams params = dynamics.getParams();
   LinearModel::state_array x = LinearModel::state_array::Zero();
@@ -63,7 +66,7 @@ TEST(LinearModel, ComputeModel) {
   x << 1, M_PI, 0, 3;
   u << 0, 0, 1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9-3.7);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
@@ -72,12 +75,13 @@ TEST(LinearModel, ComputeModel) {
   u << 0, 0, 0, 1;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7);
-  EXPECT_FLOAT_EQ(next_x(1), (1/.3)*tan(1));
+  EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(1));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
 }
 
-TEST(LinearModel, TestModelGPU) {
+TEST(LinearModel, TestModelGPU)
+{
   LinearModel dynamics = LinearModel();
   dynamics.GPUSetup();
 
@@ -90,13 +94,15 @@ TEST(LinearModel, TestModelGPU) {
   control(1) = 2.0;
 
   std::vector<std::array<float, 4>> s(1);
-  for(int dim = 0; dim < 4; dim++) {
+  for (int dim = 0; dim < 4; dim++)
+  {
     s[0][dim] = state(dim);
   }
   std::vector<std::array<float, 4>> s_der(1);
   // steering, throttle
   std::vector<std::array<float, 4>> u(1);
-  for(int dim = 0; dim < 4; dim++) {
+  for (int dim = 0; dim < 4; dim++)
+  {
     u[0][dim] = control(dim);
   }
 
@@ -106,23 +112,27 @@ TEST(LinearModel, TestModelGPU) {
 
   // Run dynamics on dynamicsU
   // Run dynamics on GPU
-  for(int point = 0; point < 100; point++) {
-    for(int y_dim = 1; y_dim <= 4; y_dim++) {
+  for (int point = 0; point < 100; point++)
+  {
+    for (int y_dim = 1; y_dim <= 4; y_dim++)
+    {
       launchComputeDynamicsTestKernel<LinearModel, 4, 4>(dynamics, s, u, s_der, y_dim);
-      for(int dim = 0; dim < 4; dim++) {
+      for (int dim = 0; dim < 4; dim++)
+      {
         EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[0][dim]);
       }
     }
     state = LinearModel::state_array ::Random();
     control = LinearModel::control_array ::Random();
     dynamics.computeDynamics(state, control, state_der_cpu);
-    for(int dim = 0; dim < 4; dim++) {
+    for (int dim = 0; dim < 4; dim++)
+    {
       s[0][dim] = state(dim);
     }
-    for(int dim = 0; dim < 4; dim++) {
+    for (int dim = 0; dim < 4; dim++)
+    {
       u[0][dim] = control(dim);
     }
-
   }
 
   dynamics.freeCudaMem();
@@ -196,13 +206,15 @@ TEST(LinearModel, TestComputeGradComputation) {
 
   auto numerical_grad_model = LinearDummy();
 
-  std::shared_ptr<ModelWrapperDDP<LinearDummy>> ddp_model = std::make_shared<ModelWrapperDDP<LinearDummy>>(&numerical_grad_model);
+  std::shared_ptr<ModelWrapperDDP<LinearDummy>> ddp_model =
+std::make_shared<ModelWrapperDDP<LinearDummy>>(&numerical_grad_model);
 
   analytic_jac.leftCols<LinearModel::STATE_DIM>() = A_analytic;
   analytic_jac.rightCols<LinearModel::CONTROL_DIM>() = B_analytic;
   numeric_jac = ddp_model->df(state, control);
 
-  ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n" << numeric_jac << "\nAnalytic Jacobian\n" << analytic_jac;
+  ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n" << numeric_jac << "\nAnalytic Jacobian\n"
+<< analytic_jac;
 }
 
 */

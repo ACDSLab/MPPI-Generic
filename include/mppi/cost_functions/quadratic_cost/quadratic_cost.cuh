@@ -9,55 +9,61 @@
 #include <mppi/cost_functions/cost.cuh>
 #include <mppi/utils/math_utils.h>
 
-template<class DYN_T, int SIM_TIME_HORIZON = 1>
-struct QuadraticCostTrajectoryParams : public CostParams<DYN_T::CONTROL_DIM> {
+template <class DYN_T, int SIM_TIME_HORIZON = 1>
+struct QuadraticCostTrajectoryParams : public CostParams<DYN_T::CONTROL_DIM>
+{
   static const int TIME_HORIZON = SIM_TIME_HORIZON;
-/**
- * Defines a general desired state and coeffs
- */
-  float s_goal[DYN_T::STATE_DIM*SIM_TIME_HORIZON] = {0};
+  /**
+   * Defines a general desired state and coeffs
+   */
+  float s_goal[DYN_T::STATE_DIM * SIM_TIME_HORIZON] = { 0 };
 
-  float s_coeffs[DYN_T::STATE_DIM] = {0};
+  float s_coeffs[DYN_T::STATE_DIM] = { 0 };
 
   int current_time = 0;
 
-  QuadraticCostTrajectoryParams() {
-    for (int i = 0; i < DYN_T::CONTROL_DIM; i++) {
+  QuadraticCostTrajectoryParams()
+  {
+    for (int i = 0; i < DYN_T::CONTROL_DIM; i++)
+    {
       this->control_cost_coeff[i] = 0;
     }
-    for (int i = 0; i < DYN_T::STATE_DIM; i++) {
+    for (int i = 0; i < DYN_T::STATE_DIM; i++)
+    {
       this->s_coeffs[i] = 1;
     }
   }
 
-  const Eigen::Matrix<float, DYN_T::STATE_DIM, 1> getDesiredState(int t) {
-    Eigen::Matrix<float, DYN_T::STATE_DIM, 1> s(s_goal+this->getIndex(t));
+  const Eigen::Matrix<float, DYN_T::STATE_DIM, 1> getDesiredState(int t)
+  {
+    Eigen::Matrix<float, DYN_T::STATE_DIM, 1> s(s_goal + this->getIndex(t));
     return s;
   }
 
-  __device__ float* getGoalStatePointer(int t) {
+  __device__ float* getGoalStatePointer(int t)
+  {
     return s_goal + this->getIndex(t);
   }
 
-  __host__ __device__ int getIndex(int t) {
+  __host__ __device__ int getIndex(int t)
+  {
     int index = (this->current_time + t);
-    if (index >= TIME_HORIZON) {
+    if (index >= TIME_HORIZON)
+    {
       index = (TIME_HORIZON - 1);
     }
     index *= DYN_T::STATE_DIM;
     return index;
   }
-  __host__ __device__ void setCurrentTime(int new_time) {
+  __host__ __device__ void setCurrentTime(int new_time)
+  {
     current_time = new_time;
   }
 };
 
 template <class CLASS_T, class DYN_T, class PARAMS_T>
-class QuadraticCostImpl : public Cost<CLASS_T,
-                                  PARAMS_T,
-                                  DYN_T::STATE_DIM,
-                                  DYN_T::CONTROL_DIM> {
-
+class QuadraticCostImpl : public Cost<CLASS_T, PARAMS_T, DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>
+{
 public:
   typedef Cost<CLASS_T, PARAMS_T, DYN_T::STATE_DIM, DYN_T::CONTROL_DIM> PARENT_CLASS;
   using state_array = typename PARENT_CLASS::state_array;
@@ -67,14 +73,16 @@ public:
   /**
    * Host Functions
    */
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep=0, int* crash_status=nullptr);
+  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep = 0, int* crash_status = nullptr);
 
   float terminalCost(const Eigen::Ref<const state_array> s);
 
-  float getLipshitzConstantCost() {
+  float getLipshitzConstantCost()
+  {
     // Find the spectral radius of the state matrix
     float rho_Q = fabsf(this->params_.s_coeffs[0]);
-    for (int i = 1; i < DYN_T::STATE_DIM; i++) {
+    for (int i = 1; i < DYN_T::STATE_DIM; i++)
+    {
       rho_Q = fmaxf(rho_Q, fabsf(this->params_.s_coeffs[i]));
     }
     return 2 * rho_Q;
@@ -83,10 +91,11 @@ public:
   /**
    * Device Functions
    */
-  __device__ float computeStateCost(float* s, int timestep=0, int* crash_status=nullptr);
+  __device__ float computeStateCost(float* s, int timestep = 0, int* crash_status = nullptr);
 
   // Custom implementation that does a Nan check.
-  // __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha, int timestep, int* crash_status);
+  // __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha,
+  // int timestep, int* crash_status);
 
   __device__ float terminalCost(float* s);
 };
@@ -95,16 +104,22 @@ public:
 #include "quadratic_cost.cu"
 #endif
 
-template<class DYN_T, int SIM_TIME_HORIZON>
-class QuadraticCostTrajectory : public QuadraticCostImpl<QuadraticCostTrajectory<DYN_T, SIM_TIME_HORIZON>, DYN_T, QuadraticCostTrajectoryParams<DYN_T, SIM_TIME_HORIZON>> {
+template <class DYN_T, int SIM_TIME_HORIZON>
+class QuadraticCostTrajectory : public QuadraticCostImpl<QuadraticCostTrajectory<DYN_T, SIM_TIME_HORIZON>, DYN_T,
+                                                         QuadraticCostTrajectoryParams<DYN_T, SIM_TIME_HORIZON>>
+{
 public:
-  QuadraticCostTrajectory(cudaStream_t stream = nullptr) : QuadraticCostImpl<QuadraticCostTrajectory, DYN_T, QuadraticCostTrajectoryParams<DYN_T, SIM_TIME_HORIZON>>(stream) {};
+  QuadraticCostTrajectory(cudaStream_t stream = nullptr)
+    : QuadraticCostImpl<QuadraticCostTrajectory, DYN_T, QuadraticCostTrajectoryParams<DYN_T, SIM_TIME_HORIZON>>(
+          stream){};
 };
 
-template<class DYN_T>
-class QuadraticCost : public QuadraticCostImpl<QuadraticCost<DYN_T>, DYN_T, QuadraticCostTrajectoryParams<DYN_T>> {
+template <class DYN_T>
+class QuadraticCost : public QuadraticCostImpl<QuadraticCost<DYN_T>, DYN_T, QuadraticCostTrajectoryParams<DYN_T>>
+{
 public:
-  QuadraticCost(cudaStream_t stream = nullptr) : QuadraticCostImpl<QuadraticCost, DYN_T, QuadraticCostTrajectoryParams<DYN_T>>(stream) {};
+  QuadraticCost(cudaStream_t stream = nullptr)
+    : QuadraticCostImpl<QuadraticCost, DYN_T, QuadraticCostTrajectoryParams<DYN_T>>(stream){};
 };
 
-#endif // MPPI_COST_FUNCTIONS_QUADRATIC_COST_CUH_
+#endif  // MPPI_COST_FUNCTIONS_QUADRATIC_COST_CUH_

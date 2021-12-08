@@ -3,28 +3,26 @@
 
 #include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
 
-class DoubleIntegratorRobustCost : public Cost<DoubleIntegratorRobustCost,
-                                               DoubleIntegratorCircleCostParams, 4, 2> {
+class DoubleIntegratorRobustCost : public Cost<DoubleIntegratorRobustCost, DoubleIntegratorCircleCostParams, 4, 2>
+{
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   DoubleIntegratorRobustCost(cudaStream_t stream = nullptr);
 
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep=0,
-          int* crash_status=nullptr);
+  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep = 0, int* crash_status = nullptr);
   float terminalCost(const Eigen::Ref<const state_array> s);
 
-  __device__ float computeStateCost(float* s, int timestep=0,
-          int* crash_status=nullptr);
+  __device__ float computeStateCost(float* s, int timestep = 0, int* crash_status = nullptr);
   __device__ float terminalCost(float* s);
 
-  float getLipshitzConstantCost() {return params_.crash_cost;};
-
-
+  float getLipshitzConstantCost()
+  {
+    return params_.crash_cost;
+  };
 };
 
 #if __CUDACC__
 #include "double_integrator_robust_cost.cu"
 #endif
 
-
-#endif //!DOUBLE_INTEGRATOR_ROBUST_COST_CUH_
+#endif  //! DOUBLE_INTEGRATOR_ROBUST_COST_CUH_
