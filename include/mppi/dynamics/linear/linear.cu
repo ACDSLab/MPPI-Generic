@@ -4,7 +4,7 @@ void LinearModel::computeDynamics(const Eigen::Ref<const state_array> &state,
                                      const Eigen::Ref<const control_array> &control, Eigen::Ref<state_array> state_der) {
   state_der(0) = this->params_.c_t * control(0) - this->params_.c_b * control(1) - this->params_.c_v * state(0) +
                  this->params_.c_0;
-  state_der(1) = (state(0)/this->params_.wheel_base) * tan(control(3));
+  state_der(1) = (state(0)/this->params_.wheel_base) * tan(-control(3));
   state_der(2) = state(0)*cosf(state(1));
   state_der(3) = state(0)*sinf(state(1));
 }
@@ -49,7 +49,7 @@ __device__ void LinearModel::computeDynamics(float* state, float* control,
 {
   state_der[0] = this->params_.c_t * control[0] - this->params_.c_b * control[1] - this->params_.c_v * state[0] +
                  this->params_.c_0;
-  state_der[1]= (state[0]/this->params_.wheel_base) * tan(control[3]);
+  state_der[1]= (state[0]/this->params_.wheel_base) * tan(-control[3]);
   state_der[2]= state[0]*cosf(state[1]);
   state_der[3]= state[0]*sinf(state[1]);
 }
