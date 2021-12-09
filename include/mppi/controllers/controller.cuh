@@ -475,7 +475,9 @@ public:
     for (int i = 0; i < num_timesteps_ - 1; ++i)
     {
       state = result.col(i);
-      model_->computeStateDeriv(state, u.col(i), xdot);
+      control_array u_i = u.col(i);
+      model_->enforceConstraints(state, u_i);
+      model_->computeStateDeriv(state, u_i, xdot);
       model_->updateState(state, xdot, dt_);
       result.col(i + 1) = state;
     }
