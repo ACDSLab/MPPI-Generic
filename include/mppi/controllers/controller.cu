@@ -38,7 +38,7 @@ void CONTROLLER::copyNominalControlToDevice()
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void CONTROLLER::copySampledControlFromDevice()
 {
-  int num_sampled_trajectories = perc_sampled_control_trajectories * NUM_ROLLOUTS;
+  int num_sampled_trajectories = perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   int control_trajectory_size = control_trajectory().size();
   // Create sample list without replacement
   std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);

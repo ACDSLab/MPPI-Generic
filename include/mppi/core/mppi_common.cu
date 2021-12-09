@@ -344,8 +344,6 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
   __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
 
   // Create a shared array for the nominal costs calculations
-  __shared__ float running_state_cost_nom_shared[BLOCKSIZE_X];
-  __shared__ float running_control_cost_nom_shared[BLOCKSIZE_X];
   __shared__ int crash_status_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
 
   // Create a shared array for the dynamics model to use
@@ -360,28 +358,6 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
   int* crash_status;
   float fb_control[DYN_T::CONTROL_DIM];
 
-  // Load global array to shared array
-  if (global_idx < num_rollouts)
-  {
-    x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
-    // The opposite state from above
-    x_other = &x_shared[(blockDim.x * (1 - thread_idz) + thread_idx) * DYN_T::STATE_DIM];
-    xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
-    // Base trajectory
-    u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
-  }
-
-  // copy global to shared
-  if (global_idx < num_rollouts)
-  {
-    for (int i = thread_idy; i < DYN_T::STATE_DIM; i += blockDim.y)
-    {
-      x[i] = state[DYN_T::STATE_DIM * threadIdx.z + i];
-      xdot[i] = 0.0;
-    }
-  }
-
-  // compute state trajectory for the rollouts
   if (global_idx < num_rollouts)
   {
     // Actual or nominal
@@ -415,7 +391,7 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       }
 
       // only apply feedback if enabled
-      // TODO: Check feedback is only applied on real state
+      // feedback is only applied on real state in RMPPI
       if (BLOCKSIZE_Z > 1 && value_func_threshold == -1 && thread_idz == 0)
       {
         fb_controller->k(x, x_other, t, theta_fb, fb_control);
@@ -443,11 +419,12 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
           // compute the nominal system cost
           cost_traj_d[threadIdx.z * num_rollouts * num_timesteps + global_idx * num_timesteps + t] =
               0.5 * curr_state_cost +
+              // here we know threadIdx.z == 0 since we are only talking about the real system
               fmaxf(fminf(cost_traj_d[global_idx * num_timesteps + t], value_func_threshold), curr_state_cost);
         }
       }
       __syncthreads();
-      // reset crash status
+      // reset crash status in case initial location is actually a crash cost
       if (t == 0)
       {
         crash_status[0] = 0;
@@ -461,7 +438,7 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       dynamics->updateState(x, xdot, dt);
       __syncthreads();
 
-      // save results
+      // save results, skips the first state location since that is known
       for (int i = thread_idy; i < DYN_T::STATE_DIM; i += blockDim.y)
       {
         state_traj_d[threadIdx.z * num_rollouts * num_timesteps * DYN_T::STATE_DIM +

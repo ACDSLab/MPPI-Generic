@@ -140,6 +140,7 @@ TEST_F(Cartpole_VanillaMPPI, getSampledStateTrajectoriesTest)
       VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 100>, 100, 2048, 64,
                             8>(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_std_dev);
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
+  controller.setPercentageSampledControlTrajectories(0.25);
 
   controller.calculateSampledStateTrajectories();
   controller.getSampledStateTrajectories();

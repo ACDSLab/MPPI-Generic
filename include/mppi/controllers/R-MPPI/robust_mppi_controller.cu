@@ -449,7 +449,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
           int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::calculateSampledStateTrajectories()
 {
-  int num_sampled_trajectories = this->perc_sampled_control_trajectories * NUM_ROLLOUTS;
+  int num_sampled_trajectories = this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
 
   // TODO cudaMalloc and free
