@@ -42,20 +42,23 @@ protected:
       x0(i) = i * 0.1 + 0.2;
     }
 
+    for (int sample = 0; sample < num_rollouts; sample++)
+    {
+      control[sample] = control_trajectory::Random();
+    }
+
     // Create x init cuda array
     HANDLE_ERROR(cudaMalloc((void**)&initial_state_d, sizeof(float) * CartpoleDynamics::STATE_DIM * 2));
     // create control u trajectory cuda array
-    HANDLE_ERROR(cudaMalloc((void**)&control_d, sizeof(float) * CartpoleDynamics::CONTROL_DIM * num_timesteps * 2));
+    HANDLE_ERROR(
+        cudaMalloc((void**)&control_d, sizeof(float) * CartpoleDynamics::CONTROL_DIM * MAX_TIMESTEPS * num_rollouts));
     // Create cost trajectory cuda array
-    HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d, sizeof(float) * num_rollouts * 2));
+    HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d, sizeof(float) * num_rollouts * MAX_TIMESTEPS * 2));
     // Create result state cuda array
-    HANDLE_ERROR(cudaMalloc((void**)&result_state_d, sizeof(float) * num_rollouts * CartpoleDynamics::STATE_DIM * 2));
+    HANDLE_ERROR(cudaMalloc((void**)&result_state_d,
+                            sizeof(float) * num_rollouts * MAX_TIMESTEPS * CartpoleDynamics::STATE_DIM * 2));
     // Create result state cuda array
-    HANDLE_ERROR(cudaMalloc((void**)&crash_status_d, sizeof(float) * num_rollouts * 2));
-
-    // Create random noise generator
-    curandGenerator_t gen;
-    curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT);
+    HANDLE_ERROR(cudaMalloc((void**)&crash_status_d, sizeof(float) * num_rollouts * MAX_TIMESTEPS * 2));
 
     /**
      * Fill in GPU arrays
@@ -64,9 +67,12 @@ protected:
                                  cudaMemcpyHostToDevice, stream));
     HANDLE_ERROR(cudaMemcpyAsync(initial_state_d + CartpoleDynamics::STATE_DIM, x0.data(),
                                  sizeof(float) * CartpoleDynamics::STATE_DIM, cudaMemcpyHostToDevice, stream));
-
-    int control_noise_size = num_rollouts * num_timesteps * CartpoleDynamics::CONTROL_DIM;
-    // Ensure copying finishes?
+    for (int i = 0; i < num_rollouts; i++)
+    {
+      HANDLE_ERROR(cudaMemcpyAsync(control_d + i * MAX_TIMESTEPS * CartpoleDynamics::CONTROL_DIM, control[i].data(),
+                                   MAX_TIMESTEPS * CartpoleDynamics::CONTROL_DIM * sizeof(float),
+                                   cudaMemcpyHostToDevice, stream));
+    }
     HANDLE_ERROR(cudaStreamSynchronize(stream));
   }
 
@@ -79,12 +85,20 @@ protected:
     cudaFree(result_state_d);
   }
 
+  const static int MAX_TIMESTEPS = 10;
+
+  typedef Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, MAX_TIMESTEPS> state_trajectory;      // A state trajectory
+  typedef Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, MAX_TIMESTEPS> control_trajectory;  // A control
+                                                                                                  // trajectory
+  typedef Eigen::Matrix<float, MAX_TIMESTEPS, 1> cost_trajectory;
+  typedef Eigen::Matrix<int, MAX_TIMESTEPS, 1> crash_status_trajectory;
+
   CartpoleDynamics dynamics = CartpoleDynamics(1, 1, 1);
   CartpoleQuadraticCost cost;
-  DDPFeedback<CartpoleDynamics, 10> fb_controller = DDPFeedback<CartpoleDynamics, 10>(&dynamics, dt);
+  DDPFeedback<CartpoleDynamics, MAX_TIMESTEPS> fb_controller =
+      DDPFeedback<CartpoleDynamics, MAX_TIMESTEPS>(&dynamics, dt);
 
   float dt = 0.2;
-  int num_timesteps = 10;
   int num_rollouts = 2;
   float lambda = 0.5;
   float alpha = 0.001;
@@ -101,20 +115,19 @@ protected:
 
   CartpoleDynamics::state_array x0;
 
-  std::vector<float> initial_state = std::vector<float>(CartpoleDynamics::STATE_DIM);
-  std::vector<float> control = std::vector<float>(num_rollouts * CartpoleDynamics::CONTROL_DIM);
-  std::vector<float> result_state = std::vector<float>(num_rollouts * CartpoleDynamics::STATE_DIM);
-  std::vector<float> trajectory_costs = std::vector<float>(num_rollouts);
-  std::vector<int> crash_status = std::vector<int>(num_rollouts);
+  std::vector<control_trajectory> control = std::vector<control_trajectory>(num_rollouts);
+  std::vector<state_trajectory> result_state = std::vector<state_trajectory>(num_rollouts);
+  std::vector<cost_trajectory> trajectory_costs = std::vector<cost_trajectory>(num_rollouts);
+  std::vector<crash_status_trajectory> crash_status = std::vector<crash_status_trajectory>(num_rollouts);
 };
 
 TEST_F(VizualizationKernelsTest, stateAndCostTrajectoryKernelNoZNoFeedbackTest)
 {
   // Launch rollout kernel
   mppi_common::launchStateAndCostTrajectoryKernel<CartpoleDynamics, CartpoleQuadraticCost,
-                                                  DeviceDDP<CartpoleDynamics, 10>, 32, 4>(
+                                                  DeviceDDP<CartpoleDynamics, MAX_TIMESTEPS>, 32, 4>(
       dynamics.model_d_, cost.cost_d_, fb_controller.getDevicePointer(), control_d, initial_state_d, result_state_d,
-      trajectory_costs_d, crash_status_d, num_rollouts, num_timesteps, dt, stream);
+      trajectory_costs_d, crash_status_d, num_rollouts, MAX_TIMESTEPS, dt, stream);
 
   // Copy the costs back to the host
   HANDLE_ERROR(cudaMemcpyAsync(result_state.data(), result_state_d,
@@ -124,5 +137,44 @@ TEST_F(VizualizationKernelsTest, stateAndCostTrajectoryKernelNoZNoFeedbackTest)
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(
       cudaMemcpyAsync(crash_status.data(), crash_status_d, num_rollouts * sizeof(int), cudaMemcpyDeviceToHost, stream));
+  for (int i = 0; i < num_rollouts; i++)
+  {
+    // shifted by one since we do not save the initial state
+    HANDLE_ERROR(cudaMemcpyAsync(result_state[i].data() + (CartpoleDynamics::STATE_DIM),
+                                 result_state_d + i * MAX_TIMESTEPS * CartpoleDynamics::STATE_DIM,
+                                 (MAX_TIMESTEPS - 1) * CartpoleDynamics::STATE_DIM * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs[i].data(), trajectory_costs_d, MAX_TIMESTEPS * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(cudaMemcpyAsync(crash_status[i].data(), crash_status_d, MAX_TIMESTEPS * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+  }
   HANDLE_ERROR(cudaStreamSynchronize(stream));
+
+  for (int sample = 0; sample < num_rollouts; sample++)
+  {
+    CartpoleDynamics::state_array x = x0;
+    CartpoleDynamics::state_array x_dot;
+    control_trajectory u_traj = control[sample];
+    int crash_status_val = 0;
+
+    for (int t = 0; t < MAX_TIMESTEPS; t++)
+    {
+      CartpoleDynamics::control_array u = u_traj.col(t);
+      float cost_val = cost.computeStateCost(x0, t, &crash_status_val);
+      EXPECT_FLOAT_EQ(cost_val, trajectory_costs[sample](t));
+      EXPECT_FLOAT_EQ(crash_status_val, crash_status[sample](t));
+
+      dynamics.enforceConstraints(x, u);
+      dynamics.computeStateDeriv(x, u, x_dot);
+      dynamics.updateState(x, x_dot, dt);
+      if (t + 1 < MAX_TIMESTEPS)
+      {
+        EXPECT_FLOAT_EQ(x(0), result_state[sample].col(t + 1)(0));
+        EXPECT_FLOAT_EQ(x(1), result_state[sample].col(t + 1)(1));
+        EXPECT_FLOAT_EQ(x(2), result_state[sample].col(t + 1)(2));
+        EXPECT_FLOAT_EQ(x(3), result_state[sample].col(t + 1)(3));
+      }
+    }
+  }
 }
