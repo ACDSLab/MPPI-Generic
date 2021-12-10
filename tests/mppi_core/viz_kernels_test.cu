@@ -139,6 +139,7 @@ TEST_F(VizualizationKernelsTest, stateAndCostTrajectoryKernelNoZNoFeedbackTest)
       cudaMemcpyAsync(crash_status.data(), crash_status_d, num_rollouts * sizeof(int), cudaMemcpyDeviceToHost, stream));
   for (int i = 0; i < num_rollouts; i++)
   {
+    result_state[i].col(0) = x0;
     // shifted by one since we do not save the initial state
     HANDLE_ERROR(cudaMemcpyAsync(result_state[i].data() + (CartpoleDynamics::STATE_DIM),
                                  result_state_d + i * MAX_TIMESTEPS * CartpoleDynamics::STATE_DIM,
@@ -160,21 +161,19 @@ TEST_F(VizualizationKernelsTest, stateAndCostTrajectoryKernelNoZNoFeedbackTest)
 
     for (int t = 0; t < MAX_TIMESTEPS; t++)
     {
+      EXPECT_FLOAT_EQ(x(0), result_state[sample].col(t)(0));
+      EXPECT_FLOAT_EQ(x(1), result_state[sample].col(t)(1));
+      EXPECT_FLOAT_EQ(x(2), result_state[sample].col(t)(2));
+      EXPECT_FLOAT_EQ(x(3), result_state[sample].col(t)(3));
+
       CartpoleDynamics::control_array u = u_traj.col(t);
-      float cost_val = cost.computeStateCost(x0, t, &crash_status_val);
+      float cost_val = cost.computeStateCost(x, t, &crash_status_val);
       EXPECT_FLOAT_EQ(cost_val, trajectory_costs[sample](t));
       EXPECT_FLOAT_EQ(crash_status_val, crash_status[sample](t));
 
       dynamics.enforceConstraints(x, u);
       dynamics.computeStateDeriv(x, u, x_dot);
       dynamics.updateState(x, x_dot, dt);
-      if (t + 1 < MAX_TIMESTEPS)
-      {
-        EXPECT_FLOAT_EQ(x(0), result_state[sample].col(t + 1)(0));
-        EXPECT_FLOAT_EQ(x(1), result_state[sample].col(t + 1)(1));
-        EXPECT_FLOAT_EQ(x(2), result_state[sample].col(t + 1)(2));
-        EXPECT_FLOAT_EQ(x(3), result_state[sample].col(t + 1)(3));
-      }
     }
   }
 }
