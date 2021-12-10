@@ -207,11 +207,6 @@ void VanillaMPPI::calculateSampledStateTrajectories()
   {
     // set initial state to the first location
     this->sampled_trajectories_[i].col(0) = this->state_.col(0);
-    if (i == 0)
-    {
-      std::cout << "state first location: " << this->state_.col(0).transpose() << std::endl;
-      std::cout << "sampled_traj first spot :" << this->sampled_trajectories_[i].col(0).transpose() << std::endl;
-    }
     // shifted by one since we do not save the initial state
     HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data() + (DYN_T::STATE_DIM),
                                  this->sampled_states_d_ + i * this->num_timesteps_ * DYN_T::STATE_DIM,
