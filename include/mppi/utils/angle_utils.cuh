@@ -39,7 +39,7 @@ __host__ __device__ static inline float shortestAngularDistance(float from, floa
 }
 
 /**
- * Does a linear interpolation of the euler angle while respecting -pi to pi wrapping
+ * Does a racer_dubins interpolation of the euler angle while respecting -pi to pi wrapping
  * solution from https://www.ri.cmu.edu/pub_files/pub4/kuffner_james_2004_1/kuffner_james_2004_1.pdf algorithm 6
  * @param angle_1
  * @param angle_2

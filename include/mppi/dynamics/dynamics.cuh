@@ -219,7 +219,7 @@ public:
   }
 
   /**
-   * does a linear interpolation of states
+   * does a racer_dubins interpolation of states
    * @param state_1
    * @param state_2
    * @param alpha

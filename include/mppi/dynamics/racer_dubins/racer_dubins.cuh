@@ -4,28 +4,29 @@
 #include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/angle_utils.cuh>
 
-struct LinearModelParams
+struct RacerDubinsParams
 {
   float c_t = 1.3;
   float c_b = 2.5;
   float c_v = 3.7;
   float c_0 = 4.9;
+  float steering_constant = .6;
   float wheel_base = 0.3;
 };
 
 using namespace MPPI_internal;
 /**
- * state: v, theta, p_x, p_y
- * control: throttle, brake, gear selector, steering angle
+ * state: v, theta, p_x, p_y, true steering angle
+ * control: throttle, brake, steering angle command
  */
-class LinearModel : public Dynamics<LinearModel, LinearModelParams, 4, 4>
+class RacerDubins : public Dynamics<RacerDubins, RacerDubinsParams, 5, 3>
 {
 public:
-  LinearModel(cudaStream_t stream = nullptr) : Dynamics<LinearModel, LinearModelParams, 4, 4>(stream)
+  RacerDubins(cudaStream_t stream = nullptr) : Dynamics<RacerDubins, RacerDubinsParams, 5, 3>(stream)
   {
   }
-  LinearModel(LinearModelParams& params, cudaStream_t stream = nullptr)
-    : Dynamics<LinearModel, LinearModelParams, 4, 4>(params, stream)
+  RacerDubins(RacerDubinsParams& params, cudaStream_t stream = nullptr)
+    : Dynamics<RacerDubins, RacerDubinsParams, 5, 3>(params, stream)
   {
   }
 
@@ -46,7 +47,7 @@ public:
 };
 
 #if __CUDACC__
-#include "linear.cu"
+#include "racer_dubins.cu"
 #endif
 
 #endif  // MPPIGENERIC_LINEAR_CUH
