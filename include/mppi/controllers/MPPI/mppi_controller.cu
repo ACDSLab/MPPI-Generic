@@ -212,9 +212,10 @@ void VanillaMPPI::calculateSampledStateTrajectories()
                                  this->sampled_states_d_ + i * this->num_timesteps_ * DYN_T::STATE_DIM,
                                  (this->num_timesteps_ - 1) * DYN_T::STATE_DIM * sizeof(float), cudaMemcpyDeviceToHost,
                                  this->stream_));
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_costs_[i].data(), this->sampled_costs_d_,
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_costs_[i].data(), this->sampled_costs_d_ + (i * this->num_timesteps_),
                                  this->num_timesteps_ * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_crash_status_[i].data(), this->sampled_crash_status_d_,
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_crash_status_[i].data(),
+                                 this->sampled_crash_status_d_ + (i * this->num_timesteps_),
                                  this->num_timesteps_ * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
   }
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));

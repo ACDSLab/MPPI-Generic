@@ -411,8 +411,10 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
         curr_state_cost = costs->computeStateCost(x, t, crash_status);
         crash_status_d[threadIdx.z * num_rollouts * num_timesteps + global_idx * num_timesteps + t] = crash_status[0];
         cost_traj_d[threadIdx.z * num_rollouts * num_timesteps + global_idx * num_timesteps + t] = curr_state_cost;
-        __syncthreads();
-
+      }
+      __syncthreads();
+      if (thread_idy == 0)
+      {
         // Nominal system is where thread_idz == 1
         if (thread_idz == 1 && thread_idy == 0)
         {
