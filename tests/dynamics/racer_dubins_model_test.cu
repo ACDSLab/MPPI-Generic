@@ -33,7 +33,7 @@ float c_0 = 4.9;
 float wheel_base = 0.3;
  */
 
-TEST(RacerDubins, ComputeModel)
+TEST(RacerDubins, ComputeDynamics)
 {
   RacerDubins dynamics = RacerDubins();
   RacerDubinsParams params = dynamics.getParams();
@@ -73,7 +73,7 @@ TEST(RacerDubins, ComputeModel)
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(1));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), (0 - 1));
+  EXPECT_FLOAT_EQ(next_x(4), (1 - 0));
 
   x << 1, M_PI, 0, 0, 0.5;
   u << 1, 0, -1;
@@ -82,7 +82,7 @@ TEST(RacerDubins, ComputeModel)
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(-1));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), (0.5 + 1));
+  EXPECT_FLOAT_EQ(next_x(4), (-1 - 0.5));
 }
 
 TEST(RacerDubins, TestModelGPU)
@@ -99,7 +99,8 @@ TEST(RacerDubins, TestModelGPU)
   std::vector<std::array<float, 5>> s_der(100);
   // steering, throttle
   std::vector<std::array<float, 3>> u(100);
-  for(int state_index = 0; state_index < s.size(); state_index++) {
+  for (int state_index = 0; state_index < s.size(); state_index++)
+  {
     for (int dim = 0; dim < s[0].size(); dim++)
     {
       s[state_index][dim] = state_trajectory.col(state_index)(dim);
@@ -124,10 +125,10 @@ TEST(RacerDubins, TestModelGPU)
       RacerDubins::state_array state_der_cpu = RacerDubins::state_array::Zero();
 
       dynamics.computeDynamics(state, control, state_der_cpu);
-      for (int dim = 0; dim < 4; dim++)
+      for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
       {
-        EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point
-        << " with y_dim " << y_dim;
+        EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s_der[point][dim]));
       }
     }
   }
@@ -135,47 +136,150 @@ TEST(RacerDubins, TestModelGPU)
   dynamics.freeCudaMem();
 }
 
-/*
+TEST(RacerDubins, TestUpdateState)
+{
+  RacerDubins dynamics = RacerDubins();
+  RacerDubins::state_array state;
+  RacerDubins::state_array state_der;
+
+  state << 0, 0, 0, 0, 0;
+  state_der << 1, 1, 1, 1, 1;
+  dynamics.updateState(state, state_der, 0.1);
+  EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  EXPECT_FLOAT_EQ(state(0), 0.1);
+  EXPECT_FLOAT_EQ(state(1), 0.1);
+  EXPECT_FLOAT_EQ(state(2), 0.1);
+  EXPECT_FLOAT_EQ(state(3), 0.1);
+  EXPECT_FLOAT_EQ(state(4), 1.0 * expf(-0.6 * 0.1));
+
+  state << 0, M_PI - 0.1, 0, 0, 0;
+  state_der << 1, 1, 1, 1, 1;
+  dynamics.updateState(state, state_der, 1.0);
+  EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  EXPECT_FLOAT_EQ(state(0), 1.0);
+  EXPECT_FLOAT_EQ(state(1), 1.0 - M_PI - 0.1);
+  EXPECT_FLOAT_EQ(state(2), 1.0);
+  EXPECT_FLOAT_EQ(state(3), 1.0);
+  EXPECT_FLOAT_EQ(state(4), 1.0 * expf(-0.6 * 1.0));
+
+  state << 0, -M_PI + 0.1, 0, 0, 0;
+  state_der << 1, -1, 1, 1, 1;
+  dynamics.updateState(state, state_der, 1.0);
+  EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  EXPECT_FLOAT_EQ(state(0), 1.0);
+  EXPECT_FLOAT_EQ(state(1), M_PI + 0.1 - 1.0);
+  EXPECT_FLOAT_EQ(state(2), 1.0);
+  EXPECT_FLOAT_EQ(state(3), 1.0);
+  EXPECT_FLOAT_EQ(state(4), 1.0 * expf(-0.6 * 1.0));
+}
+
 TEST(RacerDubins, TestUpdateStateGPU) {
   RacerDubins dynamics = RacerDubins();
   dynamics.GPUSetup();
 
-  RacerDubins::state_array state;
-  state(0) = 0.5;
-  state(1) = 0.7;
-  state(2) = M_PI;
-  RacerDubins::control_array control;
-  control(0) = 3.0;
-  control(1) = 2.0;
+  Eigen::Matrix<float, RacerDubins::CONTROL_DIM, 100> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, RacerDubins::CONTROL_DIM, 100>::Random();
+  Eigen::Matrix<float, RacerDubins::STATE_DIM, 100> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, RacerDubins::STATE_DIM, 100>::Random();
 
-  std::vector<std::array<float, 3>> s(1);
-  for(int dim = 0; dim < 3; dim++) {
-    s[0][dim] = state(dim);
-  }
-  std::vector<std::array<float, 3>> s_der(1);
+  std::vector<std::array<float, 5>> s(100);
+  std::vector<std::array<float, 5>> s_der(100);
   // steering, throttle
-  std::vector<std::array<float, 2>> u(1);
-  for(int dim = 0; dim < 2; dim++) {
-    u[0][dim] = control(dim);
-  }
+  std::vector<std::array<float, 3>> u(100);
 
-  // These variables will be changed so initialized to the right size only
+  RacerDubins::state_array state;
+  RacerDubins::control_array control;
   RacerDubins::state_array state_der_cpu = RacerDubins::state_array::Zero();
 
   // Run dynamics on dynamicsU
-  dynamics.computeDynamics(state, control, state_der_cpu);
-  dynamics.updateState(state, state_der_cpu, 0.1f);
   // Run dynamics on GPU
-  for(int y_dim = 1; y_dim <= 3; y_dim++) {
-    launchComputeStateDerivTestKernel<RacerDubins, 3, 2>(dynamics, s, u, s_der, y_dim);
-    launchUpdateStateTestKernel<RacerDubins, 3>(dynamics, s, s_der, 0.1f, y_dim);
-    for(int dim = 0; dim < 3; dim++) {
-      EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[0][dim]);
+  for (int y_dim = 1; y_dim <= 4; y_dim++)
+  {
+    for (int state_index = 0; state_index < s.size(); state_index++)
+    {
+      for (int dim = 0; dim < s[0].size(); dim++)
+      {
+        s[state_index][dim] = state_trajectory.col(state_index)(dim);
+      }
+      for (int dim = 0; dim < u[0].size(); dim++)
+      {
+        u[state_index][dim] = control_trajectory.col(state_index)(dim);
+      }
+    }
+
+    launchComputeStateDerivTestKernel<RacerDubins, RacerDubins::STATE_DIM, RacerDubins::CONTROL_DIM>(dynamics, s, u,
+                                                                                                     s_der, y_dim);
+    launchUpdateStateTestKernel<RacerDubins, RacerDubins::STATE_DIM>(dynamics, s, s_der, 0.1f, y_dim);
+    for (int point = 0; point < 100; point++)
+    {
+      RacerDubins::state_array state = state_trajectory.col(point);
+      RacerDubins::control_array control = control_trajectory.col(point);
+      RacerDubins::state_array state_der_cpu = RacerDubins::state_array::Zero();
+
+      dynamics.computeDynamics(state, control, state_der_cpu);
+      dynamics.updateState(state, state_der_cpu, 0.1f);
+      for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
+      {
+        EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s[point][dim]));
+      }
     }
   }
   dynamics.freeCudaMem();
 }
 
+TEST(RacerDubins, ComputeStateTrajectoryTest)
+{
+  RacerDubins dynamics = RacerDubins();
+  RacerDubinsParams params;
+  params.c_t = 3.0;
+  params.c_b = 0.2;
+  params.c_v = 0.2;
+  params.c_0 = 0.2;
+  params.wheel_base = 3.0;
+  params.steering_constant = 1.0;
+  dynamics.setParams(params);
+
+  Eigen::Matrix<float, RacerDubins::CONTROL_DIM, 500> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, RacerDubins::CONTROL_DIM, 500>::Zero();
+  Eigen::Matrix<float, RacerDubins::STATE_DIM, 500> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, RacerDubins::STATE_DIM, 500>::Zero();
+  RacerDubins::state_array state_der;
+  RacerDubins::state_array x;
+  x << 0, 1.46919e-6, 0.0140179, 1.09739e-8, -0.000735827;
+
+  for (int i = 0; i < 500; i++)
+  {
+    RacerDubins::control_array u = control_trajectory.col(i);
+    dynamics.computeDynamics(x, u, state_der);
+    EXPECT_TRUE(x.allFinite());
+    EXPECT_TRUE(u.allFinite());
+    EXPECT_TRUE(state_der.allFinite());
+    dynamics.updateState(x, state_der, 0.02);
+    EXPECT_TRUE(x.allFinite());
+    EXPECT_TRUE(u.allFinite());
+    EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  }
+  params.steering_constant = 0.5;
+  dynamics.setParams(params);
+
+  x << 0, 1.46919e-6, 0.0140179, 1.09739e-8, -1.0;
+  for (int i = 0; i < 500; i++)
+  {
+    RacerDubins::control_array u = control_trajectory.col(i);
+    dynamics.computeDynamics(x, u, state_der);
+    EXPECT_TRUE(x.allFinite());
+    EXPECT_TRUE(u.allFinite());
+    EXPECT_TRUE(state_der.allFinite());
+    dynamics.updateState(x, state_der, 0.02);
+    EXPECT_TRUE(x.allFinite());
+    EXPECT_TRUE(u.allFinite());
+    EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  }
+}
+
+/*
 class LinearDummy : public RacerDubins {
 public:
   bool computeGrad(const Eigen::Ref<const state_array> & state,

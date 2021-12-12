@@ -110,8 +110,8 @@ void launchUpdateStateTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<fl
   int count = state.size();
   float* state_d;
   float* state_der_d;
-  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float) * S_DIM * state.size()))
-  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float) * S_DIM * state_der.size()))
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float) * S_DIM * count))
+  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float) * S_DIM * count))
 
   HANDLE_ERROR(cudaMemcpy(state_d, state.data(), sizeof(float) * S_DIM * count, cudaMemcpyHostToDevice));
   HANDLE_ERROR(cudaMemcpy(state_der_d, state_der.data(), sizeof(float) * S_DIM * count, cudaMemcpyHostToDevice));
@@ -176,7 +176,8 @@ __global__ void computeDynamicsTestKernel(DYNAMICS_T* model, float* state, float
 {
   __shared__ float theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD + DYNAMICS_T::SHARED_MEM_REQUEST_BLK];
 
-  model->computeDynamics(state+(threadIdx.x*S_DIM), control+(threadIdx.x*C_DIM), state_der+(threadIdx.x*S_DIM), theta);
+  model->computeDynamics(state + (threadIdx.x * S_DIM), control + (threadIdx.x * C_DIM),
+                         state_der + (threadIdx.x * S_DIM), theta);
 }
 
 template <class DYNAMICS_T, int S_DIM, int C_DIM>
@@ -206,8 +207,7 @@ void launchComputeDynamicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::arra
   CudaCheckError();
 
   HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float) * S_DIM * count, cudaMemcpyDeviceToHost));
-  HANDLE_ERROR(
-      cudaMemcpy(state_der.data(), state_der_d, sizeof(float) * S_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(state_der.data(), state_der_d, sizeof(float) * S_DIM * count, cudaMemcpyDeviceToHost));
   HANDLE_ERROR(cudaMemcpy(control.data(), control_d, sizeof(float) * C_DIM * count, cudaMemcpyDeviceToHost));
   cudaDeviceSynchronize();
 
