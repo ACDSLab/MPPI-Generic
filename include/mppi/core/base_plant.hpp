@@ -463,14 +463,14 @@ public:
     c_traj control_traj = controller_->getControlSeq();
     if (!control_traj.allFinite())
     {
-      std::cerr << "ERROR: Nan in control" << std::endl;
+      std::cerr << "ERROR: Nan in control inside plant" << std::endl;
       std::cerr << control_traj << std::endl;
       exit(-1);
     }
     s_traj state_traj = controller_->getTargetStateSeq();
     if (!state_traj.allFinite())
     {
-      std::cerr << "ERROR: Nan in state" << std::endl;
+      std::cerr << "ERROR: Nan in state inside plant" << std::endl;
       std::cerr << state_traj << std::endl;
       exit(-1);
     }
