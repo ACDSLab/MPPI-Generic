@@ -216,7 +216,7 @@ public:
   }
 
   /**
-   * determines the interpolated control from control_seq_, racer_dubins interpolation
+   * determines the interpolated control from control_seq_, linear interpolation
    * @param rel_time time since the solution was calculated
    * @return
    */
