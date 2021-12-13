@@ -110,8 +110,8 @@ void launchUpdateStateTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<fl
   int count = state.size();
   float* state_d;
   float* state_der_d;
-  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float) * S_DIM * state.size()))
-  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float) * S_DIM * state_der.size()))
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float) * S_DIM * count))
+  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float) * S_DIM * count))
 
   HANDLE_ERROR(cudaMemcpy(state_d, state.data(), sizeof(float) * S_DIM * count, cudaMemcpyHostToDevice));
   HANDLE_ERROR(cudaMemcpy(state_der_d, state_der.data(), sizeof(float) * S_DIM * count, cudaMemcpyHostToDevice));
@@ -176,7 +176,8 @@ __global__ void computeDynamicsTestKernel(DYNAMICS_T* model, float* state, float
 {
   __shared__ float theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD + DYNAMICS_T::SHARED_MEM_REQUEST_BLK];
 
-  model->computeDynamics(state, control, state_der, theta);
+  model->computeDynamics(state + (threadIdx.x * S_DIM), control + (threadIdx.x * C_DIM),
+                         state_der + (threadIdx.x * S_DIM), theta);
 }
 
 template <class DYNAMICS_T, int S_DIM, int C_DIM>
@@ -189,26 +190,25 @@ void launchComputeDynamicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::arra
   float* state_der_d;
   float* control_d;
 
-  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float) * S_DIM))
-  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float) * S_DIM))
-  HANDLE_ERROR(cudaMalloc((void**)&control_d, sizeof(float) * C_DIM))
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float) * S_DIM * count))
+  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float) * S_DIM * count))
+  HANDLE_ERROR(cudaMalloc((void**)&control_d, sizeof(float) * C_DIM * count))
 
   HANDLE_ERROR(cudaMemcpy(state_d, state.data(), sizeof(float) * S_DIM * count, cudaMemcpyHostToDevice));
   HANDLE_ERROR(cudaMemcpy(state_der_d, state_der.data(), sizeof(float) * S_DIM * count, cudaMemcpyHostToDevice));
   HANDLE_ERROR(cudaMemcpy(control_d, control.data(), sizeof(float) * C_DIM * count, cudaMemcpyHostToDevice));
 
   // make sure you cannot use invalid inputs
-  dim3 threadsPerBlock(1, dim_y);
+  dim3 threadsPerBlock(count, dim_y);
   dim3 numBlocks(1, 1);
   // launch kernel
   computeDynamicsTestKernel<DYNAMICS_T, S_DIM, C_DIM>
       <<<numBlocks, threadsPerBlock>>>(dynamics.model_d_, state_d, control_d, state_der_d, count);
   CudaCheckError();
 
-  HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float) * S_DIM * state.size(), cudaMemcpyDeviceToHost));
-  HANDLE_ERROR(
-      cudaMemcpy(state_der.data(), state_der_d, sizeof(float) * S_DIM * state_der.size(), cudaMemcpyDeviceToHost));
-  HANDLE_ERROR(cudaMemcpy(control.data(), control_d, sizeof(float) * C_DIM * control.size(), cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float) * S_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(state_der.data(), state_der_d, sizeof(float) * S_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(control.data(), control_d, sizeof(float) * C_DIM * count, cudaMemcpyDeviceToHost));
   cudaDeviceSynchronize();
 
   cudaFree(state_d);
