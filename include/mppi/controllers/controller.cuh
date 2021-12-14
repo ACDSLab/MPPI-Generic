@@ -537,6 +537,9 @@ public:
     return enable_feedback_;
   }
 
+  float getPercentageSampledControlTrajectories() {
+    return perc_sampled_control_trajectories_;
+  }
   /**
    * Set the percentage of sample control trajectories to copy
    * back from the GPU. Multiplier is an integer in case the nominal
