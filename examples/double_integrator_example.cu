@@ -52,7 +52,6 @@ int main()
 
   auto controller = VanillaMPPIController<DYN, COST, FB_CONTROLLER, TIMESTEPS, NUM_ROLLOUTS, 64, 1>(
       &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_std_dev);
-  controller.setFeedbackController(false);
 
   /********************** Vanilla MPPI **********************/
   float cumulative_cost = 0;

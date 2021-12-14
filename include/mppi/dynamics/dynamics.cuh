@@ -94,6 +94,13 @@ public:
    */
   void GPUSetup();
 
+  void setZeroControl(control_array& zero_control) {
+    zero_control_ = zero_control;
+  }
+  control_array getZeroControl() {
+    return zero_control_;
+  }
+
   std::array<float2, C_DIM> getControlRanges()
   {
     std::array<float2, C_DIM> result;
