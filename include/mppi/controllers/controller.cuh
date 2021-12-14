@@ -578,15 +578,6 @@ public:
   {
     return perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   }
-
-  /**
-   * Return a percentage of sampled control trajectories from the latest rollout
-   */
-  std::vector<control_trajectory> getSampledControlSeq()
-  {
-    return sampled_controls_;
-  }
-
   /**
    * Return the most recent free energy calculation for the mean
    */
@@ -676,7 +667,6 @@ protected:
   float* sampled_noise_d_;                     // noise to be passed to the state trajectory kernel
   float* sampled_costs_d_;       // result of cost that have been sampled from state and cost trajectory kernel
   int* sampled_crash_status_d_;  // result of crash_status that have been sampled
-  std::vector<control_trajectory> sampled_controls_;    // Sampled control trajectories from rollout kernel
   std::vector<state_trajectory> sampled_trajectories_;  // sampled state trajectories from state trajectory kernel
   std::vector<cost_trajectory> sampled_costs_;
   std::vector<crash_status_trajectory> sampled_crash_status_;

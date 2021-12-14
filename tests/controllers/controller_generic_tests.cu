@@ -317,45 +317,6 @@ TEST_F(ControllerTests, getCurrentControlTest)
   }
 }
 
-TEST_F(ControllerTests, getSampledControlTrajectories)
-{
-  // Create controller
-  // Use computeControl with noise passed in
-  // Inside computeControl copySampledControlFromDevice is used
-  // Get sampled control sequence
-  // Compare to original noise
-
-  // Create noisy trajectories./
-  std::array<TestController::control_trajectory, number_rollouts> noise;
-  for (int i = 0; i < number_rollouts; i++)
-  {
-    noise[i] = TestController::control_trajectory::Random();
-  }
-  // Save back a percentage of trajectories
-  controller->setPercentageSampledControlTrajectoriesHelper(0.3, 1);
-
-  TestController::state_array x = TestController::state_array::Ones();
-  controller->computeControl(x, noise);
-  std::vector<TestController::control_trajectory> sampled_controls = controller->getSampledControlSeq();
-  int j;
-  float total_difference;
-  for (int i = 0; i < sampled_controls.size(); i++)
-  {
-    float diff = -1;
-    // Need to find which noise trajectory the current sample matches
-    for (j = 0; j < number_rollouts; j++)
-    {
-      diff = std::abs((noise[j] - sampled_controls[i]).norm());
-      if (diff == 0)
-      {
-        break;
-      }
-    }
-    total_difference += diff;
-  }
-  EXPECT_FLOAT_EQ(0, total_difference);
-}
-
 TEST_F(ControllerTests, saveControlHistoryHelper_1)
 {
   int steps = 1;

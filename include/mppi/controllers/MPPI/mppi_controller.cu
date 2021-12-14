@@ -81,8 +81,6 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     printf("CPU 2 side N(%f, %f)\n", mean, std_dev);
      */
 
-    // Copy back sampled trajectories
-    this->copySampledControlFromDevice();
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
@@ -149,6 +147,9 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
       this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
   smoothControlTrajectory();
   computeStateTrajectory(state);
+
+  // Copy back sampled trajectories
+  this->copySampledControlFromDevice();
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
@@ -189,14 +190,7 @@ void VanillaMPPI::calculateSampledStateTrajectories()
   // TODO cudaMalloc and free
   // get the current controls at sampled locations
 
-  for (int i = 0; i < num_sampled_trajectories; i++)
-  {
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-                                 this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-                                 sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
-                                 this->stream_));
-  }
-  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  // controls already copied in compute control
 
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,

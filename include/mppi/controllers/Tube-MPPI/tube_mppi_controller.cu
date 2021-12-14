@@ -72,8 +72,6 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
         this->lambda_, this->alpha_, this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
 
-    // Copy back sampled trajectories
-    this->copySampledControlFromDevice();
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
@@ -167,6 +165,9 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
   this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_ / NUM_ROLLOUTS;
   this->free_energy_statistics_.nominal_sys.increase =
       this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
+
+  // Copy back sampled trajectories
+  this->copySampledControlFromDevice();
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
@@ -233,30 +234,7 @@ void TubeMPPI::calculateSampledStateTrajectories()
   // TODO cudaMalloc and free
   // get the current controls at sampled locations
 
-  float* sampled_noise_d_nom =
-      this->sampled_noise_d_ + num_sampled_trajectories * this->num_timesteps_ * DYN_T::CONTROL_DIM;
-  int nom_corrector = NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM;
-  if (this->baseline_ < baseline_nominal_ + nominal_threshold_)
-  {
-    nom_corrector = 0;
-    // initial nominal state needs to be real state when we switch to real
-    HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_ + DYN_T::STATE_DIM, this->initial_state_d_,
-                                 sizeof(float) * DYN_T::STATE_DIM, cudaMemcpyDeviceToDevice, this->stream_));
-  }
-  for (int i = 0; i < num_sampled_trajectories; i++)
-  {
-    // copy real over
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-                                 this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-                                 sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
-                                 this->stream_));
-    // copy nominal over
-    HANDLE_ERROR(cudaMemcpyAsync(
-        sampled_noise_d_nom + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-        this->control_noise_d_ + nom_corrector + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-        sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice, this->stream_));
-  }
-  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  // control already copied in compute control
 
   // run kernel
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y, 2>(

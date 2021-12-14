@@ -12,6 +12,7 @@ struct RacerDubinsParams
   float c_0 = 4.9;
   float steering_constant = .6;
   float wheel_base = 0.3;
+  float max_steer_angle = 0.4;
 };
 
 using namespace MPPI_internal;

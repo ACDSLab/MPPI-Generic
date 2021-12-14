@@ -70,19 +70,19 @@ TEST(RacerDubins, ComputeDynamics)
   u << 0, 0, 1;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7);
-  EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(1));
+  EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), (1 - 0));
+  EXPECT_FLOAT_EQ(next_x(4), 1 * 0.4);
 
   x << 1, M_PI, 0, 0, 0.5;
   u << 1, 0, -1;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7 + 1.3);
-  EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(-1));
+  EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0.5));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), (-1 - 0.5));
+  EXPECT_FLOAT_EQ(next_x(4), -1 * 0.4);
 }
 
 TEST(RacerDubins, TestModelGPU)
@@ -150,7 +150,7 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(1), 0.1);
   EXPECT_FLOAT_EQ(state(2), 0.1);
   EXPECT_FLOAT_EQ(state(3), 0.1);
-  EXPECT_FLOAT_EQ(state(4), 1.0 * expf(-0.6 * 0.1));
+  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 0.1));
 
   state << 0, M_PI - 0.1, 0, 0, 0;
   state_der << 1, 1, 1, 1, 1;
@@ -160,7 +160,7 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(1), 1.0 - M_PI - 0.1);
   EXPECT_FLOAT_EQ(state(2), 1.0);
   EXPECT_FLOAT_EQ(state(3), 1.0);
-  EXPECT_FLOAT_EQ(state(4), 1.0 * expf(-0.6 * 1.0));
+  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
 
   state << 0, -M_PI + 0.1, 0, 0, 0;
   state_der << 1, -1, 1, 1, 1;
@@ -170,7 +170,7 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(1), M_PI + 0.1 - 1.0);
   EXPECT_FLOAT_EQ(state(2), 1.0);
   EXPECT_FLOAT_EQ(state(3), 1.0);
-  EXPECT_FLOAT_EQ(state(4), 1.0 * expf(-0.6 * 1.0));
+  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
 }
 
 TEST(RacerDubins, TestUpdateStateGPU) {
