@@ -5,10 +5,11 @@ void RacerDubins::computeDynamics(const Eigen::Ref<const state_array>& state,
 {
   state_der(0) = this->params_.c_t * control(0) - this->params_.c_b * control(1) - this->params_.c_v * state(0) +
                  this->params_.c_0;
-  state_der(1) = (state(0) / this->params_.wheel_base) * tan(control(2));
+  state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4));
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
-  state_der(4) = (control(2) - state(4));
+  // state_der(4) = (control(2) - state(4));
+  state_der(4) = control(2) * this->params_.max_steer_angle;
 }
 
 bool RacerDubins::computeGrad(const Eigen::Ref<const state_array>& state,
@@ -22,7 +23,7 @@ void RacerDubins::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_ar
   state += state_der * dt;
   state(1) = angle_utils::normalizeAngle(state(1));
   state(4) -= state_der(4) * dt;
-  state(4) += state_der(4) * expf(-this->params_.steering_constant * dt);
+  state(4) = state_der(4) + (state(4) - state_der(4)) * expf(-this->params_.steering_constant * dt);
   state_der.setZero();
 }
 
@@ -50,7 +51,8 @@ __device__ void RacerDubins::updateState(float* state, float* state_der, const f
     if (i == 4)
     {
       state[i] -= state_der[i] * dt;
-      state[i] += state_der[i] * expf(-this->params_.steering_constant * dt);
+      state[i] = state_der[i] + (state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
+      // state[i] += state_der[i] * expf(-this->params_.steering_constant * dt);
     }
     state_der[i] = 0;  // Important: reset the state derivative to zero.
   }
@@ -60,8 +62,9 @@ __device__ void RacerDubins::computeDynamics(float* state, float* control, float
 {
   state_der[0] = this->params_.c_t * control[0] - this->params_.c_b * control[1] - this->params_.c_v * state[0] +
                  this->params_.c_0;
-  state_der[1] = (state[0] / this->params_.wheel_base) * tan(control[2]);
+  state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4]);
   state_der[2] = state[0] * cosf(state[1]);
   state_der[3] = state[0] * sinf(state[1]);
-  state_der[4] = (control[2] - state[4]);
+  // state_der[4] = (control[2] - state[4]);
+  state_der[4] = control[2] * this->params_.max_steer_angle;
 }

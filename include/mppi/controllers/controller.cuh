@@ -69,6 +69,7 @@ public:
   // Cost typedefs
   typedef Eigen::Matrix<float, MAX_TIMESTEPS, 1> cost_trajectory;
   typedef Eigen::Matrix<float, NUM_ROLLOUTS, 1> sampled_cost_traj;
+  typedef Eigen::Matrix<int, MAX_TIMESTEPS, 1> crash_status_trajectory;
 
   Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda, float alpha,
              const Eigen::Ref<const control_array>& control_std_dev, int num_timesteps = MAX_TIMESTEPS,
@@ -167,6 +168,16 @@ public:
   virtual std::vector<state_trajectory> getSampledStateTrajectories()
   {
     return sampled_trajectories_;
+  }
+
+  virtual std::vector<cost_trajectory> getSampledCostTrajectories()
+  {
+    return sampled_costs_;
+  }
+
+  virtual std::vector<crash_status_trajectory> getSampledCrashStatusTrajectories()
+  {
+    return sampled_crash_status_;
   }
 
   /**
@@ -540,31 +551,33 @@ public:
     {
       cudaFree(sampled_states_d_);
       cudaFree(sampled_noise_d_);
+      cudaFree(sampled_costs_d_);
+      cudaFree(sampled_crash_status_d_);
       sampled_states_CUDA_mem_init_ = false;
     }
+    sampled_trajectories_.resize(num_sampled_trajectories * multiplier);
+    sampled_costs_.resize(num_sampled_trajectories * multiplier);
+    sampled_crash_status_.resize(num_sampled_trajectories * multiplier);
+    perc_sampled_control_trajectories_ = new_perc;
+    if(new_perc <= 0) {
+      return;
+    }
+
     HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
                             sizeof(float) * DYN_T::STATE_DIM * num_timesteps_ * num_sampled_trajectories * multiplier));
     HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_, sizeof(float) * DYN_T::CONTROL_DIM * num_timesteps_ *
                                                            num_sampled_trajectories * multiplier));
+    HANDLE_ERROR(
+        cudaMalloc((void**)&sampled_costs_d_, sizeof(float) * num_timesteps_ * num_sampled_trajectories * multiplier));
+    HANDLE_ERROR(
+            cudaMalloc((void**)&sampled_crash_status_d_, sizeof(float) * num_timesteps_ * num_sampled_trajectories * multiplier));
     sampled_states_CUDA_mem_init_ = true;
-
-    sampled_trajectories_.resize(num_sampled_trajectories * multiplier);
-    perc_sampled_control_trajectories = new_perc;
   }
 
   int getNumberSampledTrajectories()
   {
-    return perc_sampled_control_trajectories * NUM_ROLLOUTS;
+    return perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   }
-
-  /**
-   * Return a percentage of sampled control trajectories from the latest rollout
-   */
-  std::vector<control_trajectory> getSampledControlSeq()
-  {
-    return sampled_controls_;
-  }
-
   /**
    * Return the most recent free energy calculation for the mean
    */
@@ -629,7 +642,7 @@ protected:
 
   float normalizer_;                            // Variable for the normalizing term from sampling.
   float baseline_ = 0;                          // Baseline cost of the system.
-  float perc_sampled_control_trajectories = 0;  // Percentage of sampled trajectories to return
+  float perc_sampled_control_trajectories_ = 0;  // Percentage of sampled trajectories to return
 
   curandGenerator_t gen_;
   control_array control_std_dev_ = control_array::Zero();
@@ -652,8 +665,11 @@ protected:
   bool sampled_states_CUDA_mem_init_ = false;  // cudaMalloc, cudaFree boolean
   float* sampled_states_d_;                    // result of states that have been sampled from state trajectory kernel
   float* sampled_noise_d_;                     // noise to be passed to the state trajectory kernel
-  std::vector<control_trajectory> sampled_controls_;    // Sampled control trajectories from rollout kernel
+  float* sampled_costs_d_;       // result of cost that have been sampled from state and cost trajectory kernel
+  int* sampled_crash_status_d_;  // result of crash_status that have been sampled
   std::vector<state_trajectory> sampled_trajectories_;  // sampled state trajectories from state trajectory kernel
+  std::vector<cost_trajectory> sampled_costs_;
+  std::vector<crash_status_trajectory> sampled_crash_status_;
 
   // Propagated real state trajectory
   state_trajectory propagated_feedback_state_trajectory_ = state_trajectory::Zero();
