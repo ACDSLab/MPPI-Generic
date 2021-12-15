@@ -43,6 +43,7 @@ protected:
   std::mutex access_guard_;
 
   int hz_ = 10;  // Frequency of control publisher
+  int visualization_hz_ = 5;
   bool debug_mode_ = false;
   bool increment_state_ = false;
 
@@ -496,8 +497,9 @@ public:
 
     // calculate the propogated feedback trajectory
     controller_->computeFeedbackPropagatedStateSeq();
-
-    controller_->calculateSampledStateTrajectories();
+    // if (this->visualization_hz_ > 0 && num_iter_ % (int) (hz_ / visualization_hz_) == 0){
+    //   controller_->calculateSampledStateTrajectories();
+    // }
 
     // TODO
     // Increment the state if debug mode is set to true
