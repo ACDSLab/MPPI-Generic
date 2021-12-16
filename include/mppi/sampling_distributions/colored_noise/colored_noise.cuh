@@ -38,6 +38,14 @@ inline void cufftAssert(cufftResult code, const char* file, int line, bool abort
     cufftAssert((ans), __FILE__, __LINE__);                                                                            \
   }
 
+__global__ void floatToCuComplexArray(float* input, cuComplex* output, int length)
+{
+  for (int i = threadIdx.y; i < length; i++)
+  {
+    output[i] = make_cuComplex(input[i], input[length + i]);
+  }
+}
+
 void fftfreq(const int num_samples, std::vector<float>& result, const float spacing = 1)
 {
   // result is of size floor(n/2) + 1
