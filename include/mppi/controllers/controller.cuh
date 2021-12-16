@@ -94,6 +94,8 @@ public:
 
     // Bind the model and control to the given stream
     setCUDAStream(stream);
+    // Create new stream for visualization purposes
+    HANDLE_ERROR(cudaStreamCreate(&vis_stream_));
 
     // Call the GPU setup functions of the model, cost and feedback controller
     model_->GPUSetup();
@@ -604,6 +606,7 @@ public:
   COST_T* cost_;
   FB_T* fb_controller_;
   cudaStream_t stream_;
+  cudaStream_t vis_stream_;
 
   float getDt()
   {

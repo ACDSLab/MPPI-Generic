@@ -48,9 +48,9 @@ void CONTROLLER::copySampledControlFromDevice()
     HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
                                  this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
                                  sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
-                                 this->stream_));
+                                 this->vis_stream_));
   }
-  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  HANDLE_ERROR(cudaStreamSynchronize(this->vis_stream_));
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
