@@ -525,9 +525,8 @@ public:
     copyControlStdDevToDevice();
   }
 
-  void setFeedbackController(bool enable_feedback)
-  {
-    enable_feedback_ = enable_feedback;
+  void disableFeedbackController() {
+    enable_feedback_ = false;
   }
 
   void setFeedbackParams(TEMPLATED_FEEDBACK_PARAMS fb_params)
@@ -540,6 +539,9 @@ public:
     return enable_feedback_;
   }
 
+  float getPercentageSampledControlTrajectories() {
+    return perc_sampled_control_trajectories_;
+  }
   /**
    * Set the percentage of sample control trajectories to copy
    * back from the GPU. Multiplier is an integer in case the nominal
@@ -566,13 +568,13 @@ public:
     }
 
     HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
-                            sizeof(float) * DYN_T::STATE_DIM * num_timesteps_ * num_sampled_trajectories * multiplier));
-    HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_, sizeof(float) * DYN_T::CONTROL_DIM * num_timesteps_ *
+                            sizeof(float) * DYN_T::STATE_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
+    HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_, sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS *
                                                            num_sampled_trajectories * multiplier));
     HANDLE_ERROR(
-        cudaMalloc((void**)&sampled_costs_d_, sizeof(float) * num_timesteps_ * num_sampled_trajectories * multiplier));
+        cudaMalloc((void**)&sampled_costs_d_, sizeof(float) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
     HANDLE_ERROR(
-            cudaMalloc((void**)&sampled_crash_status_d_, sizeof(float) * num_timesteps_ * num_sampled_trajectories * multiplier));
+            cudaMalloc((void**)&sampled_crash_status_d_, sizeof(float) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
     sampled_states_CUDA_mem_init_ = true;
   }
 
@@ -616,6 +618,20 @@ public:
   {
     dt_ = dt;
     fb_controller_->setDt(dt);
+  }
+
+  float getLambda() {
+    return lambda_;
+  }
+  void setLambda(float lambda) {
+    lambda_ = lambda;
+  }
+
+  int getNumIters() {
+    return num_iters_;
+  }
+  void setNumIters(int num_iter) {
+    num_iters_ = num_iter;
   }
 
   float getDebug()
