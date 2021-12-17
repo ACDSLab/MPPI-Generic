@@ -14,7 +14,8 @@ foreach(T_FILE IN LISTS CUDA_TARGET_SRCS)
   target_include_directories(${T_NAME} PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
   target_link_libraries(${T_NAME}
                         curand
-				        ${CUDA_LIBRARIES}
-				        cnpy)
+                ${CUDA_LIBRARIES}
+                ${CUDA_CUFFT_LIBRARIES}
+                cnpy)
   # set_target_properties(${T_NAME} PROPERTIES FOLDER test)
 endforeach()

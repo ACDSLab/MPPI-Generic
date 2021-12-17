@@ -14,6 +14,7 @@ target_link_libraries( ${LIBRARY_NAME}
 if(NOT ${CURAND_LIBRARY} MATCHES "NOTFOUND")
     target_link_libraries( ${LIBRARY_NAME}
             ${CURAND_LIBRARY}
+            ${CUDA_CUFFT_LIBRARIES}
             )
 endif()
 

@@ -465,7 +465,8 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
   rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z>
       <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt, num_timesteps, optimization_stride, lambda, alpha, x_d,
                                          u_d, du_d, sigma_u_d, trajectory_costs);
-  CudaCheckError();
+  // CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
   HANDLE_ERROR(cudaStreamSynchronize(stream));
 }
 
@@ -475,7 +476,8 @@ void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_co
   dim3 dimBlock(blocksize_x, 1, 1);
   dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
   normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, lambda_inv, baseline);
-  CudaCheckError();
+  // CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
   HANDLE_ERROR(cudaStreamSynchronize(stream));
 }
 
