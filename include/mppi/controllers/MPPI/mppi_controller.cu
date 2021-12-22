@@ -2,7 +2,7 @@
 #include <mppi/core/mppi_common.cuh>
 #include <algorithm>
 #include <iostream>
-#include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
+// #include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
 
 #define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
@@ -45,9 +45,10 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     this->copyNominalControlToDevice();
 
     // Generate noise data
-    powerlaw_psd_gaussian(0.0, this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM, this->control_noise_d_, this->gen_, this->stream_);
-    // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-    //                      0.0, 1.0);
+    // powerlaw_psd_gaussian(0.0, this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM, this->control_noise_d_,
+    // this->gen_, this->stream_);
+    curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+                         0.0, 1.0);
     /*
     std::vector<float> noise = this->getSampledNoise();
     float mean = 0;
