@@ -1,5 +1,5 @@
 """Generate colored noise."""
-
+"""Source: https://github.com/felixpatzelt/colorednoise/blob/master/colorednoise.py"""
 from numpy import sqrt, newaxis
 from numpy.fft import irfft, rfftfreq
 from numpy.random import normal
@@ -71,17 +71,14 @@ def powerlaw_psd_gaussian(exponent, size, fmin=0):
     s_scale = f
     fmin = max(fmin, 1./samples) # Low frequency cutoff
     ix   = npsum(s_scale < fmin)   # Index of the cutoff
-    print("Before variance: {}, fmin: {}, ix: {}".format(f, fmin, ix))
     if ix and ix < len(s_scale):
         s_scale[:ix] = s_scale[ix]
-    print("Mid variance: {}".format(s_scale))
     s_scale = s_scale**(-exponent/2.)
 
     # Calculate theoretical output standard deviation from scaling
     w      = s_scale[1:].copy()
     w[-1] *= (1 + (samples % 2)) / 2. # correct f = +-0.5
     sigma = 2 * sqrt(npsum(w**2)) / samples
-    print("Sigma: {}".format(sigma))
     # Adjust size to generate one Fourier component per frequency
     size[-1] = len(f)
 
@@ -89,13 +86,9 @@ def powerlaw_psd_gaussian(exponent, size, fmin=0):
     # dimension of generated random power + phase (below)
     dims_to_add = len(size) - 1
     s_scale     = s_scale[(newaxis,) * dims_to_add + (Ellipsis,)]
-    print("S_scale shape: {}".format(s_scale.shape))
-    print("S_scale variance:\n{}".format(s_scale))
     # Generate scaled random power + phase
     sr = normal(scale=s_scale, size=size)
     si = normal(scale=s_scale, size=size)
-    print("real sample size: {}".format(sr.shape))
-    print("real samples:\n", sr)
     # If the signal length is even, frequencies +/- 0.5 are equal
     # so the coefficient must be real.
     if not (samples % 2): si[...,-1] = 0
