@@ -73,8 +73,9 @@ const char* cufftGetErrorString(cufftResult& code)
       return "License Error. Used in previous versions";
     case CUFFT_NOT_SUPPORTED:
       return "Operation is not supported for parameters given.";
+    default:
+      return "cuFFT ERROR";
   }
-  return "cuFFT Error";
 }
 
 const char* curandGetErrorString(curandStatus_t code)
@@ -108,8 +109,9 @@ const char* curandGetErrorString(curandStatus_t code)
       return "Architecture mismatch, GPU does not support requested feature.";
     case CURAND_STATUS_INTERNAL_ERROR:
       return "Internal library error.";
+    default:
+      return "Cureand Error";
   }
-  return "Curand Errror";
 }
 
 inline void cufftAssert(cufftResult code, const char* file, int line, bool abort = true)

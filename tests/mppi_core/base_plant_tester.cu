@@ -378,7 +378,6 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
 
 TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
 {
-  mockController->setFeedbackController(true);
   mockController->initFeedback();
 
   double init_time = 51789;
@@ -440,7 +439,6 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
 
 TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
 {
-  mockController->setFeedbackController(true);
   mockController->initFeedback();
 
   double init_time = 51531;
@@ -503,7 +501,6 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
 
 TEST_F(BasePlantTest, runControlLoop)
 {
-  mockController->setFeedbackController(true);
   mockController->initFeedback();
 
   int hz = plant->getHz();

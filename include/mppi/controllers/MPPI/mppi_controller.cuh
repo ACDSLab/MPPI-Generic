@@ -10,6 +10,8 @@
 
 #include <mppi/controllers/controller.cuh>
 
+#include <vector>
+
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 class VanillaMPPIController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 {
@@ -70,13 +72,17 @@ public:
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 1);
   }
 
+  void setColoredNoiseExponents(std::vector<float>& new_exponents) {
+    colored_noise_exponents_ = new_exponents;
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
 
   void smoothControlTrajectory();
-
+  std::vector<float> colored_noise_exponents_;
 private:
   // ======== MUST BE OVERWRITTEN =========
   void allocateCUDAMemory();

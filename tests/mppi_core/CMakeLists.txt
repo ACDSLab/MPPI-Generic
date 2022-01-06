@@ -10,7 +10,7 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
               ${GTEST_LIBRARIES}
               ${OpenCV_LIBRARIES}
               fitpackpp
-              curand
+              ${MPPI_GENERIC_CUDA_EXTRA_LIBS}
               cnpy)
       gtest_add_tests(TARGET ${T_NAME})
       set_target_properties(${T_NAME} PROPERTIES FOLDER test)
@@ -20,7 +20,7 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
     target_link_libraries(${T_NAME}
               ${GTEST_LIBRARIES}
               ${OpenCV_LIBRARIES}
-              curand
+              ${MPPI_GENERIC_CUDA_EXTRA_LIBS}
               cnpy)
       gtest_add_tests(TARGET ${T_NAME})
     set_target_properties(${T_NAME} PROPERTIES FOLDER test)

@@ -17,6 +17,8 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
 {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
+  std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
+  colored_noise_exponents_ = std::move(tmp_vec);
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
@@ -45,7 +47,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     this->copyNominalControlToDevice();
 
     // Generate noise data
-    powerlaw_psd_gaussian(1.0, this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM, this->control_noise_d_,
+    powerlaw_psd_gaussian(colored_noise_exponents_, this->num_timesteps_, NUM_ROLLOUTS, this->control_noise_d_,
                           this->gen_, this->stream_);
     // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->num_timesteps_ *
     // DYN_T::CONTROL_DIM,
