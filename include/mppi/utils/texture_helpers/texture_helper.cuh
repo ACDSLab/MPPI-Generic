@@ -11,8 +11,8 @@ template <class DATA_T>
 struct TextureParams {
   cudaExtent extent;
 
-  cudaArray* array_d;
-  cudaTextureObject_t tex_d;
+  cudaArray* array_d = nullptr;
+  cudaTextureObject_t tex_d = 0;
   cudaChannelFormatDesc channelDesc;
   cudaResourceDesc resDesc;
   cudaTextureDesc texDesc;
@@ -32,8 +32,10 @@ struct TextureParams {
     channelDesc = cudaCreateChannelDesc<DATA_T>();
 
     // clamp
+    memset(&texDesc, 0, sizeof(texDesc));
     texDesc.addressMode[0] = cudaAddressModeClamp;
     texDesc.addressMode[1] = cudaAddressModeClamp;
+    texDesc.addressMode[2] = cudaAddressModeClamp;
     texDesc.filterMode = cudaFilterModeLinear;
     texDesc.readMode = cudaReadModeElementType;
     texDesc.normalizedCoords = 1;
@@ -83,12 +85,26 @@ public:
   virtual void updateRotation(int index, std::array<float3, 3>& new_rotation);
   virtual void updateResolution(int index, float resolution);
   virtual void setExtent(int index, cudaExtent& extent);
-  virtual void copyDataToGPU(int index) = 0;
+  virtual void copyDataToGPU(int index, bool sync=false) = 0;
+  virtual void setColumnMajor(int index, bool val) {
+    this->textures_[index].column_major = val;
+  }
+
+  std::vector<TextureParams<float4>> getTextures()
+  {
+    return textures_;
+  }
+
+
+  TEX_T* ptr_d_;
 
 protected:
   std::vector<TextureParams<DATA_T>> textures_;
 
-  TEX_T* ptr_d_;
+  // helper, on CPU points to vector, on GPU points to device copy
+  TextureParams<DATA_T>* textures_d_ = nullptr;
+  // device pointer of parameters
+  TextureParams<DATA_T>* params_d_;
 };
 
 #if __CUDACC__

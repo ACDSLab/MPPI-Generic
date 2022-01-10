@@ -75,6 +75,7 @@ public:
   {
     createCudaTextureCalled++;
     this->textures_[index].allocated = true;
+    this->textures_[index].update_mem = false;
   }
 
   void clearCounters()
@@ -82,6 +83,16 @@ public:
     copyDataToGPUCalled = 0;
     allocateCudaTextureCalled = 0;
     createCudaTextureCalled = 0;
+  }
+
+  TextureParams<float4>* getTextureD()
+  {
+    return this->textures_d_;
+  }
+
+  TextureParams<float4>* getTextureDataPtr()
+  {
+    return this->textures_.data();
   }
 
   int copyDataToGPUCalled = 0;
@@ -107,12 +118,20 @@ TEST_F(TextureHelperTest, Constructor)
   std::vector<TextureParams<float4>> textures = helper.getTextures();
 
   EXPECT_EQ(textures.size(), number);
+  EXPECT_NE(helper.getTextureD(), nullptr);
+  EXPECT_NE(helper.getTextureDataPtr(), nullptr);
+  EXPECT_EQ(helper.getTextureD(), helper.getTextureDataPtr());
+
   for (const TextureParams<float4> texture : textures)
   {
     EXPECT_EQ(texture.use, false);
     EXPECT_EQ(texture.allocated, false);
     EXPECT_EQ(texture.update_data, false);
     EXPECT_EQ(texture.update_mem, false);
+
+    EXPECT_EQ(texture.array_d, nullptr);
+    EXPECT_EQ(texture.tex_d, 0);
+
     EXPECT_EQ(texture.resDesc.resType, cudaResourceTypeArray);
     EXPECT_EQ(texture.channelDesc.x, 32);
     EXPECT_EQ(texture.channelDesc.y, 32);
@@ -440,7 +459,36 @@ TEST_F(TextureHelperTest, AddNewTextureTest)
     auto texture = textures.at(i);
 
     EXPECT_EQ(texture.use, false);
-    if (i == 8)
+    // since GPUMemStatus_ = false, this should always be false
+    EXPECT_EQ(texture.allocated, false);
+    EXPECT_EQ(texture.update_data, false);
+    EXPECT_EQ(texture.update_mem, false);
+    EXPECT_EQ(texture.resDesc.resType, cudaResourceTypeArray);
+    EXPECT_EQ(texture.channelDesc.x, 32);
+    EXPECT_EQ(texture.channelDesc.y, 32);
+    EXPECT_EQ(texture.channelDesc.z, 32);
+    EXPECT_EQ(texture.channelDesc.w, 32);
+
+    EXPECT_EQ(texture.texDesc.addressMode[0], cudaAddressModeClamp);
+    EXPECT_EQ(texture.texDesc.addressMode[1], cudaAddressModeClamp);
+    EXPECT_EQ(texture.texDesc.filterMode, cudaFilterModeLinear);
+    EXPECT_EQ(texture.texDesc.readMode, cudaReadModeElementType);
+    EXPECT_EQ(texture.texDesc.normalizedCoords, 1);
+  }
+  EXPECT_EQ(textures[8].extent.width, 4);
+  EXPECT_EQ(textures[8].extent.height, 5);
+  EXPECT_EQ(textures[8].extent.depth, 6);
+
+  helper.setGpuMemStatus(true);
+  helper.addNewTexture(extent);
+  textures = helper.getTextures();
+  EXPECT_EQ(textures.size(), number + 2);
+  for (int i = 0; i < number + 2; i++)
+  {
+    auto texture = textures.at(i);
+
+    EXPECT_EQ(texture.use, false);
+    if (i == 9)
     {
       EXPECT_EQ(texture.allocated, true);
     }
@@ -462,9 +510,9 @@ TEST_F(TextureHelperTest, AddNewTextureTest)
     EXPECT_EQ(texture.texDesc.readMode, cudaReadModeElementType);
     EXPECT_EQ(texture.texDesc.normalizedCoords, 1);
   }
-  EXPECT_EQ(textures[8].extent.width, 4);
-  EXPECT_EQ(textures[8].extent.height, 5);
-  EXPECT_EQ(textures[8].extent.depth, 6);
+  EXPECT_EQ(textures[9].extent.width, 4);
+  EXPECT_EQ(textures[9].extent.height, 5);
+  EXPECT_EQ(textures[9].extent.depth, 6);
 }
 
 // TEST_F(TextureHelperTest, queryTextureAtWorldPose) {

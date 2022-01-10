@@ -1,0 +1,345 @@
+#include <gtest/gtest.h>
+
+#include <mppi/utils/test_helper.h>
+#include <random>
+#include <algorithm>
+
+#include <mppi/utils/texture_helpers/two_d_texture_helper.cuh>
+#include <mppi/utils/texture_test_kernels.cuh>
+
+class TwoDTextureHelperTest : public testing::Test
+{
+protected:
+  void SetUp() override
+  {
+    generator = std::default_random_engine(7.0);
+    distribution = std::normal_distribution<float>(100.0, 2.0);
+  }
+
+  void TearDown() override
+  {
+  }
+
+  std::default_random_engine generator;
+  std::normal_distribution<float> distribution;
+};
+
+TEST_F(TwoDTextureHelperTest, Constructor)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(4);
+
+  EXPECT_EQ(helper.getCpuValues().size(), 4);
+}
+
+TEST_F(TwoDTextureHelperTest, TwoDAllocateCudaTextureTest)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
+
+  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  helper.setExtent(0, extent);
+  extent = make_cudaExtent(30, 40, 1);
+  helper.setExtent(1, extent);
+
+  helper.GPUSetup();
+
+  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  EXPECT_EQ(textures[0].array_d, nullptr);
+  EXPECT_EQ(textures[0].tex_d, 0);
+  EXPECT_TRUE(textures[0].update_mem);
+  EXPECT_FALSE(textures[0].allocated);
+
+  helper.allocateCudaTexture(0);
+  textures = helper.getTextures();
+  EXPECT_NE(textures[0].array_d, nullptr);
+  EXPECT_EQ(textures[0].tex_d, 0);
+  EXPECT_TRUE(textures[0].update_mem);
+  EXPECT_FALSE(textures[0].allocated);
+}
+
+TEST_F(TwoDTextureHelperTest, TwoDAllocateAndCreateCudaTexture)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
+
+  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  helper.setExtent(0, extent);
+
+  helper.GPUSetup();
+
+  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  EXPECT_EQ(textures[0].array_d, nullptr);
+  EXPECT_EQ(textures[0].tex_d, 0);
+  EXPECT_TRUE(textures[0].update_mem);
+  EXPECT_FALSE(textures[0].allocated);
+
+  helper.allocateCudaTexture(0);
+  helper.createCudaTexture(0);
+  textures = helper.getTextures();
+  EXPECT_NE(textures[0].array_d, nullptr);
+  EXPECT_NE(textures[0].tex_d, 0);
+  EXPECT_FALSE(textures[0].update_mem);
+  EXPECT_TRUE(textures[0].allocated);
+}
+
+TEST_F(TwoDTextureHelperTest, UpdateTexture)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
+
+  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  helper.setExtent(0, extent);
+  extent = make_cudaExtent(30, 40, 1);
+  helper.setExtent(1, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(30 * 40);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  helper.updateTexture(1, data_vec);
+
+  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  EXPECT_TRUE(textures[1].update_data);
+
+  auto cpu_values = helper.getCpuValues()[1];
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    EXPECT_FLOAT_EQ(cpu_values[i].x, data_vec[i].x);
+    EXPECT_FLOAT_EQ(cpu_values[i].y, data_vec[i].y);
+    EXPECT_FLOAT_EQ(cpu_values[i].z, data_vec[i].z);
+    EXPECT_FLOAT_EQ(cpu_values[i].w, data_vec[i].w);
+  }
+}
+
+TEST_F(TwoDTextureHelperTest, UpdateTextureColumnMajor)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
+  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  helper.setExtent(0, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(10 * 20);
+  // just in case I am stupid
+  std::set<float> total_set;
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+    total_set.insert(i);
+  }
+
+  helper.setColumnMajor(0, true);
+  helper.updateTexture(0, data_vec);
+
+  // returns a rowMajor vector
+  auto cpu_values = helper.getCpuValues()[0];
+
+  for (int i = 0; i < 20; i++)
+  {
+    for (int j = 0; j < 10; j++)
+    {
+      int columnMajorIndex = i * 10 + j;
+      int rowVectorIndex = j * 20 + i;
+      EXPECT_FLOAT_EQ(cpu_values[rowVectorIndex].x, columnMajorIndex) << " at index: " << i;
+      EXPECT_EQ(total_set.erase(rowVectorIndex), 1);
+    }
+  }
+  EXPECT_EQ(total_set.size(), 0);
+}
+
+TEST_F(TwoDTextureHelperTest, UpdateTextureException)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
+
+  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  helper.setExtent(0, extent);
+  extent = make_cudaExtent(30, 40, 1);
+  helper.setExtent(1, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(30 * 40);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  EXPECT_THROW(helper.updateTexture(0, data_vec), std::runtime_error);
+}
+
+TEST_F(TwoDTextureHelperTest, UpdateTextureNewSize)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
+
+  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  helper.setExtent(0, extent);
+  extent = make_cudaExtent(30, 40, 1);
+  helper.setExtent(1, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(30 * 40);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  helper.updateTexture(0, data_vec, extent);
+
+  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  EXPECT_TRUE(textures[0].update_data);
+  EXPECT_TRUE(textures[0].update_mem);
+
+  auto cpu_values = helper.getCpuValues()[0];
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    EXPECT_FLOAT_EQ(cpu_values[i].x, data_vec[i].x);
+    EXPECT_FLOAT_EQ(cpu_values[i].y, data_vec[i].y);
+    EXPECT_FLOAT_EQ(cpu_values[i].z, data_vec[i].z);
+    EXPECT_FLOAT_EQ(cpu_values[i].w, data_vec[i].w);
+  }
+}
+
+TEST_F(TwoDTextureHelperTest, CopyDataToGPU)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(1);
+  helper.GPUSetup();
+
+  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  helper.setExtent(0, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(10 * 20);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  helper.updateTexture(0, data_vec);
+  helper.allocateCudaTexture(0);
+  helper.createCudaTexture(0);
+  helper.copyDataToGPU(0, true);
+
+  std::vector<float4> query_points;
+  query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.05, 0.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.95, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(1.0, 0.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.45, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.5, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.55, 0.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.025, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.05, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.075, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.0, 0.975, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 1.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.0, 0.475, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.5, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.525, 0.0, 0.0));
+
+  auto results = getTextureAtPointsKernel<TwoDTextureHelper<float4>, float4>(helper, query_points);
+
+  EXPECT_FLOAT_EQ(results.size(), query_points.size());
+  EXPECT_FLOAT_EQ(results[0].x, 0.0);
+  EXPECT_FLOAT_EQ(results[0].y, 1.0);
+  EXPECT_FLOAT_EQ(results[0].z, 2.0);
+  EXPECT_FLOAT_EQ(results[0].w, 3.0);
+  EXPECT_FLOAT_EQ(results[1].x, 0.0);
+  EXPECT_FLOAT_EQ(results[1].y, 1.0);
+  EXPECT_FLOAT_EQ(results[1].z, 2.0);
+  EXPECT_FLOAT_EQ(results[1].w, 3.0);
+
+  EXPECT_FLOAT_EQ(results[2].x, 9.0);
+  EXPECT_FLOAT_EQ(results[2].y, 10.0);
+  EXPECT_FLOAT_EQ(results[2].z, 11.0);
+  EXPECT_FLOAT_EQ(results[2].w, 12.0);
+  EXPECT_FLOAT_EQ(results[3].x, 9.0);
+  EXPECT_FLOAT_EQ(results[3].y, 10.0);
+  EXPECT_FLOAT_EQ(results[3].z, 11.0);
+  EXPECT_FLOAT_EQ(results[3].w, 12.0);
+
+  EXPECT_FLOAT_EQ(results[4].x, 4.0);
+  EXPECT_FLOAT_EQ(results[4].y, 5.0);
+  EXPECT_FLOAT_EQ(results[4].z, 6.0);
+  EXPECT_FLOAT_EQ(results[4].w, 7.0);
+  EXPECT_FLOAT_EQ(results[5].x, 4.5);
+  EXPECT_FLOAT_EQ(results[5].y, 5.5);
+  EXPECT_FLOAT_EQ(results[5].z, 6.5);
+  EXPECT_FLOAT_EQ(results[5].w, 7.5);
+  EXPECT_FLOAT_EQ(results[6].x, 5.0);
+  EXPECT_FLOAT_EQ(results[6].y, 6.0);
+  EXPECT_FLOAT_EQ(results[6].z, 7.0);
+  EXPECT_FLOAT_EQ(results[6].w, 8.0);
+
+  EXPECT_FLOAT_EQ(results[7].x, 0.0);
+  EXPECT_FLOAT_EQ(results[8].x, 0.0);
+  EXPECT_FLOAT_EQ(results[9].x, 5);
+  EXPECT_FLOAT_EQ(results[10].x, 10);
+
+  EXPECT_FLOAT_EQ(results[11].x, 190);
+  EXPECT_FLOAT_EQ(results[12].x, 190);
+
+  EXPECT_FLOAT_EQ(results[13].x, 90);
+  EXPECT_FLOAT_EQ(results[14].x, 95);
+  EXPECT_FLOAT_EQ(results[15].x, 100);
+}
+
+// TEST_F(TwoDTextureHelperTest, CopyToDeviceTest)
+//{
+//  int number = 8;
+//  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(number);
+//
+//  //helper.setTestFlagsInParam(0, false, false, false);
+//  //helper.setTestFlagsInParam(1, false, false, true);
+//  //helper.setTestFlagsInParam(2, false, true, false);
+//  //helper.setTestFlagsInParam(3, false, true, true);
+//  //helper.setTestFlagsInParam(4, true, false, false);
+//  //helper.setTestFlagsInParam(5, true, false, true);
+//  //helper.setTestFlagsInParam(6, true, true, false);
+//  //helper.setTestFlagsInParam(7, true, true, true);
+//
+//  // nothing should have happened since GPUMemStatus=False
+//  helper.GPUSetup();
+//  helper.copyToDevice();
+//  std::vector<TextureParams<float4>> textures = helper.getTextures();
+//  textures = helper.getTextures();
+//
+//  EXPECT_FALSE(textures[0].update_mem);
+//  EXPECT_FALSE(textures[0].update_data);
+//  EXPECT_FALSE(textures[0].allocated);
+//
+//  EXPECT_FALSE(textures[1].update_mem);
+//  EXPECT_FALSE(textures[1].update_data);
+//  EXPECT_TRUE(textures[1].allocated);
+//
+//  EXPECT_FALSE(textures[2].update_mem);
+//  EXPECT_TRUE(textures[2].update_data);
+//  EXPECT_FALSE(textures[2].allocated);
+//
+//  EXPECT_FALSE(textures[3].update_mem);
+//  EXPECT_FALSE(textures[3].update_data);  // was TRUE
+//  EXPECT_TRUE(textures[3].allocated);
+//
+//  EXPECT_FALSE(textures[4].update_mem);  // was TRUE
+//  EXPECT_FALSE(textures[4].update_data);
+//  EXPECT_TRUE(textures[4].allocated);  // was FALSE
+//
+//  EXPECT_FALSE(textures[5].update_mem);  // was TRUE
+//  EXPECT_FALSE(textures[5].update_data);
+//  EXPECT_TRUE(textures[5].allocated);
+//
+//  EXPECT_FALSE(textures[6].update_mem);   // was TRUE
+//  EXPECT_FALSE(textures[6].update_data);  // was TRUE
+//  EXPECT_TRUE(textures[6].allocated);
+//
+//  EXPECT_FALSE(textures[7].update_mem);   // was TRUE
+//  EXPECT_FALSE(textures[7].update_data);  // was TRUE
+//  EXPECT_TRUE(textures[7].allocated);
+//
+//  //EXPECT_EQ(helper.copyDataToGPUCalled, 3);
+//  //EXPECT_EQ(helper.allocateCudaTextureCalled, 4);
+//  //EXPECT_EQ(helper.createCudaTextureCalled, 4);
+//}
