@@ -339,7 +339,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
     EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(0);
     EXPECT_CALL(*mockController, getFeedbackControl(testing::_, testing::_, testing::_)).Times(0);
     EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
-    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
+    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
 
     EXPECT_EQ(plant->getDebugMode(), false);
 
@@ -378,7 +378,6 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
 
 TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
 {
-  mockController->setFeedbackController(true);
   mockController->initFeedback();
 
   double init_time = 51789;
@@ -406,7 +405,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
     MockController::TEMPLATED_FEEDBACK_STATE feedback;
     EXPECT_CALL(*mockController, getFeedbackState()).Times(1).WillRepeatedly(testing::Return(feedback));
     EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
-    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
+    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
 
     EXPECT_EQ(plant->getDebugMode(), false);
 
@@ -440,7 +439,6 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
 
 TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
 {
-  mockController->setFeedbackController(true);
   mockController->initFeedback();
 
   double init_time = 51531;
@@ -468,7 +466,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
     MockController::TEMPLATED_FEEDBACK_STATE feedback;
     EXPECT_CALL(*mockController, getFeedbackState()).Times(1).WillRepeatedly(testing::Return(feedback));
     EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
-    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
+    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
 
     EXPECT_EQ(plant->getDebugMode(), false);
 
@@ -503,7 +501,6 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
 
 TEST_F(BasePlantTest, runControlLoop)
 {
-  mockController->setFeedbackController(true);
   mockController->initFeedback();
 
   int hz = plant->getHz();
@@ -537,7 +534,7 @@ TEST_F(BasePlantTest, runControlLoop)
   MockController::TEMPLATED_FEEDBACK_STATE feedback;
   EXPECT_CALL(*mockController, getFeedbackState()).Times(iterations / 2).WillRepeatedly(testing::Return(feedback));
   EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(iterations / 2);
-  EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(iterations / 2);
+  EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
 
   std::atomic<bool> is_alive(true);
   std::thread optimizer(&MockTestPlant::runControlLoop, plant.get(), &is_alive);

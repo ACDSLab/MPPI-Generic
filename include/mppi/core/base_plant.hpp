@@ -497,21 +497,6 @@ public:
 
     // calculate the propogated feedback trajectory
     controller_->computeFeedbackPropagatedStateSeq();
-    // if (this->visualization_hz_ > 0 && num_iter_ % (int) (hz_ / visualization_hz_) == 0){
-    //   controller_->calculateSampledStateTrajectories();
-    // }
-
-    // TODO
-    // Increment the state if debug mode is set to true
-    // if (status != 0 && debug_mode_){
-    //   for (int t = 0; t < optimization_stride; t++){
-    //     int control_dim = CONTROLLER_T::TEMPLATED_DYNAMICS::CONTROL_DIM;
-    //     for (int i = 0; i < control_dim; i++) {
-    //       u[i] = control_traj[control_dim * t + i];
-    //     }
-    //     controller->model_->updateState(state, u);
-    //   }
-    // }
 
     // Update the average loop time data
     double prev_iter_percent = (num_iter_ - 1.0) / num_iter_;
