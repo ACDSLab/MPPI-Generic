@@ -41,6 +41,7 @@ void TextureHelper<TEX_T, DATA_T>::freeCudaMem()
     {
       freeCudaMem(textures_[index]);
     }
+    cudaFree(params_d_);
   }
 }
 
@@ -84,9 +85,9 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::mapPoseToTexCoord(const i
 {
   // TODO why 0.5??
   // from map frame to pixels [m] -> [px]
-  output.x = input.x / textures_d_[index].resolution;
-  output.y = input.y / textures_d_[index].resolution;
-  output.z = input.z / textures_d_[index].resolution;
+  output.x = input.x / textures_d_[index].resolution.x;
+  output.y = input.y / textures_d_[index].resolution.y;
+  output.z = input.z / textures_d_[index].resolution.z;
 
   // normalize pixel values
   output.x /= textures_d_[index].extent.width;
@@ -218,7 +219,18 @@ void TextureHelper<TEX_T, DATA_T>::updateRotation(int index, std::array<float3, 
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float resolution)
 {
-  this->textures_[index].resolution = resolution;
+  this->textures_[index].resolution.x = resolution;
+  this->textures_[index].resolution.y = resolution;
+  this->textures_[index].resolution.z = resolution;
+  this->textures_[index].update_params = true;
+}
+
+template <class TEX_T, class DATA_T>
+void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float3 resolution)
+{
+  this->textures_[index].resolution.x = resolution.x;
+  this->textures_[index].resolution.y = resolution.y;
+  this->textures_[index].resolution.z = resolution.z;
   this->textures_[index].update_params = true;
 }
 

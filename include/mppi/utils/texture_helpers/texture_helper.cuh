@@ -19,7 +19,7 @@ struct TextureParams {
 
   float3 origin;
   float3 rotations[3];
-  float resolution;
+  float3 resolution;
 
   bool column_major = false;
   bool use = false;
@@ -85,6 +85,7 @@ public:
   virtual void updateOrigin(int index, float3 new_origin);
   virtual void updateRotation(int index, std::array<float3, 3>& new_rotation);
   virtual void updateResolution(int index, float resolution);
+  virtual void updateResolution(int index, float3 resolution);
   virtual bool setExtent(int index, cudaExtent& extent);
   virtual void copyDataToGPU(int index, bool sync=false) = 0;
   virtual void copyParamsToGPU(int index, bool sync=false);

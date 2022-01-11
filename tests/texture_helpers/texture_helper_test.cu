@@ -358,6 +358,28 @@ TEST_F(TextureHelperTest, MapPoseToTexCoordTest)
   EXPECT_FLOAT_EQ(output.z, (0.3) / 6);
 }
 
+TEST_F(TextureHelperTest, MapPoseToTexCoordIndResTest)
+{
+  int number = 5;
+  TextureHelperImpl helper = TextureHelperImpl(number);
+
+  float3 input = make_float3(1.0, 2.0, 3.0);
+  float3 output;
+
+  float3 resolution = make_float3(10, 20, 30);
+  helper.updateResolution(0, resolution);
+  cudaExtent extent = make_cudaExtent(4, 5, 6);
+  helper.setExtent(0, extent);
+
+  helper.mapPoseToTexCoord(0, input, output);
+  EXPECT_FLOAT_EQ(input.x, 1.0);
+  EXPECT_FLOAT_EQ(input.y, 2.0);
+  EXPECT_FLOAT_EQ(input.z, 3.0);
+  EXPECT_FLOAT_EQ(output.x, (0.1) / 4);
+  EXPECT_FLOAT_EQ(output.y, (0.1) / 5);
+  EXPECT_FLOAT_EQ(output.z, (0.1) / 6);
+}
+
 TEST_F(TextureHelperTest, WorldPoseToTexCoordTest)
 {
   int number = 5;
