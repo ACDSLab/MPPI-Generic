@@ -223,7 +223,7 @@ void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float resolution)
 }
 
 template <class TEX_T, class DATA_T>
-void TextureHelper<TEX_T, DATA_T>::setExtent(int index, cudaExtent& extent)
+bool TextureHelper<TEX_T, DATA_T>::setExtent(int index, cudaExtent& extent)
 {
   // checks if the extent has changed and reallocates if yes
   TextureParams<DATA_T>* param = &textures_[index];
@@ -233,7 +233,9 @@ void TextureHelper<TEX_T, DATA_T>::setExtent(int index, cudaExtent& extent)
     // flag to update mem next time we should
     param->update_mem = true;
     this->textures_[index].extent = extent;
+    return true;
   }
+  return false;
 }
 
 template <class TEX_T, class DATA_T>

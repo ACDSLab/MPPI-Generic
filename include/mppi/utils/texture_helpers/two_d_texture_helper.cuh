@@ -16,7 +16,7 @@ public:
 
   void updateTexture(const int index, std::vector<DATA_T>& data);
   void updateTexture(const int index, std::vector<DATA_T>& data, cudaExtent& extent);
-  void setExtent(int index, cudaExtent& extent) override;
+  bool setExtent(int index, cudaExtent& extent) override;
   void copyDataToGPU(int index, bool sync=false);
 
   std::vector<std::vector<DATA_T>> getCpuValues() {return cpu_values_;}

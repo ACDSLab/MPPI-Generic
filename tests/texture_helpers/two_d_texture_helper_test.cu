@@ -126,6 +126,7 @@ TEST_F(TwoDTextureHelperTest, UpdateTextureColumnMajor)
     data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
     total_set.insert(i);
   }
+  EXPECT_EQ(total_set.size(), 200);
 
   helper.setColumnMajor(0, true);
   helper.updateTexture(0, data_vec);

@@ -75,7 +75,7 @@ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int index, const
 }
 
 template <class DATA_T>
-void TwoDTextureHelper<DATA_T>::setExtent(int index, cudaExtent& extent)
+bool TwoDTextureHelper<DATA_T>::setExtent(int index, cudaExtent& extent)
 {
   if (extent.depth != 0)
   {
@@ -84,7 +84,7 @@ void TwoDTextureHelper<DATA_T>::setExtent(int index, cudaExtent& extent)
                              std::to_string(extent.depth));
   }
 
-  TextureHelper<TwoDTextureHelper<DATA_T>, DATA_T>::setExtent(index, extent);
+  return TextureHelper<TwoDTextureHelper<DATA_T>, DATA_T>::setExtent(index, extent);
 }
 
 template <class DATA_T>
