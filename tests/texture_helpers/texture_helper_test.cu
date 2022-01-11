@@ -60,7 +60,7 @@ public:
     this->textures_[index].allocated = allocated;
   }
 
-  void copyDataToGPU(int index) override
+  void copyDataToGPU(int index, bool sync = false) override
   {
     copyDataToGPUCalled++;
     this->textures_[index].update_data = false;
@@ -287,6 +287,11 @@ TEST_F(TextureHelperTest, SetExtentTest)
   helper.setExtent(0, extent);
   helper.setExtent(1, extent);
 
+  extent = make_cudaExtent(4, 5, 0);
+  helper.setExtent(2, extent);
+  helper.setTestExtent(3, extent);
+  helper.setExtent(3, extent);
+
   std::vector<TextureParams<float4>> textures = helper.getTextures();
 
   EXPECT_TRUE(textures[0].update_mem);
@@ -298,6 +303,16 @@ TEST_F(TextureHelperTest, SetExtentTest)
   EXPECT_EQ(textures[1].extent.width, 4);
   EXPECT_EQ(textures[1].extent.height, 5);
   EXPECT_EQ(textures[1].extent.depth, 6);
+
+  EXPECT_TRUE(textures[2].update_mem);
+  EXPECT_EQ(textures[2].extent.width, 4);
+  EXPECT_EQ(textures[2].extent.height, 5);
+  EXPECT_EQ(textures[2].extent.depth, 0);
+
+  EXPECT_FALSE(textures[3].update_mem);
+  EXPECT_EQ(textures[3].extent.width, 4);
+  EXPECT_EQ(textures[3].extent.height, 5);
+  EXPECT_EQ(textures[3].extent.depth, 0);
 }
 
 TEST_F(TextureHelperTest, MapPoseToTexCoordTest)

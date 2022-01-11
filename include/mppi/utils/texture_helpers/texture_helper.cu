@@ -24,6 +24,7 @@ void TextureHelper<TEX_T, DATA_T>::GPUSetup()
     HANDLE_ERROR(cudaMalloc(&params_d_, sizeof(TextureParams<DATA_T>) * textures_.size()));
     HANDLE_ERROR(cudaMemcpyAsync(&(ptr_d_->textures_d_), &(params_d_), sizeof(TextureParams<DATA_T>*),
                                  cudaMemcpyHostToDevice, this->stream_));
+    cudaStreamSynchronize(this->stream_);
   }
   else
   {
@@ -91,7 +92,10 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::mapPoseToTexCoord(const i
   // normalize pixel values
   output.x /= textures_d_[index].extent.width;
   output.y /= textures_d_[index].extent.height;
-  output.z /= textures_d_[index].extent.depth;
+  if (textures_d_[index].extent.depth != 0)
+  {
+    output.z /= textures_d_[index].extent.depth;
+  }
 }
 
 template <class TEX_T, class DATA_T>
@@ -121,14 +125,14 @@ void TextureHelper<TEX_T, DATA_T>::copyToDevice(bool synchronize)
     if (param->update_mem)
     {
       derived->allocateCudaTexture(i);
-      derived->createCudaTexture(i);
+      derived->createCudaTexture(i, false);
     }
 
     // if we have updated data copy it over
     if (param->allocated && param->update_data)
     {
       // copies data to the GPU
-      derived->copyDataToGPU(i);
+      derived->copyDataToGPU(i, false);
     }
   }
   if (synchronize)
@@ -138,7 +142,7 @@ void TextureHelper<TEX_T, DATA_T>::copyToDevice(bool synchronize)
 }
 
 template <class TEX_T, class DATA_T>
-void TextureHelper<TEX_T, DATA_T>::createCudaTexture(int index)
+void TextureHelper<TEX_T, DATA_T>::createCudaTexture(int index, bool sync)
 {
   TextureParams<DATA_T>* cpu_param = &textures_[index];
   cpu_param->resDesc.res.array.array = cpu_param->array_d;
@@ -149,8 +153,12 @@ void TextureHelper<TEX_T, DATA_T>::createCudaTexture(int index)
   cpu_param->update_mem = false;
 
   // Copy entire param structure over from CPU to GPU
-  HANDLE_ERROR(cudaMemcpyAsync(&(params_d_[index]), &(cpu_param), sizeof(TextureParams<DATA_T>), cudaMemcpyHostToDevice,
+  HANDLE_ERROR(cudaMemcpyAsync(&(params_d_[index]), cpu_param, sizeof(TextureParams<DATA_T>), cudaMemcpyHostToDevice,
                                this->stream_));
+  if (sync)
+  {
+    cudaStreamSynchronize(this->stream_);
+  }
 }
 
 template <class TEX_T, class DATA_T>

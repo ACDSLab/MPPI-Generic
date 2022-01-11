@@ -35,9 +35,9 @@ TEST_F(TwoDTextureHelperTest, TwoDAllocateCudaTextureTest)
 {
   TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
 
-  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
   helper.setExtent(0, extent);
-  extent = make_cudaExtent(30, 40, 1);
+  extent = make_cudaExtent(30, 40, 0);
   helper.setExtent(1, extent);
 
   helper.GPUSetup();
@@ -60,7 +60,7 @@ TEST_F(TwoDTextureHelperTest, TwoDAllocateAndCreateCudaTexture)
 {
   TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
 
-  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
   helper.setExtent(0, extent);
 
   helper.GPUSetup();
@@ -84,9 +84,9 @@ TEST_F(TwoDTextureHelperTest, UpdateTexture)
 {
   TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
 
-  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
   helper.setExtent(0, extent);
-  extent = make_cudaExtent(30, 40, 1);
+  extent = make_cudaExtent(30, 40, 0);
   helper.setExtent(1, extent);
 
   std::vector<float4> data_vec;
@@ -114,7 +114,7 @@ TEST_F(TwoDTextureHelperTest, UpdateTexture)
 TEST_F(TwoDTextureHelperTest, UpdateTextureColumnMajor)
 {
   TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
-  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
   helper.setExtent(0, extent);
 
   std::vector<float4> data_vec;
@@ -150,9 +150,9 @@ TEST_F(TwoDTextureHelperTest, UpdateTextureException)
 {
   TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
 
-  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
   helper.setExtent(0, extent);
-  extent = make_cudaExtent(30, 40, 1);
+  extent = make_cudaExtent(30, 40, 0);
   helper.setExtent(1, extent);
 
   std::vector<float4> data_vec;
@@ -165,13 +165,21 @@ TEST_F(TwoDTextureHelperTest, UpdateTextureException)
   EXPECT_THROW(helper.updateTexture(0, data_vec), std::runtime_error);
 }
 
+void checkEqual(float4 computed, float val)
+{
+  EXPECT_FLOAT_EQ(computed.x, val);
+  EXPECT_FLOAT_EQ(computed.y, val + 1);
+  EXPECT_FLOAT_EQ(computed.z, val + 2);
+  EXPECT_FLOAT_EQ(computed.w, val + 3);
+}
+
 TEST_F(TwoDTextureHelperTest, UpdateTextureNewSize)
 {
   TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
 
-  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
   helper.setExtent(0, extent);
-  extent = make_cudaExtent(30, 40, 1);
+  extent = make_cudaExtent(30, 40, 0);
   helper.setExtent(1, extent);
 
   std::vector<float4> data_vec;
@@ -190,10 +198,7 @@ TEST_F(TwoDTextureHelperTest, UpdateTextureNewSize)
   auto cpu_values = helper.getCpuValues()[0];
   for (int i = 0; i < data_vec.size(); i++)
   {
-    EXPECT_FLOAT_EQ(cpu_values[i].x, data_vec[i].x);
-    EXPECT_FLOAT_EQ(cpu_values[i].y, data_vec[i].y);
-    EXPECT_FLOAT_EQ(cpu_values[i].z, data_vec[i].z);
-    EXPECT_FLOAT_EQ(cpu_values[i].w, data_vec[i].w);
+    checkEqual(cpu_values[i], data_vec[i].x);
   }
 }
 
@@ -202,7 +207,7 @@ TEST_F(TwoDTextureHelperTest, CopyDataToGPU)
   TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(1);
   helper.GPUSetup();
 
-  cudaExtent extent = make_cudaExtent(10, 20, 1);
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
   helper.setExtent(0, extent);
 
   std::vector<float4> data_vec;
@@ -243,48 +248,27 @@ TEST_F(TwoDTextureHelperTest, CopyDataToGPU)
   auto results = getTextureAtPointsKernel<TwoDTextureHelper<float4>, float4>(helper, query_points);
 
   EXPECT_FLOAT_EQ(results.size(), query_points.size());
-  EXPECT_FLOAT_EQ(results[0].x, 0.0);
-  EXPECT_FLOAT_EQ(results[0].y, 1.0);
-  EXPECT_FLOAT_EQ(results[0].z, 2.0);
-  EXPECT_FLOAT_EQ(results[0].w, 3.0);
-  EXPECT_FLOAT_EQ(results[1].x, 0.0);
-  EXPECT_FLOAT_EQ(results[1].y, 1.0);
-  EXPECT_FLOAT_EQ(results[1].z, 2.0);
-  EXPECT_FLOAT_EQ(results[1].w, 3.0);
+  checkEqual(results[0], 0.0);
+  checkEqual(results[1], 0.0);
 
-  EXPECT_FLOAT_EQ(results[2].x, 9.0);
-  EXPECT_FLOAT_EQ(results[2].y, 10.0);
-  EXPECT_FLOAT_EQ(results[2].z, 11.0);
-  EXPECT_FLOAT_EQ(results[2].w, 12.0);
-  EXPECT_FLOAT_EQ(results[3].x, 9.0);
-  EXPECT_FLOAT_EQ(results[3].y, 10.0);
-  EXPECT_FLOAT_EQ(results[3].z, 11.0);
-  EXPECT_FLOAT_EQ(results[3].w, 12.0);
+  checkEqual(results[2], 9.0);
+  checkEqual(results[3], 9.0);
 
-  EXPECT_FLOAT_EQ(results[4].x, 4.0);
-  EXPECT_FLOAT_EQ(results[4].y, 5.0);
-  EXPECT_FLOAT_EQ(results[4].z, 6.0);
-  EXPECT_FLOAT_EQ(results[4].w, 7.0);
-  EXPECT_FLOAT_EQ(results[5].x, 4.5);
-  EXPECT_FLOAT_EQ(results[5].y, 5.5);
-  EXPECT_FLOAT_EQ(results[5].z, 6.5);
-  EXPECT_FLOAT_EQ(results[5].w, 7.5);
-  EXPECT_FLOAT_EQ(results[6].x, 5.0);
-  EXPECT_FLOAT_EQ(results[6].y, 6.0);
-  EXPECT_FLOAT_EQ(results[6].z, 7.0);
-  EXPECT_FLOAT_EQ(results[6].w, 8.0);
+  checkEqual(results[4], 4.0);
+  checkEqual(results[5], 4.5);
+  checkEqual(results[6], 5.0);
 
-  EXPECT_FLOAT_EQ(results[7].x, 0.0);
-  EXPECT_FLOAT_EQ(results[8].x, 0.0);
-  EXPECT_FLOAT_EQ(results[9].x, 5);
-  EXPECT_FLOAT_EQ(results[10].x, 10);
+  checkEqual(results[7], 0.0);
+  checkEqual(results[8], 0.0);
+  checkEqual(results[9], 5.0);
+  checkEqual(results[10], 10.0);
 
-  EXPECT_FLOAT_EQ(results[11].x, 190);
-  EXPECT_FLOAT_EQ(results[12].x, 190);
+  checkEqual(results[11], 190.0);
+  checkEqual(results[12], 190.0);
 
-  EXPECT_FLOAT_EQ(results[13].x, 90);
-  EXPECT_FLOAT_EQ(results[14].x, 95);
-  EXPECT_FLOAT_EQ(results[15].x, 100);
+  checkEqual(results[13], 90.0);
+  checkEqual(results[14], 95.0);
+  checkEqual(results[15], 100.0);
 }
 
 // TEST_F(TwoDTextureHelperTest, CopyToDeviceTest)

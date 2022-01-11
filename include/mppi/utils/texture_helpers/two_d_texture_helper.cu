@@ -77,10 +77,10 @@ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int index, const
 template <class DATA_T>
 void TwoDTextureHelper<DATA_T>::setExtent(int index, cudaExtent& extent)
 {
-  if (extent.depth != 1)
+  if (extent.depth != 0)
   {
     throw std::runtime_error(std::string("Error: extent in setExtent invalid,"
-                                         " cannot use depth != 1 in 2D texture: using ") +
+                                         " cannot use depth != 0 in 2D texture: using ") +
                              std::to_string(extent.depth));
   }
 

@@ -63,7 +63,7 @@ public:
    * helper method to create a cuda texture
    * @param index
    */
-  virtual void createCudaTexture(int index);
+  virtual void createCudaTexture(int index, bool sync=true);
 
   /**
    * Copies texture information to the GPU version of the object
@@ -103,7 +103,8 @@ protected:
 
   // helper, on CPU points to vector, on GPU points to device copy
   TextureParams<DATA_T>* textures_d_ = nullptr;
-  // device pointer of parameters
+
+  // device pointer to the parameters malloced memory
   TextureParams<DATA_T>* params_d_;
 };
 
