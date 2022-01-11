@@ -78,7 +78,6 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::worldPoseToMapPose(const 
   output.z = (rotation_mat_ptr[2].x * diff.x + rotation_mat_ptr[2].y * diff.y + rotation_mat_ptr[2].z * diff.z);
 }
 
-// TODO This is only a 2D rotation
 template <class TEX_T, class DATA_T>
 __host__ __device__ void TextureHelper<TEX_T, DATA_T>::mapPoseToTexCoord(const int index, const float3& input,
                                                                          float3& output)
@@ -127,16 +126,21 @@ void TextureHelper<TEX_T, DATA_T>::copyToDevice(bool synchronize)
       derived->allocateCudaTexture(i);
       derived->createCudaTexture(i, false);
     }
-    if (param->update_params)
+    // if allocated
+    if (param->allocated)
     {
-      derived->copyParamsToGPU(i, false);
-    }
+      // if we have new parameter values copy it over
+      if (param->update_params)
+      {
+        derived->copyParamsToGPU(i, false);
+      }
 
-    // if we have updated data copy it over
-    if (param->allocated && param->update_data)
-    {
-      // copies data to the GPU
-      derived->copyDataToGPU(i, false);
+      // if we have updated data copy it over
+      if (param->update_data)
+      {
+        // copies data to the GPU
+        derived->copyDataToGPU(i, false);
+      }
     }
   }
   if (synchronize)

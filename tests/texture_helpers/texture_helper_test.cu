@@ -53,11 +53,12 @@ public:
     this->GPUMemStatus_ = flag;
   }
 
-  void setTestFlagsInParam(int index, bool update_mem, bool update_data, bool allocated)
+  void setTestFlagsInParam(int index, bool update_mem, bool update_data, bool allocated, bool update_params)
   {
     this->textures_[index].update_mem = update_mem;
     this->textures_[index].update_data = update_data;
     this->textures_[index].allocated = allocated;
+    this->textures_[index].update_params = update_params;
   }
 
   void copyDataToGPU(int index, bool sync = false) override
@@ -68,6 +69,10 @@ public:
 
   void allocateCudaTexture(int index) override
   {
+    if (this->textures_[index].allocated)
+    {
+      freeCudaMem(this->textures_[index]);
+    }
     allocateCudaTextureCalled++;
   }
 
@@ -78,11 +83,26 @@ public:
     this->textures_[index].update_mem = false;
   }
 
+  void copyParamsToGPU(int index, bool sync = false)
+  {
+    copyParamsToGPUCalled++;
+    this->textures_[index].update_params = false;
+  }
+
   void clearCounters()
   {
     copyDataToGPUCalled = 0;
     allocateCudaTextureCalled = 0;
     createCudaTextureCalled = 0;
+    copyParamsToGPUCalled = 0;
+    freeCudaMemCalled = 0;
+  }
+
+  void freeCudaMem(TextureParams<float4>& texture)
+  {
+    texture.allocated = false;
+    texture.use = false;
+    freeCudaMemCalled++;
   }
 
   TextureParams<float4>* getTextureD()
@@ -98,6 +118,8 @@ public:
   int copyDataToGPUCalled = 0;
   int allocateCudaTextureCalled = 0;
   int createCudaTextureCalled = 0;
+  int copyParamsToGPUCalled = 0;
+  int freeCudaMemCalled = 0;
 
   float4 queryTexture(const int index, const float3& input)
   {
@@ -366,17 +388,25 @@ TEST_F(TextureHelperTest, WorldPoseToTexCoordTest)
 
 TEST_F(TextureHelperTest, CopyToDeviceTest)
 {
-  int number = 8;
+  int number = 16;
   TextureHelperImpl helper = TextureHelperImpl(number);
 
-  helper.setTestFlagsInParam(0, false, false, false);
-  helper.setTestFlagsInParam(1, false, false, true);
-  helper.setTestFlagsInParam(2, false, true, false);
-  helper.setTestFlagsInParam(3, false, true, true);
-  helper.setTestFlagsInParam(4, true, false, false);
-  helper.setTestFlagsInParam(5, true, false, true);
-  helper.setTestFlagsInParam(6, true, true, false);
-  helper.setTestFlagsInParam(7, true, true, true);
+  helper.setTestFlagsInParam(0, false, false, false, false);
+  helper.setTestFlagsInParam(1, false, false, false, true);
+  helper.setTestFlagsInParam(2, false, false, true, false);
+  helper.setTestFlagsInParam(3, false, false, true, true);
+  helper.setTestFlagsInParam(4, false, true, false, false);
+  helper.setTestFlagsInParam(5, false, true, false, true);
+  helper.setTestFlagsInParam(6, false, true, true, false);
+  helper.setTestFlagsInParam(7, false, true, true, true);
+  helper.setTestFlagsInParam(8, true, false, false, false);
+  helper.setTestFlagsInParam(9, true, false, false, true);
+  helper.setTestFlagsInParam(10, true, false, true, false);
+  helper.setTestFlagsInParam(11, true, false, true, true);
+  helper.setTestFlagsInParam(12, true, true, false, false);
+  helper.setTestFlagsInParam(13, true, true, false, true);
+  helper.setTestFlagsInParam(14, true, true, true, false);
+  helper.setTestFlagsInParam(15, true, true, true, true);
 
   // nothing should have happened since GPUMemStatus=False
   helper.copyToDevice();
@@ -385,38 +415,88 @@ TEST_F(TextureHelperTest, CopyToDeviceTest)
   EXPECT_FALSE(textures[0].update_mem);
   EXPECT_FALSE(textures[0].update_data);
   EXPECT_FALSE(textures[0].allocated);
+  EXPECT_FALSE(textures[0].update_params);
 
   EXPECT_FALSE(textures[1].update_mem);
   EXPECT_FALSE(textures[1].update_data);
-  EXPECT_TRUE(textures[1].allocated);
+  EXPECT_FALSE(textures[1].allocated);
+  EXPECT_TRUE(textures[1].update_params);
 
   EXPECT_FALSE(textures[2].update_mem);
-  EXPECT_TRUE(textures[2].update_data);
-  EXPECT_FALSE(textures[2].allocated);
+  EXPECT_FALSE(textures[2].update_data);
+  EXPECT_TRUE(textures[2].allocated);
+  EXPECT_FALSE(textures[2].update_params);
 
   EXPECT_FALSE(textures[3].update_mem);
-  EXPECT_TRUE(textures[3].update_data);
+  EXPECT_FALSE(textures[3].update_data);
   EXPECT_TRUE(textures[3].allocated);
+  EXPECT_TRUE(textures[3].update_params);
 
-  EXPECT_TRUE(textures[4].update_mem);
-  EXPECT_FALSE(textures[4].update_data);
+  EXPECT_FALSE(textures[4].update_mem);
+  EXPECT_TRUE(textures[4].update_data);
   EXPECT_FALSE(textures[4].allocated);
+  EXPECT_FALSE(textures[4].update_params);
 
-  EXPECT_TRUE(textures[5].update_mem);
-  EXPECT_FALSE(textures[5].update_data);
-  EXPECT_TRUE(textures[5].allocated);
+  EXPECT_FALSE(textures[5].update_mem);
+  EXPECT_TRUE(textures[5].update_data);
+  EXPECT_FALSE(textures[5].allocated);
+  EXPECT_TRUE(textures[5].update_params);
 
-  EXPECT_TRUE(textures[6].update_mem);
+  EXPECT_FALSE(textures[6].update_mem);
   EXPECT_TRUE(textures[6].update_data);
-  EXPECT_FALSE(textures[6].allocated);
+  EXPECT_TRUE(textures[6].allocated);
+  EXPECT_FALSE(textures[6].update_params);
 
-  EXPECT_TRUE(textures[7].update_mem);
+  EXPECT_FALSE(textures[7].update_mem);
   EXPECT_TRUE(textures[7].update_data);
   EXPECT_TRUE(textures[7].allocated);
+  EXPECT_TRUE(textures[7].update_params);
+
+  EXPECT_TRUE(textures[8].update_mem);
+  EXPECT_FALSE(textures[8].update_data);
+  EXPECT_FALSE(textures[8].allocated);
+  EXPECT_FALSE(textures[8].update_params);
+
+  EXPECT_TRUE(textures[9].update_mem);
+  EXPECT_FALSE(textures[9].update_data);
+  EXPECT_FALSE(textures[9].allocated);
+  EXPECT_TRUE(textures[9].update_params);
+
+  EXPECT_TRUE(textures[10].update_mem);
+  EXPECT_FALSE(textures[10].update_data);
+  EXPECT_TRUE(textures[10].allocated);
+  EXPECT_FALSE(textures[10].update_params);
+
+  EXPECT_TRUE(textures[11].update_mem);
+  EXPECT_FALSE(textures[11].update_data);
+  EXPECT_TRUE(textures[11].allocated);
+  EXPECT_TRUE(textures[11].update_params);
+
+  EXPECT_TRUE(textures[12].update_mem);
+  EXPECT_TRUE(textures[12].update_data);
+  EXPECT_FALSE(textures[12].allocated);
+  EXPECT_FALSE(textures[12].update_params);
+
+  EXPECT_TRUE(textures[13].update_mem);
+  EXPECT_TRUE(textures[13].update_data);
+  EXPECT_FALSE(textures[13].allocated);
+  EXPECT_TRUE(textures[13].update_params);
+
+  EXPECT_TRUE(textures[14].update_mem);
+  EXPECT_TRUE(textures[14].update_data);
+  EXPECT_TRUE(textures[14].allocated);
+  EXPECT_FALSE(textures[14].update_params);
+
+  EXPECT_TRUE(textures[15].update_mem);
+  EXPECT_TRUE(textures[15].update_data);
+  EXPECT_TRUE(textures[15].allocated);
+  EXPECT_TRUE(textures[15].update_params);
 
   EXPECT_EQ(helper.copyDataToGPUCalled, 0);
   EXPECT_EQ(helper.allocateCudaTextureCalled, 0);
   EXPECT_EQ(helper.createCudaTextureCalled, 0);
+  EXPECT_EQ(helper.copyParamsToGPUCalled, 0);
+  EXPECT_EQ(helper.freeCudaMemCalled, 0);
 
   helper.clearCounters();
   helper.setGpuMemStatus(true);
@@ -426,38 +506,90 @@ TEST_F(TextureHelperTest, CopyToDeviceTest)
   EXPECT_FALSE(textures[0].update_mem);
   EXPECT_FALSE(textures[0].update_data);
   EXPECT_FALSE(textures[0].allocated);
+  EXPECT_FALSE(textures[0].update_params);
 
   EXPECT_FALSE(textures[1].update_mem);
   EXPECT_FALSE(textures[1].update_data);
-  EXPECT_TRUE(textures[1].allocated);
+  EXPECT_FALSE(textures[1].allocated);
+  EXPECT_TRUE(textures[1].update_params);
 
   EXPECT_FALSE(textures[2].update_mem);
-  EXPECT_TRUE(textures[2].update_data);
-  EXPECT_FALSE(textures[2].allocated);
+  EXPECT_FALSE(textures[2].update_data);
+  EXPECT_TRUE(textures[2].allocated);
+  EXPECT_FALSE(textures[2].update_params);
 
   EXPECT_FALSE(textures[3].update_mem);
-  EXPECT_FALSE(textures[3].update_data);  // was TRUE
+  EXPECT_FALSE(textures[3].update_data);
   EXPECT_TRUE(textures[3].allocated);
+  EXPECT_FALSE(textures[3].update_params);
 
-  EXPECT_FALSE(textures[4].update_mem);  // was TRUE
-  EXPECT_FALSE(textures[4].update_data);
-  EXPECT_TRUE(textures[4].allocated);  // was FALSE
+  EXPECT_FALSE(textures[4].update_mem);
+  EXPECT_TRUE(textures[4].update_data);
+  EXPECT_FALSE(textures[4].allocated);
+  EXPECT_FALSE(textures[4].update_params);
 
-  EXPECT_FALSE(textures[5].update_mem);  // was TRUE
-  EXPECT_FALSE(textures[5].update_data);
-  EXPECT_TRUE(textures[5].allocated);
+  EXPECT_FALSE(textures[5].update_mem);
+  EXPECT_TRUE(textures[5].update_data);
+  EXPECT_FALSE(textures[5].allocated);
+  EXPECT_TRUE(textures[5].update_params);
 
-  EXPECT_FALSE(textures[6].update_mem);   // was TRUE
-  EXPECT_FALSE(textures[6].update_data);  // was TRUE
+  // false, true, true, false
+  EXPECT_FALSE(textures[6].update_mem);
+  EXPECT_FALSE(textures[6].update_data);
   EXPECT_TRUE(textures[6].allocated);
+  EXPECT_FALSE(textures[6].update_params);
 
-  EXPECT_FALSE(textures[7].update_mem);   // was TRUE
-  EXPECT_FALSE(textures[7].update_data);  // was TRUE
+  EXPECT_FALSE(textures[7].update_mem);
+  EXPECT_FALSE(textures[7].update_data);
   EXPECT_TRUE(textures[7].allocated);
+  EXPECT_FALSE(textures[7].update_params);
 
-  EXPECT_EQ(helper.copyDataToGPUCalled, 3);
-  EXPECT_EQ(helper.allocateCudaTextureCalled, 4);
-  EXPECT_EQ(helper.createCudaTextureCalled, 4);
+  EXPECT_FALSE(textures[8].update_mem);
+  EXPECT_FALSE(textures[8].update_data);
+  EXPECT_TRUE(textures[8].allocated);
+  EXPECT_FALSE(textures[8].update_params);
+
+  // true, false, false, true
+  EXPECT_FALSE(textures[9].update_mem);
+  EXPECT_FALSE(textures[9].update_data);
+  EXPECT_TRUE(textures[9].allocated);
+  EXPECT_FALSE(textures[9].update_params);
+
+  EXPECT_FALSE(textures[10].update_mem);
+  EXPECT_FALSE(textures[10].update_data);
+  EXPECT_TRUE(textures[10].allocated);
+  EXPECT_FALSE(textures[10].update_params);
+
+  EXPECT_FALSE(textures[11].update_mem);
+  EXPECT_FALSE(textures[11].update_data);
+  EXPECT_TRUE(textures[11].allocated);
+  EXPECT_FALSE(textures[11].update_params);
+
+  EXPECT_FALSE(textures[12].update_mem);
+  EXPECT_FALSE(textures[12].update_data);
+  EXPECT_TRUE(textures[12].allocated);
+  EXPECT_FALSE(textures[12].update_params);
+
+  EXPECT_FALSE(textures[13].update_mem);
+  EXPECT_FALSE(textures[13].update_data);
+  EXPECT_TRUE(textures[13].allocated);
+  EXPECT_FALSE(textures[13].update_params);
+
+  EXPECT_FALSE(textures[14].update_mem);
+  EXPECT_FALSE(textures[14].update_data);
+  EXPECT_TRUE(textures[14].allocated);
+  EXPECT_FALSE(textures[14].update_params);
+
+  EXPECT_FALSE(textures[15].update_mem);
+  EXPECT_FALSE(textures[15].update_data);
+  EXPECT_TRUE(textures[15].allocated);
+  EXPECT_FALSE(textures[15].update_params);
+
+  EXPECT_EQ(helper.copyDataToGPUCalled, 6);
+  EXPECT_EQ(helper.allocateCudaTextureCalled, 8);
+  EXPECT_EQ(helper.createCudaTextureCalled, 8);
+  EXPECT_EQ(helper.copyParamsToGPUCalled, 6);
+  EXPECT_EQ(helper.freeCudaMemCalled, 4);
 }
 
 TEST_F(TextureHelperTest, AddNewTextureTest)
