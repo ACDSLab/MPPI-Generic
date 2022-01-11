@@ -71,7 +71,7 @@ public:
     allocateCudaTextureCalled++;
   }
 
-  void createCudaTexture(int index) override
+  void createCudaTexture(int index, bool sync = false) override
   {
     createCudaTextureCalled++;
     this->textures_[index].allocated = true;
@@ -331,9 +331,9 @@ TEST_F(TextureHelperTest, MapPoseToTexCoordTest)
   EXPECT_FLOAT_EQ(input.x, 1.0);
   EXPECT_FLOAT_EQ(input.y, 2.0);
   EXPECT_FLOAT_EQ(input.z, 3.0);
-  EXPECT_FLOAT_EQ(output.x, (0.5 + 0.1) / 4);
-  EXPECT_FLOAT_EQ(output.y, (0.5 + 0.2) / 5);
-  EXPECT_FLOAT_EQ(output.z, (0.5 + 0.3) / 6);
+  EXPECT_FLOAT_EQ(output.x, (0.1) / 4);
+  EXPECT_FLOAT_EQ(output.y, (0.2) / 5);
+  EXPECT_FLOAT_EQ(output.z, (0.3) / 6);
 }
 
 TEST_F(TextureHelperTest, WorldPoseToTexCoordTest)
@@ -359,9 +359,9 @@ TEST_F(TextureHelperTest, WorldPoseToTexCoordTest)
   EXPECT_FLOAT_EQ(input.x, 0.2);
   EXPECT_FLOAT_EQ(input.y, 0.4);
   EXPECT_FLOAT_EQ(input.z, 0.6);
-  EXPECT_FLOAT_EQ(output.x, ((0.1 * 1 + 0.2 * 2 + 0.3 * 3) / 10 + 0.5) / 4);
-  EXPECT_FLOAT_EQ(output.y, ((0.1 * 4 + 0.2 * 5 + 0.3 * 6) / 10 + 0.5) / 5);
-  EXPECT_FLOAT_EQ(output.z, ((0.1 * 7 + 0.2 * 8 + 0.3 * 9) / 10 + 0.5) / 6);
+  EXPECT_FLOAT_EQ(output.x, ((0.1 * 1 + 0.2 * 2 + 0.3 * 3) / 10) / 4);
+  EXPECT_FLOAT_EQ(output.y, ((0.1 * 4 + 0.2 * 5 + 0.3 * 6) / 10) / 5);
+  EXPECT_FLOAT_EQ(output.z, ((0.1 * 7 + 0.2 * 8 + 0.3 * 9) / 10) / 6);
 }
 
 TEST_F(TextureHelperTest, CopyToDeviceTest)
@@ -529,31 +529,3 @@ TEST_F(TextureHelperTest, AddNewTextureTest)
   EXPECT_EQ(textures[9].extent.height, 5);
   EXPECT_EQ(textures[9].extent.depth, 6);
 }
-
-// TEST_F(TextureHelperTest, queryTextureAtWorldPose) {
-//  int number = 5;
-//  TextureHelperImpl helper = TextureHelperImpl(number);
-//
-//  float3 input = make_float3(0.2,0.4,0.6);
-//
-//  helper.updateResolution(0, 10);
-//  cudaExtent extent = make_cudaExtent(4,5,6);
-//  helper.setExtent(0, extent);
-//
-//  std::array<float3, 3> new_rot_mat{};
-//  new_rot_mat[0] = make_float3(1, 2, 3);
-//  new_rot_mat[1] = make_float3(4, 5, 6);
-//  new_rot_mat[2] = make_float3(7, 8, 9);
-//  helper.updateRotation(0, new_rot_mat);
-//  helper.updateOrigin(0, make_float3(0.1,0.2,0.3));
-//
-//  float4 output = helper.queryTextureAtWorldPose(0, input);
-//  EXPECT_FLOAT_EQ(input.x, 0.2);
-//  EXPECT_FLOAT_EQ(input.y, 0.4);
-//  EXPECT_FLOAT_EQ(input.z, 0.6);
-//  EXPECT_FLOAT_EQ(output.x, ((0.1*1+0.2*2+0.3*3)/10+0.5)/4);
-//  EXPECT_FLOAT_EQ(output.y, ((0.1*4+0.2*5+0.3*6)/10+0.5)/5);
-//  EXPECT_FLOAT_EQ(output.z, ((0.1*7+0.2*8+0.3*9)/10+0.5)/6);
-//  EXPECT_FLOAT_EQ(output.w, 0);
-//  // TODO
-//}

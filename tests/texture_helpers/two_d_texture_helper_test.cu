@@ -271,6 +271,180 @@ TEST_F(TwoDTextureHelperTest, CopyDataToGPU)
   checkEqual(results[15], 100.0);
 }
 
+TEST_F(TwoDTextureHelperTest, QueryTextureAtMapPose)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(1);
+  helper.GPUSetup();
+
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
+  helper.setExtent(0, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(10 * 20);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  helper.updateTexture(0, data_vec);
+  helper.updateResolution(0, 10);
+  helper.allocateCudaTexture(0);
+  helper.createCudaTexture(0);
+  helper.copyParamsToGPU(0);
+  helper.copyDataToGPU(0, true);
+
+  std::vector<float4> query_points;
+  query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.05, 0.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.95, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(1.0, 0.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.45, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.5, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.55, 0.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.025, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.05, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.075, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.0, 0.975, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 1.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.0, 0.475, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.5, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.525, 0.0, 0.0));
+
+  for (int i = 0; i < query_points.size(); i++)
+  {
+    // resolution * normalized handling
+    query_points[i].x = query_points[i].x * 10 * 10;
+    query_points[i].y = query_points[i].y * 10 * 20;
+    query_points[i].z = query_points[i].z * 10;
+  }
+
+  auto results = getTextureAtMapPointsKernel<TwoDTextureHelper<float4>, float4>(helper, query_points);
+
+  EXPECT_FLOAT_EQ(results.size(), query_points.size());
+  checkEqual(results[0], 0.0);
+  checkEqual(results[1], 0.0);
+
+  checkEqual(results[2], 9.0);
+  checkEqual(results[3], 9.0);
+
+  checkEqual(results[4], 4.0);
+  checkEqual(results[5], 4.5);
+  checkEqual(results[6], 5.0);
+
+  checkEqual(results[7], 0.0);
+  checkEqual(results[8], 0.0);
+  checkEqual(results[9], 5.0);
+  checkEqual(results[10], 10.0);
+
+  checkEqual(results[11], 190.0);
+  checkEqual(results[12], 190.0);
+
+  checkEqual(results[13], 90.0);
+  checkEqual(results[14], 95.0);
+  checkEqual(results[15], 100.0);
+}
+
+TEST_F(TwoDTextureHelperTest, QueryTextureAtWorldPose)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(1);
+  helper.GPUSetup();
+
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
+  helper.setExtent(0, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(10 * 20);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(0, 1, 0);
+  new_rot_mat[1] = make_float3(1, 0, 0);
+  new_rot_mat[2] = make_float3(0, 0, 1);
+  helper.updateRotation(0, new_rot_mat);
+  helper.updateOrigin(0, make_float3(1, 2, 3));
+
+  helper.updateTexture(0, data_vec);
+  helper.updateResolution(0, 10);
+  helper.allocateCudaTexture(0);
+  helper.createCudaTexture(0);
+  helper.copyParamsToGPU(0);
+  helper.copyDataToGPU(0, true);
+
+  std::vector<float4> query_points;
+  query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.05, 0.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.95, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(1.0, 0.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.45, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.5, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.55, 0.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.025, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.05, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.075, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.0, 0.975, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 1.0, 0.0, 0.0));
+
+  query_points.push_back(make_float4(0.0, 0.475, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.5, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.525, 0.0, 0.0));
+
+  for (int i = 0; i < query_points.size(); i++)
+  {
+    if (i == 4)
+    {
+      printf("correct tex value at %d: %f %f\n", i, query_points[i].x, query_points[i].y);
+    }
+    float4 temp = query_points[i];
+    // resolution * normalized handling
+    query_points[i].x = temp.y * 10.0 * 20.0 + 1;
+    query_points[i].y = temp.x * 10.0 * 10.0 + 2;
+    query_points[i].z = temp.z * 10.0 + 3;
+    if (i == 4)
+    {
+      printf("starting input at %d: %f %f\n", i, query_points[i].x, query_points[i].y);
+    }
+  }
+
+  auto results = getTextureAtWorldPointsKernel<TwoDTextureHelper<float4>, float4>(helper, query_points);
+
+  EXPECT_FLOAT_EQ(results.size(), query_points.size());
+  checkEqual(results[0], 0.0);
+  checkEqual(results[1], 0.0);
+
+  checkEqual(results[2], 9.0);
+  checkEqual(results[3], 9.0);
+
+  checkEqual(results[4], 4.0);
+  checkEqual(results[5], 4.5);
+  checkEqual(results[6], 5.0);
+
+  checkEqual(results[7], 0.0);
+  checkEqual(results[8], 0.0);
+  checkEqual(results[9], 5.0);
+  checkEqual(results[10], 10.0);
+
+  checkEqual(results[11], 190.0);
+  checkEqual(results[12], 190.0);
+
+  checkEqual(results[13], 90.0);
+  checkEqual(results[14], 95.0);
+  checkEqual(results[15], 100.0);
+}
+
 // TEST_F(TwoDTextureHelperTest, CopyToDeviceTest)
 //{
 //  int number = 8;

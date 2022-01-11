@@ -85,9 +85,9 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::mapPoseToTexCoord(const i
 {
   // TODO why 0.5??
   // from map frame to pixels [m] -> [px]
-  output.x = input.x / textures_d_[index].resolution + 0.5;
-  output.y = input.y / textures_d_[index].resolution + 0.5;
-  output.z = input.z / textures_d_[index].resolution + 0.5;
+  output.x = input.x / textures_d_[index].resolution;
+  output.y = input.y / textures_d_[index].resolution;
+  output.z = input.z / textures_d_[index].resolution;
 
   // normalize pixel values
   output.x /= textures_d_[index].extent.width;
@@ -127,6 +127,10 @@ void TextureHelper<TEX_T, DATA_T>::copyToDevice(bool synchronize)
       derived->allocateCudaTexture(i);
       derived->createCudaTexture(i, false);
     }
+    if (param->update_params)
+    {
+      derived->copyParamsToGPU(i, false);
+    }
 
     // if we have updated data copy it over
     if (param->allocated && param->update_data)
@@ -152,13 +156,7 @@ void TextureHelper<TEX_T, DATA_T>::createCudaTexture(int index, bool sync)
   cpu_param->allocated = true;
   cpu_param->update_mem = false;
 
-  // Copy entire param structure over from CPU to GPU
-  HANDLE_ERROR(cudaMemcpyAsync(&(params_d_[index]), cpu_param, sizeof(TextureParams<DATA_T>), cudaMemcpyHostToDevice,
-                               this->stream_));
-  if (sync)
-  {
-    cudaStreamSynchronize(this->stream_);
-  }
+  copyParamsToGPU(index, sync);
 }
 
 template <class TEX_T, class DATA_T>
@@ -201,6 +199,7 @@ template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateOrigin(int index, float3 new_origin)
 {
   this->textures_[index].origin = new_origin;
+  this->textures_[index].update_params = true;
 }
 
 template <class TEX_T, class DATA_T>
@@ -209,12 +208,14 @@ void TextureHelper<TEX_T, DATA_T>::updateRotation(int index, std::array<float3, 
   this->textures_[index].rotations[0] = new_rotation[0];
   this->textures_[index].rotations[1] = new_rotation[1];
   this->textures_[index].rotations[2] = new_rotation[2];
+  this->textures_[index].update_params = true;
 }
 
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float resolution)
 {
   this->textures_[index].resolution = resolution;
+  this->textures_[index].update_params = true;
 }
 
 template <class TEX_T, class DATA_T>
@@ -228,5 +229,20 @@ void TextureHelper<TEX_T, DATA_T>::setExtent(int index, cudaExtent& extent)
     // flag to update mem next time we should
     param->update_mem = true;
     this->textures_[index].extent = extent;
+  }
+}
+
+template <class TEX_T, class DATA_T>
+void TextureHelper<TEX_T, DATA_T>::copyParamsToGPU(int index, bool sync)
+{
+  TextureParams<DATA_T>* cpu_param = &textures_[index];
+
+  // Copy entire param structure over from CPU to GPU
+  HANDLE_ERROR(cudaMemcpyAsync(&(params_d_[index]), cpu_param, sizeof(TextureParams<DATA_T>), cudaMemcpyHostToDevice,
+                               this->stream_));
+  cpu_param->update_params = false;
+  if (sync)
+  {
+    cudaStreamSynchronize(this->stream_);
   }
 }

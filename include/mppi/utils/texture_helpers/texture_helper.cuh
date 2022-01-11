@@ -26,6 +26,7 @@ struct TextureParams {
   bool allocated = false;
   bool update_data = false;
   bool update_mem = false; // indicates the GPU structure should be updated at the next convenient time
+  bool update_params = false;
 
   TextureParams() {
     resDesc.resType = cudaResourceTypeArray;
@@ -86,6 +87,7 @@ public:
   virtual void updateResolution(int index, float resolution);
   virtual void setExtent(int index, cudaExtent& extent);
   virtual void copyDataToGPU(int index, bool sync=false) = 0;
+  virtual void copyParamsToGPU(int index, bool sync=false);
   virtual void setColumnMajor(int index, bool val) {
     this->textures_[index].column_major = val;
   }
