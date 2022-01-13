@@ -40,6 +40,11 @@ struct TextureParams {
     texDesc.filterMode = cudaFilterModeLinear;
     texDesc.readMode = cudaReadModeElementType;
     texDesc.normalizedCoords = 1;
+
+    origin = make_float3(0.0, 0.0, 0.0);
+    rotations[0] = make_float3(1,0,0);
+    rotations[1] = make_float3(0,1,0);
+    rotations[2] = make_float3(0,0,1);
   }
 };
 
@@ -92,14 +97,24 @@ public:
   virtual void setColumnMajor(int index, bool val) {
     this->textures_[index].column_major = val;
   }
+  virtual void enableTexture(int index) {
+    this->textures_[index].update_params = true;
+    this->textures_[index].use = true;
+  }
+  virtual void disableTexture(int index) {
+    this->textures_[index].update_params = true;
+    this->textures_[index].use = false;
+  }
+  __device__ __host__ bool checkTextureUse(int index) {
+    return this->textures_d_[index].use;
+  }
 
   std::vector<TextureParams<float4>> getTextures()
   {
     return textures_;
   }
 
-
-  TEX_T* ptr_d_;
+ TEX_T* ptr_d_ = nullptr;
 
 protected:
   std::vector<TextureParams<DATA_T>> textures_;

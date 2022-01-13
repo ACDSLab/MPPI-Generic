@@ -100,3 +100,44 @@ void TwoDTextureHelper<DATA_T>::copyDataToGPU(int index, bool sync)
     cudaStreamSynchronize(this->stream_);
   }
 }
+
+template <class DATA_T>
+void TwoDTextureHelper<DATA_T>::updateTexture(const int index,
+                                              Eigen::Map<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
+                                                         Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+                                                  values)
+{
+  TextureParams<DATA_T>* param = &this->textures_[index];
+  int w = param->extent.width;
+  int h = param->extent.height;
+  cpu_values_[index].resize(w * h);
+  if (param->column_major)
+  {
+    for (int i = 0; i < h; i++)
+    {
+      for (int j = 0; j < w; j++)
+      {
+        int columnMajorIndex = i * w + j;
+        int rowMajorIndex = j * h + i;
+        cpu_values_[index][rowMajorIndex] = values.data()[columnMajorIndex];
+      }
+    }
+  }
+  else
+  {
+    memcpy(cpu_values_[index].data(), values.data(), values.size() * sizeof(DATA_T));
+  }
+  // tells the object to copy it over next time that happens
+  param->update_data = true;
+}
+
+template <class DATA_T>
+void TwoDTextureHelper<DATA_T>::updateTexture(int index,
+                                              Eigen::Map<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
+                                                         Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+                                                  values,
+                                              cudaExtent& extent)
+{
+  setExtent(index, extent);
+  updateTexture(index, values);
+}

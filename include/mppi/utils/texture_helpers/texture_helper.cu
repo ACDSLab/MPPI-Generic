@@ -24,7 +24,7 @@ void TextureHelper<TEX_T, DATA_T>::GPUSetup()
     HANDLE_ERROR(cudaMalloc(&params_d_, sizeof(TextureParams<DATA_T>) * textures_.size()));
     HANDLE_ERROR(cudaMemcpyAsync(&(ptr_d_->textures_d_), &(params_d_), sizeof(TextureParams<DATA_T>*),
                                  cudaMemcpyHostToDevice, this->stream_));
-    cudaStreamSynchronize(this->stream_);
+    copyToDevice(true);
   }
   else
   {

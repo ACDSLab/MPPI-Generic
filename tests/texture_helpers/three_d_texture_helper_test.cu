@@ -41,39 +41,14 @@ TEST_F(ThreeDTextureHelperTest, ThreeDAllocateCudaTextureTest)
   extent = make_cudaExtent(30, 40, 1);
   helper.setExtent(1, extent);
 
-  helper.GPUSetup();
-
   std::vector<TextureParams<float4>> textures = helper.getTextures();
   EXPECT_EQ(textures[0].array_d, nullptr);
   EXPECT_EQ(textures[0].tex_d, 0);
   EXPECT_TRUE(textures[0].update_mem);
   EXPECT_FALSE(textures[0].allocated);
 
-  helper.allocateCudaTexture(0);
-  textures = helper.getTextures();
-  EXPECT_NE(textures[0].array_d, nullptr);
-  EXPECT_EQ(textures[0].tex_d, 0);
-  EXPECT_TRUE(textures[0].update_mem);
-  EXPECT_FALSE(textures[0].allocated);
-}
-
-TEST_F(ThreeDTextureHelperTest, ThreeDAllocateAndCreateCudaTexture)
-{
-  ThreeDTextureHelper<float4> helper = ThreeDTextureHelper<float4>(2);
-
-  cudaExtent extent = make_cudaExtent(10, 20, 1);
-  helper.setExtent(0, extent);
-
   helper.GPUSetup();
 
-  std::vector<TextureParams<float4>> textures = helper.getTextures();
-  EXPECT_EQ(textures[0].array_d, nullptr);
-  EXPECT_EQ(textures[0].tex_d, 0);
-  EXPECT_TRUE(textures[0].update_mem);
-  EXPECT_FALSE(textures[0].allocated);
-
-  helper.allocateCudaTexture(0);
-  helper.createCudaTexture(0);
   textures = helper.getTextures();
   EXPECT_NE(textures[0].array_d, nullptr);
   EXPECT_NE(textures[0].tex_d, 0);

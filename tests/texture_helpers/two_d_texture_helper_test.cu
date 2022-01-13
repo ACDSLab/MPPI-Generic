@@ -40,39 +40,14 @@ TEST_F(TwoDTextureHelperTest, TwoDAllocateCudaTextureTest)
   extent = make_cudaExtent(30, 40, 0);
   helper.setExtent(1, extent);
 
-  helper.GPUSetup();
-
   std::vector<TextureParams<float4>> textures = helper.getTextures();
   EXPECT_EQ(textures[0].array_d, nullptr);
   EXPECT_EQ(textures[0].tex_d, 0);
   EXPECT_TRUE(textures[0].update_mem);
   EXPECT_FALSE(textures[0].allocated);
 
-  helper.allocateCudaTexture(0);
-  textures = helper.getTextures();
-  EXPECT_NE(textures[0].array_d, nullptr);
-  EXPECT_EQ(textures[0].tex_d, 0);
-  EXPECT_TRUE(textures[0].update_mem);
-  EXPECT_FALSE(textures[0].allocated);
-}
-
-TEST_F(TwoDTextureHelperTest, TwoDAllocateAndCreateCudaTexture)
-{
-  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
-
-  cudaExtent extent = make_cudaExtent(10, 20, 0);
-  helper.setExtent(0, extent);
-
   helper.GPUSetup();
 
-  std::vector<TextureParams<float4>> textures = helper.getTextures();
-  EXPECT_EQ(textures[0].array_d, nullptr);
-  EXPECT_EQ(textures[0].tex_d, 0);
-  EXPECT_TRUE(textures[0].update_mem);
-  EXPECT_FALSE(textures[0].allocated);
-
-  helper.allocateCudaTexture(0);
-  helper.createCudaTexture(0);
   textures = helper.getTextures();
   EXPECT_NE(textures[0].array_d, nullptr);
   EXPECT_NE(textures[0].tex_d, 0);
@@ -133,6 +108,86 @@ TEST_F(TwoDTextureHelperTest, UpdateTextureColumnMajor)
 
   // returns a rowMajor vector
   auto cpu_values = helper.getCpuValues()[0];
+
+  for (int i = 0; i < 20; i++)
+  {
+    for (int j = 0; j < 10; j++)
+    {
+      int columnMajorIndex = i * 10 + j;
+      int rowVectorIndex = j * 20 + i;
+      EXPECT_FLOAT_EQ(cpu_values[rowVectorIndex].x, columnMajorIndex) << " at index: " << i;
+      EXPECT_EQ(total_set.erase(rowVectorIndex), 1);
+    }
+  }
+  EXPECT_EQ(total_set.size(), 0);
+}
+
+TEST_F(TwoDTextureHelperTest, EigenUpdateTexture)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
+
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
+  helper.setExtent(0, extent);
+  extent = make_cudaExtent(30, 40, 0);
+  helper.setExtent(1, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(30 * 40);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  int outer_stride = 0;
+  int inner_stride = 0;
+  Eigen::Map<const Eigen::Matrix<float4, Eigen::Dynamic, Eigen::Dynamic>, 0,
+             Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+      eigen_mat(data_vec.data(), 40, 30, Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>(outer_stride, inner_stride));
+  helper.updateTexture(1, eigen_mat);
+
+  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  EXPECT_TRUE(textures[1].update_data);
+
+  auto cpu_values = helper.getCpuValues()[1];
+  EXPECT_EQ(cpu_values.size(), 30 * 40);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    EXPECT_FLOAT_EQ(cpu_values[i].x, data_vec[i].x);
+    EXPECT_FLOAT_EQ(cpu_values[i].y, data_vec[i].y);
+    EXPECT_FLOAT_EQ(cpu_values[i].z, data_vec[i].z);
+    EXPECT_FLOAT_EQ(cpu_values[i].w, data_vec[i].w);
+  }
+}
+
+TEST_F(TwoDTextureHelperTest, EigenUpdateTextureColumnMajor)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(2);
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
+  helper.setExtent(0, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(10 * 20);
+  // just in case I am stupid
+  std::set<float> total_set;
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+    total_set.insert(i);
+  }
+  EXPECT_EQ(total_set.size(), 200);
+
+  int outer_stride = 0;
+  int inner_stride = 0;
+  Eigen::Map<const Eigen::Matrix<float4, Eigen::Dynamic, Eigen::Dynamic>, 0,
+             Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+      eigen_mat(data_vec.data(), 40, 30, Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>(outer_stride, inner_stride));
+
+  helper.setColumnMajor(0, true);
+  helper.updateTexture(0, eigen_mat);
+
+  // returns a rowMajor vector
+  auto cpu_values = helper.getCpuValues()[0];
+  EXPECT_EQ(cpu_values.size(), 200);
 
   for (int i = 0; i < 20; i++)
   {

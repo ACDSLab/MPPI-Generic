@@ -14,6 +14,9 @@ public:
 
   void allocateCudaTexture(int index) override;
 
+  void updateTexture(int index, Eigen::Map<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0, Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>,
+                     cudaExtent& extent);
+  void updateTexture(const int index, Eigen::Map<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0, Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>);
   void updateTexture(const int index, std::vector<DATA_T>& data);
   void updateTexture(const int index, std::vector<DATA_T>& data, cudaExtent& extent);
   bool setExtent(int index, cudaExtent& extent) override;

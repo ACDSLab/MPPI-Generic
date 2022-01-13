@@ -142,6 +142,7 @@ TEST_F(TextureHelperTest, Constructor)
   EXPECT_EQ(textures.size(), number);
   EXPECT_NE(helper.getTextureD(), nullptr);
   EXPECT_NE(helper.getTextureDataPtr(), nullptr);
+  EXPECT_EQ(helper.ptr_d_, nullptr);
   EXPECT_EQ(helper.getTextureD(), helper.getTextureDataPtr());
 
   for (const TextureParams<float4> texture : textures)
@@ -153,6 +154,20 @@ TEST_F(TextureHelperTest, Constructor)
 
     EXPECT_EQ(texture.array_d, nullptr);
     EXPECT_EQ(texture.tex_d, 0);
+
+    EXPECT_FLOAT_EQ(texture.origin.x, 0);
+    EXPECT_FLOAT_EQ(texture.origin.y, 0);
+    EXPECT_FLOAT_EQ(texture.origin.z, 0);
+
+    EXPECT_FLOAT_EQ(texture.rotations[0].x, 1);
+    EXPECT_FLOAT_EQ(texture.rotations[0].y, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[0].z, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[1].x, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[1].y, 1);
+    EXPECT_FLOAT_EQ(texture.rotations[1].z, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[2].x, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[2].y, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[2].z, 1);
 
     EXPECT_EQ(texture.resDesc.resType, cudaResourceTypeArray);
     EXPECT_EQ(texture.channelDesc.x, 32);
