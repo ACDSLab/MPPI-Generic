@@ -185,7 +185,6 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void VanillaMPPI::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories = this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
-  std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
 
   // TODO cudaMalloc and free
   // get the current controls at sampled locations
@@ -210,7 +209,7 @@ void VanillaMPPI::calculateSampledStateTrajectories()
                                  this->num_timesteps_ * sizeof(float), cudaMemcpyDeviceToHost, this->vis_stream_));
     HANDLE_ERROR(cudaMemcpyAsync(this->sampled_crash_status_[i].data(),
                                  this->sampled_crash_status_d_ + (i * this->num_timesteps_),
-                                 this->num_timesteps_ * sizeof(float), cudaMemcpyDeviceToHost, this->vis_stream_));
+                                 this->num_timesteps_ * sizeof(int), cudaMemcpyDeviceToHost, this->vis_stream_));
   }
   HANDLE_ERROR(cudaStreamSynchronize(this->vis_stream_));
 }

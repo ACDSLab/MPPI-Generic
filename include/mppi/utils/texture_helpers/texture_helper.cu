@@ -53,7 +53,6 @@ void TextureHelper<TEX_T, DATA_T>::freeCudaMem(TextureParams<DATA_T>& texture)
     HANDLE_ERROR(cudaFreeArray(texture.array_d));
     HANDLE_ERROR(cudaDestroyTextureObject(texture.tex_d));
     texture.allocated = false;
-    texture.use = false;
   }
 }
 

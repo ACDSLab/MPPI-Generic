@@ -273,13 +273,11 @@ public:
 
   virtual DYN_PARAMS_T getNewDynamicsParams()
   {
-    std::lock_guard<std::mutex> guard(dynamics_params_guard_);
     has_new_dynamics_params_ = false;
     return dynamics_params_;
   }
   virtual COST_PARAMS_T getNewCostParams()
   {
-    std::lock_guard<std::mutex> guard(cost_params_guard_);
     has_new_cost_params_ = false;
     return cost_params_;
   }
@@ -309,6 +307,7 @@ public:
     // Update the cost parameters
     if (hasNewCostParams())
     {
+      std::lock_guard<std::mutex> guard(cost_params_guard_);
       changed = true;
       COST_PARAMS_T cost_params = getNewCostParams();
       controller_->cost_->setParams(cost_params);
@@ -316,6 +315,7 @@ public:
     // update dynamics params
     if (hasNewDynamicsParams())
     {
+      std::lock_guard<std::mutex> guard(dynamics_params_guard_);
       changed = true;
       DYN_PARAMS_T dyn_params = getNewDynamicsParams();
       controller_->model_->setParams(dyn_params);

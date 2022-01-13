@@ -574,7 +574,7 @@ public:
     HANDLE_ERROR(
         cudaMalloc((void**)&sampled_costs_d_, sizeof(float) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
     HANDLE_ERROR(
-            cudaMalloc((void**)&sampled_crash_status_d_, sizeof(float) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
+            cudaMalloc((void**)&sampled_crash_status_d_, sizeof(int) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
     sampled_states_CUDA_mem_init_ = true;
   }
 
