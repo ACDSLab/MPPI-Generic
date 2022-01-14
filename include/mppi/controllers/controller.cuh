@@ -525,7 +525,8 @@ public:
     copyControlStdDevToDevice();
   }
 
-  void disableFeedbackController() {
+  void disableFeedbackController()
+  {
     enable_feedback_ = false;
   }
 
@@ -539,7 +540,8 @@ public:
     return enable_feedback_;
   }
 
-  float getPercentageSampledControlTrajectories() {
+  float getPercentageSampledControlTrajectories()
+  {
     return perc_sampled_control_trajectories_;
   }
   /**
@@ -563,7 +565,8 @@ public:
     sampled_costs_.resize(num_sampled_trajectories * multiplier);
     sampled_crash_status_.resize(num_sampled_trajectories * multiplier);
     perc_sampled_control_trajectories_ = new_perc;
-    if(new_perc <= 0) {
+    if (new_perc <= 0)
+    {
       return;
     }
 
@@ -573,8 +576,8 @@ public:
                                                            num_sampled_trajectories * multiplier));
     HANDLE_ERROR(
         cudaMalloc((void**)&sampled_costs_d_, sizeof(float) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
-    HANDLE_ERROR(
-            cudaMalloc((void**)&sampled_crash_status_d_, sizeof(float) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
+    HANDLE_ERROR(cudaMalloc((void**)&sampled_crash_status_d_,
+                            sizeof(float) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
     sampled_states_CUDA_mem_init_ = true;
   }
 
@@ -620,17 +623,21 @@ public:
     fb_controller_->setDt(dt);
   }
 
-  float getLambda() {
+  float getLambda()
+  {
     return lambda_;
   }
-  void setLambda(float lambda) {
+  void setLambda(float lambda)
+  {
     lambda_ = lambda;
   }
 
-  int getNumIters() {
+  int getNumIters()
+  {
     return num_iters_;
   }
-  void setNumIters(int num_iter) {
+  void setNumIters(int num_iter)
+  {
     num_iters_ = num_iter;
   }
 
@@ -659,8 +666,8 @@ protected:
   float lambda_;  // Value of the temperature in the softmax.
   float alpha_;   //
 
-  float normalizer_;                            // Variable for the normalizing term from sampling.
-  float baseline_ = 0;                          // Baseline cost of the system.
+  float normalizer_;                             // Variable for the normalizing term from sampling.
+  float baseline_ = 0;                           // Baseline cost of the system.
   float perc_sampled_control_trajectories_ = 0;  // Percentage of sampled trajectories to return
 
   curandGenerator_t gen_;

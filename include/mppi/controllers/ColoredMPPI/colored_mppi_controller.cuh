@@ -5,15 +5,15 @@
  * as return timing info
  **/
 
-#ifndef MPPIGENERIC_MPPI_CONTROLLER_CUH
-#define MPPIGENERIC_MPPI_CONTROLLER_CUH
+#ifndef MPPIGENERIC_COLORED_MPPI_CONTROLLER_CUH
+#define MPPIGENERIC_COLORED_MPPI_CONTROLLER_CUH
 
 #include <mppi/controllers/controller.cuh>
 
 #include <vector>
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-class VanillaMPPIController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+class ColoredMPPIController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -42,18 +42,18 @@ public:
    * Public member functions
    */
   // Constructor
-  VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda,
+  ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda,
                         float alpha, const Eigen::Ref<const control_array>& control_std_dev,
                         int num_timesteps = MAX_TIMESTEPS,
                         const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                         cudaStream_t stream = nullptr);
 
   // Destructor
-  ~VanillaMPPIController();
+  ~ColoredMPPIController();
 
   std::string getControllerName()
   {
-    return "Vanilla MPPI";
+    return "Colored MPPI";
   };
 
   /**
@@ -72,6 +72,11 @@ public:
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 1);
   }
 
+  void setColoredNoiseExponents(std::vector<float>& new_exponents)
+  {
+    colored_noise_exponents_ = new_exponents;
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
@@ -87,7 +92,7 @@ private:
 };
 
 #if __CUDACC__
-#include "mppi_controller.cu"
+#include "colored_mppi_controller.cu"
 #endif
 
-#endif  // MPPIGENERIC_MPPI_CONTROLLER_CUH
+#endif  // MPPIGENERIC_COLORED_MPPI_CONTROLLER_CUH

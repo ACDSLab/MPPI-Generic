@@ -362,7 +362,6 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
         this->initial_state_d_, this->control_d_, this->control_noise_d_, this->control_std_dev_d_,
         this->trajectory_costs_d_, this->stream_);
 
-
     // Return the costs ->  nominal,  real costs
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));

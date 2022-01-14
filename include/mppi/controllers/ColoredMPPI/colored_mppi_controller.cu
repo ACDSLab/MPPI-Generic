@@ -1,12 +1,13 @@
-#include <mppi/controllers/MPPI/mppi_controller.cuh>
+#include <mppi/controllers/ColoredMPPI/colored_mppi_controller.cuh>
 #include <mppi/core/mppi_common.cuh>
 #include <algorithm>
 #include <iostream>
+#include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
 
-#define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+#define ColoredMPPI ColoredMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
+ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                                    float lambda, float alpha, const Eigen::Ref<const control_array>& control_std_dev,
                                    int num_timesteps, const Eigen::Ref<const control_trajectory>& init_control_traj,
                                    cudaStream_t stream)
@@ -24,13 +25,13 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-VanillaMPPI::~VanillaMPPIController()
+ColoredMPPI::~ColoredMPPIController()
 {
   // all implemented in standard controller
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
+void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
 {
   this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
 
@@ -46,8 +47,11 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     this->copyNominalControlToDevice();
 
     // Generate noise data
-    curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-                         0.0, 1.0);
+    powerlaw_psd_gaussian(colored_noise_exponents_, this->num_timesteps_, NUM_ROLLOUTS, this->control_noise_d_,
+                          this->gen_, this->stream_);
+    // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->num_timesteps_ *
+    // DYN_T::CONTROL_DIM,
+    //                      0.0, 1.0);
     /*
     std::vector<float> noise = this->getSampledNoise();
     float mean = 0;
@@ -159,19 +163,19 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void VanillaMPPI::allocateCUDAMemory()
+void ColoredMPPI::allocateCUDAMemory()
 {
   Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::allocateCUDAMemoryHelper();
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void VanillaMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0)
+void ColoredMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0)
 {
   this->computeStateTrajectoryHelper(this->state_, x0, this->control_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void VanillaMPPI::slideControlSequence(int steps)
+void ColoredMPPI::slideControlSequence(int steps)
 {
   // TODO does the logic of handling control history reasonable?
 
@@ -182,13 +186,13 @@ void VanillaMPPI::slideControlSequence(int steps)
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void VanillaMPPI::smoothControlTrajectory()
+void ColoredMPPI::smoothControlTrajectory()
 {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void VanillaMPPI::calculateSampledStateTrajectories()
+void ColoredMPPI::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories = this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
@@ -221,4 +225,4 @@ void VanillaMPPI::calculateSampledStateTrajectories()
   HANDLE_ERROR(cudaStreamSynchronize(this->vis_stream_));
 }
 
-#undef VanillaMPPI
+#undef ColoredMPPI
