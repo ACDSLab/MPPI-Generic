@@ -28,7 +28,7 @@ void TextureHelper<TEX_T, DATA_T>::GPUSetup()
   }
   else
   {
-    std::cout << "GPU Memory already set" << std::endl;  // TODO should this be an exception?
+    std::cout << "GPU Memory already set" << std::endl;
   }
 }
 
@@ -59,7 +59,7 @@ void TextureHelper<TEX_T, DATA_T>::freeCudaMem(TextureParams<DATA_T>& texture)
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::allocateCudaTexture(int index)
 {
-  // if already allocated deallocate
+  // if already allocated, deallocate
   if (this->GPUMemStatus_ && textures_[index].allocated)
   {
     freeCudaMem(textures_[index]);
@@ -82,7 +82,6 @@ template <class TEX_T, class DATA_T>
 __host__ __device__ void TextureHelper<TEX_T, DATA_T>::mapPoseToTexCoord(const int index, const float3& input,
                                                                          float3& output)
 {
-  // TODO why 0.5??
   // from map frame to pixels [m] -> [px]
   output.x = input.x / textures_d_[index].resolution.x;
   output.y = input.y / textures_d_[index].resolution.y;

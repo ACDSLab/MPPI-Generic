@@ -22,8 +22,8 @@ struct TextureParams {
   float3 resolution;
 
   bool column_major = false;
-  bool use = false;
-  bool allocated = false;
+  bool use = false; // indicates that the texture is to be used or not, separate from allocation
+  bool allocated = false; // indicates that the texture has been allocated on the GPU
   bool update_data = false;
   bool update_mem = false; // indicates the GPU structure should be updated at the next convenient time
   bool update_params = false;
@@ -45,6 +45,7 @@ struct TextureParams {
     rotations[0] = make_float3(1,0,0);
     rotations[1] = make_float3(0,1,0);
     rotations[2] = make_float3(0,0,1);
+    resolution = make_float3(1, 1, 1);
   }
 };
 
@@ -119,7 +120,7 @@ public:
 protected:
   std::vector<TextureParams<DATA_T>> textures_;
 
-  // helper, on CPU points to vector, on GPU points to device copy
+  // helper, on CPU points to vector data (textures_.data()), on GPU points to device copy (params_d_ variable)
   TextureParams<DATA_T>* textures_d_ = nullptr;
 
   // device pointer to the parameters malloced memory

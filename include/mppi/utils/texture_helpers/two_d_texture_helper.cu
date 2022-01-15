@@ -55,7 +55,8 @@ void TwoDTextureHelper<DATA_T>::updateTexture(const int index, std::vector<DATA_
   }
   else
   {
-    std::copy(values.begin(), values.end(), cpu_values_[index].begin());
+    // std::copy(values.begin(), values.end(), cpu_values_[index].begin());
+    cpu_values_[index] = std::move(values);
   }
   // tells the object to copy it over next time that happens
   param->update_data = true;
@@ -102,10 +103,10 @@ void TwoDTextureHelper<DATA_T>::copyDataToGPU(int index, bool sync)
 }
 
 template <class DATA_T>
-void TwoDTextureHelper<DATA_T>::updateTexture(const int index,
-                                              Eigen::Map<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
-                                                         Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
-                                                  values)
+void TwoDTextureHelper<DATA_T>::updateTexture(
+    const int index, const Eigen::Ref<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
+                                      Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+                         values)
 {
   TextureParams<DATA_T>* param = &this->textures_[index];
   int w = param->extent.width;
@@ -132,11 +133,12 @@ void TwoDTextureHelper<DATA_T>::updateTexture(const int index,
 }
 
 template <class DATA_T>
-void TwoDTextureHelper<DATA_T>::updateTexture(int index,
-                                              Eigen::Map<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
-                                                         Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
-                                                  values,
-                                              cudaExtent& extent)
+void TwoDTextureHelper<DATA_T>::updateTexture(
+    int index,
+    const Eigen::Ref<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
+                     Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+        values,
+    cudaExtent& extent)
 {
   setExtent(index, extent);
   updateTexture(index, values);

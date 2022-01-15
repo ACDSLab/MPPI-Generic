@@ -229,14 +229,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void TubeMPPI::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories = this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
-  std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
-
-  // TODO cudaMalloc and free
-  // get the current controls at sampled locations
-
-  // control already copied in compute control
-
-  // run kernel
+  // control already copied in compute control, so run kernel
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y, 2>(
       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,
       this->initial_state_d_, this->sampled_states_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
