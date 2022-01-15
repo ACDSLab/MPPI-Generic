@@ -94,10 +94,12 @@ public:
    */
   void GPUSetup();
 
-  void setZeroControl(control_array& zero_control) {
+  void setZeroControl(control_array& zero_control)
+  {
     zero_control_ = zero_control;
   }
-  control_array getZeroControl() {
+  control_array getZeroControl()
+  {
     return zero_control_;
   }
 

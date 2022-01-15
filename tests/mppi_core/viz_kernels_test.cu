@@ -59,7 +59,6 @@ protected:
                             sizeof(float) * num_rollouts * MAX_TIMESTEPS * CartpoleDynamics::STATE_DIM * 2));
     // Create result state cuda array
     HANDLE_ERROR(cudaMalloc((void**)&crash_status_d, sizeof(float) * num_rollouts * MAX_TIMESTEPS * 2));
-
   }
 
   void TearDown() override

@@ -173,7 +173,8 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
 }
 
-TEST(RacerDubins, TestUpdateStateGPU) {
+TEST(RacerDubins, TestUpdateStateGPU)
+{
   RacerDubins dynamics = RacerDubins();
   dynamics.GPUSetup();
 
