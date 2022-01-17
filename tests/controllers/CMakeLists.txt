@@ -6,7 +6,7 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
     add_executable(${T_NAME} ../test_main.cpp ${T_FILE})
     target_link_libraries(${T_NAME}
             ${GTEST_LIBRARIES}
-            curand
+            ${MPPI_GENERIC_CUDA_EXTRA_LIBS}
             ${OpenCV_LIBRARIES}
             ${CUDA_LIBRARIES}
             cnpy)

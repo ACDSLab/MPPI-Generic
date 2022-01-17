@@ -75,6 +75,9 @@ endif()
 
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 
+set(MPPI_GENERIC_CUDA_EXTRA_LIBS "")
+list(APPEND MPPI_GENERIC_CUDA_EXTRA_LIBS ${CUDA_curand_LIBRARY} ${CUDA_CUFFT_LIBRARIES})
+
 # Autodetect Cuda Architecture on system and add to executables
 # More info for autodetection:
 # https://stackoverflow.com/questions/35485087/determining-which-gencode-compute-arch-values-i-need-for-nvcc-within-cmak

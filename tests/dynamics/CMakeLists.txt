@@ -21,7 +21,7 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
   target_link_libraries(${T_NAME}
                         ${GTEST_LIBRARIES}
                         cnpy
-                        ${CUDA_curand_LIBRARY})
+                        ${MPPI_GENERIC_CUDA_EXTRA_LIBS})
   gtest_discover_tests(${T_NAME})
   set_target_properties(${T_NAME} PROPERTIES FOLDER test)
 endforeach()
