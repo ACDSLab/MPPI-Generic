@@ -48,14 +48,12 @@ protected:
   bool increment_state_ = false;
 
   DYN_PARAMS_T dynamics_params_;
+  std::mutex dynamics_params_guard_;
   COST_PARAMS_T cost_params_;
+  std::mutex cost_params_guard_;
 
-  bool has_new_dynamics_params_ = false;
-  bool has_new_cost_params_ = false;
-  bool recieved_debug_img_ = false;
-
-  std::string debug_window_name_ = "NO NAME SET";
-  cv::Mat debug_img_;
+  std::atomic<bool> has_new_dynamics_params_{ false };
+  std::atomic<bool> has_new_cost_params_{ false };
 
   // Values needed
   s_array init_state_ = s_array::Zero();
@@ -104,15 +102,6 @@ protected:
    * 1: not activated or no state information
    */
   int status_ = 1;
-
-  // Obstacle and map parameters
-  // TODO fix naming
-  std::vector<int> obstacleDescription_;
-  std::vector<float> obstacleData_;
-  std::vector<int> costmapDescription_;
-  std::vector<float> costmapData_;
-  std::vector<int> modelDescription_;
-  std::vector<float> modelData_;
 
 public:
   std::shared_ptr<CONTROLLER_T> controller_;
@@ -227,38 +216,9 @@ public:
     optimization_stride_ = new_val;
   }
 
-  virtual void getNewObstacles(std::vector<int>& obs_description, std::vector<float>& obs_data){};
-
-  virtual void getNewCostmap(std::vector<int>& costmap_description, std::vector<float>& costmap_data){};
-
-  // TODO should I keep this or not?
-  virtual void getNewModel(std::vector<int>& model_description, std::vector<float>& model_data){};
-
   int getHz()
   {
     return hz_;
-  }
-
-  // TODO should publish to a topic not a static window
-  /**
-   * sets a debug image to be published at hz rate
-   * @param debug_img
-   */
-  virtual void setDebugImage(cv::Mat debug_img, std::string name)
-  {
-    recieved_debug_img_ = true;
-    std::lock_guard<std::mutex> guard(access_guard_);
-    debug_window_name_ = name;
-    debug_img_ = debug_img;
-  }
-
-  virtual bool hasNewDebugImage()
-  {
-    return recieved_debug_img_;
-  }
-  virtual cv::Mat getDebugImage()
-  {
-    return debug_img_;
   }
 
   virtual void setSolution(const s_traj& state_seq, const c_traj& control_seq, const FB_STATE_T& fb_state,
@@ -269,11 +229,6 @@ public:
     state_traj_ = state_seq;
     control_traj_ = control_seq;
     feedback_state_ = fb_state;
-    /*
-    for(int i = 0; i < 5; i++) {
-      printf("inside setSolution %d %f, %f\n", i, control_traj_(0, i), control_traj_(1, i));
-    }
-     */
   }
 
   /**
@@ -283,7 +238,6 @@ public:
    */
   virtual void updateState(s_array& state, double time)
   {
-    // printf("update state called with %f\n", time);
     // calculate and update all timing variables
     double temp_last_pose_update_time = last_used_pose_update_time_;
 
@@ -330,27 +284,16 @@ public:
 
   virtual void setDynamicsParams(DYN_PARAMS_T params)
   {
+    std::lock_guard<std::mutex> guard(dynamics_params_guard_);
     dynamics_params_ = params;
     has_new_dynamics_params_ = true;
   }
   virtual void setCostParams(COST_PARAMS_T params)
   {
+    std::lock_guard<std::mutex> guard(cost_params_guard_);
     cost_params_ = params;
     has_new_cost_params_ = true;
   }
-
-  virtual bool hasNewObstacles()
-  {
-    return false;
-  };
-  virtual bool hasNewCostmap()
-  {
-    return false;
-  };
-  virtual bool hasNewModel()
-  {
-    return false;
-  };
 
   /**
    *
@@ -361,15 +304,10 @@ public:
   bool updateParameters(s_array& state)
   {
     bool changed = false;
-    if (debug_mode_ && controller_->cost_->getDebugDisplayEnabled())
-    {  // Display the debug window.
-      changed = true;
-      cv::Mat debug_img = controller_->cost_->getDebugDisplay(state.data());
-      setDebugImage(debug_img, debug_window_name_);
-    }
     // Update the cost parameters
     if (hasNewCostParams())
     {
+      std::lock_guard<std::mutex> guard(cost_params_guard_);
       changed = true;
       COST_PARAMS_T cost_params = getNewCostParams();
       controller_->cost_->setParams(cost_params);
@@ -377,25 +315,10 @@ public:
     // update dynamics params
     if (hasNewDynamicsParams())
     {
+      std::lock_guard<std::mutex> guard(dynamics_params_guard_);
       changed = true;
       DYN_PARAMS_T dyn_params = getNewDynamicsParams();
       controller_->model_->setParams(dyn_params);
-    }
-    // Update any obstacles
-    /*
-    TODO should this exist at all?
-    if (hasNewObstacles()){
-      getNewObstacles(obstacleDescription, obstacleData);
-      controller->cost_->updateObstacles(obstacleDescription, obstacleData);
-    }
-     */
-    // Update the costmap
-    if (hasNewCostmap())
-    {
-      changed = true;
-      // TODO define generic
-      getNewCostmap(costmapDescription_, costmapData_);
-      controller_->cost_->updateCostmap(costmapDescription_, costmapData_);
     }
     return changed;
   }
@@ -497,21 +420,6 @@ public:
 
     // calculate the propogated feedback trajectory
     controller_->computeFeedbackPropagatedStateSeq();
-    // if (this->visualization_hz_ > 0 && num_iter_ % (int) (hz_ / visualization_hz_) == 0){
-    //   controller_->calculateSampledStateTrajectories();
-    // }
-
-    // TODO
-    // Increment the state if debug mode is set to true
-    // if (status != 0 && debug_mode_){
-    //   for (int t = 0; t < optimization_stride; t++){
-    //     int control_dim = CONTROLLER_T::TEMPLATED_DYNAMICS::CONTROL_DIM;
-    //     for (int i = 0; i < control_dim; i++) {
-    //       u[i] = control_traj[control_dim * t + i];
-    //     }
-    //     controller->model_->updateState(state, u);
-    //   }
-    // }
 
     // Update the average loop time data
     double prev_iter_percent = (num_iter_ - 1.0) / num_iter_;
