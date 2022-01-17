@@ -16,8 +16,6 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
 {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
-  std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  colored_noise_exponents_ = std::move(tmp_vec);
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
@@ -149,10 +147,6 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
       this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
   smoothControlTrajectory();
   computeStateTrajectory(state);
-  state_array zero_state = state_array::Zero();
-  // for (int i = 0; i < this->num_timesteps_; i++) {
-  //   this->model_->enforceConstraints(zero_state, this->control_.col(i));
-  // }
 
   // Copy back sampled trajectories
   this->copySampledControlFromDevice();
