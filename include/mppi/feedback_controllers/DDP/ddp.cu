@@ -52,12 +52,6 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController()
     result_.feedback_gain[i] = DYN_T::feedback_matrix::Zero();
   }
 
-  for (int i = 0; i < DYN_T::CONTROL_DIM; i++)
-  {
-    control_min_(i) = model_->control_rngs_[i].x;
-    control_max_(i) = model_->control_rngs_[i].y;
-  }
-
   run_cost_ =
       std::make_shared<TrackingCostDDP<ModelWrapperDDP<DYN_T>>>(this->params_.Q, this->params_.R, this->num_timesteps_);
   terminal_cost_ = std::make_shared<TrackingTerminalCost<ModelWrapperDDP<DYN_T>>>(this->params_.Q_f);
@@ -80,6 +74,14 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::computeFeedback(const Eigen::Ref<const s
   run_cost_->setTargets(goal_traj.data(), control_traj.data(), this->num_timesteps_);
 
   terminal_cost_->xf = run_cost_->traj_target_x_.col(this->num_timesteps_ - 1);
+
+  // update control ranges
+  for (int i = 0; i < DYN_T::CONTROL_DIM; i++)
+  {
+    control_min_(i) = model_->control_rngs_[i].x;
+    control_max_(i) = model_->control_rngs_[i].y;
+  }
+
   result_ =
       ddp_solver_->run(init_state, control_traj, *ddp_model_, *run_cost_, *terminal_cost_, control_min_, control_max_);
 
