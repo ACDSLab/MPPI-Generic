@@ -77,6 +77,10 @@ public:
     colored_noise_exponents_ = new_exponents;
   }
 
+  float getColoredNoiseExponent(int index) {
+    return colored_noise_exponents_[index];
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
