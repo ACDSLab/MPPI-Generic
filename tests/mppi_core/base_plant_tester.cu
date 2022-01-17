@@ -172,9 +172,6 @@ TEST_F(BasePlantTest, Constructor)
   EXPECT_EQ(mockController->getFeedbackEnabled(), false);
   EXPECT_EQ(plant->hasNewCostParams(), false);
   EXPECT_EQ(plant->hasNewDynamicsParams(), false);
-  EXPECT_EQ(plant->hasNewModel(), false);
-  EXPECT_EQ(plant->hasNewCostmap(), false);
-  EXPECT_EQ(plant->hasNewObstacles(), false);
 }
 
 TEST_F(BasePlantTest, getAndSetState)
@@ -244,11 +241,8 @@ TEST_F(BasePlantTest, getSetCostParams)
 
 TEST_F(BasePlantTest, updateParametersAllFalse)
 {
-  EXPECT_CALL(mockCost, getDebugDisplayEnabled()).Times(0);
-  EXPECT_CALL(mockCost, getDebugDisplay(testing::_)).Times(0);
   EXPECT_CALL(mockCost, setParams(testing::_)).Times(0);
   EXPECT_CALL(mockDynamics, setParams(testing::_)).Times(0);
-  EXPECT_CALL(mockCost, updateCostmap(testing::_, testing::_)).Times(0);
 
   MockDynamics::state_array state = MockDynamics::state_array::Zero();
   plant->updateParameters(state);
@@ -256,12 +250,8 @@ TEST_F(BasePlantTest, updateParametersAllFalse)
 
 TEST_F(BasePlantTest, updateParametersAllTrue)
 {
-  EXPECT_CALL(mockCost, getDebugDisplayEnabled()).Times(1).WillRepeatedly(testing::Return(true));
-  EXPECT_CALL(mockCost, getDebugDisplay(testing::_)).Times(1);
   EXPECT_CALL(mockCost, setParams(testing::_)).Times(1);
   EXPECT_CALL(mockDynamics, setParams(testing::_)).Times(1);
-  // TODO implement updating costmap
-  EXPECT_CALL(mockCost, updateCostmap(testing::_, testing::_)).Times(0);
 
   plant->setDebugMode(true);
   plant->setDynamicsParams(MockDynamics::DYN_PARAMS_T());
@@ -339,7 +329,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
     EXPECT_CALL(*mockController, computeFeedback(testing::_)).Times(0);
     EXPECT_CALL(*mockController, getFeedbackControl(testing::_, testing::_, testing::_)).Times(0);
     EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
-    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
+    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
 
     EXPECT_EQ(plant->getDebugMode(), false);
 
@@ -405,7 +395,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
     MockController::TEMPLATED_FEEDBACK_STATE feedback;
     EXPECT_CALL(*mockController, getFeedbackState()).Times(1).WillRepeatedly(testing::Return(feedback));
     EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
-    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
+    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
 
     EXPECT_EQ(plant->getDebugMode(), false);
 
@@ -466,7 +456,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
     MockController::TEMPLATED_FEEDBACK_STATE feedback;
     EXPECT_CALL(*mockController, getFeedbackState()).Times(1).WillRepeatedly(testing::Return(feedback));
     EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(1);
-    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(1);
+    EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
 
     EXPECT_EQ(plant->getDebugMode(), false);
 
@@ -510,7 +500,6 @@ TEST_F(BasePlantTest, runControlLoop)
   plant->setLastTime(init_time);
 
   // setup mock expected calls
-  EXPECT_CALL(mockCost, getDebugDisplayEnabled()).Times(0);
   EXPECT_CALL(mockCost, setParams(testing::_)).Times(0);
   EXPECT_CALL(mockDynamics, setParams(testing::_)).Times(0);
   EXPECT_CALL(*mockController, resetControls()).Times(1);
@@ -534,7 +523,7 @@ TEST_F(BasePlantTest, runControlLoop)
   MockController::TEMPLATED_FEEDBACK_STATE feedback;
   EXPECT_CALL(*mockController, getFeedbackState()).Times(iterations / 2).WillRepeatedly(testing::Return(feedback));
   EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(iterations / 2);
-  EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(iterations / 2);
+  EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
 
   std::atomic<bool> is_alive(true);
   std::thread optimizer(&MockTestPlant::runControlLoop, plant.get(), &is_alive);
