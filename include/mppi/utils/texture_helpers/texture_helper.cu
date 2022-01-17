@@ -103,6 +103,8 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::worldPoseToTexCoord(const
   float3 map;
   worldPoseToMapPose(index, input, map);
   mapPoseToTexCoord(index, map, output);
+  // printf("world to map (%f, %f, %f) -> (%f, %f, %f) -> (%f, %f, %f)\n", input.x, input.y, input.z, map.x, map.y,
+  // map.z, output.x, output.y, output.z);
 }
 
 template <class TEX_T, class DATA_T>
@@ -261,4 +263,20 @@ void TextureHelper<TEX_T, DATA_T>::copyParamsToGPU(int index, bool sync)
   {
     cudaStreamSynchronize(this->stream_);
   }
+}
+
+template <class TEX_T, class DATA_T>
+void TextureHelper<TEX_T, DATA_T>::updateAddressMode(int index, cudaTextureAddressMode mode)
+{
+  this->textures_[index].texDesc.addressMode[0] = mode;
+  this->textures_[index].texDesc.addressMode[1] = mode;
+  this->textures_[index].texDesc.addressMode[2] = mode;
+  this->textures_[index].update_mem = true;
+}
+
+template <class TEX_T, class DATA_T>
+void TextureHelper<TEX_T, DATA_T>::updateAddressMode(int index, int layer, cudaTextureAddressMode mode)
+{
+  this->textures_[index].texDesc.addressMode[layer] = mode;
+  // this->textures_[index].update_mem = true;
 }
