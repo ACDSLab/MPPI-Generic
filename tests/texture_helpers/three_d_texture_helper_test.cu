@@ -338,3 +338,45 @@ TEST_F(ThreeDTextureHelperTest, CopyDataToGPUSplitMiddle)
   EXPECT_FLOAT_EQ(results[4].x, 2000);
   EXPECT_FLOAT_EQ(results[5].x, 1600);
 }
+
+TEST_F(ThreeDTextureHelperTest, CheckWrapping)
+{
+  ThreeDTextureHelper<float4> helper = ThreeDTextureHelper<float4>(1);
+
+  cudaExtent extent = make_cudaExtent(10, 20, 2);
+  helper.setExtent(0, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(10 * 20);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  helper.updateTexture(0, 0, data_vec);
+
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i + 200, i + 200 + 1, i + 200 + 2, i + 200 + 3);
+  }
+  helper.updateTexture(0, 1, data_vec);
+  helper.updateAddressMode(0, 2, cudaAddressModeWrap);
+  helper.GPUSetup();
+  helper.copyToDevice(true);
+
+  std::vector<float4> query_points;
+  query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.25, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.5, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.75, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 1.0, 0.0));
+
+  auto results = getTextureAtPointsKernel<ThreeDTextureHelper<float4>, float4>(helper, query_points);
+
+  EXPECT_FLOAT_EQ(results.size(), query_points.size());
+  EXPECT_FLOAT_EQ(results[0].x, 100.0);
+  EXPECT_FLOAT_EQ(results[1].x, 0);
+  EXPECT_FLOAT_EQ(results[2].x, 100);
+  EXPECT_FLOAT_EQ(results[3].x, 200);
+  EXPECT_FLOAT_EQ(results[4].x, 100);
+}

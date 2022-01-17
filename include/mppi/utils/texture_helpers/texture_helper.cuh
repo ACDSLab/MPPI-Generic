@@ -117,6 +117,9 @@ public:
     return this->textures_d_[index].use;
   }
 
+  void updateAddressMode(int index, cudaTextureAddressMode mode);
+  void updateAddressMode(int index, int layer, cudaTextureAddressMode mode);
+
   std::vector<TextureParams<float4>> getTextures()
   {
     return textures_;

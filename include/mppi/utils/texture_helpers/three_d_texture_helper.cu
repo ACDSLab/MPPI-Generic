@@ -20,6 +20,7 @@ void ThreeDTextureHelper<DATA_T>::allocateCudaTexture(int index)
 
   TextureParams<DATA_T>* param = &this->textures_[index];
 
+  // TODO check to make sure our alloc is correct, i.e. extent is valid
   HANDLE_ERROR(cudaMalloc3DArray(&(param->array_d), &(param->channelDesc), param->extent));
 }
 
@@ -63,11 +64,56 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(const int index, const int z_ind
   param->update_data = true;
 }
 
+template <class DATA_T>
+void ThreeDTextureHelper<DATA_T>::updateTexture(
+    const int index, const int z_index,
+    const Eigen::Ref<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
+                     Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+        values)
+{
+  TextureParams<DATA_T>* param = &this->textures_[index];
+  int w = param->extent.width;
+  int h = param->extent.height;
+
+  // check that the sizes are correct
+  if (values.size() != w * h)
+  {
+    throw std::runtime_error(std::string("Error: invalid size to updateTexture ") + std::to_string(values.size()) +
+                             " != " + std::to_string(w * h));
+  }
+
+  // TODO needs to be in the data format used for textures
+
+  // copy over values to cpu side holder
+  if (param->column_major)
+  {
+    for (int i = 0; i < h; i++)
+    {
+      for (int j = 0; j < w; j++)
+      {
+        int columnMajorIndex = i * w + j;
+        int rowMajorIndex = (w * h * z_index) + j * h + i;
+        cpu_values_[index][rowMajorIndex] = values.data()[columnMajorIndex];
+      }
+    }
+  }
+  else
+  {
+    auto start = cpu_values_[index].data() + (w * h * z_index);
+    memcpy(start, values.data(), values.size() * sizeof(DATA_T));
+  }
+  // tells the object to copy it over next time that happens
+  layer_copy_[index][z_index] = true;
+  param->update_data = true;
+}
+
 // TODO update texture where everything is copied over in one go
 
 template <class DATA_T>
 __device__ DATA_T ThreeDTextureHelper<DATA_T>::queryTexture(const int index, const float3& point)
 {
+  // printf("query texture at (%f, %f, %f) = %f\n", point.x, point.y, point.z,
+  //       tex3D<DATA_T>(this->textures_d_[index].tex_d, point.x, point.y, point.z));
   return tex3D<DATA_T>(this->textures_d_[index].tex_d, point.x, point.y, point.z);
 }
 
