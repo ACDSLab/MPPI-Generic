@@ -154,9 +154,18 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
   smoothControlTrajectory();
   computeStateTrajectory(state);
   state_array zero_state = state_array::Zero();
-  // for (int i = 0; i < this->num_timesteps_; i++) {
-  //   this->model_->enforceConstraints(zero_state, this->control_.col(i));
-  // }
+  for (int i = 0; i < this->num_timesteps_; i++)
+  {
+    if (this->control_(2, i) < -1)
+    {
+      this->control_(2, i) = -1;
+    }
+    else if (this->control_(2, i) > 1)
+    {
+      this->control_(2, i) = 1;
+    }
+  }
+  // this->model_->enforceConstraints(zero_state, this->control_.col(i));
 
   // Copy back sampled trajectories
   this->copySampledControlFromDevice();
