@@ -113,8 +113,8 @@ TEST_F(TwoDTextureHelperTest, UpdateTextureColumnMajor)
   {
     for (int j = 0; j < 10; j++)
     {
-      int columnMajorIndex = i * 10 + j;
-      int rowVectorIndex = j * 20 + i;
+      int rowVectorIndex = i * 10 + j;
+      int columnMajorIndex = j * 20 + i;
       EXPECT_FLOAT_EQ(cpu_values[rowVectorIndex].x, columnMajorIndex) << " at index: " << i;
       EXPECT_EQ(total_set.erase(rowVectorIndex), 1);
     }
@@ -193,8 +193,8 @@ TEST_F(TwoDTextureHelperTest, EigenUpdateTextureColumnMajor)
   {
     for (int j = 0; j < 10; j++)
     {
-      int columnMajorIndex = i * 10 + j;
-      int rowVectorIndex = j * 20 + i;
+      int columnMajorIndex = j * 20 + i;
+      int rowVectorIndex = i * 10 + j;
       EXPECT_FLOAT_EQ(cpu_values[rowVectorIndex].x, columnMajorIndex) << " at index: " << i;
       EXPECT_EQ(total_set.erase(rowVectorIndex), 1);
     }
