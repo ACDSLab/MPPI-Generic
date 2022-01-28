@@ -38,6 +38,12 @@ void CONTROLLER::copyNominalControlToDevice()
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void CONTROLLER::copySampledControlFromDevice()
 {
+  // if mem is not inited don't use it
+  if (!sampled_states_CUDA_mem_init_)
+  {
+    return;
+  }
+
   int num_sampled_trajectories = perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   std::vector<int> samples(num_sampled_trajectories);
   if (this->perc_sampled_control_trajectories_ > 0.98)
