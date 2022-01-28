@@ -43,12 +43,12 @@ void TwoDTextureHelper<DATA_T>::updateTexture(const int index, std::vector<DATA_
   cpu_values_[index].resize(w * h);
   if (param->column_major)
   {
-    for (int i = 0; i < h; i++)
+    for (int j = 0; j < w; j++)
     {
-      for (int j = 0; j < w; j++)
+      for (int i = 0; i < h; i++)
       {
-        int columnMajorIndex = i * w + j;
-        int rowMajorIndex = j * h + i;
+        int columnMajorIndex = j * h + i;
+        int rowMajorIndex = i * w + j;
         cpu_values_[index][rowMajorIndex] = values[columnMajorIndex];
       }
     }

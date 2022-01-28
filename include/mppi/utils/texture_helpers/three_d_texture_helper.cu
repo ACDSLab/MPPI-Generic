@@ -44,12 +44,12 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(const int index, const int z_ind
   // copy over values to cpu side holder
   if (param->column_major)
   {
-    for (int i = 0; i < h; i++)
+    for (int j = 0; j < w; j++)
     {
-      for (int j = 0; j < w; j++)
+      for (int i = 0; i < h; i++)
       {
-        int columnMajorIndex = i * w + j;
-        int rowMajorIndex = (w * h * z_index) + j * h + i;
+        int columnMajorIndex = j * h + i;
+        int rowMajorIndex = (w * h * z_index) + i * w + j;
         cpu_values_[index][rowMajorIndex] = values[columnMajorIndex];
       }
     }

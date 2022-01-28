@@ -123,8 +123,8 @@ TEST_F(ThreeDTextureHelperTest, UpdateTextureColumnMajor)
     {
       for (int j = 0; j < 10; j++)
       {
-        int columnMajorIndex = (k * 10 * 20) + i * 10 + j;
-        int rowVectorIndex = (k * 10 * 20) + j * 20 + i;
+        int columnMajorIndex = (k * 10 * 20) + j * 20 + i;
+        int rowVectorIndex = (k * 10 * 20) + i * 10 + j;
         EXPECT_FLOAT_EQ(cpu_values[rowVectorIndex].x, columnMajorIndex) << " at index: " << i;
         EXPECT_EQ(total_set.erase(rowVectorIndex), 1);
       }
