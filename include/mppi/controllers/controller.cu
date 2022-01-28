@@ -39,11 +39,25 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void CONTROLLER::copySampledControlFromDevice()
 {
   int num_sampled_trajectories = perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
-  // Create sample list without replacement
-  std::vector<int> samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS);
-  // Ensure that sampled_controls_ has enough space for the trajectories
+  std::vector<int> samples(num_sampled_trajectories);
+  if (this->perc_sampled_control_trajectories_ > 0.98)
+  {
+    // if above threshold just do everything
+    std::iota(samples.begin(), samples.end(), 0);
+  }
+  else
+  {
+    // Create sample list without replacement
+    // removes the top 2% since top 1% are complete noise
+    samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS * 0.98);
+  }
 
-  for (int i = 0; i < num_sampled_trajectories; i++)
+  // this explicitly adds the optimized control sequence
+  HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_, this->control_d_,
+                               sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
+                               this->vis_stream_));
+
+  for (int i = 1; i < num_sampled_trajectories; i++)
   {
     HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
                                  this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,

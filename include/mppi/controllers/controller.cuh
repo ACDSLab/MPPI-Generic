@@ -67,7 +67,7 @@ public:
   typedef Eigen::Matrix<float, DYN_T::STATE_DIM, MAX_TIMESTEPS> state_trajectory;  // A state trajectory
 
   // Cost typedefs
-  typedef Eigen::Matrix<float, MAX_TIMESTEPS, 1> cost_trajectory;
+  typedef Eigen::Matrix<float, MAX_TIMESTEPS+1, 1> cost_trajectory; // +1 for terminal cost
   typedef Eigen::Matrix<float, NUM_ROLLOUTS, 1> sampled_cost_traj;
   typedef Eigen::Matrix<int, MAX_TIMESTEPS, 1> crash_status_trajectory;
 
@@ -561,9 +561,9 @@ public:
       cudaFree(sampled_crash_status_d_);
       sampled_states_CUDA_mem_init_ = false;
     }
-    sampled_trajectories_.resize(num_sampled_trajectories * multiplier);
-    sampled_costs_.resize(num_sampled_trajectories * multiplier);
-    sampled_crash_status_.resize(num_sampled_trajectories * multiplier);
+    sampled_trajectories_.resize(num_sampled_trajectories * multiplier, state_trajectory::Zero());
+    sampled_costs_.resize(num_sampled_trajectories * multiplier, cost_trajectory::Zero());
+    sampled_crash_status_.resize(num_sampled_trajectories * multiplier, crash_status_trajectory::Zero());
     perc_sampled_control_trajectories_ = new_perc;
     if (new_perc <= 0)
     {
@@ -574,8 +574,9 @@ public:
                             sizeof(float) * DYN_T::STATE_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
     HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_, sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS *
                                                            num_sampled_trajectories * multiplier));
+    // +1 for terminal cost
     HANDLE_ERROR(
-        cudaMalloc((void**)&sampled_costs_d_, sizeof(float) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
+        cudaMalloc((void**)&sampled_costs_d_, sizeof(float) * (MAX_TIMESTEPS+1) * num_sampled_trajectories * multiplier));
     HANDLE_ERROR(cudaMalloc((void**)&sampled_crash_status_d_,
                             sizeof(int) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
     sampled_states_CUDA_mem_init_ = true;
