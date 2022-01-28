@@ -409,7 +409,6 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       dynamics->enforceConstraints(x, u);
       __syncthreads();
 
-
       if (thread_idy == 0)
       {
         curr_state_cost = costs->computeStateCost(x, t, crash_status);

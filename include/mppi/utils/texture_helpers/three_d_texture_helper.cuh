@@ -20,7 +20,8 @@ public:
   void updateTexture(const int index, const int z_index, std::vector<DATA_T>& data);
   void updateTexture(const int index, const int z_index,
                      const Eigen::Ref<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
-          Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>> values);
+                                      Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+                         values);
   bool setExtent(int index, cudaExtent& extent) override;
   void copyDataToGPU(int index, bool sync = false) override;
 
