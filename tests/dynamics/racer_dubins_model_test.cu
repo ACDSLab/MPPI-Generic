@@ -9,7 +9,7 @@ TEST(RacerDubins, Template)
 {
   auto dynamics = RacerDubins();
   EXPECT_EQ(5, RacerDubins::STATE_DIM);
-  EXPECT_EQ(3, RacerDubins::CONTROL_DIM);
+  EXPECT_EQ(2, RacerDubins::CONTROL_DIM);
 }
 
 TEST(RacerDubins, BindStream)
@@ -49,7 +49,7 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(4), 0);
 
   x << 1, M_PI_2, 0, 3, 0;
-  u << 1, 0, 0;
+  u << 1, 0;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 + 1.3 - 3.7);
   EXPECT_FLOAT_EQ(next_x(1), 0);
@@ -58,7 +58,7 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(4), 0);
 
   x << 1, 0, 0, 3, 0;
-  u << 0, 1, 0;
+  u << -1, 0;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 2.5 - 3.7);
   EXPECT_FLOAT_EQ(next_x(1), 0);
@@ -66,8 +66,26 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(3), 0);
   EXPECT_FLOAT_EQ(next_x(4), 0);
 
+  x << -1, 0, 0, 3, 0;
+  u << 1, 0;
+  dynamics.computeDynamics(x, u, next_x);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 3.7 - 1.3);
+  EXPECT_FLOAT_EQ(next_x(1), 0);
+  EXPECT_FLOAT_EQ(next_x(2), -1);
+  EXPECT_FLOAT_EQ(next_x(3), 0);
+  EXPECT_FLOAT_EQ(next_x(4), 0);
+
+  x << -1, 0, 0, 3, 0;
+  u << -1, 0;
+  dynamics.computeDynamics(x, u, next_x);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 2.5 + 3.7);
+  EXPECT_FLOAT_EQ(next_x(1), 0);
+  EXPECT_FLOAT_EQ(next_x(2), -1);
+  EXPECT_FLOAT_EQ(next_x(3), 0);
+  EXPECT_FLOAT_EQ(next_x(4), 0);
+
   x << 1, M_PI, 0, 3, 0;
-  u << 0, 0, 1;
+  u << 0, 1;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7);
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0));
@@ -76,7 +94,7 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(4), 1 * 0.4);
 
   x << 1, M_PI, 0, 0, 0.5;
-  u << 1, 0, -1;
+  u << 1, -1;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7 + 1.3);
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0.5));
@@ -186,7 +204,7 @@ TEST(RacerDubins, TestUpdateStateGPU)
   std::vector<std::array<float, 5>> s(100);
   std::vector<std::array<float, 5>> s_der(100);
   // steering, throttle
-  std::vector<std::array<float, 3>> u(100);
+  std::vector<std::array<float, 2>> u(100);
 
   RacerDubins::state_array state;
   RacerDubins::control_array control;

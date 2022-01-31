@@ -157,13 +157,13 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
   for (int i = 0; i < this->num_timesteps_; i++)
   {
     // this->model_->enforceConstraints(zero_state, this->control_.col(i));
-    if (this->control_(2, i) < -1)
+    if (this->control_(1, i) < -1)
     {
-      this->control_(2, i) = -1;
+      this->control_(1, i) = -1;
     }
-    else if (this->control_(2, i) > 1)
+    else if (this->control_(1, i) > 1)
     {
-      this->control_(2, i) = 1;
+      this->control_(1, i) = 1;
     }
   }
 
