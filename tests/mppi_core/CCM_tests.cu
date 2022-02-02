@@ -359,7 +359,7 @@ TEST(CCMTest, RMPPIRolloutKernel)
   CONTROLLER::control_array control_std_dev = CONTROLLER::control_array::Constant(1.0);
   CONTROLLER::control_trajectory u_traj_eigen = CONTROLLER::control_trajectory::Zero();
   // Set first control to 1 across entire time
-  u_traj_eigen.row(0) = CONTROLLER::cost_trajectory::Constant(1.0);
+  u_traj_eigen.row(0) = CONTROLLER::control_trajectory::Constant(1.0).row(0);
   ccm::LinearCCM<DYN, num_timesteps> fb_controller(&model);
   CONTROLLER rmppi_controller = CONTROLLER(&model, &cost, &fb_controller, dt, lambda, alpha, value_func_threshold,
                                            control_std_dev, num_timesteps, u_traj_eigen);

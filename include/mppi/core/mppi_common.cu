@@ -72,7 +72,6 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
       // usually just control clamping
       // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
       // dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]); //
-      // TODO verify that this is wrong in theory
       dynamics->enforceConstraints(x, u);
       __syncthreads();
 
@@ -358,6 +357,7 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
   int* crash_status;
   float fb_control[DYN_T::CONTROL_DIM];
   int t_index = 0;
+  int cost_index = 0;
 
   if (global_idx < num_rollouts)
   {
@@ -386,6 +386,7 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
     for (int t = 0; t < num_timesteps; t++)
     {
       t_index = threadIdx.z * num_rollouts * num_timesteps + global_idx * num_timesteps + t;
+      cost_index = threadIdx.z * num_rollouts * (num_timesteps + 1) + global_idx * (num_timesteps + 1) + t;
       // get next u
       for (int i = thread_idy; i < DYN_T::CONTROL_DIM; i += blockDim.y)
       {
@@ -412,20 +413,17 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       {
         curr_state_cost = costs->computeStateCost(x, t, crash_status);
         crash_status_d[t_index] = crash_status[0];
-        cost_traj_d[t_index] = curr_state_cost;
+        cost_traj_d[cost_index] = curr_state_cost;
       }
       __syncthreads();
-      if (thread_idy == 0)
+      // Nominal system is where thread_idz == 1
+      if (thread_idz == 1 && thread_idy == 0)
       {
-        // Nominal system is where thread_idz == 1
-        if (thread_idz == 1 && thread_idy == 0)
-        {
-          // compute the nominal system cost
-          cost_traj_d[t_index] =
-              0.5 * curr_state_cost +
-              // here we know threadIdx.z == 0 since we are only talking about the real system
-              fmaxf(fminf(cost_traj_d[global_idx * num_timesteps + t], value_func_threshold), curr_state_cost);
-        }
+        // compute the nominal system cost
+        cost_traj_d[cost_index] =
+            0.5 * curr_state_cost +
+            // here we know threadIdx.z == 0 since we are only talking about the real system
+            fmaxf(fminf(cost_traj_d[global_idx * (num_timesteps + 1) + t], value_func_threshold), curr_state_cost);
       }
       __syncthreads();
       // reset crash status in case initial location is actually a crash cost
@@ -448,6 +446,9 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
         state_traj_d[t_index * DYN_T::STATE_DIM + i] = x[i];
       }
     }
+    // get cost traj at +1
+    cost_index = threadIdx.z * num_rollouts * (num_timesteps + 1) + global_idx * (num_timesteps + 1) + num_timesteps;
+    cost_traj_d[cost_index] = costs->terminalCost(x);
   }
 }
 
