@@ -18,16 +18,16 @@ struct RacerDubinsParams
 using namespace MPPI_internal;
 /**
  * state: v, theta, p_x, p_y, true steering angle
- * control: throttle, brake, steering angle command
+ * control: throttle, steering angle command
  */
-class RacerDubins : public Dynamics<RacerDubins, RacerDubinsParams, 5, 3>
+class RacerDubins : public Dynamics<RacerDubins, RacerDubinsParams, 5, 2>
 {
 public:
-  RacerDubins(cudaStream_t stream = nullptr) : Dynamics<RacerDubins, RacerDubinsParams, 5, 3>(stream)
+  RacerDubins(cudaStream_t stream = nullptr) : Dynamics<RacerDubins, RacerDubinsParams, 5, 2>(stream)
   {
   }
   RacerDubins(RacerDubinsParams& params, cudaStream_t stream = nullptr)
-    : Dynamics<RacerDubins, RacerDubinsParams, 5, 3>(params, stream)
+    : Dynamics<RacerDubins, RacerDubinsParams, 5, 2>(params, stream)
   {
   }
 
