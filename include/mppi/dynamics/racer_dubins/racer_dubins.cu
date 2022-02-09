@@ -11,7 +11,7 @@ void RacerDubins::computeDynamics(const Eigen::Ref<const state_array>& state,
   state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4));
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
-  state_der(4) = control(1) * this->params_.max_steer_angle;
+  state_der(4) = control(1) / this->params_.steer_command_angle_scale;
 }
 
 bool RacerDubins::computeGrad(const Eigen::Ref<const state_array>& state,
@@ -70,5 +70,5 @@ __device__ void RacerDubins::computeDynamics(float* state, float* control, float
   state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4]);
   state_der[2] = state[0] * cosf(state[1]);
   state_der[3] = state[0] * sinf(state[1]);
-  state_der[4] = control[1] * this->params_.max_steer_angle;
+  state_der[4] = control[1] / this->params_.steer_command_angle_scale;
 }
