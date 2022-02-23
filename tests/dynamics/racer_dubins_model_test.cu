@@ -109,7 +109,7 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), 1 * 0.4);
+  EXPECT_FLOAT_EQ(next_x(4), -1 / 2.45);
 
   x << 1, M_PI, 0, 0, 0.5;
   u << 1, -1;
@@ -118,7 +118,7 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0.5));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), -1 * 0.4);
+  EXPECT_FLOAT_EQ(next_x(4), 1 / 2.45);
 }
 
 TEST(RacerDubins, TestModelGPU)
