@@ -163,7 +163,7 @@ TEST(RacerDubins, TestModelGPU)
       dynamics.computeDynamics(state, control, state_der_cpu);
       for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
       {
-        EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5) << "at index " << point << " with y_dim " << y_dim;
         EXPECT_TRUE(isfinite(s_der[point][dim]));
       }
     }
