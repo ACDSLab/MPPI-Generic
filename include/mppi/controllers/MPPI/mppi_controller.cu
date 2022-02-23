@@ -147,6 +147,11 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
       this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
   smoothControlTrajectory();
   computeStateTrajectory(state);
+  state_array zero_state = state_array::Zero();
+  for (int i = 0; i < this->num_timesteps_; i++)
+  {
+    this->model_->enforceConstraints(zero_state, this->control_.col(i));
+  }
 
   // Copy back sampled trajectories
   this->copySampledControlFromDevice();

@@ -71,7 +71,9 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
       // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
       // usually just control clamping
       // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
-      // dynamics->enforceConstraints(x, &du_d[global_idx*num_timesteps*DYN_T::CONTROL_DIM + t*DYN_T::CONTROL_DIM]); //
+      dynamics->enforceConstraints(x, &du_d[(NUM_ROLLOUTS * num_timesteps * threadIdx.z +  // z part
+                                             global_idx * num_timesteps + t) *
+                                            DYN_T::CONTROL_DIM]);  //
       dynamics->enforceConstraints(x, u);
       __syncthreads();
 
@@ -81,12 +83,6 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
         running_cost +=
             (costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t, crash_status) - running_cost) / (1.0 * t);
       }
-
-      //        if (global_idx == 29 && thread_idy == 0 && thread_idz == 0 && t > 0) {
-      //          printf("MPPI Current state real: [%f, %f, %f, %f]\n", x[0], x[1], x[2], x[3]);
-      //          printf("MPPI Current state cost real: [%f]\n", running_cost);
-      //        }
-      //__syncthreads();
 
       // Compute state derivatives
       dynamics->computeStateDeriv(x, u, xdot, theta_s);

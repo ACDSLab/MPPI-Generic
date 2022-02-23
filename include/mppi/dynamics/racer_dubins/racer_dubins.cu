@@ -3,17 +3,15 @@
 void RacerDubins::computeDynamics(const Eigen::Ref<const state_array>& state,
                                   const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der)
 {
-  // -1 if negative velocity, +1 if positive velocity
-  int vel_direction = -2 * (state(0) < -0.05) + 1;
   bool enable_brake = control(0) < 0;
   // applying position throttle
-  state_der(0) = (vel_direction) * (!enable_brake) * this->params_.c_t * control(0) +
+  state_der(0) = (!enable_brake) * this->params_.c_t * control(0) +
                  (enable_brake) * this->params_.c_b * control(0) * state(0) - this->params_.c_v * state(0) +
                  this->params_.c_0;
   state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4));
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
-  state_der(4) = control(1) * this->params_.max_steer_angle;
+  state_der(4) = control(1) / this->params_.steer_command_angle_scale;
 }
 
 bool RacerDubins::computeGrad(const Eigen::Ref<const state_array>& state,
@@ -64,15 +62,13 @@ __device__ void RacerDubins::updateState(float* state, float* state_der, const f
 
 __device__ void RacerDubins::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
 {
-  // -1 if negative velocity, +1 if positive velocity
-  int vel_direction = -2 * (state[0] < -0.05) + 1;
   bool enable_brake = control[0] < 0;
   // applying position throttle
-  state_der[0] = (vel_direction) * (!enable_brake) * this->params_.c_t * control[0] +
+  state_der[0] = (!enable_brake) * this->params_.c_t * control[0] +
                  (enable_brake) * this->params_.c_b * control[0] * state[0] - this->params_.c_v * state[0] +
                  this->params_.c_0;
   state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4]);
   state_der[2] = state[0] * cosf(state[1]);
   state_der[3] = state[0] * sinf(state[1]);
-  state_der[4] = control[1] * this->params_.max_steer_angle;
+  state_der[4] = control[1] / this->params_.steer_command_angle_scale;
 }

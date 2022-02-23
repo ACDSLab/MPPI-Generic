@@ -352,6 +352,9 @@ public:
       counter++;
     }
 
+    // Check the robots status for this optimization
+    status_ = checkStatus();
+
     s_array state = getState();
     num_iter_++;
     updateParameters(state);
@@ -415,9 +418,6 @@ public:
     setSolution(state_traj, control_traj, feedback_state, temp_last_pose_time);
     pubFreeEnergyStatistics(fe_stats);
 
-    // Check the robots status
-    status_ = checkStatus();
-
     // calculate the propogated feedback trajectory
     controller_->computeFeedbackPropagatedStateSeq();
 
@@ -441,8 +441,6 @@ public:
     // Initial control value
     u_ = init_u_;
 
-    double temp_last_pose_time = getCurrentTime();
-
     controller_->resetControls();
 
     // Start the control loop.
@@ -455,14 +453,14 @@ public:
       // last_optimization_stride_); printf("wait until time %f current time %f\n", wait_until_time, getCurrentTime());
 
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
-      while (is_alive->load() && status_ == 0 && wait_until_time > getCurrentTime())
+      while (is_alive->load() && wait_until_time > getCurrentTime())
       {
         usleep(50);
       }
       sleep_duration_ = (std::chrono::steady_clock::now() - sleep_start).count() / 1e6;
       double prev_iter_percent = (num_iter_ - 1.0) / num_iter_;
       avg_sleep_time_ms_ = prev_iter_percent * avg_sleep_time_ms_ + sleep_duration_ / num_iter_;
-      // printf("\nsleep: %f loop_time %f\n", sleep_duration_/1000, optimize_loop_duration_/1000);
+      // printf("sleep: %f loop_time %f\n", sleep_duration_, optimize_loop_duration_);
     }
   }
 };

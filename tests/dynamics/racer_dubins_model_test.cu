@@ -69,7 +69,7 @@ TEST(RacerDubins, ComputeDynamics)
   x << -1, 0, 0, 3, 0;
   u << 1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 3.7 - 1.3);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 3.7 + 1.3);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_FLOAT_EQ(next_x(3), 0);
@@ -109,7 +109,7 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), 1 * 0.4);
+  EXPECT_FLOAT_EQ(next_x(4), -1 / 2.45);
 
   x << 1, M_PI, 0, 0, 0.5;
   u << 1, -1;
@@ -118,7 +118,7 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0.5));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), -1 * 0.4);
+  EXPECT_FLOAT_EQ(next_x(4), 1 / 2.45);
 }
 
 TEST(RacerDubins, TestModelGPU)
@@ -163,7 +163,7 @@ TEST(RacerDubins, TestModelGPU)
       dynamics.computeDynamics(state, control, state_der_cpu);
       for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
       {
-        EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5) << "at index " << point << " with y_dim " << y_dim;
         EXPECT_TRUE(isfinite(s_der[point][dim]));
       }
     }
