@@ -353,7 +353,7 @@ public:
     }
 
     // Check the robots status for this optimization
-    status_ = checkStatus();
+    int temp_status = checkStatus();
 
     s_array state = getState();
     num_iter_++;
@@ -416,6 +416,7 @@ public:
 
     // Set the updated solution for execution
     setSolution(state_traj, control_traj, feedback_state, temp_last_pose_time);
+    status_ = temp_status;
     pubFreeEnergyStatistics(fe_stats);
 
     // calculate the propogated feedback trajectory
