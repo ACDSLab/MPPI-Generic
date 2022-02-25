@@ -41,8 +41,19 @@ void TextureHelper<TEX_T, DATA_T>::freeCudaMem()
     {
       freeCudaMem(textures_[index]);
     }
-    cudaFree(params_d_);
+    if (params_d_ != nullptr)
+    {
+      HANDLE_ERROR(cudaFree(params_d_));
+    }
+    if (ptr_d_ != nullptr)
+    {
+      HANDLE_ERROR(cudaFree(ptr_d_));
+    }
   }
+  this->GPUMemStatus_ = false;
+  this->params_d_ = nullptr;
+  this->ptr_d_ = nullptr;
+  CudaCheckError();
 }
 
 template <class TEX_T, class DATA_T>
@@ -53,6 +64,9 @@ void TextureHelper<TEX_T, DATA_T>::freeCudaMem(TextureParams<DATA_T>& texture)
     HANDLE_ERROR(cudaFreeArray(texture.array_d));
     HANDLE_ERROR(cudaDestroyTextureObject(texture.tex_d));
     texture.allocated = false;
+    texture.array_d = nullptr;
+    texture.tex_d = 0;
+    CudaCheckError();
   }
 }
 

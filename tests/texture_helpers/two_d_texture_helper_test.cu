@@ -12,12 +12,14 @@ class TwoDTextureHelperTest : public testing::Test
 protected:
   void SetUp() override
   {
+    CudaCheckError();
     generator = std::default_random_engine(7.0);
     distribution = std::normal_distribution<float>(100.0, 2.0);
   }
 
   void TearDown() override
   {
+    CudaCheckError();
   }
 
   std::default_random_engine generator;
@@ -45,6 +47,8 @@ TEST_F(TwoDTextureHelperTest, TwoDAllocateCudaTextureTest)
   EXPECT_EQ(textures[0].tex_d, 0);
   EXPECT_TRUE(textures[0].update_mem);
   EXPECT_FALSE(textures[0].allocated);
+  EXPECT_FALSE(helper.GPUMemStatus_);
+  EXPECT_EQ(helper.ptr_d_, nullptr);
 
   helper.GPUSetup();
 
@@ -53,6 +57,18 @@ TEST_F(TwoDTextureHelperTest, TwoDAllocateCudaTextureTest)
   EXPECT_NE(textures[0].tex_d, 0);
   EXPECT_FALSE(textures[0].update_mem);
   EXPECT_TRUE(textures[0].allocated);
+  EXPECT_TRUE(helper.GPUMemStatus_);
+  EXPECT_NE(helper.ptr_d_, nullptr);
+
+  helper.freeCudaMem();
+
+  textures = helper.getTextures();
+  EXPECT_EQ(textures[0].array_d, nullptr);
+  EXPECT_EQ(textures[0].tex_d, 0);
+  EXPECT_FALSE(textures[0].update_mem);
+  EXPECT_FALSE(textures[0].allocated);
+  EXPECT_FALSE(helper.GPUMemStatus_);
+  EXPECT_EQ(helper.ptr_d_, nullptr);
 }
 
 TEST_F(TwoDTextureHelperTest, UpdateTexture)

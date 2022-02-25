@@ -12,12 +12,14 @@ class ThreeDTextureHelperTest : public testing::Test
 protected:
   void SetUp() override
   {
+    CudaCheckError();
     generator = std::default_random_engine(7.0);
     distribution = std::normal_distribution<float>(100.0, 2.0);
   }
 
   void TearDown() override
   {
+    CudaCheckError();
   }
 
   std::default_random_engine generator;
