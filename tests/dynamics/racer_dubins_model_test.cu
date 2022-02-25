@@ -134,7 +134,7 @@ TEST(RacerDubins, TestModelGPU)
   std::vector<std::array<float, 5>> s(100);
   std::vector<std::array<float, 5>> s_der(100);
   // steering, throttle
-  std::vector<std::array<float, 3>> u(100);
+  std::vector<std::array<float, 2>> u(100);
   for (int state_index = 0; state_index < s.size(); state_index++)
   {
     for (int dim = 0; dim < s[0].size(); dim++)
@@ -153,7 +153,7 @@ TEST(RacerDubins, TestModelGPU)
   // Run dynamics on GPU
   for (int y_dim = 1; y_dim <= 4; y_dim++)
   {
-    launchComputeDynamicsTestKernel<RacerDubins, 5, 3>(dynamics, s, u, s_der, y_dim);
+    launchComputeDynamicsTestKernel<RacerDubins, 5, 2>(dynamics, s, u, s_der, y_dim);
     for (int point = 0; point < 100; point++)
     {
       RacerDubins::state_array state = state_trajectory.col(point);
@@ -266,7 +266,7 @@ TEST(RacerDubins, TestUpdateStateGPU)
   dynamics.freeCudaMem();
 }
 
-TEST(RacerDubins, ComputeStateTrajectoryTest)
+TEST(RacerDubins, ComputeStateTrajectoryFiniteTest)
 {
   RacerDubins dynamics = RacerDubins();
   RacerDubinsParams params;
