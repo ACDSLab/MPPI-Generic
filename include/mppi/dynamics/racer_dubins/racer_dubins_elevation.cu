@@ -62,10 +62,10 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
       {
         float3 front_left = make_float3(2.981, 0.737, 0);
         float3 front_right = make_float3(2.981, -0.737, 0);
-        front_left = make_float3(front_left.x * cosf(state[1]) - front_left.y * sinf(state[1]),
-                                 front_left.x * sinf(state[1]) + front_left.y * cosf(state[1]), 0);
-        front_right = make_float3(front_right.x * cosf(state[1]) - front_right.y * sinf(state[1]),
-                                  front_right.x * sinf(state[1]) + front_right.y * cosf(state[1]), 0);
+        front_left = make_float3(front_left.x * cosf(state[1]) - front_left.y * sinf(state[1]) + state[2],
+                                 front_left.x * sinf(state[1]) + front_left.y * cosf(state[1]) + state[3], 0);
+        front_right = make_float3(front_right.x * cosf(state[1]) - front_right.y * sinf(state[1]) + state[2],
+                                  front_right.x * sinf(state[1]) + front_right.y * cosf(state[1]) + state[3], 0);
         float front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
         float front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
         state[i] = asinf((front_left_height - front_right_height) / (0.737 * 2));
