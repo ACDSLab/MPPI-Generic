@@ -454,7 +454,7 @@ public:
       // last_optimization_stride_); printf("wait until time %f current time %f\n", wait_until_time, getCurrentTime());
 
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
-      while (is_alive->load() && wait_until_time >= getCurrentTime())
+      while (is_alive->load() && wait_until_time > getCurrentTime())
       {
         usleep(50);
       }
