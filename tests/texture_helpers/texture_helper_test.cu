@@ -69,6 +69,7 @@ public:
   void copyDataToGPU(int index, bool sync = false) override
   {
     copyDataToGPUCalled++;
+    this->textures_[index].update_data = false;
   }
 
   void allocateCudaTexture(int index) override
@@ -83,11 +84,14 @@ public:
   void createCudaTexture(int index, bool sync = false) override
   {
     createCudaTextureCalled++;
+    this->textures_[index].allocated = true;
+    this->textures_[index].update_mem = false;
   }
 
   void copyParamsToGPU(int index, bool sync = false)
   {
     copyParamsToGPUCalled++;
+    this->textures_[index].update_params = false;
   }
 
   void clearCounters()
