@@ -45,7 +45,7 @@ public:
   __device__ void updateState(float* state, float* state_der, const float dt);
 
   state_array interpolateState(const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2,
-                               const double alpha);
+                               const float alpha);
 
   bool computeGrad(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                    Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B);

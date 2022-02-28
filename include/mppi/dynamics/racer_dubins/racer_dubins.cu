@@ -37,7 +37,7 @@ void RacerDubinsImpl<CLASS_T, STATE_DIM>::updateState(Eigen::Ref<state_array> st
 
 template <class CLASS_T, int STATE_DIM>
 RacerDubinsImpl<CLASS_T, STATE_DIM>::state_array RacerDubinsImpl<CLASS_T, STATE_DIM>::interpolateState(
-    const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2, const double alpha)
+    const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2, const float alpha)
 {
   state_array result = (1 - alpha) * state_1 + alpha * state_2;
   result(1) = angle_utils::interpolateEulerAngleLinear(state_1(1), state_2(1), alpha);

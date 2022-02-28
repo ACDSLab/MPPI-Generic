@@ -33,7 +33,7 @@ void DubinsDynamics::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state
 }
 
 DubinsDynamics::state_array DubinsDynamics::interpolateState(const Eigen::Ref<state_array> state_1,
-                                                             const Eigen::Ref<state_array> state_2, const double alpha)
+                                                             const Eigen::Ref<state_array> state_2, const float alpha)
 {
   state_array result = (1 - alpha) * state_1 + alpha * state_2;
   result(2) = angle_utils::interpolateEulerAngleLinear(state_1(2), state_2(2), alpha);
