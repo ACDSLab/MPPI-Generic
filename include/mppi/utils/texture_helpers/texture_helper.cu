@@ -67,6 +67,7 @@ void TextureHelper<TEX_T, DATA_T>::freeCudaMem(TextureParams<DATA_T>& texture)
     texture.array_d = nullptr;
     texture.tex_d = 0;
     CudaCheckError();
+    texture.use = false;
   }
 }
 
@@ -193,6 +194,7 @@ void TextureHelper<TEX_T, DATA_T>::addNewTexture(const cudaExtent& extent)
 
     derived->allocateCudaTexture(index);
     derived->createCudaTexture(index);
+    textures_.back().allocated = true;
   }
 }
 

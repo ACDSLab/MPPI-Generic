@@ -294,6 +294,11 @@ TEST_F(TwoDTextureHelperTest, CopyDataToGPU)
   helper.createCudaTexture(0);
   helper.copyDataToGPU(0, true);
 
+  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  EXPECT_TRUE(textures[0].allocated);
+  EXPECT_FALSE(textures[0].update_data);
+  EXPECT_FALSE(textures[0].update_mem);
+
   std::vector<float4> query_points;
   query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
   query_points.push_back(make_float4(0.05, 0.0, 0.0, 0.0));

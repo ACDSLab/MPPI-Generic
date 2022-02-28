@@ -222,4 +222,6 @@ void ThreeDTextureHelper<DATA_T>::copyDataToGPU(int index, bool sync)
   {
     cudaStreamSynchronize(this->stream_);
   }
+
+  param->update_data = false;
 }
