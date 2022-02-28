@@ -30,7 +30,6 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(const int index, const int z_ind
   TextureParams<DATA_T>* param = &this->textures_[index];
   int w = param->extent.width;
   int h = param->extent.height;
-  int d = param->extent.depth;
 
   // check that the sizes are correct
   if (values.size() != w * h)
