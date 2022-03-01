@@ -74,6 +74,10 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
       {
         state[i] = 0;
       }
+      if (isnan(state[i]) || isinf(state[i]) || abs(state[i]) > M_PI)
+      {
+        state[i] = 4.0;
+      }
     }
     if (i == 6)
     {
@@ -93,6 +97,10 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
       else
       {
         state[i] = 0;
+      }
+      if (isnan(state[i]) || isinf(state[i]) || abs(state[i]) > M_PI)
+      {
+        state[i] = 4.0;
       }
     }
     state_der[i] = 0;  // Important: reset the state derivative to zero.
