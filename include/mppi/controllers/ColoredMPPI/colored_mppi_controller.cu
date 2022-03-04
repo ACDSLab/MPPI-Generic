@@ -35,11 +35,15 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 {
   this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
   state_array local_state = state;
-  for (int i = 0; i < DYN_T::STATE_DIM; i++) {
+  for (int i = 0; i < DYN_T::STATE_DIM; i++)
+  {
     float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
-    if (state_leash_dist_[i] < diff) {
+    if (state_leash_dist_[i] < diff)
+    {
       local_state[i] = state[i];
-    } else {
+    }
+    else
+    {
       local_state[i] = this->state_.col(leash_jump_)[i];
     }
   }
