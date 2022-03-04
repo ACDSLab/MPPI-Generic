@@ -55,59 +55,69 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
       state[i] -= state_der[i] * dt;
       state[i] = state_der[i] + (state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
     }
-    if (i == 5)
+    if (i == 5 || i == 6)
     {
       // roll
       if (this->tex_helper_->checkTextureUse(0))
       {
         float3 front_left = make_float3(2.981, 0.737, 0);
         float3 front_right = make_float3(2.981, -0.737, 0);
+        float3 back_left = make_float3(0, 0.737, 0);
+        float3 back_right = make_float3(0, -0.737, 0);
         front_left = make_float3(front_left.x * cosf(state[1]) - front_left.y * sinf(state[1]) + state[2],
                                  front_left.x * sinf(state[1]) + front_left.y * cosf(state[1]) + state[3], 0);
         front_right = make_float3(front_right.x * cosf(state[1]) - front_right.y * sinf(state[1]) + state[2],
                                   front_right.x * sinf(state[1]) + front_right.y * cosf(state[1]) + state[3], 0);
+        back_left = make_float3(back_left.x * cosf(state[1]) - back_left.y * sinf(state[1]) + state[2],
+                                back_left.x * sinf(state[1]) + back_left.y * cosf(state[1]) + state[3], 0);
+        back_right = make_float3(back_right.x * cosf(state[1]) - back_right.y * sinf(state[1]) + state[2],
+                                 back_right.x * sinf(state[1]) + back_right.y * cosf(state[1]) + state[3], 0);
         float front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
         float front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
-        float diff = front_left_height - front_right_height;
-        diff = max(min(diff, 0.736 * 2), -0.736 * 2);
-        state[i] = asinf((diff) / (0.737 * 2));
-        // TODO compute it for both sides and take the max?
+        float back_left_height = this->tex_helper_->queryTextureAtWorldPose(0, back_left);
+        float back_right_height = this->tex_helper_->queryTextureAtWorldPose(0, back_right);
+
+        // max magnitude
+        if (i == 5)
+        {
+          float front_diff = front_left_height - front_right_height;
+          front_diff = max(min(front_diff, 0.736 * 2), -0.736 * 2);
+          float back_diff = back_left_height - back_right_height;
+          back_diff = max(min(back_diff, 0.736 * 2), -0.736 * 2);
+          float front_roll = asinf(front_diff / (0.737 * 2));
+          float back_roll = asinf(back_diff / (0.737 * 2));
+          if (abs(front_roll) > abs(back_roll))
+          {
+            state[i] = front_roll;
+          }
+          else
+          {
+            state[i] = back_roll;
+          }
+        }
+        if (i == 6)
+        {
+          float left_diff = back_left_height - front_left_height;
+          left_diff = max(min(left_diff, 2.98), -2.98);
+          float right_diff = back_right_height - front_right_height;
+          right_diff = max(min(right_diff, 2.98), -2.98);
+          float left_pitch = asinf((left_diff) / 2.981);
+          float right_pitch = asinf((right_diff) / 2.981);
+          if (abs(left_pitch) > abs(right_pitch))
+          {
+            state[i] = left_pitch;
+          }
+          else
+          {
+            state[i] = right_pitch;
+          }
+        }
 
         if (isnan(state[i]) || isinf(state[i]) || abs(state[i]) > M_PI)
         {
           // printf("got invalid roll %f from %f %f diff %f %f\n", state[i], front_left_height, front_right_height,
           // diff, (diff) / (0.737 * 2)); printf("got invalid roll at points (%f %f) (%f, %f)\n", front_left.x,
           // front_left.y, front_right.x, front_right.y);
-          state[i] = 4.0;
-        }
-      }
-      else
-      {
-        state[i] = 0;
-      }
-    }
-    if (i == 6)
-    {
-      // pitch
-      if (this->tex_helper_->checkTextureUse(0))
-      {
-        float3 front_left = make_float3(2.981, 0.737, 0);
-        float3 back_left = make_float3(0, 0.737, 0);
-        front_left = make_float3(front_left.x * cosf(state[1]) - front_left.y * sinf(state[1]) + state[2],
-                                 front_left.x * sinf(state[1]) + front_left.y * cosf(state[1]) + state[3], 0);
-        back_left = make_float3(back_left.x * cosf(state[1]) - back_left.y * sinf(state[1]) + state[2],
-                                back_left.x * sinf(state[1]) + back_left.y * cosf(state[1]) + state[3], 0);
-        float front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
-        float back_left_height = this->tex_helper_->queryTextureAtWorldPose(0, back_left);
-        float diff = back_left_height - front_left_height;
-        diff = max(min(diff, 2.98), -2.98);
-        state[i] = asinf((diff) / 2.981);
-
-        if (isnan(state[i]) || isinf(state[i]) || abs(state[i]) > M_PI)
-        {
-          // printf("got invalid pitch %f from %f %f diff %f %f\n", state[i], front_left_height, back_left_height, diff,
-          // (diff) / 2.981); printf("got invalid pitch at points (%f %f) (%f, %f)\n", front_left.x, front_left.y,
-          // back_left.x, back_left.y);
           state[i] = 4.0;
         }
       }
