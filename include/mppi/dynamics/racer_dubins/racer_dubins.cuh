@@ -13,6 +13,7 @@ struct RacerDubinsParams
   float steering_constant = .6;
   float wheel_base = 0.3;
   float steer_command_angle_scale = -2.45;
+  float gravity = 0.0;
 };
 
 using namespace MPPI_internal;
