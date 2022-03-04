@@ -34,18 +34,14 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
 {
   this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
-  state_array local_state = this->state_.col(leash_jump_);
-  Eigen::Vector2f diff;
-  // diff << local_state[2] - state[2], local_state[3] - state[3];
-  diff << 0, local_state[0] - state[0];
-  if (state_leash_dist_ < diff.norm())
-  {
-    local_state = state;
-  }
-  else
-  {
-    local_state = state;
-    local_state[0] = this->state_.col(leash_jump_)[0];
+  state_array local_state = state;
+  for (int i = 0; i < DYN_T::STATE_DIM; i++) {
+    float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
+    if (state_leash_dist_[i] < diff) {
+      local_state[i] = state[i];
+    } else {
+      local_state[i] = this->state_.col(leash_jump_)[i];
+    }
   }
 
   // Send the initial condition to the device
