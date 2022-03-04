@@ -82,6 +82,16 @@ public:
     return colored_noise_exponents_[index];
   }
 
+  void setStateLeashLength(float new_state_leash, int index = 0)
+  {
+    state_leash_dist_[index] = new_state_leash;
+  }
+
+  float getStateLeashLength(int index)
+  {
+    return state_leash_dist_[index];
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
@@ -89,6 +99,8 @@ protected:
 
   void smoothControlTrajectory();
   std::vector<float> colored_noise_exponents_;
+  float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
+  int leash_jump_ = 1;
 
 private:
   // ======== MUST BE OVERWRITTEN =========
