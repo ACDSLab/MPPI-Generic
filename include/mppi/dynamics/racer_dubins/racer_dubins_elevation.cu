@@ -139,7 +139,7 @@ __device__ void RacerDubinsElevation::computeDynamics(float* state, float* contr
                  this->params_.c_0;
   if (abs(state[6]) < M_PI)
   {
-    state_der[0] -= state[6] * this->params_.gravity;
+    state_der[0] -= this->params_.gravity * sinf(state[6]);
   }
   state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4]);
   state_der[2] = state[0] * cosf(state[1]);
