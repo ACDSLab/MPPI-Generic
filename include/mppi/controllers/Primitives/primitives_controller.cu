@@ -16,8 +16,6 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
 {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
-  std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  colored_noise_exponents_ = std::move(tmp_vec);
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
@@ -58,46 +56,16 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     // Send the nominal control to the device
     this->copyNominalControlToDevice();
 
-    // Generate noise data
-    powerlaw_psd_gaussian(colored_noise_exponents_, this->num_timesteps_, NUM_ROLLOUTS, this->control_noise_d_,
-                          this->gen_, this->stream_);
-    // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->num_timesteps_ *
-    // DYN_T::CONTROL_DIM,
-    //                      0.0, 1.0);
-    /*
-    std::vector<float> noise = this->getSampledNoise();
-    float mean = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      mean += (noise[k]/noise.size());
-    }
-
-    float std_dev = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      std_dev += powf(noise[k] - mean, 2);
-    }
-    std_dev = sqrt(std_dev/noise.size());
-    printf("CPU 1 side N(%f, %f)\n", mean, std_dev);
-     */
+    // Generate piecewise linear noise data
+    piecewise_linear_noise(num_piecewise_segments_, this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM,
+                           this->control_d_, this->control_noise_d_, this->control_std_dev_d_, this->gen_,
+                           this->stream_);
 
     // Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_, optimization_stride,
         this->lambda_, this->alpha_, this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
-    /*
-    noise = this->getSampledNoise();
-    mean = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      mean += (noise[k]/noise.size());
-    }
-
-    std_dev = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      std_dev += powf(noise[k] - mean, 2);
-    }
-    std_dev = sqrt(std_dev/noise.size());
-    printf("CPU 2 side N(%f, %f)\n", mean, std_dev);
-     */
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,

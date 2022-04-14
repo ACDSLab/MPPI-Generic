@@ -72,14 +72,14 @@ public:
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 1);
   }
 
-  void setColoredNoiseExponents(std::vector<float>& new_exponents)
+  void setPiecewiseSegments(int segments)
   {
-    colored_noise_exponents_ = new_exponents;
+    num_piecewise_segments_ = segments;
   }
 
-  float getColoredNoiseExponent(int index)
+  int getPiecewiseSegments()
   {
-    return colored_noise_exponents_[index];
+    return num_piecewise_segments_;
   }
 
   void setStateLeashLength(float new_state_leash, int index = 0)
@@ -98,7 +98,7 @@ protected:
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
 
   void smoothControlTrajectory();
-  std::vector<float> colored_noise_exponents_;
+  int num_piecewise_segments_ = 5;
   float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
   int leash_jump_ = 1;
 
