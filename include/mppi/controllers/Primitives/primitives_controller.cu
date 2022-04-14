@@ -30,7 +30,7 @@ Primitives::~PrimitivesController()
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
 {
-  this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
+  // this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
   state_array local_state = state;
   for (int i = 0; i < DYN_T::STATE_DIM; i++)
   {
@@ -53,10 +53,13 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
   for (int opt_iter = 0; opt_iter < this->num_iters_; opt_iter++)
   {
+    // Set initial controls to zero because we want to use the noise directly
+    this->control_ = control_trajectory::Zero();
+
     // Send the nominal control to the device
     this->copyNominalControlToDevice();
 
-    // Generate piecewise linear noise data
+    // Generate piecewise linear noise data, update control_noise_d_
     piecewise_linear_noise(num_piecewise_segments_, this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM,
                            this->control_d_, this->control_noise_d_, this->control_std_dev_d_, this->gen_,
                            this->stream_);
@@ -74,6 +77,14 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
     this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
 
+    // Construct weights which pick the best trajectory (all others are zero)
+    int best_idx = mppi_common::computeBestIndex(this->trajectory_costs_.data(), NUM_ROLLOUTS);
+
+    // copy the weights to the device
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_d_, this->trajectory_costs_.data(),
+                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyHostToDevice, this->stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+
     if (this->baseline_ > baseline_prev + 1)
     {
       // TODO handle printing
@@ -86,60 +97,38 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
     baseline_prev = this->baseline_;
 
-    // Launch the norm exponential kernel
-    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->lambda_,
-                                     this->baseline_, this->stream_);
-    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
-    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
-
-    // Compute the normalizer
-    this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS);
-
-    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
-                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
-                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->baseline_, this->lambda_);
+    // mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+    //                                this->free_energy_statistics_.real_sys.freeEnergyVariance,
+    //                                this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
+    //                                this->trajectory_costs_.data(), NUM_ROLLOUTS, this->baseline_, this->lambda_);
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
-    mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
-        this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->normalizer_, this->num_timesteps_,
-        this->stream_);
+    // mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
+    //     this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, /* normalizer = */ 1.0,
+    //     this->num_timesteps_, this->stream_);
 
-    /*
-    noise = this->getSampledNoise();
-    mean = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      mean += (noise[k]/noise.size());
-    }
-
-    std_dev = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      std_dev += powf(noise[k] - mean, 2);
-    }
-    std_dev = sqrt(std_dev/noise.size());
-    printf("CPU 3 side N(%f, %f)\n", mean, std_dev);
-     */
-
-    // Transfer the new control to the host
-    HANDLE_ERROR(cudaMemcpyAsync(this->control_.data(), this->control_d_,
-                                 sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost,
-                                 this->stream_));
+    // Copy best control from device to the host
+    HANDLE_ERROR(cudaMemcpyAsync(
+        this->control_.data(), this->control_noise_d_ + best_idx * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+        sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
     cudaStreamSynchronize(this->stream_);
   }
 
-  this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_ / NUM_ROLLOUTS;
-  this->free_energy_statistics_.real_sys.increase =
-      this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
-  smoothControlTrajectory();
+  // this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_ / NUM_ROLLOUTS;
+  // this->free_energy_statistics_.real_sys.increase =
+  //     this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
+
+  // smoothControlTrajectory();
+
   computeStateTrajectory(local_state);
-  state_array zero_state = state_array::Zero();
-  for (int i = 0; i < this->num_timesteps_; i++)
-  {
-    // this->model_->enforceConstraints(zero_state, this->control_.col(i));
-    this->control_.col(i)[1] =
-        fminf(fmaxf(this->control_.col(i)[1], this->model_->control_rngs_[1].x), this->model_->control_rngs_[1].y);
-  }
+
+  // state_array zero_state = state_array::Zero();
+  // for (int i = 0; i < this->num_timesteps_; i++)
+  // {
+  //   // this->model_->enforceConstraints(zero_state, this->control_.col(i));
+  //   this->control_.col(i)[1] =
+  //       fminf(fmaxf(this->control_.col(i)[1], this->model_->control_rngs_[1].x), this->model_->control_rngs_[1].y);
+  // }
 
   // Copy back sampled trajectories
   this->copySampledControlFromDevice();

@@ -71,7 +71,7 @@ public:
   {
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 1);
   }
-
+  
   void setPiecewiseSegments(int segments)
   {
     num_piecewise_segments_ = segments;

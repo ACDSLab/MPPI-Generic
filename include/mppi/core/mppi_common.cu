@@ -236,6 +236,52 @@ float computeBaselineCost(float* cost_rollouts_host, int num_rollouts)
   return baseline;
 }
 
+float constructBestWeights(float* cost_rollouts_host, int num_rollouts)
+{
+  float best_cost = 1e8;
+  int best_cost_idx = 0;
+  for (int i = 0; i < num_rollouts; i++)
+  {
+    if (cost_rollouts_host[i] < best_cost)
+    {
+      best_cost = cost_rollouts_host[i];
+      best_cost_idx = i;
+    }
+  }
+
+  for (int i = 0; i < num_rollouts; i++)
+  {
+    if (i == best_cost_idx)
+    {
+      cost_rollouts_host[i] = 1.0;
+    }
+    else
+    {
+      cost_rollouts_host[i] = 0.0;
+    }
+  }
+
+  // printf("Best idx: %d, cost: %f\n", best_cost_idx, best_cost);
+  return best_cost;
+}
+
+int computeBestIndex(float* cost_rollouts_host, int num_rollouts)
+{
+  float best_cost = 1e8;
+  int best_cost_idx = 0;
+  for (int i = 0; i < num_rollouts; i++)
+  {
+    if (cost_rollouts_host[i] < best_cost)
+    {
+      best_cost = cost_rollouts_host[i];
+      best_cost_idx = i;
+    }
+  }
+
+  // printf("Best idx: %d, cost: %f\n", best_cost_idx, best_cost);
+  return best_cost_idx;
+}
+
 float computeNormalizer(float* cost_rollouts_host, int num_rollouts)
 {
   float normalizer = 0.f;
