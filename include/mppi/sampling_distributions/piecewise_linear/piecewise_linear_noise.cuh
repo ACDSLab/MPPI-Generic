@@ -25,11 +25,11 @@ __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int nu
   if (sample_index == 0){
     // if sample index = 0, use nominal control
     output[(sample_index * num_timesteps + time_index) * control_dim + control_index] = 
-      nominal_control[(sample_index * num_timesteps + time_index) * control_dim + control_index];
+      nominal_control[time_index * control_dim + control_index];
   } else if (float(sample_index) < frac_random_noise_traj * float(num_trajectories)){
     // randomly vary nominal control for frac_random_noise_traj fraction of the trajectories
     output[(sample_index * num_timesteps + time_index) * control_dim + control_index] = 
-      nominal_control[(sample_index * num_timesteps + time_index) * control_dim + control_index] +
+      nominal_control[time_index * control_dim + control_index] +
       control_std_dev[control_index] * scale_noise_factor *
       random_noise[(sample_index * num_timesteps + time_index) * control_dim + control_index];
   } else {
