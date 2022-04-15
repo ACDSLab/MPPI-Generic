@@ -92,6 +92,15 @@ public:
     return scale_noise_factor_;
   }
 
+  void setFracRandomNoiseTraj(float frac_random_noise_traj)
+  {
+    frac_random_noise_traj_ = frac_random_noise_traj;
+  }
+  float getFracRandomNoiseTraj()
+  {
+    return frac_random_noise_traj_;
+  }
+
   void setStateLeashLength(float new_state_leash, int index = 0)
   {
     state_leash_dist_[index] = new_state_leash;
@@ -110,6 +119,7 @@ protected:
   void smoothControlTrajectory();
   int num_piecewise_segments_ = 5;
   float scale_noise_factor_ = 0.0;
+  float frac_random_noise_traj_ = 0.1;
   float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
   int leash_jump_ = 1;
 

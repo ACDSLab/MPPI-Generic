@@ -12,8 +12,9 @@
 #include <vector>
 
 
-__global__ void createPiecewiseLinearNoise(const int num_piecewise_segments, const int num_timesteps, const int num_trajectories, const int control_dim,
-      const float* switch_times, const float* switch_values, const float* nominal_control, const float* random_noise, const float* control_std_dev, const float scale_noise_factor, float* output){
+__global__ void createPiecewiseLinearNoise(const int num_timesteps, const int num_trajectories, const int control_dim,
+      const int num_piecewise_segments, const float scale_noise_factor, const float frac_random_noise_traj,
+      const float* switch_times, const float* switch_values, const float* nominal_control, const float* random_noise, const float* control_std_dev, float* output){
   int sample_index = blockIdx.x * blockDim.x + threadIdx.x;
   int time_index = blockIdx.y * blockDim.y + threadIdx.y;
   int control_index = blockIdx.z * blockDim.z + threadIdx.z;
@@ -25,7 +26,7 @@ __global__ void createPiecewiseLinearNoise(const int num_piecewise_segments, con
     // if sample index = 0, use nominal control
     output[sample_index * num_timesteps * control_dim + time_index * control_dim + control_index] = 
       nominal_control[(sample_index * num_timesteps + time_index) * control_dim + control_index];
-  } else if (float(sample_index) < 0.10 * float(num_trajectories)){
+  } else if (float(sample_index) < frac_random_noise_traj * float(num_trajectories)){
     // randomly vary nominal control for 10% of the trajectories
     output[sample_index * num_timesteps * control_dim + time_index * control_dim + control_index] = 
       nominal_control[(sample_index * num_timesteps + time_index) * control_dim + control_index] +
@@ -64,15 +65,12 @@ __global__ void createPiecewiseLinearNoise(const int num_piecewise_segments, con
     output[(sample_index * num_timesteps + time_index) * control_dim + control_index] = output_val; 
   }
 
-  // print for debug
-  // if (sample_index == 0){
-  //   printf("sample_index: %d, time_index: %d,control_index: %d, segment_index: %d, start_time: %f, end_time: %f, time_frac: %f, first_val: %f, second_val: %f, frac_interval: %f, output: %f\n", sample_index, time_index, control_index, segment_index, start_time, end_time, time_frac, first_val, second_val, frac_interval, 
-  //           output[(sample_index * num_timesteps + time_index) * control_dim + control_index]);
-  // }
 }
 
-void piecewise_linear_noise(int num_piecewise_segments, int num_timesteps, int num_trajectories, int control_dim,
-                           float* control_d, float* control_noise_d, float* control_std_dev_d, float scale_noise_factor, curandGenerator_t& gen, cudaStream_t stream = 0)
+void piecewise_linear_noise(const int num_timesteps, const int num_trajectories, const int control_dim,
+                            const int num_piecewise_segments, const float scale_noise_factor, 
+                            const float frac_random_noise_traj,
+                            const float* control_d, float* control_noise_d, const float* control_std_dev_d, curandGenerator_t& gen, cudaStream_t stream = 0)
 {
   // generate piecewise linear random noise, in 2 steps:
   // 1. randomly decide start/stop times of segments (uniformly divide t=0:T)
@@ -100,8 +98,8 @@ void piecewise_linear_noise(int num_piecewise_segments, int num_timesteps, int n
   const int grid_z = (control_dim - 1) / BLOCKSIZE_Z + 1;
   dim3 grid(grid_x, grid_y, grid_z);
   dim3 block(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
-  createPiecewiseLinearNoise<<<grid, block, 0, stream>>>(num_piecewise_segments, num_timesteps, num_trajectories, control_dim,
-                                          switch_times_d, switch_values_d, control_d, random_noise_d, control_std_dev_d, scale_noise_factor, control_noise_d);
+  createPiecewiseLinearNoise<<<grid, block, 0, stream>>>(num_timesteps, num_trajectories, control_dim,
+                                          num_piecewise_segments, scale_noise_factor, frac_random_noise_traj, switch_times_d, switch_values_d, control_d, random_noise_d, control_std_dev_d, control_noise_d);
   
   // cleanup
   HANDLE_ERROR(cudaGetLastError());
