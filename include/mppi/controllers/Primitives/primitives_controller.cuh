@@ -82,6 +82,16 @@ public:
     return num_piecewise_segments_;
   }
 
+  void setScaleNoiseFactor(float scale_noise_factor)
+  {
+    scale_noise_factor_ = scale_noise_factor;
+  }
+
+  float getScaleNoiseFactor()
+  {
+    return scale_noise_factor_;
+  }
+
   void setStateLeashLength(float new_state_leash, int index = 0)
   {
     state_leash_dist_[index] = new_state_leash;
@@ -99,6 +109,7 @@ protected:
 
   void smoothControlTrajectory();
   int num_piecewise_segments_ = 5;
+  float scale_noise_factor_ = 0.0;
   float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
   int leash_jump_ = 1;
 

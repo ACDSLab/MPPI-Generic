@@ -53,16 +53,16 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
   for (int opt_iter = 0; opt_iter < this->num_iters_; opt_iter++)
   {
-    // Set initial controls to zero because we want to use the noise directly
-    this->control_ = control_trajectory::Zero();
-
-    // Send the nominal control to the device
-    this->copyNominalControlToDevice();
-
     // Generate piecewise linear noise data, update control_noise_d_
     piecewise_linear_noise(num_piecewise_segments_, this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM,
-                           this->control_d_, this->control_noise_d_, this->control_std_dev_d_, this->gen_,
-                           this->stream_);
+                           this->control_d_, this->control_noise_d_, this->control_std_dev_d_, scale_noise_factor_,
+                           this->gen_, this->stream_);
+
+    // Set nominal controls to zero because we want to use the noise directly
+    this->control_ = control_trajectory::Zero();
+
+    // Send the zero nominal control to the device
+    this->copyNominalControlToDevice();
 
     // Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
