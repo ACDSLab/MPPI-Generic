@@ -108,7 +108,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     //     this->num_timesteps_, this->stream_);
 
     // if baseline is too high and trajectory is unsafe, create and issue a stopping trajectory
-    if (this->baseline_ > stopping_cost_threshold_)
+    if (stopping_cost_threshold_ > 0 && this->baseline_ > stopping_cost_threshold_)
     {
       std::cerr << "Baseline is too high, issuing stopping trajectory!" << std::endl;
       computeStoppingTrajectory(local_state);
