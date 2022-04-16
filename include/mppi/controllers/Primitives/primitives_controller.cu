@@ -139,6 +139,8 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   //       fminf(fmaxf(this->control_.col(i)[1], this->model_->control_rngs_[1].x), this->model_->control_rngs_[1].y);
   // }
 
+  this->copyNominalControlToDevice();
+
   // Copy back sampled trajectories
   this->copySampledControlFromDevice();
 }
