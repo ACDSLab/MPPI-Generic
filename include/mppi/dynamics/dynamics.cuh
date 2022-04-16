@@ -368,6 +368,12 @@ public:
   {
   }
 
+  /**
+   * Method to compute an emergency stopping control
+   */
+  void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u){
+  }
+
   // control ranges [.x, .y]
   float2 control_rngs_[C_DIM];
 

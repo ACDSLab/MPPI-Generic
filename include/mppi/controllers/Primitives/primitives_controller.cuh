@@ -111,17 +111,29 @@ public:
     return state_leash_dist_[index];
   }
 
+  void setStoppingCostThreshold(float new_stopping_cost_threshold)
+  {
+    stopping_cost_threshold_ = new_stopping_cost_threshold;
+  }
+
+  float getStoppingCostThreshold()
+  {
+    return stopping_cost_threshold_;
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
 
+  void computeStoppingTrajectory(const Eigen::Ref<const state_array>& x0);
   void smoothControlTrajectory();
   int num_piecewise_segments_ = 5;
   float scale_noise_factor_ = 0.0;
   float frac_random_noise_traj_ = 0.1;
   float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
   int leash_jump_ = 1;
+  float stopping_cost_threshold_ = 1.0e8;
 
 private:
   // ======== MUST BE OVERWRITTEN =========

@@ -52,6 +52,9 @@ public:
                    Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B);
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
+
+  void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
+
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins, 5>

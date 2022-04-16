@@ -107,10 +107,19 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     //     this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, /* normalizer = */ 1.0,
     //     this->num_timesteps_, this->stream_);
 
-    // Copy best control from device to the host
-    HANDLE_ERROR(cudaMemcpyAsync(
-        this->control_.data(), this->control_noise_d_ + best_idx * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-        sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
+    // if baseline is too high and trajectory is unsafe, create and issue a stopping trajectory
+    if (this->baseline_ > stopping_cost_threshold_)
+    {
+      std::cerr << "Baseline is too high, issuing stopping trajectory!" << std::endl;
+      computeStoppingTrajectory(local_state);
+    }
+    else
+    {  // otherwise, update the nominal control
+      // Copy best control from device to the host
+      HANDLE_ERROR(cudaMemcpyAsync(
+          this->control_.data(), this->control_noise_d_ + best_idx * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+          sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
+    }
     cudaStreamSynchronize(this->stream_);
   }
 
@@ -144,6 +153,23 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void Primitives::computeStateTrajectory(const Eigen::Ref<const state_array>& x0)
 {
   this->computeStateTrajectoryHelper(this->state_, x0, this->control_);
+}
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& x0)
+{
+  state_array xdot;
+  state_array state = x0;
+  control_array u_i = control_array::Zero();
+  this->model_->initializeDynamics(state, u_i, 0, this->dt_);
+  for (int i = 0; i < this->num_timesteps_ - 1; ++i)
+  {
+    this->model_->getStoppingControl(state, u_i);
+    this->model_->enforceConstraints(state, u_i);
+    this->control_.col(i) = u_i;
+    this->model_->computeStateDeriv(state, u_i, xdot);
+    this->model_->updateState(state, xdot, this->dt_);
+  }
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
