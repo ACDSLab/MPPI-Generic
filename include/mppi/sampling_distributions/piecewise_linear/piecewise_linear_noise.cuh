@@ -36,7 +36,7 @@ __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int nu
     // all others, use piecewise linear noise.
     
     // determine start/stop times and piecewise fraction
-    int switch_num_val = switch_num[(sample_index * num_timesteps + time_index) * control_dim + control_index];
+    int switch_num_val = switch_num[sample_index * control_dim + control_index];
     switch_num_val = min(switch_num_val, num_piecewise_segments);
     int segment_index = 0;
     float start_time = 0.0f;
