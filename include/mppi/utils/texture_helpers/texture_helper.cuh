@@ -134,7 +134,7 @@ protected:
   TextureParams<DATA_T>* textures_d_ = nullptr;
 
   // device pointer to the parameters malloced memory
-  TextureParams<DATA_T>* params_d_;
+  TextureParams<DATA_T>* params_d_ = nullptr;
 };
 
 #if __CUDACC__

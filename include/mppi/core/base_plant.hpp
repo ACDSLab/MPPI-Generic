@@ -452,7 +452,10 @@ public:
       sleep_duration_ = (std::chrono::steady_clock::now() - sleep_start).count() / 1e6;
       double prev_iter_percent = (num_iter_ - 1.0) / num_iter_;
       avg_sleep_time_ms_ = prev_iter_percent * avg_sleep_time_ms_ + sleep_duration_ / num_iter_;
-      // printf("sleep: %f loop_time %f\n", sleep_duration_, optimize_loop_duration_);
+      // printf("sleep: %f loop_time %f at time %f", sleep_duration_, optimize_loop_duration_, getCurrentTime());
+      // std::cout << " loop ended at: " <<
+      // std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+      // << std::endl;
     }
   }
 };

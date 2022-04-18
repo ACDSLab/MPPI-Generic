@@ -43,6 +43,11 @@ public:
     return textures_;
   }
 
+  TextureParams<float4>* getParamsD()
+  {
+    return this->params_d_;
+  }
+
   void setTestExtent(int index, cudaExtent extent)
   {
     this->textures_[index].extent = extent;
@@ -143,6 +148,7 @@ TEST_F(TextureHelperTest, Constructor)
   EXPECT_NE(helper.getTextureD(), nullptr);
   EXPECT_NE(helper.getTextureDataPtr(), nullptr);
   EXPECT_EQ(helper.ptr_d_, nullptr);
+  EXPECT_EQ(helper.getParamsD(), nullptr);
   EXPECT_EQ(helper.getTextureD(), helper.getTextureDataPtr());
 
   for (const TextureParams<float4> texture : textures)

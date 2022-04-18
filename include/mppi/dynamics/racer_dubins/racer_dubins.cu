@@ -1,7 +1,9 @@
 #include <mppi/dynamics/racer_dubins/racer_dubins.cuh>
 
-void RacerDubins::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                  const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der)
+template <class CLASS_T, int STATE_DIM>
+void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(const Eigen::Ref<const state_array>& state,
+                                                          const Eigen::Ref<const control_array>& control,
+                                                          Eigen::Ref<state_array> state_der)
 {
   bool enable_brake = control(0) < 0;
   // applying position throttle
@@ -14,13 +16,17 @@ void RacerDubins::computeDynamics(const Eigen::Ref<const state_array>& state,
   state_der(4) = control(1) / this->params_.steer_command_angle_scale;
 }
 
-bool RacerDubins::computeGrad(const Eigen::Ref<const state_array>& state,
-                              const Eigen::Ref<const control_array>& control, Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B)
+template <class CLASS_T, int STATE_DIM>
+bool RacerDubinsImpl<CLASS_T, STATE_DIM>::computeGrad(const Eigen::Ref<const state_array>& state,
+                                                      const Eigen::Ref<const control_array>& control,
+                                                      Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B)
 {
   return false;
 }
 
-void RacerDubins::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
+template <class CLASS_T, int STATE_DIM>
+void RacerDubinsImpl<CLASS_T, STATE_DIM>::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der,
+                                                      const float dt)
 {
   state += state_der * dt;
   state(1) = angle_utils::normalizeAngle(state(1));
@@ -29,15 +35,17 @@ void RacerDubins::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_ar
   state_der.setZero();
 }
 
-RacerDubins::state_array RacerDubins::interpolateState(const Eigen::Ref<state_array> state_1,
-                                                       const Eigen::Ref<state_array> state_2, const double alpha)
+template <class CLASS_T, int STATE_DIM>
+RacerDubinsImpl<CLASS_T, STATE_DIM>::state_array RacerDubinsImpl<CLASS_T, STATE_DIM>::interpolateState(
+    const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2, const float alpha)
 {
   state_array result = (1 - alpha) * state_1 + alpha * state_2;
   result(1) = angle_utils::interpolateEulerAngleLinear(state_1(1), state_2(1), alpha);
   return result;
 }
 
-__device__ void RacerDubins::updateState(float* state, float* state_der, const float dt)
+template <class CLASS_T, int STATE_DIM>
+__device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::updateState(float* state, float* state_der, const float dt)
 {
   int i;
   int tdy = threadIdx.y;
@@ -60,7 +68,9 @@ __device__ void RacerDubins::updateState(float* state, float* state_der, const f
   }
 }
 
-__device__ void RacerDubins::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
+template <class CLASS_T, int STATE_DIM>
+__device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(float* state, float* control, float* state_der,
+                                                                     float* theta_s)
 {
   bool enable_brake = control[0] < 0;
   // applying position throttle

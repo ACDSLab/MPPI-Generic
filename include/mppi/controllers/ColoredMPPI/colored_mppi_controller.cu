@@ -34,9 +34,22 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
 {
   this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
+  state_array local_state = state;
+  for (int i = 0; i < DYN_T::STATE_DIM; i++)
+  {
+    float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
+    if (state_leash_dist_[i] < diff)
+    {
+      local_state[i] = state[i];
+    }
+    else
+    {
+      local_state[i] = this->state_.col(leash_jump_)[i];
+    }
+  }
 
   // Send the initial condition to the device
-  HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, state.data(), DYN_T::STATE_DIM * sizeof(float),
+  HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, local_state.data(), DYN_T::STATE_DIM * sizeof(float),
                                cudaMemcpyHostToDevice, this->stream_));
 
   float baseline_prev = 1e8;
@@ -152,11 +165,13 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
   this->free_energy_statistics_.real_sys.increase =
       this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
   smoothControlTrajectory();
-  computeStateTrajectory(state);
+  computeStateTrajectory(local_state);
   state_array zero_state = state_array::Zero();
   for (int i = 0; i < this->num_timesteps_; i++)
   {
-    this->model_->enforceConstraints(zero_state, this->control_.col(i));
+    // this->model_->enforceConstraints(zero_state, this->control_.col(i));
+    this->control_.col(i)[1] =
+        fminf(fmaxf(this->control_.col(i)[1], this->model_->control_rngs_[1].x), this->model_->control_rngs_[1].y);
   }
 
   // Copy back sampled trajectories
@@ -179,7 +194,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void ColoredMPPI::slideControlSequence(int steps)
 {
   // TODO does the logic of handling control history reasonable?
-
+  leash_jump_ = steps;
   // Save the control history
   this->saveControlHistoryHelper(steps, this->control_, this->control_history_);
 

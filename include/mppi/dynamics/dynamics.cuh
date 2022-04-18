@@ -235,7 +235,7 @@ public:
    * @return
    */
   state_array interpolateState(const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2,
-                               const double alpha)
+                               const float alpha)
   {
     return (1 - alpha) * state_1 + alpha * state_2;
   }
