@@ -136,12 +136,6 @@ public:
    */
   virtual void pubNominalState(const s_array& s) = 0;
 
-  /**
-   * applies the control to the syste
-   * @param u
-   */
-  virtual void pubStateDivergence(const s_array& s_diff) = 0;
-
   virtual void pubFreeEnergyStatistics(MPPIFreeEnergyStatistics& fe_stats) = 0;
 
   /**
@@ -254,11 +248,12 @@ public:
     if (time_since_last_opt > 0 && t_within_trajectory)
     {
       s_array target_nominal_state = this->controller_->interpolateState(state_traj_, time_since_last_opt);
-      pubNominalState(target_nominal_state);
       pubControl(controller_->getCurrentControl(state, time_since_last_opt, target_nominal_state, control_traj_,
                                                 feedback_state_));
-      s_array state_diff = state - target_nominal_state;
-      pubStateDivergence(state_diff);
+      if (debug_mode_)
+      {
+        pubNominalState(target_nominal_state);
+      }
     }
   }
 
@@ -402,7 +397,6 @@ public:
       exit(-1);
     }
     optimization_duration_ = (std::chrono::steady_clock::now() - optimization_start).count() / 1e6;
-    // printf("optimization_duration %f\n", optimization_duration_);
 
     std::chrono::steady_clock::time_point feedback_start = std::chrono::steady_clock::now();
     // TODO make sure this is zero by default

@@ -25,6 +25,9 @@ public:
   double avgTickDuration_ = 0;
   double avgSleepTime_ = 0;
 
+  int pubControlCalled = 0;
+  int pubNominalStateCalled = 0;
+
   using c_array = typename CONTROLLER_T::control_array;
   using c_traj = typename CONTROLLER_T::control_trajectory;
 
@@ -45,14 +48,12 @@ public:
 
   void pubControl(const c_array& u) override
   {
+    pubControlCalled++;
   }
 
   void pubNominalState(const s_array& s) override
   {
-  }
-
-  void pubStateDivergence(const s_array& s) override
-  {
+    pubNominalStateCalled++;
   }
 
   void pubFreeEnergyStatistics(MPPIFreeEnergyStatistics& fe_stats) override
@@ -283,6 +284,8 @@ TEST_F(BasePlantTest, updateStateOutsideTimeTest)
   plant->setLastTime(100);
   plant->updateState(state, 99.99);
   EXPECT_EQ(plant->getState(), state);
+  EXPECT_EQ(plant->pubControlCalled, 0);
+  EXPECT_EQ(plant->pubNominalStateCalled, 0);
 }
 
 TEST_F(BasePlantTest, updateStateTest)
@@ -294,6 +297,9 @@ TEST_F(BasePlantTest, updateStateTest)
   EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(1);
   plant->updateState(state, mockController->getDt());
   EXPECT_EQ(plant->getState(), state);
+
+  EXPECT_EQ(plant->pubControlCalled, 1);
+  EXPECT_EQ(plant->pubNominalStateCalled, 0);
 
   // EXPECT_CALL(*mockController, getCurrentControl(state, mockController->getDt()+100)).Times(1);
   // plant->setLastTime(100);
