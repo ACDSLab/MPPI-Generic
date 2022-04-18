@@ -21,10 +21,6 @@ class TestPlant : public BasePlant<CONTROLLER_T>
 public:
   double time_ = 0.0;
 
-  double avgDurationMs_ = 0;
-  double avgTickDuration_ = 0;
-  double avgSleepTime_ = 0;
-
   int pubControlCalled = 0;
   int pubNominalStateCalled = 0;
 
@@ -70,11 +66,8 @@ public:
     time_ += dt;
   }
 
-  void setTimingInfo(double avg_duration_ms, double avg_tick_duration, double avg_sleep_time) override
+  void pubTimingInfo() override
   {
-    avgDurationMs_ = avg_duration_ms;
-    avgTickDuration_ = avg_tick_duration;
-    avgSleepTime_ = avg_sleep_time;
   }
 
   int checkStatus() override

@@ -45,7 +45,6 @@ protected:
   int hz_ = 10;  // Frequency of control publisher
   int visualization_hz_ = 5;
   bool debug_mode_ = false;
-  bool increment_state_ = false;
 
   DYN_PARAMS_T dynamics_params_;
   std::mutex dynamics_params_guard_;
@@ -85,7 +84,6 @@ protected:
   std::atomic<double> last_used_pose_update_time_{ -1.0 };  // time of the last pose update that was used for
                                                             // optimization
   // Wall Clock: always real time
-  double last_optimization_time_ = 0;  // time of the last optimization
   double optimize_loop_duration_ = 0;  // duration of the entire controller run loop
   double optimization_duration_ = 0;   // Most recent time it took to run MPPI iteration
   double feedback_duration_ = 0;       // most recent time it took to run the feedback controller
@@ -141,11 +139,9 @@ public:
   /**
    * Receives timing info from control loop and can be overwritten
    * to ouput to another system
-   * @param avg_loop_ms          Average duration of a single iteration in ms
-   * @param avg_optimize_ms      Average time to call computeControl
-   * @param avg_feedback_ms      Average time to call computeFeedback
+   *
    */
-  virtual void setTimingInfo(double avg_loop_ms, double avg_optimize_ms, double avg_feedback_ms) = 0;
+  virtual void pubTimingInfo() = 0;
 
   /**
    * @brief Checks the system status.
@@ -425,7 +421,7 @@ public:
     optimize_loop_duration_ = (std::chrono::steady_clock::now() - loop_start).count() / 1e6;
     avg_loop_time_ms_ = prev_iter_percent * avg_loop_time_ms_ + optimize_loop_duration_ / num_iter_;
 
-    setTimingInfo(avg_loop_time_ms_, avg_optimize_time_ms_, avg_feedback_time_ms_);
+    pubTimingInfo();
   }
 
   void runControlLoop(std::atomic<bool>* is_alive)
