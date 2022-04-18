@@ -143,6 +143,7 @@ protected:
     EXPECT_CALL(mockDynamics, getParams()).Times(1);
 
     mockController = std::make_shared<MockController>();
+    EXPECT_CALL(*mockController, getDt()).WillRepeatedly(testing::Return(0.05));
     mockFeedback = new FEEDBACK_T(&mockDynamics, mockController->getDt());
     mockController->cost_ = &mockCost;
     mockController->model_ = &mockDynamics;
@@ -162,6 +163,8 @@ protected:
   FEEDBACK_T* mockFeedback;
   std::shared_ptr<MockController> mockController;
   std::shared_ptr<MockTestPlant> plant;
+
+  const float SMALL_TIME_MS = 5;
 };
 
 TEST_F(BasePlantTest, Constructor)
@@ -361,14 +364,13 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
     EXPECT_EQ(plant->getNumIter(), i + 1);
     EXPECT_EQ(plant->getLastOptimizationStride(), expect_opt_stride);
 
-    double small_time_ms = 4;  // how long we should expect a non delayed call to take
     EXPECT_THAT(plant->getOptimizationDuration(),
-                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_LT(plant->getOptimizationAvg(), wait_ms + small_time_ms);
-    EXPECT_THAT(plant->getLoopDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_LT(plant->getLoopAvg(), wait_ms + small_time_ms);
-    EXPECT_LE(plant->getFeedbackDuration(), small_time_ms);
-    EXPECT_LE(plant->getFeedbackAvg(), small_time_ms);
+                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+    EXPECT_LT(plant->getOptimizationAvg(), wait_ms + SMALL_TIME_MS);
+    EXPECT_THAT(plant->getLoopDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+    EXPECT_LT(plant->getLoopAvg(), wait_ms + SMALL_TIME_MS);
+    EXPECT_LE(plant->getFeedbackDuration(), SMALL_TIME_MS);
+    EXPECT_LE(plant->getFeedbackAvg(), SMALL_TIME_MS);
   }
 }
 
@@ -419,17 +421,16 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
     EXPECT_EQ(plant->getNumIter(), i + 1);
     EXPECT_EQ(plant->getLastOptimizationStride(), expect_opt_stride);
 
-    double small_time_ms = 5;  // how long we should expect a non delayed call to take
     EXPECT_THAT(plant->getOptimizationDuration(),
-                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_LT(plant->getOptimizationAvg(), wait_ms + small_time_ms);
+                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+    EXPECT_LT(plant->getOptimizationAvg(), wait_ms + SMALL_TIME_MS);
     EXPECT_THAT(plant->getFeedbackDuration(),
-                testing::AllOf(testing::Ge(wait_ms), testing::Le((wait_ms + small_time_ms) * 2)));
+                testing::AllOf(testing::Ge(wait_ms), testing::Le((wait_ms + SMALL_TIME_MS) * 2)));
     // TODO should be range as well
-    EXPECT_LT(plant->getFeedbackAvg(), wait_ms + small_time_ms);
+    EXPECT_LT(plant->getFeedbackAvg(), wait_ms + SMALL_TIME_MS);
     EXPECT_THAT(plant->getLoopDuration(),
-                testing::AllOf(testing::Ge(wait_ms * 2), testing::Le((wait_ms + small_time_ms) * 2)));
-    EXPECT_LT(plant->getLoopAvg(), (wait_ms + small_time_ms) * 2);
+                testing::AllOf(testing::Ge(wait_ms * 2), testing::Le((wait_ms + SMALL_TIME_MS) * 2)));
+    EXPECT_LT(plant->getLoopAvg(), (wait_ms + SMALL_TIME_MS) * 2);
   }
 }
 
@@ -480,18 +481,17 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
     EXPECT_EQ(plant->getNumIter(), i + 1);
     EXPECT_EQ(plant->getLastOptimizationStride(), expect_opt_stride);
 
-    double small_time_ms = 5;  // how long we should expect a non delayed call to take
     EXPECT_THAT(plant->getOptimizationDuration(),
-                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
     EXPECT_THAT(plant->getOptimizationAvg(),
-                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
     EXPECT_THAT(plant->getLoopDuration(),
-                testing::AllOf(testing::Ge(wait_ms * 2), testing::Le((wait_ms + small_time_ms) * 2)));
+                testing::AllOf(testing::Ge(wait_ms * 2), testing::Le((wait_ms + SMALL_TIME_MS) * 2)));
     EXPECT_THAT(plant->getLoopAvg(),
-                testing::AllOf(testing::Ge((wait_ms)*2), testing::Le((wait_ms + small_time_ms) * 2)));
+                testing::AllOf(testing::Ge((wait_ms)*2), testing::Le((wait_ms + SMALL_TIME_MS) * 2)));
     EXPECT_THAT(plant->getFeedbackDuration(),
-                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-    EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+    EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   }
 }
 
@@ -567,20 +567,19 @@ TEST_F(BasePlantTest, runControlLoopRegular)
   EXPECT_EQ(plant->getNumIter(), iterations / 2);
   EXPECT_EQ(plant->getLastOptimizationStride(), 1);
 
-  double small_time_ms = 4;  // how long we should expect a non delayed call to take
   double wait_ms = wait_s * 1e3;
   EXPECT_THAT(plant->getOptimizationDuration(),
-              testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+              testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   EXPECT_THAT(plant->getLoopDuration(),
-              testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + small_time_ms)));
-  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + small_time_ms)));
-  EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+              testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   // 10 iters of just waiting, 10 iters of waiting for correct time
   double expected_avg_wait = ((wait_ms * 3 * 10) + wait_ms * 10) / 10;
   EXPECT_THAT(plant->getSleepTimeAvg(),
-              testing::AllOf(testing::Gt(expected_avg_wait), testing::Le(expected_avg_wait + small_time_ms * 4)));
+              testing::AllOf(testing::Gt(expected_avg_wait), testing::Le(expected_avg_wait + SMALL_TIME_MS * 4)));
 }
 
 TEST_F(BasePlantTest, runControlLoopSlowed)
@@ -638,8 +637,6 @@ TEST_F(BasePlantTest, runControlLoopSlowed)
   // counter is number of dts
   for (int counter = 0; loop_duration.count() < test_duration * 1e3; counter++)
   {
-    plant->setCostParams(cost_params);
-    plant->setDynamicsParams(dyn_params);
     // wait until the correct hz has passed to tick the time
     // state at 100 Hz
     while (loop_duration.count() < (test_duration / 100) * 1e3 * counter)
@@ -651,6 +648,9 @@ TEST_F(BasePlantTest, runControlLoopSlowed)
     {  // this forces it to block
       plant->incrementTime(0.01);
     }
+
+    plant->setCostParams(cost_params);
+    plant->setDynamicsParams(dyn_params);
   }
   is_alive.store(false);
   optimizer.join();
@@ -666,20 +666,19 @@ TEST_F(BasePlantTest, runControlLoopSlowed)
   EXPECT_EQ(plant->getNumIter(), expected_iters);
   EXPECT_EQ(plant->getLastOptimizationStride(), 2);
 
-  double small_time_ms = 4;  // how long we should expect a non delayed call to take
   double wait_ms = wait_s * 1e3;
   EXPECT_THAT(plant->getOptimizationDuration(),
-              testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+              testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   EXPECT_THAT(plant->getLoopDuration(),
-              testing::AllOf(testing::Ge(wait_ms * 4), testing::Le(wait_ms * 4 + small_time_ms)));
-  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 4), testing::Le(wait_ms * 4 + small_time_ms)));
-  EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+              testing::AllOf(testing::Ge(wait_ms * 4), testing::Le(wait_ms * 4 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 4), testing::Le(wait_ms * 4 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   // 10 iters of just waiting
   double expected_avg_wait = ((wait_ms * 2 * 10)) / 6;
-  // EXPECT_THAT(plant->getSleepTimeAvg(), testing::AllOf(testing::Gt(expected_avg_wait - small_time_ms),
-  //                                                     testing::Le(expected_avg_wait + small_time_ms * 4)));
+  // EXPECT_THAT(plant->getSleepTimeAvg(), testing::AllOf(testing::Gt(expected_avg_wait - SMALL_TIME_MS),
+  //                                                     testing::Le(expected_avg_wait + SMALL_TIME_MS * 4)));
 }
 
 TEST_F(BasePlantTest, runControlLoopRegularRealTime)
@@ -755,18 +754,106 @@ TEST_F(BasePlantTest, runControlLoopRegularRealTime)
   EXPECT_EQ(plant->getNumIter(), iterations / 2);
   EXPECT_EQ(plant->getLastOptimizationStride(), 1);
 
-  double small_time_ms = 4;  // how long we should expect a non delayed call to take
   double wait_ms = wait_s * 1e3;
   EXPECT_THAT(plant->getOptimizationDuration(),
-              testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+              testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   EXPECT_THAT(plant->getLoopDuration(),
-              testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + small_time_ms)));
-  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + small_time_ms)));
-  EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
-  EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + small_time_ms)));
+              testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   // 10 iters of just waiting, 10 iters of waiting for correct time
   double expected_avg_wait = ((wait_ms * 3 * 10) + wait_ms * 10) / 10;
   EXPECT_THAT(plant->getSleepTimeAvg(),
-              testing::AllOf(testing::Gt(expected_avg_wait), testing::Le(expected_avg_wait + small_time_ms * 4)));
+              testing::AllOf(testing::Gt(expected_avg_wait), testing::Le(expected_avg_wait + SMALL_TIME_MS * 4)));
+}
+
+TEST_F(BasePlantTest, runControlLoopRegularDelayed)
+{
+  EXPECT_CALL(*mockController, getDt()).WillRepeatedly(testing::Return(0.025));
+  mockController->initFeedback();
+
+  int hz = plant->getHz();
+  double test_duration = 1.0;  // in seconds for how long to run the test
+
+  int init_time = 78;
+  plant->setLastTime(init_time);
+  plant->setUseRealTimeTiming(true);
+
+  // setup mock expected calls
+  EXPECT_CALL(mockCost, setParams(testing::_)).Times(0);
+  EXPECT_CALL(mockDynamics, setParams(testing::_)).Times(0);
+  EXPECT_CALL(*mockController, resetControls()).Times(1);
+
+  double wait_s =
+      (1.0 / hz) / 3;  // divide by 3 since wait is evenly split across computeFeedback, computeControl, and waiting
+
+  auto wait_function = [wait_s](const Eigen::Ref<const MockController::state_array>& state,
+                                int optimization_stride = 0) { usleep(wait_s * 1e6); };
+  int iterations = int(std::round((hz * 1.0) / (test_duration)));  // number of times the method will be called
+  // slide control sequence is skipped on the first iteration
+  EXPECT_CALL(*mockController, slideControlSequence(2)).Times(iterations / 2 - 1);
+  EXPECT_CALL(*mockController, computeControl(testing::_, testing::_))
+      .Times(iterations / 2)
+      .WillRepeatedly(testing::Invoke(wait_function));
+  MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
+  EXPECT_CALL(*mockController, getControlSeq()).Times(iterations / 2).WillRepeatedly(testing::Return(control_seq));
+  MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
+  EXPECT_CALL(*mockController, getTargetStateSeq()).Times(iterations / 2).WillRepeatedly(testing::Return(state_seq));
+  EXPECT_CALL(*mockController, computeFeedback(testing::_))
+      .Times(iterations / 2)
+      .WillRepeatedly(testing::Invoke(wait_function));
+  MockController::TEMPLATED_FEEDBACK_STATE feedback;
+  EXPECT_CALL(*mockController, getFeedbackState()).Times(iterations / 2).WillRepeatedly(testing::Return(feedback));
+  EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(iterations / 2);
+  EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
+
+  std::atomic<bool> is_alive(true);
+  std::thread optimizer(&MockTestPlant::runControlLoop, plant.get(), &is_alive);
+
+  std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
+  std::chrono::duration<double, std::milli> loop_duration = std::chrono::steady_clock::now() - loop_start;
+  // counter is number of dts
+  for (int counter = 0; loop_duration.count() < test_duration * 1e3; counter++)
+  {
+    // wait until the correct hz has passed to tick the time
+    // state at 100 Hz
+    while (loop_duration.count() < (test_duration / 100) * 1e3 * counter)
+    {
+      usleep(50);
+      loop_duration = std::chrono::steady_clock::now() - loop_start;
+    }
+    if (counter / 5 > iterations / 2)
+    {  // this forces it to block
+      plant->incrementTime(0.01);
+    }
+  }
+  is_alive.store(false);
+  optimizer.join();
+
+  // check all the things
+  EXPECT_EQ(plant->checkStatus(), 1);
+  EXPECT_EQ(plant->getStateTraj(), state_seq);
+  EXPECT_EQ(plant->getControlTraj(), control_seq);
+  EXPECT_EQ(plant->getFeedbackState(), feedback);
+
+  // check last pose update
+  EXPECT_NE(plant->getLastUsedPoseUpdateTime(), 0.0);
+  EXPECT_EQ(plant->getNumIter(), iterations / 2);
+  EXPECT_EQ(plant->getLastOptimizationStride(), 2);
+
+  double wait_ms = wait_s * 1e3;
+  EXPECT_THAT(plant->getOptimizationDuration(),
+              testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getLoopDuration(),
+              testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+  // 10 iters of just waiting, 10 iters of waiting for correct time
+  double expected_avg_wait = ((wait_ms * 3 * 10) + wait_ms * 10) / 10;
+  EXPECT_THAT(plant->getSleepTimeAvg(),
+              testing::AllOf(testing::Gt(expected_avg_wait), testing::Le(expected_avg_wait + SMALL_TIME_MS * 4)));
 }

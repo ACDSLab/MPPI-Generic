@@ -365,7 +365,7 @@ public:
     }
     else
     {
-      last_optimization_stride_ = std::max(int(round(dt * hz_)), optimization_stride_);
+      last_optimization_stride_ = std::max(int(round(dt / this->controller_->getDt())), optimization_stride_);
     }
     // printf("calc optimization stride %f %f %f %d\n", dt, temp_last_used_pose_update_time, temp_last_pose_time,
     // last_optimization_stride_);
