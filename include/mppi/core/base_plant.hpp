@@ -137,13 +137,6 @@ public:
   virtual void pubFreeEnergyStatistics(MPPIFreeEnergyStatistics& fe_stats) = 0;
 
   /**
-   * Receives timing info from control loop and can be overwritten
-   * to ouput to another system
-   *
-   */
-  virtual void pubTimingInfo() = 0;
-
-  /**
    * @brief Checks the system status.
    * @return An integer specifying the status. 0 means the system is operating
    * nominally, 1 means something is wrong but no action needs to be taken,
@@ -420,8 +413,6 @@ public:
 
     optimize_loop_duration_ = (std::chrono::steady_clock::now() - loop_start).count() / 1e6;
     avg_loop_time_ms_ = prev_iter_percent * avg_loop_time_ms_ + optimize_loop_duration_ / num_iter_;
-
-    pubTimingInfo();
   }
 
   void runControlLoop(std::atomic<bool>* is_alive)
