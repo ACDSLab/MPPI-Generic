@@ -83,6 +83,8 @@ protected:
   // Robot Time: can scale with a simulation
   std::atomic<double> last_used_pose_update_time_{ -1.0 };  // time of the last pose update that was used for
                                                             // optimization
+
+  std::atomic<bool> use_real_time_timing_{ false };
   // Wall Clock: always real time
   double optimize_loop_duration_ = 0;  // duration of the entire controller run loop
   double optimization_duration_ = 0;   // Most recent time it took to run MPPI iteration
@@ -148,6 +150,16 @@ public:
    * @return the current time not necessarily real time
    */
   virtual double getCurrentTime() = 0;
+
+  /**
+   * @return the timestamp from the most recent position
+   */
+  virtual double getPoseTime() = 0;
+
+  void setUseRealTimeTiming(bool use_real_time)
+  {
+    use_real_time_timing_ = use_real_time;
+  }
 
   // ======== PURE VIRTUAL END ====
 
@@ -324,7 +336,7 @@ public:
       return;
     }
 
-    double temp_last_pose_time = getCurrentTime();
+    double temp_last_pose_time = getPoseTime();
     double temp_last_used_pose_update_time = last_used_pose_update_time_;
 
     // wait for a new pose to compute control sequence from
@@ -332,7 +344,7 @@ public:
     while (temp_last_used_pose_update_time == temp_last_pose_time && is_alive->load())
     {
       usleep(50);
-      temp_last_pose_time = getCurrentTime();
+      temp_last_pose_time = getPoseTime();
       counter++;
     }
 
@@ -428,14 +440,16 @@ public:
     // Start the control loop.
     while (is_alive->load())
     {
+      double wait_until_real_time = getCurrentTime() + (1.0 / hz_) * optimization_stride_;
       runControlIteration(is_alive);
 
-      double wait_until_time = last_used_pose_update_time_ + (1.0 / hz_) * optimization_stride_;
+      double wait_until_pose_time = last_used_pose_update_time_ + (1.0 / hz_) * optimization_stride_;
       // printf("last used pose update time %f last_stride = %d\n", last_used_pose_update_time_,
       // last_optimization_stride_); printf("wait until time %f current time %f\n", wait_until_time, getCurrentTime());
 
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
-      while (is_alive->load() && wait_until_time > getCurrentTime())
+      while (is_alive->load() && (wait_until_pose_time > getPoseTime() ||
+                                  (wait_until_real_time > getCurrentTime() && use_real_time_timing_)))
       {
         updateParameters();
         usleep(50);
