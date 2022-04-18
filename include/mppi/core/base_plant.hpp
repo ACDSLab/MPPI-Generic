@@ -296,7 +296,7 @@ public:
    * @param state
    * @return
    */
-  bool updateParameters(s_array& state)
+  bool updateParameters()
   {
     bool changed = false;
     // Update the cost parameters
@@ -352,7 +352,7 @@ public:
 
     s_array state = getState();
     num_iter_++;
-    updateParameters(state);
+    updateParameters();
 
     // calculate how much we should slide the control sequence
     double dt = temp_last_pose_time - temp_last_used_pose_update_time;
@@ -450,6 +450,7 @@ public:
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
       while (is_alive->load() && wait_until_time > getCurrentTime())
       {
+        updateParameters();
         usleep(50);
       }
       sleep_duration_ = (std::chrono::steady_clock::now() - sleep_start).count() / 1e6;
