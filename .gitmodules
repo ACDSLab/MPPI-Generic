@@ -1,6 +1,3 @@
 [submodule "submodules/cnpy"]
 	path = submodules/cnpy
 	url = ../cnpy.git
-[submodule "submodules/fitpackpp"]
-	path = submodules/fitpackpp
-	url = https://github.com/JasonGibson274/fitpackpp.git
