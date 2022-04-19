@@ -100,6 +100,7 @@ void TwoDTextureHelper<DATA_T>::copyDataToGPU(int index, bool sync)
   {
     cudaStreamSynchronize(this->stream_);
   }
+  param->update_data = false;
 }
 
 template <class DATA_T>

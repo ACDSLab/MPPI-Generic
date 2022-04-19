@@ -12,12 +12,14 @@ class ThreeDTextureHelperTest : public testing::Test
 protected:
   void SetUp() override
   {
+    CudaCheckError();
     generator = std::default_random_engine(7.0);
     distribution = std::normal_distribution<float>(100.0, 2.0);
   }
 
   void TearDown() override
   {
+    CudaCheckError();
   }
 
   std::default_random_engine generator;
@@ -175,6 +177,11 @@ TEST_F(ThreeDTextureHelperTest, CopyDataToGPUOneGo)
   helper.allocateCudaTexture(0);
   helper.createCudaTexture(0);
   helper.copyDataToGPU(0, true);
+
+  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  EXPECT_TRUE(textures[0].allocated);
+  EXPECT_FALSE(textures[0].update_data);
+  EXPECT_FALSE(textures[0].update_mem);
 
   std::vector<float4> query_points;
   // X
