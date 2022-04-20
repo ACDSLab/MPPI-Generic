@@ -152,3 +152,13 @@ __device__ void RacerSuspension::computeDynamics(float* state, float* control, f
 {
 
 }
+
+Eigen::Quaternionf RacerSuspension::get_attitude(const Eigen::Ref<const state_array>& state)
+{
+  return Eigen::Quaternionf(state[STATE_QW], state[STATE_QX], state[STATE_QY], state[STATE_QZ]);
+}
+
+Eigen::Vector3f RacerSuspension::get_position(const Eigen::Ref<const state_array>& state)
+{
+  return Eigen::Vector3f(state[STATE_PX], state[STATE_PY], state[STATE_PZ]);
+}
