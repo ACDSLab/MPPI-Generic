@@ -26,7 +26,7 @@ public:
 TEST_F(RacerSuspensionTest, Template)
 {
   auto dynamics = RacerSuspension();
-  EXPECT_EQ(13, RacerSuspension::STATE_DIM);
+  EXPECT_EQ(15, RacerSuspension::STATE_DIM);
   EXPECT_EQ(2, RacerSuspension::CONTROL_DIM);
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
 }
