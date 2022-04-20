@@ -14,7 +14,7 @@
 
 __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int num_trajectories, const int control_dim,
       const int num_piecewise_segments, const float scale_noise_factor, const float frac_random_noise_traj,
-      const unsigned int* switch_num, const float* switch_times, const float* switch_values, const float* nominal_control, const float* random_noise, const float* control_std_dev, float* output){
+      const unsigned int* switch_num, const float* switch_times, const float* switch_values, float* nominal_control, const float* random_noise, const float* control_std_dev, float* output){
   int sample_index = blockIdx.x * blockDim.x + threadIdx.x;
   int time_index = blockIdx.y * blockDim.y + threadIdx.y;
   int control_index = blockIdx.z * blockDim.z + threadIdx.z;
@@ -22,10 +22,12 @@ __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int nu
     return;
   }
 
-  if (sample_index == 0){
-    // if sample index = 0, use nominal control
+  if (sample_index == 1){
+    // if sample index = 1, use nominal control
+    // sample_index = 0 is replaced by 0 controls later in the kernel
+    // it also gets scaled, so we need to unscale it first, to keep it constant.
     output[(sample_index * num_timesteps + time_index) * control_dim + control_index] = 
-      nominal_control[time_index * control_dim + control_index];
+      nominal_control[time_index * control_dim + control_index] / control_std_dev[control_index];
   } else if (float(sample_index) < frac_random_noise_traj * float(num_trajectories)){
     // randomly vary nominal control for frac_random_noise_traj fraction of the trajectories
     output[(sample_index * num_timesteps + time_index) * control_dim + control_index] = 
@@ -67,12 +69,15 @@ __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int nu
     output[(sample_index * num_timesteps + time_index) * control_dim + control_index] = output_val; 
   }
 
+  // set nominal control to 0, since kernel will later add it to the output
+  nominal_control[time_index * control_dim + control_index] = 0.0f;
+
 }
 
 void piecewise_linear_noise(const int num_timesteps, const int num_trajectories, const int control_dim,
                             const int num_piecewise_segments, const float scale_noise_factor, 
                             const float frac_random_noise_traj,
-                            const float* control_d, float* control_noise_d, const float* control_std_dev_d, curandGenerator_t& gen, cudaStream_t stream = 0)
+                            float* control_d, float* control_noise_d, const float* control_std_dev_d, curandGenerator_t& gen, cudaStream_t stream = 0)
 {
   // generate piecewise linear random noise, in 2 steps:
   // 1. randomly decide start/stop times of segments (uniformly divide t=0:T)

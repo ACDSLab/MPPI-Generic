@@ -50,6 +50,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
                                cudaMemcpyHostToDevice, this->stream_));
 
   float baseline_prev = 1e8;
+  int prev_controls_idx = 1;
 
   for (int opt_iter = 0; opt_iter < this->num_iters_; opt_iter++)
   {
@@ -57,12 +58,6 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     piecewise_linear_noise(this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM, num_piecewise_segments_,
                            scale_noise_factor_, frac_random_noise_traj_, this->control_d_, this->control_noise_d_,
                            this->control_std_dev_d_, this->gen_, this->stream_);
-
-    // Set nominal controls to zero because we want to use the noise directly
-    this->control_ = control_trajectory::Zero();
-
-    // Send the zero nominal control to the device
-    this->copyNominalControlToDevice();
 
     // Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
@@ -77,35 +72,12 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
     this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
 
-    // Construct weights which pick the best trajectory (all others are zero)
-    int best_idx = mppi_common::computeBestIndex(this->trajectory_costs_.data(), NUM_ROLLOUTS);
-
-    // copy the weights to the device
-    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_d_, this->trajectory_costs_.data(),
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
-
-    if (this->baseline_ > baseline_prev + 1)
+    // get previous control cost (at index = 1, since index = 0 is zero control traj)
+    baseline_prev = this->trajectory_costs_.data()[prev_controls_idx];
+    if (this->debug_)
     {
-      // TODO handle printing
-      if (this->debug_)
-      {
-        std::cout << "Previous Baseline: " << baseline_prev << std::endl;
-        std::cout << "         Baseline: " << this->baseline_ << std::endl;
-      }
+      std::cerr << "Previous Baseline: " << baseline_prev << "         Baseline: " << this->baseline_ << std::endl;
     }
-
-    baseline_prev = this->baseline_;
-
-    // mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
-    //                                this->free_energy_statistics_.real_sys.freeEnergyVariance,
-    //                                this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-    //                                this->trajectory_costs_.data(), NUM_ROLLOUTS, this->baseline_, this->lambda_);
-
-    // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
-    // mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
-    //     this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, /* normalizer = */ 1.0,
-    //     this->num_timesteps_, this->stream_);
 
     // if baseline is too high and trajectory is unsafe, create and issue a stopping trajectory
     if (stopping_cost_threshold_ > 0 && this->baseline_ > stopping_cost_threshold_)
@@ -113,19 +85,28 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
       std::cerr << "Baseline is too high, issuing stopping trajectory!" << std::endl;
       computeStoppingTrajectory(local_state);
     }
+    else if (this->baseline_ > baseline_prev - hysteresis_cost_threshold_)
+    {
+      // baseline is not decreasing enough, use controls from the previous iteration
+      if (this->debug_)
+      {
+        std::cerr << "Not enough improvement, use prev controls." << std::endl;
+      }
+      HANDLE_ERROR(cudaMemcpyAsync(
+          this->control_.data(), this->control_noise_d_ + prev_controls_idx * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+          sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
+      this->baseline_ = baseline_prev;
+    }
     else
     {  // otherwise, update the nominal control
       // Copy best control from device to the host
+      int best_idx = mppi_common::computeBestIndex(this->trajectory_costs_.data(), NUM_ROLLOUTS);
       HANDLE_ERROR(cudaMemcpyAsync(
           this->control_.data(), this->control_noise_d_ + best_idx * this->num_timesteps_ * DYN_T::CONTROL_DIM,
           sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
     }
     cudaStreamSynchronize(this->stream_);
   }
-
-  // this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_ / NUM_ROLLOUTS;
-  // this->free_energy_statistics_.real_sys.increase =
-  //     this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
 
   // smoothControlTrajectory();
 

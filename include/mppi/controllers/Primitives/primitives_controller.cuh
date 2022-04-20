@@ -121,6 +121,16 @@ public:
     return stopping_cost_threshold_;
   }
 
+  void setHysteresisCostThreshold(float new_hysteresis_cost_threshold)
+  {
+    hysteresis_cost_threshold_ = new_hysteresis_cost_threshold;
+  }
+  
+  float getHysteresisCostThreshold()
+  {
+    return hysteresis_cost_threshold_;
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
@@ -134,6 +144,7 @@ protected:
   float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
   int leash_jump_ = 1;
   float stopping_cost_threshold_ = 1.0e8;
+  float hysteresis_cost_threshold_ = 0.0;
 
 private:
   // ======== MUST BE OVERWRITTEN =========
