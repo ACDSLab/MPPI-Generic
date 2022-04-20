@@ -72,6 +72,16 @@ public:
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 1);
   }
   
+  void setColoredNoiseExponents(std::vector<float>& new_exponents)
+  {
+    colored_noise_exponents_ = new_exponents;
+  }
+
+  float getColoredNoiseExponent(int index)
+  {
+    return colored_noise_exponents_[index];
+  }
+
   void setPiecewiseSegments(int segments)
   {
     num_piecewise_segments_ = segments;
@@ -141,6 +151,7 @@ protected:
   int num_piecewise_segments_ = 5;
   float scale_noise_factor_ = 0.0;
   float frac_random_noise_traj_ = 0.1;
+  std::vector<float> colored_noise_exponents_;
   float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
   int leash_jump_ = 1;
   float stopping_cost_threshold_ = 1.0e8;
