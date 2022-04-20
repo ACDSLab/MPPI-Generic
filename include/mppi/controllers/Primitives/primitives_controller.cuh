@@ -92,14 +92,14 @@ public:
     return num_piecewise_segments_;
   }
 
-  void setScaleNoiseFactor(float scale_noise_factor)
+  void setScalePiecewiseNoise(std::vector<float>& new_scale)
   {
-    scale_noise_factor_ = scale_noise_factor;
+    scale_piecewise_noise_ = new_scale;
   }
 
-  float getScaleNoiseFactor()
+  std::vector<float> getScalePiecewiseNoise()
   {
-    return scale_noise_factor_;
+    return scale_piecewise_noise_;
   }
 
   void setFracRandomNoiseTraj(float frac_random_noise_traj)
@@ -149,7 +149,7 @@ protected:
   void computeStoppingTrajectory(const Eigen::Ref<const state_array>& x0);
   void smoothControlTrajectory();
   int num_piecewise_segments_ = 5;
-  float scale_noise_factor_ = 0.0;
+  std::vector<float> scale_piecewise_noise_;
   float frac_random_noise_traj_ = 0.1;
   std::vector<float> colored_noise_exponents_;
   float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };

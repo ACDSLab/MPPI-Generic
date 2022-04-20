@@ -19,6 +19,7 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
   allocateCUDAMemory();
   std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
   colored_noise_exponents_ = std::move(tmp_vec);
+  scale_piecewise_noise_ = std::move(tmp_vec);
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
@@ -64,7 +65,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
   // Generate piecewise linear noise data, update control_noise_d_
   piecewise_linear_noise(this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM, num_piecewise_segments_,
-                         scale_noise_factor_, frac_random_noise_traj_, this->control_d_, this->control_noise_d_,
+                         scale_piecewise_noise_, frac_random_noise_traj_, this->control_d_, this->control_noise_d_,
                          this->control_std_dev_d_, this->gen_, this->stream_);
 
   // Launch the rollout kernel
