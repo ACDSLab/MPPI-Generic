@@ -238,7 +238,7 @@ float computeBaselineCost(float* cost_rollouts_host, int num_rollouts)
 
 float constructBestWeights(float* cost_rollouts_host, int num_rollouts)
 {
-  float best_cost = cost_rollouts_host[i];
+  float best_cost = cost_rollouts_host[0];
   int best_cost_idx = 0;
   for (int i = 0; i < num_rollouts; i++)
   {
@@ -267,7 +267,7 @@ float constructBestWeights(float* cost_rollouts_host, int num_rollouts)
 
 int computeBestIndex(float* cost_rollouts_host, int num_rollouts)
 {
-  float best_cost = cost_rollouts_host[i];
+  float best_cost = cost_rollouts_host[0];
   int best_cost_idx = 0;
   for (int i = 0; i < num_rollouts; i++)
   {
