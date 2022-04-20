@@ -70,9 +70,16 @@ void TwoDTextureHelper<DATA_T>::updateTexture(const int index, std::vector<DATA_
 }
 
 template <class DATA_T>
-__device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int index, const float3& point)
+__host__ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int index, const float3& point)
 {
+#ifdef __CUDA_ARCH__
   return tex2D<DATA_T>(this->textures_d_[index].tex_d, point.x, point.y);
+#else
+  TextureParams<DATA_T>* param = &this->textures_[index];
+  int w = param->extent.width;
+  int rowMajorIndex = point.x * w + point.y;
+  return cpu_values_[index][rowMajorIndex];
+#endif
 }
 
 template <class DATA_T>

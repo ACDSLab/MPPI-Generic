@@ -31,7 +31,7 @@ public:
     return cpu_values_;
   }
 
-  __device__ DATA_T queryTexture(const int index, const float3& point);
+  __host__ __device__ DATA_T queryTexture(const int index, const float3& point);
 
 protected:
   std::vector<std::vector<DATA_T>> cpu_values_;

@@ -197,7 +197,7 @@ void TextureHelper<TEX_T, DATA_T>::addNewTexture(const cudaExtent& extent)
 }
 
 template <class TEX_T, class DATA_T>
-__device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtWorldPose(const int index, const float3& input)
+__host__ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtWorldPose(const int index, const float3& input)
 {
   float3 tex_coords;
   worldPoseToTexCoord(index, input, tex_coords);
@@ -206,7 +206,7 @@ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtWorldPose(const in
 }
 
 template <class TEX_T, class DATA_T>
-__device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtMapPose(const int index, const float3& input)
+__host__ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtMapPose(const int index, const float3& input)
 {
   float3 tex_coords;
   mapPoseToTexCoord(index, input, tex_coords);

@@ -88,8 +88,8 @@ public:
   __host__ __device__ void worldPoseToMapPose(const int index, const float3& input, float3& output);
   __host__ __device__ void mapPoseToTexCoord(const int index, const float3& input, float3& output);
   __host__ __device__ void worldPoseToTexCoord(const int index, const float3& input, float3& output);
-  __device__ DATA_T queryTextureAtWorldPose(const int index, const float3& input);
-  __device__ DATA_T queryTextureAtMapPose(int index, const float3& input);
+  __host__ __device__ DATA_T queryTextureAtWorldPose(const int index, const float3& input);
+  __host__ __device__ DATA_T queryTextureAtMapPose(int index, const float3& input);
 
   virtual void updateOrigin(int index, float3 new_origin);
   virtual void updateRotation(int index, std::array<float3, 3>& new_rotation);
