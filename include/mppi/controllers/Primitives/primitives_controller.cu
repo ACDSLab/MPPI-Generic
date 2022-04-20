@@ -57,7 +57,6 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   // BEGIN INTERMEDIATE PLANNER
   // Compute intermediate plan using piecewise linear noise, and choosing the best
 
-  float baseline_prev = 1e8;
   int prev_controls_idx = 1;
 
   // Send the nominal control to the device
@@ -82,7 +81,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
 
   // get previous control cost (at index = 1, since index = 0 is zero control traj)
-  baseline_prev = this->trajectory_costs_.data()[prev_controls_idx];
+  float baseline_prev = this->trajectory_costs_.data()[prev_controls_idx];
   if (this->debug_)
   {
     std::cerr << "Previous Baseline: " << baseline_prev << "         Baseline: " << this->baseline_ << std::endl;
