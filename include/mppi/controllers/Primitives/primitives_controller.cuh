@@ -16,7 +16,8 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 class PrimitivesController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
 {
 public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  // EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
   // need control_array = ... so that we can initialize
   // Eigen::Matrix with Eigen::Matrix::Zero();
   using control_array =
@@ -72,6 +73,16 @@ public:
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 1);
   }
   
+  void setNumPrimitiveIterations(int new_num_iter)
+  {
+    num_primitive_iters_ = new_num_iter;
+  }
+
+  int getNumPrimitiveIterations()
+  {
+    return num_primitive_iters_;
+  }
+
   void setColoredNoiseExponents(std::vector<float>& new_exponents)
   {
     colored_noise_exponents_ = new_exponents;
@@ -148,6 +159,7 @@ protected:
 
   void computeStoppingTrajectory(const Eigen::Ref<const state_array>& x0);
   void smoothControlTrajectory();
+  int num_primitive_iters_;
   int num_piecewise_segments_ = 5;
   std::vector<float> scale_piecewise_noise_;
   float frac_random_noise_traj_ = 0.1;
