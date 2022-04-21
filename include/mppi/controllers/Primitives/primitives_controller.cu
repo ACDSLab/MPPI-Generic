@@ -59,11 +59,11 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
   int prev_controls_idx = 1;
 
+  // Send the nominal control to the device
+  this->copyNominalControlToDevice();
+
   for (int opt_iter = 0; opt_iter < num_primitive_iters_; opt_iter++)
   {
-    // Send the nominal control to the device
-    this->copyNominalControlToDevice();
-
     // Generate piecewise linear noise data, update control_noise_d_
     piecewise_linear_noise(this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM, num_piecewise_segments_,
                            scale_piecewise_noise_, frac_random_noise_traj_, this->control_d_, this->control_noise_d_,
@@ -90,7 +90,8 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     }
 
     // if baseline is too high and trajectory is unsafe, create and issue a stopping trajectory
-    if (stopping_cost_threshold_ > 0 && this->baseline_ > stopping_cost_threshold_)
+    // reminder:  baseline_ is the average cost along trajectory
+    if (stopping_cost_threshold_ > 0 && this->baseline_ * this->num_timesteps_ > stopping_cost_threshold_)
     {
       std::cerr << "Baseline is too high, issuing stopping trajectory!" << std::endl;
       computeStoppingTrajectory(local_state);
@@ -105,6 +106,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
       HANDLE_ERROR(cudaMemcpyAsync(
           this->control_.data(), this->control_noise_d_ + prev_controls_idx * this->num_timesteps_ * DYN_T::CONTROL_DIM,
           sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
+
       this->baseline_ = baseline_prev;
     }
     else
@@ -115,6 +117,9 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
           this->control_.data(), this->control_noise_d_ + best_idx * this->num_timesteps_ * DYN_T::CONTROL_DIM,
           sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
     }
+
+    this->copyNominalControlToDevice();
+
     cudaStreamSynchronize(this->stream_);
   }
 
