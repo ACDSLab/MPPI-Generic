@@ -13,7 +13,7 @@
 
 
 __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int num_trajectories, const int control_dim,
-      const int num_piecewise_segments, const float* scale_piecewise_noise, const float* frac_add_nominal_traj, const float* scale_add_nominal_noise,
+      const int num_piecewise_segments, const int optimization_stride, const float* scale_piecewise_noise, const float* frac_add_nominal_traj, const float* scale_add_nominal_noise,
       const unsigned int* switch_num, const float* switch_times, const float* switch_values, float* nominal_control, const float* control_std_dev, float* output){
   int sample_index = blockIdx.x * blockDim.x + threadIdx.x;
   int time_index = blockIdx.y * blockDim.y + threadIdx.y;
@@ -24,7 +24,7 @@ __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int nu
 
   float output_val = 0.0;
 
-  if (sample_index == 1){
+  if (sample_index == 1 || time_index < optimization_stride){
     // if sample index = 1, use nominal control
     // sample_index = 0 is replaced by 0 controls later in the kernel
     output_val = nominal_control[time_index * control_dim + control_index];
@@ -83,7 +83,7 @@ __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int nu
 }
 
 void piecewise_linear_noise(const int num_timesteps, const int num_trajectories, const int control_dim,
-                            const int num_piecewise_segments, std::vector<float>& scale_piecewise_noise, 
+                            const int num_piecewise_segments, const int optimization_stride, std::vector<float>& scale_piecewise_noise, 
                             std::vector<float>& frac_add_nominal_traj, std::vector<float>& scale_add_nominal_noise,
                             float* control_d, float* control_noise_d, const float* control_std_dev_d, curandGenerator_t& gen, cudaStream_t stream = 0)
 {
@@ -127,7 +127,7 @@ void piecewise_linear_noise(const int num_timesteps, const int num_trajectories,
   dim3 grid(grid_x, grid_y, grid_z);
   dim3 block(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
   createPiecewiseLinearNoise<<<grid, block, 0, stream>>>(num_timesteps, num_trajectories, control_dim,
-                                          num_piecewise_segments, scale_piecewise_noise_d, frac_add_nominal_traj_d, scale_add_nominal_noise_d, switch_num_d, switch_times_d, switch_values_d, control_d, control_std_dev_d, control_noise_d);
+                                          num_piecewise_segments, optimization_stride, scale_piecewise_noise_d, frac_add_nominal_traj_d, scale_add_nominal_noise_d, switch_num_d, switch_times_d, switch_values_d, control_d, control_std_dev_d, control_noise_d);
   
   // cleanup
   HANDLE_ERROR(cudaGetLastError());
