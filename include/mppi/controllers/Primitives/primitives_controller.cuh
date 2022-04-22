@@ -113,13 +113,23 @@ public:
     return scale_piecewise_noise_;
   }
 
-  void setFracRandomNoiseTraj(float frac_random_noise_traj)
+  void setFracRandomNoiseTraj(float frac_add_nominal_traj)
   {
-    frac_random_noise_traj_ = frac_random_noise_traj;
+    frac_add_nominal_traj_ = frac_add_nominal_traj;
   }
   float getFracRandomNoiseTraj()
   {
-    return frac_random_noise_traj_;
+    return frac_add_nominal_traj_;
+  }
+
+  void setScaleAddNominalPiecewiseNoise(float scale_add_nominal_piecewise_noise)
+  {
+    scale_add_nominal_piecewise_noise_ = scale_add_nominal_piecewise_noise;
+  }
+
+  float getScaleAddNominalPiecewiseNoise()
+  {
+    return scale_add_nominal_piecewise_noise_;
   }
 
   void setStateLeashLength(float new_state_leash, int index = 0)
@@ -162,7 +172,8 @@ protected:
   int num_primitive_iters_;
   int num_piecewise_segments_ = 5;
   std::vector<float> scale_piecewise_noise_;
-  float frac_random_noise_traj_ = 0.1;
+  float frac_add_nominal_traj_ = 0.1;
+  float scale_add_nominal_piecewise_noise_ = 1.0;
   std::vector<float> colored_noise_exponents_;
   float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
   int leash_jump_ = 1;
