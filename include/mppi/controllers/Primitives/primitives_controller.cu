@@ -64,11 +64,13 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
   for (int opt_iter = 0; opt_iter < num_primitive_iters_; opt_iter++)
   {
+    powerlaw_psd_gaussian(colored_noise_exponents_, this->num_timesteps_, NUM_ROLLOUTS, this->control_noise_d_,
+                          this->gen_, this->stream_);
+
     // Generate piecewise linear noise data, update control_noise_d_
     piecewise_linear_noise(this->num_timesteps_, NUM_ROLLOUTS, DYN_T::CONTROL_DIM, num_piecewise_segments_,
-                           scale_piecewise_noise_, frac_add_nominal_traj_, scale_add_nominal_piecewise_noise_,
-                           this->control_d_, this->control_noise_d_, this->control_std_dev_d_, this->gen_,
-                           this->stream_);
+                           scale_piecewise_noise_, frac_add_nominal_traj_, scale_add_nominal_noise_, this->control_d_,
+                           this->control_noise_d_, this->control_std_dev_d_, this->gen_, this->stream_);
 
     // Set nominal controls to zero because we want to use the noise directly
     this->control_ = control_trajectory::Zero();
