@@ -162,10 +162,21 @@ public:
     return hysteresis_cost_threshold_;
   }
 
+  void setVisualizePrimitives(bool visualize_primitives)
+  {
+    visualize_primitives_ = visualize_primitives;
+  }
+
+  bool getVisualizePrimitives()
+  {
+    return visualize_primitives_;
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
+  void copyMPPIControlToDevice();
 
   void computeStoppingTrajectory(const Eigen::Ref<const state_array>& x0);
   void smoothControlTrajectory();
@@ -179,6 +190,10 @@ protected:
   int leash_jump_ = 1;
   float stopping_cost_threshold_ = 1.0e8;
   float hysteresis_cost_threshold_ = 0.0;
+  bool visualize_primitives_ = false;
+
+  float* control_mppi_d_;           // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
+  control_trajectory control_mppi_ = control_trajectory::Zero(); // host side mppi control trajectory
 
 private:
   // ======== MUST BE OVERWRITTEN =========
