@@ -4,6 +4,9 @@ template <class TEX_T, class DATA_T>
 TextureHelper<TEX_T, DATA_T>::TextureHelper(int number, cudaStream_t stream) : Managed(stream)
 {
   textures_.resize(number);
+  textures_buffer_.resize(number);
+  cpu_values_.resize(number);
+  cpu_buffer_values_.resize(number);
   textures_d_ = textures_.data();
 }
 
@@ -16,9 +19,9 @@ TextureHelper<TEX_T, DATA_T>::~TextureHelper()
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::GPUSetup()
 {
-  TEX_T* derived = static_cast<TEX_T*>(this);
   if (!GPUMemStatus_)
   {
+    TEX_T* derived = static_cast<TEX_T*>(this);
     ptr_d_ = Managed::GPUSetup<TEX_T>(derived);
     // allocates memory to access params on the GPU by pointer
     HANDLE_ERROR(cudaMalloc(&params_d_, sizeof(TextureParams<DATA_T>) * textures_.size()));
@@ -123,6 +126,7 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::worldPoseToTexCoord(const
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::copyToDevice(bool synchronize)
 {
+  // TODO lock and copy cpu values from buffer
   if (!this->GPUMemStatus_)
   {
     return;
@@ -180,7 +184,10 @@ void TextureHelper<TEX_T, DATA_T>::createCudaTexture(int index, bool sync)
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::addNewTexture(const cudaExtent& extent)
 {
+  // update the buffer not the actual textures
+  textures_buffer_.resize(textures_.size() + 1);
   textures_.resize(textures_.size() + 1);
+  textures_buffer_.back().extent = extent;
   textures_.back().extent = extent;
 
   if (this->GPUMemStatus_)
@@ -188,7 +195,7 @@ void TextureHelper<TEX_T, DATA_T>::addNewTexture(const cudaExtent& extent)
     TEX_T* derived = static_cast<TEX_T*>(this);
     int index = textures_.size() - 1;
 
-    // TODO resize the device side array
+    // TODO resize the device side array that stores textures
 
     derived->allocateCudaTexture(index);
     derived->createCudaTexture(index);
@@ -217,35 +224,35 @@ __host__ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtMapPose(c
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateOrigin(int index, float3 new_origin)
 {
-  this->textures_[index].origin = new_origin;
-  this->textures_[index].update_params = true;
+  this->textures_buffer_[index].origin = new_origin;
+  this->textures_buffer_[index].update_params = true;
 }
 
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateRotation(int index, std::array<float3, 3>& new_rotation)
 {
-  this->textures_[index].rotations[0] = new_rotation[0];
-  this->textures_[index].rotations[1] = new_rotation[1];
-  this->textures_[index].rotations[2] = new_rotation[2];
-  this->textures_[index].update_params = true;
+  this->textures_buffer_[index].rotations[0] = new_rotation[0];
+  this->textures_buffer_[index].rotations[1] = new_rotation[1];
+  this->textures_buffer_[index].rotations[2] = new_rotation[2];
+  this->textures_buffer_[index].update_params = true;
 }
 
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float resolution)
 {
-  this->textures_[index].resolution.x = resolution;
-  this->textures_[index].resolution.y = resolution;
-  this->textures_[index].resolution.z = resolution;
-  this->textures_[index].update_params = true;
+  this->textures_buffer_[index].resolution.x = resolution;
+  this->textures_buffer_[index].resolution.y = resolution;
+  this->textures_buffer_[index].resolution.z = resolution;
+  this->textures_buffer_[index].update_params = true;
 }
 
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float3 resolution)
 {
-  this->textures_[index].resolution.x = resolution.x;
-  this->textures_[index].resolution.y = resolution.y;
-  this->textures_[index].resolution.z = resolution.z;
-  this->textures_[index].update_params = true;
+  this->textures_buffer_[index].resolution.x = resolution.x;
+  this->textures_buffer_[index].resolution.y = resolution.y;
+  this->textures_buffer_[index].resolution.z = resolution.z;
+  this->textures_buffer_[index].update_params = true;
 }
 
 template <class TEX_T, class DATA_T>
@@ -258,12 +265,13 @@ bool TextureHelper<TEX_T, DATA_T>::setExtent(int index, cudaExtent& extent)
   {
     // flag to update mem next time we should
     param->update_mem = true;
-    this->textures_[index].extent = extent;
+    this->textures_buffer_[index].extent = extent;
     return true;
   }
   return false;
 }
 
+// TODO copyParamsToCPU
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::copyParamsToGPU(int index, bool sync)
 {
@@ -282,15 +290,15 @@ void TextureHelper<TEX_T, DATA_T>::copyParamsToGPU(int index, bool sync)
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateAddressMode(int index, cudaTextureAddressMode mode)
 {
-  this->textures_[index].texDesc.addressMode[0] = mode;
-  this->textures_[index].texDesc.addressMode[1] = mode;
-  this->textures_[index].texDesc.addressMode[2] = mode;
-  this->textures_[index].update_mem = true;
+  this->textures_buffer_[index].texDesc.addressMode[0] = mode;
+  this->textures_buffer_[index].texDesc.addressMode[1] = mode;
+  this->textures_buffer_[index].texDesc.addressMode[2] = mode;
+  this->textures_buffer_[index].update_mem = true;
 }
 
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateAddressMode(int index, int layer, cudaTextureAddressMode mode)
 {
-  this->textures_[index].texDesc.addressMode[layer] = mode;
+  this->textures_buffer_[index].texDesc.addressMode[layer] = mode;
   // this->textures_[index].update_mem = true;
 }

@@ -4,7 +4,6 @@ template <class DATA_T>
 ThreeDTextureHelper<DATA_T>::ThreeDTextureHelper(int number, cudaStream_t stream)
   : TextureHelper<ThreeDTextureHelper<DATA_T>, DATA_T>(number, stream)
 {
-  cpu_values_.resize(number);
   layer_copy_.resize(number);
   for (std::vector<bool>& layer : layer_copy_)
   {

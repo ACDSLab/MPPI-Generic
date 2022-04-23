@@ -56,7 +56,6 @@ class TextureHelper : public Managed
 {
 protected:
   TextureHelper(int number, cudaStream_t stream = 0);
-
 public:
   virtual ~TextureHelper();
 
@@ -124,11 +123,32 @@ public:
   {
     return textures_;
   }
+  std::vector<TextureParams<float4>> getBufferTextures()
+  {
+    return textures_buffer_;
+  }
+
+  std::vector<std::vector<DATA_T>> getCpuValues()
+  {
+    return cpu_values_;
+  }
+
+  std::vector<std::vector<DATA_T>> getCpuBufferValues()
+  {
+    return cpu_buffer_values_;
+  }
 
   TEX_T* ptr_d_ = nullptr;
 
 protected:
+  //std::mutex buffer_lck_;
+
   std::vector<TextureParams<DATA_T>> textures_;
+  std::vector<TextureParams<DATA_T>> textures_buffer_;
+
+  // memory allocation can vary depending on 1D, 2D, or 3D implementation
+  std::vector<std::vector<DATA_T>> cpu_values_;
+  std::vector<std::vector<DATA_T>> cpu_buffer_values_;
 
   // helper, on CPU points to vector data (textures_.data()), on GPU points to device copy (params_d_ variable)
   TextureParams<DATA_T>* textures_d_ = nullptr;

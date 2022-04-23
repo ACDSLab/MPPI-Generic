@@ -11,8 +11,6 @@ template <class DATA_T>
 class TwoDTextureHelper : public TextureHelper<TwoDTextureHelper<DATA_T>, DATA_T>
 {
 public:
-  TwoDTextureHelper(int number, cudaStream_t stream = 0);
-
   void allocateCudaTexture(int index) override;
 
   void updateTexture(int index,
@@ -26,15 +24,9 @@ public:
   bool setExtent(int index, cudaExtent& extent) override;
   void copyDataToGPU(int index, bool sync = false);
 
-  std::vector<std::vector<DATA_T>> getCpuValues()
-  {
-    return cpu_values_;
-  }
-
   __host__ __device__ DATA_T queryTexture(const int index, const float3& point);
 
 protected:
-  std::vector<std::vector<DATA_T>> cpu_values_;
 };
 
 #if __CUDACC__

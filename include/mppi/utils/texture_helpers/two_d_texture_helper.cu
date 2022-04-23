@@ -5,13 +5,6 @@
 #include "two_d_texture_helper.cuh"
 
 template <class DATA_T>
-TwoDTextureHelper<DATA_T>::TwoDTextureHelper(int number, cudaStream_t stream)
-  : TextureHelper<TwoDTextureHelper<DATA_T>, DATA_T>(number, stream)
-{
-  cpu_values_.resize(number);
-}
-
-template <class DATA_T>
 void TwoDTextureHelper<DATA_T>::allocateCudaTexture(int index)
 {
   TextureHelper<TwoDTextureHelper<DATA_T>, DATA_T>::allocateCudaTexture(index);
