@@ -27,6 +27,7 @@ public:
   void copyDataToGPU(int index, bool sync = false);
 
   __host__ __device__ DATA_T queryTexture(const int index, const float3& point);
+  DATA_T queryTextureCPU(const int index, const float3& point);
 
 protected:
 };

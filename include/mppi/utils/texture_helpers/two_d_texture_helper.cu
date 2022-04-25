@@ -69,6 +69,88 @@ __host__ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int ind
 #ifdef __CUDA_ARCH__
   return tex2D<DATA_T>(this->textures_d_[index].tex_d, point.x, point.y);
 #else
+  return queryTextureCPU(index, point);
+#endif
+}
+
+template <class DATA_T>
+bool TwoDTextureHelper<DATA_T>::setExtent(int index, cudaExtent& extent)
+{
+  if (extent.depth != 0)
+  {
+    throw std::runtime_error(std::string("Error: extent in setExtent invalid,"
+                                         " cannot use depth != 0 in 2D texture: using ") +
+                             std::to_string(extent.depth));
+  }
+
+  return TextureHelper<TwoDTextureHelper<DATA_T>, DATA_T>::setExtent(index, extent);
+}
+
+template <class DATA_T>
+void TwoDTextureHelper<DATA_T>::copyDataToGPU(int index, bool sync)
+{
+  TextureParams<DATA_T>* param = &this->textures_[index];
+  int w = param->extent.width;
+  int h = param->extent.height;
+  HANDLE_ERROR(cudaMemcpy2DToArrayAsync(param->array_d, 0, 0, this->cpu_values_[index].data(), w * sizeof(DATA_T),
+                                        w * sizeof(DATA_T), h, cudaMemcpyHostToDevice, this->stream_));
+  if (sync)
+  {
+    cudaStreamSynchronize(this->stream_);
+  }
+  param->update_data = false;
+}
+
+template <class DATA_T>
+void TwoDTextureHelper<DATA_T>::updateTexture(
+    const int index,
+    const Eigen::Ref<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
+                     Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+        values,
+    bool column_major)
+{
+  TextureParams<DATA_T>* param = &this->textures_buffer_[index];
+  int w = param->extent.width;
+  int h = param->extent.height;
+  this->cpu_buffer_values_[index].resize(w * h);
+
+  if (column_major)
+  {
+    // if we are column major transform to row major
+    for (int j = 0; j < w; j++)
+    {
+      for (int i = 0; i < h; i++)
+      {
+        int columnMajorIndex = j * h + i;
+        int rowMajorIndex = i * w + j;
+        this->cpu_buffer_values_[index][rowMajorIndex] = values.data()[columnMajorIndex];
+      }
+    }
+  }
+  else
+  {
+    // if we row major copy directly
+    memcpy(this->cpu_buffer_values_[index].data(), values.data(), values.size() * sizeof(DATA_T));
+  }
+  // tells the object to copy it over next time that happens
+  param->update_data = true;
+}
+
+template <class DATA_T>
+void TwoDTextureHelper<DATA_T>::updateTexture(
+    int index,
+    const Eigen::Ref<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
+                     Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
+        values,
+    cudaExtent& extent, bool column_major)
+{
+  setExtent(index, extent);
+  updateTexture(index, values);
+}
+
+template <class DATA_T>
+DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3& point)
+{
   // std::cout << "\n\ninput point " << point.x << ", " << point.y << std::endl;
   TextureParams<DATA_T>* param = &this->textures_[index];
 
@@ -174,80 +256,4 @@ __host__ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int ind
     int rowMajorIndex = std::round(query.y) * w + std::round(query.x);
     return this->cpu_values_[index][rowMajorIndex];
   }
-#endif
-}
-
-template <class DATA_T>
-bool TwoDTextureHelper<DATA_T>::setExtent(int index, cudaExtent& extent)
-{
-  if (extent.depth != 0)
-  {
-    throw std::runtime_error(std::string("Error: extent in setExtent invalid,"
-                                         " cannot use depth != 0 in 2D texture: using ") +
-                             std::to_string(extent.depth));
-  }
-
-  return TextureHelper<TwoDTextureHelper<DATA_T>, DATA_T>::setExtent(index, extent);
-}
-
-template <class DATA_T>
-void TwoDTextureHelper<DATA_T>::copyDataToGPU(int index, bool sync)
-{
-  TextureParams<DATA_T>* param = &this->textures_[index];
-  int w = param->extent.width;
-  int h = param->extent.height;
-  HANDLE_ERROR(cudaMemcpy2DToArrayAsync(param->array_d, 0, 0, this->cpu_values_[index].data(), w * sizeof(DATA_T),
-                                        w * sizeof(DATA_T), h, cudaMemcpyHostToDevice, this->stream_));
-  if (sync)
-  {
-    cudaStreamSynchronize(this->stream_);
-  }
-  param->update_data = false;
-}
-
-template <class DATA_T>
-void TwoDTextureHelper<DATA_T>::updateTexture(
-    const int index,
-    const Eigen::Ref<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
-                     Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
-        values,
-    bool column_major)
-{
-  TextureParams<DATA_T>* param = &this->textures_buffer_[index];
-  int w = param->extent.width;
-  int h = param->extent.height;
-  this->cpu_buffer_values_[index].resize(w * h);
-
-  if (column_major)
-  {
-    // if we are column major transform to row major
-    for (int j = 0; j < w; j++)
-    {
-      for (int i = 0; i < h; i++)
-      {
-        int columnMajorIndex = j * h + i;
-        int rowMajorIndex = i * w + j;
-        this->cpu_buffer_values_[index][rowMajorIndex] = values.data()[columnMajorIndex];
-      }
-    }
-  }
-  else
-  {
-    // if we row major copy directly
-    memcpy(this->cpu_buffer_values_[index].data(), values.data(), values.size() * sizeof(DATA_T));
-  }
-  // tells the object to copy it over next time that happens
-  param->update_data = true;
-}
-
-template <class DATA_T>
-void TwoDTextureHelper<DATA_T>::updateTexture(
-    int index,
-    const Eigen::Ref<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
-                     Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
-        values,
-    cudaExtent& extent, bool column_major)
-{
-  setExtent(index, extent);
-  updateTexture(index, values);
 }
