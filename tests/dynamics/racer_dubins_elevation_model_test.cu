@@ -226,8 +226,8 @@ TEST_F(RacerDubinsElevationTest, TestUpdateState)
   EXPECT_FLOAT_EQ(state(2), 0.1);
   EXPECT_FLOAT_EQ(state(3), 0.1);
   EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 0.1));
-  EXPECT_FLOAT_EQ(state(5), -0.5);
-  EXPECT_FLOAT_EQ(state(6), 0.5);
+  EXPECT_FLOAT_EQ(state(5), 0.0);
+  EXPECT_FLOAT_EQ(state(6), 0.0);
 
   state << 0, M_PI - 0.1, 0, 0, 0, -0.5, 0.5;
   state_der << 1, 1, 1, 1, 1;
@@ -238,8 +238,8 @@ TEST_F(RacerDubinsElevationTest, TestUpdateState)
   EXPECT_FLOAT_EQ(state(2), 1.0);
   EXPECT_FLOAT_EQ(state(3), 1.0);
   EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
-  EXPECT_FLOAT_EQ(state(5), -0.5);
-  EXPECT_FLOAT_EQ(state(6), 0.5);
+  EXPECT_FLOAT_EQ(state(5), 0.0);
+  EXPECT_FLOAT_EQ(state(6), 0.0);
 
   state << 0, -M_PI + 0.1, 0, 0, 0, -0.5, 0.5;
   state_der << 1, -1, 1, 1, 1;
@@ -250,8 +250,8 @@ TEST_F(RacerDubinsElevationTest, TestUpdateState)
   EXPECT_FLOAT_EQ(state(2), 1.0);
   EXPECT_FLOAT_EQ(state(3), 1.0);
   EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
-  EXPECT_FLOAT_EQ(state(5), -0.5);
-  EXPECT_FLOAT_EQ(state(6), 0.5);
+  EXPECT_FLOAT_EQ(state(5), 0.0);
+  EXPECT_FLOAT_EQ(state(6), 0.0);
 
   CudaCheckError();
 }
@@ -260,6 +260,30 @@ TEST_F(RacerDubinsElevationTest, TestUpdateStateGPU)
 {
   CudaCheckError();
   RacerDubinsElevation dynamics = RacerDubinsElevation();
+
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
+  TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
+  helper->setExtent(0, extent);
+
+  std::vector<float> data_vec;
+  data_vec.resize(10 * 20);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = i * 1.0f;
+  }
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(0, 1, 0);
+  new_rot_mat[1] = make_float3(1, 0, 0);
+  new_rot_mat[2] = make_float3(0, 0, 1);
+  helper->updateRotation(0, new_rot_mat);
+  helper->updateOrigin(0, make_float3(1, 2, 3));
+
+  helper->updateTexture(0, data_vec);
+  helper->updateResolution(0, 10);
+  helper->enableTexture(0);
+  helper->copyToDevice(true);
+
   CudaCheckError();
   dynamics.GPUSetup();
   CudaCheckError();
@@ -307,19 +331,9 @@ TEST_F(RacerDubinsElevationTest, TestUpdateStateGPU)
       dynamics.updateState(state, state_der_cpu, 0.1f);
       for (int dim = 0; dim < RacerDubinsElevation::STATE_DIM; dim++)
       {
-        if (dim < 5)
-        {
-          EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
-          EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-          EXPECT_TRUE(isfinite(s[point][dim]));
-        }
-        else
-        {
-          EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
-          EXPECT_NEAR(s[point][dim], 0.0, 1e-4)
-              << "at index " << point << " with y_dim " << y_dim << " state index " << dim;
-          EXPECT_TRUE(isfinite(s[point][dim]));
-        }
+        EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s[point][dim]));
       }
     }
   }
