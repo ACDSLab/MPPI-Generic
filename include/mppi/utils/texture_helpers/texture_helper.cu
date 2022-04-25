@@ -143,6 +143,7 @@ void TextureHelper<TEX_T, DATA_T>::copyToDevice(bool synchronize)
     if (textures_buffer_[i].update_mem)
     {
       textures_[i].extent = textures_buffer_[i].extent;
+      textures_[i].texDesc = textures_buffer_[i].texDesc;
       textures_[i].update_mem = true;
       textures_buffer_[i].update_mem = false;
     }

@@ -32,7 +32,6 @@ void TwoDTextureHelper<DATA_T>::updateTexture(const int index, std::vector<DATA_
   }
 
   // copy over values to cpu side holder
-  // TODO handle row/column major data
   this->cpu_buffer_values_[index].resize(w * h);
   if (column_major)
   {

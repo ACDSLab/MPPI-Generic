@@ -596,6 +596,68 @@ TEST_F(TwoDTextureHelperTest, GPUCPUTextureLookupMatch)
   }
 }
 
+TEST_F(TwoDTextureHelperTest, GPUCPUTextureLookupMatchManyUpdates)
+{
+  TwoDTextureHelper<float4> helper = TwoDTextureHelper<float4>(1);
+  helper.GPUSetup();
+
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
+  helper.setExtent(0, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(10 * 20);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(0, 1, 0);
+  new_rot_mat[1] = make_float3(1, 0, 0);
+  new_rot_mat[2] = make_float3(0, 0, 1);
+  helper.updateRotation(0, new_rot_mat);
+  helper.updateOrigin(0, make_float3(1, 2, 3));
+  helper.updateTexture(0, data_vec);
+
+  helper.updateResolution(0, 10);
+  helper.copyToDevice(true);
+
+  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  EXPECT_TRUE(textures[0].allocated);
+  EXPECT_FALSE(textures[0].update_data);
+  EXPECT_FALSE(textures[0].update_mem);
+
+  std::vector<float4> query_points;
+  for (int i = 0; i < 500; i++)
+  {
+    query_points.push_back(make_float4(distribution(generator), distribution(generator), distribution(generator), 0.0));
+  }
+
+  for (int iterations = 0; iterations < 10; iterations++)
+  {
+    for (int i = 0; i < data_vec.size(); i++)
+    {
+      data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+      data_vec[i] *= iterations;
+      helper.updateTexture(0, data_vec);
+      helper.copyToDevice(true);
+    }
+
+    auto results = getTextureAtPointsKernel<TwoDTextureHelper<float4>, float4>(helper, query_points);
+
+    EXPECT_FLOAT_EQ(results.size(), query_points.size());
+    for (int i = 0; i < results.size(); i++)
+    {
+      float4 CPU_result =
+          helper.queryTexture(query_points[i].w, make_float3(query_points[i].x, query_points[i].y, query_points[i].z));
+      EXPECT_NEAR(results[i].x, CPU_result.x, 0.05);
+      EXPECT_NEAR(results[i].y, CPU_result.y, 0.05);
+      EXPECT_NEAR(results[i].z, CPU_result.z, 0.05);
+      EXPECT_NEAR(results[i].w, CPU_result.w, 0.05);
+    }
+  }
+}
+
 // TEST_F(TwoDTextureHelperTest, CopyToDeviceTest)
 //{
 //  int number = 8;
