@@ -35,12 +35,7 @@ void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref
   state(4) -= state_der(4) * dt;
   state(4) = state_der(4) + (state(4) - state_der(4)) * expf(-this->params_.steering_constant * dt);
 
-  if (!this->tex_helper_->checkTextureUse(0))
-  {
-    state(5) = 0;
-    state(6) = 0;
-  }
-  else
+  if (this->tex_helper_->checkTextureUse(0))
   {
     float3 front_left = make_float3(2.981, 0.737, 0);
     float3 front_right = make_float3(2.981, -0.737, 0);
@@ -88,6 +83,11 @@ void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref
     {
       state(6) = right_pitch;
     }
+  }
+  else
+  {
+    state(5) = 0;
+    state(6) = 0;
   }
 
   if (isnan(state(5)) || isinf(state(5)) || abs(state(5)) > M_PI)

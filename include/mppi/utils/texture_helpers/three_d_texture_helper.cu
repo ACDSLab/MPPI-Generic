@@ -1,10 +1,11 @@
 #include "three_d_texture_helper.cuh"
 
 template <class DATA_T>
-ThreeDTextureHelper<DATA_T>::ThreeDTextureHelper(int number, cudaStream_t stream)
+ThreeDTextureHelper<DATA_T>::ThreeDTextureHelper(int number, bool synched, cudaStream_t stream)
   : TextureHelper<ThreeDTextureHelper<DATA_T>, DATA_T>(number, stream)
 {
   layer_copy_.resize(number);
+  this->synched_ = synched;
   for (std::vector<bool>& layer : layer_copy_)
   {
     // sets all current indexes to be true
@@ -67,7 +68,10 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(const int index, const int z_ind
   }
   // tells the object to copy it over next time that happens
   layer_copy_[index][z_index] = true;
-  param->update_data = true;
+  if (!synched_)
+  {
+    param->update_data = true;
+  }
 }
 
 template <class DATA_T>
@@ -117,7 +121,10 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(
   }
   // tells the object to copy it over next time that happens
   layer_copy_[index][z_index] = true;
-  param->update_data = true;
+  if (!synched_)
+  {
+    param->update_data = true;
+  }
 }
 
 // TODO update texture where everything is copied over in one go

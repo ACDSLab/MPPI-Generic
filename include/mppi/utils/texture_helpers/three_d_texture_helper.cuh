@@ -13,7 +13,7 @@ template <class DATA_T>
 class ThreeDTextureHelper : public TextureHelper<ThreeDTextureHelper<DATA_T>, DATA_T>
 {
 public:
-  ThreeDTextureHelper(int number, cudaStream_t stream = 0);
+  ThreeDTextureHelper(int number, bool synced=false, cudaStream_t stream = 0);
 
   void allocateCudaTexture(int index) override;
 
@@ -36,6 +36,9 @@ protected:
   // cpu values
   // layer -> 3D array -> actual texture lookup thing
   std::vector<std::vector<bool>> layer_copy_;  // indicator what 2D part of the 3D array needs to be copied over
+
+  // if we should require every depth to be updated before sending to GPU
+  bool synched_ = false;
 };
 
 #if __CUDACC__

@@ -228,10 +228,10 @@ DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3&
     DATA_T x_max_y_max_val = this->cpu_values_[index][x_max_y_max.y * w + x_max_y_max.x];
 
     // std::cout << "got data\n";
-    // std::cout << "x_min_y_min: " << x_min_y_min_val.x << ", " << x_min_y_min_val.y << std::endl;
-    // std::cout << "x_max_y_min: " << x_max_y_min_val.x << ", " << x_max_y_min_val.y << std::endl;
-    // std::cout << "x_min_y_max: " << x_min_y_max_val.x << ", " << x_min_y_max_val.y << std::endl;
-    // std::cout << "x_max_y_max: " << x_max_y_max_val.x << ", " << x_max_y_max_val.y << std::endl;
+    // std::cout << "x_min_y_min: " << x_min_y_min_val << std::endl;
+    // std::cout << "x_max_y_min: " << x_max_y_min_val << std::endl;
+    // std::cout << "x_min_y_max: " << x_min_y_max_val << std::endl;
+    // std::cout << "x_max_y_max: " << x_max_y_max_val << std::endl;
 
     DATA_T y_min_interp = x_min_y_min_val * ((x_max_y_max.x - query.x) / (x_max_y_max.x - x_min_y_min.x)) +
                           x_max_y_min_val * ((query.x - x_min_y_min.x) / (x_max_y_max.x - x_min_y_min.x));

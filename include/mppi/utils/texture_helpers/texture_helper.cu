@@ -98,6 +98,8 @@ template <class TEX_T, class DATA_T>
 __host__ __device__ void TextureHelper<TEX_T, DATA_T>::mapPoseToTexCoord(const int index, const float3& input,
                                                                          float3& output)
 {
+  // printf("res %f %f %f extent %f %f %f\n", textures_d_[index].resolution.x, textures_d_[index].resolution.y,
+  // textures_d_[index].resolution.z, textures_d_[index].extent.width, textures_d_[index].extent.depth);
   // from map frame to pixels [m] -> [px]
   output.x = input.x / textures_d_[index].resolution.x;
   output.y = input.y / textures_d_[index].resolution.y;
@@ -130,23 +132,6 @@ void TextureHelper<TEX_T, DATA_T>::copyToDevice(bool synchronize)
   // copies the buffer to the CPU side version
   for (int i = 0; i < textures_buffer_.size(); i++)
   {
-    // copy the relevant things over from buffer
-    textures_[i].use = textures_buffer_[i].use;
-    if (textures_buffer_[i].update_data)
-    {
-      // moves data from cpu buffer to cpu side
-      cpu_values_[i] = std::move(cpu_buffer_values_[i]);
-      // TODO should I resize the buffer vector?
-      textures_[i].update_data = true;
-      textures_buffer_[i].update_data = false;
-    }
-    if (textures_buffer_[i].update_mem)
-    {
-      textures_[i].extent = textures_buffer_[i].extent;
-      textures_[i].texDesc = textures_buffer_[i].texDesc;
-      textures_[i].update_mem = true;
-      textures_buffer_[i].update_mem = false;
-    }
     if (textures_buffer_[i].update_params)
     {
       // copy over params from buffer to object
@@ -157,6 +142,23 @@ void TextureHelper<TEX_T, DATA_T>::copyToDevice(bool synchronize)
       textures_[i].resolution = textures_buffer_[i].resolution;
       textures_[i].update_params = true;
       textures_buffer_[i].update_params = false;
+    }
+    // copy the relevant things over from buffer
+    if (textures_buffer_[i].update_data)
+    {
+      // moves data from cpu buffer to cpu side
+      cpu_values_[i] = std::move(cpu_buffer_values_[i]);
+      // cpu_buffer_values are resized in the updateTexture method
+      textures_[i].update_data = true;
+      textures_buffer_[i].update_data = false;
+      textures_[i].use = textures_buffer_[i].use;
+    }
+    if (textures_buffer_[i].update_mem)
+    {
+      textures_[i].extent = textures_buffer_[i].extent;
+      textures_[i].texDesc = textures_buffer_[i].texDesc;
+      textures_[i].update_mem = true;
+      textures_buffer_[i].update_mem = false;
     }
   }
   // TODO unlock buffer

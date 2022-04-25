@@ -99,13 +99,13 @@ public:
   virtual void copyParamsToGPU(int index, bool sync = false);
   virtual void enableTexture(int index)
   {
-    this->textures_[index].update_params = true;
-    this->textures_[index].use = true;
+    this->textures_buffer_[index].update_params = true;
+    this->textures_buffer_[index].use = true;
   }
   virtual void disableTexture(int index)
   {
-    this->textures_[index].update_params = true;
-    this->textures_[index].use = false;
+    this->textures_buffer_[index].update_params = true;
+    this->textures_buffer_[index].use = false;
   }
   __device__ __host__ bool checkTextureUse(int index)
   {
@@ -132,6 +132,10 @@ public:
   std::vector<std::vector<DATA_T>> getCpuBufferValues()
   {
     return cpu_buffer_values_;
+  }
+
+  void updateDataAtIndex(int index) {
+    this->textures_buffer_[index].update_data = true;
   }
 
   TEX_T* ptr_d_ = nullptr;
