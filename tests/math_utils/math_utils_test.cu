@@ -44,3 +44,10 @@ TEST(MATH_UTILS, QuatMultiply)
   constexpr auto tol = 1e-7;
   array_assert_float_near<4>(q3, correct_q3, tol);
 }
+
+TEST(MATH_UTILS, SkewSymmetricMatrixSameAsCrossProd)
+{
+  Eigen::Vector3f a(1, 2, 3);
+  Eigen::Vector3f b(8, 3, 9);
+  eigen_assert_float_eq<Eigen::Vector3f>(a.cross(b), mppi_math::skewSymmetricMatrix(a) * b);
+}

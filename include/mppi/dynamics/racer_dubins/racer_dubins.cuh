@@ -52,6 +52,10 @@ public:
                    Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B);
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
+
+  Eigen::Quaternionf get_attitude(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);
+
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins, 5>

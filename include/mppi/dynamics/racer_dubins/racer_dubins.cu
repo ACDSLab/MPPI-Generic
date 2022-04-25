@@ -69,6 +69,19 @@ __device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::updateState(float* state, f
 }
 
 template <class CLASS_T, int STATE_DIM>
+Eigen::Quaternionf RacerDubinsImpl<CLASS_T, STATE_DIM>::get_attitude(const Eigen::Ref<const state_array>& state)
+{
+  float theta = state[1];
+  return Eigen::Quaternionf(cos(theta / 2), 0, 0, sin(theta / 2));
+}
+
+template <class CLASS_T, int STATE_DIM>
+Eigen::Vector3f RacerDubinsImpl<CLASS_T, STATE_DIM>::get_position(const Eigen::Ref<const state_array>& state)
+{
+  return Eigen::Vector3f(state[2], state[3], 0);
+}
+
+template <class CLASS_T, int STATE_DIM>
 __device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(float* state, float* control, float* state_der,
                                                                      float* theta_s)
 {
