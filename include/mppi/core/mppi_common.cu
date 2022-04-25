@@ -224,34 +224,18 @@ __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* cos
  *******************************************************************************************************************/
 float computeBaselineCost(float* cost_rollouts_host, int num_rollouts)
 {  // TODO if we use standard containers in MPPI, should this be replaced with a min algorithm?
-  float baseline = cost_rollouts_host[0];
-  // Find the minimum cost trajectory
-  for (int i = 0; i < num_rollouts; ++i)
-  {
-    if (cost_rollouts_host[i] < baseline)
-    {
-      baseline = cost_rollouts_host[i];
-    }
-  }
-  return baseline;
+  int best_idx = computeBestIndex(cost_rollouts_host, num_rollouts);
+  return cost_rollouts_host[best_idx];
 }
 
 float constructBestWeights(float* cost_rollouts_host, int num_rollouts)
 {
-  float best_cost = cost_rollouts_host[0];
-  int best_cost_idx = 0;
-  for (int i = 0; i < num_rollouts; i++)
-  {
-    if (cost_rollouts_host[i] < best_cost)
-    {
-      best_cost = cost_rollouts_host[i];
-      best_cost_idx = i;
-    }
-  }
+  int best_idx = computeBestIndex(cost_rollouts_host, num_rollouts);
+  float best_cost = cost_rollouts_host[best_idx];
 
   for (int i = 0; i < num_rollouts; i++)
   {
-    if (i == best_cost_idx)
+    if (i == best_idx)
     {
       cost_rollouts_host[i] = 1.0;
     }
