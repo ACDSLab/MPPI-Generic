@@ -69,12 +69,12 @@ __host__ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int ind
 #ifdef __CUDA_ARCH__
   return tex2D<DATA_T>(this->textures_d_[index].tex_d, point.x, point.y);
 #else
-  std::cout << "\n\ninput point " << point.x << ", " << point.y << std::endl;
+  // std::cout << "\n\ninput point " << point.x << ", " << point.y << std::endl;
   TextureParams<DATA_T>* param = &this->textures_[index];
 
   // convert normalized to array index
   float2 query = make_float2(point.x * param->extent.width, point.y * param->extent.height);
-  std::cout << "after converting to pixels at " << query.x << ", " << query.y << std::endl;
+  // std::cout << "after converting to pixels at " << query.x << ", " << query.y << std::endl;
   // correctly handle being above the location of the top index
   if (query.x < param->extent.width)
   {
@@ -114,7 +114,7 @@ __host__ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int ind
   {
     throw std::runtime_error(std::string("using unsupported address mode on the CPU in texture utils"));
   }
-  std::cout << "query " << query.x << ", " << query.y << std::endl;
+  // std::cout << "query " << query.x << ", " << query.y << std::endl;
   int w = param->extent.width;
   if (param->texDesc.filterMode == cudaFilterModeLinear)
   {
@@ -123,74 +123,48 @@ __host__ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int ind
     int2 x_max_y_min = make_int2(std::ceil(query.x), std::floor(query.y));
     int2 x_min_y_max = make_int2(std::floor(query.x), std::ceil(query.y));
     int2 x_max_y_max = make_int2(std::ceil(query.x), std::ceil(query.y));
+    if (std::ceil(query.x) == std::floor(query.x))
+    {
+      x_max_y_min.x += 1;
+      x_max_y_max.x += 1;
+    }
+    if (std::ceil(query.y) == std::floor(query.y))
+    {
+      x_min_y_max.y += 1;
+      x_max_y_max.y += 1;
+    }
+    // does bilinear interpolation
 
-    std::cout << "got  indexes\n";
-    std::cout << "x_min_y_min: " << x_min_y_min.x << ", " << x_min_y_min.y << std::endl;
-    std::cout << "x_max_y_min: " << x_max_y_min.x << ", " << x_max_y_min.y << std::endl;
-    std::cout << "x_min_y_max: " << x_min_y_max.x << ", " << x_min_y_max.y << std::endl;
-    std::cout << "x_max_y_max: " << x_max_y_max.x << ", " << x_max_y_max.y << std::endl;
+    // std::cout << "got  indexes\n";
+    // std::cout << "x_min_y_min: " << x_min_y_min.x << ", " << x_min_y_min.y << std::endl;
+    // std::cout << "x_max_y_min: " << x_max_y_min.x << ", " << x_max_y_min.y << std::endl;
+    // std::cout << "x_min_y_max: " << x_min_y_max.x << ", " << x_min_y_max.y << std::endl;
+    // std::cout << "x_max_y_max: " << x_max_y_max.x << ", " << x_max_y_max.y << std::endl;
 
     DATA_T x_min_y_min_val = this->cpu_values_[index][x_min_y_min.y * w + x_min_y_min.x];
     DATA_T x_max_y_min_val = this->cpu_values_[index][x_max_y_min.y * w + x_max_y_min.x];
     DATA_T x_min_y_max_val = this->cpu_values_[index][x_min_y_max.y * w + x_min_y_max.x];
     DATA_T x_max_y_max_val = this->cpu_values_[index][x_max_y_max.y * w + x_max_y_max.x];
 
-    std::cout << "got data\n";
-    std::cout << "x_min_y_min: " << x_min_y_min_val.x << ", " << x_min_y_min_val.y << std::endl;
-    std::cout << "x_max_y_min: " << x_max_y_min_val.x << ", " << x_max_y_min_val.y << std::endl;
-    std::cout << "x_min_y_max: " << x_min_y_max_val.x << ", " << x_min_y_max_val.y << std::endl;
-    std::cout << "x_max_y_max: " << x_max_y_max_val.x << ", " << x_max_y_max_val.y << std::endl;
+    // std::cout << "got data\n";
+    // std::cout << "x_min_y_min: " << x_min_y_min_val.x << ", " << x_min_y_min_val.y << std::endl;
+    // std::cout << "x_max_y_min: " << x_max_y_min_val.x << ", " << x_max_y_min_val.y << std::endl;
+    // std::cout << "x_min_y_max: " << x_min_y_max_val.x << ", " << x_min_y_max_val.y << std::endl;
+    // std::cout << "x_max_y_max: " << x_max_y_max_val.x << ", " << x_max_y_max_val.y << std::endl;
 
-    // computes distance from query to each point
-    float x_min_y_min_dist = 2 * sqrtf(2) - sqrtf(powf(query.x - x_min_y_min.x, 2) + powf(query.y - x_min_y_min.y, 2));
-    float x_max_y_min_dist = 2 * sqrtf(2) - sqrtf(powf(query.x - x_max_y_min.x, 2) + powf(query.y - x_max_y_min.y, 2));
-    float x_min_y_max_dist = 2 * sqrtf(2) - sqrtf(powf(query.x - x_min_y_max.x, 2) + powf(query.y - x_min_y_max.y, 2));
-    float x_max_y_max_dist = 2 * sqrtf(2) - sqrtf(powf(query.x - x_max_y_max.x, 2) + powf(query.y - x_max_y_max.y, 2));
-    std::cout << "got distance\n";
-    std::cout << "x_min_y_min: " << x_min_y_min_dist << std::endl;
-    std::cout << "x_max_y_min: " << x_max_y_min_dist << std::endl;
-    std::cout << "x_min_y_max: " << x_min_y_max_dist << std::endl;
-    std::cout << "x_max_y_max: " << x_max_y_max_dist << std::endl;
+    DATA_T y_min_interp = x_min_y_min_val * ((x_max_y_max.x - query.x) / (x_max_y_max.x - x_min_y_min.x)) +
+                          x_max_y_min_val * ((query.x - x_min_y_min.x) / (x_max_y_max.x - x_min_y_min.x));
+    DATA_T y_max_interp = x_min_y_max_val * ((x_max_y_max.x - query.x) / (x_max_y_max.x - x_min_y_min.x)) +
+                          x_max_y_max_val * ((query.x - x_min_y_min.x) / (x_max_y_max.x - x_min_y_min.x));
 
-    float total_dist = x_min_y_min_dist + x_max_y_min_dist + x_min_y_max_dist + x_max_y_max_dist;
-    std::cout << "total dist " << total_dist << std::endl;
-
-    if (total_dist <= 0)
-    {
-      x_min_y_min_dist = 1.0;
-    }
-    else
-    {
-      x_min_y_min_dist /= total_dist;
-      x_max_y_min_dist /= total_dist;
-      x_min_y_max_dist /= total_dist;
-      x_max_y_max_dist /= total_dist;
-    }
-
-    std::cout << "got distance\n";
-    std::cout << "x_min_y_min: " << x_min_y_min_dist << std::endl;
-    std::cout << "x_max_y_min: " << x_max_y_min_dist << std::endl;
-    std::cout << "x_min_y_max: " << x_min_y_max_dist << std::endl;
-    std::cout << "x_max_y_max: " << x_max_y_max_dist << std::endl;
-
-    float4 x_min_y_min_final = x_min_y_min_val * x_min_y_min_dist;
-    float4 x_max_y_min_final = x_max_y_min_val * x_max_y_min_dist;
-    float4 x_min_y_max_final = x_min_y_max_val * x_min_y_max_dist;
-    float4 x_max_y_max_final = x_max_y_max_val * x_max_y_max_dist;
-
-    std::cout << x_min_y_min_final.x << " + " << x_min_y_min_final.y << " + " << x_min_y_min_final.z << " + "
-              << x_min_y_min_final.w << std::endl;
-    std::cout << x_max_y_min_final.x << " + " << x_max_y_min_final.y << " + " << x_max_y_min_final.z << " + "
-              << x_max_y_min_final.w << std::endl;
-    std::cout << x_min_y_max_final.x << " + " << x_min_y_max_final.y << " + " << x_min_y_max_final.z << " + "
-              << x_min_y_max_final.w << std::endl;
-    std::cout << x_max_y_max_final.x << " + " << x_max_y_max_final.y << " + " << x_max_y_max_final.z << " + "
-              << x_max_y_max_final.w << std::endl;
-
-    float4 result = x_min_y_min_final + x_max_y_min_final + x_min_y_max_final + x_max_y_max_final;
-
-    std::cout << "result: " << result.x << ", " << result.y << ", " << result.z << ", " << result.w << "\n\n"
-              << std::endl;
+    // std::cout << "y min interp: " << y_min_interp.x << " + " << y_min_interp.y << " + " << y_min_interp.z << " + "
+    //          << y_min_interp.w << std::endl;
+    // std::cout << "y max interp: " << y_max_interp.x << " + " << y_max_interp.y << " + " << y_max_interp.z << " + "
+    //          << y_max_interp.w << std::endl;
+    DATA_T result = y_min_interp * ((x_max_y_max.y - query.y) / (x_max_y_max.y - x_min_y_min.y)) +
+                    y_max_interp * ((query.y - x_min_y_min.y) / (x_max_y_max.y - x_min_y_min.y));
+    // std::cout << "result: " << result.x << ", " << result.y << ", " << result.z << ", " << result.w << "\n\n"
+    //          << std::endl;
 
     // does the actual interpolation
     return result;
