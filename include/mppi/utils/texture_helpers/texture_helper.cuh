@@ -31,6 +31,7 @@ struct TextureParams
 
   TextureParams()
   {
+    extent = make_cudaExtent(0, 0, 0);
     resDesc.resType = cudaResourceTypeArray;
     channelDesc = cudaCreateChannelDesc<DATA_T>();
 
@@ -120,7 +121,7 @@ public:
   void updateAddressMode(int index, cudaTextureAddressMode mode);
   void updateAddressMode(int index, int layer, cudaTextureAddressMode mode);
 
-  std::vector<TextureParams<float4>> getTextures()
+  std::vector<TextureParams<DATA_T>> getTextures()
   {
     return textures_;
   }

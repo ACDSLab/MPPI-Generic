@@ -44,10 +44,10 @@ struct RacerSuspensionParams
   static const int WHEEL_REAR_RIGHT = 3;
 
   // throttle model params
-  float c_t = 1.3;
-  float c_b = 2.5;
-  float c_v = 3.7;
-  float c_0 = 4.9;
+  float c_t = 3.0;
+  float c_b = 10.0;
+  float c_v = 0.2;
+  float c_0 = 0;
 
   // steering model params
   float steering_constant = .6;
@@ -90,11 +90,11 @@ public:
   static const int CTRL_STEER_CMD = 1;
   static const int TEXTURE_ELEVATION_MAP = 0;
 
-  RacerSuspension(cudaStream_t stream = nullptr) : Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>(stream)
+  RacerSuspension(cudaStream_t stream) : Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
   }
-  RacerSuspension(RacerSuspensionParams& params, cudaStream_t stream = nullptr)
+  RacerSuspension(RacerSuspensionParams& params, cudaStream_t stream)
     : Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>(params, stream)
   {
     tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
@@ -110,10 +110,12 @@ public:
 
   void paramsToDevice();
 
+  void step(Eigen::Ref<state_array> state, Eigen::Ref<const control_array> control, const float dt);
+
   void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt);
 
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                       Eigen::Ref<state_array> state_der);
+                       Eigen::Ref<state_array> state_der, Eigen::Matrix3f *omegaJacobian = nullptr);
 
   __device__ void updateState(float* state, float* state_der, const float dt);
 

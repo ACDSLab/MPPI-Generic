@@ -25,7 +25,7 @@ public:
 
 TEST_F(RacerSuspensionTest, Template)
 {
-  auto dynamics = RacerSuspension();
+  auto dynamics = RacerSuspension(stream);
   EXPECT_EQ(15, RacerSuspension::STATE_DIM);
   EXPECT_EQ(2, RacerSuspension::CONTROL_DIM);
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
@@ -38,6 +38,36 @@ TEST_F(RacerSuspensionTest, BindStream)
   EXPECT_EQ(dynamics.stream_, stream) << "Stream binding failure.";
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
   EXPECT_EQ(dynamics.getTextureHelper()->stream_, stream);
+}
+
+
+
+TEST_F(RacerSuspensionTest, OmegaJacobian)
+{
+  auto dynamics = RacerSuspension(stream);
+  RacerSuspension::state_array x = RacerSuspension::state_array::Zero();
+  x[RacerSuspension::STATE_QW] = 1;
+  x[RacerSuspension::STATE_OMEGAX] = 0.1;
+  x[RacerSuspension::STATE_OMEGAY] = -0.03;
+  x[RacerSuspension::STATE_OMEGAZ] = 0.02;
+  x[RacerSuspension::STATE_VX] = 2;
+  RacerSuspension::state_array x_dot0 = RacerSuspension::state_array::Zero();
+  RacerSuspension::state_array x_dot1 = RacerSuspension::state_array::Zero();
+  RacerSuspension::control_array u = RacerSuspension::control_array::Zero();
+  Eigen::Matrix3f omega_jac;
+  float delta = 0.001;
+  dynamics.computeDynamics(x, u, x_dot0, &omega_jac);
+  for (int i=0; i < 3; i++) {
+    x[RacerSuspension::STATE_OMEGA+i] += delta;
+    dynamics.computeDynamics(x, u, x_dot1);
+    x[RacerSuspension::STATE_OMEGA+i] -= delta;
+
+    float abs_tol = 2;
+    EXPECT_NEAR(omega_jac.col(i)[0], (x_dot1[RacerSuspension::STATE_OMEGAX] - x_dot0[RacerSuspension::STATE_OMEGAX])/delta, abs_tol);
+    EXPECT_NEAR(omega_jac.col(i)[1], (x_dot1[RacerSuspension::STATE_OMEGAY] - x_dot0[RacerSuspension::STATE_OMEGAY])/delta, abs_tol);
+    EXPECT_NEAR(omega_jac.col(i)[2], (x_dot1[RacerSuspension::STATE_OMEGAZ] - x_dot0[RacerSuspension::STATE_OMEGAZ])/delta, abs_tol);
+  }
+
 }
 
 /*
