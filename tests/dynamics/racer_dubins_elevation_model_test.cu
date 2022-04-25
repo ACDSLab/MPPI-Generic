@@ -113,7 +113,7 @@ TEST_F(RacerDubinsElevationTest, ComputeDynamics)
   x << -3, 0, 0, 3, 0, 0.5, -0.5;
   u << -1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 2.5 * 3 + 3.7 * 3);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 2.5 + 3.7 * 3);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_FLOAT_EQ(next_x(2), -3);
   EXPECT_FLOAT_EQ(next_x(3), 0);
@@ -124,7 +124,7 @@ TEST_F(RacerDubinsElevationTest, ComputeDynamics)
   x << 4, 0, 0, 3, 0, 0.5, -0.5;
   u << -1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 2.5 * 4 - 3.7 * 4);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 2.5 - 3.7 * 4);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_FLOAT_EQ(next_x(2), 4);
   EXPECT_FLOAT_EQ(next_x(3), 0);

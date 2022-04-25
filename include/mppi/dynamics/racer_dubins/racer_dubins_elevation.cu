@@ -135,8 +135,8 @@ __device__ void RacerDubinsElevation::computeDynamics(float* state, float* contr
   bool enable_brake = control[0] < 0;
   // applying position throttle
   state_der[0] = (!enable_brake) * this->params_.c_t * control[0] +
-                 (enable_brake) * this->params_.c_b * control[0] * state[0] - this->params_.c_v * state[0] +
-                 this->params_.c_0;
+                 (enable_brake) * this->params_.c_b * control[0] * (state[0] >= 0 ? 1 : -1) -
+                 this->params_.c_v * state[0] + this->params_.c_0;
   if (abs(state[6]) < M_PI)
   {
     state_der[0] -= this->params_.gravity * sinf(state[6]);
