@@ -45,7 +45,6 @@ protected:
   int hz_ = 10;  // Frequency of control publisher
   int visualization_hz_ = 5;
   bool debug_mode_ = false;
-  bool increment_state_ = false;
 
   DYN_PARAMS_T dynamics_params_;
   std::mutex dynamics_params_guard_;
@@ -84,8 +83,9 @@ protected:
   // Robot Time: can scale with a simulation
   std::atomic<double> last_used_pose_update_time_{ -1.0 };  // time of the last pose update that was used for
                                                             // optimization
+
+  std::atomic<bool> use_real_time_timing_{ false };
   // Wall Clock: always real time
-  double last_optimization_time_ = 0;  // time of the last optimization
   double optimize_loop_duration_ = 0;  // duration of the entire controller run loop
   double optimization_duration_ = 0;   // Most recent time it took to run MPPI iteration
   double feedback_duration_ = 0;       // most recent time it took to run the feedback controller
@@ -136,22 +136,7 @@ public:
    */
   virtual void pubNominalState(const s_array& s) = 0;
 
-  /**
-   * applies the control to the syste
-   * @param u
-   */
-  virtual void pubStateDivergence(const s_array& s_diff) = 0;
-
   virtual void pubFreeEnergyStatistics(MPPIFreeEnergyStatistics& fe_stats) = 0;
-
-  /**
-   * Receives timing info from control loop and can be overwritten
-   * to ouput to another system
-   * @param avg_loop_ms          Average duration of a single iteration in ms
-   * @param avg_optimize_ms      Average time to call computeControl
-   * @param avg_feedback_ms      Average time to call computeFeedback
-   */
-  virtual void setTimingInfo(double avg_loop_ms, double avg_optimize_ms, double avg_feedback_ms) = 0;
 
   /**
    * @brief Checks the system status.
@@ -165,6 +150,16 @@ public:
    * @return the current time not necessarily real time
    */
   virtual double getCurrentTime() = 0;
+
+  /**
+   * @return the timestamp from the most recent position
+   */
+  virtual double getPoseTime() = 0;
+
+  void setUseRealTimeTiming(bool use_real_time)
+  {
+    use_real_time_timing_ = use_real_time;
+  }
 
   // ======== PURE VIRTUAL END ====
 
@@ -254,11 +249,12 @@ public:
     if (time_since_last_opt > 0 && t_within_trajectory)
     {
       s_array target_nominal_state = this->controller_->interpolateState(state_traj_, time_since_last_opt);
-      pubNominalState(target_nominal_state);
       pubControl(controller_->getCurrentControl(state, time_since_last_opt, target_nominal_state, control_traj_,
                                                 feedback_state_));
-      s_array state_diff = state - target_nominal_state;
-      pubStateDivergence(state_diff);
+      if (debug_mode_)
+      {
+        pubNominalState(target_nominal_state);
+      }
     }
   }
 
@@ -301,7 +297,7 @@ public:
    * @param state
    * @return
    */
-  bool updateParameters(s_array& state)
+  bool updateParameters()
   {
     bool changed = false;
     // Update the cost parameters
@@ -340,7 +336,7 @@ public:
       return;
     }
 
-    double temp_last_pose_time = getCurrentTime();
+    double temp_last_pose_time = getPoseTime();
     double temp_last_used_pose_update_time = last_used_pose_update_time_;
 
     // wait for a new pose to compute control sequence from
@@ -348,7 +344,7 @@ public:
     while (temp_last_used_pose_update_time == temp_last_pose_time && is_alive->load())
     {
       usleep(50);
-      temp_last_pose_time = getCurrentTime();
+      temp_last_pose_time = getPoseTime();
       counter++;
     }
 
@@ -357,7 +353,7 @@ public:
 
     s_array state = getState();
     num_iter_++;
-    updateParameters(state);
+    updateParameters();
 
     // calculate how much we should slide the control sequence
     double dt = temp_last_pose_time - temp_last_used_pose_update_time;
@@ -369,7 +365,7 @@ public:
     }
     else
     {
-      last_optimization_stride_ = std::max(int(round(dt * hz_)), optimization_stride_);
+      last_optimization_stride_ = std::max(int(round(dt / this->controller_->getDt())), optimization_stride_);
     }
     // printf("calc optimization stride %f %f %f %d\n", dt, temp_last_used_pose_update_time, temp_last_pose_time,
     // last_optimization_stride_);
@@ -402,7 +398,6 @@ public:
       exit(-1);
     }
     optimization_duration_ = (std::chrono::steady_clock::now() - optimization_start).count() / 1e6;
-    // printf("optimization_duration %f\n", optimization_duration_);
 
     std::chrono::steady_clock::time_point feedback_start = std::chrono::steady_clock::now();
     // TODO make sure this is zero by default
@@ -430,8 +425,6 @@ public:
 
     optimize_loop_duration_ = (std::chrono::steady_clock::now() - loop_start).count() / 1e6;
     avg_loop_time_ms_ = prev_iter_percent * avg_loop_time_ms_ + optimize_loop_duration_ / num_iter_;
-
-    setTimingInfo(avg_loop_time_ms_, avg_optimize_time_ms_, avg_feedback_time_ms_);
   }
 
   void runControlLoop(std::atomic<bool>* is_alive)
@@ -447,15 +440,18 @@ public:
     // Start the control loop.
     while (is_alive->load())
     {
+      double wait_until_real_time = getCurrentTime() + (1.0 / hz_) * optimization_stride_;
       runControlIteration(is_alive);
 
-      double wait_until_time = last_used_pose_update_time_ + (1.0 / hz_) * optimization_stride_;
+      double wait_until_pose_time = last_used_pose_update_time_ + (1.0 / hz_) * optimization_stride_;
       // printf("last used pose update time %f last_stride = %d\n", last_used_pose_update_time_,
       // last_optimization_stride_); printf("wait until time %f current time %f\n", wait_until_time, getCurrentTime());
 
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
-      while (is_alive->load() && wait_until_time > getCurrentTime())
+      while (is_alive->load() && (wait_until_pose_time > getPoseTime() ||
+                                  (wait_until_real_time > getCurrentTime() && use_real_time_timing_)))
       {
+        updateParameters();
         usleep(50);
       }
       sleep_duration_ = (std::chrono::steady_clock::now() - sleep_start).count() / 1e6;
