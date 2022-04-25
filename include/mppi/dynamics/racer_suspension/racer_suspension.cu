@@ -27,7 +27,6 @@ void RacerSuspension::paramsToDevice()
   Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>::paramsToDevice();
 }
 
-
 // combined computeDynamics & updateState
 void RacerSuspension::step(Eigen::Ref<state_array> state, Eigen::Ref<const control_array> control, const float dt)
 {
@@ -35,15 +34,14 @@ void RacerSuspension::step(Eigen::Ref<state_array> state, Eigen::Ref<const contr
   Eigen::Matrix3f omegaJac;
   computeDynamics(state, control, x_dot, &omegaJac);
   // approximate implicit euler for angular rate states
-  Eigen::Vector3f deltaOmega = (Eigen::Matrix3f::Identity() - dt*omegaJac).inverse() * dt * x_dot.segment(STATE_OMEGA, 3);
-  state_array delta_x = x_dot *dt;
+  Eigen::Vector3f deltaOmega =
+      (Eigen::Matrix3f::Identity() - dt * omegaJac).inverse() * dt * x_dot.segment(STATE_OMEGA, 3);
+  state_array delta_x = x_dot * dt;
   delta_x.segment(STATE_OMEGA, 3) = deltaOmega;
   state += delta_x;
   float q_norm = state.segment(STATE_Q, 4).norm();
   state.segment(STATE_Q, 4) /= q_norm;
 }
-
-
 
 void RacerSuspension::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
 {
@@ -66,24 +64,25 @@ __device__ void RacerSuspension::updateState(float* state, float* state_der, con
   // TODO renormalize quaternion
 }
 
-static float stribeck_friction(float v, float mu_s, float v_slip, float &partial_mu_partial_v)
+static float stribeck_friction(float v, float mu_s, float v_slip, float& partial_mu_partial_v)
 {
     float mu = v / v_slip * mu_s;
     partial_mu_partial_v = 0;
-    if (mu > mu_s) {
+    if (mu > mu_s)
+    {
       return mu_s;
     }
-    if (mu < -mu_s) {
+    if (mu < -mu_s)
+    {
       return -mu_s;
     }
-    partial_mu_partial_v = mu_s/v_slip;
+    partial_mu_partial_v = mu_s / v_slip;
     return mu;
 }
 
 void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                      const Eigen::Ref<const control_array>& control,
-                                      Eigen::Ref<state_array> state_der,
-                                      Eigen::Matrix3f *omegaJacobian)
+                                      const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der,
+                                      Eigen::Matrix3f* omegaJacobian)
 {
   Eigen::Vector3f p_I = state.segment(STATE_P, 3);
   Eigen::Vector3f v_I = state.segment(STATE_V, 3);
@@ -111,7 +110,8 @@ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state
     Eigen::Vector3f p_w_nom_I_i = p_I + R * p_w_nom_B_i;
     float h_i = 0;
     Eigen::Vector3f n_I_i(0, 0, 1);
-    if (tex_helper_->checkTextureUse(TEXTURE_ELEVATION_MAP)) {
+    if (tex_helper_->checkTextureUse(TEXTURE_ELEVATION_MAP))
+    {
       float4 wheel_elev = tex_helper_->queryTextureAtWorldPose(TEXTURE_ELEVATION_MAP, EigenToCuda(p_w_nom_I_i));
       h_i = wheel_elev.w;
       // std::cout << "h_i " << h_i << std::endl;
@@ -122,13 +122,15 @@ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state
     Eigen::Vector3f p_dot_w_nom_I_i = v_I + Rdot * p_w_nom_B_i;
     Eigen::Matrix3f p_dot_w_nom_I_i_Jac = R * Eigen::Matrix3f::Identity().colwise().cross(p_w_nom_B_i);
     float h_dot_i = -n_I_i[0] / n_I_i[2] * p_dot_w_nom_I_i[0] - n_I_i[1] / n_I_i[2] * p_dot_w_nom_I_i[1];
-    Eigen::RowVector3f h_dot_i_Jac = -n_I_i[0] / n_I_i[2] * p_dot_w_nom_I_i_Jac.row(0) - n_I_i[1] / n_I_i[2] * p_dot_w_nom_I_i_Jac.row(1);
+    Eigen::RowVector3f h_dot_i_Jac =
+        -n_I_i[0] / n_I_i[2] * p_dot_w_nom_I_i_Jac.row(0) - n_I_i[1] / n_I_i[2] * p_dot_w_nom_I_i_Jac.row(1);
     float l_dot_i = p_dot_w_nom_I_i[2] - h_dot_i;
     Eigen::RowVector3f l_dot_i_Jac = p_dot_w_nom_I_i_Jac.row(2) - h_dot_i_Jac;
 
     float f_k_i = -params_.k_s[i] * (l_i - params_.l_0[i]) - params_.c_s[i] * l_dot_i;
-    Eigen::RowVector3f f_k_i_Jac = - params_.c_s[i] * l_dot_i_Jac;
-    if (f_k_i < 0) {
+    Eigen::RowVector3f f_k_i_Jac = -params_.c_s[i] * l_dot_i_Jac;
+    if (f_k_i < 0)
+    {
       f_k_i = 0;
       f_k_i_Jac = Eigen::RowVector3f::Zero();
     }
@@ -172,9 +174,12 @@ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state
     float f_t_i = max(-params_.mu * f_n_i, min(propulsion_force / 4, params_.mu * f_n_i));
     Eigen::RowVector3f f_n_i_Jac = f_k_i_Jac;
     Eigen::RowVector3f f_t_i_Jac = Eigen::RowVector3f::Zero();
-    if (propulsion_force / 4 > params_.mu * f_n_i) {
+    if (propulsion_force / 4 > params_.mu * f_n_i)
+    {
       f_t_i_Jac = params_.mu * f_n_i_Jac;
-    } else if (propulsion_force / 4 < -params_.mu * f_n_i) {
+    }
+    else if (propulsion_force / 4 < -params_.mu * f_n_i)
+    {
       f_t_i_Jac = -params_.mu * f_n_i_Jac;
     }
     Eigen::RowVector3f f_s_i_Jac = -f_n_i * partial_mu_s_partial_v * v_w_s_i_Jac - mu_s * f_n_i_Jac;
@@ -208,9 +213,11 @@ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state
   Eigen::Vector3f J_diag(params_.Jxx, params_.Jyy, params_.Jzz);
   Eigen::Vector3f J_inv_diag(1/params_.Jxx, 1/params_.Jyy, 1/params_.Jzz);
   state_der.segment(STATE_OMEGA, 3) = J_inv_diag.cwiseProduct(J_diag.cwiseProduct(omega).cross(omega) + tau_B);
-  if (omegaJacobian) {
+  if (omegaJacobian)
+  {
     Eigen::Matrix3f J = J_diag.asDiagonal();
-    Eigen::Matrix3f Jwxw_jac = J.colwise().cross(omega) - Eigen::Matrix3f::Identity().colwise().cross(J_diag.cwiseProduct(omega));
+    Eigen::Matrix3f Jwxw_jac =
+        J.colwise().cross(omega) - Eigen::Matrix3f::Identity().colwise().cross(J_diag.cwiseProduct(omega));
     *omegaJacobian = J_inv_diag.asDiagonal() * (Jwxw_jac + tau_B_jac);
   }
 
