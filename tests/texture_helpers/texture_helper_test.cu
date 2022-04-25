@@ -43,6 +43,11 @@ public:
     return textures_;
   }
 
+  std::vector<TextureParams<float4>> getTexturesBuffer()
+  {
+    return textures_buffer_;
+  }
+
   TextureParams<float4>* getParamsD()
   {
     return this->params_d_;
@@ -50,6 +55,7 @@ public:
 
   void setTestExtent(int index, cudaExtent extent)
   {
+    this->textures_buffer_[index].extent = extent;
     this->textures_[index].extent = extent;
   }
 
@@ -60,10 +66,10 @@ public:
 
   void setTestFlagsInParam(int index, bool update_mem, bool update_data, bool allocated, bool update_params)
   {
-    this->textures_[index].update_mem = update_mem;
-    this->textures_[index].update_data = update_data;
+    this->textures_buffer_[index].update_mem = update_mem;
+    this->textures_buffer_[index].update_data = update_data;
     this->textures_[index].allocated = allocated;
-    this->textures_[index].update_params = update_params;
+    this->textures_buffer_[index].update_params = update_params;
   }
 
   void copyDataToGPU(int index, bool sync = false) override
@@ -145,6 +151,54 @@ TEST_F(TextureHelperTest, Constructor)
   std::vector<TextureParams<float4>> textures = helper.getTextures();
 
   EXPECT_EQ(textures.size(), number);
+  EXPECT_EQ(helper.getCpuValues().size(), number);
+  EXPECT_EQ(helper.getCpuBufferValues().size(), number);
+  EXPECT_NE(helper.getTextureD(), nullptr);
+  EXPECT_NE(helper.getTextureDataPtr(), nullptr);
+  EXPECT_EQ(helper.ptr_d_, nullptr);
+  EXPECT_EQ(helper.getParamsD(), nullptr);
+  EXPECT_EQ(helper.getTextureD(), helper.getTextureDataPtr());
+
+  for (const TextureParams<float4> texture : textures)
+  {
+    EXPECT_EQ(texture.use, false);
+    EXPECT_EQ(texture.allocated, false);
+    EXPECT_EQ(texture.update_data, false);
+    EXPECT_EQ(texture.update_mem, false);
+
+    EXPECT_EQ(texture.array_d, nullptr);
+    EXPECT_EQ(texture.tex_d, 0);
+
+    EXPECT_FLOAT_EQ(texture.origin.x, 0);
+    EXPECT_FLOAT_EQ(texture.origin.y, 0);
+    EXPECT_FLOAT_EQ(texture.origin.z, 0);
+
+    EXPECT_FLOAT_EQ(texture.rotations[0].x, 1);
+    EXPECT_FLOAT_EQ(texture.rotations[0].y, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[0].z, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[1].x, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[1].y, 1);
+    EXPECT_FLOAT_EQ(texture.rotations[1].z, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[2].x, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[2].y, 0);
+    EXPECT_FLOAT_EQ(texture.rotations[2].z, 1);
+
+    EXPECT_EQ(texture.resDesc.resType, cudaResourceTypeArray);
+    EXPECT_EQ(texture.channelDesc.x, 32);
+    EXPECT_EQ(texture.channelDesc.y, 32);
+    EXPECT_EQ(texture.channelDesc.z, 32);
+    EXPECT_EQ(texture.channelDesc.w, 32);
+
+    EXPECT_EQ(texture.texDesc.addressMode[0], cudaAddressModeClamp);
+    EXPECT_EQ(texture.texDesc.addressMode[1], cudaAddressModeClamp);
+    EXPECT_EQ(texture.texDesc.filterMode, cudaFilterModeLinear);
+    EXPECT_EQ(texture.texDesc.readMode, cudaReadModeElementType);
+    EXPECT_EQ(texture.texDesc.normalizedCoords, 1);
+  }
+
+  textures = helper.getTexturesBuffer();
+
+  EXPECT_EQ(textures.size(), number);
   EXPECT_NE(helper.getTextureD(), nullptr);
   EXPECT_NE(helper.getTextureDataPtr(), nullptr);
   EXPECT_EQ(helper.ptr_d_, nullptr);
@@ -197,13 +251,27 @@ TEST_F(TextureHelperTest, UpdateOriginTest)
   helper.updateOrigin(1, make_float3(4, 5, 6));
 
   std::vector<TextureParams<float4>> textures = helper.getTextures();
-  EXPECT_FLOAT_EQ(textures[0].origin.x, 1);
-  EXPECT_FLOAT_EQ(textures[0].origin.y, 2);
-  EXPECT_FLOAT_EQ(textures[0].origin.z, 3);
+  std::vector<TextureParams<float4>> textures_buffer = helper.getTexturesBuffer();
+  EXPECT_FLOAT_EQ(textures[0].origin.x, 0);
+  EXPECT_FLOAT_EQ(textures[0].origin.y, 0);
+  EXPECT_FLOAT_EQ(textures[0].origin.z, 0);
+  EXPECT_FLOAT_EQ(textures_buffer[0].origin.x, 1);
+  EXPECT_FLOAT_EQ(textures_buffer[0].origin.y, 2);
+  EXPECT_FLOAT_EQ(textures_buffer[0].origin.z, 3);
 
-  EXPECT_FLOAT_EQ(textures[1].origin.x, 4);
-  EXPECT_FLOAT_EQ(textures[1].origin.y, 5);
-  EXPECT_FLOAT_EQ(textures[1].origin.z, 6);
+  EXPECT_FLOAT_EQ(textures[1].origin.x, 0);
+  EXPECT_FLOAT_EQ(textures[1].origin.y, 0);
+  EXPECT_FLOAT_EQ(textures[1].origin.z, 0);
+  EXPECT_FLOAT_EQ(textures_buffer[1].origin.x, 4);
+  EXPECT_FLOAT_EQ(textures_buffer[1].origin.y, 5);
+  EXPECT_FLOAT_EQ(textures_buffer[1].origin.z, 6);
+
+  EXPECT_TRUE(textures_buffer[0].update_params);
+  EXPECT_TRUE(textures_buffer[1].update_params);
+  for (int i = 2; i < number; i++)
+  {
+    EXPECT_FALSE(textures_buffer[i].update_params);
+  }
 }
 
 TEST_F(TextureHelperTest, UpdateRotationTest)
@@ -218,107 +286,54 @@ TEST_F(TextureHelperTest, UpdateRotationTest)
   helper.updateRotation(0, new_rot_mat);
 
   std::vector<TextureParams<float4>> textures = helper.getTextures();
+  std::vector<TextureParams<float4>> textures_buffer = helper.getTexturesBuffer();
 
+  // buffer is updated
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[0].x, 1);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[0].y, 2);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[0].z, 3);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[1].x, 4);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[1].y, 5);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[1].z, 6);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[2].x, 7);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[2].y, 8);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[2].z, 9);
+  // non buffer not updated
   EXPECT_FLOAT_EQ(textures[0].rotations[0].x, 1);
-  EXPECT_FLOAT_EQ(textures[0].rotations[0].y, 2);
-  EXPECT_FLOAT_EQ(textures[0].rotations[0].z, 3);
-  EXPECT_FLOAT_EQ(textures[0].rotations[1].x, 4);
-  EXPECT_FLOAT_EQ(textures[0].rotations[1].y, 5);
-  EXPECT_FLOAT_EQ(textures[0].rotations[1].z, 6);
-  EXPECT_FLOAT_EQ(textures[0].rotations[2].x, 7);
-  EXPECT_FLOAT_EQ(textures[0].rotations[2].y, 8);
-  EXPECT_FLOAT_EQ(textures[0].rotations[2].z, 9);
+  EXPECT_FLOAT_EQ(textures[0].rotations[0].y, 0);
+  EXPECT_FLOAT_EQ(textures[0].rotations[0].z, 0);
+  EXPECT_FLOAT_EQ(textures[0].rotations[1].x, 0);
+  EXPECT_FLOAT_EQ(textures[0].rotations[1].y, 1);
+  EXPECT_FLOAT_EQ(textures[0].rotations[1].z, 0);
+  EXPECT_FLOAT_EQ(textures[0].rotations[2].x, 0);
+  EXPECT_FLOAT_EQ(textures[0].rotations[2].y, 0);
+  EXPECT_FLOAT_EQ(textures[0].rotations[2].z, 1);
 
   new_rot_mat[2].x = 22;
   helper.updateRotation(1, new_rot_mat);
-  textures = helper.getTextures();
+  textures_buffer = helper.getTexturesBuffer();
 
-  EXPECT_FLOAT_EQ(textures[0].rotations[0].x, 1);
-  EXPECT_FLOAT_EQ(textures[0].rotations[0].y, 2);
-  EXPECT_FLOAT_EQ(textures[0].rotations[0].z, 3);
-  EXPECT_FLOAT_EQ(textures[0].rotations[1].x, 4);
-  EXPECT_FLOAT_EQ(textures[0].rotations[1].y, 5);
-  EXPECT_FLOAT_EQ(textures[0].rotations[1].z, 6);
-  EXPECT_FLOAT_EQ(textures[0].rotations[2].x, 7);
-  EXPECT_FLOAT_EQ(textures[0].rotations[2].y, 8);
-  EXPECT_FLOAT_EQ(textures[0].rotations[2].z, 9);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[0].x, 1);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[0].y, 2);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[0].z, 3);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[1].x, 4);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[1].y, 5);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[1].z, 6);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[2].x, 7);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[2].y, 8);
+  EXPECT_FLOAT_EQ(textures_buffer[0].rotations[2].z, 9);
 
-  EXPECT_FLOAT_EQ(textures[1].rotations[0].x, 1);
-  EXPECT_FLOAT_EQ(textures[1].rotations[0].y, 2);
-  EXPECT_FLOAT_EQ(textures[1].rotations[0].z, 3);
-  EXPECT_FLOAT_EQ(textures[1].rotations[1].x, 4);
-  EXPECT_FLOAT_EQ(textures[1].rotations[1].y, 5);
-  EXPECT_FLOAT_EQ(textures[1].rotations[1].z, 6);
-  EXPECT_FLOAT_EQ(textures[1].rotations[2].x, 22);
-  EXPECT_FLOAT_EQ(textures[1].rotations[2].y, 8);
-  EXPECT_FLOAT_EQ(textures[1].rotations[2].z, 9);
+  EXPECT_FLOAT_EQ(textures_buffer[1].rotations[0].x, 1);
+  EXPECT_FLOAT_EQ(textures_buffer[1].rotations[0].y, 2);
+  EXPECT_FLOAT_EQ(textures_buffer[1].rotations[0].z, 3);
+  EXPECT_FLOAT_EQ(textures_buffer[1].rotations[1].x, 4);
+  EXPECT_FLOAT_EQ(textures_buffer[1].rotations[1].y, 5);
+  EXPECT_FLOAT_EQ(textures_buffer[1].rotations[1].z, 6);
+  EXPECT_FLOAT_EQ(textures_buffer[1].rotations[2].x, 22);
+  EXPECT_FLOAT_EQ(textures_buffer[1].rotations[2].y, 8);
+  EXPECT_FLOAT_EQ(textures_buffer[1].rotations[2].z, 9);
 }
 
-TEST_F(TextureHelperTest, WorldPoseToMapPoseTest)
-{
-  int number = 5;
-  TextureHelperImpl helper = TextureHelperImpl(number);
-
-  // set it to be zero
-  std::array<float3, 3> new_rot_mat{};
-  helper.updateRotation(0, new_rot_mat);
-  helper.updateOrigin(0, make_float3(0, 0, 0));
-
-  float3 input = make_float3(0.1, 0.2, 0.3);
-  float3 output;
-  helper.worldPoseToMapPose(0, input, output);
-
-  EXPECT_FLOAT_EQ(input.x, 0.1);
-  EXPECT_FLOAT_EQ(input.y, 0.2);
-  EXPECT_FLOAT_EQ(input.z, 0.3);
-  EXPECT_FLOAT_EQ(output.x, 0);
-  EXPECT_FLOAT_EQ(output.y, 0);
-  EXPECT_FLOAT_EQ(output.z, 0);
-
-  // set rot mat non zero
-  new_rot_mat[0] = make_float3(1, 2, 3);
-  new_rot_mat[1] = make_float3(4, 5, 6);
-  new_rot_mat[2] = make_float3(7, 8, 9);
-  helper.updateRotation(0, new_rot_mat);
-
-  helper.worldPoseToMapPose(0, input, output);
-  EXPECT_FLOAT_EQ(input.x, 0.1);
-  EXPECT_FLOAT_EQ(input.y, 0.2);
-  EXPECT_FLOAT_EQ(input.z, 0.3);
-  EXPECT_FLOAT_EQ(output.x, 0.1 + 0.2 * 2 + 0.3 * 3);
-  EXPECT_FLOAT_EQ(output.y, 0.1 * 4 + 0.2 * 5 + 0.3 * 6);
-  EXPECT_FLOAT_EQ(output.z, 0.1 * 7 + 0.2 * 8 + 0.3 * 9);
-
-  // set origin non zero
-  new_rot_mat[0] = make_float3(0, 0, 0);
-  new_rot_mat[1] = make_float3(0, 0, 0);
-  new_rot_mat[2] = make_float3(0, 0, 0);
-  helper.updateRotation(0, new_rot_mat);
-  helper.updateOrigin(0, make_float3(0.1, 0.2, 0.3));
-
-  helper.worldPoseToMapPose(0, input, output);
-  EXPECT_FLOAT_EQ(input.x, 0.1);
-  EXPECT_FLOAT_EQ(input.y, 0.2);
-  EXPECT_FLOAT_EQ(input.z, 0.3);
-  EXPECT_FLOAT_EQ(output.x, 0);
-  EXPECT_FLOAT_EQ(output.y, 0);
-  EXPECT_FLOAT_EQ(output.z, 0);
-
-  // set rot mat non zero
-  new_rot_mat[0] = make_float3(1, 2, 3);
-  new_rot_mat[1] = make_float3(4, 5, 6);
-  new_rot_mat[2] = make_float3(7, 8, 9);
-  helper.updateRotation(0, new_rot_mat);
-  input = make_float3(0.2, 0.4, 0.6);
-
-  helper.worldPoseToMapPose(0, input, output);
-  EXPECT_FLOAT_EQ(input.x, 0.2);
-  EXPECT_FLOAT_EQ(input.y, 0.4);
-  EXPECT_FLOAT_EQ(input.z, 0.6);
-  EXPECT_FLOAT_EQ(output.x, 0.1 + 0.2 * 2 + 0.3 * 3);
-  EXPECT_FLOAT_EQ(output.y, 0.1 * 4 + 0.2 * 5 + 0.3 * 6);
-  EXPECT_FLOAT_EQ(output.z, 0.1 * 7 + 0.2 * 8 + 0.3 * 9);
-}
 
 TEST_F(TextureHelperTest, SetExtentTest)
 {
@@ -336,97 +351,31 @@ TEST_F(TextureHelperTest, SetExtentTest)
   helper.setExtent(3, extent);
 
   std::vector<TextureParams<float4>> textures = helper.getTextures();
+  std::vector<TextureParams<float4>> textures_buffer = helper.getTexturesBuffer();
 
-  EXPECT_TRUE(textures[0].update_mem);
-  EXPECT_EQ(textures[0].extent.width, 4);
-  EXPECT_EQ(textures[0].extent.height, 5);
-  EXPECT_EQ(textures[0].extent.depth, 6);
+  EXPECT_TRUE(textures_buffer[0].update_mem);
+  EXPECT_EQ(textures_buffer[0].extent.width, 4);
+  EXPECT_EQ(textures_buffer[0].extent.height, 5);
+  EXPECT_EQ(textures_buffer[0].extent.depth, 6);
+  EXPECT_FALSE(textures[0].update_mem);
+  EXPECT_NE(textures[0].extent.width, 4);
+  EXPECT_NE(textures[0].extent.height, 5);
+  EXPECT_NE(textures[0].extent.depth, 6);
 
-  EXPECT_FALSE(textures[1].update_mem);
-  EXPECT_EQ(textures[1].extent.width, 4);
-  EXPECT_EQ(textures[1].extent.height, 5);
-  EXPECT_EQ(textures[1].extent.depth, 6);
+  EXPECT_FALSE(textures_buffer[1].update_mem);
+  EXPECT_EQ(textures_buffer[1].extent.width, 4);
+  EXPECT_EQ(textures_buffer[1].extent.height, 5);
+  EXPECT_EQ(textures_buffer[1].extent.depth, 6);
 
-  EXPECT_TRUE(textures[2].update_mem);
-  EXPECT_EQ(textures[2].extent.width, 4);
-  EXPECT_EQ(textures[2].extent.height, 5);
-  EXPECT_EQ(textures[2].extent.depth, 0);
+  EXPECT_TRUE(textures_buffer[2].update_mem);
+  EXPECT_EQ(textures_buffer[2].extent.width, 4);
+  EXPECT_EQ(textures_buffer[2].extent.height, 5);
+  EXPECT_EQ(textures_buffer[2].extent.depth, 0);
 
-  EXPECT_FALSE(textures[3].update_mem);
-  EXPECT_EQ(textures[3].extent.width, 4);
-  EXPECT_EQ(textures[3].extent.height, 5);
-  EXPECT_EQ(textures[3].extent.depth, 0);
-}
-
-TEST_F(TextureHelperTest, MapPoseToTexCoordTest)
-{
-  int number = 5;
-  TextureHelperImpl helper = TextureHelperImpl(number);
-
-  float3 input = make_float3(1.0, 2.0, 3.0);
-  float3 output;
-
-  helper.updateResolution(0, 10);
-  cudaExtent extent = make_cudaExtent(4, 5, 6);
-  helper.setExtent(0, extent);
-
-  helper.mapPoseToTexCoord(0, input, output);
-  EXPECT_FLOAT_EQ(input.x, 1.0);
-  EXPECT_FLOAT_EQ(input.y, 2.0);
-  EXPECT_FLOAT_EQ(input.z, 3.0);
-  EXPECT_FLOAT_EQ(output.x, (0.1) / 4);
-  EXPECT_FLOAT_EQ(output.y, (0.2) / 5);
-  EXPECT_FLOAT_EQ(output.z, (0.3) / 6);
-}
-
-TEST_F(TextureHelperTest, MapPoseToTexCoordIndResTest)
-{
-  int number = 5;
-  TextureHelperImpl helper = TextureHelperImpl(number);
-
-  float3 input = make_float3(1.0, 2.0, 3.0);
-  float3 output;
-
-  float3 resolution = make_float3(10, 20, 30);
-  helper.updateResolution(0, resolution);
-  cudaExtent extent = make_cudaExtent(4, 5, 6);
-  helper.setExtent(0, extent);
-
-  helper.mapPoseToTexCoord(0, input, output);
-  EXPECT_FLOAT_EQ(input.x, 1.0);
-  EXPECT_FLOAT_EQ(input.y, 2.0);
-  EXPECT_FLOAT_EQ(input.z, 3.0);
-  EXPECT_FLOAT_EQ(output.x, (0.1) / 4);
-  EXPECT_FLOAT_EQ(output.y, (0.1) / 5);
-  EXPECT_FLOAT_EQ(output.z, (0.1) / 6);
-}
-
-TEST_F(TextureHelperTest, WorldPoseToTexCoordTest)
-{
-  int number = 5;
-  TextureHelperImpl helper = TextureHelperImpl(number);
-
-  float3 input = make_float3(0.2, 0.4, 0.6);
-  float3 output;
-
-  helper.updateResolution(0, 10);
-  cudaExtent extent = make_cudaExtent(4, 5, 6);
-  helper.setExtent(0, extent);
-
-  std::array<float3, 3> new_rot_mat{};
-  new_rot_mat[0] = make_float3(1, 2, 3);
-  new_rot_mat[1] = make_float3(4, 5, 6);
-  new_rot_mat[2] = make_float3(7, 8, 9);
-  helper.updateRotation(0, new_rot_mat);
-  helper.updateOrigin(0, make_float3(0.1, 0.2, 0.3));
-
-  helper.worldPoseToTexCoord(0, input, output);
-  EXPECT_FLOAT_EQ(input.x, 0.2);
-  EXPECT_FLOAT_EQ(input.y, 0.4);
-  EXPECT_FLOAT_EQ(input.z, 0.6);
-  EXPECT_FLOAT_EQ(output.x, ((0.1 * 1 + 0.2 * 2 + 0.3 * 3) / 10) / 4);
-  EXPECT_FLOAT_EQ(output.y, ((0.1 * 4 + 0.2 * 5 + 0.3 * 6) / 10) / 5);
-  EXPECT_FLOAT_EQ(output.z, ((0.1 * 7 + 0.2 * 8 + 0.3 * 9) / 10) / 6);
+  EXPECT_FALSE(textures_buffer[3].update_mem);
+  EXPECT_EQ(textures_buffer[3].extent.width, 4);
+  EXPECT_EQ(textures_buffer[3].extent.height, 5);
+  EXPECT_EQ(textures_buffer[3].extent.depth, 0);
 }
 
 TEST_F(TextureHelperTest, CopyToDeviceTest)
@@ -454,6 +403,15 @@ TEST_F(TextureHelperTest, CopyToDeviceTest)
   // nothing should have happened since GPUMemStatus=False
   helper.copyToDevice();
   std::vector<TextureParams<float4>> textures = helper.getTextures();
+  std::vector<TextureParams<float4>> textures_buffer = helper.getTexturesBuffer();
+
+  for (int i = 0; i < textures_buffer.size(); i++)
+  {
+    EXPECT_FALSE(textures_buffer[i].update_mem);
+    EXPECT_FALSE(textures_buffer[i].update_data);
+    EXPECT_FALSE(textures_buffer[i].allocated);
+    EXPECT_FALSE(textures_buffer[i].update_params);
+  }
 
   EXPECT_FALSE(textures[0].update_mem);
   EXPECT_FALSE(textures[0].update_data);
@@ -546,6 +504,14 @@ TEST_F(TextureHelperTest, CopyToDeviceTest)
   helper.copyToDevice();
   textures = helper.getTextures();
 
+  for (int i = 0; i < textures_buffer.size(); i++)
+  {
+    EXPECT_FALSE(textures_buffer[i].update_mem);
+    EXPECT_FALSE(textures_buffer[i].update_data);
+    EXPECT_FALSE(textures_buffer[i].allocated);
+    EXPECT_FALSE(textures_buffer[i].update_params);
+  }
+
   EXPECT_FALSE(textures[0].update_mem);
   EXPECT_FALSE(textures[0].update_data);
   EXPECT_FALSE(textures[0].allocated);
@@ -633,6 +599,159 @@ TEST_F(TextureHelperTest, CopyToDeviceTest)
   EXPECT_EQ(helper.createCudaTextureCalled, 8);
   EXPECT_EQ(helper.copyParamsToGPUCalled, 6);
   EXPECT_EQ(helper.freeCudaMemCalled, 4);
+}
+
+TEST_F(TextureHelperTest, WorldPoseToMapPoseTest)
+{
+  int number = 5;
+  TextureHelperImpl helper = TextureHelperImpl(number);
+
+  // set it to be zero
+  std::array<float3, 3> new_rot_mat{};
+  helper.updateRotation(0, new_rot_mat);
+  helper.updateOrigin(0, make_float3(0, 0, 0));
+
+  float3 input = make_float3(0.1, 0.2, 0.3);
+  float3 output;
+  helper.worldPoseToMapPose(0, input, output);
+
+  EXPECT_FLOAT_EQ(input.x, 0.1);
+  EXPECT_FLOAT_EQ(input.y, 0.2);
+  EXPECT_FLOAT_EQ(input.z, 0.3);
+  EXPECT_FLOAT_EQ(output.x, 0.1);
+  EXPECT_FLOAT_EQ(output.y, 0.2);
+  EXPECT_FLOAT_EQ(output.z, 0.3);
+
+  helper.copyToDevice();
+  helper.worldPoseToMapPose(0, input, output);
+
+  EXPECT_FLOAT_EQ(input.x, 0.1);
+  EXPECT_FLOAT_EQ(input.y, 0.2);
+  EXPECT_FLOAT_EQ(input.z, 0.3);
+  EXPECT_FLOAT_EQ(output.x, 0);
+  EXPECT_FLOAT_EQ(output.y, 0);
+  EXPECT_FLOAT_EQ(output.z, 0);
+
+  // set rot mat non zero
+  new_rot_mat[0] = make_float3(1, 2, 3);
+  new_rot_mat[1] = make_float3(4, 5, 6);
+  new_rot_mat[2] = make_float3(7, 8, 9);
+  helper.updateRotation(0, new_rot_mat);
+  helper.copyToDevice();
+
+  helper.worldPoseToMapPose(0, input, output);
+  EXPECT_FLOAT_EQ(input.x, 0.1);
+  EXPECT_FLOAT_EQ(input.y, 0.2);
+  EXPECT_FLOAT_EQ(input.z, 0.3);
+  EXPECT_FLOAT_EQ(output.x, 0.1 + 0.2 * 2 + 0.3 * 3);
+  EXPECT_FLOAT_EQ(output.y, 0.1 * 4 + 0.2 * 5 + 0.3 * 6);
+  EXPECT_FLOAT_EQ(output.z, 0.1 * 7 + 0.2 * 8 + 0.3 * 9);
+
+  // set origin non zero
+  new_rot_mat[0] = make_float3(0, 0, 0);
+  new_rot_mat[1] = make_float3(0, 0, 0);
+  new_rot_mat[2] = make_float3(0, 0, 0);
+  helper.updateRotation(0, new_rot_mat);
+  helper.updateOrigin(0, make_float3(0.1, 0.2, 0.3));
+  helper.copyToDevice();
+
+  helper.worldPoseToMapPose(0, input, output);
+  EXPECT_FLOAT_EQ(input.x, 0.1);
+  EXPECT_FLOAT_EQ(input.y, 0.2);
+  EXPECT_FLOAT_EQ(input.z, 0.3);
+  EXPECT_FLOAT_EQ(output.x, 0);
+  EXPECT_FLOAT_EQ(output.y, 0);
+  EXPECT_FLOAT_EQ(output.z, 0);
+
+  // set rot mat non zero
+  new_rot_mat[0] = make_float3(1, 2, 3);
+  new_rot_mat[1] = make_float3(4, 5, 6);
+  new_rot_mat[2] = make_float3(7, 8, 9);
+  helper.updateRotation(0, new_rot_mat);
+  helper.copyToDevice();
+  input = make_float3(0.2, 0.4, 0.6);
+
+  helper.worldPoseToMapPose(0, input, output);
+  EXPECT_FLOAT_EQ(input.x, 0.2);
+  EXPECT_FLOAT_EQ(input.y, 0.4);
+  EXPECT_FLOAT_EQ(input.z, 0.6);
+  EXPECT_FLOAT_EQ(output.x, 0.1 + 0.2 * 2 + 0.3 * 3);
+  EXPECT_FLOAT_EQ(output.y, 0.1 * 4 + 0.2 * 5 + 0.3 * 6);
+  EXPECT_FLOAT_EQ(output.z, 0.1 * 7 + 0.2 * 8 + 0.3 * 9);
+}
+
+TEST_F(TextureHelperTest, MapPoseToTexCoordTest)
+{
+  int number = 5;
+  TextureHelperImpl helper = TextureHelperImpl(number);
+
+  float3 input = make_float3(1.0, 2.0, 3.0);
+  float3 output;
+
+  helper.updateResolution(0, 10);
+  cudaExtent extent = make_cudaExtent(4, 5, 6);
+  helper.setExtent(0, extent);
+  helper.copyToDevice();
+
+  helper.mapPoseToTexCoord(0, input, output);
+  EXPECT_FLOAT_EQ(input.x, 1.0);
+  EXPECT_FLOAT_EQ(input.y, 2.0);
+  EXPECT_FLOAT_EQ(input.z, 3.0);
+  EXPECT_FLOAT_EQ(output.x, (0.1) / 4);
+  EXPECT_FLOAT_EQ(output.y, (0.2) / 5);
+  EXPECT_FLOAT_EQ(output.z, (0.3) / 6);
+}
+
+TEST_F(TextureHelperTest, MapPoseToTexCoordIndResTest)
+{
+  int number = 5;
+  TextureHelperImpl helper = TextureHelperImpl(number);
+
+  float3 input = make_float3(1.0, 2.0, 3.0);
+  float3 output;
+
+  float3 resolution = make_float3(10, 20, 30);
+  helper.updateResolution(0, resolution);
+  cudaExtent extent = make_cudaExtent(4, 5, 6);
+  helper.setExtent(0, extent);
+  helper.copyToDevice();
+
+  helper.mapPoseToTexCoord(0, input, output);
+  EXPECT_FLOAT_EQ(input.x, 1.0);
+  EXPECT_FLOAT_EQ(input.y, 2.0);
+  EXPECT_FLOAT_EQ(input.z, 3.0);
+  EXPECT_FLOAT_EQ(output.x, (0.1) / 4);
+  EXPECT_FLOAT_EQ(output.y, (0.1) / 5);
+  EXPECT_FLOAT_EQ(output.z, (0.1) / 6);
+}
+
+TEST_F(TextureHelperTest, WorldPoseToTexCoordTest)
+{
+  int number = 5;
+  TextureHelperImpl helper = TextureHelperImpl(number);
+
+  float3 input = make_float3(0.2, 0.4, 0.6);
+  float3 output;
+
+  helper.updateResolution(0, 10);
+  cudaExtent extent = make_cudaExtent(4, 5, 6);
+  helper.setExtent(0, extent);
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(1, 2, 3);
+  new_rot_mat[1] = make_float3(4, 5, 6);
+  new_rot_mat[2] = make_float3(7, 8, 9);
+  helper.updateRotation(0, new_rot_mat);
+  helper.updateOrigin(0, make_float3(0.1, 0.2, 0.3));
+  helper.copyToDevice();
+
+  helper.worldPoseToTexCoord(0, input, output);
+  EXPECT_FLOAT_EQ(input.x, 0.2);
+  EXPECT_FLOAT_EQ(input.y, 0.4);
+  EXPECT_FLOAT_EQ(input.z, 0.6);
+  EXPECT_FLOAT_EQ(output.x, ((0.1 * 1 + 0.2 * 2 + 0.3 * 3) / 10) / 4);
+  EXPECT_FLOAT_EQ(output.y, ((0.1 * 4 + 0.2 * 5 + 0.3 * 6) / 10) / 5);
+  EXPECT_FLOAT_EQ(output.z, ((0.1 * 7 + 0.2 * 8 + 0.3 * 9) / 10) / 6);
 }
 
 TEST_F(TextureHelperTest, AddNewTextureTest)

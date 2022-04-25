@@ -6,6 +6,7 @@
 #define MPPIGENERIC_TEXTURE_HELPER_CUH
 
 #include <mppi/utils/managed.cuh>
+#include <mppi/utils/cuda_math_utils.cuh>
 
 template <class DATA_T>
 struct TextureParams
@@ -22,7 +23,6 @@ struct TextureParams
   float3 rotations[3];
   float3 resolution;
 
-  bool column_major = false;
   bool use = false;        // indicates that the texture is to be used or not, separate from allocation
   bool allocated = false;  // indicates that the texture has been allocated on the GPU
   bool update_data = false;
@@ -97,10 +97,6 @@ public:
   virtual bool setExtent(int index, cudaExtent& extent);
   virtual void copyDataToGPU(int index, bool sync = false) = 0;
   virtual void copyParamsToGPU(int index, bool sync = false);
-  virtual void setColumnMajor(int index, bool val)
-  {
-    this->textures_[index].column_major = val;
-  }
   virtual void enableTexture(int index)
   {
     this->textures_[index].update_params = true;
@@ -143,7 +139,9 @@ public:
 protected:
   //std::mutex buffer_lck_;
 
+  // stores the values we actually use
   std::vector<TextureParams<DATA_T>> textures_;
+  // buffer that can be updated async, does not have correct cuda memory locations
   std::vector<TextureParams<DATA_T>> textures_buffer_;
 
   // memory allocation can vary depending on 1D, 2D, or 3D implementation
