@@ -45,6 +45,7 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(const int index, const int z_ind
   if (this->cpu_buffer_values_[index].size() != w * h * d)
   {
     this->cpu_buffer_values_[index].resize(w * h * d);
+    // copies values back to the buffer if it has been recently moved
     std::copy(this->cpu_values_[index].begin(), this->cpu_values_[index].end(),
               this->cpu_buffer_values_[index].begin());
   }
@@ -97,6 +98,7 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(
   if (this->cpu_buffer_values_[index].size() != w * h * d)
   {
     this->cpu_buffer_values_[index].resize(w * h * d);
+    // copies values back to the buffer if it has been recently moved
     std::copy(this->cpu_values_[index].begin(), this->cpu_values_[index].end(),
               this->cpu_buffers_values_[index].begin());
   }
