@@ -38,5 +38,6 @@ public:
   MOCK_METHOD1(computeStateTrajectory, void(const Eigen::Ref<const state_array>& x0));
   MOCK_METHOD1(setPercentageSampledControlTrajectories, void(float new_perc));
   MOCK_METHOD0(getSampledNoise, std::vector<float>());
+  MOCK_METHOD0(getDt, float());
 };
 #endif  // MPPIGENERIC_MOCK_CONTROLLER_H

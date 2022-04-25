@@ -6,6 +6,7 @@
 #define MPPIGENERIC_TEXTURE_HELPER_CUH
 
 #include <mppi/utils/managed.cuh>
+#include <mppi/utils/cuda_math_utils.cuh>
 
 template <class DATA_T>
 struct TextureParams
@@ -22,7 +23,6 @@ struct TextureParams
   float3 rotations[3];
   float3 resolution;
 
-  bool column_major = false;
   bool use = false;        // indicates that the texture is to be used or not, separate from allocation
   bool allocated = false;  // indicates that the texture has been allocated on the GPU
   bool update_data = false;
@@ -57,7 +57,6 @@ class TextureHelper : public Managed
 {
 protected:
   TextureHelper(int number, cudaStream_t stream = 0);
-
 public:
   virtual ~TextureHelper();
 
@@ -99,19 +98,15 @@ public:
   virtual bool setExtent(int index, cudaExtent& extent);
   virtual void copyDataToGPU(int index, bool sync = false) = 0;
   virtual void copyParamsToGPU(int index, bool sync = false);
-  virtual void setColumnMajor(int index, bool val)
-  {
-    this->textures_[index].column_major = val;
-  }
   virtual void enableTexture(int index)
   {
-    this->textures_[index].update_params = true;
-    this->textures_[index].use = true;
+    this->textures_buffer_[index].update_params = true;
+    this->textures_buffer_[index].use = true;
   }
   virtual void disableTexture(int index)
   {
-    this->textures_[index].update_params = true;
-    this->textures_[index].use = false;
+    this->textures_buffer_[index].update_params = true;
+    this->textures_buffer_[index].use = false;
   }
   __device__ __host__ bool checkTextureUse(int index)
   {
@@ -125,11 +120,38 @@ public:
   {
     return textures_;
   }
+  std::vector<TextureParams<float4>> getBufferTextures()
+  {
+    return textures_buffer_;
+  }
+
+  std::vector<std::vector<DATA_T>> getCpuValues()
+  {
+    return cpu_values_;
+  }
+
+  std::vector<std::vector<DATA_T>> getCpuBufferValues()
+  {
+    return cpu_buffer_values_;
+  }
+
+  void updateDataAtIndex(int index) {
+    this->textures_buffer_[index].update_data = true;
+  }
 
   TEX_T* ptr_d_ = nullptr;
 
 protected:
+  //std::mutex buffer_lck_;
+
+  // stores the values we actually use
   std::vector<TextureParams<DATA_T>> textures_;
+  // buffer that can be updated async, does not have correct cuda memory locations
+  std::vector<TextureParams<DATA_T>> textures_buffer_;
+
+  // memory allocation can vary depending on 1D, 2D, or 3D implementation
+  std::vector<std::vector<DATA_T>> cpu_values_;
+  std::vector<std::vector<DATA_T>> cpu_buffer_values_;
 
   // helper, on CPU points to vector data (textures_.data()), on GPU points to device copy (params_d_ variable)
   TextureParams<DATA_T>* textures_d_ = nullptr;

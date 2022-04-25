@@ -43,7 +43,7 @@ TEST_F(ThreeDTextureHelperTest, ThreeDAllocateCudaTextureTest)
   extent = make_cudaExtent(30, 40, 1);
   helper.setExtent(1, extent);
 
-  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  std::vector<TextureParams<float4>> textures = helper.getBufferTextures();
   EXPECT_EQ(textures[0].array_d, nullptr);
   EXPECT_EQ(textures[0].tex_d, 0);
   EXPECT_TRUE(textures[0].update_mem);
@@ -80,10 +80,10 @@ TEST_F(ThreeDTextureHelperTest, UpdateTexture)
   }
   helper.updateTexture(0, 1, data_vec);
 
-  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  std::vector<TextureParams<float4>> textures = helper.getBufferTextures();
   EXPECT_TRUE(textures[0].update_data);
 
-  auto cpu_values = helper.getCpuValues()[0];
+  auto cpu_values = helper.getCpuBufferValues()[0];
   for (int i = 0; i < cpu_values.size(); i++)
   {
     EXPECT_FLOAT_EQ(cpu_values[i].x, i);
@@ -98,7 +98,6 @@ TEST_F(ThreeDTextureHelperTest, UpdateTextureColumnMajor)
   ThreeDTextureHelper<float4> helper = ThreeDTextureHelper<float4>(3);
   cudaExtent extent = make_cudaExtent(10, 20, 3);
   helper.setExtent(0, extent);
-  helper.setColumnMajor(0, true);
 
   std::vector<float4> data_vec;
   data_vec.resize(10 * 20);
@@ -113,11 +112,11 @@ TEST_F(ThreeDTextureHelperTest, UpdateTextureColumnMajor)
       total_set.insert(val);
     }
     EXPECT_EQ(total_set.size(), 200 * (depth + 1));
-    helper.updateTexture(0, depth, data_vec);
+    helper.updateTexture(0, depth, data_vec, true);
   }
 
   // returns a rowMajor vector
-  auto cpu_values = helper.getCpuValues()[0];
+  auto cpu_values = helper.getCpuBufferValues()[0];
 
   for (int k = 0; k < 3; k++)
   {
@@ -174,9 +173,7 @@ TEST_F(ThreeDTextureHelperTest, CopyDataToGPUOneGo)
     helper.updateTexture(0, depth, data_vec);
   }
 
-  helper.allocateCudaTexture(0);
-  helper.createCudaTexture(0);
-  helper.copyDataToGPU(0, true);
+  helper.copyToDevice(true);
 
   std::vector<TextureParams<float4>> textures = helper.getTextures();
   EXPECT_TRUE(textures[0].allocated);
@@ -287,10 +284,6 @@ TEST_F(ThreeDTextureHelperTest, CopyDataToGPUSplitMiddle)
     helper.updateTexture(0, depth, data_vec);
   }
 
-  helper.allocateCudaTexture(0);
-  helper.createCudaTexture(0);
-  helper.copyDataToGPU(0, true);
-
   // fill in even indexes
   // 0, 1200, 400, 1600, 800
   for (int depth = 1; depth < 5; depth += 2)
@@ -302,7 +295,7 @@ TEST_F(ThreeDTextureHelperTest, CopyDataToGPUSplitMiddle)
     }
     helper.updateTexture(0, depth, data_vec);
   }
-  helper.copyDataToGPU(0, true);
+  helper.copyToDevice(true);
 
   std::vector<float4> query_points;
   query_points.push_back(make_float4(0.0, 0.0, 0.1, 0.0));
@@ -333,7 +326,7 @@ TEST_F(ThreeDTextureHelperTest, CopyDataToGPUSplitMiddle)
     }
     helper.updateTexture(0, depth, data_vec);
   }
-  helper.copyDataToGPU(0, true);
+  helper.copyToDevice(true);
 
   results = getTextureAtPointsKernel<ThreeDTextureHelper<float4>, float4>(helper, query_points);
 

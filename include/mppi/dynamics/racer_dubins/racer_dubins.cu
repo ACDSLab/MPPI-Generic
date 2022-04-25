@@ -8,8 +8,8 @@ void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(const Eigen::Ref<const
   bool enable_brake = control(0) < 0;
   // applying position throttle
   state_der(0) = (!enable_brake) * this->params_.c_t * control(0) +
-                 (enable_brake) * this->params_.c_b * control(0) * state(0) - this->params_.c_v * state(0) +
-                 this->params_.c_0;
+                 (enable_brake) * this->params_.c_b * control(0) * (state(0) >= 0 ? 1 : -1) -
+                 this->params_.c_v * state(0) + this->params_.c_0;
   state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4));
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
@@ -88,8 +88,8 @@ __device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(float* stat
   bool enable_brake = control[0] < 0;
   // applying position throttle
   state_der[0] = (!enable_brake) * this->params_.c_t * control[0] +
-                 (enable_brake) * this->params_.c_b * control[0] * state[0] - this->params_.c_v * state[0] +
-                 this->params_.c_0;
+                 (enable_brake) * this->params_.c_b * control[0] * (state[0] >= 0 ? 1 : -1) -
+                 this->params_.c_v * state[0] + this->params_.c_0;
   state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4]);
   state_der[2] = state[0] * cosf(state[1]);
   state_der[3] = state[0] * sinf(state[1]);

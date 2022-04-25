@@ -423,20 +423,20 @@ public:
     filter_coefficients /= 35.0;
 
     // Create and fill a control buffer that we can apply the convolution filter
-    Eigen::Matrix<float, MAX_TIMESTEPS + 4, DYN_T::CONTROL_DIM> control_buffer;
+    Eigen::MatrixXf control_buffer(num_timesteps_ + 4, DYN_T::CONTROL_DIM);
 
     // Fill the first two timesteps with the control history
     control_buffer.topRows(2) = control_history.transpose();
 
     // Fill the center timesteps with the current nominal trajectory
-    control_buffer.middleRows(2, MAX_TIMESTEPS) = u.transpose();
+    control_buffer.middleRows(2, num_timesteps_) = u.transpose();
 
     // Fill the last two timesteps with the end of the current nominal control trajectory
-    control_buffer.row(MAX_TIMESTEPS + 2) = u.transpose().row(MAX_TIMESTEPS - 1);
-    control_buffer.row(MAX_TIMESTEPS + 3) = u.transpose().row(MAX_TIMESTEPS - 1);
+    control_buffer.row(num_timesteps_ + 2) = u.transpose().row(num_timesteps_ - 1);
+    control_buffer.row(num_timesteps_ + 3) = u.transpose().row(num_timesteps_ - 1);
 
     // Apply convolutional filter to each timestep
-    for (int i = 0; i < MAX_TIMESTEPS; ++i)
+    for (int i = 0; i < num_timesteps_; ++i)
     {
       u.col(i) = (filter_coefficients * control_buffer.middleRows(i, 5)).transpose();
     }
