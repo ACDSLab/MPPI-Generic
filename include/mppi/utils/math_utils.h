@@ -237,6 +237,14 @@ inline void omega2edot(const float p, const float q, const float r, const Eigen:
   ed.y() = 0.5 * (p * e.z() + q * e.w() - r * e.x());
   ed.z() = 0.5 * (-p * e.y() + q * e.x() + r * e.w());
 }
+
+static Eigen::Matrix3f skewSymmetricMatrix(Eigen::Vector3f& v)
+{
+  Eigen::Matrix3f m;
+  m << 0, -v[2], v[1], v[2], 0, -v[0], -v[1], v[0], 0;
+  return m;
+}
+
 }  // namespace mppi_math
 
 #endif  // MATH_UTILS_H_

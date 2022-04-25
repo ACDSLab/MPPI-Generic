@@ -186,6 +186,32 @@ TEST_F(ControllerTests, updateControlNoiseStdDev)
   // TODO verify copied to GPU correctly
 }
 
+TEST_F(ControllerTests, smoothControlTrajectory)
+{
+  TestController::control_trajectory u;
+  u.col(0) = TestController::control_array::Ones();
+  u.col(1) = 2.0 * TestController::control_array::Ones();
+  Eigen::Matrix<float, MockDynamics::CONTROL_DIM, 2> control_history =
+      Eigen::Matrix<float, MockDynamics::CONTROL_DIM, 2>::Zero();
+
+  // smooth using only one value from the control trajectory
+  controller->setNumTimesteps(1);
+  controller->smoothControlTrajectoryHelper(u, control_history);
+  for (int i = 0; i < MockDynamics::CONTROL_DIM; i++)
+  {
+    EXPECT_FLOAT_EQ(u(i, 0), (1.0 * 17 + 1.0 * 12 + 1.0 * -3) / 35.0) << "i = " << i;
+  }
+  // Reset trajectory and smooth over two steps
+  u.col(0) = TestController::control_array::Ones();
+  controller->setNumTimesteps(2);
+  controller->smoothControlTrajectoryHelper(u, control_history);
+  for (int i = 0; i < MockDynamics::CONTROL_DIM; i++)
+  {
+    EXPECT_FLOAT_EQ(u(i, 0), (1.0 * 17 + 2.0 * 12 + 2.0 * -3) / 35.0) << "i = " << i;
+    EXPECT_FLOAT_EQ(u(i, 1), (1.0 * 12 + 2.0 * 17 + 2.0 * 12 + 2.0 * -3) / 35.0) << "i = " << i;
+  }
+}
+
 TEST_F(ControllerTests, slideControlSequenceHelper)
 {
   TestController::control_trajectory u;

@@ -1,11 +1,11 @@
 #include "three_d_texture_helper.cuh"
 
 template <class DATA_T>
-ThreeDTextureHelper<DATA_T>::ThreeDTextureHelper(int number, cudaStream_t stream)
+ThreeDTextureHelper<DATA_T>::ThreeDTextureHelper(int number, bool synched, cudaStream_t stream)
   : TextureHelper<ThreeDTextureHelper<DATA_T>, DATA_T>(number, stream)
 {
-  cpu_values_.resize(number);
   layer_copy_.resize(number);
+  this->synched_ = synched;
   for (std::vector<bool>& layer : layer_copy_)
   {
     // sets all current indexes to be true
@@ -25,11 +25,13 @@ void ThreeDTextureHelper<DATA_T>::allocateCudaTexture(int index)
 }
 
 template <class DATA_T>
-void ThreeDTextureHelper<DATA_T>::updateTexture(const int index, const int z_index, std::vector<DATA_T>& values)
+void ThreeDTextureHelper<DATA_T>::updateTexture(const int index, const int z_index, std::vector<DATA_T>& values,
+                                                bool column_major)
 {
-  TextureParams<DATA_T>* param = &this->textures_[index];
+  TextureParams<DATA_T>* param = &this->textures_buffer_[index];
   int w = param->extent.width;
   int h = param->extent.height;
+  int d = param->extent.depth;
 
   // check that the sizes are correct
   if (values.size() != w * h)
@@ -40,8 +42,15 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(const int index, const int z_ind
 
   // TODO needs to be in the data format used for textures
 
+  if (this->cpu_buffer_values_[index].size() != w * h * d)
+  {
+    this->cpu_buffer_values_[index].resize(w * h * d);
+    // copies values back to the buffer if it has been recently moved
+    std::copy(this->cpu_values_[index].begin(), this->cpu_values_[index].end(),
+              this->cpu_buffer_values_[index].begin());
+  }
   // copy over values to cpu side holder
-  if (param->column_major)
+  if (column_major)
   {
     for (int j = 0; j < w; j++)
     {
@@ -49,18 +58,21 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(const int index, const int z_ind
       {
         int columnMajorIndex = j * h + i;
         int rowMajorIndex = (w * h * z_index) + i * w + j;
-        cpu_values_[index][rowMajorIndex] = values[columnMajorIndex];
+        this->cpu_buffer_values_[index][rowMajorIndex] = values[columnMajorIndex];
       }
     }
   }
   else
   {
-    auto start = cpu_values_[index].begin() + (w * h * z_index);
+    auto start = this->cpu_buffer_values_[index].begin() + (w * h * z_index);
     std::copy(values.begin(), values.end(), start);
   }
   // tells the object to copy it over next time that happens
   layer_copy_[index][z_index] = true;
-  param->update_data = true;
+  if (!synched_)
+  {
+    param->update_data = true;
+  }
 }
 
 template <class DATA_T>
@@ -68,11 +80,13 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(
     const int index, const int z_index,
     const Eigen::Ref<const Eigen::Matrix<DATA_T, Eigen::Dynamic, Eigen::Dynamic>, 0,
                      Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
-        values)
+        values,
+    bool column_major)
 {
-  TextureParams<DATA_T>* param = &this->textures_[index];
+  TextureParams<DATA_T>* param = &this->textures_buffer_[index];
   int w = param->extent.width;
   int h = param->extent.height;
+  int d = param->extent.depth;
 
   // check that the sizes are correct
   if (values.size() != w * h)
@@ -81,10 +95,16 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(
                              " != " + std::to_string(w * h));
   }
 
-  // TODO needs to be in the data format used for textures
+  if (this->cpu_buffer_values_[index].size() != w * h * d)
+  {
+    this->cpu_buffer_values_[index].resize(w * h * d);
+    // copies values back to the buffer if it has been recently moved
+    std::copy(this->cpu_values_[index].begin(), this->cpu_values_[index].end(),
+              this->cpu_buffers_values_[index].begin());
+  }
 
   // copy over values to cpu side holder
-  if (param->column_major)
+  if (column_major)
   {
     for (int j = 0; j < w; j++)
     {
@@ -92,18 +112,21 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(
       {
         int columnMajorIndex = j * h + i;
         int rowMajorIndex = (w * h * z_index) + i * w + j;
-        cpu_values_[index][rowMajorIndex] = values.data()[columnMajorIndex];
+        this->cpu_buffer_values_[index][rowMajorIndex] = values.data()[columnMajorIndex];
       }
     }
   }
   else
   {
-    auto start = cpu_values_[index].data() + (w * h * z_index);
+    auto start = this->cpu_buffer_values_[index].data() + (w * h * z_index);
     memcpy(start, values.data(), values.size() * sizeof(DATA_T));
   }
   // tells the object to copy it over next time that happens
   layer_copy_[index][z_index] = true;
-  param->update_data = true;
+  if (!synched_)
+  {
+    param->update_data = true;
+  }
 }
 
 // TODO update texture where everything is copied over in one go
@@ -131,10 +154,8 @@ bool ThreeDTextureHelper<DATA_T>::setExtent(int index, cudaExtent& extent)
     return false;
   }
 
-  for (std::vector<DATA_T>& layer : cpu_values_)
-  {
-    layer.resize(extent.width * extent.height * extent.depth);
-  }
+  this->cpu_buffer_values_[index].resize(extent.width * extent.height * extent.depth);
+  this->cpu_values_[index].resize(extent.width * extent.height * extent.depth);
 
   // TODO recopy better when depth changes if possible
 
@@ -161,7 +182,7 @@ void ThreeDTextureHelper<DATA_T>::copyDataToGPU(int index, bool sync)
   int d = param->extent.depth;
 
   cudaMemcpy3DParms params = { 0 };
-  params.srcPtr = make_cudaPitchedPtr(cpu_values_[index].data(), w * sizeof(DATA_T), w, h);
+  params.srcPtr = make_cudaPitchedPtr(this->cpu_values_[index].data(), w * sizeof(DATA_T), w, h);
   params.dstArray = param->array_d;
   params.kind = cudaMemcpyHostToDevice;
   params.dstPos = make_cudaPos(0, 0, 0);

@@ -34,6 +34,71 @@ void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref
   state(1) = angle_utils::normalizeAngle(state(1));
   state(4) -= state_der(4) * dt;
   state(4) = state_der(4) + (state(4) - state_der(4)) * expf(-this->params_.steering_constant * dt);
+
+  if (this->tex_helper_->checkTextureUse(0))
+  {
+    float3 front_left = make_float3(2.981, 0.737, 0);
+    float3 front_right = make_float3(2.981, -0.737, 0);
+    float3 back_left = make_float3(0, 0.737, 0);
+    float3 back_right = make_float3(0, -0.737, 0);
+    front_left = make_float3(front_left.x * cosf(state(1)) - front_left.y * sinf(state(1)) + state(2),
+                             front_left.x * sinf(state(1)) + front_left.y * cosf(state(1)) + state(3), 0);
+    front_right = make_float3(front_right.x * cosf(state(1)) - front_right.y * sinf(state(1)) + state(2),
+                              front_right.x * sinf(state(1)) + front_right.y * cosf(state(1)) + state(3), 0);
+    back_left = make_float3(back_left.x * cosf(state(1)) - back_left.y * sinf(state(1)) + state(2),
+                            back_left.x * sinf(state(1)) + back_left.y * cosf(state(1)) + state(3), 0);
+    back_right = make_float3(back_right.x * cosf(state(1)) - back_right.y * sinf(state(1)) + state(2),
+                             back_right.x * sinf(state(1)) + back_right.y * cosf(state(1)) + state(3), 0);
+    float front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
+    float front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
+    float back_left_height = this->tex_helper_->queryTextureAtWorldPose(0, back_left);
+    float back_right_height = this->tex_helper_->queryTextureAtWorldPose(0, back_right);
+
+    float front_diff = front_left_height - front_right_height;
+    front_diff = max(min(front_diff, 0.736 * 2), -0.736 * 2);
+    float back_diff = back_left_height - back_right_height;
+    back_diff = max(min(back_diff, 0.736 * 2), -0.736 * 2);
+    float front_roll = asinf(front_diff / (0.737 * 2));
+    float back_roll = asinf(back_diff / (0.737 * 2));
+    if (abs(front_roll) > abs(back_roll))
+    {
+      state(5) = front_roll;
+    }
+    else
+    {
+      state(5) = back_roll;
+    }
+
+    float left_diff = back_left_height - front_left_height;
+    left_diff = max(min(left_diff, 2.98), -2.98);
+    float right_diff = back_right_height - front_right_height;
+    right_diff = max(min(right_diff, 2.98), -2.98);
+    float left_pitch = asinf((left_diff) / 2.981);
+    float right_pitch = asinf((right_diff) / 2.981);
+    if (abs(left_pitch) > abs(right_pitch))
+    {
+      state(6) = left_pitch;
+    }
+    else
+    {
+      state(6) = right_pitch;
+    }
+  }
+  else
+  {
+    state(5) = 0;
+    state(6) = 0;
+  }
+
+  if (isnan(state(5)) || isinf(state(5)) || abs(state(5)) > M_PI)
+  {
+    state(5) = 4.0;
+  }
+  if (isnan(state(6)) || isinf(state(6)) || abs(state(6)) > M_PI)
+  {
+    state(6) = 4.0;
+  }
+
   state_der.setZero();
 }
 
