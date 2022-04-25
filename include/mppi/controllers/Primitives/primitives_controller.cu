@@ -103,10 +103,11 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
     // if baseline is too high and trajectory is unsafe, create and issue a stopping trajectory
     // reminder:  baseline_ is the average cost along trajectory
-    if (stopping_cost_threshold_ > 0 && this->baseline_ * this->num_timesteps_ > stopping_cost_threshold_)
+    if (stopping_cost_threshold_ > 0 && primitives_baseline * this->num_timesteps_ > stopping_cost_threshold_)
     {
       std::cerr << "Baseline is too high, issuing stopping trajectory!" << std::endl;
       computeStoppingTrajectory(local_state);
+      primitives_baseline = std::numeric_limits<float>::min();
     }
     else if (primitives_baseline > baseline_prev - hysteresis_cost_threshold_)
     {
