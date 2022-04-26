@@ -154,15 +154,10 @@ DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3&
 
   // convert normalized to array index
   float2 query = make_float2(point.x * param->extent.width, point.y * param->extent.height);
-  // correctly handle being above the location of the top index
-  if (query.x < param->extent.width)
-  {
-    query.x = std::max(query.x - 0.5, 0.0);
-  }
-  if (query.y < param->extent.height)
-  {
-    query.y = std::max(query.y - 0.5, 0.0);
-  }
+
+  // we subtract half a grid cell since the elevation map is the elevation at the center of the grid cell
+  query.x = query.x - 0.5, 0.0;
+  query.y = query.y - 0.5, 0.0;
   if (param->texDesc.addressMode[0] == cudaAddressModeClamp)
   {
     if (query.x > param->extent.width - 1)
