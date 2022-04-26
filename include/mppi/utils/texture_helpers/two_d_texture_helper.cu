@@ -150,21 +150,14 @@ void TwoDTextureHelper<DATA_T>::updateTexture(
 template <class DATA_T>
 DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3& point)
 {
-  // std::cout << "\n\ninput point " << point.x << ", " << point.y << std::endl;
   TextureParams<DATA_T>* param = &this->textures_[index];
 
   // convert normalized to array index
   float2 query = make_float2(point.x * param->extent.width, point.y * param->extent.height);
-  // std::cout << "after converting to pixels at " << query.x << ", " << query.y << std::endl;
-  // correctly handle being above the location of the top index
-  if (query.x < param->extent.width)
-  {
-    query.x = std::max(query.x - 0.5, 0.0);
-  }
-  if (query.y < param->extent.height)
-  {
-    query.y = std::max(query.y - 0.5, 0.0);
-  }
+
+  // we subtract half a grid cell since the elevation map is the elevation at the center of the grid cell
+  query.x = query.x - 0.5, 0.0;
+  query.y = query.y - 0.5, 0.0;
   if (param->texDesc.addressMode[0] == cudaAddressModeClamp)
   {
     if (query.x > param->extent.width - 1)
@@ -195,57 +188,27 @@ DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3&
   {
     throw std::runtime_error(std::string("using unsupported address mode on the CPU in texture utils"));
   }
-  // std::cout << "query " << query.x << ", " << query.y << std::endl;
   int w = param->extent.width;
   if (param->texDesc.filterMode == cudaFilterModeLinear)
   {
     // the value is distributed evenly in the space starting at half a cell from 0.0
-    int2 x_min_y_min = make_int2(std::floor(query.x), std::floor(query.y));
-    int2 x_max_y_min = make_int2(std::ceil(query.x), std::floor(query.y));
-    int2 x_min_y_max = make_int2(std::floor(query.x), std::ceil(query.y));
-    int2 x_max_y_max = make_int2(std::ceil(query.x), std::ceil(query.y));
-    if (std::ceil(query.x) == std::floor(query.x))
-    {
-      x_max_y_min.x += 1;
-      x_max_y_max.x += 1;
-    }
-    if (std::ceil(query.y) == std::floor(query.y))
-    {
-      x_min_y_max.y += 1;
-      x_max_y_max.y += 1;
-    }
-    // does bilinear interpolation
+    int x_min = std::floor(query.x);
+    int x_max = x_min + 1;
+    int y_min = std::floor(query.y);
+    int y_max = y_min + 1;
 
-    // std::cout << "got  indexes\n";
-    // std::cout << "x_min_y_min: " << x_min_y_min.x << ", " << x_min_y_min.y << std::endl;
-    // std::cout << "x_max_y_min: " << x_max_y_min.x << ", " << x_max_y_min.y << std::endl;
-    // std::cout << "x_min_y_max: " << x_min_y_max.x << ", " << x_min_y_max.y << std::endl;
-    // std::cout << "x_max_y_max: " << x_max_y_max.x << ", " << x_max_y_max.y << std::endl;
+    // does bilinear interpolation https://en.wikipedia.org/wiki/Bilinear_interpolation
 
-    DATA_T x_min_y_min_val = this->cpu_values_[index][x_min_y_min.y * w + x_min_y_min.x];
-    DATA_T x_max_y_min_val = this->cpu_values_[index][x_max_y_min.y * w + x_max_y_min.x];
-    DATA_T x_min_y_max_val = this->cpu_values_[index][x_min_y_max.y * w + x_min_y_max.x];
-    DATA_T x_max_y_max_val = this->cpu_values_[index][x_max_y_max.y * w + x_max_y_max.x];
+    DATA_T Q_11 = this->cpu_values_[index][y_min * w + x_min];
+    DATA_T Q_12 = this->cpu_values_[index][y_min * w + x_max];
+    DATA_T Q_21 = this->cpu_values_[index][y_max * w + x_min];
+    DATA_T Q_22 = this->cpu_values_[index][y_max * w + x_max];
 
-    // std::cout << "got data\n";
-    // std::cout << "x_min_y_min: " << x_min_y_min_val << std::endl;
-    // std::cout << "x_max_y_min: " << x_max_y_min_val << std::endl;
-    // std::cout << "x_min_y_max: " << x_min_y_max_val << std::endl;
-    // std::cout << "x_max_y_max: " << x_max_y_max_val << std::endl;
+    DATA_T y_min_interp = Q_11 * ((x_max - query.x) / (x_max - x_min)) + Q_12 * ((query.x - x_min) / (x_max - x_min));
+    DATA_T y_max_interp = Q_21 * ((x_max - query.x) / (x_max - x_min)) + Q_22 * ((query.x - x_min) / (x_max - x_min));
 
-    DATA_T y_min_interp = x_min_y_min_val * ((x_max_y_max.x - query.x) / (x_max_y_max.x - x_min_y_min.x)) +
-                          x_max_y_min_val * ((query.x - x_min_y_min.x) / (x_max_y_max.x - x_min_y_min.x));
-    DATA_T y_max_interp = x_min_y_max_val * ((x_max_y_max.x - query.x) / (x_max_y_max.x - x_min_y_min.x)) +
-                          x_max_y_max_val * ((query.x - x_min_y_min.x) / (x_max_y_max.x - x_min_y_min.x));
-
-    // std::cout << "y min interp: " << y_min_interp.x << " + " << y_min_interp.y << " + " << y_min_interp.z << " + "
-    //          << y_min_interp.w << std::endl;
-    // std::cout << "y max interp: " << y_max_interp.x << " + " << y_max_interp.y << " + " << y_max_interp.z << " + "
-    //          << y_max_interp.w << std::endl;
-    DATA_T result = y_min_interp * ((x_max_y_max.y - query.y) / (x_max_y_max.y - x_min_y_min.y)) +
-                    y_max_interp * ((query.y - x_min_y_min.y) / (x_max_y_max.y - x_min_y_min.y));
-    // std::cout << "result: " << result.x << ", " << result.y << ", " << result.z << ", " << result.w << "\n\n"
-    //          << std::endl;
+    DATA_T result =
+        y_min_interp * ((y_max - query.y) / (y_max - y_min)) + y_max_interp * ((query.y - y_min) / (y_max - y_min));
 
     // does the actual interpolation
     return result;
@@ -254,5 +217,9 @@ DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3&
   {
     int rowMajorIndex = std::round(query.y) * w + std::round(query.x);
     return this->cpu_values_[index][rowMajorIndex];
+  }
+  else
+  {
+    throw std::runtime_error(std::string("using unsupported filter mode on the CPU in texture utils"));
   }
 }
