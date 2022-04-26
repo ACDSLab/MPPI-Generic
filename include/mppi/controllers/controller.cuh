@@ -16,6 +16,7 @@
 #include <mppi/utils/math_utils.h>
 
 #include <cfloat>
+#include <tuple>
 #include <utility>
 
 struct freeEnergyEstimate
