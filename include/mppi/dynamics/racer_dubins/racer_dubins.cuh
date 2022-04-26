@@ -53,6 +53,7 @@ public:
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
+  void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
   Eigen::Quaternionf get_attitude(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);
 

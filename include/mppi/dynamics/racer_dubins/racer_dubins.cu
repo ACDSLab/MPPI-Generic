@@ -95,3 +95,11 @@ __device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(float* stat
   state_der[3] = state[0] * sinf(state[1]);
   state_der[4] = control[1] / this->params_.steer_command_angle_scale;
 }
+
+template <class CLASS_T, int STATE_DIM>
+void RacerDubinsImpl<CLASS_T, STATE_DIM>::getStoppingControl(const Eigen::Ref<const state_array>& state,
+                                                             Eigen::Ref<control_array> u)
+{
+  u[0] = -1.0;  // full brake
+  u[1] = 0.0;   // no steering
+}

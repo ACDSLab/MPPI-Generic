@@ -73,6 +73,9 @@ float computeBaselineCost(float* cost_rollouts_host, int num_rollouts);
 
 float computeNormalizer(float* cost_rollouts_host, int num_rollouts);
 
+float constructBestWeights(float* cost_rollouts_host, int num_rollouts);
+int computeBestIndex(float* cost_rollouts_host, int num_rollouts);
+
 /**
  * Calculates the free energy mean and variance from the different
  * cost trajectories after normExpKernel
