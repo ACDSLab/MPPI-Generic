@@ -37,10 +37,7 @@ public:
   void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt);
 
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                       Eigen::Ref<state_array> state_der) {
-    RacerDubinsImpl<RacerDubinsElevation, 7>* derived = static_cast<RacerDubinsImpl<RacerDubinsElevation, 7>*>(this);
-    derived->computeDynamics(state, control, state_der);
-  }
+                       Eigen::Ref<state_array> state_der);
 
   __device__ void updateState(float* state, float* state_der, const float dt);
 
