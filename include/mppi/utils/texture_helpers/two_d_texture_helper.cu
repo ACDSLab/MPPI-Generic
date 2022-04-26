@@ -218,4 +218,8 @@ DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3&
     int rowMajorIndex = std::round(query.y) * w + std::round(query.x);
     return this->cpu_values_[index][rowMajorIndex];
   }
+  else
+  {
+    throw std::runtime_error(std::string("using unsupported filter mode on the CPU in texture utils"));
+  }
 }
