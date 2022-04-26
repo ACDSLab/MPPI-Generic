@@ -697,7 +697,7 @@ protected:
   float baseline_ = 0;                           // Baseline cost of the system.
   float perc_sampled_control_trajectories_ = 0;  // Percentage of sampled trajectories to return
   int sample_multiplier_ = 1;                    // How many nominal states we are keeping track of
-  int num_top_control_trajectories_ = 200;       // Top n sampled trajectories to visualize
+  int num_top_control_trajectories_ = 0;         // Top n sampled trajectories to visualize
   std::vector<float> top_n_costs_;
 
   curandGenerator_t gen_;
