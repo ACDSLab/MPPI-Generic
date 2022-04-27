@@ -139,7 +139,7 @@ void CONTROLLER::copyTopControlFromDevice(bool synchronize)
   // Copy top n samples to this->sampled_noise_d_ after the randomly sampled trajectories
   for (int i = 0; i < num_top_control_trajectories_; i++)
   {
-    top_n_costs_[i] = trajectory_costs_[samples[i]];  // / normalizer_;
+    top_n_costs_[i] = trajectory_costs_[samples[i]] / normalizer_;
     HANDLE_ERROR(cudaMemcpyAsync(
         this->sampled_noise_d_ + (start_top_control_traj_index + i) * this->num_timesteps_ * DYN_T::CONTROL_DIM,
         this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
