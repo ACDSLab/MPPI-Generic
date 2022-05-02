@@ -36,7 +36,7 @@ inline void __cudaCheckError(const char* file, const int line)
   }
 }
 
-const char* cufftGetErrorString(cufftResult& code)
+inline const char* cufftGetErrorString(cufftResult& code)
 {
   // Codes from https://docs.nvidia.com/cuda/cufft/index.html#cufftresult
   switch (code)
@@ -78,7 +78,7 @@ const char* cufftGetErrorString(cufftResult& code)
   }
 }
 
-const char* curandGetErrorString(curandStatus_t code)
+inline const char* curandGetErrorString(curandStatus_t code)
 {
   // Codes from https://docs.nvidia.com/cuda/curand/group__HOST.html#group__HOST_1gb94a31d5c165858c96b6c18b70644437
   switch (code)
