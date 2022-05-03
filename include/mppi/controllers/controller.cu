@@ -101,42 +101,38 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void CONTROLLER::copyTopControlFromDevice(bool synchronize)
 {
   // if mem is not inited don't use it
-  if (!sampled_states_CUDA_mem_init_)
-  {
-    return;
-  }
-  if (num_top_control_trajectories_ <= 0)
+  if (!sampled_states_CUDA_mem_init_ || num_top_control_trajectories_ <= 0)
   {
     return;
   }
 
+  // Important note: Highest weighted trajectories are the ones with the lowest cost
   int start_top_control_traj_index = perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   std::vector<int> samples(num_top_control_trajectories_);
+  // Start by filling in the top samples list with the first n in the trajectory
   for (int i = 0; i < num_top_control_trajectories_; i++)
   {
     samples[i] = i;
   }
 
-  // Calculate max in vector
+  // Calculate min weight in the current top samples list
   int min_sample_index = 0;
   float min_sample_value = 0;
-
   std::tie(min_sample_index, min_sample_value) = findMinIndexAndValue(samples);
 
-  // find top n samples
+  // find top n samples by removing the smallest weights from the list
   for (int i = num_top_control_trajectories_; i < NUM_ROLLOUTS; i++)
   {
     if (trajectory_costs_[i] > min_sample_value)
-    {
-      // Remove the largest cost in the current list and add the new index
+    {  // Remove the smallest weight in the current list and add the new index
       samples[min_sample_index] = i;
-      // recalculate max in the current list
+      // recalculate min weight in the current list
       std::tie(min_sample_index, min_sample_value) = findMinIndexAndValue(samples);
     }
   }
-  top_n_costs_.resize(num_top_control_trajectories_);
 
   // Copy top n samples to this->sampled_noise_d_ after the randomly sampled trajectories
+  top_n_costs_.resize(num_top_control_trajectories_);
   for (int i = 0; i < num_top_control_trajectories_; i++)
   {
     top_n_costs_[i] = trajectory_costs_[samples[i]] / normalizer_;
