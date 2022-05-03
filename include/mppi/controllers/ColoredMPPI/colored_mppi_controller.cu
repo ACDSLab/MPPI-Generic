@@ -176,6 +176,7 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 
   // Copy back sampled trajectories
   this->copySampledControlFromDevice();
+  this->copyTopControlFromDevice();
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
@@ -210,7 +211,8 @@ void ColoredMPPI::smoothControlTrajectory()
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
 void ColoredMPPI::calculateSampledStateTrajectories()
 {
-  int num_sampled_trajectories = this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
+  int num_sampled_trajectories =
+      this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS + this->num_top_control_trajectories_;
   // controls already copied in compute control
 
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(

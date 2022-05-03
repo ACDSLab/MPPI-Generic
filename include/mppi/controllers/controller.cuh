@@ -16,6 +16,7 @@
 #include <mppi/utils/math_utils.h>
 
 #include <cfloat>
+#include <utility>
 
 struct freeEnergyEstimate
 {
@@ -180,6 +181,11 @@ public:
   virtual std::vector<crash_status_trajectory> getSampledCrashStatusTrajectories()
   {
     return sampled_crash_status_;
+  }
+
+  virtual std::vector<float> getTopTransformedCosts()
+  {
+    return top_n_costs_;
   }
 
   /**
@@ -551,7 +557,22 @@ public:
    */
   void setPercentageSampledControlTrajectoriesHelper(float new_perc, int multiplier)
   {
-    int num_sampled_trajectories = new_perc * NUM_ROLLOUTS;
+    perc_sampled_control_trajectories_ = new_perc;
+    sample_multiplier_ = multiplier;
+    resizeSampledControlTrajectories(perc_sampled_control_trajectories_, sample_multiplier_,
+                                     num_top_control_trajectories_);
+  }
+
+  void setTopNSampledControlTrajectoriesHelper(int new_top_num_samples)
+  {
+    num_top_control_trajectories_ = new_top_num_samples;
+    resizeSampledControlTrajectories(perc_sampled_control_trajectories_, sample_multiplier_,
+                                     num_top_control_trajectories_);
+  }
+
+  void resizeSampledControlTrajectories(float perc, int multiplier, int top_num)
+  {
+    int num_sampled_trajectories = perc * NUM_ROLLOUTS + top_num;
 
     if (sampled_states_CUDA_mem_init_)
     {
@@ -564,8 +585,7 @@ public:
     sampled_trajectories_.resize(num_sampled_trajectories * multiplier, state_trajectory::Zero());
     sampled_costs_.resize(num_sampled_trajectories * multiplier, cost_trajectory::Zero());
     sampled_crash_status_.resize(num_sampled_trajectories * multiplier, crash_status_trajectory::Zero());
-    perc_sampled_control_trajectories_ = new_perc;
-    if (new_perc <= 0)
+    if (num_sampled_trajectories <= 0)
     {
       return;
     }
@@ -586,6 +606,12 @@ public:
   {
     return perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   }
+
+  int getNumberTopControlTrajectories()
+  {
+    return num_top_control_trajectories_;
+  }
+
   /**
    * Return the most recent free energy calculation for the mean
    */
@@ -670,6 +696,9 @@ protected:
   float normalizer_;                             // Variable for the normalizing term from sampling.
   float baseline_ = 0;                           // Baseline cost of the system.
   float perc_sampled_control_trajectories_ = 0;  // Percentage of sampled trajectories to return
+  int sample_multiplier_ = 1;                    // How many nominal states we are keeping track of
+  int num_top_control_trajectories_ = 0;         // Top n sampled trajectories to visualize
+  std::vector<float> top_n_costs_;
 
   curandGenerator_t gen_;
   control_array control_std_dev_ = control_array::Zero();
@@ -713,7 +742,10 @@ protected:
    * Must be called after the rolloutKernel as that is when
    * du_d becomes the sampled controls
    */
-  void copySampledControlFromDevice();
+  void copySampledControlFromDevice(bool synchronize = true);
+
+  std::pair<int, float> findMinIndexAndValue(std::vector<int>& temp_list);
+  void copyTopControlFromDevice(bool synchronize = true);
 
   void createAndSeedCUDARandomNumberGen();
 
