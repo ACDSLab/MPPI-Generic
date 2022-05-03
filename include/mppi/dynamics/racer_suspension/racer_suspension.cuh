@@ -22,7 +22,7 @@ struct RacerSuspensionParams
     wheel_radius + mass/4 * gravity/k_s[2],
     wheel_radius + mass/4 * gravity/k_s[3],
   };
-  float3 cg_pos_wrt_base_link = make_float3(wheel_base/2, 0, 0.5);
+  float3 cg_pos_wrt_base_link = make_float3(wheel_base/2, 0, 0.2);
   // float3 wheel_pos_front_left = make_float3(wheel_base, width/2, 0);
   // float3 wheel_pos_front_right = make_float3(wheel_base, -width/2, 0);
   // float3 wheel_pos_rear_left = make_float3(0, width/2, 0);
@@ -33,9 +33,9 @@ struct RacerSuspensionParams
     make_float3(0, width/2, 0),
     make_float3(0, -width/2, 0)
   };
-  float Jxx =  1/12 * mass * height*height + width*width;
-  float Jyy =  1/12 * mass * height*height + wheel_base*wheel_base;
-  float Jzz =  1/12 * mass * wheel_base*wheel_base + width*width;
+  float Jxx =  1.0/12 * mass * (height*height + width*width);
+  float Jyy =  1.0/12 * mass * (height*height + wheel_base*wheel_base);
+  float Jzz =  1.0/12 * mass * (wheel_base*wheel_base + width*width);
   float mu = 0.65;
   float v_slip = 0.1;
   static const int WHEEL_FRONT_LEFT = 0;
