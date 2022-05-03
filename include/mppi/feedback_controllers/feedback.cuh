@@ -10,7 +10,6 @@
 
 #include <cmath>
 #include <memory>
-#include <tuple>
 
 struct GPUState
 {
