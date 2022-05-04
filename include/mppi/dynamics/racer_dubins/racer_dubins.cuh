@@ -21,7 +21,7 @@ using namespace MPPI_internal;
  * state: v, theta, p_x, p_y, true steering angle
  * control: throttle, steering angle command
  */
-template<class CLASS_T, int STATE_DIM>
+template <class CLASS_T, int STATE_DIM>
 class RacerDubinsImpl : public Dynamics<CLASS_T, RacerDubinsParams, STATE_DIM, 2>
 {
 public:
@@ -56,18 +56,19 @@ public:
   void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
   Eigen::Quaternionf get_attitude(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);
-
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins, 5>
 {
 public:
   RacerDubins(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubins, 5>(stream)
-  {}
+  {
+  }
 
   RacerDubins(RacerDubinsParams& params, cudaStream_t stream = nullptr)
-  : RacerDubinsImpl<RacerDubins, 5>(params, stream)
-  {}
+    : RacerDubinsImpl<RacerDubins, 5>(params, stream)
+  {
+  }
 };
 
 #if __CUDACC__

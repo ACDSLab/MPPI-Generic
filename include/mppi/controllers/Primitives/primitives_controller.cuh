@@ -44,10 +44,10 @@ public:
    */
   // Constructor
   PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda,
-                        float alpha, const Eigen::Ref<const control_array>& control_std_dev,
-                        int num_timesteps = MAX_TIMESTEPS,
-                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
-                        cudaStream_t stream = nullptr);
+                       float alpha, const Eigen::Ref<const control_array>& control_std_dev,
+                       int num_timesteps = MAX_TIMESTEPS,
+                       const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
+                       cudaStream_t stream = nullptr);
 
   // Destructor
   ~PrimitivesController();
@@ -72,7 +72,7 @@ public:
   {
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 1);
   }
-  
+
   void setNumPrimitiveIterations(int new_num_iter)
   {
     num_primitive_iters_ = new_num_iter;
@@ -156,7 +156,7 @@ public:
   {
     hysteresis_cost_threshold_ = new_hysteresis_cost_threshold;
   }
-  
+
   float getHysteresisCostThreshold()
   {
     return hysteresis_cost_threshold_;
@@ -192,8 +192,8 @@ protected:
   float hysteresis_cost_threshold_ = 0.0;
   bool visualize_primitives_ = false;
 
-  float* control_mppi_d_;           // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
-  control_trajectory control_mppi_ = control_trajectory::Zero(); // host side mppi control trajectory
+  float* control_mppi_d_;                                         // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
+  control_trajectory control_mppi_ = control_trajectory::Zero();  // host side mppi control trajectory
 
 private:
   // ======== MUST BE OVERWRITTEN =========

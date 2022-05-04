@@ -257,7 +257,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_ / NUM_ROLLOUTS;
   this->free_energy_statistics_.real_sys.increase =
       this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
-  
+
   // END MPPI
   ////////////////////////
 

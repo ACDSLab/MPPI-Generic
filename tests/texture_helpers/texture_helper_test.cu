@@ -334,7 +334,6 @@ TEST_F(TextureHelperTest, UpdateRotationTest)
   EXPECT_FLOAT_EQ(textures_buffer[1].rotations[2].z, 9);
 }
 
-
 TEST_F(TextureHelperTest, SetExtentTest)
 {
   int number = 5;
