@@ -36,7 +36,21 @@ struct MPPIFreeEnergyStatistics
   freeEnergyEstimate real_sys;
 };
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <int C_DIM, int MAX_TIMESTEPS>
+struct ControllerParams
+{
+  int optimization_stride;
+  float dt;
+  float lambda;
+  float alpha;
+  int num_timesteps;
+  int num_iters;
+  Eigen::Matrix<float, C_DIM, 1> control_std_dev;
+  Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS> init_control_traj;
+};
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T = ControllerParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class Controller
 {
 public:
@@ -48,6 +62,7 @@ public:
   typedef DYN_T TEMPLATED_DYNAMICS;
   typedef COST_T TEMPLATED_COSTS;
   typedef FB_T TEMPLATED_FEEDBACK;
+  typedef PARAMS_T TEMPLATED_PARAMS;
   using TEMPLATED_FEEDBACK_STATE = typename FB_T::TEMPLATED_FEEDBACK_STATE;
   using TEMPLATED_FEEDBACK_PARAMS = typename FB_T::TEMPLATED_PARAMS;
   using TEMPLATED_FEEDBACK_GPU = typename FB_T::TEMPLATED_GPU_FEEDBACK;

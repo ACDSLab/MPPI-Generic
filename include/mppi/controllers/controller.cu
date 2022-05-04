@@ -1,8 +1,9 @@
 #include <mppi/controllers/controller.cuh>
 
-#define CONTROLLER Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+#define CONTROLLER Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, class PARAMS_T>
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
 void CONTROLLER::deallocateCUDAMemory()
 {
   cudaFree(control_d_);
@@ -19,7 +20,8 @@ void CONTROLLER::deallocateCUDAMemory()
   }
 }
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
 void CONTROLLER::copyControlStdDevToDevice()
 {
   HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, control_std_dev_.data(), sizeof(float) * control_std_dev_.size(),
@@ -27,7 +29,8 @@ void CONTROLLER::copyControlStdDevToDevice()
   cudaStreamSynchronize(stream_);
 }
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
 void CONTROLLER::copyNominalControlToDevice()
 {
   HANDLE_ERROR(
@@ -35,7 +38,8 @@ void CONTROLLER::copyNominalControlToDevice()
   HANDLE_ERROR(cudaStreamSynchronize(stream_));
 }
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
 void CONTROLLER::copySampledControlFromDevice(bool synchronize)
 {
   // if mem is not inited don't use it
@@ -76,7 +80,8 @@ void CONTROLLER::copySampledControlFromDevice(bool synchronize)
   }
 }
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
 std::pair<int, float> CONTROLLER::findMinIndexAndValue(std::vector<int>& temp_list)
 {
   if (temp_list.size() == 0)
@@ -97,7 +102,8 @@ std::pair<int, float> CONTROLLER::findMinIndexAndValue(std::vector<int>& temp_li
   return std::make_pair(min_sample_index, min_sample_value);
 }
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
 void CONTROLLER::copyTopControlFromDevice(bool synchronize)
 {
   // if mem is not inited don't use it
@@ -147,7 +153,8 @@ void CONTROLLER::copyTopControlFromDevice(bool synchronize)
   }
 }
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
 void CONTROLLER::setCUDAStream(cudaStream_t stream)
 {
   stream_ = stream;
@@ -157,7 +164,8 @@ void CONTROLLER::setCUDAStream(cudaStream_t stream)
   curandSetStream(gen_, stream);  // requires the generator to be created!
 }
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
 void CONTROLLER::createAndSeedCUDARandomNumberGen()
 {
   // Seed the PseudoRandomGenerator with the CPU time.
@@ -166,7 +174,8 @@ void CONTROLLER::createAndSeedCUDARandomNumberGen()
   curandSetPseudoRandomGeneratorSeed(gen_, seed);
 }
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
 void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size, bool allocate_double_noise)
 {
   if (nominal_size < 0)
