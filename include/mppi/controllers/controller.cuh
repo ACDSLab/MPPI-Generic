@@ -40,13 +40,16 @@ template <int C_DIM, int MAX_TIMESTEPS>
 struct ControllerParams
 {
   int optimization_stride;
-  float dt;
-  float lambda;
-  float alpha;
-  int num_timesteps;
-  int num_iters;
-  Eigen::Matrix<float, C_DIM, 1> control_std_dev;
-  Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS> init_control_traj;
+  float dt_;
+  float lambda_;  // Value of the temperature in the softmax.
+  float alpha_;   //
+  // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
+  // does not reallocate cuda memory
+  int num_timesteps_ = MAX_TIMESTEPS;
+  int num_iters_;  // Number of optimization iterations
+
+  Eigen::Matrix<float, C_DIM, 1> control_std_dev_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
+  Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS> init_control_traj_ = Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS>::Zero();
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
@@ -67,9 +70,6 @@ public:
   using TEMPLATED_FEEDBACK_PARAMS = typename FB_T::TEMPLATED_PARAMS;
   using TEMPLATED_FEEDBACK_GPU = typename FB_T::TEMPLATED_GPU_FEEDBACK;
   static const int TEMPLATED_FEEDBACK_TIMESTEPS = FB_T::FB_TIMESTEPS;
-  // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
-  // does not reallocate cuda memory
-  int num_timesteps_ = MAX_TIMESTEPS;
 
   /**
    * Aliases
@@ -95,14 +95,44 @@ public:
     model_ = model;
     cost_ = cost;
     fb_controller_ = fb_controller;
-    dt_ = dt;
-    num_iters_ = max_iter;
-    lambda_ = lambda;
-    alpha_ = alpha;
-    num_timesteps_ = num_timesteps;
+    params_.dt_ = dt;
+    params_.num_iters_ = max_iter;
+    params_.lambda_ = lambda;
+    params_.alpha_ = alpha;
+    params_.num_timesteps_ = num_timesteps;
 
-    control_std_dev_ = control_std_dev;
+    params_.control_std_dev_ = control_std_dev;
+    params_.init_control_traj_ = init_control_traj;
     control_ = init_control_traj;
+    control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
+
+    // Create the random number generator
+    createAndSeedCUDARandomNumberGen();
+
+    // Bind the model and control to the given stream
+    setCUDAStream(stream);
+    // Create new stream for visualization purposes
+    HANDLE_ERROR(cudaStreamCreate(&vis_stream_));
+
+    // Call the GPU setup functions of the model, cost and feedback controller
+    model_->GPUSetup();
+    cost_->GPUSetup();
+    fb_controller_->GPUSetup();
+
+    /**
+     * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the
+     * constructor along with any other methods to copy memory to the device and back
+     */
+    // TODO pass function pointer?
+  }
+
+  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params, cudaStream_t stream = nullptr)
+  {
+    model_ = model;
+    cost_ = cost;
+    fb_controller_ = fb_controller;
+    setParams(params);
+    control_ = params_.init_control_traj_;
     control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
 
     // Create the random number generator
@@ -183,22 +213,22 @@ public:
     fb_controller_->initTrackingController();
   };
 
-  virtual std::vector<state_trajectory> getSampledStateTrajectories()
+  virtual std::vector<state_trajectory> getSampledStateTrajectories() const
   {
     return sampled_trajectories_;
   }
 
-  virtual std::vector<cost_trajectory> getSampledCostTrajectories()
+  virtual std::vector<cost_trajectory> getSampledCostTrajectories() const
   {
     return sampled_costs_;
   }
 
-  virtual std::vector<crash_status_trajectory> getSampledCrashStatusTrajectories()
+  virtual std::vector<crash_status_trajectory> getSampledCrashStatusTrajectories() const
   {
     return sampled_crash_status_;
   }
 
-  virtual std::vector<float> getTopTransformedCosts()
+  virtual std::vector<float> getTopTransformedCosts() const
   {
     return top_n_costs_;
   }
@@ -256,9 +286,9 @@ public:
    */
   virtual control_array interpolateControls(double rel_time, control_trajectory& c_traj)
   {
-    int lower_idx = (int)(rel_time / dt_);
+    int lower_idx = (int)(rel_time / getDt());
     int upper_idx = lower_idx + 1;
-    double alpha = (rel_time - lower_idx * dt_) / dt_;
+    double alpha = (rel_time - lower_idx * getDt()) / getDt();
 
     control_array interpolated_control;
     control_array prev_cmd = c_traj.col(lower_idx);
@@ -273,9 +303,9 @@ public:
 
   virtual state_array interpolateState(state_trajectory& s_traj, double rel_time)
   {
-    int lower_idx = (int)(rel_time / dt_);
+    int lower_idx = (int)(rel_time / getDt());
     int upper_idx = lower_idx + 1;
-    double alpha = (rel_time - lower_idx * dt_) / dt_;
+    double alpha = (rel_time - lower_idx * getDt()) / getDt();
 
     return model_->interpolateState(s_traj.col(lower_idx), s_traj.col(upper_idx), alpha);
   }
@@ -295,7 +325,7 @@ public:
   /**
    * returns the current control sequence
    */
-  virtual control_trajectory getControlSeq()
+  virtual control_trajectory getControlSeq() const
   {
     return control_;
   };
@@ -303,7 +333,7 @@ public:
   /**
    * Gets the state sequence of the nominal trajectory
    */
-  virtual state_trajectory getTargetStateSeq()
+  virtual state_trajectory getTargetStateSeq() const
   {
     return state_;
   }
@@ -311,7 +341,7 @@ public:
   /**
    * Return all the sampled costs sequences
    */
-  virtual sampled_cost_traj getSampledCostSeq()
+  virtual sampled_cost_traj getSampledCostSeq() const
   {
     return trajectory_costs_;
   };
@@ -320,7 +350,7 @@ public:
    * Return control feedback gains
    */
   // TODO: Think of a better name for this method?
-  virtual TEMPLATED_FEEDBACK_STATE getFeedbackState()
+  virtual TEMPLATED_FEEDBACK_STATE getFeedbackState() const
   {
     if (enable_feedback_)
     {
@@ -333,7 +363,7 @@ public:
     }
   };
 
-  virtual TEMPLATED_FEEDBACK_PARAMS getFeedbackParams()
+  virtual TEMPLATED_FEEDBACK_PARAMS getFeedbackParams() const
   {
     if (enable_feedback_)
     {
@@ -347,7 +377,7 @@ public:
   }
 
   // Indicator for algorithm health, should be between 0.01 and 0.1 anecdotally
-  float getNormalizerPercent()
+  float getNormalizerPercent() const
   {
     return this->normalizer_ / (float)NUM_ROLLOUTS;
   }
@@ -368,13 +398,13 @@ public:
     state_array xdot;
     state_array current_state;
     control_array current_control;
-    for (int i = 0; i < num_timesteps_ - 1; ++i)
+    for (int i = 0; i < getNumTimesteps() - 1; ++i)
     {
       current_state = propagated_feedback_state_trajectory_.col(i);
       // MPPI control apply feedback at the given timestep against the nominal trajectory at that timestep
       current_control = getControlSeq().col(i) + getFeedbackControl(current_state, getTargetStateSeq().col(i), i);
       model_->computeStateDeriv(current_state, current_control, xdot);
-      model_->updateState(current_state, xdot, dt_);
+      model_->updateState(current_state, xdot, getDt());
       propagated_feedback_state_trajectory_.col(i + 1) = current_state;
     }
   }
@@ -383,21 +413,21 @@ public:
    *
    * @return State trajectory from optimized state with MPPI control and computed feedback gains
    */
-  state_trajectory getFeedbackPropagatedStateSeq()
+  state_trajectory getFeedbackPropagatedStateSeq() const
   {
     return propagated_feedback_state_trajectory_;
   };
 
-  control_array getControlStdDev()
+  control_array getControlStdDev() const
   {
-    return control_std_dev_;
+    return params_.control_std_dev_;
   };
 
-  float getBaselineCost()
+  float getBaselineCost() const
   {
     return baseline_;
   };
-  float getNormalizerCost()
+  float getNormalizerCost() const
   {
     return normalizer_;
   };
@@ -405,7 +435,7 @@ public:
   /**
    * returns the current state sequence
    */
-  state_trajectory getActualStateSeq()
+  state_trajectory getActualStateSeq() const
   {
     return state_;
   };
@@ -444,20 +474,20 @@ public:
     filter_coefficients /= 35.0;
 
     // Create and fill a control buffer that we can apply the convolution filter
-    Eigen::MatrixXf control_buffer(num_timesteps_ + 4, DYN_T::CONTROL_DIM);
+    Eigen::MatrixXf control_buffer(getNumTimesteps() + 4, DYN_T::CONTROL_DIM);
 
     // Fill the first two timesteps with the control history
     control_buffer.topRows(2) = control_history.transpose();
 
     // Fill the center timesteps with the current nominal trajectory
-    control_buffer.middleRows(2, num_timesteps_) = u.transpose();
+    control_buffer.middleRows(2, getNumTimesteps()) = u.transpose();
 
     // Fill the last two timesteps with the end of the current nominal control trajectory
-    control_buffer.row(num_timesteps_ + 2) = u.transpose().row(num_timesteps_ - 1);
-    control_buffer.row(num_timesteps_ + 3) = u.transpose().row(num_timesteps_ - 1);
+    control_buffer.row(getNumTimesteps() + 2) = u.transpose().row(getNumTimesteps() - 1);
+    control_buffer.row(getNumTimesteps() + 3) = u.transpose().row(getNumTimesteps() - 1);
 
     // Apply convolutional filter to each timestep
-    for (int i = 0; i < num_timesteps_; ++i)
+    for (int i = 0; i < getNumTimesteps(); ++i)
     {
       u.col(i) = (filter_coefficients * control_buffer.middleRows(i, 5)).transpose();
     }
@@ -465,11 +495,11 @@ public:
 
   virtual void slideControlSequenceHelper(int steps, Eigen::Ref<control_trajectory> u)
   {
-    for (int i = 0; i < num_timesteps_; ++i)
+    for (int i = 0; i < getNumTimesteps(); ++i)
     {
-      int ind = std::min(i + steps, num_timesteps_ - 1);
+      int ind = std::min(i + steps, getNumTimesteps() - 1);
       u.col(i) = u.col(ind);
-      if (i + steps > num_timesteps_ - 1)
+      if (i + steps > getNumTimesteps() - 1)
       {
         u.col(i) = model_->zero_control_;
       }
@@ -505,14 +535,14 @@ public:
     result.col(0) = x0;
     state_array xdot;
     state_array state;
-    model_->initializeDynamics(state.col(0), u.col(0), 0, dt_);
-    for (int i = 0; i < num_timesteps_ - 1; ++i)
+    model_->initializeDynamics(state.col(0), u.col(0), 0, getDt());
+    for (int i = 0; i < getNumTimesteps() - 1; ++i)
     {
       state = result.col(i);
       control_array u_i = u.col(i);
       model_->enforceConstraints(state, u_i);
       model_->computeStateDeriv(state, u_i, xdot);
-      model_->updateState(state, xdot, dt_);
+      model_->updateState(state, xdot, getDt());
       result.col(i + 1) = state;
     }
   }
@@ -522,17 +552,18 @@ public:
     // TODO fix the tracking controller as well
     if ((num_timesteps <= MAX_TIMESTEPS) && (num_timesteps > 0))
     {
-      num_timesteps_ = num_timesteps;
+      params_.num_timesteps_ = num_timesteps;
     }
     else
     {
-      num_timesteps_ = MAX_TIMESTEPS;
+      params_.num_timesteps_ = MAX_TIMESTEPS;
       printf("You must give a number of timesteps between [0, %d]\n", MAX_TIMESTEPS);
     }
   }
-  int getNumTimesteps()
+
+  int getNumTimesteps() const
   {
-    return num_timesteps_;
+    return this->params_.num_timesteps_;
   }
 
   /**
@@ -540,9 +571,7 @@ public:
    */
   void updateControlNoiseStdDev(const Eigen::Ref<const control_array>& sigma_u)
   {
-    // std::cout << control_std_dev_ << std::endl;
-    control_std_dev_ = sigma_u;
-    // std::cout << control_std_dev_ << std::endl;
+    params_.control_std_dev_ = sigma_u;
     copyControlStdDevToDevice();
   }
 
@@ -556,12 +585,12 @@ public:
     fb_controller_->setParams(fb_params);
   }
 
-  bool getFeedbackEnabled()
+  bool getFeedbackEnabled() const
   {
     return enable_feedback_;
   }
 
-  float getPercentageSampledControlTrajectories()
+  float getPercentageSampledControlTrajectories() const
   {
     return perc_sampled_control_trajectories_;
   }
@@ -617,12 +646,12 @@ public:
     sampled_states_CUDA_mem_init_ = true;
   }
 
-  int getNumberSampledTrajectories()
+  int getNumberSampledTrajectories() const
   {
     return perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   }
 
-  int getNumberTopControlTrajectories()
+  int getNumberTopControlTrajectories() const
   {
     return num_top_control_trajectories_;
   }
@@ -630,17 +659,17 @@ public:
   /**
    * Return the most recent free energy calculation for the mean
    */
-  MPPIFreeEnergyStatistics getFreeEnergyStatistics()
+  MPPIFreeEnergyStatistics getFreeEnergyStatistics() const
   {
     return free_energy_statistics_;
   }
 
   std::vector<float> getSampledNoise()
   {
-    std::vector<float> vector = std::vector<float>(NUM_ROLLOUTS * num_timesteps_ * DYN_T::CONTROL_DIM, FLT_MIN);
+    std::vector<float> vector = std::vector<float>(NUM_ROLLOUTS * getNumTimesteps() * DYN_T::CONTROL_DIM, FLT_MIN);
 
     HANDLE_ERROR(cudaMemcpyAsync(vector.data(), control_noise_d_,
-                                 sizeof(float) * NUM_ROLLOUTS * num_timesteps_ * DYN_T::CONTROL_DIM,
+                                 sizeof(float) * NUM_ROLLOUTS * getNumTimesteps() * DYN_T::CONTROL_DIM,
                                  cudaMemcpyDeviceToHost, stream_));
     HANDLE_ERROR(cudaStreamSynchronize(stream_));
     return vector;
@@ -655,39 +684,58 @@ public:
   cudaStream_t stream_;
   cudaStream_t vis_stream_;
 
-  float getDt()
+  float getDt() const
   {
-    return dt_;
+    return params_.dt_;
   }
   void setDt(float dt)
   {
-    dt_ = dt;
+    params_.dt_ = dt;
     fb_controller_->setDt(dt);
   }
 
-  float getLambda()
+  float getLambda() const
   {
-    return lambda_;
+    return params_.lambda_;
   }
   void setLambda(float lambda)
   {
-    lambda_ = lambda;
+    params_.lambda_ = lambda;
   }
 
-  int getNumIters()
+  float getAlpha() const
   {
-    return num_iters_;
+    return params_.alpha_;
+  }
+  void setAlpha(float alpha)
+  {
+    params_.alpha_ = alpha;
+  }
+
+  PARAMS_T getParams() const
+  {
+    return params_;
+  }
+
+  void setParams(PARAMS_T& p)
+  {
+    params_ = p;
+  }
+
+  int getNumIters() const
+  {
+    return params_.num_iters_;
   }
   void setNumIters(int num_iter)
   {
-    num_iters_ = num_iter;
+    params_.num_iters_ = num_iter;
   }
 
-  float getDebug()
+  float getDebug() const
   {
     return debug_;
   }
-  void setDebug(float debug)
+  void setDebug(bool debug)
   {
     debug_ = debug;
   }
@@ -697,16 +745,13 @@ protected:
   // no default protected members
   void deallocateCUDAMemory();
 
+  PARAMS_T params_;
+
   // TODO get raw pointers for different things
   bool debug_ = false;
 
   // Free energy variables
   MPPIFreeEnergyStatistics free_energy_statistics_;
-
-  int num_iters_;  // Number of optimization iterations
-  float dt_;
-  float lambda_;  // Value of the temperature in the softmax.
-  float alpha_;   //
 
   float normalizer_;                             // Variable for the normalizing term from sampling.
   float baseline_ = 0;                           // Baseline cost of the system.
@@ -716,7 +761,6 @@ protected:
   std::vector<float> top_n_costs_;
 
   curandGenerator_t gen_;
-  control_array control_std_dev_ = control_array::Zero();
   float* control_std_dev_d_;  // Array of size DYN_T::CONTROL_DIM
   float* initial_state_d_;    // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 

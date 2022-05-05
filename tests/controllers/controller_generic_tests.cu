@@ -59,26 +59,6 @@ public:
   {
   }
 
-  float getDt()
-  {
-    return dt_;
-  }
-  int getNumIter()
-  {
-    return num_iters_;
-  }
-  float getLambda()
-  {
-    return lambda_;
-  }
-  float getAlpha()
-  {
-    return alpha_;
-  }
-  float getNumTimesteps()
-  {
-    return num_timesteps_;
-  }
   cudaStream_t getStream()
   {
     return stream_;
@@ -151,7 +131,7 @@ TEST_F(ControllerTests, ConstructorDestructor)
   EXPECT_EQ(controller_test->model_, mockDynamics);
   EXPECT_EQ(controller_test->cost_, mockCost);
   EXPECT_EQ(controller_test->getDt(), dt);
-  EXPECT_EQ(controller_test->getNumIter(), max_iter);
+  EXPECT_EQ(controller_test->getNumIters(), max_iter);
   EXPECT_EQ(controller_test->getLambda(), lambda);
   EXPECT_EQ(controller_test->getAlpha(), alpha);
   EXPECT_EQ(controller_test->getNumTimesteps(), num_timesteps);
@@ -215,7 +195,7 @@ TEST_F(ControllerTests, smoothControlTrajectory)
 TEST_F(ControllerTests, slideControlSequenceHelper)
 {
   TestController::control_trajectory u;
-  for (int i = 0; i < controller->num_timesteps_; i++)
+  for (int i = 0; i < controller->getNumTimesteps(); i++)
   {
     TestController::control_array control = TestController::control_array::Ones();
     control = control * i;
@@ -223,12 +203,12 @@ TEST_F(ControllerTests, slideControlSequenceHelper)
   }
 
   controller->slideControlSequenceHelper(1, u);
-  for (int i = 0; i < controller->num_timesteps_; i++)
+  for (int i = 0; i < controller->getNumTimesteps(); i++)
   {
     for (int j = 0; j < MockDynamics::CONTROL_DIM; j++)
     {
-      int val = std::min(i + 1, controller->num_timesteps_ - 1);
-      if (i + 1 > controller->num_timesteps_ - 1)
+      int val = std::min(i + 1, controller->getNumTimesteps() - 1);
+      if (i + 1 > controller->getNumTimesteps() - 1)
       {
         EXPECT_FLOAT_EQ(u(j, i), 0);
       }
@@ -240,12 +220,12 @@ TEST_F(ControllerTests, slideControlSequenceHelper)
   }
 
   controller->slideControlSequenceHelper(10, u);
-  for (int i = 0; i < controller->num_timesteps_; i++)
+  for (int i = 0; i < controller->getNumTimesteps(); i++)
   {
     for (int j = 0; j < MockDynamics::CONTROL_DIM; j++)
     {
-      int val = std::min(i + 11, controller->num_timesteps_ - 1);
-      if (i + 10 > controller->num_timesteps_ - 2)
+      int val = std::min(i + 11, controller->getNumTimesteps() - 1);
+      if (i + 10 > controller->getNumTimesteps() - 2)
       {
         EXPECT_FLOAT_EQ(u(j, i), 0);
       }
@@ -262,14 +242,14 @@ TEST_F(ControllerTests, computeStateTrajectoryHelper)
   TestController::state_array x = TestController::state_array::Ones();
   TestController::state_array xdot = TestController::state_array::Ones();
   EXPECT_CALL(*mockDynamics, computeStateDeriv(testing::_, testing::_, testing::_))
-      .Times(controller->num_timesteps_ - 1);
-  EXPECT_CALL(*mockDynamics, updateState(testing::_, testing::_, dt)).Times(controller->num_timesteps_ - 1);
+      .Times(controller->getNumTimesteps() - 1);
+  EXPECT_CALL(*mockDynamics, updateState(testing::_, testing::_, dt)).Times(controller->getNumTimesteps() - 1);
 
   TestController::state_trajectory result = TestController::state_trajectory::Ones();
   TestController::control_trajectory u = TestController::control_trajectory::Zero();
   controller->computeStateTrajectoryHelper(result, x, u);
 
-  for (int i = 0; i < controller->num_timesteps_; i++)
+  for (int i = 0; i < controller->getNumTimesteps(); i++)
   {
     for (int j = 0; j < MockDynamics::STATE_DIM; j++)
     {

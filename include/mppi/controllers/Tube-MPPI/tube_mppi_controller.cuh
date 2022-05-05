@@ -13,34 +13,35 @@
 #include <memory>
 #include <iostream>
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-class TubeMPPIController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+template <int C_DIM, int MAX_TIMESTEPS>
+struct TubeMPPIParams : ControllerParams<C_DIM, MAX_TIMESTEPS>
+{
+  float nominal_threshold_ = 20;  // How much worse the actual system has to be compared to the nominal
+};
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T = TubeMPPIParams<COST_T::CONTROL_DIM, MAX_TIMESTEPS>>
+class TubeMPPIController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
 {
 public:
   //    EIGEN_MAKE_ALIGNED_OPERATOR_NEW unnecessary due to EIGEN_MAX_ALIGN_BYTES=0
   /**
    * Set up useful types
    */
-  using control_array =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::control_array;
+  typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T> PARENT_CLASS;
+  using control_array = typename PARENT_CLASS::control_array;
 
-  using control_trajectory =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::control_trajectory;
+  using control_trajectory = typename PARENT_CLASS::control_trajectory;
 
-  using state_trajectory =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::state_trajectory;
+  using state_trajectory = typename PARENT_CLASS::state_trajectory;
 
-  using state_array =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::state_array;
+  using state_array = typename PARENT_CLASS::state_array;
 
-  using sampled_cost_traj =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::sampled_cost_traj;
+  using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
 
-  using FEEDBACK_PARAMS =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::TEMPLATED_FEEDBACK_PARAMS;
+  using FEEDBACK_PARAMS = typename PARENT_CLASS::TEMPLATED_FEEDBACK_PARAMS;
 
-  using FEEDBACK_GPU =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::TEMPLATED_FEEDBACK_GPU;
+  using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
 
   // using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
   // using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
@@ -52,6 +53,8 @@ public:
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                      cudaStream_t stream = nullptr);
 
+  TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params, cudaStream_t stream = nullptr);
+
   void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride = 1) override;
 
   std::string getControllerName()
@@ -62,7 +65,7 @@ public:
   /**
    * returns the current nominal control sequence
    */
-  control_trajectory getControlSeq() override
+  control_trajectory getControlSeq() const override
   {
     return nominal_control_trajectory_;
   };
@@ -70,7 +73,7 @@ public:
   /**
    * returns the current nominal state sequence
    */
-  state_trajectory getTargetStateSeq() override
+  state_trajectory getTargetStateSeq() const override
   {
     return nominal_state_trajectory_;
   };
@@ -92,13 +95,13 @@ public:
 
   void updateNominalState(const Eigen::Ref<const control_array>& u);
 
-  float getNominalThreshold()
+  float getNominalThreshold() const
   {
-    return nominal_threshold_;
+    return this->params_.nominal_threshold_;
   }
   void setNominalThreshold(float threshold)
   {
-    nominal_threshold_ = threshold;
+    this->params_.nominal_threshold_ = threshold;
   }
 
   void setPercentageSampledControlTrajectories(float new_perc)

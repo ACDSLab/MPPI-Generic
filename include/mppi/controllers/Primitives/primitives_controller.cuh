@@ -12,31 +12,43 @@
 
 #include <vector>
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-class PrimitivesController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+template <int C_DIM, int MAX_TIMESTEPS>
+struct PrimitivesParams : ControllerParams<C_DIM, MAX_TIMESTEPS>
+{
+  int num_primitive_iters_;
+  int num_piecewise_segments_ = 5;
+  std::vector<float> scale_piecewise_noise_;
+  std::vector<float> colored_noise_exponents_;
+  std::vector<float> frac_add_nominal_traj_;
+  std::vector<float> scale_add_nominal_noise_;
+  float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
+  float stopping_cost_threshold_ = 1.0e8;
+  float hysteresis_cost_threshold_ = 0.0;
+  bool visualize_primitives_ = false;
+};
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T = PrimitivesParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
+class PrimitivesController
+  : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
 {
 public:
   // EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   // need control_array = ... so that we can initialize
   // Eigen::Matrix with Eigen::Matrix::Zero();
-  using control_array =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::control_array;
+  typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T> PARENT_CLASS;
+  using control_array = typename PARENT_CLASS::control_array;
 
-  using control_trajectory =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::control_trajectory;
+  using control_trajectory = typename PARENT_CLASS::control_trajectory;
 
-  using state_trajectory =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::state_trajectory;
+  using state_trajectory = typename PARENT_CLASS::state_trajectory;
 
-  using state_array =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::state_array;
+  using state_array = typename PARENT_CLASS::state_array;
 
-  using sampled_cost_traj =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::sampled_cost_traj;
+  using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
 
-  using FEEDBACK_GPU =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::TEMPLATED_FEEDBACK_GPU;
+  using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
 
   /**
    *
@@ -47,6 +59,9 @@ public:
                        float alpha, const Eigen::Ref<const control_array>& control_std_dev,
                        int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
+                       cudaStream_t stream = nullptr);
+
+  PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params,
                        cudaStream_t stream = nullptr);
 
   // Destructor
@@ -75,101 +90,101 @@ public:
 
   void setNumPrimitiveIterations(int new_num_iter)
   {
-    num_primitive_iters_ = new_num_iter;
+    this->params_.num_primitive_iters_ = new_num_iter;
   }
 
   int getNumPrimitiveIterations()
   {
-    return num_primitive_iters_;
+    return this->params_.num_primitive_iters_;
   }
 
   void setColoredNoiseExponents(std::vector<float>& new_exponents)
   {
-    colored_noise_exponents_ = new_exponents;
+    this->params_.colored_noise_exponents_ = new_exponents;
   }
 
-  float getColoredNoiseExponent(int index)
+  float getColoredNoiseExponent(int index) const
   {
-    return colored_noise_exponents_[index];
+    return this->params_.colored_noise_exponents_[index];
   }
 
   void setPiecewiseSegments(int segments)
   {
-    num_piecewise_segments_ = segments;
+    this->params_.num_piecewise_segments_ = segments;
   }
 
   int getPiecewiseSegments()
   {
-    return num_piecewise_segments_;
+    return this->params_.num_piecewise_segments_;
   }
 
   void setScalePiecewiseNoise(std::vector<float>& new_scale)
   {
-    scale_piecewise_noise_ = new_scale;
+    this->params_.scale_piecewise_noise_ = new_scale;
   }
 
   std::vector<float> getScalePiecewiseNoise()
   {
-    return scale_piecewise_noise_;
+    return this->params_.scale_piecewise_noise_;
   }
 
   void setFracRandomNoiseTraj(std::vector<float> frac_add_nominal_traj)
   {
-    frac_add_nominal_traj_ = frac_add_nominal_traj;
+    this->params_.frac_add_nominal_traj_ = frac_add_nominal_traj;
   }
   std::vector<float> getFracRandomNoiseTraj()
   {
-    return frac_add_nominal_traj_;
+    return this->params_.frac_add_nominal_traj_;
   }
 
   void setScaleAddNominalNoise(std::vector<float> scale_add_nominal_noise)
   {
-    scale_add_nominal_noise_ = scale_add_nominal_noise;
+    this->params_.scale_add_nominal_noise_ = scale_add_nominal_noise;
   }
 
   std::vector<float> getScaleAddNominalNoise()
   {
-    return scale_add_nominal_noise_;
+    return this->params_.scale_add_nominal_noise_;
   }
 
   void setStateLeashLength(float new_state_leash, int index = 0)
   {
-    state_leash_dist_[index] = new_state_leash;
+    this->params_.state_leash_dist_[index] = new_state_leash;
   }
 
   float getStateLeashLength(int index)
   {
-    return state_leash_dist_[index];
+    return this->params_.state_leash_dist_[index];
   }
 
   void setStoppingCostThreshold(float new_stopping_cost_threshold)
   {
-    stopping_cost_threshold_ = new_stopping_cost_threshold;
+    this->params_.stopping_cost_threshold_ = new_stopping_cost_threshold;
   }
 
   float getStoppingCostThreshold()
   {
-    return stopping_cost_threshold_;
+    return this->params_.stopping_cost_threshold_;
   }
 
   void setHysteresisCostThreshold(float new_hysteresis_cost_threshold)
   {
-    hysteresis_cost_threshold_ = new_hysteresis_cost_threshold;
+    this->params_.hysteresis_cost_threshold_ = new_hysteresis_cost_threshold;
   }
 
   float getHysteresisCostThreshold()
   {
-    return hysteresis_cost_threshold_;
+    return this->params_.hysteresis_cost_threshold_;
   }
 
   void setVisualizePrimitives(bool visualize_primitives)
   {
-    visualize_primitives_ = visualize_primitives;
+    this->params_.visualize_primitives_ = visualize_primitives;
   }
 
   bool getVisualizePrimitives()
   {
-    return visualize_primitives_;
+    return this->params_.visualize_primitives_;
   }
 
   void calculateSampledStateTrajectories() override;
@@ -180,17 +195,8 @@ protected:
 
   void computeStoppingTrajectory(const Eigen::Ref<const state_array>& x0);
   void smoothControlTrajectory();
-  int num_primitive_iters_;
-  int num_piecewise_segments_ = 5;
-  std::vector<float> scale_piecewise_noise_;
-  std::vector<float> frac_add_nominal_traj_;
-  std::vector<float> scale_add_nominal_noise_;
-  std::vector<float> colored_noise_exponents_;
-  float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
+
   int leash_jump_ = 1;
-  float stopping_cost_threshold_ = 1.0e8;
-  float hysteresis_cost_threshold_ = 0.0;
-  bool visualize_primitives_ = false;
 
   float* control_mppi_d_;                                         // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
   control_trajectory control_mppi_ = control_trajectory::Zero();  // host side mppi control trajectory

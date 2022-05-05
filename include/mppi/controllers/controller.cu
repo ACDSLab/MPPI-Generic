@@ -24,8 +24,8 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
           class PARAMS_T>
 void CONTROLLER::copyControlStdDevToDevice()
 {
-  HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, control_std_dev_.data(), sizeof(float) * control_std_dev_.size(),
-                               cudaMemcpyHostToDevice, stream_));
+  HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, params_.control_std_dev_.data(),
+                               sizeof(float) * params_.control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
   cudaStreamSynchronize(stream_);
 }
 
@@ -50,7 +50,7 @@ void CONTROLLER::copySampledControlFromDevice(bool synchronize)
 
   int num_sampled_trajectories = perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
   std::vector<int> samples(num_sampled_trajectories);
-  if (this->perc_sampled_control_trajectories_ > 0.98)
+  if (perc_sampled_control_trajectories_ > 0.98)
   {
     // if above threshold just do everything
     std::iota(samples.begin(), samples.end(), 0);
@@ -64,14 +64,14 @@ void CONTROLLER::copySampledControlFromDevice(bool synchronize)
 
   // this explicitly adds the optimized control sequence
   HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_, this->control_d_,
-                               sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
+                               sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
                                this->vis_stream_));
 
   for (int i = 1; i < num_sampled_trajectories; i++)
   {
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-                                 this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-                                 sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * getNumTimesteps() * DYN_T::CONTROL_DIM,
+                                 this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
+                                 sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
                                  this->vis_stream_));
   }
   if (synchronize)
@@ -143,9 +143,9 @@ void CONTROLLER::copyTopControlFromDevice(bool synchronize)
   {
     top_n_costs_[i] = trajectory_costs_[samples[i]] / normalizer_;
     HANDLE_ERROR(cudaMemcpyAsync(
-        this->sampled_noise_d_ + (start_top_control_traj_index + i) * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-        this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
-        sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice, this->vis_stream_));
+        this->sampled_noise_d_ + (start_top_control_traj_index + i) * getNumTimesteps() * DYN_T::CONTROL_DIM,
+        this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
+        sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice, this->vis_stream_));
   }
   if (synchronize)
   {

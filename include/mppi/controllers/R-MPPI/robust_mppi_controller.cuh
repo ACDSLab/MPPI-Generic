@@ -41,15 +41,25 @@
 // Needed for list of candidate states
 #include <mppi/ddp/util.h>
 
+template <int C_DIM, int MAX_TIMESTEPS>
+struct RobustMPPIParams : ControllerParams<C_DIM, MAX_TIMESTEPS>
+{
+  float value_function_threshold_ = 1000.0;
+  int optimization_stride_ = 1;
+  int num_candidate_nominal_states_ = 9;
+};
+
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560, int BDIM_X = 64,
-          int BDIM_Y = 1, int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
-class RobustMPPIController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+          int BDIM_Y = 1, class PARAMS_T = RobustMPPIParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>,
+          int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
+class RobustMPPIController
+  : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
 {
 public:
   /**
    * Set up useful types
    */
-  typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y> PARENT_CLASS;
+  typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T> PARENT_CLASS;
 
   using control_array = typename PARENT_CLASS::control_array;
   using control_trajectory = typename PARENT_CLASS::control_trajectory;
@@ -69,7 +79,7 @@ public:
   // Number of samples per condition must be a multiple of the blockDIM
   static const int SAMPLES_PER_CONDITION = BDIM_X * SAMPLES_PER_CONDITION_MULTIPLIER;
 
-  float value_function_threshold_ = 1000.0;
+  // float value_function_threshold_ = 1000.0;
 
   state_array nominal_state_ = state_array::Zero();
 
@@ -88,6 +98,9 @@ public:
                        const Eigen::Ref<const control_array>& control_std_dev, int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                        int num_candidate_nominal_states = 9, int optimization_stride = 1,
+                       cudaStream_t stream = nullptr);
+
+  RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params,
                        cudaStream_t stream = nullptr);
 
   /**
@@ -113,25 +126,40 @@ public:
    */
   void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride = 1);
 
-  control_trajectory getControlSeq() override
+  control_trajectory getControlSeq() const override
   {
     return this->control_;
   };
 
-  state_trajectory getTargetStateSeq() override
+  state_trajectory getTargetStateSeq() const override
   {
     return nominal_state_trajectory_;
   };
 
-  state_array getNominalState()
+  state_array getNominalState() const
   {
     return nominal_state_;
   }
 
-  int getBestIndex()
+  int getBestIndex() const
   {
     return best_index_;
   };
+
+  float getValueFunctionThreshold() const
+  {
+    return this->params_.value_function_threshold_;
+  }
+
+  int getOptimizationStride() const
+  {
+    return this->params_.optimization_stride_;
+  }
+
+  int getNumCandidates() const
+  {
+    return this->params_.num_candidate_nominal_states_;
+  }
 
   // Does nothing. This reason is because the control sliding happens during the importance sampler update.
   // The control applied to the real system (during the MPPI rollouts) is the nominal control (which slides
@@ -157,15 +185,30 @@ public:
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 2);
   }
 
+  void setValueFunctionThreshold(float value_function_threshold)
+  {
+    this->params_.value_function_threshold_ = value_function_threshold;
+  }
+
+  void setOptimizationStride(float optimization_stride)
+  {
+    this->params_.optimization_stride_ = optimization_stride;
+  }
+
+  void setNumCandidates(float num_cadndidate_nominal_states)
+  {
+    this->params_.num_candidate_nominal_states_ = num_cadndidate_nominal_states;
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
   bool importance_sampling_cuda_mem_init_ = false;
-  int num_candidate_nominal_states_;
-  int best_index_ = 0;       // Selected nominal state candidate
-  int optimization_stride_;  // Number of timesteps to apply the optimal control (== 1 for true MPC)
-  int nominal_stride_ = 0;   // Stride for the chosen nominal state of the importance sampler
-  int real_stride_ = 0;      // Stride for the optimal controller sliding
+  // int num_candidate_nominal_states_;
+  int best_index_ = 0;  // Selected nominal state candidate
+  // int optimization_stride_;  // Number of timesteps to apply the optimal control (== 1 for true MPC)
+  int nominal_stride_ = 0;  // Stride for the chosen nominal state of the importance sampler
+  int real_stride_ = 0;     // Stride for the optimal controller sliding
   bool nominal_state_init_ = false;
   float baseline_nominal_ = 100.0;    // Cost baseline for the nominal state
   float normalizer_nominal_ = 100.0;  // Normalizer variable for the nominal state

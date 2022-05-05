@@ -10,30 +10,27 @@
 
 #include <mppi/controllers/controller.cuh>
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-class VanillaMPPIController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T = ControllerParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
+class VanillaMPPIController
+  : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  // need control_array = ... so that we can initialize
+  // nAeed control_array = ... so that we can initialize
   // Eigen::Matrix with Eigen::Matrix::Zero();
-  using control_array =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::control_array;
+  typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T> PARENT_CLASS;
+  using control_array = typename PARENT_CLASS::control_array;
 
-  using control_trajectory =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::control_trajectory;
+  using control_trajectory = typename PARENT_CLASS::control_trajectory;
 
-  using state_trajectory =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::state_trajectory;
+  using state_trajectory = typename PARENT_CLASS::state_trajectory;
 
-  using state_array =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::state_array;
+  using state_array = typename PARENT_CLASS::state_array;
 
-  using sampled_cost_traj =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::sampled_cost_traj;
+  using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
 
-  using FEEDBACK_GPU =
-      typename Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y>::TEMPLATED_FEEDBACK_GPU;
+  using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
 
   /**
    *
@@ -44,6 +41,8 @@ public:
                         float alpha, const Eigen::Ref<const control_array>& control_std_dev,
                         int num_timesteps = MAX_TIMESTEPS,
                         const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
+                        cudaStream_t stream = nullptr);
+  VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params,
                         cudaStream_t stream = nullptr);
 
   // Destructor

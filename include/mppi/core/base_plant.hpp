@@ -371,7 +371,7 @@ public:
     // last_optimization_stride_);
     // determine how long we should stride based off of robot time
 
-    if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller_->num_timesteps_)
+    if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller_->getNumTimesteps())
     {
       controller_->updateImportanceSamplingControl(state, last_optimization_stride_);
       controller_->slideControlSequence(last_optimization_stride_);
