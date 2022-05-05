@@ -12,7 +12,7 @@
 
 #include <vector>
 
-template <int C_DIM, int MAX_TIMESTEPS>
+template <int C_DIM, int S_DIM, int MAX_TIMESTEPS>
 struct PrimitivesParams : ControllerParams<C_DIM, MAX_TIMESTEPS>
 {
   int num_primitive_iters_;
@@ -21,14 +21,14 @@ struct PrimitivesParams : ControllerParams<C_DIM, MAX_TIMESTEPS>
   std::vector<float> colored_noise_exponents_;
   std::vector<float> frac_add_nominal_traj_;
   std::vector<float> scale_add_nominal_noise_;
-  float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
+  float state_leash_dist_[S_DIM] = { 0 };
   float stopping_cost_threshold_ = 1.0e8;
   float hysteresis_cost_threshold_ = 0.0;
   bool visualize_primitives_ = false;
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T = PrimitivesParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
+          class PARAMS_T = PrimitivesParams<DYN_T::CONTROL_DIM, DYN_T::STATE_DIM, MAX_TIMESTEPS>>
 class PrimitivesController
   : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
 {
@@ -39,15 +39,10 @@ public:
   // Eigen::Matrix with Eigen::Matrix::Zero();
   typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T> PARENT_CLASS;
   using control_array = typename PARENT_CLASS::control_array;
-
   using control_trajectory = typename PARENT_CLASS::control_trajectory;
-
   using state_trajectory = typename PARENT_CLASS::state_trajectory;
-
   using state_array = typename PARENT_CLASS::state_array;
-
   using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
-
   using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
 
   /**
@@ -190,6 +185,26 @@ public:
   void calculateSampledStateTrajectories() override;
 
 protected:
+  std::vector<float>& getScaleAddNominalNoiseLValue()
+  {
+    return this->params_.scale_add_nominal_noise_;
+  }
+
+  std::vector<float>& getScalePiecewiseNoiseLValue()
+  {
+    return this->params_.scale_piecewise_noise_;
+  }
+
+  std::vector<float>& getFracRandomNoiseTrajLValue()
+  {
+    return this->params_.frac_add_nominal_traj_;
+  }
+
+  std::vector<float>& getColoredNoiseExponentsLValue()
+  {
+    return this->params_.colored_noise_exponents_;
+  }
+
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
   void copyMPPIControlToDevice();
 

@@ -30,23 +30,12 @@ public:
    */
   typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T> PARENT_CLASS;
   using control_array = typename PARENT_CLASS::control_array;
-
   using control_trajectory = typename PARENT_CLASS::control_trajectory;
-
   using state_trajectory = typename PARENT_CLASS::state_trajectory;
-
   using state_array = typename PARENT_CLASS::state_array;
-
   using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
-
   using FEEDBACK_PARAMS = typename PARENT_CLASS::TEMPLATED_FEEDBACK_PARAMS;
-
   using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
-
-  // using FeedbackGainTrajectory = typename util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM>;
-  // using StateCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::StateCostWeight;
-  // using Hessian = typename TrackingTerminalCost<ModelWrapperDDP<DYN_T>>::Hessian;
-  // using ControlCostWeight = typename TrackingCostDDP<ModelWrapperDDP<DYN_T>>::ControlCostWeight;
 
   TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda, float alpha,
                      const Eigen::Ref<const control_array>& control_std_dev, int num_timesteps = MAX_TIMESTEPS,

@@ -29,15 +29,10 @@ public:
   // need control_array = ... so that we can initialize
   // Eigen::Matrix with Eigen::Matrix::Zero();
   using control_array = typename PARENT_CLASS::control_array;
-
   using control_trajectory = typename PARENT_CLASS::control_trajectory;
-
   using state_trajectory = typename PARENT_CLASS::state_trajectory;
-
   using state_array = typename PARENT_CLASS::state_array;
-
   using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
-
   using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
 
   /**
@@ -88,6 +83,11 @@ public:
     return this->params_.colored_noise_exponents_[index];
   }
 
+  std::vector<float> getColoredNoiseExponents()
+  {
+    return this->params_.colored_noise_exponents_;
+  }
+
   void setStateLeashLength(float new_state_leash, int index = 0)
   {
     state_leash_dist_[index] = new_state_leash;
@@ -101,6 +101,11 @@ public:
   void calculateSampledStateTrajectories() override;
 
 protected:
+  std::vector<float>& getColoredNoiseExponentsLValue()
+  {
+    return this->params_.colored_noise_exponents_;
+  }
+
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
 
   void smoothControlTrajectory();

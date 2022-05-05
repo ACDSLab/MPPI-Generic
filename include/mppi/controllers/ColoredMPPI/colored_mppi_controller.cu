@@ -18,7 +18,7 @@ ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
   std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  colored_noise_exponents_ = std::move(tmp_vec);
+  this->params_.colored_noise_exponents_ = std::move(tmp_vec);
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
@@ -33,7 +33,7 @@ ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
   std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  colored_noise_exponents_ = std::move(tmp_vec);
+  this->params_.colored_noise_exponents_ = std::move(tmp_vec);
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
@@ -77,8 +77,8 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     this->copyNominalControlToDevice();
 
     // Generate noise data
-    powerlaw_psd_gaussian(colored_noise_exponents_, this->getNumTimesteps(), NUM_ROLLOUTS, this->control_noise_d_,
-                          this->gen_, this->stream_);
+    powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
+                          this->control_noise_d_, this->gen_, this->stream_);
     // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->getNumTimesteps() *
     // DYN_T::CONTROL_DIM,
     //                      0.0, 1.0);
@@ -100,7 +100,7 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     // Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
-        this->getLamba(), this->getAlpha(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
+        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
     /*
     noise = this->getSampledNoise();
@@ -137,7 +137,7 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     baseline_prev = this->baseline_;
 
     // Launch the norm exponential kernel
-    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLamba(),
+    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
                                      this->baseline_, this->stream_);
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
@@ -149,7 +149,7 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
                                    this->free_energy_statistics_.real_sys.freeEnergyVariance,
                                    this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->baseline_, this->getLamba());
+                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->baseline_, this->getLambda());
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(

@@ -83,14 +83,14 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
   for (int opt_iter = 0; opt_iter < getNumPrimitiveIterations(); opt_iter++)
   {
-    powerlaw_psd_gaussian(this->params_.colored_noise_exponents_, this->getNumTimesteps(), NUM_ROLLOUTS,
+    powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
                           this->control_noise_d_, this->gen_, this->stream_);
 
     // Generate piecewise linear noise data, update control_noise_d_
     piecewise_linear_noise(this->getNumTimesteps(), NUM_ROLLOUTS, DYN_T::CONTROL_DIM, getPiecewiseSegments(),
-                           optimization_stride, getScalePiecewiseNoise(), getFracRandomNoiseTraj(),
-                           scale_add_nominal_noise_, this->control_d_, this->control_noise_d_, this->control_std_dev_d_,
-                           this->gen_, this->stream_);
+                           optimization_stride, getScalePiecewiseNoiseLValue(), getFracRandomNoiseTrajLValue(),
+                           getScaleAddNominalNoiseLValue(), this->control_d_, this->control_noise_d_,
+                           this->control_std_dev_d_, this->gen_, this->stream_);
 
     // Set nominal controls to zero because we want to use the noise directly
     this->control_ = control_trajectory::Zero();
@@ -171,8 +171,8 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     copyMPPIControlToDevice();
 
     // Generate noise data
-    powerlaw_psd_gaussian(colored_noise_exponents_, this->getNumTimesteps(), NUM_ROLLOUTS, this->control_noise_d_,
-                          this->gen_, this->stream_);
+    powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
+                          this->control_noise_d_, this->gen_, this->stream_);
     // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->getNumTimesteps() *
     // DYN_T::CONTROL_DIM,
     //                      0.0, 1.0);
@@ -382,7 +382,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void Primitives::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories =
-      this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS + num_top_control_trajectories_;
+      this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS + this->num_top_control_trajectories_;
   // controls already copied in compute control
 
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
