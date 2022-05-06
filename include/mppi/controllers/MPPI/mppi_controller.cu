@@ -56,7 +56,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
   for (int opt_iter = 0; opt_iter < this->getNumIters(); opt_iter++)
   {
     // Send the nominal control to the device
-    this->copyNominalControlToDevice();
+    this->copyNominalControlToDevice(false);
 
     // Generate noise data
     curandGenerateNormal(this->gen_, this->control_noise_d_,
@@ -80,7 +80,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
-        this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
+        this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
     /*
     noise = this->getSampledNoise();
     mean = 0;
@@ -117,7 +117,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 
     // Launch the norm exponential kernel
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
-                                     this->baseline_, this->stream_);
+                                     this->baseline_, this->stream_, false);
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
@@ -133,7 +133,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
         this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->normalizer_, this->getNumTimesteps(),
-        this->stream_);
+        this->stream_, false);
 
     /*
     noise = this->getSampledNoise();
@@ -154,7 +154,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     HANDLE_ERROR(cudaMemcpyAsync(this->control_.data(), this->control_d_,
                                  sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost,
                                  this->stream_));
-    cudaStreamSynchronize(this->stream_);
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
   }
 
   this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_ / NUM_ROLLOUTS;
@@ -169,7 +169,8 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
   }
 
   // Copy back sampled trajectories
-  this->copySampledControlFromDevice();
+  this->copySampledControlFromDevice(false);
+  this->copyTopControlFromDevice(true);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
@@ -209,8 +210,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
           class PARAMS_T>
 void VanillaMPPI::calculateSampledStateTrajectories()
 {
-  int num_sampled_trajectories =
-      this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS + this->num_top_control_trajectories_;
+  int num_sampled_trajectories = this->getTotalSampledTrajectories();
 
   // control already copied in compute control, so run kernel
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(

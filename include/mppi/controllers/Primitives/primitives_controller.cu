@@ -18,8 +18,8 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
   std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  this->params_.colored_noise_exponents_ = std::move(tmp_vec);
-  this->params_.scale_piecewise_noise_ = std::move(tmp_vec);
+  getColoredNoiseExponentsLValue() = std::move(tmp_vec);
+  getScalePiecewiseNoiseLValue() = std::move(tmp_vec);
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
@@ -33,8 +33,8 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
   std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  this->params_.colored_noise_exponents_ = std::move(tmp_vec);
-  this->params_.scale_piecewise_noise_ = std::move(tmp_vec);
+  getColoredNoiseExponentsLValue() = std::move(tmp_vec);
+  getScalePiecewiseNoiseLValue() = std::move(tmp_vec);
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
@@ -79,7 +79,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   float baseline_prev = 0.0;
 
   // Send the nominal control to the device
-  this->copyNominalControlToDevice();
+  this->copyNominalControlToDevice(false);
 
   for (int opt_iter = 0; opt_iter < getNumPrimitiveIterations(); opt_iter++)
   {
@@ -102,7 +102,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(),
         /*optimization_stride = */ 0, this->getLambda(), this->getAlpha(), this->initial_state_d_, this->control_d_,
-        this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
+        this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
@@ -149,7 +149,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
           sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
     }
 
-    this->copyNominalControlToDevice();
+    this->copyNominalControlToDevice(false);
 
     cudaStreamSynchronize(this->stream_);
   }
@@ -157,7 +157,8 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   // Copy back sampled trajectories for visualization
   if (getVisualizePrimitives())
   {
-    this->copySampledControlFromDevice();
+    this->copySampledControlFromDevice(false);
+    this->copyTopControlFromDevice(true);
   }
 
   //  END INTERMEDIATE PLANNER
@@ -168,7 +169,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   for (int opt_iter = 0; opt_iter < this->getNumIters(); opt_iter++)
   {
     // Send the nominal control to the device
-    copyMPPIControlToDevice();
+    copyMPPIControlToDevice(false);
 
     // Generate noise data
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
@@ -195,7 +196,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
         this->getLambda(), this->getAlpha(), this->initial_state_d_, control_mppi_d_, this->control_noise_d_,
-        this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
+        this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
     /*
     noise = this->getSampledNoise();
     mean = 0;
@@ -232,7 +233,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
     // Launch the norm exponential kernel
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
-                                     this->baseline_, this->stream_);
+                                     this->baseline_, this->stream_, false);
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
@@ -248,7 +249,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
         this->trajectory_costs_d_, this->control_noise_d_, control_mppi_d_, this->normalizer_, this->getNumTimesteps(),
-        this->stream_);
+        this->stream_, false);
 
     /*
     noise = this->getSampledNoise();
@@ -311,7 +312,8 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   // Copy back sampled trajectories for visualization
   if (!getVisualizePrimitives())
   {
-    this->copySampledControlFromDevice();
+    this->copySampledControlFromDevice(false);
+    this->copyTopControlFromDevice(true);
   }
 }
 
@@ -325,11 +327,14 @@ void Primitives::allocateCUDAMemory()
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
           class PARAMS_T>
-void Primitives::copyMPPIControlToDevice()
+void Primitives::copyMPPIControlToDevice(bool synchronize)
 {
   HANDLE_ERROR(cudaMemcpyAsync(control_mppi_d_, control_mppi_.data(), sizeof(float) * control_mppi_.size(),
                                cudaMemcpyHostToDevice, this->stream_));
-  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  }
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
@@ -381,8 +386,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
           class PARAMS_T>
 void Primitives::calculateSampledStateTrajectories()
 {
-  int num_sampled_trajectories =
-      this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS + this->num_top_control_trajectories_;
+  int num_sampled_trajectories = this->getTotalSampledTrajectories();
   // controls already copied in compute control
 
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(

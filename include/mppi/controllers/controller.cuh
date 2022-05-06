@@ -656,6 +656,11 @@ public:
     return num_top_control_trajectories_;
   }
 
+  int getTotalSampledTrajectories() const
+  {
+    return getNumberSampledTrajectories() + getNumberTopControlTrajectories();
+  }
+
   /**
    * Return the most recent free energy calculation for the mean
    */
@@ -792,9 +797,9 @@ protected:
   // tracking controller variables
   bool enable_feedback_ = false;
 
-  void copyControlStdDevToDevice();
+  void copyControlStdDevToDevice(bool synchronize = true);
 
-  void copyNominalControlToDevice();
+  void copyNominalControlToDevice(bool synchronize = true);
 
   /**
    * Saves the sampled controls from the GPU back to the CPU

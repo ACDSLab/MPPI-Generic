@@ -22,20 +22,26 @@ void CONTROLLER::deallocateCUDAMemory()
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
           class PARAMS_T>
-void CONTROLLER::copyControlStdDevToDevice()
+void CONTROLLER::copyControlStdDevToDevice(bool synchronize)
 {
   HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, params_.control_std_dev_.data(),
                                sizeof(float) * params_.control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
-  cudaStreamSynchronize(stream_);
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream_));
+  }
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
           class PARAMS_T>
-void CONTROLLER::copyNominalControlToDevice()
+void CONTROLLER::copyNominalControlToDevice(bool synchronize)
 {
   HANDLE_ERROR(
       cudaMemcpyAsync(control_d_, control_.data(), sizeof(float) * control_.size(), cudaMemcpyHostToDevice, stream_));
-  HANDLE_ERROR(cudaStreamSynchronize(stream_));
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream_));
+  }
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,

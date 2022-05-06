@@ -122,7 +122,7 @@ private:
 
 protected:
   // TODO move up and generalize, pass in what to copy and initial location
-  void copyControlToDevice();
+  void copyControlToDevice(bool synchronize = true);
 
 private:
   // ======== PURE VIRTUAL =========

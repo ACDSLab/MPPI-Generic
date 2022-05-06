@@ -317,7 +317,7 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
         this->model_->model_d_, this->cost_->cost_d_, getNumCandidates(), this->getNumTimesteps(), this->getLambda(),
         this->getAlpha(), stride, this->getDt(), importance_sampling_strides_d_, this->control_std_dev_d_,
         importance_sampling_states_d_, this->control_d_, this->control_noise_d_, importance_sampling_costs_d_,
-        this->stream_);
+        this->stream_, false);
 
     HANDLE_ERROR(cudaMemcpyAsync(candidate_trajectory_costs_.data(), importance_sampling_costs_d_,
                                  sizeof(float) * getNumCandidates() * SAMPLES_PER_CONDITION, cudaMemcpyDeviceToHost,
@@ -354,7 +354,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
   this->free_energy_statistics_.nominal_sys.previousBaseline = this->baseline_nominal_;
 
   // Transfer the feedback gains to the GPU
-  this->fb_controller_->copyToDevice();
+  this->fb_controller_->copyToDevice(false);
 
   // Transfer the real initial state to the GPU
   HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, state.data(), sizeof(float) * DYN_T::STATE_DIM,
@@ -380,13 +380,12 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
                                  DYN_T::CONTROL_DIM * this->getNumTimesteps() * NUM_ROLLOUTS * sizeof(float),
                                  cudaMemcpyDeviceToDevice, this->stream_));
 
-    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
     // Launch the new rollout kernel
     rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, FEEDBACK_GPU, NUM_ROLLOUTS, BLOCKSIZE_X, BLOCKSIZE_Y, 2>(
         this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->getDt(),
         this->getNumTimesteps(), optimization_stride, this->getLambda(), this->getAlpha(), getValueFunctionThreshold(),
         this->initial_state_d_, this->control_d_, this->control_noise_d_, this->control_std_dev_d_,
-        this->trajectory_costs_d_, this->stream_);
+        this->trajectory_costs_d_, this->stream_, false);
 
     // Return the costs ->  nominal,  real costs
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
@@ -402,9 +401,9 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
 
     // In this case this->gamma = 1 / lambda
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
-                                     this->baseline_, this->stream_);
+                                     this->baseline_, this->stream_, false);
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, trajectory_costs_nominal_d, 1.0 / this->getLambda(),
-                                     baseline_nominal_, this->stream_);
+                                     baseline_nominal_, this->stream_, false);
 
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
@@ -431,10 +430,10 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
 
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
         this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->normalizer_, this->getNumTimesteps(),
-        this->stream_);
+        this->stream_, false);
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
         trajectory_costs_nominal_d, control_noise_nominal_d, control_nominal_d, this->normalizer_nominal_,
-        this->getNumTimesteps(), this->stream_);
+        this->getNumTimesteps(), this->stream_, false);
 
     // Transfer the new control to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->control_.data(), this->control_d_,
@@ -460,7 +459,8 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
       this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
 
   // Copy back sampled trajectories
-  this->copySampledControlFromDevice();
+  this->copySampledControlFromDevice(false);
+  this->copyTopControlFromDevice(true);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
@@ -475,8 +475,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
           class PARAMS_T, int SAMPLES_PER_CONDITION_MULTIPLIER>
 void RobustMPPI::calculateSampledStateTrajectories()
 {
-  int num_sampled_trajectories =
-      this->perc_sampled_control_trajectories_ * NUM_ROLLOUTS + this->num_top_control_trajectories_;
+  int num_sampled_trajectories = this->getTotalSampledTrajectories();
 
   // control already copied in compute control, so run kernel
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y, 2>(

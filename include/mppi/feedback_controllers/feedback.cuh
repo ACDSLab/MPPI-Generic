@@ -114,7 +114,7 @@ public:
   // void copyToDevice() {}
 
   // Copies the params to the device at the moment
-  void copyToDevice();
+  void copyToDevice(bool synchronize = true);
   // Method to return potential diagnostic information from GPU
   void copyFromDevice()
   {
@@ -249,9 +249,9 @@ public:
   /**
    * Calls GPU version
    */
-  void copyToDevice()
+  void copyToDevice(bool synchronize = true)
   {
-    this->gpu_controller_->copyToDevice();
+    this->gpu_controller_->copyToDevice(synchronize);
   }
 
   TEMPLATED_FEEDBACK_STATE getFeedbackState()

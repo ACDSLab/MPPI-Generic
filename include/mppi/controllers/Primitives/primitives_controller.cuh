@@ -206,7 +206,7 @@ protected:
   }
 
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
-  void copyMPPIControlToDevice();
+  void copyMPPIControlToDevice(bool synchronize = true);
 
   void computeStoppingTrajectory(const Eigen::Ref<const state_array>& x0);
   void smoothControlTrajectory();
