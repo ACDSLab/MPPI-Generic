@@ -117,19 +117,7 @@ public:
     return control_rngs_;
   }
 
-  void setControlRanges(std::array<float2, C_DIM>& control_rngs)
-  {
-    for (int i = 0; i < C_DIM; i++)
-    {
-      control_rngs_[i].x = control_rngs[i].x;
-      control_rngs_[i].y = control_rngs[i].y;
-    }
-    if (GPUMemStatus_)
-    {
-      HANDLE_ERROR(cudaMemcpy(this->model_d_->control_rngs_, this->control_rngs_, C_DIM * sizeof(float2),
-                              cudaMemcpyHostToDevice));
-    }
-  }
+  void setControlRanges(std::array<float2, C_DIM>& control_rngs, bool synchronize = true);
 
   void setParams(const PARAMS_T& params)
   {
@@ -165,7 +153,7 @@ public:
   /**
    *
    */
-  void paramsToDevice();
+  void paramsToDevice(bool synchronize = true);
 
   /**
    * loads the .npz at given path

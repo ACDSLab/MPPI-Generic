@@ -42,7 +42,7 @@
 #include <mppi/ddp/util.h>
 
 template <int C_DIM, int MAX_TIMESTEPS>
-struct RobustMPPIParams : ControllerParams<C_DIM, MAX_TIMESTEPS>
+struct RobustMPPIParams : public ControllerParams<C_DIM, MAX_TIMESTEPS>
 {
   float value_function_threshold_ = 1000.0;
   int optimization_stride_ = 1;

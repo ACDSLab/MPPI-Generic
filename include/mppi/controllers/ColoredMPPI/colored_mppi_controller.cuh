@@ -13,9 +13,25 @@
 #include <vector>
 
 template <int C_DIM, int MAX_TIMESTEPS>
-struct ColoredMPPIParams : ControllerParams<C_DIM, MAX_TIMESTEPS>
+struct ColoredMPPIParams : public ControllerParams<C_DIM, MAX_TIMESTEPS>
 {
   std::vector<float> colored_noise_exponents_;
+  ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>() = default;
+  ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>(const ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>& other)
+  {
+    typedef ControllerParams<C_DIM, MAX_TIMESTEPS> BASE;
+    const BASE& other_item_ref = other;
+    *(static_cast<BASE*>(this)) = other_item_ref;
+    this->colored_noise_exponents_ = other.colored_noise_exponents_;
+  }
+
+  ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>(ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>& other)
+  {
+    typedef ControllerParams<C_DIM, MAX_TIMESTEPS> BASE;
+    BASE& other_item_ref = other;
+    *(static_cast<BASE*>(this)) = other_item_ref;
+    this->colored_noise_exponents_ = other.colored_noise_exponents_;
+  }
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,

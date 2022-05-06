@@ -14,7 +14,7 @@
 #include <iostream>
 
 template <int C_DIM, int MAX_TIMESTEPS>
-struct TubeMPPIParams : ControllerParams<C_DIM, MAX_TIMESTEPS>
+struct TubeMPPIParams : public ControllerParams<C_DIM, MAX_TIMESTEPS>
 {
   float nominal_threshold_ = 20;  // How much worse the actual system has to be compared to the nominal
 };
