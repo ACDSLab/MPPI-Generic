@@ -48,7 +48,7 @@ public:
     return normalizer_;
   }
 
-  void setParams(PARAMS_T params)
+  void setParams(const PARAMS_T& params)
   {
     this->params_ = params;
     paramsToDevice();

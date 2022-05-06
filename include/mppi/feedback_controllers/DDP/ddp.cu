@@ -58,7 +58,7 @@ void DDPFeedback<DYN_T, NUM_TIMESTEPS>::initTrackingController()
 }
 
 template <class DYN_T, int NUM_TIMESTEPS>
-void DDPFeedback<DYN_T, NUM_TIMESTEPS>::setParams(DDPParams<DYN_T>& params)
+void DDPFeedback<DYN_T, NUM_TIMESTEPS>::setParams(const DDPParams<DYN_T>& params)
 {
   this->params_ = params;
   run_cost_ =

@@ -10,15 +10,18 @@
 
 #include <mppi/controllers/controller.cuh>
 
+// this is needed to extend the coloredMPPI params and ensure that
+// dynamic reconfigure in mppi_generic_racer_plant.cpp works properly
+#include <mppi/controllers/ColoredMPPI/colored_mppi_controller.cuh>
+
 #include <vector>
 
 template <int C_DIM, int S_DIM, int MAX_TIMESTEPS>
-struct PrimitivesParams : ControllerParams<C_DIM, MAX_TIMESTEPS>
+struct PrimitivesParams : ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>
 {
   int num_primitive_iters_;
   int num_piecewise_segments_ = 5;
   std::vector<float> scale_piecewise_noise_;
-  std::vector<float> colored_noise_exponents_;
   std::vector<float> frac_add_nominal_traj_;
   std::vector<float> scale_add_nominal_noise_;
   float state_leash_dist_[S_DIM] = { 0 };

@@ -132,6 +132,34 @@ __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* 
   __syncthreads();
 }
 
+template <int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE>
+__global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d,
+                                        float2* baseline_and_normalizer_d, int num_timesteps)
+{
+  int thread_idx = threadIdx.x;  // Rollout index
+  int block_idx = blockIdx.x;    // Timestep
+
+  // Create a shared array for intermediate sums: CONTROL_DIM x NUM_THREADS
+  __shared__ float u_intermediate[CONTROL_DIM * ((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1)];
+
+  float u[CONTROL_DIM];
+  setInitialControlToZero(CONTROL_DIM, thread_idx, u, u_intermediate);
+
+  __syncthreads();
+
+  // Sum the weighted control variations at a desired stride
+  strideControlWeightReduction(NUM_ROLLOUTS, num_timesteps, SUM_STRIDE, thread_idx, block_idx, CONTROL_DIM, exp_costs_d,
+                               baseline_and_normalizer_d->y, du_d, u, u_intermediate);
+
+  __syncthreads();
+
+  // Sum all weighted control variations
+  rolloutWeightReductionAndSaveControl(thread_idx, block_idx, NUM_ROLLOUTS, num_timesteps, CONTROL_DIM, SUM_STRIDE, u,
+                                       u_intermediate, du_new_d);
+
+  __syncthreads();
+}
+
 /*******************************************************************************************************************
  * Rollout Kernel Helpers
  *******************************************************************************************************************/
@@ -262,33 +290,64 @@ int computeBestIndex(float* cost_rollouts_host, int num_rollouts)
   return best_cost_idx;
 }
 
-// __device__ inline float computeBaselineCost(const int num_rollouts, const float* __restrict__ cost_rollouts_dev,
-//                                             float* __restrict__ reduction_buffer,
-//                                             const int rollout_idx_global, const int rollout_idx_step)
-// {
-//   // Copy costs to shared memory
-//   float min_cost = 0.0;
-//   for (int i = rollout_idx_global; i < num_rollouts; i += rollout_idx_step)
-//   {
-//     reduction_buffer[i] = costs[i+ blockIdx.z * num_rollouts];
-//   }
-//   __syncthreads();
-//   // find min along the entire array
-//   for (int size = num_rollouts / 2; size > 0; size /= 2)
-//   {
-//     for (int i = rollout_idx_global; i < size; i += rollout_idx_step)
-//     {
-//       reduction_buffer[i] = min(reduction_buffer[i], reduction_buffer[i + size]);
-//     }
-//     __syncthreads();
-//   }
-//   min_cost = reduction_buffer[0];
-//   return min_cost;
-// }
+__device__ inline float computeBaselineCost(int num_rollouts, const float* __restrict__ trajectory_costs_d,
+                                            float* __restrict__ reduction_buffer, int rollout_idx_global,
+                                            int rollout_idx_step)
+{
+  // Copy costs to shared memory
+  float min_cost = 0.0;
+#if false
+  // potential method to speed up copying costs
+  int prev_size = min(blockDim.x, num_rollouts);
+  float my_val = (rollout_idx_global < num_rollouts) ? trajectory_costs_d[rollout_idx_global] : 10e37;
+  for (int i = rollout_idx_global + rollout_idx_step; i < num_rollouts; i += rollout_idx_step)
+  {
+    my_val = min(trajectory_costs_d[i], my_val);
+  }
+  reduction_buffer[rollout_idx_global] = my_val;
+  // __syncthreads();
+  // if (threadIdx.x == 0)
+  // {
+  //   for (int i = 0; i < min(blockDim.x, num_rollouts); i++)
+  //   {
+  //     printf("buff %d: %f\n", i, reduction_buffer[i]);
+  //   }
+  //   printf("Num rollouts; %d\n", num_rollouts);
+  // }
+#else
+  int prev_size = num_rollouts / 2;
+  for (int i = rollout_idx_global; i < prev_size; i += rollout_idx_step)
+  {
+    reduction_buffer[i] = min(trajectory_costs_d[i], trajectory_costs_d[i + prev_size]);
+  }
+  if (num_rollouts - 2 * prev_size == 1 && threadIdx.x == blockDim.x - 1)
+  {
+    reduction_buffer[prev_size - 1] = min(reduction_buffer[num_rollouts - 1], reduction_buffer[prev_size - 1]);
+  }
+#endif
 
-__device__ inline void normExpTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
-                                        const float lambda_inv, const float baseline, const int global_idx,
-                                        const int rollout_idx_step)
+  __syncthreads();
+  // find min along the entire array
+  for (int size = prev_size / 2; size > 0; size /= 2)
+  {
+    for (int i = rollout_idx_global; i < size; i += rollout_idx_step)
+    {
+      reduction_buffer[i] = min(reduction_buffer[i], reduction_buffer[i + size]);
+    }
+    __syncthreads();
+    if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1)
+    {
+      reduction_buffer[size - 1] = min(reduction_buffer[size - 1], reduction_buffer[prev_size - 1]);
+    }
+    __syncthreads();
+    prev_size = size;
+  }
+  min_cost = reduction_buffer[0];
+  return min_cost;
+}
+
+__device__ inline void normExpTransform(int num_rollouts, float* __restrict__ trajectory_costs_d, float lambda_inv,
+                                        float baseline, int global_idx, int rollout_idx_step)
 {
   for (int i = global_idx; i < num_rollouts; i += rollout_idx_step)
   {
@@ -297,50 +356,77 @@ __device__ inline void normExpTransform(const int num_rollouts, float* __restric
   }
 }
 
-// __device__ inline float computeNormalizer(const int num_rollouts, const float* __restrict__ cost_rollouts_dev,
-//                                           float* __restrict__ reduction_buffer,
-//                                           const int rollout_idx_global, const int rollout_idx_step)
-// {
-//   // Copy costs to shared memory
-//   for (int i = rollout_idx_global; i < num_rollouts; i += rollout_idx_step)
-//   {
-//     reduction_buffer[i] = costs[i + blockIdx.z * num_rollouts];
-//   }
-//   __syncthreads();
-//   // sum the entire array
-//   for (int size = num_rollouts / 2; size > 0; size /= 2)
-//   {
-//     for (int i = rollout_idx_global; i < size; i += rollout_idx_step)
-//     {
-//       reduction_buffer[i] += reduction_buffer[i + size];
-//     }
-//     __syncthreads();
-//   }
-//   return reduction_buffer[0];
-// }
+__device__ inline float computeNormalizer(int num_rollouts, const float* __restrict__ trajectory_costs_d,
+                                          float* __restrict__ reduction_buffer, int rollout_idx_global,
+                                          int rollout_idx_step)
+{
+  // Copy costs to shared memory
+#if false
+  // potential method to speed up copying costs
+  int prev_size = min(blockDim.x, num_rollouts);
+  float my_val = (rollout_idx_global < num_rollouts) ? trajectory_costs_d[rollout_idx_global] : 0;
+  for (int i = rollout_idx_global + rollout_idx_step; i < num_rollouts; i += rollout_idx_step)
+  {
+    my_val += trajectory_costs_d[i];
+  }
+  reduction_buffer[rollout_idx_global] = my_val;
+#else
+  int prev_size = num_rollouts / 2;
+  for (int i = rollout_idx_global; i < prev_size; i += rollout_idx_step)
+  {
+    reduction_buffer[i] = trajectory_costs_d[i] + trajectory_costs_d[i + prev_size];
+  }
+  if (num_rollouts - 2 * prev_size == 1 && threadIdx.x == blockDim.x - 1)
+  {
+    reduction_buffer[prev_size - 1] += reduction_buffer[num_rollouts - 1];
+  }
+#endif
+  __syncthreads();
+  // sum the entire array
+  for (int size = prev_size / 2; size > 0; size /= 2)
+  {
+    for (int i = rollout_idx_global; i < size; i += rollout_idx_step)
+    {
+      reduction_buffer[i] += reduction_buffer[i + size];
+    }
+    __syncthreads();
+    if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1)
+    {
+      reduction_buffer[size - 1] += reduction_buffer[prev_size - 1];
+    }
+    __syncthreads();
+    prev_size = size;
+  }
+  return reduction_buffer[0];
+}
 
-// template<int NUM_ROLLOUTS>
-// __global__ void fullGPUcomputeWeights(float* __restrict__ costs, float lambda_inv, float2* __restrict__ output)
-// {
-//   __shared__ float reduction_buffer[NUM_ROLLOUTS];
-//   // int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
-//   // int better_global_idx = (blockIdx.x * blockDim.x + threadIdx.x) * blockDim.y + threadIdx.y;
-//   // int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + threadIdx.z;
-//   // int global_step = blockDim.x * gridDim.x;
-//   // int better_global_step = blockDim.x * gridDim.x  * blockDim.y * gridDim.y;
-//   int global_idx = threadIdx.x;
-//   int global_step = blockDim.x;
+template <int NUM_ROLLOUTS, int BLOCKSIZE_X = 1024>
+__global__ void fullGPUcomputeWeights(float* __restrict__ trajectory_costs_d, float lambda_inv,
+                                      float2* __restrict__ output)
+{
+  __shared__ float reduction_buffer[NUM_ROLLOUTS];
+  // int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
+  // int better_global_idx = (blockIdx.x * blockDim.x + threadIdx.x) * blockDim.y + threadIdx.y;
+  // int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + threadIdx.z;
+  // int global_step = blockDim.x * gridDim.x;
+  // int better_global_step = blockDim.x * gridDim.x  * blockDim.y * gridDim.y;
+  int global_idx = threadIdx.x;
+  int global_step = blockDim.x;
 
-//   float baseline = computeBaselineCost(num_rollouts, costs, reduction_buffer, global_idx, global_step);
-//   normExpTransform(NUM_ROLLOUTS, costs, lambda_inv, baseline, global_idx, global_step);
-//   __syncthreads();
-//   float normalizer = computeNormalizer(num_rollouts, costs, reduction_buffer, global_idx, global_step);
-//   output = make_float2(baseline, normalizer);
-// }
+  float baseline = computeBaselineCost(NUM_ROLLOUTS, trajectory_costs_d, reduction_buffer, global_idx, global_step);
+  normExpTransform(NUM_ROLLOUTS, trajectory_costs_d, lambda_inv, baseline, global_idx, global_step);
+  __syncthreads();
+  float normalizer = computeNormalizer(NUM_ROLLOUTS, trajectory_costs_d, reduction_buffer, global_idx, global_step);
+  __syncthreads();
+  if (threadIdx.x == 0)
+  {
+    *output = make_float2(baseline, normalizer);
+  }
+}
 
 float computeNormalizer(float* cost_rollouts_host, int num_rollouts)
 {
-  float normalizer = 0.f;
+  double normalizer = 0.0;
   for (int i = 0; i < num_rollouts; ++i)
   {
     normalizer += cost_rollouts_host[i];
@@ -586,30 +672,30 @@ void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_co
   }
 }
 
-// template<int NUM_ROLLOUTS>
-// void launchWeightTransformKernel(float* __restrict__ costs,
-//                                  float2* __restrict__ output,
-//                                  const float lambda_inv,
-//                                  cudaStream_t stream,
-//                                  const int num_systems,
-//                                  bool synchronize)
-// {
-//   int device_id = 0;
-//   cudaDeviceProp deviceProp;
-//   cudaGetDeviceProperties(&deviceProp, device_id);
-//   int blocksize_x = deviceProp.maxThreadsDim[0];
-//   dim3 dimBlock(blocksize_x, 1, 1);
-//   // Can't be split into multiple blocks because we want to do all the math in shared memory
-//   dim3 dimGrid(1, 1, 1);
-//   for (int i = 0; i < num_systems; i++) {
-//     fullGPUcomputeWeights<<<dimGrid, dimBlock, 0, stream>>>(costs + i * NUM_ROLLOUTS,
-//     lambda_inv, output + i);
-//     HANDLE_ERROR(cudaGetLastError());
-//   }
-//   if (synchronize){
-//     HANDLE_ERROR(cudaStreamSynchronize(stream));
-//   }
-// }
+template <int NUM_ROLLOUTS>
+void launchWeightTransformKernel(float* __restrict__ costs_d, float2* __restrict__ baseline_and_norm_d,
+                                 const float lambda_inv, const int num_systems, cudaStream_t stream, bool synchronize)
+{
+  // Figure out max size of threads from the device properties (slows down this method a lot)
+  // int device_id = 0;
+  // cudaDeviceProp deviceProp;
+  // cudaGetDeviceProperties(&deviceProp, device_id);
+  // int blocksize_x = deviceProp.maxThreadsDim[0];
+  const int blocksize_x = 1024;
+  dim3 dimBlock(blocksize_x, 1, 1);
+  // Can't be split into multiple blocks because we want to do all the math in shared memory
+  dim3 dimGrid(1, 1, 1);
+  for (int i = 0; i < num_systems; i++)
+  {
+    fullGPUcomputeWeights<NUM_ROLLOUTS>
+        <<<dimGrid, dimBlock, 0, stream>>>(costs_d + i * NUM_ROLLOUTS, lambda_inv, baseline_and_norm_d + i);
+    HANDLE_ERROR(cudaGetLastError());
+  }
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
+}
 
 template <class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
 void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float normalizer,
@@ -619,6 +705,22 @@ void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_ne
   dim3 dimGrid(num_timesteps, 1, 1);
   weightedReductionKernel<DYN_T::CONTROL_DIM, NUM_ROLLOUTS, SUM_STRIDE>
       <<<dimGrid, dimBlock, 0, stream>>>(exp_costs_d, du_d, du_new_d, normalizer, num_timesteps);
+  // CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
+}
+
+template <class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
+void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float2* baseline_and_normalizer_d,
+                                   int num_timesteps, cudaStream_t stream, bool synchronize)
+{
+  dim3 dimBlock((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1, 1, 1);
+  dim3 dimGrid(num_timesteps, 1, 1);
+  weightedReductionKernel<DYN_T::CONTROL_DIM, NUM_ROLLOUTS, SUM_STRIDE>
+      <<<dimGrid, dimBlock, 0, stream>>>(exp_costs_d, du_d, du_new_d, baseline_and_normalizer_d, num_timesteps);
   // CudaCheckError();
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)

@@ -11,6 +11,7 @@ void CONTROLLER::deallocateCUDAMemory()
   cudaFree(trajectory_costs_d_);
   cudaFree(control_std_dev_d_);
   cudaFree(control_noise_d_);
+  cudaFree(cost_baseline_and_norm_d_);
   if (sampled_states_CUDA_mem_init_)
   {
     cudaFree(sampled_states_d_);
@@ -176,7 +177,14 @@ void CONTROLLER::createAndSeedCUDARandomNumberGen()
 {
   // Seed the PseudoRandomGenerator with the CPU time.
   curandCreateGenerator(&gen_, CURAND_RNG_PSEUDO_DEFAULT);
-  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+  setSeedCUDARandomNumberGen(this->params_.seed_);
+}
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
+void CONTROLLER::setSeedCUDARandomNumberGen(unsigned seed)
+{
+  // Seed the PseudoRandomGenerator with the CPU time.
   curandSetPseudoRandomGeneratorSeed(gen_, seed);
 }
 
@@ -202,6 +210,8 @@ void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size, bool allocate_double
   HANDLE_ERROR(cudaMalloc((void**)&control_std_dev_d_, sizeof(float) * DYN_T::CONTROL_DIM));
   HANDLE_ERROR(cudaMalloc((void**)&control_noise_d_, sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS * NUM_ROLLOUTS *
                                                          (allocate_double_noise ? nominal_size : 1)));
+  HANDLE_ERROR(cudaMalloc((void**)&cost_baseline_and_norm_d_, sizeof(float2) * nominal_size));
+  cost_baseline_and_norm_.resize(nominal_size, make_float2(0.0, 0.0));
 }
 
 #undef CONTROLLER

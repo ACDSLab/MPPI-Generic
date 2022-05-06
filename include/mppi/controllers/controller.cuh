@@ -39,14 +39,16 @@ struct MPPIFreeEnergyStatistics
 template <int C_DIM, int MAX_TIMESTEPS>
 struct ControllerParams
 {
-  int optimization_stride;
+  static const int TEMPLATED_CONTROL_DIM = C_DIM;
+  static const int TEMPLATED_MAX_TIMESTEPS = MAX_TIMESTEPS;
   float dt_;
   float lambda_;  // Value of the temperature in the softmax.
-  float alpha_;   //
+  float alpha_ = 0.0;   //
   // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
   // does not reallocate cuda memory
   int num_timesteps_ = MAX_TIMESTEPS;
-  int num_iters_;  // Number of optimization iterations
+  int num_iters_ = 1;  // Number of optimization iterations
+  unsigned seed_ = std::chrono::system_clock::now().time_since_epoch().count();
 
   Eigen::Matrix<float, C_DIM, 1> control_std_dev_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
   Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS> init_control_traj_ = Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS>::Zero();
@@ -722,9 +724,17 @@ public:
     return params_;
   }
 
-  void setParams(PARAMS_T& p)
+  void setParams(const PARAMS_T& p)
   {
+    bool change_seed = p.seed_ != params_.seed_;
+    bool change_std_dev = p.control_std_dev_ != params_.control_std_dev_;
     params_ = p;
+    if (change_std_dev) {
+      copyControlStdDevToDevice();
+    }
+    if (change_seed) {
+      setSeedCUDARandomNumberGen(params_.seed_);
+    }
   }
 
   int getNumIters() const
@@ -778,9 +788,11 @@ protected:
   float* state_d_;             // Array of size DYN_T::STATE_DIM*NUM_ROLLOUTS*N
   float* trajectory_costs_d_;  // Array of size NUM_ROLLOUTS*N
   float* control_noise_d_;     // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS*N
+  float2* cost_baseline_and_norm_d_;     // Array of size number of systems
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
+  std::vector<float2> cost_baseline_and_norm_;
 
   bool sampled_states_CUDA_mem_init_ = false;  // cudaMalloc, cudaFree boolean
   float* sampled_states_d_;                    // result of states that have been sampled from state trajectory kernel
@@ -812,6 +824,8 @@ protected:
   void copyTopControlFromDevice(bool synchronize = true);
 
   void createAndSeedCUDARandomNumberGen();
+
+  void setSeedCUDARandomNumberGen(unsigned seed);
 
   /**
    * Allocates CUDA memory for actual states and nominal states if needed

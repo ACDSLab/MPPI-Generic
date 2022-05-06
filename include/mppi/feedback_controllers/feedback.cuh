@@ -68,7 +68,7 @@ public:
   void GPUSetup();
   void freeCudaMem();
 
-  void setFeedbackState(FEEDBACK_STATE_T state)
+  void setFeedbackState(const FEEDBACK_STATE_T& state)
   {
     state_ = state;
     if (GPUMemStatus_)
@@ -174,7 +174,7 @@ public:
 
   virtual void initTrackingController() = 0;
 
-  virtual void setParams(PARAMS_T& params)
+  virtual void setParams(const PARAMS_T& params)
   {
     params_ = params;
   }
@@ -264,7 +264,7 @@ public:
     return this->gpu_controller_->getFeedbackStatePointer();
   }
 
-  void setFeedbackState(TEMPLATED_FEEDBACK_STATE& gpu_fb_state)
+  void setFeedbackState(const TEMPLATED_FEEDBACK_STATE& gpu_fb_state)
   {
     this->gpu_controller_->setFeedbackState(gpu_fb_state);
   }
