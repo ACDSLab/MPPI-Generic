@@ -371,7 +371,8 @@ public:
   /**
    * Method to compute an emergency stopping control
    */
-  virtual void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u){
+  virtual void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)
+  {
     u.setZero();
   }
 
