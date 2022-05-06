@@ -35,6 +35,7 @@ public:
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
   using COST_T = typename CONTROLLER_T::TEMPLATED_COSTS;
   using COST_PARAMS_T = typename COST_T::COST_PARAMS_T;
+  using CONTROLLER_PARAMS_T = typename CONTROLLER_T::TEMPLATED_PARAMS;
 
   // Feedback related aliases
   using FB_STATE_T = typename CONTROLLER_T::TEMPLATED_FEEDBACK::TEMPLATED_FEEDBACK_STATE;
@@ -50,9 +51,12 @@ protected:
   std::mutex dynamics_params_guard_;
   COST_PARAMS_T cost_params_;
   std::mutex cost_params_guard_;
+  CONTROLLER_PARAMS_T controller_params_;
+  std::mutex controller_params_guard_;
 
   std::atomic<bool> has_new_dynamics_params_{ false };
   std::atomic<bool> has_new_cost_params_{ false };
+  std::atomic<bool> has_new_controller_params_{ false };
 
   // Values needed
   s_array init_state_ = s_array::Zero();
@@ -266,6 +270,10 @@ public:
   {
     return has_new_cost_params_;
   };
+  virtual bool hasNewControllerParams()
+  {
+    return has_new_controller_params_;
+  };
 
   virtual DYN_PARAMS_T getNewDynamicsParams()
   {
@@ -276,6 +284,11 @@ public:
   {
     has_new_cost_params_ = false;
     return cost_params_;
+  }
+  virtual CONTROLLER_PARAMS_T getNewControllerParams()
+  {
+    has_new_controller_params_ = false;
+    return controller_params_;
   }
 
   virtual void setDynamicsParams(DYN_PARAMS_T params)
@@ -290,6 +303,12 @@ public:
     cost_params_ = params;
     has_new_cost_params_ = true;
   }
+  virtual void setControllerParams(CONTROLLER_PARAMS_T params)
+  {
+    std::lock_guard<std::mutex> guard(controller_params_guard_);
+    controller_params_ = params;
+    has_new_controller_params_ = true;
+  }
 
   /**
    *
@@ -300,7 +319,7 @@ public:
   bool updateParameters()
   {
     bool changed = false;
-    // Update the cost parameters
+    // Update cost parameters
     if (hasNewCostParams())
     {
       std::lock_guard<std::mutex> guard(cost_params_guard_);
@@ -308,13 +327,21 @@ public:
       COST_PARAMS_T cost_params = getNewCostParams();
       controller_->cost_->setParams(cost_params);
     }
-    // update dynamics params
+    // Update dynamics params
     if (hasNewDynamicsParams())
     {
       std::lock_guard<std::mutex> guard(dynamics_params_guard_);
       changed = true;
       DYN_PARAMS_T dyn_params = getNewDynamicsParams();
       controller_->model_->setParams(dyn_params);
+    }
+    // Update controller params
+    if (hasNewControllerParams())
+    {
+      std::lock_guard<std::mutex> guard(controller_params_guard_);
+      changed = true;
+      CONTROLLER_PARAMS_T controller_params = getNewControllerParams();
+      controller_->setParams(controller_params);
     }
     return changed;
   }

@@ -17,13 +17,26 @@ using FEEDBACK_T = DDPFeedback<MockDynamics, NUM_TIMESTEPS>;
 class TestController : public Controller<MockDynamics, MockCost, FEEDBACK_T, NUM_TIMESTEPS, number_rollouts, 1, 2>
 {
 public:
+  typedef Controller<MockDynamics, MockCost, FEEDBACK_T, NUM_TIMESTEPS, number_rollouts, 1, 2> PARENT_CLASS;
+  using PARAMS_T = PARENT_CLASS::TEMPLATED_PARAMS;
+
   TestController(MockDynamics* model, MockCost* cost, FEEDBACK_T* fb_controller, float dt, int max_iter, float lambda,
                  float alpha, const Eigen::Ref<const control_array>& control_variance, int num_timesteps = 100,
                  const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                  cudaStream_t stream = nullptr)
-    : Controller<MockDynamics, MockCost, FEEDBACK_T, NUM_TIMESTEPS, number_rollouts, 1, 2>(
-          model, cost, fb_controller, dt, max_iter, lambda, alpha, control_variance, num_timesteps, init_control_traj,
-          stream)
+    : PARENT_CLASS(model, cost, fb_controller, dt, max_iter, lambda, alpha, control_variance, num_timesteps,
+                   init_control_traj, stream)
+  {
+    // Allocate CUDA memory for the controller
+    allocateCUDAMemoryHelper(0);
+
+    // Copy the noise variance to the device
+    this->copyControlStdDevToDevice();
+  }
+
+  TestController(MockDynamics* model, MockCost* cost, FEEDBACK_T* fb_controller, PARAMS_T& params,
+                 cudaStream_t stream = nullptr)
+    : PARENT_CLASS(model, cost, fb_controller, params, stream)
   {
     // Allocate CUDA memory for the controller
     allocateCUDAMemoryHelper(0);
@@ -137,6 +150,48 @@ TEST_F(ControllerTests, ConstructorDestructor)
   EXPECT_EQ(controller_test->getNumTimesteps(), num_timesteps);
   EXPECT_EQ(controller_test->getControlStdDev(), control_var);
   EXPECT_EQ(controller_test->getControlSeq(), init_control_trajectory);
+  EXPECT_EQ(controller_test->getStream(), stream);
+  EXPECT_EQ(controller_test->getFeedbackEnabled(), false);
+
+  // TODO check that a random seed was set and stream was set
+  // EXPECT_NE(controller_test->getRandomSeed(), 0);
+
+  // TODO check for correct defaults
+  delete controller_test;
+}
+
+TEST_F(ControllerTests, ParamBasedConstructor)
+{
+  int num_timesteps = 10;
+  TestController::TEMPLATED_PARAMS controller_params;
+  controller_params.num_timesteps_ = num_timesteps;
+  controller_params.dt_ = dt;
+  controller_params.num_iters_ = max_iter;
+  controller_params.lambda_ = lambda;
+  controller_params.alpha_ = alpha;
+  controller_params.control_std_dev_ = control_var;
+  controller_params.init_control_traj_ = TestController::control_trajectory::Ones();
+
+  // expect double check rebind
+  EXPECT_CALL(*mockCost, bindToStream(stream)).Times(1);
+  EXPECT_CALL(*mockDynamics, bindToStream(stream)).Times(1);
+  // // EXPECT_CALL(mockFeedback, bindToStream(stream)).Times(1);
+
+  // // expect GPU setup called again
+  EXPECT_CALL(*mockCost, GPUSetup()).Times(1);
+  EXPECT_CALL(*mockDynamics, GPUSetup()).Times(1);
+  // EXPECT_CALL(mockFeedback, GPUSetup()).Times(1);
+  TestController* controller_test = new TestController(mockDynamics, mockCost, mockFeedback, controller_params, stream);
+
+  EXPECT_EQ(controller_test->model_, mockDynamics);
+  EXPECT_EQ(controller_test->cost_, mockCost);
+  EXPECT_EQ(controller_test->getDt(), dt);
+  EXPECT_EQ(controller_test->getNumIters(), max_iter);
+  EXPECT_EQ(controller_test->getLambda(), lambda);
+  EXPECT_EQ(controller_test->getAlpha(), alpha);
+  EXPECT_EQ(controller_test->getNumTimesteps(), num_timesteps);
+  EXPECT_EQ(controller_test->getControlStdDev(), control_var);
+  EXPECT_EQ(controller_test->getControlSeq(), controller_params.init_control_traj_);
   EXPECT_EQ(controller_test->getStream(), stream);
   EXPECT_EQ(controller_test->getFeedbackEnabled(), false);
 

@@ -25,6 +25,11 @@ public:
                            control_std_dev, num_timesteps, init_control_traj, 9, 1, stream)
   {
   }
+  TestRobust(DYN* model, COST* cost, DDPFeedback<DYN, NUM_TIMESTEPS>* fb_controller,
+             RobustMPPIController::TEMPLATED_PARAMS& params, cudaStream_t stream)
+    : RobustMPPIController(model, cost, fb_controller, params, stream)
+  {
+  }
 
   // Test to make sure that its nonzero
   // Test to make sure that cuda memory is allocated
@@ -116,16 +121,21 @@ protected:
     model = new dynamics(10);  // Initialize the double integrator dynamics
     cost = new cost_function;  // Initialize the cost function
     fb_controller = new FEEDBACK_CONTROL(model, dt);
-    control_std_dev << 0.0001, 0.0001;
-    init_control_traj.setZero();
+    controller_params.dt_ = dt;
+    controller_params.lambda_ = lambda;
+    controller_params.alpha_ = alpha;
+    controller_params.control_std_dev_ << 0.0001, 0.0001;
+    controller_params.num_iters_ = 3;
+    controller_params.value_function_threshold_ = 1000.0;
+    controller_params.num_timesteps_ = 100;
+    controller_params.init_control_traj_.setZero();
     // Q, Qf, R
     auto fb_params = fb_controller->getParams();
     fb_params.Q.setIdentity();
     fb_params.Q_f.setIdentity();
     fb_params.R.setIdentity();
     fb_controller->setParams(fb_params);
-    test_controller = new TestRobust(model, cost, fb_controller, dt, 3, lambda, alpha, 1000.0, control_std_dev, 100,
-                                     init_control_traj, 0);
+    test_controller = new TestRobust(model, cost, fb_controller, controller_params, 0);
   }
 
   void TearDown() override
@@ -140,8 +150,7 @@ protected:
   cost_function* cost;
   TestRobust* test_controller;
   FEEDBACK_CONTROL* fb_controller;
-  dynamics::control_array control_std_dev;
-  TestRobust::control_trajectory init_control_traj;
+  TestRobust::TEMPLATED_PARAMS controller_params;
   float dt = 0.01;
   float lambda = 0.5;
   float alpha = 0.01;

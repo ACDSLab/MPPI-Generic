@@ -166,6 +166,31 @@ TEST_F(Cartpole_VanillaMPPI, ConstructWithNew)
 
   delete (controller);
 }
+TEST_F(Cartpole_VanillaMPPI, ParamsConstructWithNew)
+{
+  using CONTROLLER = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 100>,
+                                           100, 2048, 64, 8>;
+  using CONTROLLER_PARAMS = CONTROLLER::TEMPLATED_PARAMS;
+  CONTROLLER_PARAMS c_params;
+
+  c_params.dt_ = 0.01;
+  c_params.num_iters_ = 1;
+  c_params.lambda_ = 0.25;
+  c_params.alpha_ = 0.01;
+  c_params.control_std_dev_ = CartpoleDynamics::control_array::Constant(5.0);
+
+  auto fb_controller = DDPFeedback<CartpoleDynamics, 100>(&model, dt);
+  auto controller =
+      new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 100>, 100, 2048,
+                                64, 8>(&model, &cost, &fb_controller, c_params);
+
+  CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
+
+  // Compute the control
+  controller->computeControl(current_state);
+
+  delete (controller);
+}
 
 class Quadrotor_VanillaMPPI : public ::testing::Test
 {
