@@ -7,20 +7,22 @@
 #include <mppi/utils/angle_utils.cuh>
 #include <random>
 
-struct DubinsParams: public DynamicsParams<3, 2>
-
+struct DubinsParams : public DynamicsParams
 {
+  enum class StateIndex : int
+  {
+    POS_X = 0,
+    POS_Y,
+    YAW,
+    NUM_STATES
+  };
 
-  enum class StateIndex : int {POS_X = 0,
-                               POS_Y,
-                               YAW,
-                               NUM_STATES
-                              };
-
-  enum class ControlIndex : int {VEL = 0,
-                                 YAW_RATE,
-                                 NUM_CONTROLS
-                                };
+  enum class ControlIndex : int
+  {
+    VEL = 0,
+    YAW_RATE,
+    NUM_CONTROLS
+  };
   DubinsParams() = default;
   ~DubinsParams() = default;
 };

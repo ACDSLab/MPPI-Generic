@@ -18,7 +18,7 @@ public:
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
-  RacerDubinsElevation(RacerDubinsParams<7>& params, cudaStream_t stream = nullptr)
+  RacerDubinsElevation(RacerDubinsParams& params, cudaStream_t stream = nullptr)
     : RacerDubinsImpl<RacerDubinsElevation, 7>(params, stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);

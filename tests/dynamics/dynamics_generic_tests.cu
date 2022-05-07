@@ -5,9 +5,7 @@
 
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 
-template <int S_DIM = 1, int C_DIM = 1>
-struct DynamicsTesterParams : public DynamicsParams<S_DIM, C_DIM>
-
+struct DynamicsTesterParams : public DynamicsParams
 {
   int var_1 = 1;
   int var_2 = 2;
@@ -16,12 +14,10 @@ struct DynamicsTesterParams : public DynamicsParams<S_DIM, C_DIM>
 
 template <int STATE_DIM = 1, int CONTROL_DIM = 1>
 class DynamicsTester
-  : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams<STATE_DIM, CONTROL_DIM>,
-                                   STATE_DIM, CONTROL_DIM>
+  : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>
 {
 public:
-  typedef MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams<STATE_DIM, CONTROL_DIM>,
-                                  STATE_DIM, CONTROL_DIM>
+  typedef MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>
       PARENT_CLASS;
 
   using state_array = typename PARENT_CLASS::state_array;
@@ -100,11 +96,11 @@ TEST(Dynamics, GPUSetupAndCudaFree)
 TEST(Dynamics, setParamsCPU)
 {
   DynamicsTester<> tester;
-  DynamicsTesterParams<> params_result = tester.getParams();
+  DynamicsTesterParams params_result = tester.getParams();
   EXPECT_EQ(params_result.var_1, 1);
   EXPECT_EQ(params_result.var_2, 2);
 
-  DynamicsTesterParams<> params;
+  DynamicsTesterParams params;
   params.var_1 = 10;
   params.var_2 = 20;
   params.var_4.x = 1.5;
@@ -127,11 +123,11 @@ TEST(Dynamics, setParamsGPU)
 {
   DynamicsTester<> tester;
   tester.GPUSetup();
-  DynamicsTesterParams<> params_result = tester.getParams();
+  DynamicsTesterParams params_result = tester.getParams();
   EXPECT_EQ(params_result.var_1, 1);
   EXPECT_EQ(params_result.var_2, 2);
 
-  DynamicsTesterParams<> params;
+  DynamicsTesterParams params;
   params.var_1 = 10;
   params.var_2 = 20;
   params.var_4.x = 1.5;
@@ -140,7 +136,7 @@ TEST(Dynamics, setParamsGPU)
   params.var_4.w = 4.5;
 
   tester.setParams(params);
-  launchParameterTestKernel<DynamicsTester<>, DynamicsTesterParams<>>(tester, params_result);
+  launchParameterTestKernel<DynamicsTester<>, DynamicsTesterParams>(tester, params_result);
 
   EXPECT_EQ(params_result.var_1, params.var_1);
   EXPECT_EQ(params_result.var_2, params.var_2);

@@ -4,24 +4,26 @@
 #include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/angle_utils.cuh>
 
-template<int S_DIM>
-struct RacerDubinsParams: public DynamicsParams<S_DIM, 2>
-
+struct RacerDubinsParams : public DynamicsParams
 {
-  enum class StateIndex : int {VEL_X = 0,
-                               YAW,
-                               POS_X,
-                               POS_Y,
-                               TRUE_STEER_ANGLE,
-                               ROLL,
-                               PITCH,
-                               NUM_STATES
-                              };
+  enum class StateIndex : int
+  {
+    VEL_X = 0,
+    YAW,
+    POS_X,
+    POS_Y,
+    TRUE_STEER_ANGLE,
+    ROLL,
+    PITCH,
+    NUM_STATES
+  };
 
-  enum class ControlIndex : int {BRAKE_THROTTLE = 0,
-                                 DESIRED_STEERING,
-                                 NUM_CONTROLS
-                                };
+  enum class ControlIndex : int
+  {
+    BRAKE_THROTTLE = 0,
+    DESIRED_STEERING,
+    NUM_CONTROLS
+  };
   float c_t = 1.3;
   float c_b = 2.5;
   float c_v = 3.7;
@@ -38,10 +40,10 @@ using namespace MPPI_internal;
  * control: throttle, steering angle command
  */
 template <class CLASS_T, int STATE_DIM>
-class RacerDubinsImpl : public Dynamics<CLASS_T, RacerDubinsParams<STATE_DIM>, STATE_DIM, 2>
+class RacerDubinsImpl : public Dynamics<CLASS_T, RacerDubinsParams, STATE_DIM, 2>
 {
 public:
-  typedef Dynamics<CLASS_T, RacerDubinsParams<STATE_DIM>, STATE_DIM, 2> PARENT_CLASS;
+  typedef Dynamics<CLASS_T, RacerDubinsParams, STATE_DIM, 2> PARENT_CLASS;
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;
   typedef typename PARENT_CLASS::dfdx dfdx;
@@ -50,8 +52,7 @@ public:
   RacerDubinsImpl(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
   {
   }
-  RacerDubinsImpl(RacerDubinsParams<STATE_DIM>& params, cudaStream_t stream = nullptr)
-    : PARENT_CLASS(params, stream)
+  RacerDubinsImpl(RacerDubinsParams& params, cudaStream_t stream = nullptr) : PARENT_CLASS(params, stream)
   {
   }
 
@@ -82,7 +83,7 @@ public:
   {
   }
 
-  RacerDubins(RacerDubinsParams<5>& params, cudaStream_t stream = nullptr)
+  RacerDubins(RacerDubinsParams& params, cudaStream_t stream = nullptr)
     : RacerDubinsImpl<RacerDubins, 5>(params, stream)
   {
   }
