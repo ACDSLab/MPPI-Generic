@@ -5,8 +5,32 @@
 #include <mppi/utils/texture_helpers/two_d_texture_helper.cuh>
 #include <mppi/utils/angle_utils.cuh>
 
-struct RacerSuspensionParams
+struct RacerSuspensionParams: public DynamicsParams<15, 2>
+
 {
+ //* state: x, y, z, quat [w, x, y, z], vx_I, vy_I, vz_I, omega_x, omega_y, omega_z, shaft angle, shaft angle velocity
+  enum class StateIndex : int {POS_X = 0,
+                               POS_Y,
+                               POS_Z,
+                               QUAT_W,
+                               QUAT_X,
+                               QUAT_Y,
+                               QUAT_Z,
+                               VX_I,
+                               VY_I,
+                               VZ_I,
+                               OMEGA_X,
+                               OMEGA_Y,
+                               OMEGA_Z,
+                               TRUE_STEER_ANGLE,
+                               TRUE_STEER_ANGLE_VEL,
+                               NUM_STATES
+                              };
+
+  enum class ControlIndex : int {BRAKE_THROTTLE = 0,
+                                 DESIRED_STEERING,
+                                 NUM_CONTROLS
+                                };
   // suspension model params
   float wheel_radius = 0.32;
   float mass = 1447;

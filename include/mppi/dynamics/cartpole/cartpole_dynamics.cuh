@@ -3,8 +3,17 @@
 
 #include <mppi/dynamics/dynamics.cuh>
 
-struct CartpoleDynamicsParams
+struct CartpoleDynamicsParams : public DynamicsParams<4, 1>
 {
+  enum class StateIndex : int {POS_X = 0,
+                               VEL_X,
+                               THETA,
+                               THETA_DOT,
+                               NUM_STATES
+                              };
+  enum class ControlIndex : int {FORCE = 0,
+                                 NUM_CONTROLS
+                                };
   float cart_mass = 1.0f;
   float pole_mass = 1.0f;
   float pole_length = 1.0f;

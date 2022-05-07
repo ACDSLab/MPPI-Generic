@@ -8,17 +8,49 @@ Header file for dynamics
 */
 
 #include <Eigen/Dense>
+#include <mppi/utils/managed.cuh>
+
 #include <stdio.h>
 #include <math.h>
-#include <mppi/utils/managed.cuh>
-#include <vector>
+
 #include <cfloat>
+#include <type_traits>
+#include <vector>
+
+// helpful macros to use the enum setup
+#ifndef S_INDEX
+#define S_IND(param, enum_val) static_cast<int>(decltype(param)::StateIndex::enum_val)
+#define S_INDEX(enum_val) S_IND(this->params_, enum_val)
+#endif
+
+#ifndef C_INDEX
+#define C_IND(param, enum_val) static_cast<int>(decltype(param)::ControlIndex::enum_val)
+#define C_INDEX(enum_val) C_IND(this->params_, enum_val)
+#endif
+
+template<int S_DIM, int C_DIM>
+struct DynamicsParams
+{
+  static const int STATE_DIM = S_DIM;
+  static const int CONTROL_DIM = C_DIM;
+  enum class StateIndex : int {POS_X = 0,
+                               NUM_STATES
+                              };
+  enum class ControlIndex : int {VEL_X = 0,
+                                 NUM_CONTROLS};
+};
+
+template <typename T>
+using paramsInheritsFrom = typename std::is_base_of<DynamicsParams<T::STATE_DIM, T::CONTROL_DIM>, T>;
 
 namespace MPPI_internal
 {
 template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 class Dynamics : public Managed
 {
+  static_assert(paramsInheritsFrom<PARAMS_T>::value, "Dynamics PARAMS_T does not inherit from DynamicsParams");
+  static_assert(PARAMS_T::STATE_DIM == S_DIM, "Dynamics PARAMS_T does not have same num states as the base Dynamics Class");
+  static_assert(PARAMS_T::CONTROL_DIM == C_DIM, "Dynamics PARAMS_T does not have same num controls as the base Dynamics Class");
 public:
   //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static const int STATE_DIM = S_DIM;

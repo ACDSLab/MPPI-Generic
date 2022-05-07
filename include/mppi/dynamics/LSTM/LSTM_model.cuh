@@ -37,8 +37,21 @@ float ReLU(float x)
 // history of states and controls - roughly 10 (initializer network) (inside paramsToDevice()?)
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER = 11, int INIT_DIM = 200>
-struct LSTMDynamicsParams
+struct LSTMDynamicsParams : public DynamicsParams<S_DIM, C_DIM>
 {
+  enum class StateIndex : int {POS_X = 0,
+                               POS_Y,
+                               YAW,
+                               ROLL,
+                               BODY_VEL_X,
+                               BODY_VEL_Y,
+                               YAW_RATE,
+                               NUM_STATES
+                               };
+  enum class ControlIndex : int {STEERING = 0,
+                                 THROTTLE,
+                                 NUM_CONTROLS
+                               };
   static const int DYNAMICS_DIM = S_DIM - K_DIM;  ///< number of inputs from state
   // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
   // static const int PRIME_PADDING = 1; ///< Extra padding to largest layer to avoid shared mem bank conflicts

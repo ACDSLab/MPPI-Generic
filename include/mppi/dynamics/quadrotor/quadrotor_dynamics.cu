@@ -78,11 +78,11 @@ void QuadrotorDynamics::computeDynamics(const Eigen::Ref<const state_array>& sta
   Eigen::Matrix<float, 3, 1> angular_speed, v;
   Eigen::Quaternionf q_d;
   Eigen::Matrix<float, 3, 1> tau_inv;
-  float u_thrust = control[3];
+  float u_thrust = control[C_INDEX(THRUST)];
 
   // Assume quaterion is w, x, y, z in state array
   Eigen::Quaternionf q(state[6], state[7], state[8], state[9]);
-  u_pqr << control[0], control[1], control[2];
+  u_pqr << control[C_INDEX(ANG_RATE_X)], control[C_INDEX(ANG_RATE_Y)], control[C_INDEX(ANG_RATE_Z)];
   v = state.block<3, 1>(3, 0);
   angular_speed << state(10), state(11), state(12);
   tau_inv << 1 / this->params_.tau_roll, 1 / this->params_.tau_pitch, 1 / this->params_.tau_yaw;
@@ -138,7 +138,7 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state, float* control,
   float* w_d = state_der + 10;
 
   float* u_pqr = control;
-  float u_thrust = control[3];
+  float u_thrust = control[C_INDEX(THRUST)];
 
   float dcm_lb[3][3];
 
