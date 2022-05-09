@@ -84,10 +84,6 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
             (costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t, crash_status) - running_cost) / (1.0 * t);
       }
 
-      if (thread_idy == 0 && t == num_timesteps / 2){
-        running_cost += costs->terminalCost(x);
-      }
-
       // Compute state derivatives
       dynamics->computeStateDeriv(x, u, xdot, theta_s);
       __syncthreads();
@@ -219,7 +215,7 @@ __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* cos
   // only want to save 1 cost per trajectory
   if (threadIdx.y == 0 && global_idx < num_rollouts)
   {
-    cost_rollouts_device[global_idx + num_rollouts * threadIdx.z] = running_cost; // + costs->terminalCost(x_thread);
+    cost_rollouts_device[global_idx + num_rollouts * threadIdx.z] = running_cost + costs->terminalCost(x_thread);
   }
 }
 
