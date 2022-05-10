@@ -6,25 +6,30 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
           class PARAMS_T>
 void CONTROLLER::deallocateCUDAMemory()
 {
-  cudaFree(control_d_);
-  cudaFree(state_d_);
-  cudaFree(trajectory_costs_d_);
-  cudaFree(control_std_dev_d_);
-  cudaFree(control_noise_d_);
-  cudaFree(cost_baseline_and_norm_d_);
+  HANDLE_ERROR(cudaFree(control_d_));
+  HANDLE_ERROR(cudaFree(state_d_));
+  HANDLE_ERROR(cudaFree(trajectory_costs_d_));
+  HANDLE_ERROR(cudaFree(control_std_dev_d_));
+  HANDLE_ERROR(cudaFree(control_noise_d_));
+  HANDLE_ERROR(cudaFree(cost_baseline_and_norm_d_));
   if (sampled_states_CUDA_mem_init_)
   {
-    cudaFree(sampled_states_d_);
-    cudaFree(sampled_noise_d_);
-    cudaFree(sampled_costs_d_);
+    HANDLE_ERROR(cudaFree(sampled_states_d_));
+    HANDLE_ERROR(cudaFree(sampled_noise_d_));
+    HANDLE_ERROR(cudaFree(sampled_costs_d_));
     sampled_states_CUDA_mem_init_ = false;
   }
+  CUDA_mem_init_ = false;
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
           class PARAMS_T>
 void CONTROLLER::copyControlStdDevToDevice(bool synchronize)
 {
+  if (!CUDA_mem_init_)
+  {
+    return;
+  }
   HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, params_.control_std_dev_.data(),
                                sizeof(float) * params_.control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
   if (synchronize)
@@ -37,6 +42,10 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
           class PARAMS_T>
 void CONTROLLER::copyNominalControlToDevice(bool synchronize)
 {
+  if (!CUDA_mem_init_)
+  {
+    return;
+  }
   HANDLE_ERROR(
       cudaMemcpyAsync(control_d_, control_.data(), sizeof(float) * control_.size(), cudaMemcpyHostToDevice, stream_));
   if (synchronize)
@@ -148,7 +157,7 @@ void CONTROLLER::copyTopControlFromDevice(bool synchronize)
   top_n_costs_.resize(num_top_control_trajectories_);
   for (int i = 0; i < num_top_control_trajectories_; i++)
   {
-    top_n_costs_[i] = trajectory_costs_[samples[i]] / normalizer_;
+    top_n_costs_[i] = trajectory_costs_[samples[i]] / getNormalizerCost();
     HANDLE_ERROR(cudaMemcpyAsync(
         this->sampled_noise_d_ + (start_top_control_traj_index + i) * getNumTimesteps() * DYN_T::CONTROL_DIM,
         this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
@@ -212,6 +221,7 @@ void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size, bool allocate_double
                                                          (allocate_double_noise ? nominal_size : 1)));
   HANDLE_ERROR(cudaMalloc((void**)&cost_baseline_and_norm_d_, sizeof(float2) * nominal_size));
   cost_baseline_and_norm_.resize(nominal_size, make_float2(0.0, 0.0));
+  CUDA_mem_init_ = true;
 }
 
 #undef CONTROLLER

@@ -714,7 +714,7 @@ void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_ne
 }
 
 template <class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
-void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float2* baseline_and_normalizer_d,
+void launchweightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float2* baseline_and_normalizer_d,
                                    int num_timesteps, cudaStream_t stream, bool synchronize)
 {
   dim3 dimBlock((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1, 1, 1);

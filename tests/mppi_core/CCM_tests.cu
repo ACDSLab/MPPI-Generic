@@ -104,8 +104,8 @@ public:
         this->trajectory_costs_nominal_(i) = costs_nom_CPU[i];
       }
       // Control noise should be modified to contain u + noise
-      this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
-      this->baseline_nominal_ = mppi_common::computeBaselineCost(this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+      this->setBaseline(mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS), 0);
+      this->setBaseline(mppi_common::computeBaselineCost(this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 1);
 
       // Copy data over to GPU
       HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_d_, this->trajectory_costs_.data(),
@@ -137,9 +137,9 @@ public:
 
       // In this case this->gamma = 1 / lambda
       mppi_common::launchNormExpKernel(NUM_ROLLOUTS, B_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
-                                       this->baseline_, this->stream_);
+                                       this->getBaselineCost(0), this->stream_);
       mppi_common::launchNormExpKernel(NUM_ROLLOUTS, B_X, trajectory_costs_nominal_d, 1.0 / this->getLambda(),
-                                       this->baseline_nominal_, this->stream_);
+                                       this->getBaselineCost(1), this->stream_);
 
       HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                    NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
@@ -147,27 +147,28 @@ public:
                                    NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
       HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
-      this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS);
-      this->normalizer_nominal_ = mppi_common::computeNormalizer(this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+      this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS), 0);
+      this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 1);
 
       // Compute real free energy
       mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
                                      this->free_energy_statistics_.real_sys.freeEnergyVariance,
                                      this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                     this->trajectory_costs_.data(), NUM_ROLLOUTS, this->baseline_, this->getLambda());
+                                     this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(0),
+                                     this->getLambda());
 
       // Compute Nominal State free Energy
       mppi_common::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
                                      this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
                                      this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
-                                     this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS, this->baseline_nominal_,
+                                     this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS, this->getBaselineCost(1),
                                      this->getLambda());
 
       mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, B_X>(
-          this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->normalizer_,
+          this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->getNormalizerCost(0),
           this->getNumTimesteps(), this->stream_);
       mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, B_X>(
-          trajectory_costs_nominal_d, control_noise_nominal_d, control_nominal_d, this->normalizer_nominal_,
+          trajectory_costs_nominal_d, control_noise_nominal_d, control_nominal_d, this->getNormalizerCost(1),
           this->getNumTimesteps(), this->stream_);
       // Transfer the new control to the host
       HANDLE_ERROR(cudaMemcpyAsync(this->control_.data(), this->control_d_, sizeof(float) * single_control_traj_size,
@@ -182,12 +183,12 @@ public:
     // Ugly hack for computeDF() method
     this->propagated_feedback_state_trajectory_.col(0) = state;
 
-    this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_ / NUM_ROLLOUTS;
+    this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerCost(0) / NUM_ROLLOUTS;
     this->free_energy_statistics_.real_sys.increase =
-        this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
-    this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_ / NUM_ROLLOUTS;
+        this->getBaselineCost(0) - this->free_energy_statistics_.real_sys.previousBaseline;
+    this->free_energy_statistics_.nominal_sys.normalizerPercent = this->getNormalizerCost(1) / NUM_ROLLOUTS;
     this->free_energy_statistics_.nominal_sys.increase =
-        this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
+        this->getBaselineCost(1) - this->free_energy_statistics_.nominal_sys.previousBaseline;
   }
 
   // Ugly hack for computeDF() method

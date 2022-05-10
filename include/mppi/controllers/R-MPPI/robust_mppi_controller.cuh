@@ -195,9 +195,9 @@ public:
     this->params_.optimization_stride_ = optimization_stride;
   }
 
-  void setNumCandidates(float num_cadndidate_nominal_states)
+  void setNumCandidates(int num_candidate_nominal_states)
   {
-    this->params_.num_candidate_nominal_states_ = num_cadndidate_nominal_states;
+    this->params_.num_candidate_nominal_states_ = num_candidate_nominal_states;
   }
 
   void calculateSampledStateTrajectories() override;
@@ -210,8 +210,6 @@ protected:
   int nominal_stride_ = 0;  // Stride for the chosen nominal state of the importance sampler
   int real_stride_ = 0;     // Stride for the optimal controller sliding
   bool nominal_state_init_ = false;
-  float baseline_nominal_ = 100.0;    // Cost baseline for the nominal state
-  float normalizer_nominal_ = 100.0;  // Normalizer variable for the nominal state
 
   // Free energy variables
   float nominal_free_energy_mean_ = 0;
@@ -235,7 +233,7 @@ protected:
 
   void allocateCUDAMemory();
 
-  void copyNominalControlToDevice();
+  void copyNominalControlToDevice(bool synchronize = true);
 
   void deallocateNominalStateCandidateMemory();
 

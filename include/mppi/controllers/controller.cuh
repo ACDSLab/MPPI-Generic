@@ -42,8 +42,8 @@ struct ControllerParams
   static const int TEMPLATED_CONTROL_DIM = C_DIM;
   static const int TEMPLATED_MAX_TIMESTEPS = MAX_TIMESTEPS;
   float dt_;
-  float lambda_;  // Value of the temperature in the softmax.
-  float alpha_ = 0.0;   //
+  float lambda_;       // Value of the temperature in the softmax.
+  float alpha_ = 0.0;  //
   // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
   // does not reallocate cuda memory
   int num_timesteps_ = MAX_TIMESTEPS;
@@ -94,6 +94,8 @@ public:
              const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
              cudaStream_t stream = nullptr)
   {
+    // Create the random number generator
+    createAndSeedCUDARandomNumberGen();
     model_ = model;
     cost_ = cost;
     fb_controller_ = fb_controller;
@@ -107,9 +109,6 @@ public:
     params_.init_control_traj_ = init_control_traj;
     control_ = init_control_traj;
     control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
-
-    // Create the random number generator
-    createAndSeedCUDARandomNumberGen();
 
     // Bind the model and control to the given stream
     setCUDAStream(stream);
@@ -133,12 +132,11 @@ public:
     model_ = model;
     cost_ = cost;
     fb_controller_ = fb_controller;
+    // Create the random number generator
+    createAndSeedCUDARandomNumberGen();
     setParams(params);
     control_ = params_.init_control_traj_;
     control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
-
-    // Create the random number generator
-    createAndSeedCUDARandomNumberGen();
 
     // Bind the model and control to the given stream
     setCUDAStream(stream);
@@ -381,7 +379,7 @@ public:
   // Indicator for algorithm health, should be between 0.01 and 0.1 anecdotally
   float getNormalizerPercent() const
   {
-    return this->normalizer_ / (float)NUM_ROLLOUTS;
+    return this->getNormalizerCost() / (float)NUM_ROLLOUTS;
   }
 
   /**
@@ -425,13 +423,13 @@ public:
     return params_.control_std_dev_;
   };
 
-  float getBaselineCost() const
+  float getBaselineCost(int ind = 0) const
   {
-    return baseline_;
+    return cost_baseline_and_norm_[ind].x;
   };
-  float getNormalizerCost() const
+  float getNormalizerCost(int ind = 0) const
   {
-    return normalizer_;
+    return cost_baseline_and_norm_[ind].y;
   };
 
   /**
@@ -562,6 +560,16 @@ public:
       printf("You must give a number of timesteps between [0, %d]\n", MAX_TIMESTEPS);
     }
   }
+
+  void setBaseline(float baseline, int index = 0)
+  {
+    cost_baseline_and_norm_[index].x = baseline;
+  };
+
+  void setNormalizer(float normalizer, int index = 0)
+  {
+    cost_baseline_and_norm_[index].y = normalizer;
+  };
 
   int getNumTimesteps() const
   {
@@ -729,10 +737,12 @@ public:
     bool change_seed = p.seed_ != params_.seed_;
     bool change_std_dev = p.control_std_dev_ != params_.control_std_dev_;
     params_ = p;
-    if (change_std_dev) {
+    if (change_std_dev)
+    {
       copyControlStdDevToDevice();
     }
-    if (change_seed) {
+    if (change_seed)
+    {
       setSeedCUDARandomNumberGen(params_.seed_);
     }
   }
@@ -768,8 +778,8 @@ protected:
   // Free energy variables
   MPPIFreeEnergyStatistics free_energy_statistics_;
 
-  float normalizer_;                             // Variable for the normalizing term from sampling.
-  float baseline_ = 0;                           // Baseline cost of the system.
+  // float normalizer_;                             // Variable for the normalizing term from sampling.
+  // float baseline_ = 0;                           // Baseline cost of the system.
   float perc_sampled_control_trajectories_ = 0;  // Percentage of sampled trajectories to return
   int sample_multiplier_ = 1;                    // How many nominal states we are keeping track of
   int num_top_control_trajectories_ = 0;         // Top n sampled trajectories to visualize
@@ -784,15 +794,16 @@ protected:
   // one array of this size is allocated for each state we care about,
   // so it can be the size*N for N nominal states
   // [actual, nominal]
-  float* control_d_;           // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*N
-  float* state_d_;             // Array of size DYN_T::STATE_DIM*NUM_ROLLOUTS*N
-  float* trajectory_costs_d_;  // Array of size NUM_ROLLOUTS*N
-  float* control_noise_d_;     // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS*N
-  float2* cost_baseline_and_norm_d_;     // Array of size number of systems
+  float* control_d_;                  // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*N
+  float* state_d_;                    // Array of size DYN_T::STATE_DIM*NUM_ROLLOUTS*N
+  float* trajectory_costs_d_;         // Array of size NUM_ROLLOUTS*N
+  float* control_noise_d_;            // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS*N
+  float2* cost_baseline_and_norm_d_;  // Array of size number of systems
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
-  std::vector<float2> cost_baseline_and_norm_;
+  std::vector<float2> cost_baseline_and_norm_ = { make_float2(0.0, 0.0) };
+  bool CUDA_mem_init_ = false;
 
   bool sampled_states_CUDA_mem_init_ = false;  // cudaMalloc, cudaFree boolean
   float* sampled_states_d_;                    // result of states that have been sampled from state trajectory kernel

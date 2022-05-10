@@ -50,7 +50,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
           class PARAMS_T>
 void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
 {
-  this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
+  this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
   state_array local_state = state;
   for (int i = 0; i < DYN_T::STATE_DIM; i++)
   {
@@ -122,39 +122,40 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
-    this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
+    this->setBaseline(mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS));
 
-    if (this->baseline_ > baseline_prev + 1)
+    if (this->getBaselineCost() > baseline_prev + 1)
     {
       // TODO handle printing
       if (this->debug_)
       {
         std::cout << "Previous Baseline: " << baseline_prev << std::endl;
-        std::cout << "         Baseline: " << this->baseline_ << std::endl;
+        std::cout << "         Baseline: " << this->getBaselineCost() << std::endl;
       }
     }
 
-    baseline_prev = this->baseline_;
+    baseline_prev = this->getBaselineCost();
 
     // Launch the norm exponential kernel
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
-                                     this->baseline_, this->stream_, false);
+                                     this->getBaselineCost(), this->stream_, false);
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Compute the normalizer
-    this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS);
+    this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS));
 
     mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
                                    this->free_energy_statistics_.real_sys.freeEnergyVariance,
                                    this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->baseline_, this->getLambda());
+                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(),
+                                   this->getLambda());
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
-        this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->normalizer_, this->getNumTimesteps(),
-        this->stream_, false);
+        this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->getNormalizerCost(),
+        this->getNumTimesteps(), this->stream_, false);
 
     /*
     noise = this->getSampledNoise();
@@ -178,9 +179,9 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
   }
 
-  this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_ / NUM_ROLLOUTS;
+  this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerCost() / NUM_ROLLOUTS;
   this->free_energy_statistics_.real_sys.increase =
-      this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
+      this->getBaselineCost() - this->free_energy_statistics_.real_sys.previousBaseline;
   smoothControlTrajectory();
   computeStateTrajectory(local_state);
   state_array zero_state = state_array::Zero();

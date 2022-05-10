@@ -127,12 +127,15 @@ void RobustMPPI::deallocateNominalStateCandidateMemory()
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
           class PARAMS_T, int SAMPLES_PER_CONDITION_MULTIPLIER>
-void RobustMPPI::copyNominalControlToDevice()
+void RobustMPPI::copyNominalControlToDevice(bool synchronize)
 {
   HANDLE_ERROR(cudaMemcpyAsync(this->control_d_, nominal_control_trajectory_.data(),
                                sizeof(float) * nominal_control_trajectory_.size(), cudaMemcpyHostToDevice,
                                this->stream_));
-  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  }
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
@@ -305,12 +308,12 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
                                  sizeof(int) * getNumCandidates(), cudaMemcpyHostToDevice, this->stream_));
 
     // Send the nominal control to the GPU
-    copyNominalControlToDevice();
+    copyNominalControlToDevice(false);
 
     // Generate noise for the samples
-    curandGenerateNormal(this->gen_, this->control_noise_d_,
-                         SAMPLES_PER_CONDITION * getNumCandidates() * this->getNumTimesteps() * DYN_T::CONTROL_DIM, 0.0,
-                         1.0);
+    HANDLE_CURAND_ERROR(curandGenerateNormal(
+        this->gen_, this->control_noise_d_,
+        SAMPLES_PER_CONDITION * getNumCandidates() * this->getNumTimesteps() * DYN_T::CONTROL_DIM, 0.0, 1.0));
 
     // Launch the init eval kernel
     rmppi_kernels::launchInitEvalKernel<DYN_T, COST_T, BDIM_X, BDIM_Y, SAMPLES_PER_CONDITION>(
@@ -350,8 +353,8 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
   float* control_noise_nominal_d = this->control_noise_d_ + NUM_ROLLOUTS * this->getNumTimesteps() * DYN_T::CONTROL_DIM;
   float* control_nominal_d = this->control_d_ + this->getNumTimesteps() * DYN_T::CONTROL_DIM;
 
-  this->free_energy_statistics_.real_sys.previousBaseline = this->baseline_;
-  this->free_energy_statistics_.nominal_sys.previousBaseline = this->baseline_nominal_;
+  this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost(0);
+  this->free_energy_statistics_.nominal_sys.previousBaseline = this->getBaselineCost(1);
 
   // Transfer the feedback gains to the GPU
   this->fb_controller_->copyToDevice(false);
@@ -396,14 +399,14 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Launch the norm exponential kernels for the nominal costs and the real costs
-    this->baseline_ = mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS);
-    baseline_nominal_ = mppi_common::computeBaselineCost(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+    this->setBaseline(mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS), 0);
+    this->setBaseline(mppi_common::computeBaselineCost(trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 1);
 
     // In this case this->gamma = 1 / lambda
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
-                                     this->baseline_, this->stream_, false);
+                                     this->getBaselineCost(0), this->stream_, false);
     mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, trajectory_costs_nominal_d, 1.0 / this->getLambda(),
-                                     baseline_nominal_, this->stream_, false);
+                                     this->getBaselineCost(1), this->stream_, false);
 
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
@@ -412,27 +415,28 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Launch the weighted reduction kernel for the nominal costs and the real costs
-    this->normalizer_ = mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS);
-    normalizer_nominal_ = mppi_common::computeNormalizer(trajectory_costs_nominal_.data(), NUM_ROLLOUTS);
+    this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS), 0);
+    this->setNormalizer(mppi_common::computeNormalizer(trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 1);
 
     // Compute real free energy
     mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
                                    this->free_energy_statistics_.real_sys.freeEnergyVariance,
                                    this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->baseline_, this->getLambda());
+                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(0),
+                                   this->getLambda());
 
     // Compute Nominal State free Energy
     mppi_common::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
                                    this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
                                    this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
-                                   this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS, this->baseline_nominal_,
+                                   this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS, this->getBaselineCost(1),
                                    this->getLambda());
 
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
-        this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->normalizer_, this->getNumTimesteps(),
-        this->stream_, false);
+        this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->getNormalizerCost(0),
+        this->getNumTimesteps(), this->stream_, false);
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
-        trajectory_costs_nominal_d, control_noise_nominal_d, control_nominal_d, this->normalizer_nominal_,
+        trajectory_costs_nominal_d, control_noise_nominal_d, control_nominal_d, this->getNormalizerCost(1),
         this->getNumTimesteps(), this->stream_, false);
 
     // Transfer the new control to the host
@@ -451,12 +455,12 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
   // Compute the nominal trajectory because we updated the nominal control!
   this->computeStateTrajectoryHelper(nominal_state_trajectory_, nominal_state_, nominal_control_trajectory_);
 
-  this->free_energy_statistics_.real_sys.normalizerPercent = this->normalizer_ / NUM_ROLLOUTS;
+  this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerCost(0) / NUM_ROLLOUTS;
   this->free_energy_statistics_.real_sys.increase =
-      this->baseline_ - this->free_energy_statistics_.real_sys.previousBaseline;
-  this->free_energy_statistics_.nominal_sys.normalizerPercent = this->normalizer_nominal_ / NUM_ROLLOUTS;
+      this->getBaselineCost(0) - this->free_energy_statistics_.real_sys.previousBaseline;
+  this->free_energy_statistics_.nominal_sys.normalizerPercent = this->getNormalizerCost(1) / NUM_ROLLOUTS;
   this->free_energy_statistics_.nominal_sys.increase =
-      this->baseline_nominal_ - this->free_energy_statistics_.nominal_sys.previousBaseline;
+      this->getBaselineCost(1) - this->free_energy_statistics_.nominal_sys.previousBaseline;
 
   // Copy back sampled trajectories
   this->copySampledControlFromDevice(false);

@@ -101,8 +101,6 @@ public:
   void calculateSampledStateTrajectories() override;
 
 private:
-  float normalizer_nominal_;      // Variable for the normalizing term from sampling.
-  float baseline_nominal_;        // Baseline cost of the system.
   float nominal_threshold_ = 20;  // How much worse the actual system has to be compared to the nominal
 
   // Free energy variables
