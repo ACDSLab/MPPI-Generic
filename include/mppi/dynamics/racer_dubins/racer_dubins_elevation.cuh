@@ -24,7 +24,8 @@ public:
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
 
-  ~RacerDubinsElevation() {
+  ~RacerDubinsElevation()
+  {
     delete tex_helper_;
   }
 
@@ -37,16 +38,16 @@ public:
   void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt);
 
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                       Eigen::Ref<state_array> state_der) {
-    RacerDubinsImpl<RacerDubinsElevation, 7>* derived = static_cast<RacerDubinsImpl<RacerDubinsElevation, 7>*>(this);
-    derived->computeDynamics(state, control, state_der);
-  }
+                       Eigen::Ref<state_array> state_der);
 
   __device__ void updateState(float* state, float* state_der, const float dt);
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
-  TwoDTextureHelper<float>* getTextureHelper() {return tex_helper_;}
+  TwoDTextureHelper<float>* getTextureHelper()
+  {
+    return tex_helper_;
+  }
 
 protected:
   TwoDTextureHelper<float>* tex_helper_ = nullptr;

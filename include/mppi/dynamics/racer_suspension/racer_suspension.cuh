@@ -14,15 +14,15 @@ struct RacerSuspensionParams
   float width = 1.5;
   float height = 1.5;
   float gravity = 9.81;
-  float k_s[4] = {14000, 14000, 14000, 14000};
-  float c_s[4] = {2000, 2000, 2000, 2000};
+  float k_s[4] = { 14000, 14000, 14000, 14000 };
+  float c_s[4] = { 2000, 2000, 2000, 2000 };
   float l_0[4] = {
-    wheel_radius + mass/4 * gravity/k_s[0],
-    wheel_radius + mass/4 * gravity/k_s[1],
-    wheel_radius + mass/4 * gravity/k_s[2],
-    wheel_radius + mass/4 * gravity/k_s[3],
+    wheel_radius + mass / 4 * gravity / k_s[0],
+    wheel_radius + mass / 4 * gravity / k_s[1],
+    wheel_radius + mass / 4 * gravity / k_s[2],
+    wheel_radius + mass / 4 * gravity / k_s[3],
   };
-  float3 cg_pos_wrt_base_link = make_float3(wheel_base/2, 0, 0.2);
+  float3 cg_pos_wrt_base_link = make_float3(wheel_base / 2, 0, 0.2);
   // float3 wheel_pos_front_left = make_float3(wheel_base, width/2, 0);
   // float3 wheel_pos_front_right = make_float3(wheel_base, -width/2, 0);
   // float3 wheel_pos_rear_left = make_float3(0, width/2, 0);
@@ -52,7 +52,6 @@ struct RacerSuspensionParams
   // steering model params
   float steering_constant = .6;
   float steer_command_angle_scale = -2.45;
-
 };
 
 using namespace MPPI_internal;
@@ -100,7 +99,8 @@ public:
     tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
   }
 
-  ~RacerSuspension() {
+  ~RacerSuspension()
+  {
     delete tex_helper_;
   }
 
@@ -121,7 +121,10 @@ public:
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
-  TwoDTextureHelper<float4>* getTextureHelper() {return tex_helper_;}
+  TwoDTextureHelper<float4>* getTextureHelper()
+  {
+    return tex_helper_;
+  }
 
   Eigen::Quaternionf get_attitude(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);

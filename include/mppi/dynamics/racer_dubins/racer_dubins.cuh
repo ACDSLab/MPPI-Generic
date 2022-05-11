@@ -13,7 +13,7 @@ struct RacerDubinsParams
   float steering_constant = .6;
   float wheel_base = 0.3;
   float steer_command_angle_scale = -2.45;
-  float gravity = 0.0;
+  float gravity = -9.81;
 };
 
 using namespace MPPI_internal;
@@ -21,7 +21,7 @@ using namespace MPPI_internal;
  * state: v, theta, p_x, p_y, true steering angle
  * control: throttle, steering angle command
  */
-template<class CLASS_T, int STATE_DIM>
+template <class CLASS_T, int STATE_DIM>
 class RacerDubinsImpl : public Dynamics<CLASS_T, RacerDubinsParams, STATE_DIM, 2>
 {
 public:
@@ -53,20 +53,22 @@ public:
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
+  void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
   Eigen::Quaternionf get_attitude(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);
-
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins, 5>
 {
 public:
   RacerDubins(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubins, 5>(stream)
-  {}
+  {
+  }
 
   RacerDubins(RacerDubinsParams& params, cudaStream_t stream = nullptr)
-  : RacerDubinsImpl<RacerDubins, 5>(params, stream)
-  {}
+    : RacerDubinsImpl<RacerDubins, 5>(params, stream)
+  {
+  }
 };
 
 #if __CUDACC__

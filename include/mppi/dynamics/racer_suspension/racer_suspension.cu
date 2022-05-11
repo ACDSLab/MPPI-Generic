@@ -93,10 +93,10 @@ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state
   Eigen::Matrix3f Rdot = R * mppi_math::skewSymmetricMatrix(omega);
 
   // linear engine model
-  float vel_x = (R.transpose() * v_I)[0]; 
+  float vel_x = (R.transpose() * v_I)[0];
   float throttle = max(0.0, control[CTRL_THROTTLE_BRAKE]);
   float brake = max(0.0, -control[CTRL_THROTTLE_BRAKE]);
-  float acc = params_.c_t * throttle - copysign(params_.c_b * brake, vel_x) - params_.c_v * vel_x +  params_.c_0;
+  float acc = params_.c_t * throttle - copysign(params_.c_b * brake, vel_x) - params_.c_v * vel_x + params_.c_0;
   float propulsion_force = params_.mass * acc;
 
   Eigen::Vector3f f_B = Eigen::Vector3f::Zero();
@@ -104,9 +104,11 @@ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state
   Eigen::Matrix3f tau_B_jac = Eigen::Matrix3f::Zero();
   Eigen::Vector3f f_r_B[4];
   // for each wheel
-  for (int i=0; i < 4; i++) {
+  for (int i = 0; i < 4; i++)
+  {
     // compute suspension from elevation map
-    Eigen::Vector3f p_w_nom_B_i = cudaToEigen(params_.wheel_pos_wrt_base_link[i]) - cudaToEigen(params_.cg_pos_wrt_base_link);
+    Eigen::Vector3f p_w_nom_B_i =
+        cudaToEigen(params_.wheel_pos_wrt_base_link[i]) - cudaToEigen(params_.cg_pos_wrt_base_link);
     Eigen::Vector3f p_w_nom_I_i = p_I + R * p_w_nom_B_i;
     float h_i = 0;
     Eigen::Vector3f n_I_i(0, 0, 1);
@@ -142,11 +144,16 @@ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state
     p_dot_c_I_i_Jac.row(1) = p_dot_w_nom_I_i_Jac.row(1);
     p_dot_c_I_i_Jac.row(2) = h_dot_i_Jac;
     float delta_i;
-    if (i == RacerSuspensionParams::WHEEL_FRONT_LEFT) {
-      delta_i = atan( params_.wheel_base * tan_delta / (params_.wheel_base - tan_delta * params_.width / 2));
-    } else if (i == RacerSuspensionParams::WHEEL_FRONT_RIGHT) {
-      delta_i = atan( params_.wheel_base * tan_delta / (params_.wheel_base + tan_delta * params_.width / 2));
-    } else { // rear wheels
+    if (i == RacerSuspensionParams::WHEEL_FRONT_LEFT)
+    {
+      delta_i = atan(params_.wheel_base * tan_delta / (params_.wheel_base - tan_delta * params_.width / 2));
+    }
+    else if (i == RacerSuspensionParams::WHEEL_FRONT_RIGHT)
+    {
+      delta_i = atan(params_.wheel_base * tan_delta / (params_.wheel_base + tan_delta * params_.width / 2));
+    }
+    else
+    {  // rear wheels
       delta_i = 0;
     }
 
@@ -229,7 +236,6 @@ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state
 
 __device__ void RacerSuspension::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
 {
-
 }
 
 Eigen::Quaternionf RacerSuspension::get_attitude(const Eigen::Ref<const state_array>& state)

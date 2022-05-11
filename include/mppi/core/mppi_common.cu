@@ -224,16 +224,46 @@ __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* cos
  *******************************************************************************************************************/
 float computeBaselineCost(float* cost_rollouts_host, int num_rollouts)
 {  // TODO if we use standard containers in MPPI, should this be replaced with a min algorithm?
-  float baseline = cost_rollouts_host[0];
-  // Find the minimum cost trajectory
-  for (int i = 0; i < num_rollouts; ++i)
+  int best_idx = computeBestIndex(cost_rollouts_host, num_rollouts);
+  return cost_rollouts_host[best_idx];
+}
+
+float constructBestWeights(float* cost_rollouts_host, int num_rollouts)
+{
+  int best_idx = computeBestIndex(cost_rollouts_host, num_rollouts);
+  float best_cost = cost_rollouts_host[best_idx];
+
+  for (int i = 0; i < num_rollouts; i++)
   {
-    if (cost_rollouts_host[i] < baseline)
+    if (i == best_idx)
     {
-      baseline = cost_rollouts_host[i];
+      cost_rollouts_host[i] = 1.0;
+    }
+    else
+    {
+      cost_rollouts_host[i] = 0.0;
     }
   }
-  return baseline;
+
+  // printf("Best idx: %d, cost: %f\n", best_cost_idx, best_cost);
+  return best_cost;
+}
+
+int computeBestIndex(float* cost_rollouts_host, int num_rollouts)
+{
+  float best_cost = cost_rollouts_host[0];
+  int best_cost_idx = 0;
+  for (int i = 0; i < num_rollouts; i++)
+  {
+    if (cost_rollouts_host[i] < best_cost)
+    {
+      best_cost = cost_rollouts_host[i];
+      best_cost_idx = i;
+    }
+  }
+
+  // printf("Best idx: %d, cost: %f\n", best_cost_idx, best_cost);
+  return best_cost_idx;
 }
 
 float computeNormalizer(float* cost_rollouts_host, int num_rollouts)
