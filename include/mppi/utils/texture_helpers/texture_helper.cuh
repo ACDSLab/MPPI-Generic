@@ -56,6 +56,7 @@ class TextureHelper : public Managed
 {
 protected:
   TextureHelper(int number, cudaStream_t stream = 0);
+
 public:
   virtual ~TextureHelper();
 
@@ -134,14 +135,15 @@ public:
     return cpu_buffer_values_;
   }
 
-  void updateDataAtIndex(int index) {
+  void updateDataAtIndex(int index)
+  {
     this->textures_buffer_[index].update_data = true;
   }
 
   TEX_T* ptr_d_ = nullptr;
 
 protected:
-  //std::mutex buffer_lck_;
+  // std::mutex buffer_lck_;
 
   // stores the values we actually use
   std::vector<TextureParams<DATA_T>> textures_;

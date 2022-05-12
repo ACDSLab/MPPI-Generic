@@ -36,7 +36,7 @@ void CONTROLLER::copyNominalControlToDevice()
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
-void CONTROLLER::copySampledControlFromDevice()
+void CONTROLLER::copySampledControlFromDevice(bool synchronize)
 {
   // if mem is not inited don't use it
   if (!sampled_states_CUDA_mem_init_)
@@ -70,7 +70,81 @@ void CONTROLLER::copySampledControlFromDevice()
                                  sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
                                  this->vis_stream_));
   }
-  HANDLE_ERROR(cudaStreamSynchronize(this->vis_stream_));
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(this->vis_stream_));
+  }
+}
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+std::pair<int, float> CONTROLLER::findMinIndexAndValue(std::vector<int>& temp_list)
+{
+  if (temp_list.size() == 0)
+  {
+    return std::make_pair(0, 0.0);
+  }
+  int min_sample_index = 0;
+  float min_sample_value = this->trajectory_costs_[temp_list[min_sample_index]];
+
+  for (int index = 1; index < temp_list.size(); index++)
+  {
+    if (this->trajectory_costs_[temp_list[index]] < min_sample_value)
+    {
+      min_sample_value = this->trajectory_costs_[temp_list[index]];
+      min_sample_index = index;
+    }
+  }
+  return std::make_pair(min_sample_index, min_sample_value);
+}
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>
+void CONTROLLER::copyTopControlFromDevice(bool synchronize)
+{
+  // if mem is not inited don't use it
+  if (!sampled_states_CUDA_mem_init_ || num_top_control_trajectories_ <= 0)
+  {
+    return;
+  }
+
+  // Important note: Highest weighted trajectories are the ones with the lowest cost
+  int start_top_control_traj_index = perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
+  std::vector<int> samples(num_top_control_trajectories_);
+  // Start by filling in the top samples list with the first n in the trajectory
+  for (int i = 0; i < num_top_control_trajectories_; i++)
+  {
+    samples[i] = i;
+  }
+
+  // Calculate min weight in the current top samples list
+  int min_sample_index = 0;
+  float min_sample_value = 0;
+  std::tie(min_sample_index, min_sample_value) = findMinIndexAndValue(samples);
+
+  // find top n samples by removing the smallest weights from the list
+  for (int i = num_top_control_trajectories_; i < NUM_ROLLOUTS; i++)
+  {
+    if (trajectory_costs_[i] > min_sample_value)
+    {  // Remove the smallest weight in the current list and add the new index
+      samples[min_sample_index] = i;
+      // recalculate min weight in the current list
+      std::tie(min_sample_index, min_sample_value) = findMinIndexAndValue(samples);
+    }
+  }
+
+  // Copy top n samples to this->sampled_noise_d_ after the randomly sampled trajectories
+  top_n_costs_.resize(num_top_control_trajectories_);
+  for (int i = 0; i < num_top_control_trajectories_; i++)
+  {
+    top_n_costs_[i] = trajectory_costs_[samples[i]] / normalizer_;
+    HANDLE_ERROR(cudaMemcpyAsync(
+        this->sampled_noise_d_ + (start_top_control_traj_index + i) * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+        this->control_noise_d_ + samples[i] * this->num_timesteps_ * DYN_T::CONTROL_DIM,
+        sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice, this->vis_stream_));
+  }
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(this->vis_stream_));
+  }
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y>

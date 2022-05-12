@@ -24,7 +24,8 @@ public:
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
 
-  ~RacerDubinsElevation() {
+  ~RacerDubinsElevation()
+  {
     delete tex_helper_;
   }
 
@@ -43,7 +44,10 @@ public:
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
-  TwoDTextureHelper<float>* getTextureHelper() {return tex_helper_;}
+  TwoDTextureHelper<float>* getTextureHelper()
+  {
+    return tex_helper_;
+  }
 
 protected:
   TwoDTextureHelper<float>* tex_helper_ = nullptr;
