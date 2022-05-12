@@ -6,6 +6,7 @@
 #define MATH_UTILS_H_
 
 // Needed for sampling without replacement
+#include <chrono>
 #include <unordered_set>
 #include <random>
 #include <vector>
@@ -18,7 +19,9 @@
 #define SQ(a) a* a
 #endif  // SQ
 
-namespace mppi_math
+namespace mppi
+{
+namespace math
 {
 const float GRAVITY = 9.81;
 // Based off of https://gormanalysis.com/blog/random-numbers-in-cpp
@@ -245,6 +248,13 @@ static Eigen::Matrix3f skewSymmetricMatrix(Eigen::Vector3f& v)
   return m;
 }
 
-}  // namespace mppi_math
+inline __host__ double timeDiffms(const std::chrono::steady_clock::time_point& end,
+                                  const std::chrono::steady_clock::time_point& start)
+{
+  return (end - start).count() / 1e6;
+}
+
+}  // namespace math
+}  // namespace mppi
 
 #endif  // MATH_UTILS_H_

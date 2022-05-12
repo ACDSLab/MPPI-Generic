@@ -19,13 +19,13 @@ Header file for dynamics
 
 // helpful macros to use the enum setup
 #ifndef S_INDEX
-#define S_IND_CLASS(class, enum_val) static_cast<int>(class::StateIndex::enum_val)
+#define S_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::StateIndex::enum_val)
 #define S_IND(param, enum_val) S_IND_CLASS(decltype(param), enum_val)
 #define S_INDEX(enum_val) S_IND(this->params_, enum_val)
 #endif
 
 #ifndef C_INDEX
-#define C_IND_CLASS(class, enum_val) static_cast<int>(class::ControlIndex::enum_val)
+#define C_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::ControlIndex::enum_val)
 #define C_IND(param, enum_val) C_IND_CLASS(decltype(param), enum_val)
 #define C_INDEX(enum_val) C_IND(this->params_, enum_val)
 #endif

@@ -235,7 +235,7 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
   CONTROLLER::control_trajectory init_control = CONTROLLER::control_trajectory::Zero();
   for (int i = 0; i < num_timesteps; i++)
   {
-    init_control(3, i) = mppi_math::GRAVITY;
+    init_control(3, i) = mppi::math::GRAVITY;
   }
 
   auto controller = CONTROLLER(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_std_dev,

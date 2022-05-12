@@ -75,7 +75,7 @@ void CONTROLLER::copySampledControlFromDevice(bool synchronize)
   {
     // Create sample list without replacement
     // removes the top 2% since top 1% are complete noise
-    samples = mppi_math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS * 0.98);
+    samples = mppi::math::sample_without_replacement(num_sampled_trajectories, NUM_ROLLOUTS * 0.98);
   }
 
   // this explicitly adds the optimized control sequence

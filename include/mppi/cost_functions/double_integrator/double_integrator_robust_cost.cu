@@ -13,20 +13,20 @@ __device__ float DoubleIntegratorRobustCost::computeStateCost(float* s, int time
   float current_angular_momentum = s[0] * s[3] - s[1] * s[2];
 
   float cost = 0;
-  float normalized_dist_from_center = mppi_math::normDistFromCenter(
+  float normalized_dist_from_center = mppi::math::normDistFromCenter(
       sqrt(radial_position), sqrt(params_.inner_path_radius2), sqrt(params_.outer_path_radius2));
   float steep_percent_boundary = 0.5;
   float steep_cost = 0.5 * params_.crash_cost;  // 10 percent of crash cost
   // Shallow cost region
   if (normalized_dist_from_center <= steep_percent_boundary)
   {
-    cost += mppi_math::linInterp(normalized_dist_from_center, 0, steep_percent_boundary, 0, steep_cost);
+    cost += mppi::math::linInterp(normalized_dist_from_center, 0, steep_percent_boundary, 0, steep_cost);
   }
   // Steep cost region
   if (normalized_dist_from_center > steep_percent_boundary && normalized_dist_from_center <= 1.0)
   {
     cost +=
-        mppi_math::linInterp(normalized_dist_from_center, steep_percent_boundary, 1, steep_cost, params_.crash_cost);
+        mppi::math::linInterp(normalized_dist_from_center, steep_percent_boundary, 1, steep_cost, params_.crash_cost);
   }
   // Crash Cost region
   if (normalized_dist_from_center > 1.0)
@@ -46,18 +46,18 @@ float DoubleIntegratorRobustCost::computeStateCost(const Eigen::Ref<const state_
   float current_angular_momentum = s[0] * s[3] - s[1] * s[2];
 
   float cost = 0;
-  float normalized_dist_from_center = mppi_math::normDistFromCenter(
+  float normalized_dist_from_center = mppi::math::normDistFromCenter(
       sqrt(radial_position), sqrt(params_.inner_path_radius2), sqrt(params_.outer_path_radius2));
   float steep_percent_boundary = 0.75;
   float steep_cost = 0.1 * params_.crash_cost;
   if (normalized_dist_from_center <= steep_percent_boundary)
   {
-    cost += mppi_math::linInterp(normalized_dist_from_center, 0, steep_percent_boundary, 0, steep_cost);
+    cost += mppi::math::linInterp(normalized_dist_from_center, 0, steep_percent_boundary, 0, steep_cost);
   }
   else if (normalized_dist_from_center > steep_percent_boundary && normalized_dist_from_center <= 1.0)
   {
     cost +=
-        mppi_math::linInterp(normalized_dist_from_center, steep_percent_boundary, 1, steep_cost, params_.crash_cost);
+        mppi::math::linInterp(normalized_dist_from_center, steep_percent_boundary, 1, steep_cost, params_.crash_cost);
   }
   else
   {
