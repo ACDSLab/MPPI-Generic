@@ -12,22 +12,24 @@
 
 #include <vector>
 
-template <int C_DIM, int MAX_TIMESTEPS>
-struct ColoredMPPIParams : public ControllerParams<C_DIM, MAX_TIMESTEPS>
+template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
+struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 {
   std::vector<float> colored_noise_exponents_;
-  ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>() = default;
-  ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>(const ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>& other)
+  float state_leash_dist_[S_DIM] = { 0 };
+
+  ColoredMPPIParams() = default;
+  ColoredMPPIParams(const ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)
   {
-    typedef ControllerParams<C_DIM, MAX_TIMESTEPS> BASE;
+    typedef ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS> BASE;
     const BASE& other_item_ref = other;
     *(static_cast<BASE*>(this)) = other_item_ref;
     this->colored_noise_exponents_ = other.colored_noise_exponents_;
   }
 
-  ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>(ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>& other)
+  ColoredMPPIParams(ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)
   {
-    typedef ControllerParams<C_DIM, MAX_TIMESTEPS> BASE;
+    typedef ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS> BASE;
     BASE& other_item_ref = other;
     *(static_cast<BASE*>(this)) = other_item_ref;
     this->colored_noise_exponents_ = other.colored_noise_exponents_;
@@ -35,7 +37,7 @@ struct ColoredMPPIParams : public ControllerParams<C_DIM, MAX_TIMESTEPS>
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T = ColoredMPPIParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
+          class PARAMS_T = ColoredMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class ColoredMPPIController
   : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
 {
@@ -106,12 +108,12 @@ public:
 
   void setStateLeashLength(float new_state_leash, int index = 0)
   {
-    state_leash_dist_[index] = new_state_leash;
+    this->params_.state_leash_dist_[index] = new_state_leash;
   }
 
   float getStateLeashLength(int index)
   {
-    return state_leash_dist_[index];
+    return this->params_.state_leash_dist_[index];
   }
 
   void calculateSampledStateTrajectories() override;
@@ -125,7 +127,6 @@ protected:
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
 
   void smoothControlTrajectory();
-  float state_leash_dist_[DYN_T::STATE_DIM] = { 0 };
   int leash_jump_ = 1;
 
 private:

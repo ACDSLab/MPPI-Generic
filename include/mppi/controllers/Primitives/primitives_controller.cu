@@ -32,9 +32,16 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
 {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
-  std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  getColoredNoiseExponentsLValue() = std::move(tmp_vec);
-  getScalePiecewiseNoiseLValue() = std::move(tmp_vec);
+  if (this->getColoredNoiseExponentsLValue().size() == 0)
+  {
+    std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
+    getColoredNoiseExponentsLValue() = std::move(tmp_vec);
+  }
+  if (this->getScalePiecewiseNoiseLValue().size() == 0)
+  {
+    std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
+    getScalePiecewiseNoiseLValue() = std::move(tmp_vec);
+  }
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();

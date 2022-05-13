@@ -16,23 +16,22 @@
 
 #include <vector>
 
-template <int C_DIM, int S_DIM, int MAX_TIMESTEPS>
-struct PrimitivesParams : public ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>
+template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
+struct PrimitivesParams : public ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 {
   int num_primitive_iters_;
   int num_piecewise_segments_ = 5;
   std::vector<float> scale_piecewise_noise_;
   std::vector<float> frac_add_nominal_traj_;
   std::vector<float> scale_add_nominal_noise_;
-  float state_leash_dist_[S_DIM] = { 0 };
   float stopping_cost_threshold_ = 1.0e8;
   float hysteresis_cost_threshold_ = 0.0;
   bool visualize_primitives_ = false;
 
-  PrimitivesParams<C_DIM, S_DIM, MAX_TIMESTEPS>() = default;
-  PrimitivesParams<C_DIM, S_DIM, MAX_TIMESTEPS>(const PrimitivesParams<C_DIM, S_DIM, MAX_TIMESTEPS>& other)
+  PrimitivesParams<S_DIM, C_DIM, MAX_TIMESTEPS>() = default;
+  PrimitivesParams<S_DIM, C_DIM, MAX_TIMESTEPS>(const PrimitivesParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)
   {
-    typedef ColoredMPPIParams<C_DIM, MAX_TIMESTEPS> BASE;
+    typedef ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS> BASE;
     const BASE& other_item_ref = other;
     *(static_cast<BASE*>(this)) = other_item_ref;
     this->scale_piecewise_noise_ = other.scale_piecewise_noise_;
@@ -40,9 +39,9 @@ struct PrimitivesParams : public ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>
     this->scale_add_nominal_noise_ = other.scale_add_nominal_noise_;
   }
 
-  PrimitivesParams<C_DIM, S_DIM, MAX_TIMESTEPS>(PrimitivesParams<C_DIM, S_DIM, MAX_TIMESTEPS>& other)
+  PrimitivesParams<S_DIM, C_DIM, MAX_TIMESTEPS>(PrimitivesParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)
   {
-    typedef ColoredMPPIParams<C_DIM, MAX_TIMESTEPS> BASE;
+    typedef ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS> BASE;
     BASE& other_item_ref = other;
     *(static_cast<BASE*>(this)) = other_item_ref;
     this->scale_piecewise_noise_ = other.scale_piecewise_noise_;
@@ -52,7 +51,7 @@ struct PrimitivesParams : public ColoredMPPIParams<C_DIM, MAX_TIMESTEPS>
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T = PrimitivesParams<DYN_T::CONTROL_DIM, DYN_T::STATE_DIM, MAX_TIMESTEPS>>
+          class PARAMS_T = PrimitivesParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class PrimitivesController
   : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
 {

@@ -598,9 +598,10 @@ TEST(RMPPITest, RobustMPPILargeVariance)
   //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
   // Initialize the R MPPI controller
-  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, 64, 8,
-                                         RobustMPPIParams<DYNAMICS::CONTROL_DIM, num_timesteps>, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
+  auto controller =
+      RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, 64, 8,
+                           RobustMPPIParams<DYNAMICS::STATE_DIM, DYNAMICS::CONTROL_DIM, num_timesteps>, 1>(
+          &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
 
   int fail_count = 0;
 
@@ -752,9 +753,10 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost)
   //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
   // Initialize the R MPPI controller
-  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, 64, 8,
-                                         RobustMPPIParams<DYNAMICS::CONTROL_DIM, num_timesteps>, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
+  auto controller =
+      RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, 64, 8,
+                           RobustMPPIParams<DYNAMICS::STATE_DIM, DYNAMICS::CONTROL_DIM, num_timesteps>, 1>(
+          &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
 
   int fail_count = 0;
 

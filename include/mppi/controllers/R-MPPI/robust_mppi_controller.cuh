@@ -41,8 +41,8 @@
 // Needed for list of candidate states
 #include <mppi/ddp/util.h>
 
-template <int C_DIM, int MAX_TIMESTEPS>
-struct RobustMPPIParams : public ControllerParams<C_DIM, MAX_TIMESTEPS>
+template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
+struct RobustMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 {
   float value_function_threshold_ = 1000.0;
   int optimization_stride_ = 1;
@@ -50,7 +50,7 @@ struct RobustMPPIParams : public ControllerParams<C_DIM, MAX_TIMESTEPS>
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560, int BDIM_X = 64,
-          int BDIM_Y = 1, class PARAMS_T = RobustMPPIParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>,
+          int BDIM_Y = 1, class PARAMS_T = RobustMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>,
           int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
 class RobustMPPIController
   : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>

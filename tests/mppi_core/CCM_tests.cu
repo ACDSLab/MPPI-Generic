@@ -17,7 +17,7 @@ template <class DYN_T = DoubleIntegratorDynamics, class COST_T = DoubleIntegrato
           int S = 1>
 class RMPPICCMDoubleIntegratorController
   : public RobustMPPIController<DYN_T, COST_T, ccm::LinearCCM<DYN_T, MAX_TIMESTEPS>, MAX_TIMESTEPS, NUM_ROLLOUTS, B_X,
-                                B_Y, RobustMPPIParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>, S>
+                                B_Y, RobustMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>, S>
 {
 protected:
   std::mt19937 rng_gen_;
@@ -26,7 +26,7 @@ protected:
 
 public:
   typedef RobustMPPIController<DYN_T, COST_T, ccm::LinearCCM<DYN_T, MAX_TIMESTEPS>, MAX_TIMESTEPS, NUM_ROLLOUTS, B_X,
-                               B_Y, RobustMPPIParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>, S>
+                               B_Y, RobustMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>, S>
       PARENT_CLASS;
 
   using control_array = typename PARENT_CLASS::control_array;

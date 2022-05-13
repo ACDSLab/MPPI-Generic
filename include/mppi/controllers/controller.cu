@@ -224,4 +224,51 @@ void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size, bool allocate_double
   CUDA_mem_init_ = true;
 }
 
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
+void CONTROLLER::resizeSampledControlTrajectories(float perc, int multiplier, int top_num)
+{
+  int num_sampled_trajectories = perc * NUM_ROLLOUTS + top_num;
+
+  if (sampled_states_CUDA_mem_init_)
+  {
+    cudaFree(sampled_states_d_);
+    cudaFree(sampled_noise_d_);
+    cudaFree(sampled_costs_d_);
+    cudaFree(sampled_crash_status_d_);
+    sampled_states_CUDA_mem_init_ = false;
+  }
+  sampled_trajectories_.resize(num_sampled_trajectories * multiplier, state_trajectory::Zero());
+  sampled_costs_.resize(num_sampled_trajectories * multiplier, cost_trajectory::Zero());
+  sampled_crash_status_.resize(num_sampled_trajectories * multiplier, crash_status_trajectory::Zero());
+  if (num_sampled_trajectories <= 0)
+  {
+    return;
+  }
+
+  HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
+                          sizeof(float) * DYN_T::STATE_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
+  HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_,
+                          sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
+  // +1 for terminal cost
+  HANDLE_ERROR(cudaMalloc((void**)&sampled_costs_d_,
+                          sizeof(float) * (MAX_TIMESTEPS + 1) * num_sampled_trajectories * multiplier));
+  HANDLE_ERROR(cudaMalloc((void**)&sampled_crash_status_d_,
+                          sizeof(int) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
+  sampled_states_CUDA_mem_init_ = true;
+}
+
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          class PARAMS_T>
+std::vector<float> CONTROLLER::getSampledNoise()
+{
+  std::vector<float> vector = std::vector<float>(NUM_ROLLOUTS * getNumTimesteps() * DYN_T::CONTROL_DIM, FLT_MIN);
+
+  HANDLE_ERROR(cudaMemcpyAsync(vector.data(), control_noise_d_,
+                               sizeof(float) * NUM_ROLLOUTS * getNumTimesteps() * DYN_T::CONTROL_DIM,
+                               cudaMemcpyDeviceToHost, stream_));
+  HANDLE_ERROR(cudaStreamSynchronize(stream_));
+  return vector;
+}
+
 #undef CONTROLLER

@@ -36,9 +36,10 @@ struct MPPIFreeEnergyStatistics
   freeEnergyEstimate real_sys;
 };
 
-template <int C_DIM, int MAX_TIMESTEPS>
+template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
 struct ControllerParams
 {
+  static const int TEMPLATED_STATE_DIM = S_DIM;
   static const int TEMPLATED_CONTROL_DIM = C_DIM;
   static const int TEMPLATED_MAX_TIMESTEPS = MAX_TIMESTEPS;
   float dt_;
@@ -55,7 +56,7 @@ struct ControllerParams
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T = ControllerParams<DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
+          class PARAMS_T = ControllerParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class Controller
 {
 public:
@@ -624,37 +625,7 @@ public:
                                      num_top_control_trajectories_);
   }
 
-  void resizeSampledControlTrajectories(float perc, int multiplier, int top_num)
-  {
-    int num_sampled_trajectories = perc * NUM_ROLLOUTS + top_num;
-
-    if (sampled_states_CUDA_mem_init_)
-    {
-      cudaFree(sampled_states_d_);
-      cudaFree(sampled_noise_d_);
-      cudaFree(sampled_costs_d_);
-      cudaFree(sampled_crash_status_d_);
-      sampled_states_CUDA_mem_init_ = false;
-    }
-    sampled_trajectories_.resize(num_sampled_trajectories * multiplier, state_trajectory::Zero());
-    sampled_costs_.resize(num_sampled_trajectories * multiplier, cost_trajectory::Zero());
-    sampled_crash_status_.resize(num_sampled_trajectories * multiplier, crash_status_trajectory::Zero());
-    if (num_sampled_trajectories <= 0)
-    {
-      return;
-    }
-
-    HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
-                            sizeof(float) * DYN_T::STATE_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
-    HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_, sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS *
-                                                           num_sampled_trajectories * multiplier));
-    // +1 for terminal cost
-    HANDLE_ERROR(cudaMalloc((void**)&sampled_costs_d_,
-                            sizeof(float) * (MAX_TIMESTEPS + 1) * num_sampled_trajectories * multiplier));
-    HANDLE_ERROR(cudaMalloc((void**)&sampled_crash_status_d_,
-                            sizeof(int) * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
-    sampled_states_CUDA_mem_init_ = true;
-  }
+  void resizeSampledControlTrajectories(float perc, int multiplier, int top_num);
 
   int getNumberSampledTrajectories() const
   {
@@ -679,16 +650,7 @@ public:
     return free_energy_statistics_;
   }
 
-  std::vector<float> getSampledNoise()
-  {
-    std::vector<float> vector = std::vector<float>(NUM_ROLLOUTS * getNumTimesteps() * DYN_T::CONTROL_DIM, FLT_MIN);
-
-    HANDLE_ERROR(cudaMemcpyAsync(vector.data(), control_noise_d_,
-                                 sizeof(float) * NUM_ROLLOUTS * getNumTimesteps() * DYN_T::CONTROL_DIM,
-                                 cudaMemcpyDeviceToHost, stream_));
-    HANDLE_ERROR(cudaStreamSynchronize(stream_));
-    return vector;
-  }
+  std::vector<float> getSampledNoise();
 
   /**
    * Public data members

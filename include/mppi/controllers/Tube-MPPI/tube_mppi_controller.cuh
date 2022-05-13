@@ -13,14 +13,14 @@
 #include <memory>
 #include <iostream>
 
-template <int C_DIM, int MAX_TIMESTEPS>
-struct TubeMPPIParams : public ControllerParams<C_DIM, MAX_TIMESTEPS>
+template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
+struct TubeMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 {
   float nominal_threshold_ = 20;  // How much worse the actual system has to be compared to the nominal
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T = TubeMPPIParams<COST_T::CONTROL_DIM, MAX_TIMESTEPS>>
+          class PARAMS_T = TubeMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class TubeMPPIController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
 {
 public:

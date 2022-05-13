@@ -32,8 +32,11 @@ ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
 {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
-  std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  getColoredNoiseExponentsLValue() = std::move(tmp_vec);
+  if (this->getColoredNoiseExponentsLValue().size() == 0)
+  {
+    std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
+    getColoredNoiseExponentsLValue() = std::move(tmp_vec);
+  }
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
@@ -55,7 +58,7 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
   for (int i = 0; i < DYN_T::STATE_DIM; i++)
   {
     float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
-    if (state_leash_dist_[i] < diff)
+    if (getStateLeashLength(i) < diff)
     {
       local_state[i] = state[i];
     }
