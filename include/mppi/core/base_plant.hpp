@@ -302,19 +302,19 @@ public:
     return has_new_controller_params_;
   };
 
-  virtual DYN_PARAMS_T getNewDynamicsParams()
+  virtual DYN_PARAMS_T getNewDynamicsParams(bool set_flag = false)
   {
-    has_new_dynamics_params_ = false;
+    has_new_dynamics_params_ = set_flag;
     return dynamics_params_;
   }
-  virtual COST_PARAMS_T getNewCostParams()
+  virtual COST_PARAMS_T getNewCostParams(bool set_flag = false)
   {
-    has_new_cost_params_ = false;
+    has_new_cost_params_ = set_flag;
     return cost_params_;
   }
-  virtual CONTROLLER_PARAMS_T getNewControllerParams()
+  virtual CONTROLLER_PARAMS_T getNewControllerParams(bool set_flag = false)
   {
-    has_new_controller_params_ = false;
+    has_new_controller_params_ = set_flag;
     return controller_params_;
   }
 
