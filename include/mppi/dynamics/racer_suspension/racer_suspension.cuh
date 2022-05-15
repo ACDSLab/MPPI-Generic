@@ -89,7 +89,7 @@ public:
   static const int CTRL_STEER_CMD = 1;
   static const int TEXTURE_ELEVATION_MAP = 0;
 
-  RacerSuspension(cudaStream_t stream) : Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>(stream)
+  RacerSuspension(cudaStream_t stream=nullptr) : Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
   }
@@ -128,6 +128,9 @@ public:
 
   Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f velocityFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
+  state_array stateFromOdometry(const Eigen::Quaternionf &q_B_to_I, const Eigen::Vector3f &pos_base_link_I, const Eigen::Vector3f &vel_base_link_B, const Eigen::Vector3f &omega_B);
 
 protected:
   TwoDTextureHelper<float4>* tex_helper_ = nullptr;

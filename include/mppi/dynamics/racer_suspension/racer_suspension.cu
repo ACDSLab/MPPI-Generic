@@ -251,7 +251,44 @@ Eigen::Quaternionf RacerSuspension::attitudeFromState(const Eigen::Ref<const sta
 
 Eigen::Vector3f RacerSuspension::positionFromState(const Eigen::Ref<const state_array>& state)
 {
-  Eigen::Vector3f p_COM(state[STATE_PX], state[STATE_PY], state[STATE_PZ]);
+  Eigen::Vector3f p_COM = state.segment(STATE_P, 3);
   Eigen::Quaternionf q = attitudeFromState(state);
   return p_COM - q * cudaToEigen(params_.cg_pos_wrt_base_link);
+}
+
+Eigen::Vector3f RacerSuspension::velocityFromState(const Eigen::Ref<const state_array>& state)
+{
+  Eigen::Vector3f COM_v_I = state.segment(STATE_V, 3);
+  Eigen::Quaternionf q_B_to_I = attitudeFromState(state);
+  Eigen::Vector3f COM_v_B = q_B_to_I.conjugate() * COM_v_I;
+  Eigen::Vector3f omega = state.segment(STATE_OMEGA, 3);
+  Eigen::Vector3f p_base_link_in_B = -cudaToEigen(params_.cg_pos_wrt_base_link);
+  Eigen::Vector3f base_link_v_B = COM_v_B + omega.cross(p_base_link_in_B);
+  return base_link_v_B;
+}
+
+Eigen::Vector3f RacerSuspension::angularRateFromState(const Eigen::Ref<const state_array>& state)
+{
+  return state.segment(STATE_OMEGA, 3);
+}
+
+RacerSuspension::state_array RacerSuspension::stateFromOdometry(const Eigen::Quaternionf& q_B_to_I,
+                                                                const Eigen::Vector3f& pos_base_link_I,
+                                                                const Eigen::Vector3f& vel_base_link_B,
+                                                                const Eigen::Vector3f& omega_B)
+{
+  state_array s;
+  s.setZero();
+  s[STATE_QW] = q_B_to_I.w();
+  s[STATE_QX] = q_B_to_I.x();
+  s[STATE_QY] = q_B_to_I.y();
+  s[STATE_QZ] = q_B_to_I.z();
+  s.segment(STATE_OMEGA, 3) = omega_B;
+  Eigen::Vector3f p_COM_wrt_base_link = cudaToEigen(params_.cg_pos_wrt_base_link);
+  Eigen::Vector3f p_I = pos_base_link_I + q_B_to_I * p_COM_wrt_base_link;
+  s.segment(STATE_P, 3) = p_I;
+  Eigen::Vector3f COM_v_B = vel_base_link_B + omega_B.cross(p_COM_wrt_base_link);
+  Eigen::Vector3f COM_v_I = q_B_to_I * COM_v_B;
+  s.segment(STATE_V, 3) = COM_v_I;
+  return s;
 }
