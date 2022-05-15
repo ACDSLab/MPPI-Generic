@@ -30,6 +30,14 @@ public:
   typedef typename Dynamics<CLASS_T, RacerDubinsParams, STATE_DIM, 2>::dfdx dfdx;
   typedef typename Dynamics<CLASS_T, RacerDubinsParams, STATE_DIM, 2>::dfdu dfdu;
 
+  static const int CTRL_THROTTLE_BRAKE = 0;
+  static const int CTRL_STEER_CMD = 1;
+  static const int STATE_V = 0;
+  static const int STATE_YAW = 1;
+  static const int STATE_PX = 2;
+  static const int STATE_PY = 3;
+  static const int STATE_STEER = 4;
+
   RacerDubinsImpl(cudaStream_t stream = nullptr) : Dynamics<CLASS_T, RacerDubinsParams, STATE_DIM, 2>(stream)
   {
   }
@@ -54,8 +62,12 @@ public:
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
   void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
-  Eigen::Quaternionf get_attitude(const Eigen::Ref<const state_array>& state);
-  Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);
+
+  Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f velocityFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
+  state_array stateFromOdometry(const Eigen::Quaternionf &q, const Eigen::Vector3f &pos, const Eigen::Vector3f &vel, const Eigen::Vector3f &omega);
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins, 5>

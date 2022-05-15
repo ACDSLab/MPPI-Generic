@@ -14,6 +14,9 @@ using namespace MPPI_internal;
 class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation, 7>
 {
 public:
+  static const int STATE_OUT_ROLL = 5;
+  static const int STATE_OUT_PITCH = 6;
+
   RacerDubinsElevation(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubinsElevation, 7>(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -48,6 +51,8 @@ public:
   {
     return tex_helper_;
   }
+
+  Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
 
 protected:
   TwoDTextureHelper<float>* tex_helper_ = nullptr;

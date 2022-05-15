@@ -230,3 +230,13 @@ __device__ void RacerDubinsElevation::computeDynamics(float* state, float* contr
   state_der[3] = state[0] * sinf(state[1]);
   state_der[4] = control[1] / this->params_.steer_command_angle_scale;
 }
+
+Eigen::Quaternionf RacerDubinsElevation::attitudeFromState(const Eigen::Ref<const state_array>& state)
+{
+  Eigen::Quaternionf q;
+  float roll = state[STATE_OUT_ROLL];
+  float pitch = state[STATE_OUT_PITCH];
+  float yaw = state[STATE_YAW];
+  mppi_math::Euler2QuatNWU(roll, pitch, yaw, q);
+  return q;
+}

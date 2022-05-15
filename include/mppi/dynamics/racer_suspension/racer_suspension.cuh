@@ -126,8 +126,8 @@ public:
     return tex_helper_;
   }
 
-  Eigen::Quaternionf get_attitude(const Eigen::Ref<const state_array>& state);
-  Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);
+  Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
 
 protected:
   TwoDTextureHelper<float4>* tex_helper_ = nullptr;

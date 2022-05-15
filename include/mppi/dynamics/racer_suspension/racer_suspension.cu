@@ -64,7 +64,7 @@ __device__ void RacerSuspension::updateState(float* state, float* state_der, con
   // TODO renormalize quaternion
 }
 
-static float stribeck_friction(float v, float mu_s, float v_slip, float& partial_mu_partial_v)
+__device__ __host__ static float stribeck_friction(float v, float mu_s, float v_slip, float& partial_mu_partial_v)
 {
     float mu = v / v_slip * mu_s;
     partial_mu_partial_v = 0;
@@ -80,9 +80,10 @@ static float stribeck_friction(float v, float mu_s, float v_slip, float& partial
     return mu;
 }
 
-void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                      const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der,
-                                      Eigen::Matrix3f* omegaJacobian)
+__device__ __host__ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state,
+                                                          const Eigen::Ref<const control_array>& control,
+                                                          Eigen::Ref<state_array> state_der,
+                                                          Eigen::Matrix3f* omegaJacobian)
 {
   Eigen::Vector3f p_I = state.segment(STATE_P, 3);
   Eigen::Vector3f v_I = state.segment(STATE_V, 3);
@@ -236,16 +237,21 @@ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state
 
 __device__ void RacerSuspension::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
 {
+  (void)theta_s;
+  Eigen::Map<state_array> state_v(state);
+  Eigen::Map<control_array> control_v(control);
+  Eigen::Map<state_array> state_der_v(state_der);
+  computeDynamics(state_v, control_v, state_der_v);
 }
 
-Eigen::Quaternionf RacerSuspension::get_attitude(const Eigen::Ref<const state_array>& state)
+Eigen::Quaternionf RacerSuspension::attitudeFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Quaternionf(state[STATE_QW], state[STATE_QX], state[STATE_QY], state[STATE_QZ]);
 }
 
-Eigen::Vector3f RacerSuspension::get_position(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f RacerSuspension::positionFromState(const Eigen::Ref<const state_array>& state)
 {
   Eigen::Vector3f p_COM(state[STATE_PX], state[STATE_PY], state[STATE_PZ]);
-  Eigen::Quaternionf q = get_attitude(state);
+  Eigen::Quaternionf q = attitudeFromState(state);
   return p_COM - q * cudaToEigen(params_.cg_pos_wrt_base_link);
 }

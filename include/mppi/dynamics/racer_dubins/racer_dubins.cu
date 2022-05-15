@@ -69,16 +69,43 @@ __device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::updateState(float* state, f
 }
 
 template <class CLASS_T, int STATE_DIM>
-Eigen::Quaternionf RacerDubinsImpl<CLASS_T, STATE_DIM>::get_attitude(const Eigen::Ref<const state_array>& state)
+Eigen::Quaternionf RacerDubinsImpl<CLASS_T, STATE_DIM>::attitudeFromState(const Eigen::Ref<const state_array>& state)
 {
-  float theta = state[1];
+  float theta = state[STATE_YAW];
   return Eigen::Quaternionf(cos(theta / 2), 0, 0, sin(theta / 2));
 }
 
 template <class CLASS_T, int STATE_DIM>
-Eigen::Vector3f RacerDubinsImpl<CLASS_T, STATE_DIM>::get_position(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f RacerDubinsImpl<CLASS_T, STATE_DIM>::positionFromState(const Eigen::Ref<const state_array>& state)
 {
-  return Eigen::Vector3f(state[2], state[3], 0);
+  return Eigen::Vector3f(state[STATE_PX], state[STATE_PY], 0);
+}
+
+template <class CLASS_T, int STATE_DIM>
+Eigen::Vector3f RacerDubinsImpl<CLASS_T, STATE_DIM>::velocityFromState(const Eigen::Ref<const state_array>& state)
+{
+  return Eigen::Vector3f(state[STATE_V], 0, 0);
+}
+
+template <class CLASS_T, int STATE_DIM>
+Eigen::Vector3f RacerDubinsImpl<CLASS_T, STATE_DIM>::angularRateFromState(const Eigen::Ref<const state_array>& state)
+{
+  return Eigen::Vector3f(0, 0, 0);  // TODO compute yaw rate from steering angle & vel
+}
+
+template <class CLASS_T, int STATE_DIM>
+RacerDubinsImpl<CLASS_T, STATE_DIM>::state_array RacerDubinsImpl<CLASS_T, STATE_DIM>::stateFromOdometry(
+    const Eigen::Quaternionf& q, const Eigen::Vector3f& pos, const Eigen::Vector3f& vel, const Eigen::Vector3f& omega)
+{
+  state_array s;
+  s.setZero();
+  s[STATE_PX] = pos[0];
+  s[STATE_PY] = pos[1];
+  s[STATE_V] = vel[0];
+  float _roll, _pitch, yaw;
+  mppi_math::Quat2EulerNWU(q, _roll, _pitch, yaw);
+  s[STATE_YAW] = yaw;
+  return s;
 }
 
 template <class CLASS_T, int STATE_DIM>
