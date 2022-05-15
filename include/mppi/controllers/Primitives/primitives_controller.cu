@@ -84,7 +84,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     // Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->dt_, this->num_timesteps_, /*optimization_stride = */ 0,
-        this->lambda_, this->alpha_, this->initial_state_d_, this->control_d_, this->control_noise_d_,
+        this->lambda_, /*alpha = */ -1.0, this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_);
 
     // Copy the costs back to the host
@@ -276,6 +276,10 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     {
       std::cerr << "Using MPPI control" << std::endl;
     }
+  }
+  else
+  {
+    std::cout << "Using primitives control" << std::endl;
   }
 
   // smoothControlTrajectory();

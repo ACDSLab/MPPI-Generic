@@ -132,6 +132,7 @@ public:
   /**
    * Computes the control cost on CPU. This is the normal control cost calculation
    * in MPPI and Tube-MPPI
+   * If alpha < 0, use non-likelihood cost, use quadratic cost instead.
    */
   float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u, const Eigen::Ref<const control_array> noise,
                                    const Eigen::Ref<const control_array> std_dev, const float lambda = 1.0,
@@ -140,7 +141,11 @@ public:
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++)
     {
-      cost += params_.control_cost_coeff[i] * u(i) * (u(i) + 2 * noise(i)) / (std_dev(i) * std_dev(i));
+      if (alpha < 0){
+        cost += params_.control_cost_coeff[i] * powf(u(i) + noise(i), 2);
+      } else {
+        cost += params_.control_cost_coeff[i] * u(i) * (u(i) + 2 * noise(i)) / (std_dev(i) * std_dev(i));
+      }
     }
     return 0.5 * lambda * (1 - alpha) * cost;
   }
@@ -199,6 +204,8 @@ public:
    * On the GPU, u = u* + noise already, so we need the following to create
    * the original cost:
    * 0.5 * lambda * (u - noise)^T \Sigma^{-1} (u + noise)
+   * 
+   * If alpha < 0, use non-likelihood cost, use quadratic cost instead.
    */
   __device__ float computeLikelihoodRatioCost(float* u, float* noise, float* std_dev, float lambda = 1.0,
                                               float alpha = 0.0)
@@ -206,7 +213,11 @@ public:
     float cost = 0;
     for (int i = 0; i < CONTROL_DIM; i++)
     {
-      cost += params_.control_cost_coeff[i] * (u[i] - noise[i]) * (u[i] + noise[i]) / (std_dev[i] * std_dev[i]);
+      if (alpha < 0){
+        cost += params_.control_cost_coeff[i] * powf(u[i], 2);
+      } else {
+        cost += params_.control_cost_coeff[i] * (u[i] - noise[i]) * (u[i] + noise[i]) / (std_dev[i] * std_dev[i]);
+      }
     }
     return 0.5 * lambda * (1 - alpha) * cost;
   }
