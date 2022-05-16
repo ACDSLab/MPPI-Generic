@@ -282,8 +282,6 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     std::cout << "Using primitives control" << std::endl;
   }
 
-  // smoothControlTrajectory();
-  computeStateTrajectory(local_state);
   state_array zero_state = state_array::Zero();
   for (int i = 0; i < this->num_timesteps_; i++)
   {
@@ -292,6 +290,9 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     // this->control_.col(i)[1] =
     //     fminf(fmaxf(this->control_.col(i)[1], this->model_->control_rngs_[1].x), this->model_->control_rngs_[1].y);
   }
+
+  smoothControlTrajectory();
+  computeStateTrajectory(local_state);
 
   // Copy back sampled trajectories for visualization
   if (!visualize_primitives_)
