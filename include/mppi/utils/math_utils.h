@@ -254,6 +254,73 @@ inline __host__ double timeDiffms(const std::chrono::steady_clock::time_point& e
   return (end - start).count() / 1e6;
 }
 
+inline __host__ __device__ double normalCDF(double x)
+{
+  return 0.5 * erfc(-x * M_SQRT1_2);
+}
+
+inline __host__ std::vector<double> calculateCk(int steps)
+{
+  // calculate params only when more steps are required
+  static std::vector<double> c_vec;
+  if (c_vec.size() < steps)
+  {
+    c_vec.resize(steps, 0);
+    c_vec[0] = 1.0;
+    for (int k = 1; k <= steps; k++)
+    {
+      double c_k = 0;
+      for (int m = 0; m < k; m++)
+      {
+        c_k += c_vec[m] * c_vec[k - 1 - m] / ((m + 1.0) * (2.0 * m + 1.0));
+      }
+      c_vec[k] = c_k;
+    }
+  }
+  return c_vec;
+}
+
+/**
+ * Implementation based on
+ * https://en.wikipedia.org/wiki/Error_function#Inverse_functions and Horner's
+ * method
+ */
+inline __host__ double inverseErrorFunc(double x, int num_precision = 5)
+{
+  std::vector<double> c_k = calculateCk(num_precision);
+  double output = 0;
+  for (int i = num_precision; i > 0; i--)
+  {
+    output = (c_k[i] / (2.0 * i + 1.0) + output) * x * x * M_PI / 4.0;
+  }
+  output = (output + c_k[0]) * x / M_2_SQRTPI;
+  return output;
+}
+
+inline __host__ double inverseErrorFuncSlow(double x, int num_precision = 5)
+{
+  std::vector<double> c_k = calculateCk(num_precision);
+  double slow_output = 0;
+  for (int i = 0; i <= num_precision; i++)
+  {
+    slow_output += c_k[i] / (2.0 * i + 1.0) * std::pow(x / M_2_SQRTPI, 2 * i + 1);
+  }
+  return slow_output;
+}
+
+/**
+ * https://en.wikipedia.org/wiki/Normal_distribution#Quantile_function
+ */
+inline __host__ double inverseNormalCDF(double x, int num_precision = 10)
+{
+  return M_SQRT2 * inverseErrorFunc(2.0 * x - 1.0, num_precision);
+}
+
+inline __host__ double inverseNormalCDFSlow(double x, int num_precision = 10)
+{
+  return M_SQRT2 * inverseErrorFuncSlow(2.0 * x - 1.0, num_precision);
+}
+
 }  // namespace math
 }  // namespace mppi
 
