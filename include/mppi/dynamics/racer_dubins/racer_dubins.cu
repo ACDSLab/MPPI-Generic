@@ -14,6 +14,8 @@ void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(const Eigen::Ref<const
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
   state_der(4) = control(1) / this->params_.steer_command_angle_scale;
+  state_der(5) = 0;
+  state_der(6) = 0;
 }
 
 template <class CLASS_T, int STATE_DIM>
@@ -31,7 +33,10 @@ void RacerDubinsImpl<CLASS_T, STATE_DIM>::updateState(Eigen::Ref<state_array> st
   state += state_der * dt;
   state(1) = angle_utils::normalizeAngle(state(1));
   state(4) -= state_der(4) * dt;
-  state(4) = state_der(4) + (state(4) - state_der(4)) * expf(-this->params_.steering_constant * dt);
+  float new_steer = state_der(4) + (state(4) - state_der(4)) * expf(-this->params_.steering_constant * dt);
+  state(5) = (new_steer - state(4)) / dt;  // include steer rate in state
+  state(4) = new_steer;
+  state(6) = state_der(0);  // include accel in state
   state_der.setZero();
 }
 
@@ -51,9 +56,13 @@ __device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::updateState(float* state, f
   int tdy = threadIdx.y;
   // Add the state derivative time dt to the current state.
   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-  for (i = tdy; i < STATE_DIM; i += blockDim.y)
+  for (i = tdy; i < STATE_DIM - 2; i += blockDim.y)
   {
     state[i] += state_der[i] * dt;
+    if (i == 0)
+    {
+      state[6] = state_der[i];  // include accel in state
+    }
     if (i == 1)
     {
       state[i] = angle_utils::normalizeAngle(state[i]);
@@ -61,7 +70,9 @@ __device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::updateState(float* state, f
     if (i == 4)
     {
       state[i] -= state_der[i] * dt;
-      state[i] = state_der[i] + (state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
+      float new_steer = state_der[i] + (state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
+      state[5] = (new_steer - state[i]) / dt;  // include steer rate in state
+      state[i] = new_steer;
       // state[i] += state_der[i] * expf(-this->params_.steering_constant * dt);
     }
     state_der[i] = 0;  // Important: reset the state derivative to zero.
@@ -94,6 +105,8 @@ __device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(float* stat
   state_der[2] = state[0] * cosf(state[1]);
   state_der[3] = state[0] * sinf(state[1]);
   state_der[4] = control[1] / this->params_.steer_command_angle_scale;
+  state_der[5] = 0;
+  state_der[6] = 0;
 }
 
 template <class CLASS_T, int STATE_DIM>

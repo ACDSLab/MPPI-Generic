@@ -58,15 +58,15 @@ public:
   Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);
 };
 
-class RacerDubins : public RacerDubinsImpl<RacerDubins, 5>
+class RacerDubins : public RacerDubinsImpl<RacerDubins, 7>
 {
 public:
-  RacerDubins(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubins, 5>(stream)
+  RacerDubins(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubins, 7>(stream)
   {
   }
 
   RacerDubins(RacerDubinsParams& params, cudaStream_t stream = nullptr)
-    : RacerDubinsImpl<RacerDubins, 5>(params, stream)
+    : RacerDubinsImpl<RacerDubins, 7>(params, stream)
   {
   }
 };
