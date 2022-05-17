@@ -57,7 +57,7 @@ void CartpoleDynamics::computeDynamics(const Eigen::Ref<const state_array>& stat
   float l_p = this->params_.pole_length;
 
   // TODO WAT?
-  state_der(0) = state(1);
+  state_der(0) = state(S_INDEX(VEL_X));
   state_der(1) = 1 / (m_c + m_p * powf(sinf(theta), 2.0)) *
                  (force + m_p * sinf(theta) * (l_p * powf(theta_dot, 2.0) + gravity_ * cosf(theta)));
   state_der(2) = state(3);

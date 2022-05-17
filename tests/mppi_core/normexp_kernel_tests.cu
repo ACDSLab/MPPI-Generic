@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <mppi/core/normexp_kernel_test.cuh>
 #include <mppi/utils/test_helper.h>
+#include <chrono>
 #include <random>
 #include <algorithm>
 #include <numeric>
@@ -20,6 +21,24 @@ protected:
 
   std::default_random_engine generator;
   std::normal_distribution<float> distribution;
+};
+
+template <int NUM_ROLLOUTS>
+__global__ void computeNormalizerKernel(const float* __restrict__ costs, float* __restrict__ output)
+{
+  __shared__ float reduction_buffer[NUM_ROLLOUTS];
+  int global_idx = threadIdx.x;
+  int global_step = blockDim.x;
+  *output = mppi_common::computeNormalizer(NUM_ROLLOUTS, costs, reduction_buffer, global_idx, global_step);
+};
+
+template <int NUM_ROLLOUTS>
+__global__ void computeBaselineCostKernel(const float* __restrict__ costs, float* __restrict__ output)
+{
+  __shared__ float reduction_buffer[NUM_ROLLOUTS];
+  int global_idx = threadIdx.x;
+  int global_step = blockDim.x;
+  *output = mppi_common::computeBaselineCost(NUM_ROLLOUTS, costs, reduction_buffer, global_idx, global_step);
 };
 
 TEST_F(NormExpKernel, computeBaselineCost_Test)
@@ -50,9 +69,56 @@ TEST_F(NormExpKernel, computeNormalizer_Test)
     cost = distribution(generator);
   }
 
-  float sum_cost_known = std::accumulate(cost_vec.begin(), cost_vec.end(), 0.f);
+  float sum_cost_known = std::accumulate(cost_vec.begin(), cost_vec.end(), 0.0);
   float sum_cost_compute = mppi_common::computeNormalizer(cost_vec.data(), num_rollouts);
 
+  ASSERT_FLOAT_EQ(sum_cost_compute, sum_cost_known);
+}
+
+TEST_F(NormExpKernel, computeNormalizerDevice_Test)
+{
+  const int num_rollouts = 6048;
+  std::array<float, num_rollouts> cost_vec = { 0 };
+
+  // Use a range based for loop to set the cost
+  for (int i = 0; i < cost_vec.size(); i++)
+  {
+    cost_vec[i] = distribution(generator);
+  }
+  float* norm_d;
+  float* costs_d;
+  float sum_cost_compute;
+  HANDLE_ERROR(cudaMalloc((void**)&norm_d, sizeof(float)));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float) * num_rollouts));
+  HANDLE_ERROR(cudaMemcpy(costs_d, cost_vec.data(), sizeof(float) * num_rollouts, cudaMemcpyHostToDevice));
+  computeNormalizerKernel<num_rollouts><<<1, 1024>>>(costs_d, norm_d);
+  HANDLE_ERROR(cudaMemcpy(&sum_cost_compute, norm_d, sizeof(float), cudaMemcpyDeviceToHost));
+
+  float sum_cost_known = std::accumulate(cost_vec.begin(), cost_vec.end(), 0.0);
+  ASSERT_FLOAT_EQ(sum_cost_compute, sum_cost_known);
+}
+
+TEST_F(NormExpKernel, computeBaselineCostDevice_Test)
+{
+  const int num_rollouts = 6048;
+  std::array<float, num_rollouts> cost_vec = { 0 };
+
+  // Use a range based for loop to set the cost
+  for (int i = 0; i < cost_vec.size(); i++)
+  {
+    cost_vec[i] = cost_vec.size() - i;
+  }
+  std::cout << std::endl;
+  float* norm_d;
+  float* costs_d;
+  float sum_cost_compute;
+  HANDLE_ERROR(cudaMalloc((void**)&norm_d, sizeof(float)));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float) * num_rollouts));
+  HANDLE_ERROR(cudaMemcpy(costs_d, cost_vec.data(), sizeof(float) * num_rollouts, cudaMemcpyHostToDevice));
+  computeBaselineCostKernel<num_rollouts><<<1, 1024>>>(costs_d, norm_d);
+  HANDLE_ERROR(cudaMemcpy(&sum_cost_compute, norm_d, sizeof(float), cudaMemcpyDeviceToHost));
+
+  float sum_cost_known = *std::min_element(cost_vec.begin(), cost_vec.end());
   ASSERT_FLOAT_EQ(sum_cost_compute, sum_cost_known);
 }
 
@@ -108,4 +174,82 @@ TEST_F(NormExpKernel, comparisonTestAutorallyMPPI_Generic)
     cost = expf(-gamma * cost);
     EXPECT_FLOAT_EQ(normalized_generic[i], cost);
   }
+}
+
+TEST_F(NormExpKernel, comparisonTestHostvsDeviceBaselineNormalizerCalculation)
+{
+  const int num_rollouts = 10000;
+  const int blocksize_x = 8;
+  const int num_iterations = 2500;
+  std::array<float, num_rollouts> cost_vec = { 0 };
+  std::array<float, num_rollouts> host_dev_costs = { 0 };
+  std::array<float, num_rollouts> dev_only_costs = { 0 };
+  float lambda = 0.3;
+  double old_method_ms = 0;
+  double new_method_ms = 0;
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+
+  float* costs_dev_only_d;
+  float* costs_host_only_d;
+  float2* baseline_and_normalizer_d;
+  float2 host_components, device_components;
+  HANDLE_ERROR(cudaMalloc((void**)&baseline_and_normalizer_d, sizeof(float2)));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_dev_only_d, sizeof(float) * num_rollouts));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_host_only_d, sizeof(float) * num_rollouts));
+
+  // Use a range based for loop to set the cost
+  for (int i = 0; i < num_iterations; i++)
+  {
+    for (auto& cost : cost_vec)
+    {
+      cost = distribution(generator);
+    }
+
+    /**
+     * @brief Prep CUDA components
+     *
+     */
+    HANDLE_ERROR(cudaMemcpyAsync(costs_dev_only_d, cost_vec.data(), sizeof(float) * num_rollouts,
+                                 cudaMemcpyHostToDevice, stream));
+    HANDLE_ERROR(cudaMemcpyAsync(costs_host_only_d, cost_vec.data(), sizeof(float) * num_rollouts,
+                                 cudaMemcpyHostToDevice, stream));
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+
+    auto start_old_method_t = std::chrono::steady_clock::now();
+    // Run old method to transform costs
+    HANDLE_ERROR(cudaMemcpyAsync(host_dev_costs.data(), costs_host_only_d, num_rollouts * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+
+    host_components.x = mppi_common::computeBaselineCost(host_dev_costs.data(), num_rollouts);
+    mppi_common::launchNormExpKernel(num_rollouts, blocksize_x, costs_host_only_d, 1.0 / lambda, host_components.x,
+                                     stream, false);
+    HANDLE_ERROR(cudaMemcpyAsync(host_dev_costs.data(), costs_host_only_d, num_rollouts * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+    host_components.y = mppi_common::computeNormalizer(host_dev_costs.data(), num_rollouts);
+    old_method_ms += (std::chrono::steady_clock::now() - start_old_method_t).count() / 1e6;
+
+    auto start_new_method_t = std::chrono::steady_clock::now();
+    // Run new method to transform costs
+    mppi_common::launchWeightTransformKernel<num_rollouts>(costs_dev_only_d, baseline_and_normalizer_d, 1.0 / lambda, 1,
+                                                           stream, false);
+    HANDLE_ERROR(cudaMemcpyAsync(dev_only_costs.data(), costs_dev_only_d, num_rollouts * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(
+        cudaMemcpyAsync(&device_components, baseline_and_normalizer_d, sizeof(float2), cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+    new_method_ms += (std::chrono::steady_clock::now() - start_new_method_t).count() / 1e6;
+  }
+
+  std::cout << "Old method averaged " << old_method_ms / num_iterations << " ms and the new method averaged "
+            << new_method_ms / num_iterations << " ms" << std::endl;
+
+  for (int i = 0; i < num_rollouts; i++)
+  {
+    ASSERT_FLOAT_EQ(dev_only_costs[i], host_dev_costs[i]);
+  }
+  ASSERT_FLOAT_EQ(device_components.x, host_components.x);
+  ASSERT_FLOAT_EQ(device_components.y, host_components.y);
 }

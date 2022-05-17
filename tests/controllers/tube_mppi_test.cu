@@ -67,6 +67,50 @@ TEST(TubeMPPITest, Construction)
   // This controller needs the ancillary controller running separately for base plant reasons.
 }
 
+TEST(TubeMPPITest, ConstructionUsingParams)
+{
+  // Create Type Aliases
+  const int num_timesteps = 100;
+  using DYN = DoubleIntegratorDynamics;
+  using COST = DoubleIntegratorCircleCost;
+  using FB_CONTROLLER = DDPFeedback<DYN, num_timesteps>;
+  using TUBE_CONTROLLER = TubeMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, 512, 64, 8>;
+  using CONTROLLER_PARAMS = TUBE_CONTROLLER::TEMPLATED_PARAMS;
+  using VANILLA_CONTROLLER =
+      VanillaMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, 512, 64, 8, CONTROLLER_PARAMS>;
+
+  // Define the model and cost
+  DYN model;
+  COST cost;
+  CONTROLLER_PARAMS controller_params;
+  controller_params.dt_ = 0.01;
+  controller_params.num_iters_ = 10;
+  controller_params.lambda_ = 0.5;
+  controller_params.alpha_ = 0.0;
+  // control std dev
+  controller_params.control_std_dev_ << 1, 1;
+  auto fb_controller = FB_CONTROLLER(&model, controller_params.dt_);
+  auto fb_params = fb_controller.getParams();
+
+  // DDP cost parameters
+  Eigen::MatrixXf Q;
+  Eigen::MatrixXf R;
+  fb_params.Q = 100 * FB_CONTROLLER::square_state_matrix::Identity();
+  fb_params.Q_f = fb_params.Q;
+  fb_params.R = FB_CONTROLLER::square_control_matrix::Identity();
+  fb_controller.setParams(fb_params);
+
+  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, controller_params);
+
+  auto controller = TUBE_CONTROLLER(&model, &cost, &fb_controller, controller_params);
+
+  //  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
+  //                                      512, 64, 8>(&model, &cost, dt, max_iter,
+  //                                                   gamma, num_timesteps, Q, Q, R, control_var);
+
+  // This controller needs the ancillary controller running separately for base plant reasons.
+}
+
 TEST(TubeMPPITest, VanillaMPPINominalVariance)
 {
   // Noise enters the system during the "true" state propagation. In this case the noise is nominal

@@ -91,7 +91,7 @@ __device__ __host__ void RacerSuspension::computeDynamics(const Eigen::Ref<const
   Eigen::Quaternionf q(state[STATE_QW], state[STATE_QX], state[STATE_QY], state[STATE_QZ]);
   Eigen::Matrix3f R = q.toRotationMatrix();
   float tan_delta = tan(state[STATE_STEER]);
-  Eigen::Matrix3f Rdot = R * mppi_math::skewSymmetricMatrix(omega);
+  Eigen::Matrix3f Rdot = R * mppi::math::skewSymmetricMatrix(omega);
 
   // linear engine model
   float vel_x = (R.transpose() * v_I)[0];

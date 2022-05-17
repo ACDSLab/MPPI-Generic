@@ -10,7 +10,7 @@ TEST(MATH_UTILS, QuatInv)
   std::array<float, 4> q{ 1, 2, 3, 2 };
   std::array<float, 4> q_inv{};
 
-  mppi_math::QuatInv(q.data(), q_inv.data());
+  mppi::math::QuatInv(q.data(), q_inv.data());
 
   // Compute the inverse using eigen.
   // Don't use the array constructor because eigen stores it as [x, y, z, w] internally.
@@ -30,7 +30,7 @@ TEST(MATH_UTILS, QuatMultiply)
   std::array<float, 4> q2{ 8, 7, 6, 5 };
   std::array<float, 4> q3{};
 
-  mppi_math::QuatMultiply(q1.data(), q2.data(), q3.data());
+  mppi::math::QuatMultiply(q1.data(), q2.data(), q3.data());
 
   // Compare the multiplication using eigen.
   // Don't use the array constructor because eigen stores it as [x, y, z, w] internally.
@@ -49,5 +49,5 @@ TEST(MATH_UTILS, SkewSymmetricMatrixSameAsCrossProd)
 {
   Eigen::Vector3f a(1, 2, 3);
   Eigen::Vector3f b(8, 3, 9);
-  eigen_assert_float_eq<Eigen::Vector3f>(a.cross(b), mppi_math::skewSymmetricMatrix(a) * b);
+  eigen_assert_float_eq<Eigen::Vector3f>(a.cross(b), mppi::math::skewSymmetricMatrix(a) * b);
 }

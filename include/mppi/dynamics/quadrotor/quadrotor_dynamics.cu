@@ -5,7 +5,7 @@ QuadrotorDynamics::QuadrotorDynamics(std::array<float2, CONTROL_DIM> control_rng
   : Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, CONTROL_DIM>(control_rngs, stream)
 {
   this->params_ = QuadrotorDynamicsParams();
-  zero_control_[3] = mppi_math::GRAVITY;
+  zero_control_[3] = mppi::math::GRAVITY;
 }
 
 QuadrotorDynamics::QuadrotorDynamics(cudaStream_t stream)
@@ -16,7 +16,7 @@ QuadrotorDynamics::QuadrotorDynamics(cudaStream_t stream)
   thrust_rng.x = 0;
   thrust_rng.y = 36;  // TODO Figure out if this is a reasonable amount of thrust
   this->control_rngs_[3] = thrust_rng;
-  this->zero_control_[3] = mppi_math::GRAVITY;
+  this->zero_control_[3] = mppi::math::GRAVITY;
 }
 
 void QuadrotorDynamics::printState(float* state)
@@ -40,7 +40,7 @@ bool QuadrotorDynamics::computeGrad(const Eigen::Ref<const state_array>& state,
   Eigen::Quaternionf q(state[6], state[7], state[8], state[9]);
   Eigen::Matrix3f dcm_lb;
   // dcm_lb = q.toRotationMatrix();
-  mppi_math::Quat2DCM(q, dcm_lb);
+  mppi::math::Quat2DCM(q, dcm_lb);
 
   // I can do the math for everything except quaternions
   A.setZero();
@@ -78,11 +78,11 @@ void QuadrotorDynamics::computeDynamics(const Eigen::Ref<const state_array>& sta
   Eigen::Matrix<float, 3, 1> angular_speed, v;
   Eigen::Quaternionf q_d;
   Eigen::Matrix<float, 3, 1> tau_inv;
-  float u_thrust = control[3];
+  float u_thrust = control[C_INDEX(THRUST)];
 
   // Assume quaterion is w, x, y, z in state array
   Eigen::Quaternionf q(state[6], state[7], state[8], state[9]);
-  u_pqr << control[0], control[1], control[2];
+  u_pqr << control[C_INDEX(ANG_RATE_X)], control[C_INDEX(ANG_RATE_Y)], control[C_INDEX(ANG_RATE_Z)];
   v = state.block<3, 1>(3, 0);
   angular_speed << state(10), state(11), state(12);
   tau_inv << 1 / this->params_.tau_roll, 1 / this->params_.tau_pitch, 1 / this->params_.tau_yaw;
@@ -93,12 +93,12 @@ void QuadrotorDynamics::computeDynamics(const Eigen::Ref<const state_array>& sta
   x_d = v;
 
   // v_d = Lvb * [0 0 T]' + g
-  mppi_math::Quat2DCM(q, dcm_lb);
+  mppi::math::Quat2DCM(q, dcm_lb);
   v_d = (u_thrust / this->params_.mass) * dcm_lb.col(2);
-  v_d(2) -= mppi_math::GRAVITY;
+  v_d(2) -= mppi::math::GRAVITY;
 
   // q_d = H(q) w
-  mppi_math::omega2edot(angular_speed(0), angular_speed(1), angular_speed(2), q, q_d);
+  mppi::math::omega2edot(angular_speed(0), angular_speed(1), angular_speed(2), q, q_d);
 
   // w_d = (u_pqr - w)/ tau
   // Note we assume that a low level controller makes angular velocity tracking
@@ -138,7 +138,7 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state, float* control,
   float* w_d = state_der + 10;
 
   float* u_pqr = control;
-  float u_thrust = control[3];
+  float u_thrust = control[C_INDEX(THRUST)];
 
   float dcm_lb[3][3];
 
@@ -151,7 +151,7 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state, float* control,
   }
 
   // v_d = Lvb * [0 0 T]' + g
-  mppi_math::Quat2DCM(q, dcm_lb);
+  mppi::math::Quat2DCM(q, dcm_lb);
   for (i = threadIdx.y; i < 3; i += blockDim.y)
   {
     v_d[i] = (u_thrust / this->params_.mass) * dcm_lb[i][2];
@@ -159,11 +159,11 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state, float* control,
   __syncthreads();
   if (threadIdx.y == 0)
   {
-    v_d[2] -= mppi_math::GRAVITY;
+    v_d[2] -= mppi::math::GRAVITY;
   }
 
   // q_d = H(q) w
-  mppi_math::omega2edot(w[0], w[1], w[2], q, q_d);
+  mppi::math::omega2edot(w[0], w[1], w[2], q, q_d);
 
   // w_d = (u - w) / tau
   w_d[0] = (u_pqr[0] - w[0]) / this->params_.tau_roll;

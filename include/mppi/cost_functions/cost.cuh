@@ -85,7 +85,7 @@ public:
    * Updates the cost parameters
    * @param params
    */
-  void setParams(PARAMS_T params)
+  void setParams(const PARAMS_T& params)
   {
     params_ = params;
     if (GPUMemStatus_)

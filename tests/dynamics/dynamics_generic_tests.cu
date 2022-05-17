@@ -5,7 +5,7 @@
 
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 
-struct DynamicsTesterParams
+struct DynamicsTesterParams : public DynamicsParams
 {
   int var_1 = 1;
   int var_2 = 2;
@@ -17,20 +17,18 @@ class DynamicsTester
   : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>
 {
 public:
-  using state_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams,
-                                                       STATE_DIM, CONTROL_DIM>::state_array;
-  using control_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams,
-                                                         STATE_DIM, CONTROL_DIM>::control_array;
+  typedef MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>
+      PARENT_CLASS;
 
-  DynamicsTester(cudaStream_t stream = 0)
-    : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(
-          stream)
+  using state_array = typename PARENT_CLASS::state_array;
+  using control_array = typename PARENT_CLASS::control_array;
+
+  DynamicsTester(cudaStream_t stream = 0) : PARENT_CLASS(stream)
   {
   }
 
   DynamicsTester(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream = 0)
-    : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(
-          control_rngs, stream)
+    : PARENT_CLASS(control_rngs, stream)
   {
   }
 
