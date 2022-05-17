@@ -30,6 +30,12 @@ Header file for dynamics
 #define C_INDEX(enum_val) C_IND(this->params_, enum_val)
 #endif
 
+#ifndef O_INDEX
+#define O_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::OutputIndex::enum_val)
+#define O_IND(param, enum_val) O_IND_CLASS(decltype(param), enum_val)
+#define O_INDEX(enum_val) O_IND(this->params_, enum_val)
+#endif
+
 struct DynamicsParams
 {
   enum class StateIndex : int
@@ -41,6 +47,11 @@ struct DynamicsParams
   {
     VEL_X = 0,
     NUM_CONTROLS
+  };
+  enum class OutputIndex : int
+  {
+    POS_X = 0,
+    NUM_OUTPUTS
   };
 };
 
@@ -56,8 +67,9 @@ class Dynamics : public Managed
 
 public:
   //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  static const int STATE_DIM = S_DIM;
-  static const int CONTROL_DIM = C_DIM;
+  static const int STATE_DIM = S_IND_CLASS(PARAMS_T, NUM_STATES);
+  static const int CONTROL_DIM = C_IND_CLASS(PARAMS_T, NUM_CONTROLS);
+  static const int OUTPUT_DIM = O_IND_CLASS(PARAMS_T, NUM_OUTPUTS);
   static const int SHARED_MEM_REQUEST_GRD = 1;  // TODO set to one to prevent array of size 0 error
   static const int SHARED_MEM_REQUEST_BLK = 0;
   typedef CLASS_T DYN_T;
@@ -68,6 +80,7 @@ public:
    */
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;                 // Control at a time t
   typedef Eigen::Matrix<float, STATE_DIM, 1> state_array;                     // State at a time t
+  typedef Eigen::Matrix<float, OUTPUT_DIM, 1> output_array;                   // Output at a time t
   typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM> dfdx;                    // Jacobian wrt x
   typedef Eigen::Matrix<float, STATE_DIM, CONTROL_DIM> dfdu;                  // Jacobian wrt u
   typedef Eigen::Matrix<float, CONTROL_DIM, STATE_DIM> feedback_matrix;       // Feedback matrix
@@ -286,8 +299,14 @@ public:
    * @param state_der
    */
   void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                         Eigen::Ref<state_array> state_der)
+                         Eigen::Ref<state_array> state_der, output_array *output=nullptr)
   {
+    // TODO this is a hack
+    if (output) {
+      for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++) {
+        (*output)[i] = state[i];
+      }
+    }
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     derived->computeKinematics(state, state_der);
     derived->computeDynamics(state, control, state_der);
@@ -316,13 +335,19 @@ public:
    * @param state_der
    * @param theta_s shared memory that can be used when computation is computed across the same block
    */
-  __device__ inline void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s)
+  __device__ inline void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s, float *output=nullptr)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     // only propagate a single state, i.e. thread.y = 0
     // find the change in x,y,theta based off of the rest of the state
     if (threadIdx.y == 0)
     {
+      // TODO this is a hack
+      if (output) {
+        for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++) {
+          output[i] = state[i];
+        }
+      }
       // printf("state at 0 before kin: %f\n", state[0]);
       derived->computeKinematics(state, state_der);
       // printf("state at 0 after kin: %f\n", state[0]);

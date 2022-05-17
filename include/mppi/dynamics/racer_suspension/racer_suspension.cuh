@@ -86,9 +86,15 @@ using namespace MPPI_internal;
  * control: throttle/brake, steering angle command
  * sensors: texture 0 is elevation map (normal x, normal y, normal z, height)
  */
-class RacerSuspension : public Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>
+class RacerSuspension : public Dynamics<RacerSuspension, RacerSuspensionParams, 14, 2>
 {
 public:
+  typedef Dynamics<RacerSuspension, RacerSuspensionParams, 14, 2> PARENT_CLASS;
+  typedef typename PARENT_CLASS::state_array state_array;
+  typedef typename PARENT_CLASS::control_array control_array;
+  typedef typename PARENT_CLASS::dfdx dfdx;
+  typedef typename PARENT_CLASS::dfdu dfdu;
+
   // number of floats for computing the state derivative BLOCK_DIM_X * BLOCK_DIM_Z times
   static const int SHARED_MEM_REQUEST_BLK = 0;
 
@@ -113,14 +119,14 @@ public:
   static const int STATE_STEER_VEL = 14;
   static const int CTRL_THROTTLE_BRAKE = 0;
   static const int CTRL_STEER_CMD = 1;
+
   static const int TEXTURE_ELEVATION_MAP = 0;
 
-  RacerSuspension(cudaStream_t stream=nullptr) : Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>(stream)
+  RacerSuspension(cudaStream_t stream=nullptr) : PARENT_CLASS(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
   }
-  RacerSuspension(RacerSuspensionParams& params, cudaStream_t stream)
-    : Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>(params, stream)
+  RacerSuspension(RacerSuspensionParams& params, cudaStream_t stream) : PARENT_CLASS(params, stream)
   {
     tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
   }

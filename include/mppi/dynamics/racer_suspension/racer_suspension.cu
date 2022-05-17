@@ -4,7 +4,7 @@
 
 void RacerSuspension::GPUSetup()
 {
-  auto* derived = static_cast<Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>*>(this);
+  auto* derived = static_cast<PARENT_CLASS*>(this);
   tex_helper_->GPUSetup();
   derived->GPUSetup();
 }
@@ -24,7 +24,7 @@ void RacerSuspension::paramsToDevice()
     HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->tex_helper_), &(tex_helper_->ptr_d_),
                                  sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
   }
-  Dynamics<RacerSuspension, RacerSuspensionParams, 15, 2>::paramsToDevice();
+  PARENT_CLASS::paramsToDevice();
 }
 
 // combined computeDynamics & updateState
@@ -57,7 +57,7 @@ __device__ void RacerSuspension::updateState(float* state, float* state_der, con
   unsigned int tdy = threadIdx.y;
   // Add the state derivative time dt to the current state.
   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-  for (i = tdy; i < STATE_DIM; i += blockDim.y)
+  for (i = tdy; i < PARENT_CLASS::STATE_DIM; i += blockDim.y)
   {
     state[i] += state_der[i] * dt;
   }

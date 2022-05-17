@@ -3,7 +3,7 @@
 
 void RacerDubinsElevation::GPUSetup()
 {
-  RacerDubinsImpl<RacerDubinsElevation, 7>* derived = static_cast<RacerDubinsImpl<RacerDubinsElevation, 7>*>(this);
+  RacerDubinsImpl<RacerDubinsElevation>* derived = static_cast<RacerDubinsImpl<RacerDubinsElevation>*>(this);
   CudaCheckError();
   tex_helper_->GPUSetup();
   CudaCheckError();
@@ -26,7 +26,7 @@ void RacerDubinsElevation::paramsToDevice()
     HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->tex_helper_), &(tex_helper_->ptr_d_),
                                  sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
   }
-  RacerDubinsImpl<RacerDubinsElevation, 7>::paramsToDevice();
+  RacerDubinsImpl<RacerDubinsElevation>::paramsToDevice();
 }
 
 void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)

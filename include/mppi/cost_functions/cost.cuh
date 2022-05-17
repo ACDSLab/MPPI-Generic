@@ -32,7 +32,7 @@ struct CostParams
 
 // removing PARAMS_T is probably impossible
 // https://cboard.cprogramming.com/cplusplus-programming/122412-crtp-how-pass-type.html
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
+template <class CLASS_T, class PARAMS_T, class DYNAMICS_PARAMS_T>
 class Cost : public Managed
 {
 public:
@@ -41,13 +41,15 @@ public:
   /**
    * typedefs for access to templated class from outside classes
    */
-  static const int STATE_DIM = S_DIM;
-  static const int CONTROL_DIM = C_DIM;
+  static const int STATE_DIM = 7;
+  static const int CONTROL_DIM = 2;
+  static const int OUTPUT_DIM = 7; // TODO
   typedef CLASS_T COST_T;
   typedef PARAMS_T COST_PARAMS_T;
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;             // Control at a time t
   typedef Eigen::Matrix<float, CONTROL_DIM, CONTROL_DIM> control_matrix;  // Control at a time t
   typedef Eigen::Matrix<float, STATE_DIM, 1> state_array;                 // State at a time t
+  typedef Eigen::Matrix<float, OUTPUT_DIM, 1> output_array;               // Output at a time t
 
   Cost() = default;
   /**
@@ -148,7 +150,7 @@ public:
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
    */
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep, int* crash_status)
+  float computeStateCost(const Eigen::Ref<const output_array> y, int timestep, int* crash_status)
   {
     throw std::logic_error("SubClass did not implement computeStateCost");
   }
@@ -158,12 +160,12 @@ public:
    * @param s current state as a float array
    * @return state cost on GPU
    */
-  __device__ float computeStateCost(float* s, int timestep, int* crash_status);
+  __device__ float computeStateCost(float* y, int timestep, int* crash_status);
 
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
    */
-  float terminalCost(const Eigen::Ref<const state_array> s)
+  float terminalCost(const Eigen::Ref<const output_array> y)
   {
     throw std::logic_error("SubClass did not implement terminalCost");
   }
@@ -173,7 +175,7 @@ public:
    * @param s terminal state as float array
    * @return terminal cost on GPU
    */
-  __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* y);
 
   // ================ END OF METHODS WITH NO DEFAULT ===========================
 
@@ -213,21 +215,21 @@ public:
   // =================== END METHODS THAT SHOULD NOT BE OVERWRITTEN ============
 
   // =================== METHODS THAT CAN BE OVERWRITTEN =======================
-  float computeRunningCost(const Eigen::Ref<const state_array> s, const Eigen::Ref<const control_array> u,
+  float computeRunningCost(const Eigen::Ref<const output_array> y, const Eigen::Ref<const control_array> u,
                            const Eigen::Ref<const control_array> noise, const Eigen::Ref<const control_array> std_dev,
                            float lambda, float alpha, int timestep, int* crash)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
 
-    return derived->computeStateCost(s, timestep, crash) +
+    return derived->computeStateCost(y, timestep, crash) +
            derived->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
   }
 
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda, float alpha,
+  __device__ float computeRunningCost(float* y, float* u, float* du, float* std_dev, float lambda, float alpha,
                                       int timestep, int* crash)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
-    return derived->computeStateCost(s, timestep, crash) +
+    return derived->computeStateCost(y, timestep, crash) +
            derived->computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
   }
   // =================== END METHODS THAT CAN BE OVERWRITTEN ===================
