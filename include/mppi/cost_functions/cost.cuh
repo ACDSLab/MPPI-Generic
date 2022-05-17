@@ -32,7 +32,7 @@ struct CostParams
 
 // removing PARAMS_T is probably impossible
 // https://cboard.cprogramming.com/cplusplus-programming/122412-crtp-how-pass-type.html
-template <class CLASS_T, class PARAMS_T, class DYNAMICS_PARAMS_T>
+template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 class Cost : public Managed
 {
 public:
@@ -41,9 +41,9 @@ public:
   /**
    * typedefs for access to templated class from outside classes
    */
-  static const int STATE_DIM = 7;
-  static const int CONTROL_DIM = 2;
-  static const int OUTPUT_DIM = 7; // TODO
+  static const int STATE_DIM = S_DIM;
+  static const int CONTROL_DIM = C_DIM;
+  static const int OUTPUT_DIM = S_DIM; // TODO
   typedef CLASS_T COST_T;
   typedef PARAMS_T COST_PARAMS_T;
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;             // Control at a time t

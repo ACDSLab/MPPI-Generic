@@ -33,6 +33,26 @@ struct RacerSuspensionParams : public DynamicsParams
     DESIRED_STEERING,
     NUM_CONTROLS
   };
+
+  enum class OutputIndex : int
+  {
+    POS_X = 0,
+    POS_Y,
+    POS_Z,
+    QUAT_W,
+    QUAT_X,
+    QUAT_Y,
+    QUAT_Z,
+    VX_I,
+    VY_I,
+    VZ_I,
+    OMEGA_X,
+    OMEGA_Y,
+    OMEGA_Z,
+    TRUE_STEER_ANGLE,
+    TRUE_STEER_ANGLE_VEL,
+    NUM_OUTPUTS
+  };
   // suspension model params
   float wheel_radius = 0.32;
   float mass = 1447;
