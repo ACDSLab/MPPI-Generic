@@ -1,4 +1,5 @@
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation.cuh>
+#include <mppi/utils/math_utils.h>
 
 void RacerDubinsElevation::GPUSetup()
 {
@@ -237,6 +238,6 @@ Eigen::Quaternionf RacerDubinsElevation::attitudeFromState(const Eigen::Ref<cons
   float roll = state[STATE_OUT_ROLL];
   float pitch = state[STATE_OUT_PITCH];
   float yaw = state[STATE_YAW];
-  mppi_math::Euler2QuatNWU(roll, pitch, yaw, q);
+  mppi::math::Euler2QuatNWU(roll, pitch, yaw, q);
   return q;
 }

@@ -103,7 +103,7 @@ RacerDubinsImpl<CLASS_T, STATE_DIM>::state_array RacerDubinsImpl<CLASS_T, STATE_
   s[STATE_PY] = pos[1];
   s[STATE_V] = vel[0];
   float _roll, _pitch, yaw;
-  mppi_math::Quat2EulerNWU(q, _roll, _pitch, yaw);
+  mppi::math::Quat2EulerNWU(q, _roll, _pitch, yaw);
   s[STATE_YAW] = yaw;
   return s;
 }
