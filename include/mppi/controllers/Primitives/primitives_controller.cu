@@ -60,6 +60,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   int prev_controls_idx = 1;
   float primitives_baseline = 0.0;
   float baseline_prev = 0.0;
+  int best_idx = -1;
 
   // Send the nominal control to the device
   this->copyNominalControlToDevice();
@@ -113,7 +114,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
       // baseline is not decreasing enough, use controls from the previous iteration
       if (this->debug_)
       {
-        std::cerr << "Not enough improvement, use prev controls." << std::endl;
+        std::cout << "Not enough improvement, use prev controls." << std::endl;
       }
       HANDLE_ERROR(cudaMemcpyAsync(
           this->control_.data(), this->control_noise_d_ + prev_controls_idx * this->num_timesteps_ * DYN_T::CONTROL_DIM,
@@ -124,7 +125,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     else
     {  // otherwise, update the nominal control
       // Copy best control from device to the host
-      int best_idx = mppi_common::computeBestIndex(this->trajectory_costs_.data(), NUM_ROLLOUTS);
+      best_idx = mppi_common::computeBestIndex(this->trajectory_costs_.data(), NUM_ROLLOUTS);
       HANDLE_ERROR(cudaMemcpyAsync(
           this->control_.data(), this->control_noise_d_ + best_idx * this->num_timesteps_ * DYN_T::CONTROL_DIM,
           sizeof(float) * this->num_timesteps_ * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
@@ -272,14 +273,23 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   {
     this->control_ = control_mppi_;
     this->copyNominalControlToDevice();
-    if (this->debug_)
-    {
-      std::cerr << "Using MPPI control" << std::endl;
-    }
+    std::cout << "Using MPPI control" << std::endl;
   }
   else
   {
-    std::cout << "Using primitives control" << std::endl;
+    std::cout << "Using primitives control, ";
+    if (best_idx > 0 && best_idx <= int(frac_add_nominal_traj_[0] * NUM_ROLLOUTS))
+    {
+      std::cout << "colored noise added to nominal." << std::endl;
+    }
+    else if (best_idx <= int((frac_add_nominal_traj_[0] + frac_add_nominal_traj_[1]) * NUM_ROLLOUTS))
+    {
+      std::cout << "piecewise noise added to nominal." << std::endl;
+    }
+    else
+    {
+      std::cout << "new piecewise trajectory." << std::endl;
+    }
   }
 
   state_array zero_state = state_array::Zero();
