@@ -299,7 +299,7 @@ __device__ inline float computeBaselineCost(int num_rollouts, const float* __res
 #if false
   // potential method to speed up copying costs
   int prev_size = min(blockDim.x, num_rollouts);
-  float my_val = (rollout_idx_global < num_rollouts) ? trajectory_costs_d[rollout_idx_global] : 10e37;
+  float my_val = (rollout_idx_global < num_rollouts) ? trajectory_costs_d[rollout_idx_global] : INFINITY;
   for (int i = rollout_idx_global + rollout_idx_step; i < num_rollouts; i += rollout_idx_step)
   {
     my_val = min(trajectory_costs_d[i], my_val);
