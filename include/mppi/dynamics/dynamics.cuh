@@ -299,12 +299,12 @@ public:
    * @param state_der
    */
   void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                         Eigen::Ref<state_array> state_der, output_array *output=nullptr)
+                         Eigen::Ref<state_array> state_der, Eigen::Ref<output_array> output=output_array())
   {
     // TODO this is a hack
     if (output) {
       for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++) {
-        (*output)[i] = state[i];
+        output(i) = state[i];
       }
     }
     CLASS_T* derived = static_cast<CLASS_T*>(this);
@@ -338,16 +338,16 @@ public:
   __device__ inline void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s, float *output=nullptr)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
+    // TODO this is a hack
+    if (output) {
+      for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i+=blockDim.y) {
+        output[i] = state[i];
+      }
+    }
     // only propagate a single state, i.e. thread.y = 0
     // find the change in x,y,theta based off of the rest of the state
     if (threadIdx.y == 0)
     {
-      // TODO this is a hack
-      if (output) {
-        for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++) {
-          output[i] = state[i];
-        }
-      }
       // printf("state at 0 before kin: %f\n", state[0]);
       derived->computeKinematics(state, state_der);
       // printf("state at 0 after kin: %f\n", state[0]);
