@@ -9,48 +9,73 @@ struct RacerSuspensionParams : public DynamicsParams
 {
   enum class StateIndex : int
   {
-    POS_X = 0,
-    POS_Y,
-    POS_Z,
-    QUAT_W,
-    QUAT_X,
-    QUAT_Y,
-    QUAT_Z,
-    VX_I,
-    VY_I,
-    VZ_I,
-    OMEGA_X,
-    OMEGA_Y,
-    OMEGA_Z,
-    TRUE_STEER_ANGLE,
-    TRUE_STEER_ANGLE_VEL,
+    P_I_X = 0,
+    P_I_Y,
+    P_I_Z,
+    ATTITUDE_QW,
+    ATTITUDE_QX,
+    ATTITUDE_QY,
+    ATTITUDE_QZ,
+    V_I_X,
+    V_I_Y,
+    V_I_Z,
+    OMEGA_B_X,
+    OMEGA_B_Y,
+    OMEGA_B_Z,
+    STEER_ANGLE,
     NUM_STATES
   };
 
   enum class ControlIndex : int
   {
-    BRAKE_THROTTLE = 0,
-    DESIRED_STEERING,
+    THROTTLE_BRAKE = 0,
+    STEER_CMD,
     NUM_CONTROLS
   };
 
   enum class OutputIndex : int
   {
-    POS_X = 0,
-    POS_Y,
-    POS_Z,
-    QUAT_W,
-    QUAT_X,
-    QUAT_Y,
-    QUAT_Z,
-    VX_I,
-    VY_I,
-    VZ_I,
-    OMEGA_X,
-    OMEGA_Y,
-    OMEGA_Z,
-    TRUE_STEER_ANGLE,
-    TRUE_STEER_ANGLE_VEL,
+    BASELINK_VEL_B_X = 0,
+    BASELINK_VEL_B_Y,
+    BASELINK_VEL_B_Z,
+    BASELINK_POS_I_X,
+    BASELINK_POS_I_Y,
+    BASELINK_POS_I_Z,
+    OMEGA_B_X,
+    OMEGA_B_Y,
+    OMEGA_B_Z,
+    YAW,
+    ROLL,
+    PITCH,
+    ATTITUDE_QW,
+    ATTITUDE_QX,
+    ATTITUDE_QY,
+    ATTITUDE_QZ,
+    STEER_ANGLE,
+    STEER_ANGLE_RATE,
+    WHEEL_POS_I_FL_X,
+    WHEEL_POS_I_FL_Y,
+    WHEEL_POS_I_FR_X,
+    WHEEL_POS_I_FR_Y,
+    WHEEL_POS_I_RL_X,
+    WHEEL_POS_I_RL_Y,
+    WHEEL_POS_I_RR_X,
+    WHEEL_POS_I_RR_Y,
+    WHEEL_FORCE_B_FL_X,
+    WHEEL_FORCE_B_FL_Y,
+    WHEEL_FORCE_B_FL_Z,
+    WHEEL_FORCE_B_FR_X,
+    WHEEL_FORCE_B_FR_Y,
+    WHEEL_FORCE_B_FR_Z,
+    WHEEL_FORCE_B_RL_X,
+    WHEEL_FORCE_B_RL_Y,
+    WHEEL_FORCE_B_RL_Z,
+    WHEEL_FORCE_B_RR_X,
+    WHEEL_FORCE_B_RR_Y,
+    WHEEL_FORCE_B_RR_Z,
+    CENTER_POS_I_X,
+    CENTER_POS_I_Y,
+    CENTER_POS_I_Z,
     NUM_OUTPUTS
   };
   // suspension model params
@@ -59,7 +84,7 @@ struct RacerSuspensionParams : public DynamicsParams
   float wheel_base = 2.981;
   float width = 1.5;
   float height = 1.5;
-  float gravity = 9.81;
+  float gravity = -9.81;
   float k_s[4] = { 14000, 14000, 14000, 14000 };
   float c_s[4] = { 2000, 2000, 2000, 2000 };
   float l_0[4] = {
@@ -112,33 +137,12 @@ public:
   typedef Dynamics<RacerSuspension, RacerSuspensionParams, 14, 2> PARENT_CLASS;
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;
+  typedef typename PARENT_CLASS::output_array output_array;
   typedef typename PARENT_CLASS::dfdx dfdx;
   typedef typename PARENT_CLASS::dfdu dfdu;
 
   // number of floats for computing the state derivative BLOCK_DIM_X * BLOCK_DIM_Z times
   static const int SHARED_MEM_REQUEST_BLK = 0;
-
-  static const int STATE_P = 0;
-  static const int STATE_PX = 0;
-  static const int STATE_PY = 1;
-  static const int STATE_PZ = 2;
-  static const int STATE_Q = 3;
-  static const int STATE_QW = 3;
-  static const int STATE_QX = 4;
-  static const int STATE_QY = 5;
-  static const int STATE_QZ = 6;
-  static const int STATE_V = 7;
-  static const int STATE_VX = 7;
-  static const int STATE_VY = 8;
-  static const int STATE_VZ = 9;
-  static const int STATE_OMEGA = 10;
-  static const int STATE_OMEGAX = 10;
-  static const int STATE_OMEGAY = 11;
-  static const int STATE_OMEGAZ = 12;
-  static const int STATE_STEER = 13;
-  static const int STATE_STEER_VEL = 14;
-  static const int CTRL_THROTTLE_BRAKE = 0;
-  static const int CTRL_STEER_CMD = 1;
 
   static const int TEXTURE_ELEVATION_MAP = 0;
 
@@ -166,12 +170,12 @@ public:
 
   void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt);
 
-  void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                       Eigen::Ref<state_array> state_der, Eigen::Matrix3f *omegaJacobian = nullptr);
+  __device__ __host__ void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                          Eigen::Ref<state_array> state_der, output_array* output=nullptr, Eigen::Matrix3f *omegaJacobian = nullptr);
 
   __device__ void updateState(float* state, float* state_der, const float dt);
 
-  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s, float *output=nullptr);
 
   TwoDTextureHelper<float4>* getTextureHelper()
   {

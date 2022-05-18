@@ -211,7 +211,7 @@ inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, co
 /*
  * Returns an euler sequence 3-2-1 (roll pitch yaw) that when applied takes you from body to world
  */
-inline void Quat2EulerNWU(const Eigen::Quaternionf& q, float& r, float& p, float& y)
+inline void __host__ __device__ Quat2EulerNWU(const Eigen::Quaternionf& q, float& r, float& p, float& y)
 {
   r = atan2(2 * q.z() * q.y() + 2 * q.w() * q.x(), q.w() * q.w() + q.z() * q.z() - q.y() * q.y() - q.x() * q.x());
   float temp = -2 * q.w() * q.y() + 2 * q.x() * q.z();

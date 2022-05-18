@@ -32,22 +32,22 @@ void RacerSuspension::step(Eigen::Ref<state_array> state, Eigen::Ref<const contr
 {
   state_array x_dot;
   Eigen::Matrix3f omegaJac;
-  computeDynamics(state, control, x_dot, &omegaJac);
+  computeStateDeriv(state, control, x_dot, nullptr, &omegaJac);
   // approximate implicit euler for angular rate states
   Eigen::Vector3f deltaOmega =
-      (Eigen::Matrix3f::Identity() - dt * omegaJac).inverse() * dt * x_dot.segment<3>(STATE_OMEGA);
+      (Eigen::Matrix3f::Identity() - dt * omegaJac).inverse() * dt * x_dot.segment<3>(S_INDEX(OMEGA_B_X));
   state_array delta_x = x_dot * dt;
-  delta_x.segment<3>(STATE_OMEGA) = deltaOmega;
+  delta_x.segment<3>(S_INDEX(OMEGA_B_X)) = deltaOmega;
   state += delta_x;
-  float q_norm = state.segment<4>(STATE_Q).norm();
-  state.segment<4>(STATE_Q) /= q_norm;
+  float q_norm = state.segment<4>(S_INDEX(ATTITUDE_QW)).norm();
+  state.segment<4>(S_INDEX(ATTITUDE_QW)) /= q_norm;
 }
 
 void RacerSuspension::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
 {
   state += state_der * dt;
-  float q_norm = state.segment<4>(STATE_Q).norm();
-  state.segment<4>(STATE_Q) /= q_norm;
+  float q_norm = state.segment<4>(S_INDEX(ATTITUDE_QW)).norm();
+  state.segment<4>(S_INDEX(ATTITUDE_QW)) /= q_norm;
   state_der.setZero();
 }
 
@@ -80,23 +80,24 @@ __device__ __host__ static float stribeck_friction(float v, float mu_s, float v_
     return mu;
 }
 
-__device__ __host__ void RacerSuspension::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                                          const Eigen::Ref<const control_array>& control,
-                                                          Eigen::Ref<state_array> state_der,
-                                                          Eigen::Matrix3f* omegaJacobian)
+__device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<const state_array>& state,
+                                                            const Eigen::Ref<const control_array>& control,
+                                                            Eigen::Ref<state_array> state_der, output_array* output,
+                                                            Eigen::Matrix3f* omegaJacobian)
 {
-  Eigen::Vector3f p_I = state.segment<3>(STATE_P);
-  Eigen::Vector3f v_I = state.segment<3>(STATE_V);
-  Eigen::Vector3f omega = state.segment<3>(STATE_OMEGA);
-  Eigen::Quaternionf q(state[STATE_QW], state[STATE_QX], state[STATE_QY], state[STATE_QZ]);
+  Eigen::Vector3f p_I = state.segment<3>(S_INDEX(P_I_X));
+  Eigen::Vector3f v_I = state.segment<3>(S_INDEX(V_I_X));
+  Eigen::Vector3f omega = state.segment<3>(S_INDEX(OMEGA_B_X));
+  Eigen::Quaternionf q(state[S_INDEX(ATTITUDE_QW)], state[S_INDEX(ATTITUDE_QX)], state[S_INDEX(ATTITUDE_QY)],
+                       state[S_INDEX(ATTITUDE_QZ)]);
   Eigen::Matrix3f R = q.toRotationMatrix();
-  float tan_delta = tan(state[STATE_STEER]);
+  float tan_delta = tan(state[S_INDEX(STEER_ANGLE)]);
   Eigen::Matrix3f Rdot = R * mppi::math::skewSymmetricMatrix(omega);
 
   // linear engine model
   float vel_x = (R.transpose() * v_I)[0];
-  float throttle = max(0.0, control[CTRL_THROTTLE_BRAKE]);
-  float brake = max(0.0, -control[CTRL_THROTTLE_BRAKE]);
+  float throttle = max(0.0, control[C_INDEX(THROTTLE_BRAKE)]);
+  float brake = max(0.0, -control[C_INDEX(THROTTLE_BRAKE)]);
   float acc = params_.c_t * throttle - copysign(params_.c_b * brake, vel_x) - params_.c_v * vel_x + params_.c_0;
   float propulsion_force = params_.mass * acc;
 
@@ -113,13 +114,13 @@ __device__ __host__ void RacerSuspension::computeDynamics(const Eigen::Ref<const
     Eigen::Vector3f p_w_nom_I_i = p_I + R * p_w_nom_B_i;
     float h_i = 0;
     Eigen::Vector3f n_I_i(0, 0, 1);
-    if (tex_helper_->checkTextureUse(TEXTURE_ELEVATION_MAP))
-    {
-      float4 wheel_elev = tex_helper_->queryTextureAtWorldPose(TEXTURE_ELEVATION_MAP, EigenToCuda(p_w_nom_I_i));
-      h_i = wheel_elev.w;
-      // std::cout << "h_i " << h_i << std::endl;
-      n_I_i = Eigen::Vector3f(wheel_elev.x, wheel_elev.y, wheel_elev.z);
-    }
+    // if (tex_helper_->checkTextureUse(TEXTURE_ELEVATION_MAP))
+    // {
+    //   float4 wheel_elev = tex_helper_->queryTextureAtWorldPose(TEXTURE_ELEVATION_MAP, EigenToCuda(p_w_nom_I_i));
+    //   h_i = wheel_elev.w;
+    //   // std::cout << "h_i " << h_i << std::endl;
+    //   n_I_i = Eigen::Vector3f(wheel_elev.x, wheel_elev.y, wheel_elev.z);
+    // }
     Eigen::Vector3f p_c_I_i(p_w_nom_I_i[0], p_w_nom_I_i[1], h_i);
     float l_i = p_w_nom_I_i[2] - p_c_I_i[2];
     Eigen::Vector3f p_dot_w_nom_I_i = v_I + Rdot * p_w_nom_B_i;
@@ -206,21 +207,30 @@ __device__ __host__ void RacerSuspension::computeDynamics(const Eigen::Ref<const
     f_B += f_r_B[i];
     tau_B += p_c_B_i.cross(f_r_B[i]);
     tau_B_jac += -f_r_B_i_Jac.colwise().cross(p_c_B_i);
+
+    if (output)
+    {
+      (*output)[O_INDEX(WHEEL_POS_I_FL_X) + i * 2] = p_w_nom_I_i[0];
+      (*output)[O_INDEX(WHEEL_POS_I_FL_Y) + i * 2] = p_w_nom_I_i[1];
+      (*output)[O_INDEX(WHEEL_FORCE_B_FL_X) + i * 3] = f_r_B[i][0];
+      (*output)[O_INDEX(WHEEL_FORCE_B_FL_Y) + i * 3] = f_r_B[i][1];
+      (*output)[O_INDEX(WHEEL_FORCE_B_FL_Z) + i * 3] = f_r_B[i][2];
+    }
   }
 
-  Eigen::Vector3f g(0, 0, -params_.gravity);
+  Eigen::Vector3f g(0, 0, params_.gravity);  // TODO gravity is negative to match dubins model
 
-  state_der.segment<3>(STATE_P) = v_I;
-  state_der.segment<3>(STATE_V) = 1 / params_.mass * R * f_B + g;
+  state_der.segment<3>(S_INDEX(P_I_X)) = v_I;
+  state_der.segment<3>(S_INDEX(V_I_X)) = 1 / params_.mass * R * f_B + g;
   Eigen::Quaternionf qdot;
   qdot.coeffs() = 0.5 * (q * Eigen::Quaternionf(0, omega[0], omega[1], omega[2])).coeffs();
-  state_der[STATE_QW] = qdot.w();
-  state_der[STATE_QX] = qdot.x();
-  state_der[STATE_QY] = qdot.y();
-  state_der[STATE_QZ] = qdot.z();
+  state_der[S_INDEX(ATTITUDE_QW)] = qdot.w();
+  state_der[S_INDEX(ATTITUDE_QX)] = qdot.x();
+  state_der[S_INDEX(ATTITUDE_QY)] = qdot.y();
+  state_der[S_INDEX(ATTITUDE_QZ)] = qdot.z();
   Eigen::Vector3f J_diag(params_.Jxx, params_.Jyy, params_.Jzz);
   Eigen::Vector3f J_inv_diag(1/params_.Jxx, 1/params_.Jyy, 1/params_.Jzz);
-  state_der.segment<3>(STATE_OMEGA) = J_inv_diag.cwiseProduct(J_diag.cwiseProduct(omega).cross(omega) + tau_B);
+  state_der.segment<3>(S_INDEX(OMEGA_B_X)) = J_inv_diag.cwiseProduct(J_diag.cwiseProduct(omega).cross(omega) + tau_B);
   if (omegaJacobian)
   {
     Eigen::Matrix3f J = J_diag.asDiagonal();
@@ -230,38 +240,85 @@ __device__ __host__ void RacerSuspension::computeDynamics(const Eigen::Ref<const
   }
 
   // Steering actuator model
-  float steer = control[CTRL_STEER_CMD] / params_.steer_command_angle_scale;
-  state_der[STATE_STEER] = params_.steering_constant * (steer - state[STATE_STEER]);
-  state_der[STATE_STEER_VEL] = 0; // Not used in first order model
+  float steer = control[C_INDEX(STEER_CMD)] / params_.steer_command_angle_scale;
+  state_der[S_INDEX(STEER_ANGLE)] = params_.steering_constant * (steer - state[S_INDEX(STEER_ANGLE)]);
+
+  if (output)
+  {
+    Eigen::Vector3f COM_v_B = R.transpose() * v_I;
+    Eigen::Vector3f p_base_link_in_B = -cudaToEigen(params_.cg_pos_wrt_base_link);
+    Eigen::Vector3f base_link_v_B = COM_v_B + omega.cross(p_base_link_in_B);
+    (*output)[O_INDEX(BASELINK_VEL_B_X)] = base_link_v_B[0];
+    (*output)[O_INDEX(BASELINK_VEL_B_X)] = base_link_v_B[1];
+    (*output)[O_INDEX(BASELINK_VEL_B_X)] = base_link_v_B[2];
+    Eigen::Vector3f base_link_p_I = p_I + R * p_base_link_in_B;
+    (*output)[O_INDEX(BASELINK_POS_I_X)] = base_link_p_I[0];
+    (*output)[O_INDEX(BASELINK_POS_I_Y)] = base_link_p_I[1];
+    (*output)[O_INDEX(BASELINK_POS_I_Z)] = base_link_p_I[2];
+    (*output)[O_INDEX(OMEGA_B_X)] = omega[0];
+    (*output)[O_INDEX(OMEGA_B_Y)] = omega[1];
+    (*output)[O_INDEX(OMEGA_B_Z)] = omega[2];
+    float roll, pitch, yaw;
+    mppi::math::Quat2EulerNWU(q, roll, pitch, yaw);
+    (*output)[O_INDEX(YAW)] = yaw;
+    (*output)[O_INDEX(PITCH)] = pitch;
+    (*output)[O_INDEX(ROLL)] = roll;
+    (*output)[O_INDEX(ATTITUDE_QW)] = q.w();
+    (*output)[O_INDEX(ATTITUDE_QX)] = q.x();
+    (*output)[O_INDEX(ATTITUDE_QY)] = q.y();
+    (*output)[O_INDEX(ATTITUDE_QZ)] = q.z();
+    (*output)[O_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE)];
+    (*output)[O_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
+    (*output)[O_INDEX(CENTER_POS_I_X)] = (*output)[O_INDEX(BASELINK_POS_I_X)];  // TODO
+    (*output)[O_INDEX(CENTER_POS_I_Y)] = (*output)[O_INDEX(BASELINK_POS_I_Y)];
+    (*output)[O_INDEX(CENTER_POS_I_Z)] = (*output)[O_INDEX(BASELINK_POS_I_Z)];
+  }
 }
 
-__device__ void RacerSuspension::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
+__device__ void RacerSuspension::computeStateDeriv(float* state, float* control, float* state_der, float* theta_s,
+                                                   float* output)
 {
   (void)theta_s;
-  Eigen::Map<state_array> state_v(state);
-  Eigen::Map<control_array> control_v(control);
-  Eigen::Map<state_array> state_der_v(state_der);
-  computeDynamics(state_v, control_v, state_der_v);
+  // Eigen::Map<state_array> state_v(state);
+  // Eigen::Map<control_array> control_v(control);
+  // Eigen::Map<state_array> state_der_v(state_der);
+  // if (output) {
+  //   Eigen::Map<state_array> output_v(output);
+  //   output_v =
+  // }
+  // computeStateDeriv(state_v, control_v, state_der_v, nullptr);
+  for (int i = 0; i < PARENT_CLASS::STATE_DIM; i++)
+  {
+    state_der[i] = 0;
+  }
+  if (output)
+  {
+    for (int i = 0; i < PARENT_CLASS::OUTPUT_DIM; i++)
+    {
+      output[i] = 0;
+    }
+  }
 }
 
 Eigen::Quaternionf RacerSuspension::attitudeFromState(const Eigen::Ref<const state_array>& state)
 {
-  return Eigen::Quaternionf(state[STATE_QW], state[STATE_QX], state[STATE_QY], state[STATE_QZ]);
+  return Eigen::Quaternionf(state[S_INDEX(ATTITUDE_QW)], state[S_INDEX(ATTITUDE_QX)], state[S_INDEX(ATTITUDE_QY)],
+                            state[S_INDEX(ATTITUDE_QZ)]);
 }
 
 Eigen::Vector3f RacerSuspension::positionFromState(const Eigen::Ref<const state_array>& state)
 {
-  Eigen::Vector3f p_COM = state.segment<3>(STATE_P);
+  Eigen::Vector3f p_COM = state.segment<3>(S_INDEX(P_I_X));
   Eigen::Quaternionf q = attitudeFromState(state);
   return p_COM - q * cudaToEigen(params_.cg_pos_wrt_base_link);
 }
 
 Eigen::Vector3f RacerSuspension::velocityFromState(const Eigen::Ref<const state_array>& state)
 {
-  Eigen::Vector3f COM_v_I = state.segment<3>(STATE_V);
+  Eigen::Vector3f COM_v_I = state.segment<3>(S_INDEX(V_I_X));
   Eigen::Quaternionf q_B_to_I = attitudeFromState(state);
   Eigen::Vector3f COM_v_B = q_B_to_I.conjugate() * COM_v_I;
-  Eigen::Vector3f omega = state.segment<3>(STATE_OMEGA);
+  Eigen::Vector3f omega = state.segment<3>(S_INDEX(OMEGA_B_X));
   Eigen::Vector3f p_base_link_in_B = -cudaToEigen(params_.cg_pos_wrt_base_link);
   Eigen::Vector3f base_link_v_B = COM_v_B + omega.cross(p_base_link_in_B);
   return base_link_v_B;
@@ -269,7 +326,7 @@ Eigen::Vector3f RacerSuspension::velocityFromState(const Eigen::Ref<const state_
 
 Eigen::Vector3f RacerSuspension::angularRateFromState(const Eigen::Ref<const state_array>& state)
 {
-  return state.segment<3>(STATE_OMEGA);
+  return state.segment<3>(S_INDEX(OMEGA_B_X));
 }
 
 RacerSuspension::state_array RacerSuspension::stateFromOdometry(const Eigen::Quaternionf& q_B_to_I,
@@ -279,16 +336,16 @@ RacerSuspension::state_array RacerSuspension::stateFromOdometry(const Eigen::Qua
 {
   state_array s;
   s.setZero();
-  s[STATE_QW] = q_B_to_I.w();
-  s[STATE_QX] = q_B_to_I.x();
-  s[STATE_QY] = q_B_to_I.y();
-  s[STATE_QZ] = q_B_to_I.z();
-  s.segment<3>(STATE_OMEGA) = omega_B;
+  s[S_INDEX(ATTITUDE_QW)] = q_B_to_I.w();
+  s[S_INDEX(ATTITUDE_QX)] = q_B_to_I.x();
+  s[S_INDEX(ATTITUDE_QY)] = q_B_to_I.y();
+  s[S_INDEX(ATTITUDE_QZ)] = q_B_to_I.z();
+  s.segment<3>(S_INDEX(OMEGA_B_X)) = omega_B;
   Eigen::Vector3f p_COM_wrt_base_link = cudaToEigen(params_.cg_pos_wrt_base_link);
   Eigen::Vector3f p_I = pos_base_link_I + q_B_to_I * p_COM_wrt_base_link;
-  s.segment<3>(STATE_P) = p_I;
+  s.segment<3>(S_INDEX(P_I_X)) = p_I;
   Eigen::Vector3f COM_v_B = vel_base_link_B + omega_B.cross(p_COM_wrt_base_link);
   Eigen::Vector3f COM_v_I = q_B_to_I * COM_v_B;
-  s.segment<3>(STATE_V) = COM_v_I;
+  s.segment<3>(S_INDEX(V_I_X)) = COM_v_I;
   return s;
 }
