@@ -99,10 +99,10 @@ __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int nu
     }
   }
 
-  // control noise output gets scaled by the kernel,
-  // so we need to unscale it first.
+  // control noise output gets scaled by the kernel, and added to nominal control.
+  // so we need to undo these operations to get exactly the control trajectory we want.
   output[(sample_index * num_timesteps + time_index) * control_dim + control_index] =
-      output_val / control_std_dev[control_index];
+      output_val / control_std_dev[control_index] - nominal_control[time_index * control_dim + control_index];
 }
 
 void piecewise_linear_noise(const int num_timesteps, const int num_trajectories, const int control_dim,
