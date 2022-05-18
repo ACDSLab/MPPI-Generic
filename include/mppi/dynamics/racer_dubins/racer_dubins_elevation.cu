@@ -32,73 +32,11 @@ void RacerDubinsElevation::paramsToDevice()
 void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
 {
   state += state_der * dt;
-  state(1) = angle_utils::normalizeAngle(state(1));
-  state(4) -= state_der(4) * dt;
-  state(4) = state_der(4) + (state(4) - state_der(4)) * expf(-this->params_.steering_constant * dt);
-
-  if (this->tex_helper_->checkTextureUse(0))
-  {
-    float3 front_left = make_float3(2.981, 0.737, 0);
-    float3 front_right = make_float3(2.981, -0.737, 0);
-    float3 back_left = make_float3(0, 0.737, 0);
-    float3 back_right = make_float3(0, -0.737, 0);
-    front_left = make_float3(front_left.x * cosf(state(1)) - front_left.y * sinf(state(1)) + state(2),
-                             front_left.x * sinf(state(1)) + front_left.y * cosf(state(1)) + state(3), 0);
-    front_right = make_float3(front_right.x * cosf(state(1)) - front_right.y * sinf(state(1)) + state(2),
-                              front_right.x * sinf(state(1)) + front_right.y * cosf(state(1)) + state(3), 0);
-    back_left = make_float3(back_left.x * cosf(state(1)) - back_left.y * sinf(state(1)) + state(2),
-                            back_left.x * sinf(state(1)) + back_left.y * cosf(state(1)) + state(3), 0);
-    back_right = make_float3(back_right.x * cosf(state(1)) - back_right.y * sinf(state(1)) + state(2),
-                             back_right.x * sinf(state(1)) + back_right.y * cosf(state(1)) + state(3), 0);
-    float front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
-    float front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
-    float back_left_height = this->tex_helper_->queryTextureAtWorldPose(0, back_left);
-    float back_right_height = this->tex_helper_->queryTextureAtWorldPose(0, back_right);
-
-    float front_diff = front_left_height - front_right_height;
-    front_diff = max(min(front_diff, 0.736 * 2), -0.736 * 2);
-    float back_diff = back_left_height - back_right_height;
-    back_diff = max(min(back_diff, 0.736 * 2), -0.736 * 2);
-    float front_roll = asinf(front_diff / (0.737 * 2));
-    float back_roll = asinf(back_diff / (0.737 * 2));
-    if (abs(front_roll) > abs(back_roll))
-    {
-      state(5) = front_roll;
-    }
-    else
-    {
-      state(5) = back_roll;
-    }
-
-    float left_diff = back_left_height - front_left_height;
-    left_diff = max(min(left_diff, 2.98), -2.98);
-    float right_diff = back_right_height - front_right_height;
-    right_diff = max(min(right_diff, 2.98), -2.98);
-    float left_pitch = asinf((left_diff) / 2.981);
-    float right_pitch = asinf((right_diff) / 2.981);
-    if (abs(left_pitch) > abs(right_pitch))
-    {
-      state(6) = left_pitch;
-    }
-    else
-    {
-      state(6) = right_pitch;
-    }
-  }
-  else
-  {
-    state(5) = 0;
-    state(6) = 0;
-  }
-
-  if (isnan(state(5)) || isinf(state(5)) || abs(state(5)) > M_PI)
-  {
-    state(5) = 4.0;
-  }
-  if (isnan(state(6)) || isinf(state(6)) || abs(state(6)) > M_PI)
-  {
-    state(6) = 4.0;
-  }
+  state(S_INDEX(YAW)) = angle_utils::normalizeAngle(state(S_INDEX(YAW)));
+  state(S_INDEX(STEER_ANGLE)) -= state_der(S_INDEX(STEER_ANGLE)) * dt;
+  state(S_INDEX(STEER_ANGLE)) =
+      state_der(S_INDEX(STEER_ANGLE)) +
+      (state(S_INDEX(STEER_ANGLE)) - state_der(S_INDEX(STEER_ANGLE))) * expf(-this->params_.steering_constant * dt);
 
   state_der.setZero();
 }
@@ -112,132 +50,276 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
   for (i = tdy; i < STATE_DIM; i += blockDim.y)
   {
     state[i] += state_der[i] * dt;
-    if (i == 1)
+    if (i == S_INDEX(YAW))
     {
       state[i] = angle_utils::normalizeAngle(state[i]);
     }
-    if (i == 4)
+    if (i == S_INDEX(STEER_ANGLE))
     {
       state[i] -= state_der[i] * dt;
       state[i] = state_der[i] + (state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
-    }
-    if (i == 5 || i == 6)
-    {
-      // roll
-      if (this->tex_helper_->checkTextureUse(0))
-      {
-        float3 front_left = make_float3(2.981, 0.737, 0);
-        float3 front_right = make_float3(2.981, -0.737, 0);
-        float3 back_left = make_float3(0, 0.737, 0);
-        float3 back_right = make_float3(0, -0.737, 0);
-        front_left = make_float3(front_left.x * cosf(state[1]) - front_left.y * sinf(state[1]) + state[2],
-                                 front_left.x * sinf(state[1]) + front_left.y * cosf(state[1]) + state[3], 0);
-        front_right = make_float3(front_right.x * cosf(state[1]) - front_right.y * sinf(state[1]) + state[2],
-                                  front_right.x * sinf(state[1]) + front_right.y * cosf(state[1]) + state[3], 0);
-        back_left = make_float3(back_left.x * cosf(state[1]) - back_left.y * sinf(state[1]) + state[2],
-                                back_left.x * sinf(state[1]) + back_left.y * cosf(state[1]) + state[3], 0);
-        back_right = make_float3(back_right.x * cosf(state[1]) - back_right.y * sinf(state[1]) + state[2],
-                                 back_right.x * sinf(state[1]) + back_right.y * cosf(state[1]) + state[3], 0);
-        float front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
-        float front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
-        float back_left_height = this->tex_helper_->queryTextureAtWorldPose(0, back_left);
-        float back_right_height = this->tex_helper_->queryTextureAtWorldPose(0, back_right);
-
-        // max magnitude
-        if (i == 5)
-        {
-          float front_diff = front_left_height - front_right_height;
-          front_diff = max(min(front_diff, 0.736 * 2), -0.736 * 2);
-          float back_diff = back_left_height - back_right_height;
-          back_diff = max(min(back_diff, 0.736 * 2), -0.736 * 2);
-          float front_roll = asinf(front_diff / (0.737 * 2));
-          float back_roll = asinf(back_diff / (0.737 * 2));
-          if (abs(front_roll) > abs(back_roll))
-          {
-            state[i] = front_roll;
-          }
-          else
-          {
-            state[i] = back_roll;
-          }
-        }
-        if (i == 6)
-        {
-          float left_diff = back_left_height - front_left_height;
-          left_diff = max(min(left_diff, 2.98), -2.98);
-          float right_diff = back_right_height - front_right_height;
-          right_diff = max(min(right_diff, 2.98), -2.98);
-          float left_pitch = asinf((left_diff) / 2.981);
-          float right_pitch = asinf((right_diff) / 2.981);
-          if (abs(left_pitch) > abs(right_pitch))
-          {
-            state[i] = left_pitch;
-          }
-          else
-          {
-            state[i] = right_pitch;
-          }
-        }
-
-        if (isnan(state[i]) || isinf(state[i]) || abs(state[i]) > M_PI)
-        {
-          // printf("got invalid roll %f from %f %f diff %f %f\n", state[i], front_left_height, front_right_height,
-          // diff, (diff) / (0.737 * 2)); printf("got invalid roll at points (%f %f) (%f, %f)\n", front_left.x,
-          // front_left.y, front_right.x, front_right.y);
-          state[i] = 4.0;
-        }
-      }
-      else
-      {
-        state[i] = 0;
-      }
     }
     state_der[i] = 0;  // Important: reset the state derivative to zero.
   }
 }
 
-void RacerDubinsElevation::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                           const Eigen::Ref<const control_array>& control,
-                                           Eigen::Ref<state_array> state_der)
+void RacerDubinsElevation::computeStateDeriv(const Eigen::Ref<const state_array>& state,
+                                             const Eigen::Ref<const control_array>& control,
+                                             Eigen::Ref<state_array> state_der, output_array* output)
 {
+  float pitch = 0;
+  float roll = 0;
+
+  float3 front_left = make_float3(2.981, 0.737, 0);
+  float3 front_right = make_float3(2.981, -0.737, 0);
+  float3 rear_left = make_float3(0, 0.737, 0);
+  float3 rear_right = make_float3(0, -0.737, 0);
+  front_left = make_float3(front_left.x * cosf(state(1)) - front_left.y * sinf(state(1)) + state(2),
+                           front_left.x * sinf(state(1)) + front_left.y * cosf(state(1)) + state(3), 0);
+  front_right = make_float3(front_right.x * cosf(state(1)) - front_right.y * sinf(state(1)) + state(2),
+                            front_right.x * sinf(state(1)) + front_right.y * cosf(state(1)) + state(3), 0);
+  rear_left = make_float3(rear_left.x * cosf(state(1)) - rear_left.y * sinf(state(1)) + state(2),
+                          rear_left.x * sinf(state(1)) + rear_left.y * cosf(state(1)) + state(3), 0);
+  rear_right = make_float3(rear_right.x * cosf(state(1)) - rear_right.y * sinf(state(1)) + state(2),
+                           rear_right.x * sinf(state(1)) + rear_right.y * cosf(state(1)) + state(3), 0);
+  float front_left_height = 0;
+  float front_right_height = 0;
+  float rear_left_height = 0;
+  float rear_right_height = 0;
+
+  if (this->tex_helper_->checkTextureUse(0))
+  {
+    front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
+    front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
+    rear_left_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_left);
+    rear_right_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_right);
+
+    float front_diff = front_left_height - front_right_height;
+    front_diff = max(min(front_diff, 0.736 * 2), -0.736 * 2);
+    float rear_diff = rear_left_height - rear_right_height;
+    rear_diff = max(min(rear_diff, 0.736 * 2), -0.736 * 2);
+    float front_roll = asinf(front_diff / (0.737 * 2));
+    float rear_roll = asinf(rear_diff / (0.737 * 2));
+    if (abs(front_roll) > abs(rear_roll))
+    {
+      roll = front_roll;
+    }
+    else
+    {
+      roll = rear_roll;
+    }
+
+    float left_diff = rear_left_height - front_left_height;
+    left_diff = max(min(left_diff, 2.98), -2.98);
+    float right_diff = rear_right_height - front_right_height;
+    right_diff = max(min(right_diff, 2.98), -2.98);
+    float left_pitch = asinf((left_diff) / 2.981);
+    float right_pitch = asinf((right_diff) / 2.981);
+    if (abs(left_pitch) > abs(right_pitch))
+    {
+      pitch = left_pitch;
+    }
+    else
+    {
+      pitch = right_pitch;
+    }
+    if (isnan(roll) || isinf(roll) || abs(roll) > M_PI)
+    {
+      roll = 0;
+    }
+    if (isnan(pitch) || isinf(pitch) || abs(pitch) > M_PI)
+    {
+      pitch = 0;
+    }
+  }
+
   bool enable_brake = control(0) < 0;
   // applying position throttle
   state_der(0) = (!enable_brake) * this->params_.c_t * control(0) +
                  (enable_brake) * this->params_.c_b * control(0) * (state(0) >= 0 ? 1 : -1) -
                  this->params_.c_v * state(0) + this->params_.c_0;
-  if (abs(state[6]) < M_PI)
-  {
-    state_der[0] -= this->params_.gravity * sinf(state[6]);
-  }
+
+  state_der[0] -= this->params_.gravity * sinf(pitch);
   state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4));
-  state_der(2) = state(0) * cosf(state(1));
-  state_der(3) = state(0) * sinf(state(1));
+  float yaw = state[S_INDEX(YAW)];
+  state_der(2) = state(0) * cosf(yaw);
+  state_der(3) = state(0) * sinf(yaw);
   state_der(4) = control(1) / this->params_.steer_command_angle_scale;
+
+  if (output)
+  {
+    (*output)[O_INDEX(BASELINK_VEL_B_X)] = state[S_INDEX(VEL_X)];
+    (*output)[O_INDEX(BASELINK_VEL_B_Y)] = 0;
+    (*output)[O_INDEX(BASELINK_VEL_B_Z)] = 0;
+    (*output)[O_INDEX(BASELINK_POS_I_X)] = state[S_INDEX(POS_X)];
+    (*output)[O_INDEX(BASELINK_POS_I_Y)] = state[S_INDEX(POS_Y)];
+    (*output)[O_INDEX(BASELINK_POS_I_Z)] = 0;
+    (*output)[O_INDEX(OMEGA_B_X)] = 0;
+    (*output)[O_INDEX(OMEGA_B_Y)] = 0;
+    (*output)[O_INDEX(OMEGA_B_Z)] = 0;
+    (*output)[O_INDEX(YAW)] = yaw;
+    (*output)[O_INDEX(PITCH)] = pitch;
+    (*output)[O_INDEX(ROLL)] = roll;
+    Eigen::Quaternionf q;
+    mppi::math::Euler2QuatNWU(roll, pitch, yaw, q);
+    (*output)[O_INDEX(ATTITUDE_QW)] = q.w();
+    (*output)[O_INDEX(ATTITUDE_QX)] = q.x();
+    (*output)[O_INDEX(ATTITUDE_QY)] = q.y();
+    (*output)[O_INDEX(ATTITUDE_QZ)] = q.z();
+    (*output)[O_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE)];
+    (*output)[O_INDEX(STEER_ANGLE_RATE)] = 0;
+    (*output)[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
+    (*output)[O_INDEX(WHEEL_POS_I_FL_Y)] = front_left.y;
+    (*output)[O_INDEX(WHEEL_POS_I_FR_X)] = front_right.x;
+    (*output)[O_INDEX(WHEEL_POS_I_FR_Y)] = front_right.y;
+    (*output)[O_INDEX(WHEEL_POS_I_RL_X)] = rear_left.x;
+    (*output)[O_INDEX(WHEEL_POS_I_RL_Y)] = rear_left.y;
+    (*output)[O_INDEX(WHEEL_POS_I_RR_X)] = rear_right.x;
+    (*output)[O_INDEX(WHEEL_POS_I_RR_Y)] = rear_right.y;
+    (*output)[O_INDEX(WHEEL_FORCE_B_FL_X)] = 0;
+    (*output)[O_INDEX(WHEEL_FORCE_B_FL_Y)] = 0;
+    (*output)[O_INDEX(WHEEL_FORCE_B_FL_Z)] = 10000;
+    (*output)[O_INDEX(WHEEL_FORCE_B_FR_X)] = 0;
+    (*output)[O_INDEX(WHEEL_FORCE_B_FR_Y)] = 0;
+    (*output)[O_INDEX(WHEEL_FORCE_B_FR_Z)] = 10000;
+    (*output)[O_INDEX(WHEEL_FORCE_B_RL_X)] = 0;
+    (*output)[O_INDEX(WHEEL_FORCE_B_RL_Y)] = 0;
+    (*output)[O_INDEX(WHEEL_FORCE_B_RL_Z)] = 10000;
+    (*output)[O_INDEX(WHEEL_FORCE_B_RR_X)] = 0;
+    (*output)[O_INDEX(WHEEL_FORCE_B_RR_Y)] = 0;
+    (*output)[O_INDEX(WHEEL_FORCE_B_RR_Z)] = 10000;
+    (*output)[O_INDEX(CENTER_POS_I_X)] = (*output)[O_INDEX(BASELINK_POS_I_X)];  // TODO
+    (*output)[O_INDEX(CENTER_POS_I_Y)] = (*output)[O_INDEX(BASELINK_POS_I_Y)];
+    (*output)[O_INDEX(CENTER_POS_I_Z)] = 0;
+  }
 }
 
-__device__ void RacerDubinsElevation::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
+__device__ void RacerDubinsElevation::computeStateDeriv(float* state, float* control, float* state_der, float* theta_s,
+                                                        float* output)
 {
+  float pitch = 0;
+  float roll = 0;
+
+  float3 front_left = make_float3(2.981, 0.737, 0);
+  float3 front_right = make_float3(2.981, -0.737, 0);
+  float3 rear_left = make_float3(0, 0.737, 0);
+  float3 rear_right = make_float3(0, -0.737, 0);
+  front_left = make_float3(front_left.x * cosf(state[1]) - front_left.y * sinf(state[1]) + state[2],
+                           front_left.x * sinf(state[1]) + front_left.y * cosf(state[1]) + state[3], 0);
+  front_right = make_float3(front_right.x * cosf(state[1]) - front_right.y * sinf(state[1]) + state[2],
+                            front_right.x * sinf(state[1]) + front_right.y * cosf(state[1]) + state[3], 0);
+  rear_left = make_float3(rear_left.x * cosf(state[1]) - rear_left.y * sinf(state[1]) + state[2],
+                          rear_left.x * sinf(state[1]) + rear_left.y * cosf(state[1]) + state[3], 0);
+  rear_right = make_float3(rear_right.x * cosf(state[1]) - rear_right.y * sinf(state[1]) + state[2],
+                           rear_right.x * sinf(state[1]) + rear_right.y * cosf(state[1]) + state[3], 0);
+  float front_left_height = 0;
+  float front_right_height = 0;
+  float rear_left_height = 0;
+  float rear_right_height = 0;
+
+  if (this->tex_helper_->checkTextureUse(0))
+  {
+    front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
+    front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
+    rear_left_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_left);
+    rear_right_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_right);
+
+    // max magnitude
+    float front_diff = front_left_height - front_right_height;
+    front_diff = max(min(front_diff, 0.736 * 2), -0.736 * 2);
+    float rear_diff = rear_left_height - rear_right_height;
+    rear_diff = max(min(rear_diff, 0.736 * 2), -0.736 * 2);
+    float front_roll = asinf(front_diff / (0.737 * 2));
+    float rear_roll = asinf(rear_diff / (0.737 * 2));
+    if (abs(front_roll) > abs(rear_roll))
+    {
+      roll = front_roll;
+    }
+    else
+    {
+      roll = rear_roll;
+    }
+    float left_diff = rear_left_height - front_left_height;
+    left_diff = max(min(left_diff, 2.98), -2.98);
+    float right_diff = rear_right_height - front_right_height;
+    right_diff = max(min(right_diff, 2.98), -2.98);
+    float left_pitch = asinf((left_diff) / 2.981);
+    float right_pitch = asinf((right_diff) / 2.981);
+    if (abs(left_pitch) > abs(right_pitch))
+    {
+      pitch = left_pitch;
+    }
+    else
+    {
+      pitch = right_pitch;
+    }
+
+    if (isnan(roll) || isinf(roll) || abs(roll) > M_PI)
+    {
+      roll = 0;
+    }
+    if (isnan(pitch) || isinf(pitch) || abs(pitch) > M_PI)
+    {
+      pitch = 0;
+    }
+  }
+
   bool enable_brake = control[0] < 0;
   // applying position throttle
   state_der[0] = (!enable_brake) * this->params_.c_t * control[0] +
                  (enable_brake) * this->params_.c_b * control[0] * (state[0] >= 0 ? 1 : -1) -
                  this->params_.c_v * state[0] + this->params_.c_0;
-  if (abs(state[6]) < M_PI)
-  {
-    state_der[0] -= this->params_.gravity * sinf(state[6]);
-  }
+  state_der[0] -= this->params_.gravity * sinf(pitch);
+  float yaw = state[S_INDEX(YAW)];
   state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4]);
-  state_der[2] = state[0] * cosf(state[1]);
-  state_der[3] = state[0] * sinf(state[1]);
+  state_der[2] = state[0] * cosf(yaw);
+  state_der[3] = state[0] * sinf(yaw);
   state_der[4] = control[1] / this->params_.steer_command_angle_scale;
-}
 
-Eigen::Quaternionf RacerDubinsElevation::attitudeFromState(const Eigen::Ref<const state_array>& state)
-{
-  Eigen::Quaternionf q;
-  float roll = state[STATE_OUT_ROLL];
-  float pitch = state[STATE_OUT_PITCH];
-  float yaw = state[STATE_YAW];
-  mppi::math::Euler2QuatNWU(roll, pitch, yaw, q);
-  return q;
+  if (output)
+  {
+    output[O_INDEX(BASELINK_VEL_B_X)] = state[S_INDEX(VEL_X)];
+    output[O_INDEX(BASELINK_VEL_B_Y)] = 0;
+    output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
+    output[O_INDEX(BASELINK_POS_I_X)] = state[S_INDEX(POS_X)];
+    output[O_INDEX(BASELINK_POS_I_Y)] = state[S_INDEX(POS_Y)];
+    output[O_INDEX(BASELINK_POS_I_Z)] = 0;
+    output[O_INDEX(OMEGA_B_X)] = 0;
+    output[O_INDEX(OMEGA_B_Y)] = 0;
+    output[O_INDEX(OMEGA_B_Z)] = 0;
+    output[O_INDEX(YAW)] = yaw;
+    output[O_INDEX(PITCH)] = pitch;
+    output[O_INDEX(ROLL)] = roll;
+    Eigen::Quaternionf q;
+    mppi::math::Euler2QuatNWU(roll, pitch, yaw, q);
+    output[O_INDEX(ATTITUDE_QW)] = q.w();
+    output[O_INDEX(ATTITUDE_QX)] = q.x();
+    output[O_INDEX(ATTITUDE_QY)] = q.y();
+    output[O_INDEX(ATTITUDE_QZ)] = q.z();
+    output[O_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE)];
+    output[O_INDEX(STEER_ANGLE_RATE)] = 0;
+    output[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
+    output[O_INDEX(WHEEL_POS_I_FL_Y)] = front_left.y;
+    output[O_INDEX(WHEEL_POS_I_FR_X)] = front_right.x;
+    output[O_INDEX(WHEEL_POS_I_FR_Y)] = front_right.y;
+    output[O_INDEX(WHEEL_POS_I_RL_X)] = rear_left.x;
+    output[O_INDEX(WHEEL_POS_I_RL_Y)] = rear_left.y;
+    output[O_INDEX(WHEEL_POS_I_RR_X)] = rear_right.x;
+    output[O_INDEX(WHEEL_POS_I_RR_Y)] = rear_right.y;
+    output[O_INDEX(WHEEL_FORCE_B_FL_X)] = 0;
+    output[O_INDEX(WHEEL_FORCE_B_FL_Y)] = 0;
+    output[O_INDEX(WHEEL_FORCE_B_FL_Z)] = 10000;
+    output[O_INDEX(WHEEL_FORCE_B_FR_X)] = 0;
+    output[O_INDEX(WHEEL_FORCE_B_FR_Y)] = 0;
+    output[O_INDEX(WHEEL_FORCE_B_FR_Z)] = 10000;
+    output[O_INDEX(WHEEL_FORCE_B_RL_X)] = 0;
+    output[O_INDEX(WHEEL_FORCE_B_RL_Y)] = 0;
+    output[O_INDEX(WHEEL_FORCE_B_RL_Z)] = 10000;
+    output[O_INDEX(WHEEL_FORCE_B_RR_X)] = 0;
+    output[O_INDEX(WHEEL_FORCE_B_RR_Y)] = 0;
+    output[O_INDEX(WHEEL_FORCE_B_RR_Z)] = 10000;
+    output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
+    output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
+    output[O_INDEX(CENTER_POS_I_Z)] = 0;
+  }
 }

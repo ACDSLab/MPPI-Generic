@@ -7,16 +7,10 @@
 #include <mppi/utils/angle_utils.cuh>
 
 using namespace MPPI_internal;
-/**
- * state: v, theta, p_x, p_y, true steering angle, roll, pitch
- * control: throttle, steering angle command
- */
+
 class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation>
 {
 public:
-  static const int STATE_OUT_ROLL = 5;
-  static const int STATE_OUT_PITCH = 6;
-
   RacerDubinsElevation(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubinsElevation>(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -40,19 +34,18 @@ public:
 
   void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt);
 
-  void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                       Eigen::Ref<state_array> state_der);
+  void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                          Eigen::Ref<state_array> state_der, output_array* output=nullptr);
 
   __device__ void updateState(float* state, float* state_der, const float dt);
 
-  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s, float *output=nullptr);
+
 
   TwoDTextureHelper<float>* getTextureHelper()
   {
     return tex_helper_;
   }
-
-  Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
 
 protected:
   TwoDTextureHelper<float>* tex_helper_ = nullptr;

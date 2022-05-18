@@ -186,7 +186,7 @@ inline void QuatInv(const Eigen::Quaternionf& q, Eigen::Quaternionf& q_f)
 /*
  * The Euler rotation sequence is 3-2-1 (roll, pitch, yaw) from Body to World
  */
-inline void Euler2QuatNWU(const float& r, const float& p, const float& y, Eigen::Quaternionf& q)
+inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, const float& y, Eigen::Quaternionf& q)
 {
   // double psi = clamp_radians(euler.roll);
   // double theta = clamp_radians(euler.pitch);

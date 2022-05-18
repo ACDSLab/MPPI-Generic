@@ -5,16 +5,16 @@ void RacerDubinsImpl<CLASS_T>::computeDynamics(const Eigen::Ref<const state_arra
                                                const Eigen::Ref<const control_array>& control,
                                                Eigen::Ref<state_array> state_der)
 {
-  bool enable_brake = control(CTRL_THROTTLE_BRAKE) < 0;
+  bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0;
   // applying position throttle
-  state_der(STATE_V) =
-      (!enable_brake) * this->params_.c_t * control(CTRL_THROTTLE_BRAKE) +
-      (enable_brake) * this->params_.c_b * control(CTRL_THROTTLE_BRAKE) * (state(STATE_V) >= 0 ? 1 : -1) -
-      this->params_.c_v * state(STATE_V) + this->params_.c_0;
-  state_der(STATE_YAW) = (state(STATE_V) / this->params_.wheel_base) * tan(state(4));
-  state_der(STATE_PX) = state(STATE_V) * cosf(state(STATE_YAW));
-  state_der(STATE_PY) = state(STATE_V) * sinf(state(STATE_YAW));
-  state_der(STATE_STEER) = control(CTRL_STEER_CMD) / this->params_.steer_command_angle_scale;
+  state_der(S_INDEX(VEL_X)) =
+      (!enable_brake) * this->params_.c_t * control(C_INDEX(THROTTLE_BRAKE)) +
+      (enable_brake) * this->params_.c_b * control(C_INDEX(THROTTLE_BRAKE)) * (state(S_INDEX(VEL_X)) >= 0 ? 1 : -1) -
+      this->params_.c_v * state(S_INDEX(VEL_X)) + this->params_.c_0;
+  state_der(S_INDEX(YAW)) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) * tan(state(4));
+  state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW)));
+  state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW)));
+  state_der(S_INDEX(STEER_ANGLE)) = control(C_INDEX(STEER_CMD)) / this->params_.steer_command_angle_scale;
 }
 
 template <class CLASS_T>
@@ -30,10 +30,11 @@ void RacerDubinsImpl<CLASS_T>::updateState(Eigen::Ref<state_array> state, Eigen:
                                            const float dt)
 {
   state += state_der * dt;
-  state(STATE_YAW) = angle_utils::normalizeAngle(state(STATE_YAW));
-  state(STATE_STEER) -= state_der(STATE_STEER) * dt;
-  state(STATE_STEER) = state_der(STATE_STEER) +
-                       (state(STATE_STEER) - state_der(STATE_STEER)) * expf(-this->params_.steering_constant * dt);
+  state(S_INDEX(YAW)) = angle_utils::normalizeAngle(state(S_INDEX(YAW)));
+  state(S_INDEX(STEER_ANGLE)) -= state_der(S_INDEX(STEER_ANGLE)) * dt;
+  state(S_INDEX(STEER_ANGLE)) =
+      state_der(S_INDEX(STEER_ANGLE)) +
+      (state(S_INDEX(STEER_ANGLE)) - state_der(S_INDEX(STEER_ANGLE))) * expf(-this->params_.steering_constant * dt);
   state_der.setZero();
 }
 
@@ -57,11 +58,11 @@ __device__ void RacerDubinsImpl<CLASS_T>::updateState(float* state, float* state
   for (i = tdy; i < PARENT_CLASS::STATE_DIM; i += blockDim.y)
   {
     state[i] += state_der[i] * dt;
-    if (i == STATE_YAW)
+    if (i == S_INDEX(YAW))
     {
       state[i] = angle_utils::normalizeAngle(state[i]);
     }
-    if (i == STATE_STEER)
+    if (i == S_INDEX(STEER_ANGLE))
     {
       state[i] -= state_der[i] * dt;
       state[i] = state_der[i] + (state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
@@ -74,20 +75,20 @@ __device__ void RacerDubinsImpl<CLASS_T>::updateState(float* state, float* state
 template <class CLASS_T>
 Eigen::Quaternionf RacerDubinsImpl<CLASS_T>::attitudeFromState(const Eigen::Ref<const state_array>& state)
 {
-  float theta = state[STATE_YAW];
+  float theta = state[S_INDEX(YAW)];
   return Eigen::Quaternionf(cos(theta / 2), 0, 0, sin(theta / 2));
 }
 
 template <class CLASS_T>
 Eigen::Vector3f RacerDubinsImpl<CLASS_T>::positionFromState(const Eigen::Ref<const state_array>& state)
 {
-  return Eigen::Vector3f(state[STATE_PX], state[STATE_PY], 0);
+  return Eigen::Vector3f(state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], 0);
 }
 
 template <class CLASS_T>
 Eigen::Vector3f RacerDubinsImpl<CLASS_T>::velocityFromState(const Eigen::Ref<const state_array>& state)
 {
-  return Eigen::Vector3f(state[STATE_V], 0, 0);
+  return Eigen::Vector3f(state[S_INDEX(VEL_X)], 0, 0);
 }
 
 template <class CLASS_T>
@@ -104,12 +105,12 @@ RacerDubinsImpl<CLASS_T>::state_array RacerDubinsImpl<CLASS_T>::stateFromOdometr
 {
   state_array s;
   s.setZero();
-  s[STATE_PX] = pos[0];
-  s[STATE_PY] = pos[1];
-  s[STATE_V] = vel[0];
+  s[S_INDEX(POS_X)] = pos[0];
+  s[S_INDEX(POS_Y)] = pos[1];
+  s[S_INDEX(VEL_X)] = vel[0];
   float _roll, _pitch, yaw;
   mppi::math::Quat2EulerNWU(q, _roll, _pitch, yaw);
-  s[STATE_YAW] = yaw;
+  s[S_INDEX(YAW)] = yaw;
   return s;
 }
 
@@ -117,16 +118,16 @@ template <class CLASS_T>
 __device__ void RacerDubinsImpl<CLASS_T>::computeDynamics(float* state, float* control, float* state_der,
                                                           float* theta_s)
 {
-  bool enable_brake = control[CTRL_THROTTLE_BRAKE] < 0;
+  bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
   // applying position throttle
-  state_der[STATE_V] =
-      (!enable_brake) * this->params_.c_t * control[CTRL_THROTTLE_BRAKE] +
-      (enable_brake) * this->params_.c_b * control[CTRL_THROTTLE_BRAKE] * (state[STATE_V] >= 0 ? 1 : -1) -
-      this->params_.c_v * state[STATE_V] + this->params_.c_0;
-  state_der[STATE_YAW] = (state[STATE_V] / this->params_.wheel_base) * tan(state[4]);
-  state_der[STATE_PX] = state[STATE_V] * cosf(state[STATE_YAW]);
-  state_der[STATE_PY] = state[STATE_V] * sinf(state[STATE_YAW]);
-  state_der[STATE_STEER] = control[CTRL_STEER_CMD] / this->params_.steer_command_angle_scale;
+  state_der[S_INDEX(VEL_X)] =
+      (!enable_brake) * this->params_.c_t * control[C_INDEX(THROTTLE_BRAKE)] +
+      (enable_brake) * this->params_.c_b * control[C_INDEX(THROTTLE_BRAKE)] * (state[S_INDEX(VEL_X)] >= 0 ? 1 : -1) -
+      this->params_.c_v * state[S_INDEX(VEL_X)] + this->params_.c_0;
+  state_der[S_INDEX(YAW)] = (state[S_INDEX(VEL_X)] / this->params_.wheel_base) * tan(state[4]);
+  state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]);
+  state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]);
+  state_der[S_INDEX(STEER_ANGLE)] = control[C_INDEX(STEER_CMD)] / this->params_.steer_command_angle_scale;
 }
 
 template <class CLASS_T>
