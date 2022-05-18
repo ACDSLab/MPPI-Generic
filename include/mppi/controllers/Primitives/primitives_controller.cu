@@ -135,20 +135,20 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
       computeStoppingTrajectory(local_state);
       primitives_baseline = std::numeric_limits<float>::min();
     }
-    else if (primitives_baseline > baseline_prev - getHysteresisCostThreshold())
-    {
-      // baseline is not decreasing enough, use controls from the previous iteration
-      if (this->debug_)
-      {
-        std::cout << "Not enough improvement, use prev controls." << std::endl;
-      }
-      HANDLE_ERROR(cudaMemcpyAsync(
-          this->control_.data(),
-          this->control_noise_d_ + prev_controls_idx * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
-          sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
+    // else if (primitives_baseline > baseline_prev - getHysteresisCostThreshold())
+    // {
+    //   // baseline is not decreasing enough, use controls from the previous iteration
+    //   if (this->debug_)
+    //   {
+    //     std::cout << "Not enough improvement, use prev controls." << std::endl;
+    //   }
+    //   HANDLE_ERROR(cudaMemcpyAsync(
+    //       this->control_.data(),
+    //       this->control_noise_d_ + prev_controls_idx * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
+    //       sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
 
-      primitives_baseline = baseline_prev;
-    }
+    //   primitives_baseline = baseline_prev;
+    // }
     else
     {  // otherwise, update the nominal control
       // Copy best control from device to the host
@@ -298,7 +298,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   }
   if ((getNumPrimitiveIterations() == 0 && this->getNumIters() > 0) ||
       ((getNumPrimitiveIterations() > 0 && this->getNumIters() > 0) &&
-       (this->getBaselineCost() < primitives_baseline - getHysteresisCostThreshold())))
+       (this->getBaselineCost() < primitives_baseline + getHysteresisCostThreshold())))
   {
     this->control_ = control_mppi_;
     this->copyNominalControlToDevice();
@@ -310,6 +310,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   }
   else
   {
+    // control_mppi_ = this->control_; // don't do this, we want to save the MPPI control
     if (this->debug_)
     {
       std::cout << "Using primitives control, ";
