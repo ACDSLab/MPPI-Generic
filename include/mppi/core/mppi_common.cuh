@@ -69,6 +69,9 @@ __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* cos
 __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float baseline);
 
 // Norm Exp Kernel Helpers
+__device__ inline void normExpTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
+                                        const float lambda_inv, const float baseline, const int global_idx,
+                                        const int rollout_idx_step);
 float computeBaselineCost(float* cost_rollouts_host, int num_rollouts);
 
 float computeNormalizer(float* cost_rollouts_host, int num_rollouts);
@@ -108,17 +111,22 @@ __device__ void rolloutWeightReductionAndSaveControl(int thread_idx, int block_i
                                                      float* du_new_d);
 
 // Launch functions
-template <class DYN_T, class COST_T>
+template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
 void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, int opt_delay, float lambda,
                          float alpha, float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs,
-                         cudaStream_t stream);
+                         cudaStream_t stream, bool synchronize = true);
 
-void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda, float baseline,
-                         cudaStream_t stream);
-
+void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda_inv, float baseline,
+                         cudaStream_t stream, bool synchronize = true);
 template <class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
-void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* sigma_u_d, float* du_new_d, float normalizer,
-                                   int num_timesteps, cudaStream_t stream);
+void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float normalizer,
+                                   int num_timesteps, cudaStream_t stream, bool synchronize = true);
+
+template <class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
+void launchStateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* cost, FB_T* fb_controller, float* control_trajectories,
+                                        float* state, float* state_traj_result, float* cost_traj_result,
+                                        int* crash_status_result, int num_rollouts, int num_timesteps, float dt,
+                                        cudaStream_t stream, float value_func_threshold = -1, bool synchronize = false);
 
 }  // namespace mppi_common
 
@@ -133,7 +141,7 @@ template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPL
 void launchInitEvalKernel(DYN_T* dynamics, COST_T* costs, int num_candidates, int num_timesteps, float lambda,
                           float alpha, int ctrl_stride, float dt, int* strides_d, float* exploration_var_d,
                           float* states_d, float* control_d, float* control_noise_d, float* costs_d,
-                          cudaStream_t stream);
+                          cudaStream_t stream, bool synchronize = true);
 
 template <class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS,
           int BLOCKSIZE_Z = 2>
@@ -146,7 +154,7 @@ template <class DYN_T, class COST_T, class FB_T, int NUM_ROLLOUTS, int BLOCKSIZE
 void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_controller, float dt, int num_timesteps,
                               int optimization_stride, float lambda, float alpha, float value_func_threshold,
                               float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs,
-                              cudaStream_t stream);
+                              cudaStream_t stream, bool synchronize = true);
 }  // namespace rmppi_kernels
 #if __CUDACC__
 #include "mppi_common.cu"

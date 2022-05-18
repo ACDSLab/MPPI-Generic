@@ -10,7 +10,7 @@
 #include <mppi/dynamics/dynamics.cuh>
 
 // ===== mock dynamics ====
-struct mockDynamicsParams
+struct mockDynamicsParams : public DynamicsParams
 {
   int test = 2;
   bool copy_everything = false;

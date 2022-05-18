@@ -8,17 +8,52 @@ Header file for dynamics
 */
 
 #include <Eigen/Dense>
+#include <mppi/utils/managed.cuh>
+
 #include <stdio.h>
 #include <math.h>
-#include <mppi/utils/managed.cuh>
-#include <vector>
+
 #include <cfloat>
+#include <type_traits>
+#include <vector>
+
+// helpful macros to use the enum setup
+#ifndef S_INDEX
+#define S_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::StateIndex::enum_val)
+#define S_IND(param, enum_val) S_IND_CLASS(decltype(param), enum_val)
+#define S_INDEX(enum_val) S_IND(this->params_, enum_val)
+#endif
+
+#ifndef C_INDEX
+#define C_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::ControlIndex::enum_val)
+#define C_IND(param, enum_val) C_IND_CLASS(decltype(param), enum_val)
+#define C_INDEX(enum_val) C_IND(this->params_, enum_val)
+#endif
+
+struct DynamicsParams
+{
+  enum class StateIndex : int
+  {
+    POS_X = 0,
+    NUM_STATES
+  };
+  enum class ControlIndex : int
+  {
+    VEL_X = 0,
+    NUM_CONTROLS
+  };
+};
+
+template <typename T>
+using paramsInheritsFrom = typename std::is_base_of<DynamicsParams, T>;
 
 namespace MPPI_internal
 {
 template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
 class Dynamics : public Managed
 {
+  static_assert(paramsInheritsFrom<PARAMS_T>::value, "Dynamics PARAMS_T does not inherit from DynamicsParams");
+
 public:
   //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static const int STATE_DIM = S_DIM;
@@ -117,19 +152,7 @@ public:
     return control_rngs_;
   }
 
-  void setControlRanges(std::array<float2, C_DIM>& control_rngs)
-  {
-    for (int i = 0; i < C_DIM; i++)
-    {
-      control_rngs_[i].x = control_rngs[i].x;
-      control_rngs_[i].y = control_rngs[i].y;
-    }
-    if (GPUMemStatus_)
-    {
-      HANDLE_ERROR(cudaMemcpy(this->model_d_->control_rngs_, this->control_rngs_, C_DIM * sizeof(float2),
-                              cudaMemcpyHostToDevice));
-    }
-  }
+  void setControlRanges(std::array<float2, C_DIM>& control_rngs, bool synchronize = true);
 
   void setParams(const PARAMS_T& params)
   {
@@ -165,7 +188,7 @@ public:
   /**
    *
    */
-  void paramsToDevice();
+  void paramsToDevice(bool synchronize = true);
 
   /**
    * loads the .npz at given path

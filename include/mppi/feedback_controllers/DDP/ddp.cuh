@@ -139,7 +139,7 @@ public:
 
   DDPFeedback(DYN_T* model, float dt, int num_timesteps = NUM_TIMESTEPS, cudaStream_t stream = 0);
 
-  void setParams(DDPParams<DYN_T>& params);
+  void setParams(const DDPParams<DYN_T>& params) override;
 
   void initTrackingController();
 

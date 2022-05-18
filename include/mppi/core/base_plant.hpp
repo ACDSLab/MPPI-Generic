@@ -19,6 +19,7 @@
 #include <thread>
 #include <memory>
 #include <mppi/controllers/controller.cuh>
+#include <mppi/utils/math_utils.h>
 
 template <class CONTROLLER_T>
 class BasePlant
@@ -35,6 +36,8 @@ public:
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
   using COST_T = typename CONTROLLER_T::TEMPLATED_COSTS;
   using COST_PARAMS_T = typename COST_T::COST_PARAMS_T;
+  using TEMPLATED_CONTROLLER = CONTROLLER_T;
+  using CONTROLLER_PARAMS_T = typename CONTROLLER_T::TEMPLATED_PARAMS;
 
   // Feedback related aliases
   using FB_STATE_T = typename CONTROLLER_T::TEMPLATED_FEEDBACK::TEMPLATED_FEEDBACK_STATE;
@@ -50,9 +53,12 @@ protected:
   std::mutex dynamics_params_guard_;
   COST_PARAMS_T cost_params_;
   std::mutex cost_params_guard_;
+  CONTROLLER_PARAMS_T controller_params_;
+  std::mutex controller_params_guard_;
 
   std::atomic<bool> has_new_dynamics_params_{ false };
   std::atomic<bool> has_new_cost_params_{ false };
+  std::atomic<bool> has_new_controller_params_{ false };
 
   // Values needed
   s_array init_state_ = s_array::Zero();
@@ -198,6 +204,16 @@ public:
     debug_mode_ = mode;
   }
 
+  void resetPoseTime()
+  {
+    last_used_pose_update_time_ = -1;
+  };
+
+  double getAvgOptimizationTime() const
+  {
+    return avg_optimize_time_ms_;
+  };
+
   int getTargetOptimizationStride()
   {
     return optimization_stride_;
@@ -211,9 +227,24 @@ public:
     optimization_stride_ = new_val;
   }
 
-  int getHz()
+  int getHz() const
   {
     return hz_;
+  }
+
+  void setHz(int hz)
+  {
+    hz_ = hz;
+  }
+
+  int getVisualizationHz() const
+  {
+    return visualization_hz_;
+  }
+
+  void setVisualizationHz(int hz)
+  {
+    visualization_hz_ = hz;
   }
 
   virtual void setSolution(const s_traj& state_seq, const c_traj& control_seq, const FB_STATE_T& fb_state,
@@ -266,16 +297,25 @@ public:
   {
     return has_new_cost_params_;
   };
-
-  virtual DYN_PARAMS_T getNewDynamicsParams()
+  virtual bool hasNewControllerParams()
   {
-    has_new_dynamics_params_ = false;
+    return has_new_controller_params_;
+  };
+
+  virtual DYN_PARAMS_T getNewDynamicsParams(bool set_flag = false)
+  {
+    has_new_dynamics_params_ = set_flag;
     return dynamics_params_;
   }
-  virtual COST_PARAMS_T getNewCostParams()
+  virtual COST_PARAMS_T getNewCostParams(bool set_flag = false)
   {
-    has_new_cost_params_ = false;
+    has_new_cost_params_ = set_flag;
     return cost_params_;
+  }
+  virtual CONTROLLER_PARAMS_T getNewControllerParams(bool set_flag = false)
+  {
+    has_new_controller_params_ = set_flag;
+    return controller_params_;
   }
 
   virtual void setDynamicsParams(DYN_PARAMS_T params)
@@ -290,6 +330,12 @@ public:
     cost_params_ = params;
     has_new_cost_params_ = true;
   }
+  virtual void setControllerParams(CONTROLLER_PARAMS_T params)
+  {
+    std::lock_guard<std::mutex> guard(controller_params_guard_);
+    controller_params_ = params;
+    has_new_controller_params_ = true;
+  }
 
   /**
    *
@@ -300,7 +346,7 @@ public:
   bool updateParameters()
   {
     bool changed = false;
-    // Update the cost parameters
+    // Update cost parameters
     if (hasNewCostParams())
     {
       std::lock_guard<std::mutex> guard(cost_params_guard_);
@@ -308,13 +354,21 @@ public:
       COST_PARAMS_T cost_params = getNewCostParams();
       controller_->cost_->setParams(cost_params);
     }
-    // update dynamics params
+    // Update dynamics params
     if (hasNewDynamicsParams())
     {
       std::lock_guard<std::mutex> guard(dynamics_params_guard_);
       changed = true;
       DYN_PARAMS_T dyn_params = getNewDynamicsParams();
       controller_->model_->setParams(dyn_params);
+    }
+    // Update controller params
+    if (hasNewControllerParams())
+    {
+      std::lock_guard<std::mutex> guard(controller_params_guard_);
+      changed = true;
+      CONTROLLER_PARAMS_T controller_params = getNewControllerParams();
+      controller_->setParams(controller_params);
     }
     return changed;
   }
@@ -371,7 +425,7 @@ public:
     // last_optimization_stride_);
     // determine how long we should stride based off of robot time
 
-    if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller_->num_timesteps_)
+    if (last_optimization_stride_ > 0 && last_optimization_stride_ < controller_->getNumTimesteps())
     {
       controller_->updateImportanceSamplingControl(state, last_optimization_stride_);
       controller_->slideControlSequence(last_optimization_stride_);
@@ -397,7 +451,7 @@ public:
       std::cerr << state_traj << std::endl;
       exit(-1);
     }
-    optimization_duration_ = (std::chrono::steady_clock::now() - optimization_start).count() / 1e6;
+    optimization_duration_ = mppi::math::timeDiffms(std::chrono::steady_clock::now(), optimization_start);
 
     std::chrono::steady_clock::time_point feedback_start = std::chrono::steady_clock::now();
     // TODO make sure this is zero by default
@@ -407,7 +461,7 @@ public:
       controller_->computeFeedback(state);
       feedback_state = controller_->getFeedbackState();
     }
-    feedback_duration_ = (std::chrono::steady_clock::now() - feedback_start).count() / 1e6;
+    feedback_duration_ = mppi::math::timeDiffms(std::chrono::steady_clock::now(), feedback_start);
 
     // Set the updated solution for execution
     setSolution(state_traj, control_traj, feedback_state, temp_last_pose_time);
@@ -423,7 +477,7 @@ public:
     avg_optimize_time_ms_ = prev_iter_percent * avg_optimize_time_ms_ + optimization_duration_ / num_iter_;
     avg_feedback_time_ms_ = prev_iter_percent * avg_feedback_time_ms_ + feedback_duration_ / num_iter_;
 
-    optimize_loop_duration_ = (std::chrono::steady_clock::now() - loop_start).count() / 1e6;
+    optimize_loop_duration_ = mppi::math::timeDiffms(std::chrono::steady_clock::now(), loop_start);
     avg_loop_time_ms_ = prev_iter_percent * avg_loop_time_ms_ + optimize_loop_duration_ / num_iter_;
   }
 
@@ -454,7 +508,7 @@ public:
         updateParameters();
         usleep(50);
       }
-      sleep_duration_ = (std::chrono::steady_clock::now() - sleep_start).count() / 1e6;
+      sleep_duration_ = mppi::math::timeDiffms(std::chrono::steady_clock::now(), sleep_start);
       double prev_iter_percent = (num_iter_ - 1.0) / num_iter_;
       avg_sleep_time_ms_ = prev_iter_percent * avg_sleep_time_ms_ + sleep_duration_ / num_iter_;
       // printf("sleep: %f loop_time %f at time %f", sleep_duration_, optimize_loop_duration_, getCurrentTime());

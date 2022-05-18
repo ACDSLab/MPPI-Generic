@@ -151,7 +151,7 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStabil
 {
   float cost = 0;
   float roll, pitch, yaw;
-  mppi_math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
+  mppi::math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
 
   float quat_dist_from_level = powf(roll, 2) + powf(pitch, 2);
   cost += this->params_.attitude_coeff * quat_dist_from_level;
@@ -163,7 +163,7 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeadin
 {
   float cost = 0;
   float roll, pitch, yaw;
-  mppi_math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
+  mppi::math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
 
   // Calculate heading to gate
   float wx = this->params_.curr_waypoint.x - s[0];

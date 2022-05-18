@@ -8,19 +8,19 @@ DubinsDynamics::DubinsDynamics(cudaStream_t stream) : Dynamics<DubinsDynamics, D
 void DubinsDynamics::computeDynamics(const Eigen::Ref<const state_array>& state,
                                      const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der)
 {
-  state_der(0) = control(0) * cos(state(2));
-  state_der(1) = control(0) * sin(state(2));
-  state_der(2) = control(1);
+  state_der(S_INDEX(POS_X)) = control(C_INDEX(VEL)) * cos(state(S_INDEX(YAW)));
+  state_der(S_INDEX(POS_Y)) = control(C_INDEX(VEL)) * sin(state(S_INDEX(YAW)));
+  state_der(S_INDEX(YAW)) = control(C_INDEX(YAW_RATE));
 }
 
 bool DubinsDynamics::computeGrad(const Eigen::Ref<const state_array>& state,
                                  const Eigen::Ref<const control_array>& control, Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B)
 {
-  A(0, 2) = -control(0) * sin(state(2));
-  A(1, 2) = control(0) * cos(state(2));
+  A(0, 2) = -control(C_INDEX(VEL)) * sin(state(S_INDEX(YAW)));
+  A(1, 2) = control(C_INDEX(VEL)) * cos(state(S_INDEX(YAW)));
 
-  B(0, 0) = cos(state(2));
-  B(1, 0) = sin(state(2));
+  B(0, 0) = cos(state(S_INDEX(YAW)));
+  B(1, 0) = sin(state(S_INDEX(YAW)));
   B(2, 1) = 1;
   return true;
 }
@@ -28,7 +28,7 @@ bool DubinsDynamics::computeGrad(const Eigen::Ref<const state_array>& state,
 void DubinsDynamics::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
 {
   state += state_der * dt;
-  state(2) = angle_utils::normalizeAngle(state(2));
+  state(S_INDEX(YAW)) = angle_utils::normalizeAngle(state(S_INDEX(YAW)));
   state_der.setZero();
 }
 
@@ -45,7 +45,8 @@ __device__ void DubinsDynamics::updateState(float* state, float* state_der, cons
   int i;
   int tdy = threadIdx.y;
   // Add the state derivative time dt to the current state.
-  // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
+  // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[S_INDEX(POS_X)],
+  // state_der[S_INDEX(POS_X)]);
   for (i = tdy; i < STATE_DIM; i += blockDim.y)
   {
     state[i] += state_der[i] * dt;
@@ -59,7 +60,7 @@ __device__ void DubinsDynamics::updateState(float* state, float* state_der, cons
 
 __device__ void DubinsDynamics::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
 {
-  state_der[0] = control[0] * cos(state[2]);
-  state_der[1] = control[0] * sin(state[2]);
-  state_der[2] = control[1];
+  state_der[S_INDEX(POS_X)] = control[C_INDEX(VEL)] * cos(state[S_INDEX(YAW)]);
+  state_der[S_INDEX(POS_Y)] = control[C_INDEX(VEL)] * sin(state[S_INDEX(YAW)]);
+  state_der[S_INDEX(YAW)] = control[C_INDEX(YAW_RATE)];
 }
