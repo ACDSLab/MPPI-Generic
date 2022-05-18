@@ -100,12 +100,8 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
 __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float lambda_inv, float baseline)
 {
   int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + threadIdx.z;
-
-  if (global_idx < num_rollouts * blockDim.z)
-  {
-    float cost_dif = trajectory_costs_d[global_idx] - baseline;
-    trajectory_costs_d[global_idx] = expf(-lambda_inv * cost_dif);
-  }
+  int global_step = blockDim.x * gridDim.x * blockDim.z * gridDim.z;
+  normExpTransform(num_rollouts * blockDim.z, trajectory_costs_d, lambda_inv, baseline, global_idx, global_step);
 }
 
 template <int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE>
@@ -126,6 +122,34 @@ __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* 
   // Sum the weighted control variations at a desired stride
   strideControlWeightReduction(NUM_ROLLOUTS, num_timesteps, SUM_STRIDE, thread_idx, block_idx, CONTROL_DIM, exp_costs_d,
                                normalizer, du_d, u, u_intermediate);
+
+  __syncthreads();
+
+  // Sum all weighted control variations
+  rolloutWeightReductionAndSaveControl(thread_idx, block_idx, NUM_ROLLOUTS, num_timesteps, CONTROL_DIM, SUM_STRIDE, u,
+                                       u_intermediate, du_new_d);
+
+  __syncthreads();
+}
+
+template <int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE>
+__global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d,
+                                        float2* baseline_and_normalizer_d, int num_timesteps)
+{
+  int thread_idx = threadIdx.x;  // Rollout index
+  int block_idx = blockIdx.x;    // Timestep
+
+  // Create a shared array for intermediate sums: CONTROL_DIM x NUM_THREADS
+  __shared__ float u_intermediate[CONTROL_DIM * ((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1)];
+
+  float u[CONTROL_DIM];
+  setInitialControlToZero(CONTROL_DIM, thread_idx, u, u_intermediate);
+
+  __syncthreads();
+
+  // Sum the weighted control variations at a desired stride
+  strideControlWeightReduction(NUM_ROLLOUTS, num_timesteps, SUM_STRIDE, thread_idx, block_idx, CONTROL_DIM, exp_costs_d,
+                               baseline_and_normalizer_d->y, du_d, u, u_intermediate);
 
   __syncthreads();
 
@@ -253,7 +277,7 @@ int computeBestIndex(float* cost_rollouts_host, int num_rollouts)
 {
   float best_cost = cost_rollouts_host[0];
   int best_cost_idx = 0;
-  for (int i = 0; i < num_rollouts; i++)
+  for (int i = 1; i < num_rollouts; i++)
   {
     if (cost_rollouts_host[i] < best_cost)
     {
@@ -266,9 +290,143 @@ int computeBestIndex(float* cost_rollouts_host, int num_rollouts)
   return best_cost_idx;
 }
 
+__device__ inline float computeBaselineCost(int num_rollouts, const float* __restrict__ trajectory_costs_d,
+                                            float* __restrict__ reduction_buffer, int rollout_idx_global,
+                                            int rollout_idx_step)
+{
+  // Copy costs to shared memory
+  float min_cost = 0.0;
+#if false
+  // potential method to speed up copying costs
+  int prev_size = min(blockDim.x, num_rollouts);
+  float my_val = (rollout_idx_global < num_rollouts) ? trajectory_costs_d[rollout_idx_global] : INFINITY;
+  for (int i = rollout_idx_global + rollout_idx_step; i < num_rollouts; i += rollout_idx_step)
+  {
+    my_val = min(trajectory_costs_d[i], my_val);
+  }
+  reduction_buffer[rollout_idx_global] = my_val;
+  // __syncthreads();
+  // if (threadIdx.x == 0)
+  // {
+  //   for (int i = 0; i < min(blockDim.x, num_rollouts); i++)
+  //   {
+  //     printf("buff %d: %f\n", i, reduction_buffer[i]);
+  //   }
+  //   printf("Num rollouts; %d\n", num_rollouts);
+  // }
+#else
+  int prev_size = num_rollouts / 2;
+  for (int i = rollout_idx_global; i < prev_size; i += rollout_idx_step)
+  {
+    reduction_buffer[i] = min(trajectory_costs_d[i], trajectory_costs_d[i + prev_size]);
+  }
+  if (num_rollouts - 2 * prev_size == 1 && threadIdx.x == blockDim.x - 1)
+  {
+    reduction_buffer[prev_size - 1] = min(reduction_buffer[num_rollouts - 1], reduction_buffer[prev_size - 1]);
+  }
+#endif
+
+  __syncthreads();
+  // find min along the entire array
+  for (int size = prev_size / 2; size > 0; size /= 2)
+  {
+    for (int i = rollout_idx_global; i < size; i += rollout_idx_step)
+    {
+      reduction_buffer[i] = min(reduction_buffer[i], reduction_buffer[i + size]);
+    }
+    __syncthreads();
+    if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1)
+    {
+      reduction_buffer[size - 1] = min(reduction_buffer[size - 1], reduction_buffer[prev_size - 1]);
+    }
+    __syncthreads();
+    prev_size = size;
+  }
+  min_cost = reduction_buffer[0];
+  return min_cost;
+}
+
+__device__ inline void normExpTransform(int num_rollouts, float* __restrict__ trajectory_costs_d, float lambda_inv,
+                                        float baseline, int global_idx, int rollout_idx_step)
+{
+  for (int i = global_idx; i < num_rollouts; i += rollout_idx_step)
+  {
+    float cost_dif = trajectory_costs_d[i] - baseline;
+    trajectory_costs_d[i] = expf(-lambda_inv * cost_dif);
+  }
+}
+
+__device__ inline float computeNormalizer(int num_rollouts, const float* __restrict__ trajectory_costs_d,
+                                          float* __restrict__ reduction_buffer, int rollout_idx_global,
+                                          int rollout_idx_step)
+{
+  // Copy costs to shared memory
+#if false
+  // potential method to speed up copying costs
+  int prev_size = min(blockDim.x, num_rollouts);
+  float my_val = (rollout_idx_global < num_rollouts) ? trajectory_costs_d[rollout_idx_global] : 0;
+  for (int i = rollout_idx_global + rollout_idx_step; i < num_rollouts; i += rollout_idx_step)
+  {
+    my_val += trajectory_costs_d[i];
+  }
+  reduction_buffer[rollout_idx_global] = my_val;
+#else
+  int prev_size = num_rollouts / 2;
+  for (int i = rollout_idx_global; i < prev_size; i += rollout_idx_step)
+  {
+    reduction_buffer[i] = trajectory_costs_d[i] + trajectory_costs_d[i + prev_size];
+  }
+  if (num_rollouts - 2 * prev_size == 1 && threadIdx.x == blockDim.x - 1)
+  {
+    reduction_buffer[prev_size - 1] += reduction_buffer[num_rollouts - 1];
+  }
+#endif
+  __syncthreads();
+  // sum the entire array
+  for (int size = prev_size / 2; size > 0; size /= 2)
+  {
+    for (int i = rollout_idx_global; i < size; i += rollout_idx_step)
+    {
+      reduction_buffer[i] += reduction_buffer[i + size];
+    }
+    __syncthreads();
+    if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1)
+    {
+      reduction_buffer[size - 1] += reduction_buffer[prev_size - 1];
+    }
+    __syncthreads();
+    prev_size = size;
+  }
+  return reduction_buffer[0];
+}
+
+template <int NUM_ROLLOUTS, int BLOCKSIZE_X = 1024>
+__global__ void fullGPUcomputeWeights(float* __restrict__ trajectory_costs_d, float lambda_inv,
+                                      float2* __restrict__ output)
+{
+  __shared__ float reduction_buffer[NUM_ROLLOUTS];
+  // int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
+  // int better_global_idx = (blockIdx.x * blockDim.x + threadIdx.x) * blockDim.y + threadIdx.y;
+  // int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + threadIdx.z;
+  // int global_step = blockDim.x * gridDim.x;
+  // int better_global_step = blockDim.x * gridDim.x  * blockDim.y * gridDim.y;
+  int global_idx = threadIdx.x;
+  int global_step = blockDim.x;
+
+  float baseline = computeBaselineCost(NUM_ROLLOUTS, trajectory_costs_d, reduction_buffer, global_idx, global_step);
+  normExpTransform(NUM_ROLLOUTS, trajectory_costs_d, lambda_inv, baseline, global_idx, global_step);
+  __syncthreads();
+  float normalizer = computeNormalizer(NUM_ROLLOUTS, trajectory_costs_d, reduction_buffer, global_idx, global_step);
+  __syncthreads();
+  if (threadIdx.x == 0)
+  {
+    *output = make_float2(baseline, normalizer);
+  }
+}
+
 float computeNormalizer(float* cost_rollouts_host, int num_rollouts)
 {
-  float normalizer = 0.f;
+  double normalizer = 0.0;
   for (int i = 0; i < num_rollouts; ++i)
   {
     normalizer += cost_rollouts_host[i];
@@ -481,10 +639,10 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
 /*******************************************************************************************************************
  * Launch Functions
  *******************************************************************************************************************/
-template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
+template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z>
 void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, int optimization_stride,
                          float lambda, float alpha, float* x_d, float* u_d, float* du_d, float* sigma_u_d,
-                         float* trajectory_costs, cudaStream_t stream)
+                         float* trajectory_costs, cudaStream_t stream, bool synchronize)
 {
   const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
   dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
@@ -494,37 +652,88 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
                                          u_d, du_d, sigma_u_d, trajectory_costs);
   // CudaCheckError();
   HANDLE_ERROR(cudaGetLastError());
-  HANDLE_ERROR(cudaStreamSynchronize(stream));
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
 }
 
 void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda_inv, float baseline,
-                         cudaStream_t stream)
+                         cudaStream_t stream, bool synchronize)
 {
   dim3 dimBlock(blocksize_x, 1, 1);
   dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
   normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, lambda_inv, baseline);
   // CudaCheckError();
   HANDLE_ERROR(cudaGetLastError());
-  HANDLE_ERROR(cudaStreamSynchronize(stream));
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
+}
+
+template <int NUM_ROLLOUTS>
+void launchWeightTransformKernel(float* __restrict__ costs_d, float2* __restrict__ baseline_and_norm_d,
+                                 const float lambda_inv, const int num_systems, cudaStream_t stream, bool synchronize)
+{
+  // Figure out max size of threads from the device properties (slows down this method a lot)
+  // int device_id = 0;
+  // cudaDeviceProp deviceProp;
+  // cudaGetDeviceProperties(&deviceProp, device_id);
+  // int blocksize_x = deviceProp.maxThreadsDim[0];
+  const int blocksize_x = 1024;
+  dim3 dimBlock(blocksize_x, 1, 1);
+  // Can't be split into multiple blocks because we want to do all the math in shared memory
+  dim3 dimGrid(1, 1, 1);
+  for (int i = 0; i < num_systems; i++)
+  {
+    fullGPUcomputeWeights<NUM_ROLLOUTS>
+        <<<dimGrid, dimBlock, 0, stream>>>(costs_d + i * NUM_ROLLOUTS, lambda_inv, baseline_and_norm_d + i);
+    HANDLE_ERROR(cudaGetLastError());
+  }
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
 }
 
 template <class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
 void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float normalizer,
-                                   int num_timesteps, cudaStream_t stream)
+                                   int num_timesteps, cudaStream_t stream, bool synchronize)
 {
   dim3 dimBlock((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1, 1, 1);
   dim3 dimGrid(num_timesteps, 1, 1);
   weightedReductionKernel<DYN_T::CONTROL_DIM, NUM_ROLLOUTS, SUM_STRIDE>
       <<<dimGrid, dimBlock, 0, stream>>>(exp_costs_d, du_d, du_new_d, normalizer, num_timesteps);
-  CudaCheckError();
-  HANDLE_ERROR(cudaStreamSynchronize(stream));
+  // CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
 }
 
-template <class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
+template <class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
+void launchweightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float2* baseline_and_normalizer_d,
+                                   int num_timesteps, cudaStream_t stream, bool synchronize)
+{
+  dim3 dimBlock((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1, 1, 1);
+  dim3 dimGrid(num_timesteps, 1, 1);
+  weightedReductionKernel<DYN_T::CONTROL_DIM, NUM_ROLLOUTS, SUM_STRIDE>
+      <<<dimGrid, dimBlock, 0, stream>>>(exp_costs_d, du_d, du_new_d, baseline_and_normalizer_d, num_timesteps);
+  // CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
+}
+
+template <class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z>
 void launchStateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* cost, FB_T* fb_controller, float* control_trajectories,
                                         float* state, float* state_traj_result, float* cost_traj_result,
                                         int* crash_status_result, int num_rollouts, int num_timesteps, float dt,
-                                        cudaStream_t stream, float value_func_threshold = -1)
+                                        cudaStream_t stream, float value_func_threshold, bool synchronize)
 {
   const int gridsize_x = (num_rollouts - 1) / BLOCKSIZE_X + 1;
   dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
@@ -532,6 +741,11 @@ void launchStateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* cost, FB_T* fb_
   stateAndCostTrajectoryKernel<DYN_T, COST_T, FB_T, BLOCKSIZE_X, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
       dynamics, cost, fb_controller, control_trajectories, state, state_traj_result, cost_traj_result,
       crash_status_result, num_rollouts, num_timesteps, dt, value_func_threshold);
+  HANDLE_ERROR(cudaGetLastError());
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
 }
 }  // namespace mppi_common
 
@@ -652,20 +866,6 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
   {  // Only save the costs once per global idx (thread y is only for parallelization)
     costs_d[global_idx] = running_cost;  // This is the running average of the costs along the trajectory
   }
-}
-
-template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
-void launchInitEvalKernel(DYN_T* dynamics, COST_T* costs, int num_candidates, int num_timesteps, float lambda,
-                          float alpha, int ctrl_stride, float dt, int* strides_d, float* exploration_std_dev_d,
-                          float* states_d, float* control_d, float* control_noise_d, float* costs_d,
-                          cudaStream_t stream)
-{
-  int GRIDSIZE_X = num_candidates * SAMPLES_PER_CONDITION / BLOCKSIZE_X;
-  dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
-  dim3 dimGrid(GRIDSIZE_X, 1, 1);
-  initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
-      <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, num_timesteps, lambda, alpha, ctrl_stride, dt, strides_d,
-                                         exploration_std_dev_d, states_d, control_d, control_noise_d, costs_d);
 }
 
 // Newly Written
@@ -859,11 +1059,31 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
 /*******************************************************************************************************************
  * Launch Functions
  *******************************************************************************************************************/
+
+template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int SAMPLES_PER_CONDITION>
+void launchInitEvalKernel(DYN_T* dynamics, COST_T* costs, int num_candidates, int num_timesteps, float lambda,
+                          float alpha, int ctrl_stride, float dt, int* strides_d, float* exploration_std_dev_d,
+                          float* states_d, float* control_d, float* control_noise_d, float* costs_d,
+                          cudaStream_t stream, bool synchronize)
+{
+  int GRIDSIZE_X = num_candidates * SAMPLES_PER_CONDITION / BLOCKSIZE_X;
+  dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+  dim3 dimGrid(GRIDSIZE_X, 1, 1);
+  initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
+      <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, num_timesteps, lambda, alpha, ctrl_stride, dt, strides_d,
+                                         exploration_std_dev_d, states_d, control_d, control_noise_d, costs_d);
+  HANDLE_ERROR(cudaGetLastError());
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
+}
+
 template <class DYN_T, class COST_T, class FB_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z>
 void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_controller, float dt, int num_timesteps,
                               int optimization_stride, float lambda, float alpha, float value_func_threshold,
                               float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs,
-                              cudaStream_t stream)
+                              cudaStream_t stream, bool synchronize)
 {
   const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
   dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
@@ -871,7 +1091,10 @@ void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_controlle
   RMPPIRolloutKernel<DYN_T, COST_T, FB_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z>
       <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, fb_controller, dt, num_timesteps, optimization_stride, lambda,
                                          alpha, value_func_threshold, x_d, u_d, du_d, sigma_u_d, trajectory_costs);
-  CudaCheckError();
-  HANDLE_ERROR(cudaStreamSynchronize(stream));
+  HANDLE_ERROR(cudaGetLastError());
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
 }
 }  // namespace rmppi_kernels

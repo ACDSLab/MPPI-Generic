@@ -7,8 +7,34 @@
 
 #include <mppi/dynamics/dynamics.cuh>
 
-struct QuadrotorDynamicsParams
+struct QuadrotorDynamicsParams : public DynamicsParams
 {
+  enum class StateIndex : int
+  {
+    POS_X = 0,
+    POS_Y,
+    POS_Z,
+    VEL_X,
+    VEL_Y,
+    VEL_Z,
+    QUAT_W,
+    QUAT_X,
+    QUAT_Y,
+    QUAT_Z,
+    ANG_VEL_X,
+    ANG_VEL_Y,
+    ANG_VEL_Z,
+    NUM_STATES
+  };
+
+  enum class ControlIndex : int
+  {
+    ANG_RATE_X = 0,
+    ANG_RATE_Y,
+    ANG_RATE_Z,
+    THRUST,
+    NUM_CONTROLS
+  };
   float tau_roll = 0.25;
   float tau_pitch = 0.25;
   float tau_yaw = 0.25;

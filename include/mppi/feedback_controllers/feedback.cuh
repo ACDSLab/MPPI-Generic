@@ -68,7 +68,7 @@ public:
   void GPUSetup();
   void freeCudaMem();
 
-  void setFeedbackState(FEEDBACK_STATE_T state)
+  void setFeedbackState(const FEEDBACK_STATE_T& state)
   {
     state_ = state;
     if (GPUMemStatus_)
@@ -114,7 +114,7 @@ public:
   // void copyToDevice() {}
 
   // Copies the params to the device at the moment
-  void copyToDevice();
+  void copyToDevice(bool synchronize = true);
   // Method to return potential diagnostic information from GPU
   void copyFromDevice()
   {
@@ -174,7 +174,7 @@ public:
 
   virtual void initTrackingController() = 0;
 
-  virtual void setParams(PARAMS_T& params)
+  virtual void setParams(const PARAMS_T& params)
   {
     params_ = params;
   }
@@ -249,9 +249,9 @@ public:
   /**
    * Calls GPU version
    */
-  void copyToDevice()
+  void copyToDevice(bool synchronize = true)
   {
-    this->gpu_controller_->copyToDevice();
+    this->gpu_controller_->copyToDevice(synchronize);
   }
 
   TEMPLATED_FEEDBACK_STATE getFeedbackState()
@@ -264,7 +264,7 @@ public:
     return this->gpu_controller_->getFeedbackStatePointer();
   }
 
-  void setFeedbackState(TEMPLATED_FEEDBACK_STATE& gpu_fb_state)
+  void setFeedbackState(const TEMPLATED_FEEDBACK_STATE& gpu_fb_state)
   {
     this->gpu_controller_->setFeedbackState(gpu_fb_state);
   }

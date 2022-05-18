@@ -2,13 +2,16 @@
 
 // ===================== GPUFeedbackController ========================
 template <class CLASS_T, class DYN_T, class FEEDBACK_STATE_T>
-void GPUFeedbackController<CLASS_T, DYN_T, FEEDBACK_STATE_T>::copyToDevice()
+void GPUFeedbackController<CLASS_T, DYN_T, FEEDBACK_STATE_T>::copyToDevice(bool synchronize)
 {
   if (GPUMemStatus_)
   {
     HANDLE_ERROR(
         cudaMemcpyAsync(&feedback_d_->state_, &state_, sizeof(FEEDBACK_STATE_T), cudaMemcpyHostToDevice, stream_));
-    HANDLE_ERROR(cudaStreamSynchronize(stream_));
+    if (synchronize)
+    {
+      HANDLE_ERROR(cudaStreamSynchronize(stream_));
+    }
   }
 }
 

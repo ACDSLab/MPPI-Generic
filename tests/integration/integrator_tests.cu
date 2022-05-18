@@ -6,7 +6,7 @@
 #include <mppi/utils/numerical_integration.h>
 #include <mppi/dynamics/dynamics.cuh>
 
-struct TestDynamicsParams
+struct TestDynamicsParams : public DynamicsParams
 {
 };
 

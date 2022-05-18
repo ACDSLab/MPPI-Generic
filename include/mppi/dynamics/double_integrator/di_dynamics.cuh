@@ -6,8 +6,22 @@
 #include <mppi/dynamics/dynamics.cuh>
 #include <random>
 
-struct DoubleIntegratorParams
+struct DoubleIntegratorParams : public DynamicsParams
 {
+  enum class StateIndex : int
+  {
+    POS_X = 0,
+    POS_Y,
+    VEL_X,
+    VEL_Y,
+    NUM_STATES
+  };
+  enum class ControlIndex : int
+  {
+    ACCEL_X = 0,
+    ACCEL_Y,
+    NUM_CONTROLS
+  };
   float system_noise = 1;
   DoubleIntegratorParams(float noise) : system_noise(noise){};
   DoubleIntegratorParams() = default;

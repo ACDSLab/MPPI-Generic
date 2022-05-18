@@ -8,7 +8,7 @@
 
 using namespace MPPI_internal;
 /**
- * state: v, theta, p_x, p_y, true steering angle
+ * state: v, theta, p_x, p_y, true steering angle, roll, pitch
  * control: throttle, steering angle command
  */
 class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation, 7>

@@ -12,7 +12,7 @@ TEST(QuadrotorMapCost, checkHeadingCost)
   // Have velocity in the y direction
   curr_state[4] = 1;
   // Get quaternion for yaw of 30 degrees
-  mppi_math::Euler2QuatNWU(0, 0, 30.0 * deg2rad, temp_quat);
+  mppi::math::Euler2QuatNWU(0, 0, 30.0 * deg2rad, temp_quat);
   temp_quat.normalize();
   curr_state[6] = temp_quat.w();
   curr_state[7] = temp_quat.x();

@@ -26,13 +26,13 @@ float QuadrotorQuadraticCost::computeStateCost(const Eigen::Ref<const state_arra
   Eigen::Quaternionf q_g(this->params_.q_goal()[0], this->params_.q_goal()[1], this->params_.q_goal()[2],
                          this->params_.q_goal()[3]);
   Eigen::Quaternionf q_diff;
-  mppi_math::QuatSubtract(q, q_g, q_diff);
+  mppi::math::QuatSubtract(q, q_g, q_diff);
   Eigen::VectorXf rot_diff;
   Eigen::ArrayXf rot_coeff;
   if (this->params_.use_euler)
   {
     float r_diff, p_diff, y_diff;
-    mppi_math::Quat2EulerNWU(q_diff, r_diff, p_diff, y_diff);
+    mppi::math::Quat2EulerNWU(q_diff, r_diff, p_diff, y_diff);
 
     Eigen::Vector3f angle_diff;
     angle_diff << r_diff, p_diff, y_diff;
@@ -78,7 +78,7 @@ __device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep
     s_diff[i] = powf(s[i] - this->params_.s_goal[i], 2);
   }
   float q_diff[4];
-  mppi_math::QuatSubtract(s + 6, this->params_.s_goal + 6, q_diff);
+  mppi::math::QuatSubtract(s + 6, this->params_.s_goal + 6, q_diff);
 
   for (i = 0; i < 3; i++)
   {
@@ -106,7 +106,7 @@ __device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep
     }
     // Get Euler Angles
     float r_diff, p_diff, y_diff;
-    mppi_math::Quat2EulerNWU(q_diff, r_diff, p_diff, y_diff);
+    mppi::math::Quat2EulerNWU(q_diff, r_diff, p_diff, y_diff);
     sum += this->params_.roll_coeff * powf(r_diff, 2);
     sum += this->params_.pitch_coeff * powf(p_diff, 2);
     sum += this->params_.yaw_coeff * powf(y_diff, 2);
