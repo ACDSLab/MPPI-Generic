@@ -62,10 +62,10 @@ struct QuadraticCostTrajectoryParams : public CostParams<DYN_T::CONTROL_DIM>
 };
 
 template <class CLASS_T, class DYN_T, class PARAMS_T>
-class QuadraticCostImpl : public Cost<CLASS_T, PARAMS_T, DYN_T::DYN_PARAMS_T>
+class QuadraticCostImpl : public Cost<CLASS_T, PARAMS_T, DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>
 {
 public:
-  typedef Cost<CLASS_T, PARAMS_T, DYN_T::DYN_PARAMS_T> PARENT_CLASS;
+  typedef Cost<CLASS_T, PARAMS_T, DYN_T::STATE_DIM, DYN_T::CONTROL_DIM> PARENT_CLASS;
   using state_array = typename PARENT_CLASS::state_array;
   QuadraticCostImpl(cudaStream_t stream = nullptr);
   static constexpr float MAX_COST_VALUE = 1e16;
