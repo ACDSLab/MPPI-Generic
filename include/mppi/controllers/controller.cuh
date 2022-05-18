@@ -502,7 +502,7 @@ public:
       u.col(i) = u.col(ind);
       if (i + steps > getNumTimesteps() - 1)
       {
-        u.col(i) = model_->zero_control_;
+        u.col(i) = u.col(ind).array() * model_->zero_control_.array();
       }
     }
   }
