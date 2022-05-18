@@ -23,6 +23,8 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
+
+  control_mppi_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
@@ -341,6 +343,8 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     }
   }
 
+  smoothControlTrajectory();
+  computeStateTrajectory(local_state);
   state_array zero_state = state_array::Zero();
   for (int i = 0; i < this->getNumTimesteps(); i++)
   {
@@ -349,9 +353,6 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     // this->control_.col(i)[1] =
     //     fminf(fmaxf(this->control_.col(i)[1], this->model_->control_rngs_[1].x), this->model_->control_rngs_[1].y);
   }
-
-  smoothControlTrajectory();
-  computeStateTrajectory(local_state);
 
   // Copy back sampled trajectories for visualization
   if (!getVisualizePrimitives())
@@ -414,6 +415,7 @@ void Primitives::slideControlSequence(int steps)
   leash_jump_ = steps;
   // Save the control history
   this->saveControlHistoryHelper(steps, this->control_, this->control_history_);
+  this->saveControlHistoryHelper(steps, control_mppi_, control_mppi_history_);
 
   this->slideControlSequenceHelper(steps, this->control_);
   this->slideControlSequenceHelper(steps, control_mppi_);
@@ -424,6 +426,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void Primitives::smoothControlTrajectory()
 {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
+  this->smoothControlTrajectoryHelper(control_mppi_, control_mppi_history_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
