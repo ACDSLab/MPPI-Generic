@@ -302,22 +302,41 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   {
     this->control_ = control_mppi_;
     this->copyNominalControlToDevice();
-    std::cout << "Using MPPI control" << std::endl;
+    if (this->debug_)
+    {
+      std::cout << "Using MPPI control" << std::endl;
+    }
+    this->free_energy_statistics_.nominal_state_used = 0;
   }
   else
   {
-    std::cout << "Using primitives control, ";
+    if (this->debug_)
+    {
+      std::cout << "Using primitives control, ";
+    }
     if (best_idx > 0 && best_idx <= int((getFracRandomNoiseTrajLValue())[0] * NUM_ROLLOUTS))
     {
-      std::cout << "colored noise added to nominal." << std::endl;
+      if (this->debug_)
+      {
+        std::cout << "colored noise added to nominal." << std::endl;
+      }
+      this->free_energy_statistics_.nominal_state_used = 1;
     }
     else if (best_idx <= int((getFracRandomNoiseTrajLValue()[0] + getFracRandomNoiseTrajLValue()[1]) * NUM_ROLLOUTS))
     {
-      std::cout << "piecewise noise added to nominal." << std::endl;
+      if (this->debug_)
+      {
+        std::cout << "piecewise noise added to nominal." << std::endl;
+      }
+      this->free_energy_statistics_.nominal_state_used = 2;
     }
     else
     {
-      std::cout << "new piecewise trajectory." << std::endl;
+      if (this->debug_)
+      {
+        std::cout << "new piecewise trajectory." << std::endl;
+      }
+      this->free_energy_statistics_.nominal_state_used = 3;
     }
   }
 
