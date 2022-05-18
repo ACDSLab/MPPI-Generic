@@ -307,11 +307,11 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   else
   {
     std::cout << "Using primitives control, ";
-    if (best_idx > 0 && best_idx <= int(frac_add_nominal_traj_[0] * NUM_ROLLOUTS))
+    if (best_idx > 0 && best_idx <= int((getFracRandomNoiseTrajLValue())[0] * NUM_ROLLOUTS))
     {
       std::cout << "colored noise added to nominal." << std::endl;
     }
-    else if (best_idx <= int((frac_add_nominal_traj_[0] + frac_add_nominal_traj_[1]) * NUM_ROLLOUTS))
+    else if (best_idx <= int((getFracRandomNoiseTrajLValue()[0] + getFracRandomNoiseTrajLValue()[1]) * NUM_ROLLOUTS))
     {
       std::cout << "piecewise noise added to nominal." << std::endl;
     }
