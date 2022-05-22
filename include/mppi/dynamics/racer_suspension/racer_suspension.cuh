@@ -171,7 +171,7 @@ public:
   void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt);
 
   __device__ __host__ void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                          Eigen::Ref<state_array> state_der, output_array* output=nullptr, Eigen::Matrix3f *omegaJacobian = nullptr);
+                          Eigen::Ref<state_array> state_der, Eigen::Ref<output_array>* output=nullptr, Eigen::Matrix3f *omegaJacobian = nullptr);
 
   __device__ void updateState(float* state, float* state_der, const float dt);
 

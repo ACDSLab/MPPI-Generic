@@ -299,7 +299,7 @@ public:
    * @param state_der
    */
   void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                          Eigen::Ref<state_array> state_der, output_array* output=nullptr)
+                          Eigen::Ref<state_array> state_der, Eigen::Ref<output_array>* output=nullptr)
   {
     // TODO this is a hack
     if (output) {

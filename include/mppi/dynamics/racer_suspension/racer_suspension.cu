@@ -82,7 +82,8 @@ __device__ __host__ static float stribeck_friction(float v, float mu_s, float v_
 
 __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<const state_array>& state,
                                                             const Eigen::Ref<const control_array>& control,
-                                                            Eigen::Ref<state_array> state_der, output_array* output,
+                                                            Eigen::Ref<state_array> state_der,
+                                                            Eigen::Ref<output_array>* output,
                                                             Eigen::Matrix3f* omegaJacobian)
 {
   Eigen::Vector3f p_I = state.segment<3>(S_INDEX(P_I_X));
@@ -279,25 +280,31 @@ __device__ void RacerSuspension::computeStateDeriv(float* state, float* control,
                                                    float* output)
 {
   (void)theta_s;
-  // Eigen::Map<state_array> state_v(state);
-  // Eigen::Map<control_array> control_v(control);
-  // Eigen::Map<state_array> state_der_v(state_der);
-  // if (output) {
-  //   Eigen::Map<state_array> output_v(output);
-  //   output_v =
-  // }
-  // computeStateDeriv(state_v, control_v, state_der_v, nullptr);
-  for (int i = 0; i < PARENT_CLASS::STATE_DIM; i++)
-  {
-    state_der[i] = 0;
-  }
+  Eigen::Map<state_array> state_v(state);
+  Eigen::Map<control_array> control_v(control);
+  Eigen::Map<state_array> state_der_v(state_der);
   if (output)
   {
-    for (int i = 0; i < PARENT_CLASS::OUTPUT_DIM; i++)
-    {
-      output[i] = 0;
-    }
+    Eigen::Map<output_array> output_v(output);
+    Eigen::Ref<output_array> output_r(output_v);
+    computeStateDeriv(state_v, control_v, state_der_v, &output_r);
   }
+  else
+  {
+    computeStateDeriv(state_v, control_v, state_der_v, nullptr);
+  }
+  // for (int i = 0; i < PARENT_CLASS::STATE_DIM; i++)
+  // {
+  //   state_der[i] = 0;
+  // }
+  // state_der[S_INDEX(V_I_X)] = control[1];
+  // if (output)
+  // {
+  //   for (int i = 0; i < PARENT_CLASS::OUTPUT_DIM; i++)
+  //   {
+  //     output[i] = 0;
+  //   }
+  // }
 }
 
 Eigen::Quaternionf RacerSuspension::attitudeFromState(const Eigen::Ref<const state_array>& state)
