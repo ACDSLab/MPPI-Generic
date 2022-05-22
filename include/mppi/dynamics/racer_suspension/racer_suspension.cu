@@ -222,6 +222,17 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
   Eigen::Vector3f g(0, 0, params_.gravity);  // TODO gravity is negative to match dubins model
 
   state_der.segment<3>(S_INDEX(P_I_X)) = v_I;
+#ifdef __CUDA_ARCH__
+  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+  {
+    printf("\n state_der[0:3] %f %f %f   v_I %f %f %f \n", state_der[0], state_der[1], state_der[2], v_I[0], v_I[1],
+           v_I[2]);
+    printf("\n state_der[0:3] %f %f %f   v_I %f %f %f \n", state_der[0], state_der[1], state_der[2], v_I[0], v_I[1],
+           v_I[2]);
+    printf("\n state_der.segment<3>(S_INDEX(P_I_X)) %f %f %f  %d  \n", state_der.segment<3>(S_INDEX(P_I_X))[0],
+           state_der.segment<3>(S_INDEX(P_I_X))[1], state_der.segment<3>(S_INDEX(P_I_X))[2], S_INDEX(P_I_X));
+  }
+#endif
   state_der.segment<3>(S_INDEX(V_I_X)) = 1 / params_.mass * R * f_B + g;
   Eigen::Quaternionf qdot;
   qdot.coeffs() = 0.5 * (q * Eigen::Quaternionf(0, omega[0], omega[1], omega[2])).coeffs();
@@ -273,7 +284,23 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     (*output)[O_INDEX(CENTER_POS_I_X)] = (*output)[O_INDEX(BASELINK_POS_I_X)];  // TODO
     (*output)[O_INDEX(CENTER_POS_I_Y)] = (*output)[O_INDEX(BASELINK_POS_I_Y)];
     (*output)[O_INDEX(CENTER_POS_I_Z)] = (*output)[O_INDEX(BASELINK_POS_I_Z)];
+    // (*output).setZero();
   }
+#ifdef __CUDA_ARCH__
+  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+  {
+    printf("\n\n");
+    for (int i = 0; i < PARENT_CLASS::STATE_DIM; i++)
+    {
+      printf("%f ", state_der[i]);
+    }
+    printf(" pos %f %f %f  vel %f %f %f", p_I[0], p_I[1], p_I[2], v_I[0], v_I[1], v_I[2]);
+    printf(" vel_x %f  vel %f %f %f", vel_x, v_I[0], v_I[1], v_I[2]);
+  }
+#else
+  std::cout << "CPU state_der " << state_der.transpose() << std::endl;
+#endif
+  state_der.setZero();
 }
 
 __device__ void RacerSuspension::computeStateDeriv(float* state, float* control, float* state_der, float* theta_s,
