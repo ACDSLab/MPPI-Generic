@@ -23,6 +23,8 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
 
   // Copy the noise std_dev to the device
   this->copyControlStdDevToDevice();
+
+  control_mppi_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
@@ -84,6 +86,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   int prev_controls_idx = 1;
   float primitives_baseline = 0.0;
   float baseline_prev = 0.0;
+  int best_idx = -1;
 
   // Send the nominal control to the device
   this->copyNominalControlToDevice(false);
@@ -99,17 +102,17 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
                            getScaleAddNominalNoiseLValue(), this->control_d_, this->control_noise_d_,
                            this->control_std_dev_d_, this->gen_, this->stream_);
 
-    // Set nominal controls to zero because we want to use the noise directly
-    this->control_ = control_trajectory::Zero();
+    // // Set nominal controls to zero because we want to use the noise directly
+    // this->control_ = control_trajectory::Zero();
 
-    // Send the zero nominal control to the device
-    this->copyNominalControlToDevice();
+    // // Send the zero nominal control to the device
+    // this->copyNominalControlToDevice();
 
     // Launch the rollout kernel
     mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(),
-        /*optimization_stride = */ 0, this->getLambda(), this->getAlpha(), this->initial_state_d_, this->control_d_,
-        this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
+        this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
+        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
+        this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
@@ -128,30 +131,30 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
     // if baseline is too high and trajectory is unsafe, create and issue a stopping trajectory
     // reminder:  baseline_ is the average cost along trajectory
-    if (getStoppingCostThreshold() > 0 && primitives_baseline * this->getNumTimesteps() > getStoppingCostThreshold())
+    if (getStoppingCostThreshold() > 0 && primitives_baseline > getStoppingCostThreshold())
     {
       std::cerr << "Baseline is too high, issuing stopping trajectory!" << std::endl;
       computeStoppingTrajectory(local_state);
       primitives_baseline = std::numeric_limits<float>::min();
     }
-    else if (primitives_baseline > baseline_prev - getHysteresisCostThreshold())
-    {
-      // baseline is not decreasing enough, use controls from the previous iteration
-      if (this->debug_)
-      {
-        std::cerr << "Not enough improvement, use prev controls." << std::endl;
-      }
-      HANDLE_ERROR(cudaMemcpyAsync(
-          this->control_.data(),
-          this->control_noise_d_ + prev_controls_idx * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
-          sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
+    // else if (primitives_baseline > baseline_prev - getHysteresisCostThreshold())
+    // {
+    //   // baseline is not decreasing enough, use controls from the previous iteration
+    //   if (this->debug_)
+    //   {
+    //     std::cout << "Not enough improvement, use prev controls." << std::endl;
+    //   }
+    //   HANDLE_ERROR(cudaMemcpyAsync(
+    //       this->control_.data(),
+    //       this->control_noise_d_ + prev_controls_idx * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
+    //       sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
 
-      primitives_baseline = baseline_prev;
-    }
+    //   primitives_baseline = baseline_prev;
+    // }
     else
     {  // otherwise, update the nominal control
       // Copy best control from device to the host
-      int best_idx = mppi_common::computeBestIndex(this->trajectory_costs_.data(), NUM_ROLLOUTS);
+      best_idx = mppi_common::computeBestIndex(this->trajectory_costs_.data(), NUM_ROLLOUTS);
       HANDLE_ERROR(cudaMemcpyAsync(
           this->control_.data(), this->control_noise_d_ + best_idx * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
           sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToHost, this->stream_));
@@ -297,17 +300,50 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   }
   if ((getNumPrimitiveIterations() == 0 && this->getNumIters() > 0) ||
       ((getNumPrimitiveIterations() > 0 && this->getNumIters() > 0) &&
-       (this->getBaselineCost() < primitives_baseline - getHysteresisCostThreshold())))
+       (this->getBaselineCost() < primitives_baseline + getHysteresisCostThreshold())))
   {
     this->control_ = control_mppi_;
     this->copyNominalControlToDevice();
     if (this->debug_)
     {
-      std::cerr << "Using MPPI control" << std::endl;
+      std::cout << "Using MPPI control" << std::endl;
+    }
+    this->free_energy_statistics_.nominal_state_used = 0;
+  }
+  else
+  {
+    // control_mppi_ = this->control_; // don't do this, we want to save the MPPI control
+    if (this->debug_)
+    {
+      std::cout << "Using primitives control, ";
+    }
+    if (best_idx > 0 && best_idx <= int((getFracRandomNoiseTrajLValue())[0] * NUM_ROLLOUTS))
+    {
+      if (this->debug_)
+      {
+        std::cout << "colored noise added to nominal." << std::endl;
+      }
+      this->free_energy_statistics_.nominal_state_used = 1;
+    }
+    else if (best_idx <= int((getFracRandomNoiseTrajLValue()[0] + getFracRandomNoiseTrajLValue()[1]) * NUM_ROLLOUTS))
+    {
+      if (this->debug_)
+      {
+        std::cout << "piecewise noise added to nominal." << std::endl;
+      }
+      this->free_energy_statistics_.nominal_state_used = 2;
+    }
+    else
+    {
+      if (this->debug_)
+      {
+        std::cout << "new piecewise trajectory." << std::endl;
+      }
+      this->free_energy_statistics_.nominal_state_used = 3;
     }
   }
 
-  // smoothControlTrajectory();
+  smoothControlTrajectory();
   computeStateTrajectory(local_state);
   state_array zero_state = state_array::Zero();
   for (int i = 0; i < this->getNumTimesteps(); i++)
@@ -379,6 +415,7 @@ void Primitives::slideControlSequence(int steps)
   leash_jump_ = steps;
   // Save the control history
   this->saveControlHistoryHelper(steps, this->control_, this->control_history_);
+  this->saveControlHistoryHelper(steps, control_mppi_, control_mppi_history_);
 
   this->slideControlSequenceHelper(steps, this->control_);
   this->slideControlSequenceHelper(steps, control_mppi_);
@@ -389,6 +426,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void Primitives::smoothControlTrajectory()
 {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
+  this->smoothControlTrajectoryHelper(control_mppi_, control_mppi_history_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,

@@ -74,8 +74,16 @@ __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int nu
     }
 
     // compute noise, interpolated between first and second value
-    float first_val =
-        switch_values[(sample_index * (num_piecewise_segments + 1) + segment_index) * control_dim + control_index];
+    float first_val = 0;
+    if (start_time < float(optimization_stride) / float(num_timesteps))
+    { // first value should always be nominal control at optimization stride start
+      first_val = nominal_control[optimization_stride * control_dim + control_index];
+      start_time = float(optimization_stride) / float(num_timesteps);
+    }
+    else
+    {
+      first_val = switch_values[(sample_index * (num_piecewise_segments + 1) + segment_index) * control_dim + control_index];
+    }
     float second_val =
         switch_values[(sample_index * (num_piecewise_segments + 1) + segment_index + 1) * control_dim + control_index];
     float frac_interval = (time_frac - start_time) / (end_time - start_time);
@@ -91,10 +99,10 @@ __global__ void createPiecewiseLinearNoise(const int num_timesteps, const int nu
     }
   }
 
-  // control noise output gets scaled by the kernel,
-  // so we need to unscale it first.
+  // control noise output gets scaled by the kernel, and added to nominal control.
+  // so we need to undo these operations to get exactly the control trajectory we want.
   output[(sample_index * num_timesteps + time_index) * control_dim + control_index] =
-      output_val / control_std_dev[control_index];
+      output_val / control_std_dev[control_index] - nominal_control[time_index * control_dim + control_index];
 }
 
 void piecewise_linear_noise(const int num_timesteps, const int num_trajectories, const int control_dim,

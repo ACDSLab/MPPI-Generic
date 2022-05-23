@@ -238,6 +238,7 @@ protected:
 
   float* control_mppi_d_;                                         // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
   control_trajectory control_mppi_ = control_trajectory::Zero();  // host side mppi control trajectory
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_mppi_history_;
 
 private:
   // ======== MUST BE OVERWRITTEN =========

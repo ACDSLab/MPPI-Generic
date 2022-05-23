@@ -11,15 +11,15 @@ using namespace MPPI_internal;
  * state: v, theta, p_x, p_y, true steering angle, roll, pitch
  * control: throttle, steering angle command
  */
-class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation, 7>
+class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation, 9>
 {
 public:
-  RacerDubinsElevation(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubinsElevation, 7>(stream)
+  RacerDubinsElevation(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubinsElevation, 9>(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
   RacerDubinsElevation(RacerDubinsParams& params, cudaStream_t stream = nullptr)
-    : RacerDubinsImpl<RacerDubinsElevation, 7>(params, stream)
+    : RacerDubinsImpl<RacerDubinsElevation, 9>(params, stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }

@@ -2,7 +2,7 @@
 
 void RacerDubinsElevation::GPUSetup()
 {
-  RacerDubinsImpl<RacerDubinsElevation, 7>* derived = static_cast<RacerDubinsImpl<RacerDubinsElevation, 7>*>(this);
+  RacerDubinsImpl<RacerDubinsElevation, 9>* derived = static_cast<RacerDubinsImpl<RacerDubinsElevation, 9>*>(this);
   CudaCheckError();
   tex_helper_->GPUSetup();
   CudaCheckError();
@@ -25,7 +25,7 @@ void RacerDubinsElevation::paramsToDevice()
     HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->tex_helper_), &(tex_helper_->ptr_d_),
                                  sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
   }
-  RacerDubinsImpl<RacerDubinsElevation, 7>::paramsToDevice();
+  RacerDubinsImpl<RacerDubinsElevation, 9>::paramsToDevice();
 }
 
 void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
@@ -33,7 +33,9 @@ void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref
   state += state_der * dt;
   state(1) = angle_utils::normalizeAngle(state(1));
   state(4) -= state_der(4) * dt;
-  state(4) = state_der(4) + (state(4) - state_der(4)) * expf(-this->params_.steering_constant * dt);
+  state(7) = -state(4) / dt;
+  state(4) = state_der[4] + (state[4] - state_der[4]) * expf(-this->params_.steering_constant * dt);
+  state(7) += state(4) / dt;
 
   if (this->tex_helper_->checkTextureUse(0))
   {
@@ -99,6 +101,8 @@ void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref
     state(6) = 4.0;
   }
 
+  state(8) = state_der(0);
+
   state_der.setZero();
 }
 
@@ -108,9 +112,13 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
   int tdy = threadIdx.y;
   // Add the state derivative time dt to the current state.
   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-  for (i = tdy; i < STATE_DIM; i += blockDim.y)
+  for (i = tdy; i < STATE_DIM - 2; i += blockDim.y)
   {
     state[i] += state_der[i] * dt;
+    if (i == 0)
+    {
+      state[8] = state_der[i];
+    }
     if (i == 1)
     {
       state[i] = angle_utils::normalizeAngle(state[i]);
@@ -118,7 +126,9 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
     if (i == 4)
     {
       state[i] -= state_der[i] * dt;
+      state[7] = -state[i] / dt;
       state[i] = state_der[i] + (state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
+      state[7] += state[i] / dt;
     }
     if (i == 5 || i == 6)
     {
