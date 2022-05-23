@@ -88,10 +88,10 @@ struct RacerSuspensionParams : public DynamicsParams
   float k_s[4] = { 14000, 14000, 14000, 14000 };
   float c_s[4] = { 2000, 2000, 2000, 2000 };
   float l_0[4] = {
-    wheel_radius + mass / 4 * gravity / k_s[0],
-    wheel_radius + mass / 4 * gravity / k_s[1],
-    wheel_radius + mass / 4 * gravity / k_s[2],
-    wheel_radius + mass / 4 * gravity / k_s[3],
+    wheel_radius + mass / 4 * (-gravity) / k_s[0],
+    wheel_radius + mass / 4 * (-gravity) / k_s[1],
+    wheel_radius + mass / 4 * (-gravity) / k_s[2],
+    wheel_radius + mass / 4 * (-gravity) / k_s[3],
   };
   float3 cg_pos_wrt_base_link = make_float3(wheel_base / 2, 0, 0.2);
   // float3 wheel_pos_front_left = make_float3(wheel_base, width/2, 0);
