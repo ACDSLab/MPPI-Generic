@@ -1,3 +1,5 @@
+#pragma once
+#include <cuda_runtime.h>
 #include <Eigen/Dense>
 
 __device__ __host__ Eigen::Vector3f cudaToEigen(const float3& v)
