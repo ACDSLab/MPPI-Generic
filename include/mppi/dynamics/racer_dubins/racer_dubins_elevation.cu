@@ -32,10 +32,8 @@ void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref
 {
   state += state_der * dt;
   state(1) = angle_utils::normalizeAngle(state(1));
-  state(4) -= state_der(4) * dt;
-  state(7) = -state(4) / dt;
-  state(4) = state_der[4] + (state[4] - state_der[4]) * expf(-this->params_.steering_constant * dt);
-  state(7) += state(4) / dt;
+  state(4) = max(min(state(4), this->params_.max_steer_angle), -this->params_.max_steer_angle);
+  state(7) = state_der(4);
 
   if (this->tex_helper_->checkTextureUse(0))
   {
@@ -112,7 +110,7 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
   int tdy = threadIdx.y;
   // Add the state derivative time dt to the current state.
   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-  for (i = tdy; i < STATE_DIM - 2; i += blockDim.y)
+  for (i = tdy; i < 7; i += blockDim.y)
   {
     state[i] += state_der[i] * dt;
     if (i == 0)
@@ -125,10 +123,8 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
     }
     if (i == 4)
     {
-      state[i] -= state_der[i] * dt;
-      state[7] = -state[i] / dt;
-      state[i] = state_der[i] + (state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
-      state[7] += state[i] / dt;
+      state[4] = max(min(state[4], this->params_.max_steer_angle), -this->params_.max_steer_angle);
+      state[7] = state_der[i];
     }
     if (i == 5 || i == 6)
     {
@@ -221,7 +217,8 @@ void RacerDubinsElevation::computeDynamics(const Eigen::Ref<const state_array>& 
   state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4));
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
-  state_der(4) = control(1) / this->params_.steer_command_angle_scale;
+  state_der(4) = (control(1) / this->params_.steer_command_angle_scale - state(4)) * this->params_.steering_constant;
+  state_der(4) = max(min(state_der(4), this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
 
 __device__ void RacerDubinsElevation::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
@@ -238,5 +235,6 @@ __device__ void RacerDubinsElevation::computeDynamics(float* state, float* contr
   state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4]);
   state_der[2] = state[0] * cosf(state[1]);
   state_der[3] = state[0] * sinf(state[1]);
-  state_der[4] = control[1] / this->params_.steer_command_angle_scale;
+  state_der[4] = (control[1] / this->params_.steer_command_angle_scale - state[4]) * this->params_.steering_constant;
+  state_der[4] = max(min(state_der[4], this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
