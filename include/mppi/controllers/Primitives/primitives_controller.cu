@@ -67,7 +67,9 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
     if (getStateLeashLength(i) < diff)
     {
-      local_state[i] = state[i];
+      float leash_dir =
+          fminf(fmaxf(this->state_.col(leash_jump_)[i] - state[i], -getStateLeashLength(i)), getStateLeashLength(i));
+      local_state[i] = state[i] + leash_dir;
     }
     else
     {
