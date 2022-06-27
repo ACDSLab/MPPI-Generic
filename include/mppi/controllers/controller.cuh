@@ -53,6 +53,7 @@ struct ControllerParams
 
   Eigen::Matrix<float, C_DIM, 1> control_std_dev_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
   Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS> init_control_traj_ = Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS>::Zero();
+  Eigen::Matrix<float, C_DIM, 1> slide_control_scale_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
@@ -502,7 +503,7 @@ public:
       u.col(i) = u.col(ind);
       if (i + steps > getNumTimesteps() - 1)
       {
-        u.col(i) = u.col(ind).array() * model_->zero_control_.array();
+        u.col(i) = (u.col(ind).array() - model_->zero_control_.array()) * params_.slide_control_scale_.array() + model_->zero_control_.array();
       }
     }
   }
@@ -640,6 +641,11 @@ public:
   int getTotalSampledTrajectories() const
   {
     return getNumberSampledTrajectories() + getNumberTopControlTrajectories();
+  }
+
+  void setSlideControlScale(const Eigen::Ref<const control_array>& slide_control_scale)
+  {
+    params_.slide_control_scale_ = slide_control_scale;
   }
 
   /**
