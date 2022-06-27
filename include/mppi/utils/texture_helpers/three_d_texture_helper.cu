@@ -132,11 +132,13 @@ void ThreeDTextureHelper<DATA_T>::updateTexture(
 // TODO update texture where everything is copied over in one go
 
 template <class DATA_T>
-__device__ DATA_T ThreeDTextureHelper<DATA_T>::queryTexture(const int index, const float3& point)
+__host__ __device__ DATA_T ThreeDTextureHelper<DATA_T>::queryTexture(const int index, const float3& point)
 {
-  // printf("query texture at (%f, %f, %f) = %f\n", point.x, point.y, point.z,
-  //       tex3D<DATA_T>(this->textures_d_[index].tex_d, point.x, point.y, point.z));
+#ifdef __CUDA_ARCH__
   return tex3D<DATA_T>(this->textures_d_[index].tex_d, point.x, point.y, point.z);
+#else
+  return 0;
+#endif
 }
 
 template <class DATA_T>
