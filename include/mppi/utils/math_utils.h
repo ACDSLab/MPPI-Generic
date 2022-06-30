@@ -56,6 +56,12 @@ inline std::vector<int> sample_without_replacement(int k, int N,
   return final_sequence;
 }
 
+inline __host__ __device__ float expr(float r, float x)
+{
+  float mid_term = 1.0 + (r - 1.0) * x;
+  return (mid_term > 0) * powf(mid_term, 1.0 / (r - 1.0));
+}
+
 /**
  * Linear interpolation
  * Given two coordinates (x_min, y_min) and (x_max, y_max)

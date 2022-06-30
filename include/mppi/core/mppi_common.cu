@@ -103,6 +103,13 @@ __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float
   normExpTransform(num_rollouts * blockDim.z, trajectory_costs_d, lambda_inv, baseline, global_idx, global_step);
 }
 
+__global__ void TsallisKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float r, float baseline)
+{
+  int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + threadIdx.z;
+  int global_step = blockDim.x * gridDim.x * blockDim.z * gridDim.z;
+  TsallisTransform(num_rollouts * blockDim.z, trajectory_costs_d, gamma, r, baseline, global_idx, global_step);
+}
+
 template <int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE>
 __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float normalizer,
                                         int num_timesteps)
@@ -352,6 +359,25 @@ __device__ inline void normExpTransform(int num_rollouts, float* __restrict__ tr
   {
     float cost_dif = trajectory_costs_d[i] - baseline;
     trajectory_costs_d[i] = expf(-lambda_inv * cost_dif);
+  }
+}
+
+__device__ inline void TsallisTransform(int num_rollouts, float* __restrict__ trajectory_costs_d, float gamma, float r,
+                                        float baseline, int global_idx, int rollout_idx_step)
+{
+  for (int i = global_idx; i < num_rollouts; i += rollout_idx_step)
+  {
+    float cost_dif = trajectory_costs_d[i] - baseline;
+    // trajectory_costs_d[i] = mppi::math::expr(-lambda_bar_inv * cost_dif);
+    // trajectory_costs_d[i] = (cost_dif < gamma) * expf(logf(1.0 - cost_dif / gamma) / (r - 1));
+    if (cost_dif < gamma)
+    {
+      trajectory_costs_d[i] = expf(logf(1.0 - cost_dif / gamma) / (r - 1));
+    }
+    else
+    {
+      trajectory_costs_d[i] = 0;
+    }
   }
 }
 
@@ -663,6 +689,20 @@ void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_co
   dim3 dimBlock(blocksize_x, 1, 1);
   dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
   normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, lambda_inv, baseline);
+  // CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
+}
+
+void launchTsallisKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float r,
+                         float baseline, cudaStream_t stream, bool synchronize)
+{
+  dim3 dimBlock(blocksize_x, 1, 1);
+  dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
+  TsallisKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, gamma, r, baseline);
   // CudaCheckError();
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
