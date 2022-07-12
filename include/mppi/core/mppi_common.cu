@@ -96,6 +96,223 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
   }
 }
 
+template <class DYN_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS, int BLOCKSIZE_Z>
+__global__ void rolloutDynamicsKernel(DYN_T* dynamics, float dt, int num_timesteps, int optimization_stride,
+                                      const float* __restrict__ init_x_d, const float* __restrict__ u_d, float* du_d,
+                                      float* __restrict__ sigma_u_d, float* __restrict__ x_d)
+{
+  // Get thread and block id
+  int thread_idx = threadIdx.x;
+  int thread_idy = threadIdx.y;
+  int thread_idz = threadIdx.z;
+  int block_idx = blockIdx.x;
+  int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
+
+  // Create shared state and control arrays
+  __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+  __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+  __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
+  __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
+  __shared__ float sigma_u[DYN_T::CONTROL_DIM];
+
+  // Create a shared array for the dynamics model to use
+  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ typename DYN_T::DYN_PARAMS_T dyn_params;
+  dyn_params = dynamics->getParams();
+
+  // Create local state, state dot and controls
+  float* x;
+  float* xdot;
+  float* u;
+  float* du;
+
+  // Load global array to shared array
+  if (global_idx < NUM_ROLLOUTS)
+  {
+    x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+    xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+    u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+    du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+  }
+  //__syncthreads();
+  loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS, BLOCKSIZE_Y, global_idx, thread_idy,
+                     thread_idz, init_x_d, sigma_u_d, x, xdot, u, du, sigma_u);
+  __syncthreads();
+
+  if (global_idx < NUM_ROLLOUTS)
+  {
+    /*<----Start of simulation loop-----> */
+    dynamics->initializeDynamics(x, u, theta_s, 0.0, dt);
+    __syncthreads();
+    for (int t = 0; t < num_timesteps; t++)
+    {
+      // Load noise trajectories scaled by the exploration factor
+      injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy,
+                         optimization_stride, u_d, du_d, sigma_u, u, du);
+      // du_d is now v
+      __syncthreads();
+
+      // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
+      // usually just control clamping
+      // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
+      dynamics->enforceConstraints(x, &du_d[(NUM_ROLLOUTS * num_timesteps * threadIdx.z +  // z part
+                                             global_idx * num_timesteps + t) *
+                                            DYN_T::CONTROL_DIM]);  //
+      dynamics->enforceConstraints(x, u);
+      __syncthreads();
+
+      // Compute state derivatives
+      dynamics->computeStateDeriv(x, u, xdot, theta_s);
+      __syncthreads();
+
+      // Increment states
+      dynamics->updateState(x, xdot, dt);
+      __syncthreads();
+      // Copy state to global memory
+      for (int j = thread_idy; j < DYN_T::STATE_DIM; j += BLOCKSIZE_Y)
+      {
+        x_d[NUM_ROLLOUTS * num_timesteps * DYN_T::STATE_DIM * thread_idz +
+            global_idx * num_timesteps * DYN_T::STATE_DIM + t * DYN_T::STATE_DIM + j] = x[j];
+      }
+    }
+    // Compute terminal cost and the final cost for each thread
+    // computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost, trajectory_costs_d);
+  }
+}
+
+template <class DYN_T, class COST_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS, int BLOCKSIZE_Z>
+__global__ void rolloutCostKernel(COST_T* costs, float dt, int num_timesteps, float lambda, float alpha,
+                                  const float* __restrict__ init_x_d, const float* __restrict__ u_d, float* du_d,
+                                  float* __restrict__ sigma_u_d, const float* __restrict__ x_d,
+                                  float* __restrict__ trajectory_costs_d)
+{
+  // Get thread and block id
+  int thread_idx = threadIdx.x;
+  int thread_idy = threadIdx.y;
+  int thread_idz = threadIdx.z;
+  // int block_idx = blockIdx.x;
+  // int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
+  int global_idx = blockIdx.x;
+
+  // Create shared state and control arrays
+  __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+  __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
+  __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
+  __shared__ float sigma_u[DYN_T::CONTROL_DIM];
+  __shared__ int crash_status_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float running_costs_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
+
+  // Create a shared array for the dynamics model to use
+  __shared__ float cost_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ typename COST_T::COST_PARAMS_T cost_params;
+  cost_params = costs->getParams();
+
+  // Create local state, state dot and controls
+  float* x;
+  float* u;
+  float* du;
+  int* crash_status;
+
+  // Initialize running cost and total cost
+  float* running_cost;
+  int control_index = 0;
+
+  // Load global array to shared array
+  if (global_idx < NUM_ROLLOUTS)
+  {
+    x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+    u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+    du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
+    crash_status = &crash_status_shared[thread_idz * blockDim.x + thread_idx];
+    crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
+    running_cost = &running_costs_shared[thread_idz * blockDim.x + thread_idx];
+    running_cost[0] = 0;
+  }
+  //__syncthreads();
+  // TODO: Remove x_dot
+  // loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS, BLOCKSIZE_Y, global_idx, thread_idy,
+  //                    thread_idz, init_x_d, sigma_u_d, x, xdot, u, du, sigma_u);
+  if (thread_idx == 0)
+  {
+    for (int j = thread_idy; j < DYN_T::CONTROL_DIM; j += BLOCKSIZE_Y)
+    {
+      sigma_u[j] = sigma_u_d[j];
+    }
+  }
+  __syncthreads();
+
+  if (global_idx < NUM_ROLLOUTS)
+  {
+    /*<----Start of simulation loop-----> */
+    // dynamics->initializeDynamics(x, u, theta_s, 0.0, dt);
+    // __syncthreads();
+    for (int t = thread_idx + 1; t < num_timesteps; t += BLOCKSIZE_X)
+    {
+      // Load noise trajectories scaled by the exploration factor
+      // injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy,
+      //                    optimization_stride, u_d, du_d, sigma_u, u, du);
+      // // du_d is now v
+      // __syncthreads();
+
+      // TODO: Read state and control from global memory
+      for (int j = thread_idy; j < DYN_T::STATE_DIM; j += BLOCKSIZE_Y)
+      {
+        x[j] = x_d[NUM_ROLLOUTS * num_timesteps * DYN_T::STATE_DIM * thread_idz +
+                   global_idx * num_timesteps * DYN_T::STATE_DIM + t * DYN_T::STATE_DIM + j];
+      }
+      // Have to do similar steps as injectControlNoise but using the already transformed cost samples
+      for (int j = thread_idy; j < DYN_T::CONTROL_DIM; j += BLOCKSIZE_Y)
+      {
+        control_index = NUM_ROLLOUTS * num_timesteps * DYN_T::CONTROL_DIM * thread_idz +
+                        global_idx * num_timesteps * DYN_T::CONTROL_DIM + t * DYN_T::CONTROL_DIM + j;
+        if (global_idx == 0)
+        {
+          du[j] = 0;
+          u[j] = u_d[control_index];
+        }
+        else if (global_idx >= 0.99 * NUM_ROLLOUTS)
+        {
+          du[j] = du_d[control_index];
+          u[j] = du[j];
+        }
+        else
+        {
+          du[j] = du_d[control_index] - u_d[control_index];
+          u[j] = du_d[control_index];
+        }
+      }
+      __syncthreads();
+
+      // Compute cost
+      if (thread_idy == 0)
+      {
+        running_cost[0] += costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t, crash_status) / num_timesteps;
+      }
+    }
+    __syncthreads();
+    // Add all costs together
+    int prev_size = blockDim.x;
+    running_cost = &running_costs_shared[BLOCKSIZE_X * thread_idz];
+    for (int size = prev_size / 2; size > 0; size /= 2)
+    {
+      for (int j = thread_idx; j < size; j += BLOCKSIZE_X)
+      {
+        running_cost[thread_idx] += running_cost[thread_idx + size];
+      }
+      __syncthreads();
+      if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1)
+      {
+        running_cost[size - 1] += running_cost[prev_size - 1];
+      }
+      __syncthreads();
+      prev_size = size;
+    }
+
+    // Compute terminal cost and the final cost for each thread
+    computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost[0], trajectory_costs_d);
+  }
+}
+
 __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float lambda_inv, float baseline)
 {
   int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + threadIdx.z;
@@ -675,6 +892,31 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
   rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z>
       <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt, num_timesteps, optimization_stride, lambda, alpha, x_d,
                                          u_d, du_d, sigma_u_d, trajectory_costs);
+  // CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
+}
+
+template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z>
+void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, int optimization_stride,
+                             float lambda, float alpha, float* init_x_d, float* x_d, float* u_d, float* du_d,
+                             float* sigma_u_d, float* trajectory_costs, cudaStream_t stream, bool synchronize)
+{
+  const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
+  dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
+  dim3 dimGrid(gridsize_x, 1, 1);
+  rolloutDynamicsKernel<DYN_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
+      dynamics, dt, num_timesteps, optimization_stride, init_x_d, u_d, du_d, sigma_u_d, x_d);
+
+  const int costgrid_y = (num_timesteps - 1) / BLOCKSIZE_X + 1;
+  dim3 dimCostBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
+  dim3 dimCostGrid(NUM_ROLLOUTS, costgrid_y, 1);
+  rolloutCostKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z>
+      <<<dimCostGrid, dimCostBlock, 0, stream>>>(costs, dt, num_timesteps, lambda, alpha, init_x_d, u_d, du_d,
+                                                 sigma_u_d, x_d, trajectory_costs);
   // CudaCheckError();
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)

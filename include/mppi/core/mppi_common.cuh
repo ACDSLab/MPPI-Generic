@@ -123,8 +123,8 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
 
 void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda_inv, float baseline,
                          cudaStream_t stream, bool synchronize = true);
-void launchTsallisKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float r, float baseline,
-                         cudaStream_t stream, bool synchronize = true);
+void launchTsallisKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float r,
+                         float baseline, cudaStream_t stream, bool synchronize = true);
 template <class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
 void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float normalizer,
                                    int num_timesteps, cudaStream_t stream, bool synchronize = true);
