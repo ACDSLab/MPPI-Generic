@@ -17,6 +17,8 @@ struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 {
   std::vector<float> colored_noise_exponents_;
   float state_leash_dist_[S_DIM] = { 0 };
+  float r = 2.0;
+  float gamma = 0;
 
   ColoredMPPIParams() = default;
   ColoredMPPIParams(const ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)
