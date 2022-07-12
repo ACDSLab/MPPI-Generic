@@ -371,6 +371,98 @@ TEST(RolloutKernel, comparisonTestAutorallyMPPI_Generic_AR)
   delete dynamics;
 }
 
+TEST(RolloutKernel, comparisonTestGenericRolloutVsFastRollout)
+{
+  const int MPPI_NUM_ROLLOUTS__ = 1920;
+  const int NUM_TIMESTEPS = 100;
+  const int BLOCKSIZE_X = 8;
+  const int BLOCKSIZE_Y = 16;
+  typedef NeuralNetModel<7, 2, 3, 6, 32, 32, 4> DynamicsModel;
+  typedef ARStandardCost MPPICostFunction;
+
+  float dt = 1.0 / 50.0;
+  float lambda = 6.666;
+  float alpha = 0.0;
+
+  std::default_random_engine generator(7.0);
+  std::normal_distribution<float> distribution(0.0, 1.0);
+  std::normal_distribution<float> throttle_distribution(.3, 0.5);
+  std::normal_distribution<float> steering_distribution(0.0, 0.5);
+
+  std::array<float2, 2> control_rngs;
+  control_rngs[0].x = -.99;
+  control_rngs[0].y = .99;
+  control_rngs[1].x = -.99;
+  control_rngs[1].y = .99;
+
+  std::array<float, 2> control_std_dev = { .3, .3 };
+
+  // setup cost and dynamics
+  MPPICostFunction* costs = new MPPICostFunction();
+  DynamicsModel* dynamics = new DynamicsModel(control_rngs);
+
+  auto params = costs->getParams();
+  params.discount = 0.9;
+  params.control_cost_coeff[0] = 0.0;
+  params.control_cost_coeff[1] = 0.0;
+
+  costs->setParams(params);
+
+  std::string model_path, map_path;
+  model_path = mppi::tests::old_autorally_network_file;
+  map_path = mppi::tests::ccrf_map;
+
+  // Call the GPU setup functions of the model and cost
+  dynamics->GPUSetup();
+  costs->GPUSetup();
+
+  dynamics->loadParams(model_path);
+  costs->loadTrackData(map_path);
+
+  // Generate an initial state
+  std::array<float, DynamicsModel::STATE_DIM> state_array = { 0, 0, 2.35, 0, 0, 0, 0 };
+  std::array<float, NUM_TIMESTEPS * DynamicsModel::CONTROL_DIM> control_array;
+  std::array<float, NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM> control_noise_array;
+  std::array<float, NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM> control_noise_fast;
+  std::array<float, NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::STATE_DIM> state_traj_fast;
+  std::array<float, NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM> control_noise_generic;
+  std::array<float, MPPI_NUM_ROLLOUTS__> costs_fast;
+  std::array<float, MPPI_NUM_ROLLOUTS__> costs_generic;
+
+  for (int i = 0; i < NUM_TIMESTEPS; ++i)
+  {
+    control_array[i * DynamicsModel::CONTROL_DIM] = steering_distribution(generator);
+    control_array[i * DynamicsModel::CONTROL_DIM + 1] = throttle_distribution(generator);
+  }
+
+  for (auto& noise : control_noise_array)
+  {
+    noise = distribution(generator);
+  }
+
+  // launchAutorallyRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X,
+  //                                  BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
+  //                                               control_noise_array, control_std_dev, costs_autorally,
+  //                                               control_noise_autorally, 0, 0);
+
+  launchFastRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X,
+                              BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
+                                           control_noise_array, state_traj_fast, control_std_dev, costs_fast,
+                                           control_noise_fast, 0, 0);
+
+  launchGenericRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X,
+                                 BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
+                                              control_noise_array, control_std_dev, costs_generic,
+                                              control_noise_generic, 0, 0);
+
+  array_expect_float_eq<NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM>(control_noise_generic,
+                                                                                          control_noise_fast);
+  array_expect_near<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_fast, 1.0);
+
+  delete costs;
+  delete dynamics;
+}
+
 TEST(RolloutKernel, comparisonTestAutorallyMPPI_Generic_CP)
 {
   const int MPPI_NUM_ROLLOUTS__ = 2048;
