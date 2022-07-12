@@ -93,6 +93,26 @@ public:
     this->setPercentageSampledControlTrajectoriesHelper(new_perc, 1);
   }
 
+  void setGamma(float gamma)
+  {
+    this->params_.gamma = gamma;
+  }
+
+  float getGamma()
+  {
+    return this->params_.gamma;
+  }
+
+  void setRExp(float r)
+  {
+    this->params_.r = r;
+  }
+
+  float getRExp()
+  {
+    return this->params_.r;
+  }
+
   void setColoredNoiseExponents(std::vector<float>& new_exponents)
   {
     this->params_.colored_noise_exponents_ = new_exponents;
