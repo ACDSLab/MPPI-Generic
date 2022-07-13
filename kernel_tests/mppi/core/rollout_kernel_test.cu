@@ -765,12 +765,12 @@ void launchGenericRolloutKernelTest(
 template <class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
 void launchFastRolloutKernelTest(
     DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
-    std::array<float, DYNAMICS_T::STATE_DIM> state_array,
-    std::array<float, NUM_TIMESTEPS * DYNAMICS_T::CONTROL_DIM> control_array,
-    std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::CONTROL_DIM> control_noise_array,
-    std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::STATE_DIM> state_traj_array,
+    std::array<float, DYNAMICS_T::STATE_DIM>& state_array,
+    std::array<float, NUM_TIMESTEPS * DYNAMICS_T::CONTROL_DIM>& control_array,
+    std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::CONTROL_DIM>& control_noise_array,
     std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u, std::array<float, NUM_ROLLOUTS>& costs_out,
     std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::CONTROL_DIM>& control_noise_out, int opt_delay,
+    int state_traj_array_size,
     cudaStream_t stream)
 {
   float* state_d;
@@ -786,7 +786,7 @@ void launchFastRolloutKernelTest(
   HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float) * control_noise_array.size()));
   HANDLE_ERROR(cudaMalloc((void**)&nu_d, sizeof(float) * sigma_u.size()));
   HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float) * costs_out.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&x_d, sizeof(float) * state_traj_array.size()));
+  HANDLE_ERROR(cudaMalloc((void**)&x_d, sizeof(float) * state_traj_array_size));
 
   // Copy the initial values
   HANDLE_ERROR(
@@ -798,8 +798,9 @@ void launchFastRolloutKernelTest(
   HANDLE_ERROR(cudaMemcpyAsync(nu_d, sigma_u.data(), sizeof(float) * sigma_u.size(), cudaMemcpyHostToDevice, stream));
 
   mppi_common::launchFastRolloutKernel<DYNAMICS_T, COSTS_T, NUM_ROLLOUTS, BLOCKSIZE_X, BLOCKSIZE_Y>(
-      dynamics, costs, dt, NUM_TIMESTEPS, opt_delay, lambda, alpha, state_d, x_d, U_d, du_d, nu_d, costs_d, stream,
-      false);
+      dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS, opt_delay, lambda, alpha, state_d, x_d, U_d, du_d, nu_d, costs_d, stream,
+      true);
+
   // Copy data back
   HANDLE_ERROR(
       cudaMemcpyAsync(costs_out.data(), costs_d, sizeof(float) * costs_out.size(), cudaMemcpyDeviceToHost, stream));
@@ -807,8 +808,8 @@ void launchFastRolloutKernelTest(
   // Copy the noise back
   HANDLE_ERROR(cudaMemcpyAsync(control_noise_out.data(), du_d, sizeof(float) * control_noise_out.size(),
                                cudaMemcpyDeviceToHost, stream));
-  HANDLE_ERROR(cudaMemcpyAsync(state_traj_array.data(), x_d, sizeof(float) * state_traj_array.size(),
-                               cudaMemcpyDeviceToHost, stream));
+  // HANDLE_ERROR(cudaMemcpyAsync(state_traj_array.data(), x_d, sizeof(float) * state_traj_array.size(),
+  //                              cudaMemcpyDeviceToHost, stream));
 
   HANDLE_ERROR(cudaStreamSynchronize(stream));
 

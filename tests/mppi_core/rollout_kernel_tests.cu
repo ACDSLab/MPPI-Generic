@@ -371,7 +371,7 @@ TEST(RolloutKernel, comparisonTestAutorallyMPPI_Generic_AR)
   delete dynamics;
 }
 
-TEST(RolloutKernel, comparisonTestGenericRolloutVsFastRollout)
+TEST(RolloutKernel, compTestGenVsFastRollout)
 {
   const int MPPI_NUM_ROLLOUTS__ = 1920;
   const int NUM_TIMESTEPS = 100;
@@ -411,6 +411,8 @@ TEST(RolloutKernel, comparisonTestGenericRolloutVsFastRollout)
   std::string model_path, map_path;
   model_path = mppi::tests::old_autorally_network_file;
   map_path = mppi::tests::ccrf_map;
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
 
   // Call the GPU setup functions of the model and cost
   dynamics->GPUSetup();
@@ -424,10 +426,11 @@ TEST(RolloutKernel, comparisonTestGenericRolloutVsFastRollout)
   std::array<float, NUM_TIMESTEPS * DynamicsModel::CONTROL_DIM> control_array;
   std::array<float, NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM> control_noise_array;
   std::array<float, NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM> control_noise_fast;
-  std::array<float, NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::STATE_DIM> state_traj_fast;
+  // std::array<float, NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::STATE_DIM> state_traj_fast;
   std::array<float, NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM> control_noise_generic;
   std::array<float, MPPI_NUM_ROLLOUTS__> costs_fast;
   std::array<float, MPPI_NUM_ROLLOUTS__> costs_generic;
+  int state_array_size = NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::STATE_DIM;
 
   for (int i = 0; i < NUM_TIMESTEPS; ++i)
   {
@@ -444,16 +447,15 @@ TEST(RolloutKernel, comparisonTestGenericRolloutVsFastRollout)
   //                                  BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
   //                                               control_noise_array, control_std_dev, costs_autorally,
   //                                               control_noise_autorally, 0, 0);
-
-  launchFastRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X,
-                              BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
-                                           control_noise_array, state_traj_fast, control_std_dev, costs_fast,
-                                           control_noise_fast, 0, 0);
-
   launchGenericRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X,
                                  BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
                                               control_noise_array, control_std_dev, costs_generic,
-                                              control_noise_generic, 0, 0);
+                                              control_noise_generic, 0, stream);
+
+  launchFastRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X,
+                              BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
+                                           control_noise_array, control_std_dev, costs_fast,
+                                           control_noise_fast, 0, state_array_size, stream);
 
   array_expect_float_eq<NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM>(control_noise_generic,
                                                                                           control_noise_fast);
