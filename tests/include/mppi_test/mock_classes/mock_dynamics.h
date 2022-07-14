@@ -21,7 +21,7 @@ struct mockDynamicsParams : public DynamicsParams
   }
 };
 
-class MockDynamics : public MPPI_internal::Dynamics<MockDynamics, mockDynamicsParams, 1, 1>
+class MockDynamics : public MPPI_internal::Dynamics<MockDynamics, mockDynamicsParams>
 {
 public:
   MOCK_METHOD1(bindToStream, void(cudaStream_t stream));
@@ -37,7 +37,8 @@ public:
   MOCK_METHOD2(computeKinematics, void(Eigen::Ref<const state_array>&, Eigen::Ref<state_array>));
   MOCK_METHOD3(computeStateDeriv, void(const Eigen::Ref<const state_array>&, const Eigen::Ref<const control_array>&,
                                        Eigen::Ref<state_array>));
-  MOCK_METHOD3(updateState, void(Eigen::Ref<state_array>, Eigen::Ref<state_array>, float));
+  MOCK_METHOD3(updateState,
+               void(const Eigen::Ref<const state_array>, Eigen::Ref<state_array>, Eigen::Ref<state_array>, float));
   MOCK_METHOD2(enforceConstraints, void(Eigen::Ref<state_array>, Eigen::Ref<control_array>));
   MOCK_METHOD4(computeGrad, bool(const Eigen::Ref<const state_array>&, const Eigen::Ref<const control_array>,
                                  Eigen::Ref<dfdx>, Eigen::Ref<dfdu>));

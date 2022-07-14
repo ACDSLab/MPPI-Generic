@@ -98,15 +98,11 @@ struct RacerSuspensionParams : public DynamicsParams
   // float3 wheel_pos_front_right = make_float3(wheel_base, -width/2, 0);
   // float3 wheel_pos_rear_left = make_float3(0, width/2, 0);
   // float3 wheel_pos_rear_right = make_float3(0, -width/2, 0);
-  float3 wheel_pos_wrt_base_link[4] = {
-    make_float3(wheel_base, width/2, 0),
-    make_float3(wheel_base, -width/2, 0),
-    make_float3(0, width/2, 0),
-    make_float3(0, -width/2, 0)
-  };
-  float Jxx =  1.0/12 * mass * (height*height + width*width);
-  float Jyy =  1.0/12 * mass * (height*height + wheel_base*wheel_base);
-  float Jzz =  1.0/12 * mass * (wheel_base*wheel_base + width*width);
+  float3 wheel_pos_wrt_base_link[4] = { make_float3(wheel_base, width / 2, 0), make_float3(wheel_base, -width / 2, 0),
+                                        make_float3(0, width / 2, 0), make_float3(0, -width / 2, 0) };
+  float Jxx = 1.0 / 12 * mass * (height * height + width * width);
+  float Jyy = 1.0 / 12 * mass * (height * height + wheel_base * wheel_base);
+  float Jzz = 1.0 / 12 * mass * (wheel_base * wheel_base + width * width);
   float mu = 0.65;
   float v_slip = 0.1;
   static const int WHEEL_FRONT_LEFT = 0;
@@ -131,10 +127,10 @@ using namespace MPPI_internal;
  * control: throttle/brake, steering angle command
  * sensors: texture 0 is elevation map (normal x, normal y, normal z, height)
  */
-class RacerSuspension : public Dynamics<RacerSuspension, RacerSuspensionParams, 14, 2>
+class RacerSuspension : public Dynamics<RacerSuspension, RacerSuspensionParams>
 {
 public:
-  typedef Dynamics<RacerSuspension, RacerSuspensionParams, 14, 2> PARENT_CLASS;
+  typedef Dynamics<RacerSuspension, RacerSuspensionParams> PARENT_CLASS;
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;
   typedef typename PARENT_CLASS::output_array output_array;
@@ -146,7 +142,7 @@ public:
 
   static const int TEXTURE_ELEVATION_MAP = 0;
 
-  RacerSuspension(cudaStream_t stream=nullptr) : PARENT_CLASS(stream)
+  RacerSuspension(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
   }
@@ -166,16 +162,26 @@ public:
 
   void paramsToDevice();
 
-  void step(Eigen::Ref<state_array> state, Eigen::Ref<const control_array> control, const float dt);
+  // void step(Eigen::Ref<state_array> state, Eigen::Ref<const control_array> control, const float dt);
 
-  void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt);
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                   Eigen::Ref<state_array> state_der, const float dt);
+  void step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state, Eigen::Ref<state_array>& state_der,
+            const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array>& output, const float t,
+            const float dt);
 
-  __device__ __host__ void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                          Eigen::Ref<state_array> state_der, Eigen::Ref<output_array>* output=nullptr, Eigen::Matrix3f *omegaJacobian = nullptr);
+  __device__ __host__ void computeStateDeriv(const Eigen::Ref<const state_array>& state,
+                                             const Eigen::Ref<const control_array>& control,
+                                             Eigen::Ref<state_array> state_der,
+                                             Eigen::Ref<output_array>* output = nullptr,
+                                             Eigen::Matrix3f* omegaJacobian = nullptr);
 
-  __device__ void updateState(float* state, float* state_der, const float dt);
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
 
-  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s, float *output=nullptr);
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
+
+  __device__ void step(float* state, float* next_state, float* state_der, float* control, float* output, float* theta_s,
+                       const float t, const float dt);
 
   TwoDTextureHelper<float4>* getTextureHelper()
   {
@@ -186,7 +192,8 @@ public:
   Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f velocityFromState(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
-  state_array stateFromOdometry(const Eigen::Quaternionf &q_B_to_I, const Eigen::Vector3f &pos_base_link_I, const Eigen::Vector3f &vel_base_link_B, const Eigen::Vector3f &omega_B);
+  state_array stateFromOdometry(const Eigen::Quaternionf& q_B_to_I, const Eigen::Vector3f& pos_base_link_I,
+                                const Eigen::Vector3f& vel_base_link_B, const Eigen::Vector3f& omega_B);
 
 protected:
   TwoDTextureHelper<float4>* tex_helper_ = nullptr;

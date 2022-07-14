@@ -28,30 +28,32 @@ void RacerSuspension::paramsToDevice()
 }
 
 // combined computeDynamics & updateState
-void RacerSuspension::step(Eigen::Ref<state_array> state, Eigen::Ref<const control_array> control, const float dt)
+void RacerSuspension::step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state,
+                           Eigen::Ref<state_array>& state_der, const Eigen::Ref<const control_array>& control,
+                           Eigen::Ref<output_array>& output, const float t, const float dt);
 {
-  state_array x_dot;
   Eigen::Matrix3f omegaJac;
-  computeStateDeriv(state, control, x_dot, nullptr, &omegaJac);
+  computeStateDeriv(state, control, state_der, &output, &omegaJac);
   // approximate implicit euler for angular rate states
   Eigen::Vector3f deltaOmega =
-      (Eigen::Matrix3f::Identity() - dt * omegaJac).inverse() * dt * x_dot.segment<3>(S_INDEX(OMEGA_B_X));
-  state_array delta_x = x_dot * dt;
+      (Eigen::Matrix3f::Identity() - dt * omegaJac).inverse() * dt * state_der.segment<3>(S_INDEX(OMEGA_B_X));
+  state_array delta_x = state_der * dt;
   delta_x.segment<3>(S_INDEX(OMEGA_B_X)) = deltaOmega;
-  state += delta_x;
-  float q_norm = state.segment<4>(S_INDEX(ATTITUDE_QW)).norm();
-  state.segment<4>(S_INDEX(ATTITUDE_QW)) /= q_norm;
+  next_state = state + delta_x;
+  float q_norm = next_state.segment<4>(S_INDEX(ATTITUDE_QW)).norm();
+  next_state.segment<4>(S_INDEX(ATTITUDE_QW)) /= q_norm;
 }
 
-void RacerSuspension::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
+void RacerSuspension::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                                  Eigen::Ref<state_array> state_der, const float dt)
 {
-  state += state_der * dt;
-  float q_norm = state.segment<4>(S_INDEX(ATTITUDE_QW)).norm();
-  state.segment<4>(S_INDEX(ATTITUDE_QW)) /= q_norm;
+  next_state = state + state_der * dt;
+  float q_norm = next_state.segment<4>(S_INDEX(ATTITUDE_QW)).norm();
+  next_state.segment<4>(S_INDEX(ATTITUDE_QW)) /= q_norm;
   state_der.setZero();
 }
 
-__device__ void RacerSuspension::updateState(float* state, float* state_der, const float dt)
+__device__ void RacerSuspension::updateState(float* state, float* next_state, float* state_der, const float dt)
 {
   unsigned int i;
   unsigned int tdy = threadIdx.y;
@@ -59,25 +61,25 @@ __device__ void RacerSuspension::updateState(float* state, float* state_der, con
   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
   for (i = tdy; i < PARENT_CLASS::STATE_DIM; i += blockDim.y)
   {
-    state[i] += state_der[i] * dt;
+    next_state[i] = state[i] + state_der[i] * dt;
   }
   // TODO renormalize quaternion
 }
 
 __device__ __host__ static float stribeck_friction(float v, float mu_s, float v_slip, float& partial_mu_partial_v)
 {
-    float mu = v / v_slip * mu_s;
-    partial_mu_partial_v = 0;
-    if (mu > mu_s)
-    {
-      return mu_s;
-    }
-    if (mu < -mu_s)
-    {
-      return -mu_s;
-    }
-    partial_mu_partial_v = mu_s / v_slip;
-    return mu;
+  float mu = v / v_slip * mu_s;
+  partial_mu_partial_v = 0;
+  if (mu > mu_s)
+  {
+    return mu_s;
+  }
+  if (mu < -mu_s)
+  {
+    return -mu_s;
+  }
+  partial_mu_partial_v = mu_s / v_slip;
+  return mu;
 }
 
 __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<const state_array>& state,
@@ -241,7 +243,7 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
   state_der[S_INDEX(ATTITUDE_QY)] = qdot.y();
   state_der[S_INDEX(ATTITUDE_QZ)] = qdot.z();
   Eigen::Vector3f J_diag(params_.Jxx, params_.Jyy, params_.Jzz);
-  Eigen::Vector3f J_inv_diag(1/params_.Jxx, 1/params_.Jyy, 1/params_.Jzz);
+  Eigen::Vector3f J_inv_diag(1 / params_.Jxx, 1 / params_.Jyy, 1 / params_.Jzz);
   state_der.segment<3>(S_INDEX(OMEGA_B_X)) = J_inv_diag.cwiseProduct(J_diag.cwiseProduct(omega).cross(omega) + tau_B);
   if (omegaJacobian)
   {
@@ -301,6 +303,14 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
   std::cout << "CPU state_der " << state_der.transpose() << std::endl;
 #endif
   state_der.setZero();
+}
+__device__ void RacerSuspension::step(float* state, float* next_state, float* state_der, float* control, float* output,
+                                      float* theta_s, const float t, const float dt)
+{
+  computeStateDeriv(state, control, state_der, theta_s, output);
+  __syncthreads();
+  updateState(state, next_state, state_der, dt);
+  // TODO Fill in output?
 }
 
 __device__ void RacerSuspension::computeStateDeriv(float* state, float* control, float* state_der, float* theta_s,

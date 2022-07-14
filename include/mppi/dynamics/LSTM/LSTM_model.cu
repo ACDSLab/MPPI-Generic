@@ -1,16 +1,13 @@
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::LSTMModel(std::array<float2, C_DIM> control_rngs,
                                                                    cudaStream_t stream)
-  : Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-             LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>, S_DIM, C_DIM>(control_rngs, stream)
+  : PARENT_CLASS(control_rngs, stream)
 {
   CPUSetup();
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
-LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::LSTMModel(cudaStream_t stream)
-  : Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-             LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>, S_DIM, C_DIM>(stream)
+LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::LSTMModel(cudaStream_t stream) : PARENT_CLASS(stream)
 {
   CPUSetup();
 }
@@ -33,8 +30,7 @@ LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::~LSTMModel()
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::freeCudaMem()
 {
-  Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-           LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>, S_DIM, C_DIM>::freeCudaMem();
+  PARENT_CLASS::freeCudaMem();
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>

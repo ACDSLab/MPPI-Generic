@@ -22,6 +22,14 @@ struct DoubleIntegratorParams : public DynamicsParams
     ACCEL_Y,
     NUM_CONTROLS
   };
+  enum class OutputIndex : int
+  {
+    POS_X = 0,
+    POS_Y,
+    VEL_X,
+    VEL_Y,
+    NUM_STATES
+  };
   float system_noise = 1;
   DoubleIntegratorParams(float noise) : system_noise(noise){};
   DoubleIntegratorParams() = default;
@@ -30,7 +38,7 @@ struct DoubleIntegratorParams : public DynamicsParams
 
 using namespace MPPI_internal;
 
-class DoubleIntegratorDynamics : public Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams, 4, 2>
+class DoubleIntegratorDynamics : public Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams>
 {
 public:
   //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW

@@ -26,15 +26,16 @@ bool RacerDubinsImpl<CLASS_T>::computeGrad(const Eigen::Ref<const state_array>& 
 }
 
 template <class CLASS_T>
-void RacerDubinsImpl<CLASS_T>::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der,
+void RacerDubinsImpl<CLASS_T>::updateState(const Eigen::Ref<const state_array> state,
+                                           Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
                                            const float dt)
 {
-  state += state_der * dt;
-  state(S_INDEX(YAW)) = angle_utils::normalizeAngle(state(S_INDEX(YAW)));
-  state(S_INDEX(STEER_ANGLE)) -= state_der(S_INDEX(STEER_ANGLE)) * dt;
-  state(S_INDEX(STEER_ANGLE)) =
-      state_der(S_INDEX(STEER_ANGLE)) +
-      (state(S_INDEX(STEER_ANGLE)) - state_der(S_INDEX(STEER_ANGLE))) * expf(-this->params_.steering_constant * dt);
+  next_state = state + state_der * dt;
+  next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
+  next_state(S_INDEX(STEER_ANGLE)) -= state_der(S_INDEX(STEER_ANGLE)) * dt;
+  next_state(S_INDEX(STEER_ANGLE)) =
+      state_der(S_INDEX(STEER_ANGLE)) + (next_state(S_INDEX(STEER_ANGLE)) - state_der(S_INDEX(STEER_ANGLE))) *
+                                            expf(-this->params_.steering_constant * dt);
   state_der.setZero();
 }
 
@@ -49,7 +50,7 @@ RacerDubinsImpl<CLASS_T>::state_array RacerDubinsImpl<CLASS_T>::interpolateState
 }
 
 template <class CLASS_T>
-__device__ void RacerDubinsImpl<CLASS_T>::updateState(float* state, float* state_der, const float dt)
+__device__ void RacerDubinsImpl<CLASS_T>::updateState(float* state, float* next_state, float* state_der, const float dt)
 {
   int i;
   int tdy = threadIdx.y;
@@ -57,18 +58,18 @@ __device__ void RacerDubinsImpl<CLASS_T>::updateState(float* state, float* state
   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
   for (i = tdy; i < PARENT_CLASS::STATE_DIM; i += blockDim.y)
   {
-    state[i] += state_der[i] * dt;
+    next_state[i] = state[i] + state_der[i] * dt;
     if (i == S_INDEX(YAW))
     {
-      state[i] = angle_utils::normalizeAngle(state[i]);
+      next_state[i] = angle_utils::normalizeAngle(next_state[i]);
     }
     if (i == S_INDEX(STEER_ANGLE))
     {
-      state[i] -= state_der[i] * dt;
-      state[i] = state_der[i] + (state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
-      // state[i] += state_der[i] * expf(-this->params_.steering_constant * dt);
+      next_state[i] -= state_der[i] * dt;
+      next_state[i] = state_der[i] + (next_state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
+      // next_state[i] += state_der[i] * expf(-this->params_.steering_constant * dt);
     }
-    state_der[i] = 0;  // Important: reset the state derivative to zero.
+    state_der[i] = 0;  // Important: reset the next_state derivative to zero.
   }
 }
 

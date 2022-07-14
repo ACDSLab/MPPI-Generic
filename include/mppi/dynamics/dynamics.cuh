@@ -60,7 +60,7 @@ using paramsInheritsFrom = typename std::is_base_of<DynamicsParams, T>;
 
 namespace MPPI_internal
 {
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
+template <class CLASS_T, class PARAMS_T>
 class Dynamics : public Managed
 {
   static_assert(paramsInheritsFrom<PARAMS_T>::value, "Dynamics PARAMS_T does not inherit from DynamicsParams");
@@ -257,10 +257,39 @@ public:
    * @param s state
    * @param s_der
    */
-  void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> state_der, const float dt)
   {
-    state += state_der * dt;
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    derived->updateState(state, state, state_der, dt);
+  }
+
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                   Eigen::Ref<state_array> state_der, const float dt)
+  {
+    next_state = state + state_der * dt;
     state_der.setZero();
+  }
+
+  void step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state,
+            const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array>& output, const float t,
+            const float dt)
+  {
+    state_array state_der = state_array::Zero();
+    step(state, next_state, state_der, control, output, t, dt);
+  }
+
+  void step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state, Eigen::Ref<state_array>& state_der,
+            const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array>& output, const float t,
+            const float dt)
+  {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    derived->computeStateDeriv(state, control, state_der);
+    derived->updateState(state, next_state, state_der, dt);
+    // TODO this is a hack
+    for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++)
+    {
+      output[i] = next_state[i];
+    }
   }
 
   /**
@@ -299,14 +328,8 @@ public:
    * @param state_der
    */
   void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                          Eigen::Ref<state_array> state_der, Eigen::Ref<output_array>* output=nullptr)
+                         Eigen::Ref<state_array> state_der)
   {
-    // TODO this is a hack
-    if (output) {
-      for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++) {
-        (*output)(i) = state[i];
-      }
-    }
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     derived->computeKinematics(state, state_der);
     derived->computeDynamics(state, control, state_der);
@@ -335,15 +358,9 @@ public:
    * @param state_der
    * @param theta_s shared memory that can be used when computation is computed across the same block
    */
-  __device__ inline void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s, float *output=nullptr)
+  __device__ inline void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
-    // TODO this is a hack
-    if (output) {
-      for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i+=blockDim.y) {
-        output[i] = state[i];
-      }
-    }
     // only propagate a single state, i.e. thread.y = 0
     // find the change in x,y,theta based off of the rest of the state
     if (threadIdx.y == 0)
@@ -356,6 +373,24 @@ public:
     // printf("state at 0 after dyn: %f\n", state[0]);
   }
 
+  __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
+                              float* theta_s, const float t, const float dt)
+  {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    derived->computeStateDeriv(state, control, state_der, theta_s);
+    __syncthreads();
+    derived->updateState(state, next_state, state_der, dt);
+    __syncthreads();
+    // TODO this is a hack
+    if (output)
+    {
+      for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i += blockDim.y)
+      {
+        output[i] = state[i];
+      }
+    }
+  }
+
   /**
    * applies the state derivative
    * @param state
@@ -364,13 +399,19 @@ public:
    */
   __device__ void updateState(float* state, float* state_der, const float dt)
   {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    derived->updateState(state, state, state_der, dt)
+  }
+
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt)
+  {
     int i;
     int tdy = threadIdx.y;
     // Add the state derivative time dt to the current state.
     // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
     for (i = tdy; i < STATE_DIM; i += blockDim.y)
     {
-      state[i] += state_der[i] * dt;
+      next_state[i] = state[i] + state_der[i] * dt;
       state_der[i] = 0;  // Important: reset the state derivative to zero.
     }
   }

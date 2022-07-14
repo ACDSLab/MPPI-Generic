@@ -82,10 +82,10 @@ struct RacerDubinsParams : public DynamicsParams
 using namespace MPPI_internal;
 
 template <class CLASS_T>
-class RacerDubinsImpl : public Dynamics<CLASS_T, RacerDubinsParams, 5, 2>
+class RacerDubinsImpl : public Dynamics<CLASS_T, RacerDubinsParams>
 {
 public:
-  typedef Dynamics<CLASS_T, RacerDubinsParams, 5, 2> PARENT_CLASS;
+  typedef Dynamics<CLASS_T, RacerDubinsParams> PARENT_CLASS;
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;
   typedef typename PARENT_CLASS::output_array output_array;
@@ -106,9 +106,10 @@ public:
   // void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
   //                         Eigen::Ref<state_array> state_der, output_array* output=nullptr); // TODO
 
-  void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt);
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                   Eigen::Ref<state_array> state_der, const float dt);
 
-  __device__ void updateState(float* state, float* state_der, const float dt);
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
 
   state_array interpolateState(const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2,
                                const float alpha);
@@ -118,15 +119,17 @@ public:
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
-  // __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s, float *output=nullptr); // TODO
-  
+  // __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s, float
+  // *output=nullptr); // TODO
+
   void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
 
   Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f velocityFromState(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
-  state_array stateFromOdometry(const Eigen::Quaternionf &q, const Eigen::Vector3f &pos, const Eigen::Vector3f &vel, const Eigen::Vector3f &omega);
+  state_array stateFromOdometry(const Eigen::Quaternionf& q, const Eigen::Vector3f& pos, const Eigen::Vector3f& vel,
+                                const Eigen::Vector3f& omega);
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins>
@@ -136,8 +139,7 @@ public:
   {
   }
 
-  RacerDubins(RacerDubinsParams& params, cudaStream_t stream = nullptr)
-    : RacerDubinsImpl<RacerDubins>(params, stream)
+  RacerDubins(RacerDubinsParams& params, cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubins>(params, stream)
   {
   }
 };

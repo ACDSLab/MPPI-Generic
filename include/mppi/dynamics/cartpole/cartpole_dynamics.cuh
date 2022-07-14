@@ -18,6 +18,14 @@ struct CartpoleDynamicsParams : public DynamicsParams
     FORCE = 0,
     NUM_CONTROLS
   };
+  enum class OutputIndex : int
+  {
+    POS_X = 0,
+    VEL_X,
+    THETA,
+    THETA_DOT,
+    NUM_STATES
+  };
   float cart_mass = 1.0f;
   float pole_mass = 1.0f;
   float pole_length = 1.0f;
@@ -28,7 +36,7 @@ struct CartpoleDynamicsParams : public DynamicsParams
 };
 using namespace MPPI_internal;
 
-class CartpoleDynamics : public Dynamics<CartpoleDynamics, CartpoleDynamicsParams, 4, 1>
+class CartpoleDynamics : public Dynamics<CartpoleDynamics, CartpoleDynamicsParams>
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW

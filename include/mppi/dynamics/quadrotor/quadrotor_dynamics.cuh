@@ -35,6 +35,24 @@ struct QuadrotorDynamicsParams : public DynamicsParams
     THRUST,
     NUM_CONTROLS
   };
+
+  enum class StateIndex : int
+  {
+    POS_X = 0,
+    POS_Y,
+    POS_Z,
+    VEL_X,
+    VEL_Y,
+    VEL_Z,
+    QUAT_W,
+    QUAT_X,
+    QUAT_Y,
+    QUAT_Z,
+    ANG_VEL_X,
+    ANG_VEL_Y,
+    ANG_VEL_Z,
+    NUM_STATES
+  };
   float tau_roll = 0.25;
   float tau_pitch = 0.25;
   float tau_yaw = 0.25;
@@ -46,7 +64,7 @@ struct QuadrotorDynamicsParams : public DynamicsParams
 
 using namespace MPPI_internal;
 
-class QuadrotorDynamics : public Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, 4>
+class QuadrotorDynamics : public Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams>
 {
   /**
    * State for this class is defined as follows:
@@ -64,15 +82,14 @@ class QuadrotorDynamics : public Dynamics<QuadrotorDynamics, QuadrotorDynamicsPa
    *    thrust     - Newtons
    */
 public:
-  using state_array =
-      typename Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, STATE_DIM, CONTROL_DIM>::state_array;
+  using PARENT_CLASS = Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams>;
+  using state_array = typename PARENT_CLASS::state_array;
 
-  using control_array =
-      typename Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, STATE_DIM, CONTROL_DIM>::control_array;
+  using control_array = typename PARENT_CLASS::control_array;
 
-  using dfdx = typename Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, STATE_DIM, CONTROL_DIM>::dfdx;
+  using dfdx = typename PARENT_CLASS::dfdx;
 
-  using dfdu = typename Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, STATE_DIM, CONTROL_DIM>::dfdu;
+  using dfdu = typename PARENT_CLASS::dfdu;
   // Constructor
   QuadrotorDynamics(cudaStream_t stream = 0);
   QuadrotorDynamics(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream = 0);
@@ -83,13 +100,14 @@ public:
   bool computeGrad(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                    Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B);
 
-  void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> s_der, float dt);
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                   Eigen::Ref<state_array> state_der, const float dt);
 
   void printState(float* state);
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
-  __device__ void updateState(float* state, float* state_der, float dt);
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
 };
 
 #if __CUDACC__

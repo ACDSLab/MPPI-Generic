@@ -56,6 +56,18 @@ struct LSTMDynamicsParams : public DynamicsParams
     THROTTLE,
     NUM_CONTROLS
   };
+
+  enum class OutputIndex : int
+  {
+    POS_X = 0,
+    POS_Y,
+    YAW,
+    ROLL,
+    BODY_VEL_X,
+    BODY_VEL_Y,
+    YAW_RATE,
+    NUM_STATES
+  };
   static const int DYNAMICS_DIM = S_DIM - K_DIM;  ///< number of inputs from state
   // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
   // static const int PRIME_PADDING = 1; ///< Extra padding to largest layer to avoid shared mem bank conflicts
@@ -323,19 +335,20 @@ using namespace MPPI_internal;
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER = 11, int INIT_DIM = 200>
 class LSTMModel : public Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                  LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>, S_DIM, C_DIM>
+                                  LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>>
 {
 public:
   // TODO remove duplication of calculation of values, pull from the structure
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   using LSTM_MODEL = LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
   using LSTM_PARAMS = LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
+  using PARENT_CLASS = Dynamics<LSTM_MODEL, LSTM_PARAMS>;
 
   // Define Eigen fixed size matrices
-  using state_array = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::state_array;
-  using control_array = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::control_array;
-  using dfdx = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::dfdx;
-  using dfdu = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::dfdu;
+  using state_array = typename PARENT_CLASS::state_array;
+  using control_array = typename PARENT_CLASS::control_array;
+  using dfdx = typename PARENT_CLASS::dfdx;
+  using dfdu = typename PARENT_CLASS::dfdu;
 
   static const int DYNAMICS_DIM = S_DIM - K_DIM;  ///< number of inputs from state
   // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
