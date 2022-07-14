@@ -48,13 +48,13 @@ struct LSTMDynamicsParams : public DynamicsParams
     BODY_VEL_X,
     BODY_VEL_Y,
     YAW_RATE,
-    NUM_STATES
+    NUM_STATES = S_DIM
   };
   enum class ControlIndex : int
   {
     STEERING = 0,
     THROTTLE,
-    NUM_CONTROLS
+    NUM_CONTROLS = C_DIM
   };
 
   enum class OutputIndex : int
@@ -66,7 +66,7 @@ struct LSTMDynamicsParams : public DynamicsParams
     BODY_VEL_X,
     BODY_VEL_Y,
     YAW_RATE,
-    NUM_STATES
+    NUM_OUTPUTS = S_DIM
   };
   static const int DYNAMICS_DIM = S_DIM - K_DIM;  ///< number of inputs from state
   // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)

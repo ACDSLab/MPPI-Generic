@@ -91,6 +91,7 @@ public:
   typedef typename PARENT_CLASS::output_array output_array;
   typedef typename PARENT_CLASS::dfdx dfdx;
   typedef typename PARENT_CLASS::dfdu dfdu;
+  using PARENT_CLASS::updateState;  // needed as overloading updateState here hides all parent versions of updateState
 
   RacerDubinsImpl(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
   {

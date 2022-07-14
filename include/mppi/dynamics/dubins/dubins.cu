@@ -1,6 +1,6 @@
 #include <mppi/dynamics/dubins/dubins.cuh>
 
-DubinsDynamics::DubinsDynamics(cudaStream_t stream) : Dynamics<DubinsDynamics, DubinsParams, 3, 2>(stream)
+DubinsDynamics::DubinsDynamics(cudaStream_t stream) : Dynamics<DubinsDynamics, DubinsParams>(stream)
 {
   this->params_ = DubinsParams();
 }

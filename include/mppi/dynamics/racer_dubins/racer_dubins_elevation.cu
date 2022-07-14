@@ -65,7 +65,8 @@ void RacerDubinsElevation::paramsToDevice()
 // }
 
 void RacerDubinsElevation::computeStateDeriv(const Eigen::Ref<const state_array>& state,
-                                             const Eigen::Ref<const control_array>& control)
+                                             const Eigen::Ref<const control_array>& control,
+                                             Eigen::Ref<state_array> state_der)
 {
   float pitch = 0;
   float roll = 0;

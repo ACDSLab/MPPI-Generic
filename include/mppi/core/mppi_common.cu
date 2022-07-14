@@ -80,10 +80,6 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
       dynamics->enforceConstraints(x, u);
       __syncthreads();
 
-      // Compute state derivatives
-      dynamics->computeStateDeriv(x, u, xdot, theta_s, y);
-      __syncthreads();
-
       // Accumulate running cost
       if (thread_idy == 0 && t > 0)
       {
@@ -91,8 +87,12 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
             (costs->computeRunningCost(y, u, du, sigma_u, lambda, alpha, t, crash_status) - running_cost) / (1.0 * t);
       }
 
-      // Increment states
-      dynamics->updateState(x, xdot, dt);
+      // Compute state derivatives
+      // dynamics->computeStateDeriv(x, u, xdot, theta_s);
+      // __syncthreads();
+      // // Increment states
+      // dynamics->updateState(x, xdot, dt);
+      dynamics->step(x, x, xdot, u, y, theta_s, t, dt);
       __syncthreads();
     }
     // Compute terminal cost and the final cost for each thread
@@ -600,10 +600,10 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       __syncthreads();
 
       // Compute state derivatives
-      dynamics->computeStateDeriv(x, u, xdot, theta_s, y);
-      __syncthreads();
+      // dynamics->computeStateDeriv(x, u, xdot, theta_s);
+      // __syncthreads();
 
-      if (thread_idy == 0)
+      if (thread_idy == 0 && t > 0)
       {
         curr_state_cost = costs->computeStateCost(x, t, crash_status);
         crash_status_d[t_index] = crash_status[0];
@@ -611,7 +611,7 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       }
       __syncthreads();
       // Nominal system is where thread_idz == 1
-      if (thread_idz == 1 && thread_idy == 0)
+      if (thread_idz == 1 && thread_idy == 0 && t > 0)
       {
         // compute the nominal system cost
         cost_traj_d[cost_index] =
@@ -627,7 +627,8 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       }
 
       // Increment states
-      dynamics->updateState(x, xdot, dt);
+      // dynamics->updateState(x, xdot, dt);
+      dynamics->step(x, x, xdot, u, y, theta_s, t, dt);
       __syncthreads();
 
       // save results, skips the first state location since that is known
@@ -854,8 +855,8 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
     __syncthreads();
 
     // Compute state derivatives
-    dynamics->computeStateDeriv(state, control, state_der, theta_s, output);
-    __syncthreads();
+    // dynamics->computeStateDeriv(state, control, state_der, theta_s, output);
+    // __syncthreads();
 
     if (tdy == 0 && i > 0)
     {  // Only compute once per global index, make sure that we don't divide by zero
@@ -867,7 +868,8 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
     __syncthreads();
 
     // Increment states
-    dynamics->updateState(state, state_der, dt);
+    // dynamics->updateState(state, state_der, dt);
+    dynamics->step(state, state, state_der, control, output, theta_s, i, dt);
     __syncthreads();
   }
   // End loop outer loop on timesteps
@@ -990,8 +992,8 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
       __syncthreads();
 
       // dynamics update
-      dynamics->computeStateDeriv(x, u, xdot, theta_s, y);
-      __syncthreads();
+      // dynamics->computeStateDeriv(x, u, xdot, theta_s, y);
+      // __syncthreads();
 
       // Calculate All the costs
       if (t > 0)
@@ -1021,8 +1023,9 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
       //          printf("RMPPI Current state cost real: [%f]\n",
       //          (running_state_cost_real+running_control_cost_real)/t);
       //        }
-      __syncthreads();
-      dynamics->updateState(x, xdot, dt);
+      // __syncthreads();
+      // dynamics->updateState(x, xdot, dt);
+      dynamics->step(x, x, xdot, u, y, theta_s, t, dt);
       __syncthreads();
     }
 

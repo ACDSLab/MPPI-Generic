@@ -28,7 +28,7 @@ struct DoubleIntegratorParams : public DynamicsParams
     POS_Y,
     VEL_X,
     VEL_Y,
-    NUM_STATES
+    NUM_OUTPUTS
   };
   float system_noise = 1;
   DoubleIntegratorParams(float noise) : system_noise(noise){};

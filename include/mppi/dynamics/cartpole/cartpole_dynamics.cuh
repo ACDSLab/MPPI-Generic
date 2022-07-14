@@ -24,7 +24,7 @@ struct CartpoleDynamicsParams : public DynamicsParams
     VEL_X,
     THETA,
     THETA_DOT,
-    NUM_STATES
+    NUM_OUTPUTS
   };
   float cart_mass = 1.0f;
   float pole_mass = 1.0f;

@@ -36,7 +36,7 @@ struct QuadrotorDynamicsParams : public DynamicsParams
     NUM_CONTROLS
   };
 
-  enum class StateIndex : int
+  enum class OutputIndex : int
   {
     POS_X = 0,
     POS_Y,
@@ -51,7 +51,7 @@ struct QuadrotorDynamicsParams : public DynamicsParams
     ANG_VEL_X,
     ANG_VEL_Y,
     ANG_VEL_Z,
-    NUM_STATES
+    NUM_OUTPUTS
   };
   float tau_roll = 0.25;
   float tau_pitch = 0.25;
@@ -83,6 +83,8 @@ class QuadrotorDynamics : public Dynamics<QuadrotorDynamics, QuadrotorDynamicsPa
    */
 public:
   using PARENT_CLASS = Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams>;
+
+  using PARENT_CLASS::updateState;  // needed as overloading updateState here hides all parent versions of updateState
   using state_array = typename PARENT_CLASS::state_array;
 
   using control_array = typename PARENT_CLASS::control_array;

@@ -43,7 +43,7 @@ public:
    */
   static const int STATE_DIM = S_DIM;
   static const int CONTROL_DIM = C_DIM;
-  static const int OUTPUT_DIM = S_DIM; // TODO
+  static const int OUTPUT_DIM = S_DIM;  // TODO
   typedef CLASS_T COST_T;
   typedef PARAMS_T COST_PARAMS_T;
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;             // Control at a time t

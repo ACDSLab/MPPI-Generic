@@ -29,7 +29,7 @@ struct DubinsParams : public DynamicsParams
     POS_X = 0,
     POS_Y,
     YAW,
-    NUM_STATES
+    NUM_OUTPUTS
   };
   DubinsParams() = default;
   ~DubinsParams() = default;
@@ -44,6 +44,8 @@ class DubinsDynamics : public Dynamics<DubinsDynamics, DubinsParams>
 {
 public:
   DubinsDynamics(cudaStream_t stream = nullptr);
+  using PARENT_CLASS = Dynamics<DubinsDynamics, DubinsParams>;
+  using PARENT_CLASS::updateState;  // needed as overloading updateState here hides all parent versions of updateState
 
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                        Eigen::Ref<state_array> state_der);

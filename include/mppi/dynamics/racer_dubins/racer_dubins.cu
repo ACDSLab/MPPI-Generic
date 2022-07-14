@@ -1,4 +1,5 @@
 #include <mppi/dynamics/racer_dubins/racer_dubins.cuh>
+#include <mppi/utils/math_utils.h>
 
 template <class CLASS_T>
 void RacerDubinsImpl<CLASS_T>::computeDynamics(const Eigen::Ref<const state_array>& state,

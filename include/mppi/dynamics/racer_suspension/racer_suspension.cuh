@@ -136,6 +136,7 @@ public:
   typedef typename PARENT_CLASS::output_array output_array;
   typedef typename PARENT_CLASS::dfdx dfdx;
   typedef typename PARENT_CLASS::dfdu dfdu;
+  using PARENT_CLASS::updateState;  // needed as overloading updateState here hides all parent versions of updateState
 
   // number of floats for computing the state derivative BLOCK_DIM_X * BLOCK_DIM_Z times
   static const int SHARED_MEM_REQUEST_BLK = 0;
@@ -178,7 +179,8 @@ public:
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
 
-  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s,
+                                    float* output = nullptr);
 
   __device__ void step(float* state, float* next_state, float* state_der, float* control, float* output, float* theta_s,
                        const float t, const float dt);
