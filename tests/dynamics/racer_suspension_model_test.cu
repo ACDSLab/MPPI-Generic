@@ -5,6 +5,52 @@
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 
+template <class DYN_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
+__global__ void runGPUDynamics(DYN_T* dynamics, const int num_timesteps, float dt, const float* __restrict__ x_init_d,
+                               const float* __restrict__ u_d, float* __restrict__ x_next_d)
+{
+  __shared__ float x_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float x_dot_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float u_shared[DYN_T::CONTROL_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
+
+  int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+  float* x;
+  float* x_dot;
+  float* u;
+
+  x = &x_shared[BLOCKSIZE_X * threadIdx.z + threadIdx.x];
+  x_dot = &x_dot_shared[BLOCKSIZE_X * threadIdx.z + threadIdx.x];
+  u = &u_shared[BLOCKSIZE_X * threadIdx.z + threadIdx.x];
+
+  for (int j = threadIdx.y; j < DYN_T::STATE_DIM; j += blockDim.y)
+  {
+    x[j] = x_init_d[j];
+    x_dot[j] = 0;
+  }
+  __syncthreads();
+  dynamics->initializeDynamics(x, u, theta_s, 0, dt);
+  for (int t = 0; t < num_timesteps; t++)
+  {
+    for (int j = threadIdx.y; j < DYN_T::CONTROL_DIM; j += blockDim.y)
+    {
+      u[j] = u_d[global_idx * num_timesteps * DYN_T::CONTROL_DIM + t * DYN_T::CONTROL_DIM + j];
+    }
+    for (int j = threadIdx.y; j < DYN_T::STATE_DIM; j += blockDim.y)
+    {
+      x_next_d[global_idx * num_timesteps * DYN_T::STATE_DIM + t * DYN_T::STATE_DIM + j] = x[j];
+    }
+    __syncthreads();
+    dynamics->enforceConstraints(x, u);
+    __syncthreads();
+    dynamics->computeStateDeriv(x, u, x_dot, theta_s);
+    __syncthreads();
+    dynamics->updateState(x, x_dot, dt);
+    __syncthreads();
+  }
+}
+
 class RacerSuspensionTest : public ::testing::Test
 {
 public:
@@ -42,33 +88,133 @@ TEST_F(RacerSuspensionTest, BindStream)
 
 TEST_F(RacerSuspensionTest, OmegaJacobian)
 {
+  using DYN_PARAMS = RacerSuspensionParams;
   auto dynamics = RacerSuspension(stream);
   RacerSuspension::state_array x = RacerSuspension::state_array::Zero();
-  x[RacerSuspension::STATE_QW] = 1;
-  x[RacerSuspension::STATE_OMEGAX] = 0.1;
-  x[RacerSuspension::STATE_OMEGAY] = -0.03;
-  x[RacerSuspension::STATE_OMEGAZ] = 0.02;
-  x[RacerSuspension::STATE_VX] = 2;
+  x[S_IND_CLASS(DYN_PARAMS, ATTITUDE_QW)] = 1;
+  x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X)] = 0.1;
+  x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Y)] = -0.03;
+  x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Z)] = 0.02;
+  x[S_IND_CLASS(DYN_PARAMS, V_I_X)] = 2;
+
   RacerSuspension::state_array x_dot0 = RacerSuspension::state_array::Zero();
   RacerSuspension::state_array x_dot1 = RacerSuspension::state_array::Zero();
   RacerSuspension::control_array u = RacerSuspension::control_array::Zero();
   Eigen::Matrix3f omega_jac;
   float delta = 0.001;
-  dynamics.computeDynamics(x, u, x_dot0, &omega_jac);
+  dynamics.computeStateDeriv(x, u, x_dot0, nullptr, &omega_jac);
   for (int i = 0; i < 3; i++)
   {
-    x[RacerSuspension::STATE_OMEGA + i] += delta;
-    dynamics.computeDynamics(x, u, x_dot1);
-    x[RacerSuspension::STATE_OMEGA + i] -= delta;
+    x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X) + i] += delta;
+    dynamics.computeStateDeriv(x, u, x_dot1);
+    x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X) + i] -= delta;
 
     float abs_tol = 2;
     EXPECT_NEAR(omega_jac.col(i)[0],
-                (x_dot1[RacerSuspension::STATE_OMEGAX] - x_dot0[RacerSuspension::STATE_OMEGAX]) / delta, abs_tol);
+                (x_dot1[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X)] - x_dot0[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X)]) / delta,
+                abs_tol);
     EXPECT_NEAR(omega_jac.col(i)[1],
-                (x_dot1[RacerSuspension::STATE_OMEGAY] - x_dot0[RacerSuspension::STATE_OMEGAY]) / delta, abs_tol);
+                (x_dot1[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Y)] - x_dot0[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Y)]) / delta,
+                abs_tol);
     EXPECT_NEAR(omega_jac.col(i)[2],
-                (x_dot1[RacerSuspension::STATE_OMEGAZ] - x_dot0[RacerSuspension::STATE_OMEGAZ]) / delta, abs_tol);
+                (x_dot1[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Z)] - x_dot0[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Z)]) / delta,
+                abs_tol);
   }
+}
+
+TEST_F(RacerSuspensionTest, CPUvsGPU)
+{
+  const int NUM_PARALLEL_TESTS = 10;
+  const int NUM_TIMESTEPS = 5;
+  const float dt = 0.02;
+  typedef RacerSuspension DYN;
+  typedef Eigen::Matrix<float, DYN::STATE_DIM, NUM_TIMESTEPS> state_traj;
+  typedef Eigen::Matrix<float, DYN::CONTROL_DIM, NUM_TIMESTEPS> control_traj;
+  typedef util::EigenAlignedVector<float, DYN::CONTROL_DIM, NUM_TIMESTEPS> control_trajectories;
+  typedef util::EigenAlignedVector<float, DYN::STATE_DIM, NUM_TIMESTEPS> state_trajectories;
+  using state_array = typename DYN::state_array;
+  using control_array = typename DYN::control_array;
+  using DYN_PARAMS = RacerSuspensionParams;
+
+  auto dynamics = RacerSuspension(stream);
+  auto control_range = dynamics.getControlRanges();
+  control_range[0] = make_float2(-1, 1);
+  control_range[1] = make_float2(-1, 1);
+  dynamics.setControlRanges(control_range);
+  dynamics.GPUSetup();
+
+  std::default_random_engine generator(15.0);
+  std::normal_distribution<float> throttle_distribution(0.3, 0.3);
+  std::normal_distribution<float> steering_distribution(0.0, 0.8);
+
+  float* x_init_d;
+  float* u_d;
+  float* x_next_d;
+
+  HANDLE_ERROR(cudaMalloc((void**)&x_init_d, sizeof(float) * DYN::STATE_DIM * NUM_PARALLEL_TESTS));
+  HANDLE_ERROR(cudaMalloc((void**)&u_d, sizeof(float) * DYN::CONTROL_DIM * NUM_PARALLEL_TESTS * NUM_TIMESTEPS));
+  HANDLE_ERROR(cudaMalloc((void**)&x_next_d, sizeof(float) * DYN::STATE_DIM * NUM_PARALLEL_TESTS * NUM_TIMESTEPS));
+
+  // Input variables
+  DYN::state_array x_init = DYN::state_array::Zero();
+  x_init[S_IND_CLASS(DYN_PARAMS, ATTITUDE_QW)] = 1;
+  HANDLE_ERROR(
+      cudaMemcpyAsync(x_init_d, x_init.data(), sizeof(float) * DYN::STATE_DIM, cudaMemcpyHostToDevice, stream));
+  control_trajectories u_noise;
+  for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
+  {
+    control_traj sample_u = control_traj::Zero();
+    for (int t = 0; t < NUM_TIMESTEPS; t++)
+    {
+      sample_u(0, t) = throttle_distribution(generator);
+      sample_u(1, t) = steering_distribution(generator);
+    }
+    u_noise.push_back(sample_u);
+    HANDLE_ERROR(cudaMemcpyAsync(u_d + s * NUM_TIMESTEPS * DYN::CONTROL_DIM, u_noise[s].data(),
+                                 sizeof(float) * NUM_TIMESTEPS * DYN::CONTROL_DIM, cudaMemcpyHostToDevice, stream));
+  }
+
+  // Output variables
+  state_trajectories x_next_CPU(NUM_PARALLEL_TESTS);
+  state_trajectories x_next_GPU(NUM_PARALLEL_TESTS);
+
+  // CPU Test
+  for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
+  {
+    state_traj sample_state_traj;
+    state_array xdot;
+    state_array x = x_init;
+    control_array u;
+    for (int t = 0; t < NUM_TIMESTEPS; t++)
+    {
+      u = u_noise[s].col(t);
+      sample_state_traj.col(t) = x;
+      dynamics.enforceConstraints(x, u);
+      if (t == 0)
+      {
+        dynamics.initializeDynamics(x, u, t, dt);
+      }
+
+      dynamics.computeStateDeriv(x, u, xdot);
+      dynamics.updateState(x, xdot, dt);
+    }
+    x_next_CPU[s] = sample_state_traj;
+  }
+
+  // GPU Test
+  const int BLOCKSIZE_X = 2;
+  const int BLOCKSIZE_Y = 8;
+  const int NUM_GRIDS_X = (NUM_PARALLEL_TESTS - 1) / BLOCKSIZE_X + 1;
+  dim3 block_dim(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+  dim3 grid_dim(NUM_GRIDS_X, 1, 1);
+  runGPUDynamics<DYN, NUM_PARALLEL_TESTS, BLOCKSIZE_X, BLOCKSIZE_Y>
+      <<<grid_dim, block_dim, 0, stream>>>(dynamics.model_d_, NUM_TIMESTEPS, dt, x_init_d, u_d, x_next_d);
+  for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
+  {
+    HANDLE_ERROR(cudaMemcpyAsync(x_next_CPU[s].data(), x_next_d + s * NUM_TIMESTEPS * DYN::STATE_DIM,
+                                 sizeof(float) * NUM_TIMESTEPS * DYN::STATE_DIM, cudaMemcpyDeviceToHost, stream));
+  }
+  HANDLE_ERROR(cudaStreamSynchronize(stream));
 }
 
 /*
