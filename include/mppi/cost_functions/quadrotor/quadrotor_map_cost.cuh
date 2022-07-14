@@ -102,11 +102,11 @@ public:
 
   float computeStateCost(const Eigen::Ref<const state_array> s, int timestep, int* crash_status);
 
-  __device__ float computeStateCost(float* s, int timestep, int* crash_status);
+  __device__ float computeStateCost(float* s, int timestep, float* theta_c, int* crash_status);
 
   float terminalCost(const Eigen::Ref<const state_array> s);
 
-  __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* s, float* theta_c = nullptr);
 
   __host__ __device__ float computeGateSideCost(float* s);
 

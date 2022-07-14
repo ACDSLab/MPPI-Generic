@@ -373,10 +373,45 @@ TEST(RolloutKernel, comparisonTestAutorallyMPPI_Generic_AR)
 
 TEST(RolloutKernel, compTestGenVsFastRollout)
 {
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
   const int MPPI_NUM_ROLLOUTS__ = 1920;
-  const int NUM_TIMESTEPS = 100;
+  const int NUM_TIMESTEPS = 8;
   const int BLOCKSIZE_X = 8;
   const int BLOCKSIZE_Y = 16;
+  // typedef CartpoleDynamics DynamicsModel;
+  // typedef CartpoleQuadraticCost MPPICostFunction;
+
+  // float dt = 1.0 / 50.0;
+  // float lambda = 6.666;
+  // float alpha = 0.0;
+
+  // std::default_random_engine generator(7.0);
+  // std::normal_distribution<float> distribution(0.0, 1.0);
+  // std::normal_distribution<float> control_distribution(.3, 0.3);
+
+  // std::array<float2, DynamicsModel::CONTROL_DIM> control_rngs;
+  // control_rngs[0].x = -.99;
+  // control_rngs[0].y = .99;
+
+  // std::array<float, DynamicsModel::CONTROL_DIM> control_std_dev = { .3 };
+
+  // // setup cost and dynamics
+  // MPPICostFunction* costs = new MPPICostFunction();
+  // DynamicsModel* dynamics = new DynamicsModel(1.0, 1.0, 1.0);
+
+  // auto params = costs->getParams();
+  // params.discount = 0.9;
+  // params.control_cost_coeff[0] = 0.0;
+
+  // costs->setParams(params);
+
+  // // Call the GPU setup functions of the model and cost
+  // dynamics->GPUSetup();
+  // costs->GPUSetup();
+
+  // // Generate an initial state
+  // std::array<float, DynamicsModel::STATE_DIM> state_array = { 0, 0, 2.35, 0 };
   typedef NeuralNetModel<7, 2, 3, 6, 32, 32, 4> DynamicsModel;
   typedef ARStandardCost MPPICostFunction;
 
@@ -411,8 +446,6 @@ TEST(RolloutKernel, compTestGenVsFastRollout)
   std::string model_path, map_path;
   model_path = mppi::tests::old_autorally_network_file;
   map_path = mppi::tests::ccrf_map;
-  cudaStream_t stream;
-  cudaStreamCreate(&stream);
 
   // Call the GPU setup functions of the model and cost
   dynamics->GPUSetup();
@@ -436,6 +469,7 @@ TEST(RolloutKernel, compTestGenVsFastRollout)
   {
     control_array[i * DynamicsModel::CONTROL_DIM] = steering_distribution(generator);
     control_array[i * DynamicsModel::CONTROL_DIM + 1] = throttle_distribution(generator);
+    // control_array[i * DynamicsModel::CONTROL_DIM] = control_distribution(generator);
   }
 
   for (auto& noise : control_noise_array)
@@ -454,12 +488,14 @@ TEST(RolloutKernel, compTestGenVsFastRollout)
 
   launchFastRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X,
                               BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
-                                           control_noise_array, control_std_dev, costs_fast,
-                                           control_noise_fast, 0, state_array_size, stream);
+                                           control_noise_array, control_std_dev, costs_fast, control_noise_fast, 0,
+                                           state_array_size, stream);
 
   array_expect_float_eq<NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM>(control_noise_generic,
                                                                                           control_noise_fast);
-  array_expect_near<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_fast, 1.0);
+  // array_expect_near<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_fast, 1.0);
+  // array_expect_float_eq<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_fast);
+  ASSERT_EQ(costs_generic[10], costs_fast[10]);
 
   delete costs;
   delete dynamics;

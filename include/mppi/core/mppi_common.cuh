@@ -62,7 +62,7 @@ __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rol
 
 template <class COST_T>
 __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* x_thread, float running_cost,
-                                   float* cost_rollouts_device);
+                                   float* theta_c, float* cost_rollouts_device);
 
 // Norm Exponential Kernel
 __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float baseline);

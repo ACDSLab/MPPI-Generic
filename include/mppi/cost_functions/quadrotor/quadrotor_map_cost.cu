@@ -58,7 +58,8 @@ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(const Eigen::Ref
 }
 
 template <class CLASS_T, class PARAMS_T>
-__device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float* s, int timestep, int* crash_status)
+__device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float* s, int timestep, float* theta_c,
+                                                                           int* crash_status)
 {
   float cost = 0;
   float costmap_cost, gate_cost, height_cost, heading_cost, speed_cost, stable_cost;
@@ -291,7 +292,7 @@ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(const Eigen::Ref<con
 }
 
 template <class CLASS_T, class PARAMS_T>
-__device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(float* s)
+__device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(float* s, float* theta_c)
 {
   return 0;
 }

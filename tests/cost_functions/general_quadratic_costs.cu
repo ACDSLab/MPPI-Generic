@@ -13,7 +13,7 @@ template <class COST_T>
 __global__ void computeCostKernel(COST_T* cost, float* s, int* t, float* result)
 {
   int crash = 0;
-  *result = cost->computeStateCost(s, *t, &crash);
+  *result = cost->computeStateCost(s, *t, nullptr, &crash);
 }
 
 class DITargetQuadraticCost : public testing::Test

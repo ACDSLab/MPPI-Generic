@@ -255,7 +255,7 @@ Eigen::Array3f ARStandardCostImpl<CLASS_T, PARAMS_T>::getTranslation()
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::terminalCost(float* s)
+inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::terminalCost(float* s, float* theta_c)
 {
   return 0.0;
 }
@@ -350,7 +350,7 @@ inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getTrackCost(floa
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float* s, int timestep,
+inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float* s, int timestep, float* theta_c,
                                                                                 int* crash_status)
 {
   // printf("input state %f %f %f %f %f %f %f\n", s[0], s[1], s[2], s[3], s[4], s[5], s[6]);
@@ -387,8 +387,8 @@ template <class CLASS_T, class PARAMS_T>
 inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::computeRunningCost(float* s, float* u, float* noise,
                                                                                   float* std_dev, float lambda,
                                                                                   float alpha, int timestep,
-                                                                                  int* crash_status)
+                                                                                  float* theta_c, int* crash_status)
 {
-  return computeStateCost(s, timestep, crash_status) +
+  return computeStateCost(s, timestep, theta_c, crash_status) +
          this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
 }

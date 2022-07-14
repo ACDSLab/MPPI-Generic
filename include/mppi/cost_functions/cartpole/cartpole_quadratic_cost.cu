@@ -17,7 +17,7 @@ float CartpoleQuadraticCost::computeStateCost(const Eigen::Ref<const state_array
              params_.pole_angular_velocity_coeff;
 }
 
-__device__ float CartpoleQuadraticCost::computeStateCost(float* state, int timestep, int* crash_status)
+__device__ float CartpoleQuadraticCost::computeStateCost(float* state, int timestep, float* theta_c, int* crash_status)
 {
   return (state[0] - params_.desired_terminal_state[0]) * (state[0] - params_.desired_terminal_state[0]) *
              params_.cart_position_coeff +
@@ -29,7 +29,7 @@ __device__ float CartpoleQuadraticCost::computeStateCost(float* state, int times
              params_.pole_angular_velocity_coeff;
 }
 
-__device__ float CartpoleQuadraticCost::terminalCost(float* state)
+__device__ float CartpoleQuadraticCost::terminalCost(float* state, float* theta_c)
 {
   return ((state[0] - params_.desired_terminal_state[0]) * (state[0] - params_.desired_terminal_state[0]) *
               params_.cart_position_coeff +

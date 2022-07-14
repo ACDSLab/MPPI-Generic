@@ -100,13 +100,13 @@ public:
   /**
    * Device Functions
    */
-  __device__ float computeStateCost(float* s, int timestep = 0, int* crash_status = nullptr);
+  __device__ float computeStateCost(float* s, int timestep = 0, float* theta_c = nullptr, int* crash_status = nullptr);
 
   // Custom implementation that does a Nan check.
   __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha,
-                                      int timestep, int* crash_status);
+                                      int timestep, float* theta_c, int* crash_status);
 
-  __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* s, float* theta_c = nullptr);
 };
 
 #if __CUDACC__
