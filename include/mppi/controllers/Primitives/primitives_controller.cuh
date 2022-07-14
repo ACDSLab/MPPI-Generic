@@ -9,6 +9,8 @@
 #define MPPIGENERIC_PRIMITIVES_CONTROLLER_CUH
 
 #include <mppi/controllers/controller.cuh>
+#include <mppi/dynamics/dynamics.cuh>
+#include <mppi/utils/angle_utils.cuh>
 
 // this is needed to extend the coloredMPPI params and ensure that
 // dynamic reconfigure in mppi_generic_racer_plant.cpp works properly

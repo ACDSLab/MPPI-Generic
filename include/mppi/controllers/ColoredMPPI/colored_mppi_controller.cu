@@ -55,9 +55,53 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 {
   this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
   state_array local_state = state;
+
+  // update local_state for leash, need to handle x and y positions specially, convert to body frame and leash in body
+  // frame. transform x and y into body frame
+  float dx = this->state_.col(leash_jump_)[S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_X)] -
+             state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_X)];
+  float dy = this->state_.col(leash_jump_)[S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_Y)] -
+             state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_Y)];
+  float dx_body =
+      dx * cos(state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, YAW)]) + dy * sin(state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, YAW)]);
+  float dy_body =
+      -dx * sin(state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, YAW)]) + dy * cos(state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, YAW)]);
+
+  // determine leash in body frame
+  float x_leash = getStateLeashLength(S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_X));
+  float y_leash = getStateLeashLength(S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_Y));
+  dx_body = fminf(fmaxf(dx_body, -x_leash), x_leash);
+  dy_body = fminf(fmaxf(dy_body, -y_leash), y_leash);
+
+  // transform back to map frame
+  dx = dx_body * cos(state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, YAW)]) +
+       -dy_body * sin(state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, YAW)]);
+  dy = dx_body * sin(state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, YAW)]) +
+       dy_body * cos(state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, YAW)]);
+
+  // apply leash
+  local_state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_X)] += dx;
+  local_state[S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_Y)] += dy;
+
+  // handle leash for rest of states
+  float diff;
   for (int i = 0; i < DYN_T::STATE_DIM; i++)
   {
-    float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
+    // use body x and y for leash
+    if (i == S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_X) || i == S_IND_CLASS(DYN_T::DYN_PARAMS_T, POS_Y))
+    {
+      // handle outside for loop
+      continue;
+    }
+    else if (i == S_IND_CLASS(DYN_T::DYN_PARAMS_T, YAW))
+    {
+      diff = fabsf(angle_utils::shortestAngularDistance(this->state_.col(leash_jump_)[i], state[i]));
+    }
+    else
+    {
+      diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
+    }
+
     if (getStateLeashLength(i) < diff)
     {
       float leash_dir =

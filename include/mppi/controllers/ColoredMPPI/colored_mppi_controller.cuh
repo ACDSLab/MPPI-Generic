@@ -9,6 +9,8 @@
 #define MPPIGENERIC_COLORED_MPPI_CONTROLLER_CUH
 
 #include <mppi/controllers/controller.cuh>
+#include <mppi/dynamics/dynamics.cuh>
+#include <mppi/utils/angle_utils.cuh>
 
 #include <vector>
 
