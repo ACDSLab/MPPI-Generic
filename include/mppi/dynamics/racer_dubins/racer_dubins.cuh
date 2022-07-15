@@ -81,11 +81,11 @@ struct RacerDubinsParams : public DynamicsParams
 
 using namespace MPPI_internal;
 
-template <class CLASS_T>
-class RacerDubinsImpl : public Dynamics<CLASS_T, RacerDubinsParams>
+template <class CLASS_T, class PARAMS_T = RacerDubinsParams>
+class RacerDubinsImpl : public Dynamics<CLASS_T, PARAMS_T>
 {
 public:
-  typedef Dynamics<CLASS_T, RacerDubinsParams> PARENT_CLASS;
+  typedef Dynamics<CLASS_T, PARAMS_T> PARENT_CLASS;
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;
   typedef typename PARENT_CLASS::output_array output_array;
@@ -97,7 +97,7 @@ public:
   {
   }
 
-  RacerDubinsImpl(RacerDubinsParams& params, cudaStream_t stream = nullptr) : PARENT_CLASS(params, stream)
+  RacerDubinsImpl(PARAMS_T& params, cudaStream_t stream = nullptr) : PARENT_CLASS(params, stream)
   {
   }
 

@@ -3,7 +3,7 @@
 
 void RacerDubinsElevation::GPUSetup()
 {
-  RacerDubinsImpl<RacerDubinsElevation>* derived = static_cast<RacerDubinsImpl<RacerDubinsElevation>*>(this);
+  PARENT_CLASS* derived = static_cast<PARENT_CLASS*>(this);
   CudaCheckError();
   tex_helper_->GPUSetup();
   CudaCheckError();
@@ -26,7 +26,7 @@ void RacerDubinsElevation::paramsToDevice()
     HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->tex_helper_), &(tex_helper_->ptr_d_),
                                  sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
   }
-  RacerDubinsImpl<RacerDubinsElevation>::paramsToDevice();
+  PARENT_CLASS::paramsToDevice();
 }
 
 // void RacerDubinsElevation::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
@@ -68,6 +68,13 @@ void RacerDubinsElevation::computeStateDeriv(const Eigen::Ref<const state_array>
                                              const Eigen::Ref<const control_array>& control,
                                              Eigen::Ref<state_array> state_der)
 {
+}
+
+void RacerDubinsElevation::step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state,
+                                Eigen::Ref<state_array>& state_der, const Eigen::Ref<const control_array>& control,
+                                Eigen::Ref<output_array>& output, const float t, const float dt)
+{
+  // computeStateDeriv(state, control, state_der);
   float pitch = 0;
   float roll = 0;
 
@@ -146,19 +153,16 @@ void RacerDubinsElevation::computeStateDeriv(const Eigen::Ref<const state_array>
   state_der(2) = state(0) * cosf(yaw);
   state_der(3) = state(0) * sinf(yaw);
   state_der(4) = control(1) / this->params_.steer_command_angle_scale;
-}
-void RacerDubinsElevation::step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state,
-                                Eigen::Ref<state_array>& state_der, const Eigen::Ref<const control_array>& control,
-                                Eigen::Ref<output_array>& output, const float t, const float dt)
-{
-  computeStateDeriv(state, control, state_der);
+
+  // Integrate using racer_dubins upddateState
   updateState(state, next_state, state_der, dt);
 
-  output[O_INDEX(BASELINK_VEL_B_X)] = state[S_INDEX(VEL_X)];
+  // Setup output
+  output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
   output[O_INDEX(BASELINK_VEL_B_Y)] = 0;
   output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
-  output[O_INDEX(BASELINK_POS_I_X)] = state[S_INDEX(POS_X)];
-  output[O_INDEX(BASELINK_POS_I_Y)] = state[S_INDEX(POS_Y)];
+  output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
+  output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
   output[O_INDEX(BASELINK_POS_I_Z)] = 0;
   output[O_INDEX(OMEGA_B_X)] = 0;
   output[O_INDEX(OMEGA_B_Y)] = 0;
@@ -172,7 +176,7 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array>& state, Eigen::Ref<state
   output[O_INDEX(ATTITUDE_QX)] = q.x();
   output[O_INDEX(ATTITUDE_QY)] = q.y();
   output[O_INDEX(ATTITUDE_QZ)] = q.z();
-  output[O_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE)];
+  output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
   output[O_INDEX(STEER_ANGLE_RATE)] = 0;
   output[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
   output[O_INDEX(WHEEL_POS_I_FL_Y)] = front_left.y;
@@ -201,6 +205,12 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array>& state, Eigen::Ref<state
 
 __device__ void RacerDubinsElevation::computeStateDeriv(float* state, float* control, float* state_der, float* theta_s)
 {
+}
+
+__device__ inline void RacerDubinsElevation::step(float* state, float* next_state, float* state_der, float* control,
+                                                  float* output, float* theta_s, const float t, const float dt)
+{
+  // computeStateDeriv(state, control, state_der, theta_s);
   float pitch = 0;
   float roll = 0;
 
@@ -279,22 +289,18 @@ __device__ void RacerDubinsElevation::computeStateDeriv(float* state, float* con
   state_der[2] = state[0] * cosf(yaw);
   state_der[3] = state[0] * sinf(yaw);
   state_der[4] = control[1] / this->params_.steer_command_angle_scale;
-}
-
-__device__ inline void RacerDubinsElevation::step(float* state, float* next_state, float* state_der, float* control,
-                                                  float* output, float* theta_s, const float t, const float dt)
-{
-  computeStateDeriv(state, control, state_der, theta_s);
   __syncthreads();
+
+  // Use Euler Integration from racer_dubins parent class
   updateState(state, next_state, state_der, dt);
   __syncthreads();
   if (output)
   {
-    output[O_INDEX(BASELINK_VEL_B_X)] = state[S_INDEX(VEL_X)];
+    output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
     output[O_INDEX(BASELINK_VEL_B_Y)] = 0;
     output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
-    output[O_INDEX(BASELINK_POS_I_X)] = state[S_INDEX(POS_X)];
-    output[O_INDEX(BASELINK_POS_I_Y)] = state[S_INDEX(POS_Y)];
+    output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
+    output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
     output[O_INDEX(BASELINK_POS_I_Z)] = 0;
     output[O_INDEX(OMEGA_B_X)] = 0;
     output[O_INDEX(OMEGA_B_Y)] = 0;
@@ -308,7 +314,7 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
     output[O_INDEX(ATTITUDE_QX)] = q.x();
     output[O_INDEX(ATTITUDE_QY)] = q.y();
     output[O_INDEX(ATTITUDE_QZ)] = q.z();
-    output[O_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE)];
+    output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
     output[O_INDEX(STEER_ANGLE_RATE)] = 0;
     output[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
     output[O_INDEX(WHEEL_POS_I_FL_Y)] = front_left.y;

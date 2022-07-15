@@ -257,7 +257,7 @@ public:
    * @param s state
    * @param s_der
    */
-  void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
+  DEPRECATED void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     derived->updateState(state, state, state_der, dt);
@@ -370,7 +370,7 @@ public:
    * @param state_der
    * @param dt
    */
-  __device__ void updateState(float* state, float* state_der, const float dt)
+  DEPRECATED __device__ void updateState(float* state, float* state_der, const float dt)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     derived->updateState(state, state, state_der, dt);

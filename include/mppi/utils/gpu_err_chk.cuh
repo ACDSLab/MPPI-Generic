@@ -7,6 +7,28 @@
 #include <device_launch_parameters.h>  // For block idx and thread idx, etc
 #include <iostream>
 
+#ifndef DEPRECATED
+#if __cplusplus >= 201402L
+#define DEPRECATED [[deprecated]]
+#elif defined(__GNUC__) || defined(__clang__) || defined(__CUDACC__)
+#define DEPRECATED __attribute__((deprecated))
+#elif defined(_MSC_VER)
+#define DEPRECATED __declspec(deprecated)
+#else
+#pragma message("WARNING: You need to implement DEPRECATED for this compiler")
+#define DEPRECATED
+#endif
+#endif
+// #ifndef __DEPRECATED__
+// #if defined(_WIN32)
+// # define __DEPRECATED__(msg) __declspec(deprecated(msg))
+// #elif (defined(__GNUC__) && (__GNUC__ < 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 5 && !defined(__clang__))))
+// # define __DEPRECATED__(msg) __attribute__((deprecated))
+// #else
+// # define __DEPRECATED__(msg) __attribute__((deprecated(msg)))
+// #endif
+// #endif
+
 inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true)
 {
   if (code != cudaSuccess)

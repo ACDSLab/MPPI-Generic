@@ -8,15 +8,30 @@
 
 using namespace MPPI_internal;
 
-class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation>
+struct RacerDubinsElevationParams : public RacerDubinsParams
+{
+  enum class StateIndex : int
+  {
+    VEL_X = 0,
+    YAW,
+    POS_X,
+    POS_Y,
+    STEER_ANGLE,
+    ROLL,
+    PITCH,
+    NUM_STATES
+  };
+};
+
+class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation, RacerDubinsElevationParams>
 {
 public:
-  RacerDubinsElevation(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubinsElevation>(stream)
+  using PARENT_CLASS = RacerDubinsImpl<RacerDubinsElevation, RacerDubinsElevationParams>;
+  RacerDubinsElevation(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
-  RacerDubinsElevation(RacerDubinsParams& params, cudaStream_t stream = nullptr)
-    : RacerDubinsImpl<RacerDubinsElevation>(params, stream)
+  RacerDubinsElevation(RacerDubinsElevationParams& params, cudaStream_t stream = nullptr) : PARENT_CLASS(params, stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }

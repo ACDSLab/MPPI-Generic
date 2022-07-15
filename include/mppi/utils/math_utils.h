@@ -259,7 +259,7 @@ inline __host__ __device__ double normalCDF(double x)
   return 0.5 * erfc(-x * M_SQRT1_2);
 }
 
-inline __host__ std::vector<double> calculateCk(int steps)
+inline __host__ std::vector<double> calculateCk(size_t steps)
 {
   // calculate params only when more steps are required
   static std::vector<double> c_vec;
@@ -267,10 +267,10 @@ inline __host__ std::vector<double> calculateCk(int steps)
   {
     c_vec.resize(steps, 0);
     c_vec[0] = 1.0;
-    for (int k = 1; k <= steps; k++)
+    for (size_t k = 1; k <= steps; k++)
     {
       double c_k = 0;
-      for (int m = 0; m < k; m++)
+      for (size_t m = 0; m < k; m++)
       {
         c_k += c_vec[m] * c_vec[k - 1 - m] / ((m + 1.0) * (2.0 * m + 1.0));
       }

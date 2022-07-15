@@ -51,7 +51,7 @@ float wheel_base = 0.3;
 TEST_F(RacerDubinsElevationTest, ComputeDynamics)
 {
   RacerDubinsElevation dynamics = RacerDubinsElevation();
-  RacerDubinsParams params = dynamics.getParams();
+  auto params = dynamics.getParams();
   RacerDubinsElevation::state_array x = RacerDubinsElevation::state_array::Zero();
   RacerDubinsElevation::control_array u = RacerDubinsElevation::control_array::Zero();
 
@@ -343,7 +343,8 @@ TEST_F(RacerDubinsElevationTest, TestUpdateStateGPU)
 TEST_F(RacerDubinsElevationTest, ComputeStateTrajectoryFiniteTest)
 {
   RacerDubinsElevation dynamics = RacerDubinsElevation();
-  RacerDubinsParams params;
+  using PARAMS = RacerDubinsElevation::DYN_PARAMS_T;
+  PARAMS params;
   params.c_t = 3.0;
   params.c_b = 0.2;
   params.c_v = 0.2;
