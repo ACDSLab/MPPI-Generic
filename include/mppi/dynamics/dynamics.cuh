@@ -267,16 +267,8 @@ public:
                    Eigen::Ref<state_array> state_der, const float dt)
   {
     next_state = state + state_der * dt;
-    state_der.setZero();
+    // state_der.setZero();
   }
-
-  // void step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state,
-  //           const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array>& output, const float t,
-  //           const float dt)
-  // {
-  //   state_array state_der = state_array::Zero();
-  //   step(state, next_state, state_der, control, output, t, dt);
-  // }
 
   void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
             const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,

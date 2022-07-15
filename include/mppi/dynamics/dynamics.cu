@@ -111,7 +111,6 @@ __device__ void Dynamics<CLASS_T, PARAMS_T>::updateState(float* state, float* ne
   for (i = tdy; i < STATE_DIM; i += blockDim.y)
   {
     next_state[i] = state[i] + state_der[i] * dt;
-    state_der[i] = 0;  // Important: reset the state derivative to zero.
   }
 }
 
