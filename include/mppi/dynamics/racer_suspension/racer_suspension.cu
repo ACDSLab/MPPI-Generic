@@ -170,17 +170,17 @@ Eigen::Vector3f RacerSuspension::get_position(const Eigen::Ref<const state_array
   return Eigen::Vector3f(state[STATE_PX], state[STATE_PY], state[STATE_PZ]);
 }
 
-void RacerSuspension::enforceLeash(const Eigen::Ref<const state_array>& state_init,
-                                   const Eigen::Ref<const state_array>& state_next,
+void RacerSuspension::enforceLeash(const Eigen::Ref<const state_array>& state_true,
+                                   const Eigen::Ref<const state_array>& state_nominal,
                                    const Eigen::Ref<const state_array>& leash_values,
-                                   Eigen::Ref<state_array>& state_new)
+                                   Eigen::Ref<state_array>& state_output)
 {
-  // update state_new for leash, need to handle x and y positions specially, convert to body frame and leash in body
+  // update state_output for leash, need to handle x and y positions specially, convert to body frame and leash in body
   // frame. transform x and y into body frame
-  float dx = state_next[S_INDEX(POS_X)] - state_init[S_INDEX(POS_X)];
-  float dy = state_next[S_INDEX(POS_Y)] - state_init[S_INDEX(POS_Y)];
-  float dx_body = dx * cos(state_init[S_INDEX(YAW)]) + dy * sin(state_init[S_INDEX(YAW)]);
-  float dy_body = -dx * sin(state_init[S_INDEX(YAW)]) + dy * cos(state_init[S_INDEX(YAW)]);
+  float dx = state_nominal[S_INDEX(POS_X)] - state_true[S_INDEX(POS_X)];
+  float dy = state_nominal[S_INDEX(POS_Y)] - state_true[S_INDEX(POS_Y)];
+  float dx_body = dx * cos(state_true[S_INDEX(YAW)]) + dy * sin(state_true[S_INDEX(YAW)]);
+  float dy_body = -dx * sin(state_true[S_INDEX(YAW)]) + dy * cos(state_true[S_INDEX(YAW)]);
 
   // determine leash in body frame
   float x_leash = leash_values[S_INDEX(POS_X)];
@@ -189,12 +189,12 @@ void RacerSuspension::enforceLeash(const Eigen::Ref<const state_array>& state_in
   dy_body = fminf(fmaxf(dy_body, -y_leash), y_leash);
 
   // transform back to map frame
-  dx = dx_body * cos(state_init[S_INDEX(YAW)]) + -dy_body * sin(state_init[S_INDEX(YAW)]);
-  dy = dx_body * sin(state_init[S_INDEX(YAW)]) + dy_body * cos(state_init[S_INDEX(YAW)]);
+  dx = dx_body * cos(state_true[S_INDEX(YAW)]) + -dy_body * sin(state_true[S_INDEX(YAW)]);
+  dy = dx_body * sin(state_true[S_INDEX(YAW)]) + dy_body * cos(state_true[S_INDEX(YAW)]);
 
   // apply leash
-  state_new[S_INDEX(POS_X)] += dx;
-  state_new[S_INDEX(POS_Y)] += dy;
+  state_output[S_INDEX(POS_X)] += dx;
+  state_output[S_INDEX(POS_Y)] += dy;
 
   // handle leash for rest of states
   float diff;
@@ -208,21 +208,21 @@ void RacerSuspension::enforceLeash(const Eigen::Ref<const state_array>& state_in
     }
     else if (i == S_INDEX(YAW))
     {
-      diff = fabsf(angle_utils::shortestAngularDistance(state_next[i], state[i]));
+      diff = fabsf(angle_utils::shortestAngularDistance(state_nominal[i], state[i]));
     }
     else
     {
-      diff = fabsf(state_next[i] - state[i]);
+      diff = fabsf(state_nominal[i] - state[i]);
     }
 
     if (leash_values[i] < diff)
     {
-      float leash_dir = fminf(fmaxf(state_next[i] - state[i], -leash_values[i]), leash_values[i]);
-      state_new[i] = state_init[i] + leash_dir;
+      float leash_dir = fminf(fmaxf(state_nominal[i] - state[i], -leash_values[i]), leash_values[i]);
+      state_output[i] = state_true[i] + leash_dir;
     }
     else
     {
-      state_new[i] = state_next[i];
+      state_output[i] = state_nominal[i];
     }
   }
 }

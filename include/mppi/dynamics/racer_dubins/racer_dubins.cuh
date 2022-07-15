@@ -77,7 +77,7 @@ public:
   Eigen::Quaternionf get_attitude(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);
 
-  void enforceLeash(const Eigen::Ref<const state_array>& state_init, const Eigen::Ref<const state_array>& state_next, const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_new);
+  void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal, const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output);
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins, 7>

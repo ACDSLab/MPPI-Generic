@@ -403,20 +403,20 @@ public:
   /**
    * Method to enforce a leash on the initial state, which depends on type of dynamics.
    */
-  virtual void enforceLeash(const Eigen::Ref<const state_array>& state_init, const Eigen::Ref<const state_array>& state_next, const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_new){
+  virtual void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal, const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output){
     for (int i = 0; i < DYN_T::STATE_DIM; i++)
     {
-      float diff = fabsf(state_next[i] - state_init[i]);
+      float diff = fabsf(state_nominal[i] - state_true[i]);
       
       if (leash_values[i] < diff)
       {
         float leash_dir =
-            fminf(fmaxf(state_next[i] - state_init[i], -leash_values[i]), leash_values[i]);
-        state_new[i] = state_init[i] + leash_dir;
+            fminf(fmaxf(state_nominal[i] - state_true[i], -leash_values[i]), leash_values[i]);
+        state_output[i] = state_true[i] + leash_dir;
       }
       else
       {
-        state_new[i] = state_next[i];
+        state_output[i] = state_nominal[i];
       }
     }
   }
