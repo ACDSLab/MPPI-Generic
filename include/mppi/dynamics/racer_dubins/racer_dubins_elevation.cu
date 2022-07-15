@@ -60,14 +60,7 @@ void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref
     back_diff = max(min(back_diff, 0.736 * 2), -0.736 * 2);
     float front_roll = asinf(front_diff / (0.737 * 2));
     float back_roll = asinf(back_diff / (0.737 * 2));
-    if (abs(front_roll) > abs(back_roll))
-    {
-      state(5) = front_roll;
-    }
-    else
-    {
-      state(5) = back_roll;
-    }
+    state(5) = (front_roll + back_roll) / 2;
 
     float left_diff = back_left_height - front_left_height;
     left_diff = max(min(left_diff, 2.98), -2.98);
@@ -75,14 +68,7 @@ void RacerDubinsElevation::updateState(Eigen::Ref<state_array> state, Eigen::Ref
     right_diff = max(min(right_diff, 2.98), -2.98);
     float left_pitch = asinf((left_diff) / 2.981);
     float right_pitch = asinf((right_diff) / 2.981);
-    if (abs(left_pitch) > abs(right_pitch))
-    {
-      state(6) = left_pitch;
-    }
-    else
-    {
-      state(6) = right_pitch;
-    }
+    state(6) = (left_pitch + right_pitch) / 2;
   }
   else
   {
