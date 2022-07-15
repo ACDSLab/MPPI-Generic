@@ -9,8 +9,6 @@
 #define MPPIGENERIC_COLORED_MPPI_CONTROLLER_CUH
 
 #include <mppi/controllers/controller.cuh>
-#include <mppi/dynamics/dynamics.cuh>
-#include <mppi/utils/angle_utils.cuh>
 
 #include <vector>
 
@@ -18,7 +16,7 @@ template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
 struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 {
   std::vector<float> colored_noise_exponents_;
-  float state_leash_dist_[S_DIM] = { 0 };
+  Eigen::Matrix<float, S_DIM, 1> state_leash_dist_ = Eigen::Matrix<float, S_DIM, 1>::Zero();
 
   ColoredMPPIParams() = default;
   ColoredMPPIParams(const ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)

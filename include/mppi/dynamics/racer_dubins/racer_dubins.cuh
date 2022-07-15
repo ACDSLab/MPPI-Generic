@@ -76,6 +76,8 @@ public:
   void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
   Eigen::Quaternionf get_attitude(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f get_position(const Eigen::Ref<const state_array>& state);
+
+  void enforceLeash(const Eigen::Ref<const state_array>& state_init, const Eigen::Ref<const state_array>& state_next, const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_new);
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins, 7>

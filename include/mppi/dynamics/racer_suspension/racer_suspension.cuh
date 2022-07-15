@@ -137,6 +137,8 @@ public:
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                        Eigen::Ref<state_array> state_der);
 
+  void enforceLeash(const Eigen::Ref<const state_array>& state_init, const Eigen::Ref<const state_array>& state_next, const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_new);
+
   __device__ void updateState(float* state, float* state_der, const float dt);
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);

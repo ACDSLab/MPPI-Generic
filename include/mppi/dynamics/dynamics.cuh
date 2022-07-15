@@ -9,6 +9,7 @@ Header file for dynamics
 
 #include <Eigen/Dense>
 #include <mppi/utils/managed.cuh>
+#include <mppi/utils/angle_utils.cuh>
 
 #include <stdio.h>
 #include <math.h>
@@ -397,6 +398,27 @@ public:
   virtual void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)
   {
     u.setZero();
+  }
+
+  /**
+   * Method to enforce a leash on the initial state, which depends on type of dynamics.
+   */
+  virtual void enforceLeash(const Eigen::Ref<const state_array>& state_init, const Eigen::Ref<const state_array>& state_next, const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_new){
+    for (int i = 0; i < DYN_T::STATE_DIM; i++)
+    {
+      float diff = fabsf(state_next[i] - state_init[i]);
+      
+      if (leash_values[i] < diff)
+      {
+        float leash_dir =
+            fminf(fmaxf(state_next[i] - state_init[i], -leash_values[i]), leash_values[i]);
+        state_new[i] = state_init[i] + leash_dir;
+      }
+      else
+      {
+        state_new[i] = state_next[i];
+      }
+    }
   }
 
   // control ranges [.x, .y]
