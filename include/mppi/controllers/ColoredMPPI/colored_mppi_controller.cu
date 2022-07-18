@@ -56,7 +56,10 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
   this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
   state_array local_state = state;
 
-  this->model_->enforceLeash(state, this->state_.col(leash_jump_), this->params_.state_leash_dist_, local_state);
+  if (getLeashActive())
+  {
+    this->model_->enforceLeash(state, this->state_.col(leash_jump_), this->params_.state_leash_dist_, local_state);
+  }
 
   // Send the initial condition to the device
   HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, local_state.data(), DYN_T::STATE_DIM * sizeof(float),

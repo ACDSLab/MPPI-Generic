@@ -116,6 +116,16 @@ public:
     return this->params_.state_leash_dist_[index];
   }
 
+  bool getLeashActive()
+  {
+    return leash_active_;
+  }
+  
+  void setLeashActive(bool new_leash_active)
+  {
+    leash_active_ = new_leash_active;
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
@@ -128,6 +138,7 @@ protected:
 
   void smoothControlTrajectory();
   int leash_jump_ = 1;
+  bool leash_active_ = false;
 
 private:
   // ======== MUST BE OVERWRITTEN =========
