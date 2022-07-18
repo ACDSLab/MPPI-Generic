@@ -28,9 +28,9 @@ void RacerSuspension::paramsToDevice()
 }
 
 // combined computeDynamics & updateState
-void RacerSuspension::step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state,
-                           Eigen::Ref<state_array>& state_der, const Eigen::Ref<const control_array>& control,
-                           Eigen::Ref<output_array>& output, const float t, const float dt)
+void RacerSuspension::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                           Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array> control,
+                           Eigen::Ref<output_array> output, const float t, const float dt)
 {
   Eigen::Matrix3f omegaJac;
   computeStateDeriv(state, control, state_der, &output, &omegaJac);
@@ -302,8 +302,9 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
 #else
   std::cout << "CPU state_der " << state_der.transpose() << std::endl;
 #endif
-  state_der.setZero();
+  // state_der.setZero();
 }
+
 __device__ void RacerSuspension::step(float* state, float* next_state, float* state_der, float* control, float* output,
                                       float* theta_s, const float t, const float dt)
 {
