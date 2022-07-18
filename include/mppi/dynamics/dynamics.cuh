@@ -267,7 +267,6 @@ public:
                    Eigen::Ref<state_array> state_der, const float dt)
   {
     next_state = state + state_der * dt;
-    // state_der.setZero();
   }
 
   void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,

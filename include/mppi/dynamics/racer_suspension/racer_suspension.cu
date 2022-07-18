@@ -114,7 +114,7 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     // compute suspension from elevation map
     Eigen::Vector3f p_w_nom_B_i =
         cudaToEigen(params_.wheel_pos_wrt_base_link[i]) - cudaToEigen(params_.cg_pos_wrt_base_link);
-    Eigen::Vector3f p_w_nom_I_i = p_I + R * p_w_nom_B_i;
+    Eigen::Vector3f p_w_nom_I_i = p_I + (R * p_w_nom_B_i).eval();
     float h_i = 0;
     Eigen::Vector3f n_I_i(0, 0, 1);
     // if (tex_helper_->checkTextureUse(TEXTURE_ELEVATION_MAP))
@@ -126,11 +126,11 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     // }
     Eigen::Vector3f p_c_I_i(p_w_nom_I_i[0], p_w_nom_I_i[1], h_i);
     float l_i = p_w_nom_I_i[2] - p_c_I_i[2];
-    Eigen::Vector3f p_dot_w_nom_I_i = v_I + Rdot * p_w_nom_B_i;
+    Eigen::Vector3f p_dot_w_nom_I_i = v_I + (Rdot * p_w_nom_B_i).eval();
     Eigen::Matrix3f p_dot_w_nom_I_i_Jac = R * Eigen::Matrix3f::Identity().colwise().cross(p_w_nom_B_i);
     float h_dot_i = -n_I_i[0] / n_I_i[2] * p_dot_w_nom_I_i[0] - n_I_i[1] / n_I_i[2] * p_dot_w_nom_I_i[1];
-    Eigen::RowVector3f h_dot_i_Jac =
-        -n_I_i[0] / n_I_i[2] * p_dot_w_nom_I_i_Jac.row(0) - n_I_i[1] / n_I_i[2] * p_dot_w_nom_I_i_Jac.row(1);
+    Eigen::RowVector3f h_dot_i_Jac = (-n_I_i[0] / n_I_i[2] * p_dot_w_nom_I_i_Jac.row(0)).eval() -
+                                     (n_I_i[1] / n_I_i[2] * p_dot_w_nom_I_i_Jac.row(1)).eval();
     float l_dot_i = p_dot_w_nom_I_i[2] - h_dot_i;
     Eigen::RowVector3f l_dot_i_Jac = p_dot_w_nom_I_i_Jac.row(2) - h_dot_i_Jac;
 
@@ -194,7 +194,7 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     {
       f_t_i_Jac = -params_.mu * f_n_i_Jac;
     }
-    Eigen::RowVector3f f_s_i_Jac = -f_n_i * partial_mu_s_partial_v * v_w_s_i_Jac - mu_s * f_n_i_Jac;
+    Eigen::RowVector3f f_s_i_Jac = (-f_n_i * partial_mu_s_partial_v * v_w_s_i_Jac).eval() - (mu_s * f_n_i_Jac).eval();
 
     // contact force & location
     Eigen::Vector3f f_r_C_i(f_t_i, f_s_i, f_n_i);
@@ -204,11 +204,11 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     f_r_C_i_Jac.row(2) = f_n_i_Jac;
     f_r_B[i] = R_C_i_to_B * f_r_C_i;
     Eigen::Matrix3f f_r_B_i_Jac = R_C_i_to_B = f_r_C_i_Jac;
-    Eigen::Vector3f p_c_B_i = R.transpose() * (p_c_I_i - p_I);
+    Eigen::Vector3f p_c_B_i = R.transpose() * (p_c_I_i - p_I).eval();
 
     // accumulate forces & moments
     f_B += f_r_B[i];
-    tau_B += p_c_B_i.cross(f_r_B[i]);
+    tau_B += (p_c_B_i.cross(f_r_B[i])).eval();
     tau_B_jac += -f_r_B_i_Jac.colwise().cross(p_c_B_i);
 
     if (output)
@@ -224,17 +224,6 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
   Eigen::Vector3f g(0, 0, params_.gravity);  // TODO gravity is negative to match dubins model
 
   state_der.segment<3>(S_INDEX(P_I_X)) = v_I;
-#ifdef __CUDA_ARCH__
-  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
-  {
-    printf("\n state_der[0:3] %f %f %f   v_I %f %f %f \n", state_der[0], state_der[1], state_der[2], v_I[0], v_I[1],
-           v_I[2]);
-    printf("\n state_der[0:3] %f %f %f   v_I %f %f %f \n", state_der[0], state_der[1], state_der[2], v_I[0], v_I[1],
-           v_I[2]);
-    printf("\n state_der.segment<3>(S_INDEX(P_I_X)) %f %f %f  %d  \n", state_der.segment<3>(S_INDEX(P_I_X))[0],
-           state_der.segment<3>(S_INDEX(P_I_X))[1], state_der.segment<3>(S_INDEX(P_I_X))[2], S_INDEX(P_I_X));
-  }
-#endif
   state_der.segment<3>(S_INDEX(V_I_X)) = 1 / params_.mass * R * f_B + g;
   Eigen::Quaternionf qdot;
   qdot.coeffs() = 0.5 * (q * Eigen::Quaternionf(0, omega[0], omega[1], omega[2])).coeffs();
@@ -257,6 +246,28 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
   float steer = control[C_INDEX(STEER_CMD)] / params_.steer_command_angle_scale;
   state_der[S_INDEX(STEER_ANGLE)] = params_.steering_constant * (steer - state[S_INDEX(STEER_ANGLE)]);
 
+  // #ifdef __CUDA_ARCH__
+  //   if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z
+  //   == 0)
+  //   {
+  //     printf("\n state_der[0:3] %f %f %f   v_I %f %f %f \n", state_der[0], state_der[1], state_der[2], v_I[0],
+  //     v_I[1],
+  //            v_I[2]);
+  //     // printf("\n state_der[0:3] %f %f %f   v_I %f %f %f \n", state_der[0], state_der[1], state_der[2], v_I[0],
+  //     v_I[1],
+  //     //        v_I[2]);
+  //     printf("\n state_der.segment<3>(S_INDEX(P_I_X)) %f %f %f  %d  \n", state_der.segment<3>(S_INDEX(P_I_X))[0],
+  //            state_der.segment<3>(S_INDEX(P_I_X))[1], state_der.segment<3>(S_INDEX(P_I_X))[2], S_INDEX(P_I_X));
+  //     printf("\n state_der.segment<4>(S_INDEX(ATTITUDE_QW)) %f %f %f  %f  \n", state_der[S_INDEX(ATTITUDE_QW)],
+  //            state_der[S_INDEX(ATTITUDE_QX)], state_der[S_INDEX(ATTITUDE_QY)], state_der[S_INDEX(ATTITUDE_QY)]);
+  //     printf("\n state_der.segment<3>(S_INDEX(V_I_X)) %f %f %f  %d  \n", state_der.segment<3>(S_INDEX(V_I_X))[0],
+  //            state_der.segment<3>(S_INDEX(V_I_X))[1], state_der.segment<3>(S_INDEX(V_I_X))[2], S_INDEX(V_I_X));
+  //     printf("\n state_der.segment<3>(S_INDEX(OMEGA_B_X)) %f %f %f  %d  \n",
+  //     state_der.segment<3>(S_INDEX(OMEGA_B_X))[0],
+  //            state_der.segment<3>(S_INDEX(OMEGA_B_X))[1], state_der.segment<3>(S_INDEX(OMEGA_B_X))[2],
+  //            S_INDEX(OMEGA_B_X));
+  //   }
+  // #endif
   if (output)
   {
     Eigen::Vector3f COM_v_B = R.transpose() * v_I;
@@ -265,7 +276,7 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     (*output)[O_INDEX(BASELINK_VEL_B_X)] = base_link_v_B[0];
     (*output)[O_INDEX(BASELINK_VEL_B_X)] = base_link_v_B[1];
     (*output)[O_INDEX(BASELINK_VEL_B_X)] = base_link_v_B[2];
-    Eigen::Vector3f base_link_p_I = p_I + R * p_base_link_in_B;
+    Eigen::Vector3f base_link_p_I = p_I + (R * p_base_link_in_B).eval();
     (*output)[O_INDEX(BASELINK_POS_I_X)] = base_link_p_I[0];
     (*output)[O_INDEX(BASELINK_POS_I_Y)] = base_link_p_I[1];
     (*output)[O_INDEX(BASELINK_POS_I_Z)] = base_link_p_I[2];
@@ -287,21 +298,43 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     (*output)[O_INDEX(CENTER_POS_I_Y)] = (*output)[O_INDEX(BASELINK_POS_I_Y)];
     (*output)[O_INDEX(CENTER_POS_I_Z)] = (*output)[O_INDEX(BASELINK_POS_I_Z)];
     // (*output).setZero();
-  }
 #ifdef __CUDA_ARCH__
-  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
-  {
-    printf("\n\n");
-    for (int i = 0; i < PARENT_CLASS::STATE_DIM; i++)
+    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&
+        blockIdx.z == 0)
     {
-      printf("%f ", state_der[i]);
-    }
-    printf(" pos %f %f %f  vel %f %f %f", p_I[0], p_I[1], p_I[2], v_I[0], v_I[1], v_I[2]);
-    printf(" vel_x %f  vel %f %f %f", vel_x, v_I[0], v_I[1], v_I[2]);
-  }
+      printf("GPU: ");
 #else
-  std::cout << "CPU state_der " << state_der.transpose() << std::endl;
+    printf("CPU: ");
 #endif
+      // if (output)
+      // {
+      printf("Output: ");
+      for (int j = 0; j < DYN_T::OUTPUT_DIM; j++)
+      {
+        printf("%6.2f, ", (*output)[j]);
+      }
+      printf("\n");
+      // }
+      printf("base_link_p_I: %f %f %f\n", base_link_p_I[0], base_link_p_I[1], base_link_p_I[2]);
+#ifdef __CUDA_ARCH__
+    }
+#endif
+  }
+  // #ifdef __CUDA_ARCH__
+  //   if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z
+  //   == 0)
+  //   {
+  //     printf("\n\n");
+  //     for (int i = 0; i < PARENT_CLASS::STATE_DIM; i++)
+  //     {
+  //       printf("%f ", state_der[i]);
+  //     }
+  //     printf(" pos %f %f %f  vel %f %f %f", p_I[0], p_I[1], p_I[2], v_I[0], v_I[1], v_I[2]);
+  //     printf(" vel_x %f  vel %f %f %f", vel_x, v_I[0], v_I[1], v_I[2]);
+  //   }
+  // #else
+  //   std::cout << "CPU state_der " << state_der.transpose() << std::endl;
+  // #endif
   // state_der.setZero();
 }
 
@@ -312,12 +345,23 @@ __device__ void RacerSuspension::step(float* state, float* next_state, float* st
   __syncthreads();
   updateState(state, next_state, state_der, dt);
   // TODO Fill in output?
+#ifdef __CUDA_ARCH__
+  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
+  {
+    printf("GPU afterUpdateState: ");
+    printf("Output: ");
+    for (int j = 0; j < DYN_T::OUTPUT_DIM; j++)
+    {
+      printf("%6.2f, ", output[j]);
+    }
+    printf("\n");
+  }
+#endif
 }
 
 __device__ void RacerSuspension::computeStateDeriv(float* state, float* control, float* state_der, float* theta_s,
                                                    float* output)
 {
-  (void)theta_s;
   Eigen::Map<state_array> state_v(state);
   Eigen::Map<control_array> control_v(control);
   Eigen::Map<state_array> state_der_v(state_der);
