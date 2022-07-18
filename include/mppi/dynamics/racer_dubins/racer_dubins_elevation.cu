@@ -156,7 +156,7 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
           state[i] = (left_pitch + right_pitch) / 2.0;
         }
 
-        if (isnan(state[i]) || isinf(state[i]) || abs(state[i]) > M_PI)
+        if (isnan(state[i]) || isinf(state[i]) || abs(state[i]) > M_PI_2)
         {
           // printf("got invalid roll %f from %f %f diff %f %f\n", state[i], front_left_height, front_right_height,
           // diff, (diff) / (0.737 * 2)); printf("got invalid roll at points (%f %f) (%f, %f)\n", front_left.x,
@@ -188,8 +188,12 @@ void RacerDubinsElevation::computeDynamics(const Eigen::Ref<const state_array>& 
     brake = this->params_.c_b[index] * control(0) * state(0);
   }
 
-  state_der(0) = (!enable_brake) * throttle + (enable_brake)*brake - this->params_.c_v[index] * state(0) +
-                 this->params_.c_0 - this->params_.gravity * sinf(state(6));
+  state_der(0) =
+      (!enable_brake) * throttle + (enable_brake)*brake - this->params_.c_v[index] * state(0) + this->params_.c_0;
+  if (abs(state[6]) < M_PI_2)
+  {
+    state_der[0] -= this->params_.gravity * sinf(state[6]);
+  }
   state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4) / this->params_.steer_angle_scale[index]);
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
@@ -210,8 +214,12 @@ __device__ void RacerDubinsElevation::computeDynamics(float* state, float* contr
     brake = this->params_.c_b[index] * control[0] * state[0];
   }
 
-  state_der[0] = (!enable_brake) * throttle + (enable_brake)*brake - this->params_.c_v[index] * state[0] +
-                 this->params_.c_0 - this->params_.gravity * sinf(state[6]);
+  state_der[0] =
+      (!enable_brake) * throttle + (enable_brake)*brake - this->params_.c_v[index] * state[0] + this->params_.c_0;
+  if (abs(state[6]) < M_PI_2)
+  {
+    state_der[0] -= this->params_.gravity * sinf(state[6]);
+  }
   state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4] / this->params_.steer_angle_scale[index]);
   state_der[2] = state[0] * cosf(state[1]);
   state_der[3] = state[0] * sinf(state[1]);
