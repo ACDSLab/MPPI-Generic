@@ -173,7 +173,7 @@ Eigen::Vector3f RacerSuspension::get_position(const Eigen::Ref<const state_array
 void RacerSuspension::enforceLeash(const Eigen::Ref<const state_array>& state_true,
                                    const Eigen::Ref<const state_array>& state_nominal,
                                    const Eigen::Ref<const state_array>& leash_values,
-                                   Eigen::Ref<state_array>& state_output)
+                                   Eigen::Ref<state_array> state_output)
 {
   // update state_output for leash, need to handle x and y positions specially, convert to body frame and leash in body
   // frame. transform x and y into body frame
