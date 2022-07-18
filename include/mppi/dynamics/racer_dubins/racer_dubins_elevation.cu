@@ -143,14 +143,7 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
           back_diff = max(min(back_diff, 0.736 * 2), -0.736 * 2);
           float front_roll = asinf(front_diff / (0.737 * 2));
           float back_roll = asinf(back_diff / (0.737 * 2));
-          if (abs(front_roll) > abs(back_roll))
-          {
-            state[i] = front_roll;
-          }
-          else
-          {
-            state[i] = back_roll;
-          }
+          state[i] = (front_roll + back_roll) / 2.0;
         }
         if (i == 6)
         {
@@ -160,14 +153,7 @@ __device__ void RacerDubinsElevation::updateState(float* state, float* state_der
           right_diff = max(min(right_diff, 2.98), -2.98);
           float left_pitch = asinf((left_diff) / 2.981);
           float right_pitch = asinf((right_diff) / 2.981);
-          if (abs(left_pitch) > abs(right_pitch))
-          {
-            state[i] = left_pitch;
-          }
-          else
-          {
-            state[i] = right_pitch;
-          }
+          state[i] = (left_pitch + right_pitch) / 2.0;
         }
 
         if (isnan(state[i]) || isinf(state[i]) || abs(state[i]) > M_PI)
@@ -192,35 +178,43 @@ void RacerDubinsElevation::computeDynamics(const Eigen::Ref<const state_array>& 
                                            Eigen::Ref<state_array> state_der)
 {
   bool enable_brake = control(0) < 0;
+  int index = (abs(state(0)) > 0.5 && abs(state(0)) <= 6.0) + (abs(state(0)) > 6.0) * 2;
   // applying position throttle
-  state_der(0) = (!enable_brake) * this->params_.c_t * control(0) +
-                 (enable_brake) * this->params_.c_b * control(0) * (state(0) >= 0 ? 1 : -1) -
-                 this->params_.c_v * state(0) + this->params_.c_0;
-  if (abs(state[6]) < M_PI)
+  float throttle = this->params_.c_t[index] * control(0);
+  float brake = this->params_.c_b[index] * control(0) * (state(0) >= 0 ? 1 : -1);
+  if (abs(state(0)) <= 0.5)
   {
-    state_der[0] -= this->params_.gravity * sinf(state[6]);
+    throttle = this->params_.c_t[index] * max(control(0) - this->params_.low_min_throttle, 0.0f);
+    brake = this->params_.c_b[index] * control(0) * state(0);
   }
-  state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4));
+
+  state_der(0) = (!enable_brake) * throttle + (enable_brake)*brake - this->params_.c_v[index] * state(0) +
+                 this->params_.c_0 - this->params_.gravity * sinf(state(6));
+  state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4) / this->params_.steer_angle_scale[index]);
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
-  state_der(4) = (control(1) / this->params_.steer_command_angle_scale - state(4)) * this->params_.steering_constant;
+  state_der(4) = (control(1) * this->params_.steer_command_angle_scale - state(4)) * this->params_.steering_constant;
   state_der(4) = max(min(state_der(4), this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
 
 __device__ void RacerDubinsElevation::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
 {
   bool enable_brake = control[0] < 0;
+  int index = (abs(state[0]) > 0.5 && abs(state[0]) <= 6.0) + (abs(state[0]) > 6.0) * 2;
   // applying position throttle
-  state_der[0] = (!enable_brake) * this->params_.c_t * control[0] +
-                 (enable_brake) * this->params_.c_b * control[0] * (state[0] >= 0 ? 1 : -1) -
-                 this->params_.c_v * state[0] + this->params_.c_0;
-  if (abs(state[6]) < M_PI)
+  float throttle = this->params_.c_t[index] * control[0];
+  float brake = this->params_.c_b[index] * control[0] * (state[0] >= 0 ? 1 : -1);
+  if (abs(state[0]) <= 0.5)
   {
-    state_der[0] -= this->params_.gravity * sinf(state[6]);
+    throttle = this->params_.c_t[index] * max(control[0] - this->params_.low_min_throttle, 0.0f);
+    brake = this->params_.c_b[index] * control[0] * state[0];
   }
-  state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4]);
+
+  state_der[0] = (!enable_brake) * throttle + (enable_brake)*brake - this->params_.c_v[index] * state[0] +
+                 this->params_.c_0 - this->params_.gravity * sinf(state[6]);
+  state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4] / this->params_.steer_angle_scale[index]);
   state_der[2] = state[0] * cosf(state[1]);
   state_der[3] = state[0] * sinf(state[1]);
-  state_der[4] = (control[1] / this->params_.steer_command_angle_scale - state[4]) * this->params_.steering_constant;
+  state_der[4] = (control[1] * this->params_.steer_command_angle_scale - state[4]) * this->params_.steering_constant;
   state_der[4] = max(min(state_der[4], this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }

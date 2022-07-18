@@ -7,13 +7,13 @@ void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(const Eigen::Ref<const
 {
   bool enable_brake = control(0) < 0;
   // applying position throttle
-  state_der(0) = (!enable_brake) * this->params_.c_t * control(0) +
-                 (enable_brake) * this->params_.c_b * control(0) * (state(0) >= 0 ? 1 : -1) -
-                 this->params_.c_v * state(0) + this->params_.c_0;
+  state_der(0) = (!enable_brake) * this->params_.c_t[0] * control(0) +
+                 (enable_brake) * this->params_.c_b[0] * control(0) * (state(0) >= 0 ? 1 : -1) -
+                 this->params_.c_v[0] * state(0) + this->params_.c_0;
   state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4));
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
-  state_der(4) = (control(1) / this->params_.steer_command_angle_scale - state(4)) * this->params_.steering_constant;
+  state_der(4) = (control(1) * this->params_.steer_command_angle_scale - state(4)) * this->params_.steering_constant;
   state_der(4) = max(min(state_der(4), this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
 
@@ -92,13 +92,13 @@ __device__ void RacerDubinsImpl<CLASS_T, STATE_DIM>::computeDynamics(float* stat
 {
   bool enable_brake = control[0] < 0;
   // applying position throttle
-  state_der[0] = (!enable_brake) * this->params_.c_t * control[0] +
-                 (enable_brake) * this->params_.c_b * control[0] * (state[0] >= 0 ? 1 : -1) -
-                 this->params_.c_v * state[0] + this->params_.c_0;
-  state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4]);
+  state_der[0] = (!enable_brake) * this->params_.c_t[0] * control[0] +
+                 (enable_brake) * this->params_.c_b[0] * control[0] * (state[0] >= 0 ? 1 : -1) -
+                 this->params_.c_v[0] * state[0] + this->params_.c_0;
+  state_der[1] = (state[0] / this->params_.wheel_base) * tan(state[4] / this->params_.steer_angle_scale[0]);
   state_der[2] = state[0] * cosf(state[1]);
   state_der[3] = state[0] * sinf(state[1]);
-  state_der[4] = (control[1] / this->params_.steer_command_angle_scale - state[4]) * this->params_.steering_constant;
+  state_der[4] = (control[1] * this->params_.steer_command_angle_scale - state[4]) * this->params_.steering_constant;
   state_der[4] = max(min(state_der[4], this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
 

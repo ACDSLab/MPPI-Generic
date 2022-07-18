@@ -26,7 +26,7 @@ public:
 TEST_F(RacerDubinsElevationTest, Template)
 {
   auto dynamics = RacerDubinsElevation();
-  EXPECT_EQ(7, RacerDubinsElevation::STATE_DIM);
+  EXPECT_EQ(9, RacerDubinsElevation::STATE_DIM);
   EXPECT_EQ(2, RacerDubinsElevation::CONTROL_DIM);
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
 }
@@ -66,10 +66,10 @@ TEST_F(RacerDubinsElevationTest, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(5), 0.153);
   EXPECT_FLOAT_EQ(next_x(6), 0.153);
 
-  x << 1, M_PI_2, 0, 3, 0, 0.5, -0.5;
+  x << 1, M_PI_2, 0, 3, 0, 0.5, -0.5, 0.0, 0.0;
   u << 1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 1.3 - 3.7);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 2.6 - 4.7 - sinf(-0.5) * -9.81);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_NEAR(next_x(2), 0, 1e-7);
   EXPECT_FLOAT_EQ(next_x(3), 1);
@@ -77,21 +77,21 @@ TEST_F(RacerDubinsElevationTest, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(5), 0.153);
   EXPECT_FLOAT_EQ(next_x(6), 0.153);
 
-  x << 1, 0, 0, 3, 0, 0.5, -0.5;
+  x << 1, M_PI_2, 0, 3, 0, 0.5, -0.5, 0.0, 0.0;
   u << -1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 2.5 - 3.7);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.5 - 4.7 - sinf(-0.5) * -9.81);
   EXPECT_FLOAT_EQ(next_x(1), 0);
-  EXPECT_FLOAT_EQ(next_x(2), 1);
-  EXPECT_FLOAT_EQ(next_x(3), 0);
+  EXPECT_NEAR(next_x(2), 0, 1e-7);
+  EXPECT_FLOAT_EQ(next_x(3), 1);
   EXPECT_FLOAT_EQ(next_x(4), 0);
   EXPECT_FLOAT_EQ(next_x(5), 0.153);
   EXPECT_FLOAT_EQ(next_x(6), 0.153);
 
-  x << -1, 0, 0, 3, 0, 0.5, -0.5;
+  x << -1, 0, 0, 3, 0, 0.5, -0.5, 0.0, 0.0;
   u << 1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 3.7 + 1.3);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 4.7 + 2.6 - sinf(-0.5) * -9.81);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_FLOAT_EQ(next_x(3), 0);
@@ -99,10 +99,10 @@ TEST_F(RacerDubinsElevationTest, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(5), 0.153);
   EXPECT_FLOAT_EQ(next_x(6), 0.153);
 
-  x << -1, 0, 0, 3, 0, 0.5, -0.5;
+  x << -1, 0, 0, 3, 0, 0.5, -0.5, 0.0, 0.0;
   u << -1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 2.5 + 3.7);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 3.5 + 4.7 - sinf(-0.5) * -9.81);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_FLOAT_EQ(next_x(3), 0);
@@ -110,47 +110,91 @@ TEST_F(RacerDubinsElevationTest, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(5), 0.153);
   EXPECT_FLOAT_EQ(next_x(6), 0.153);
 
-  x << -3, 0, 0, 3, 0, 0.5, -0.5;
-  u << -1, 0;
+  x << 7, 0, 0, 3, 0, 0.5, -0.5, 0.0, 0.0;
+  u << 1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 2.5 + 3.7 * 3);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 3.9 - 5.7 * 7 - sinf(-0.5) * -9.81);
   EXPECT_FLOAT_EQ(next_x(1), 0);
-  EXPECT_FLOAT_EQ(next_x(2), -3);
+  EXPECT_FLOAT_EQ(next_x(2), 7);
   EXPECT_FLOAT_EQ(next_x(3), 0);
   EXPECT_FLOAT_EQ(next_x(4), 0);
   EXPECT_FLOAT_EQ(next_x(5), 0.153);
   EXPECT_FLOAT_EQ(next_x(6), 0.153);
 
-  x << 4, 0, 0, 3, 0, 0.5, -0.5;
-  u << -1, 0;
+  x << -7, 0, 0, 3, 0, 0.5, -0.5, 0.0, 0.0;
+  u << 1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 2.5 - 3.7 * 4);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 3.9 + 5.7 * 7 - sinf(-0.5) * -9.81);
   EXPECT_FLOAT_EQ(next_x(1), 0);
-  EXPECT_FLOAT_EQ(next_x(2), 4);
+  EXPECT_FLOAT_EQ(next_x(2), -7);
   EXPECT_FLOAT_EQ(next_x(3), 0);
   EXPECT_FLOAT_EQ(next_x(4), 0);
   EXPECT_FLOAT_EQ(next_x(5), 0.153);
   EXPECT_FLOAT_EQ(next_x(6), 0.153);
 
-  x << 1, M_PI, 0, 3, 0, 0.5, -0.5;
+  x << 7, 0, 0, 3, 0, 0.5, -0.5, 0.0, 0.0;
+  u << -1, 0;
+  dynamics.computeDynamics(x, u, next_x);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 4.5 - 5.7 * 7 - sinf(-0.5) * -9.81);
+  EXPECT_FLOAT_EQ(next_x(1), 0);
+  EXPECT_FLOAT_EQ(next_x(2), 7);
+  EXPECT_FLOAT_EQ(next_x(3), 0);
+  EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0.153);
+  EXPECT_FLOAT_EQ(next_x(6), 0.153);
+
+  x << -7, 0, 0, 3, 0, 0.5, -0.5, 0.0, 0.0;
+  u << -1, 0;
+  dynamics.computeDynamics(x, u, next_x);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 4.5 + 5.7 * 7 - sinf(-0.5) * -9.81);
+  EXPECT_FLOAT_EQ(next_x(1), 0);
+  EXPECT_FLOAT_EQ(next_x(2), -7);
+  EXPECT_FLOAT_EQ(next_x(3), 0);
+  EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0.153);
+  EXPECT_FLOAT_EQ(next_x(6), 0.153);
+
+  x << 1, M_PI_2, 0, 3, 0, 0.5, -0.5, 0.0, 0.0;
   u << 0, 1;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 4.7 - sinf(-0.5) * -9.81);
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0));
-  EXPECT_FLOAT_EQ(next_x(2), -1);
-  EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), -1 / 2.45);
+  EXPECT_NEAR(next_x(2), 0, 1e-7);
+  EXPECT_FLOAT_EQ(next_x(3), 1);
+  EXPECT_FLOAT_EQ(next_x(4), 5 * 0.6);
   EXPECT_FLOAT_EQ(next_x(5), 0.153);
   EXPECT_FLOAT_EQ(next_x(6), 0.153);
 
-  x << 1, M_PI, 0, 0, 0.5, 0.5, -0.5;
-  u << 1, -1;
+  x << -1, M_PI_2, 0, 3, 5.0, 0.5, -0.5, 0.0, 0.0;
+  u << -1, -1;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7 + 1.3);
-  EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0.5));
-  EXPECT_FLOAT_EQ(next_x(2), -1);
-  EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), 1 / 2.45);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 4.7 + 3.5 - sinf(-0.5) * -9.81);
+  EXPECT_FLOAT_EQ(next_x(1), (-1 / .3) * tan(5.0 / -10.2));
+  EXPECT_NEAR(next_x(2), 0, 1e-7);
+  EXPECT_FLOAT_EQ(next_x(3), -1);
+  EXPECT_FLOAT_EQ(next_x(4), -5);
+  EXPECT_FLOAT_EQ(next_x(5), 0.153);
+  EXPECT_FLOAT_EQ(next_x(6), 0.153);
+
+  x << -0.4, M_PI_2, 0, 3, 5.0, 0.5, -0.5, 0.0, 0.0;
+  u << -1, -1;
+  dynamics.computeDynamics(x, u, next_x);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 + 3.7 * 0.4 + 2.5 * 0.4 - sinf(-0.5) * -9.81);
+  EXPECT_FLOAT_EQ(next_x(1), (-0.4 / .3) * tan(5.0 / -9.1));
+  EXPECT_NEAR(next_x(2), 0, 1e-7);
+  EXPECT_FLOAT_EQ(next_x(3), -0.4);
+  EXPECT_FLOAT_EQ(next_x(4), -5);
+  EXPECT_FLOAT_EQ(next_x(5), 0.153);
+  EXPECT_FLOAT_EQ(next_x(6), 0.153);
+
+  x << 0.4, M_PI_2, 0, 3, 5.0, 0.5, -0.5, 0.0, 0.0;
+  u << 0.1, -1;
+  dynamics.computeDynamics(x, u, next_x);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7 * 0.4 - sinf(-0.5) * -9.81);
+  EXPECT_FLOAT_EQ(next_x(1), (0.4 / .3) * tan(5.0 / -9.1));
+  EXPECT_NEAR(next_x(2), 0, 1e-7);
+  EXPECT_FLOAT_EQ(next_x(3), 0.4);
+  EXPECT_FLOAT_EQ(next_x(4), -5);
   EXPECT_FLOAT_EQ(next_x(5), 0.153);
   EXPECT_FLOAT_EQ(next_x(6), 0.153);
 }
@@ -166,8 +210,8 @@ TEST_F(RacerDubinsElevationTest, TestModelGPU)
   Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, 100> state_trajectory;
   state_trajectory = Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, 100>::Random();
 
-  std::vector<std::array<float, 7>> s(100);
-  std::vector<std::array<float, 7>> s_der(100);
+  std::vector<std::array<float, 9>> s(100);
+  std::vector<std::array<float, 9>> s_der(100);
   // steering, throttle
   std::vector<std::array<float, 2>> u(100);
   for (int state_index = 0; state_index < s.size(); state_index++)
@@ -188,7 +232,7 @@ TEST_F(RacerDubinsElevationTest, TestModelGPU)
   // Run dynamics on GPU
   for (int y_dim = 1; y_dim <= 4; y_dim++)
   {
-    launchComputeDynamicsTestKernel<RacerDubinsElevation, 7, 2>(dynamics, s, u, s_der, y_dim);
+    launchComputeDynamicsTestKernel<RacerDubinsElevation, 9, 2>(dynamics, s, u, s_der, y_dim);
     for (int point = 0; point < 100; point++)
     {
       RacerDubinsElevation::state_array state = state_trajectory.col(point);
@@ -196,9 +240,10 @@ TEST_F(RacerDubinsElevationTest, TestModelGPU)
       RacerDubinsElevation::state_array state_der_cpu = RacerDubinsElevation::state_array::Zero();
 
       dynamics.computeDynamics(state, control, state_der_cpu);
-      for (int dim = 0; dim < RacerDubinsElevation::STATE_DIM; dim++)
+      for (int dim = 0; dim < 6; dim++)
       {
-        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5)
+            << "at point " << point << " dim " << dim << " with y_dim " << y_dim;
         EXPECT_TRUE(isfinite(s_der[point][dim]));
       }
     }
@@ -225,7 +270,7 @@ TEST_F(RacerDubinsElevationTest, TestUpdateState)
   EXPECT_FLOAT_EQ(state(1), 0.1);
   EXPECT_FLOAT_EQ(state(2), 0.1);
   EXPECT_FLOAT_EQ(state(3), 0.1);
-  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 0.1));
+  EXPECT_FLOAT_EQ(state(4), 0.1);
   EXPECT_FLOAT_EQ(state(5), 0.0);
   EXPECT_FLOAT_EQ(state(6), 0.0);
 
@@ -237,7 +282,7 @@ TEST_F(RacerDubinsElevationTest, TestUpdateState)
   EXPECT_FLOAT_EQ(state(1), 1.0 - M_PI - 0.1);
   EXPECT_FLOAT_EQ(state(2), 1.0);
   EXPECT_FLOAT_EQ(state(3), 1.0);
-  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
+  EXPECT_FLOAT_EQ(state(4), 0.5);
   EXPECT_FLOAT_EQ(state(5), 0.0);
   EXPECT_FLOAT_EQ(state(6), 0.0);
 
@@ -249,7 +294,7 @@ TEST_F(RacerDubinsElevationTest, TestUpdateState)
   EXPECT_FLOAT_EQ(state(1), M_PI + 0.1 - 1.0);
   EXPECT_FLOAT_EQ(state(2), 1.0);
   EXPECT_FLOAT_EQ(state(3), 1.0);
-  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
+  EXPECT_FLOAT_EQ(state(4), 0.5);
   EXPECT_FLOAT_EQ(state(5), 0.0);
   EXPECT_FLOAT_EQ(state(6), 0.0);
 
@@ -293,8 +338,8 @@ TEST_F(RacerDubinsElevationTest, TestUpdateStateGPU)
   Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, 100> state_trajectory;
   state_trajectory = Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, 100>::Random();
 
-  std::vector<std::array<float, 7>> s(100);
-  std::vector<std::array<float, 7>> s_der(100);
+  std::vector<std::array<float, 9>> s(100);
+  std::vector<std::array<float, 9>> s_der(100);
   // steering, throttle
   std::vector<std::array<float, 2>> u(100);
 
@@ -344,9 +389,9 @@ TEST_F(RacerDubinsElevationTest, ComputeStateTrajectoryFiniteTest)
 {
   RacerDubinsElevation dynamics = RacerDubinsElevation();
   RacerDubinsParams params;
-  params.c_t = 3.0;
-  params.c_b = 0.2;
-  params.c_v = 0.2;
+  params.c_t[0] = 3.0;
+  params.c_b[0] = 0.2;
+  params.c_v[0] = 0.2;
   params.c_0 = 0.2;
   params.wheel_base = 3.0;
   params.steering_constant = 1.0;
