@@ -53,8 +53,8 @@ public:
   void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                          Eigen::Ref<state_array> state_der);
 
-  void step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state, Eigen::Ref<state_array>& state_der,
-            const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array>& output, const float t,
+  void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
+            const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,
             const float dt);
 
   // __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);

@@ -213,51 +213,54 @@ TEST_F(RacerDubinsElevationTest, TestUpdateState)
   CudaCheckError();
   RacerDubinsElevation dynamics = RacerDubinsElevation();
   RacerDubinsElevation::state_array state;
+  RacerDubinsElevation::state_array next_state;
   RacerDubinsElevation::state_array state_der;
 
   // TODO add in the elevation map
 
   state << 0, 0, 0, 0, 0, -0.5, 0.5;
   state_der << 1, 1, 1, 1, 1, 0, 0;
-  dynamics.updateState(state, state_der, 0.1);
+  dynamics.updateState(state, next_state, state_der, 0.1);
   EXPECT_TRUE(state_der == RacerDubinsElevation::state_array::Zero());
-  EXPECT_FLOAT_EQ(state(0), 0.1);
-  EXPECT_FLOAT_EQ(state(1), 0.1);
-  EXPECT_FLOAT_EQ(state(2), 0.1);
-  EXPECT_FLOAT_EQ(state(3), 0.1);
-  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 0.1));
-  EXPECT_FLOAT_EQ(state(5), 0.0);
-  EXPECT_FLOAT_EQ(state(6), 0.0);
+  EXPECT_FLOAT_EQ(next_state(0), 0.1);
+  EXPECT_FLOAT_EQ(next_state(1), 0.1);
+  EXPECT_FLOAT_EQ(next_state(2), 0.1);
+  EXPECT_FLOAT_EQ(next_state(3), 0.1);
+  EXPECT_FLOAT_EQ(next_state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 0.1));
+  EXPECT_FLOAT_EQ(next_state(5), -0.5);
+  EXPECT_FLOAT_EQ(next_state(6), 0.5);
 
   state << 0, M_PI - 0.1, 0, 0, 0, -0.5, 0.5;
   state_der << 1, 1, 1, 1, 1;
-  dynamics.updateState(state, state_der, 1.0);
+  dynamics.updateState(state, next_state, state_der, 1.0);
   EXPECT_TRUE(state_der == RacerDubinsElevation::state_array::Zero());
-  EXPECT_FLOAT_EQ(state(0), 1.0);
-  EXPECT_FLOAT_EQ(state(1), 1.0 - M_PI - 0.1);
-  EXPECT_FLOAT_EQ(state(2), 1.0);
-  EXPECT_FLOAT_EQ(state(3), 1.0);
-  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
-  EXPECT_FLOAT_EQ(state(5), 0.0);
-  EXPECT_FLOAT_EQ(state(6), 0.0);
+  EXPECT_FLOAT_EQ(next_state(0), 1.0);
+  EXPECT_FLOAT_EQ(next_state(1), 1.0 - M_PI - 0.1);
+  EXPECT_FLOAT_EQ(next_state(2), 1.0);
+  EXPECT_FLOAT_EQ(next_state(3), 1.0);
+  EXPECT_FLOAT_EQ(next_state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
+  EXPECT_FLOAT_EQ(next_state(5), -0.5);
+  EXPECT_FLOAT_EQ(next_state(6), 0.5);
 
   state << 0, -M_PI + 0.1, 0, 0, 0, -0.5, 0.5;
   state_der << 1, -1, 1, 1, 1;
-  dynamics.updateState(state, state_der, 1.0);
+  dynamics.updateState(state, next_state, state_der, 1.0);
   EXPECT_TRUE(state_der == RacerDubinsElevation::state_array::Zero());
-  EXPECT_FLOAT_EQ(state(0), 1.0);
-  EXPECT_FLOAT_EQ(state(1), M_PI + 0.1 - 1.0);
-  EXPECT_FLOAT_EQ(state(2), 1.0);
-  EXPECT_FLOAT_EQ(state(3), 1.0);
-  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
-  EXPECT_FLOAT_EQ(state(5), 0.0);
-  EXPECT_FLOAT_EQ(state(6), 0.0);
+  EXPECT_FLOAT_EQ(next_state(0), 1.0);
+  EXPECT_FLOAT_EQ(next_state(1), M_PI + 0.1 - 1.0);
+  EXPECT_FLOAT_EQ(next_state(2), 1.0);
+  EXPECT_FLOAT_EQ(next_state(3), 1.0);
+  EXPECT_FLOAT_EQ(next_state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
+  EXPECT_FLOAT_EQ(next_state(5), -0.5);
+  EXPECT_FLOAT_EQ(next_state(6), 0.5);
 
   CudaCheckError();
 }
 
-TEST_F(RacerDubinsElevationTest, TestUpdateStateGPU)
+TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPU)
 {
+  const int num_rollouts = 75;
+  const float dt = 0.1f;
   CudaCheckError();
   RacerDubinsElevation dynamics = RacerDubinsElevation();
 
@@ -288,25 +291,28 @@ TEST_F(RacerDubinsElevationTest, TestUpdateStateGPU)
   dynamics.GPUSetup();
   CudaCheckError();
 
-  Eigen::Matrix<float, RacerDubinsElevation::CONTROL_DIM, 100> control_trajectory;
-  control_trajectory = Eigen::Matrix<float, RacerDubinsElevation::CONTROL_DIM, 100>::Random();
-  Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, 100> state_trajectory;
-  state_trajectory = Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, 100>::Random();
+  Eigen::Matrix<float, RacerDubinsElevation::CONTROL_DIM, num_rollouts> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, RacerDubinsElevation::CONTROL_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, num_rollouts> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, num_rollouts>::Random();
 
-  std::vector<std::array<float, 7>> s(100);
-  std::vector<std::array<float, 7>> s_der(100);
+  std::vector<std::array<float, RacerDubinsElevation::STATE_DIM>> s(num_rollouts);
+  std::vector<std::array<float, RacerDubinsElevation::STATE_DIM>> s_next(num_rollouts);
+  std::vector<std::array<float, RacerDubinsElevation::STATE_DIM>> s_der(num_rollouts);
   // steering, throttle
-  std::vector<std::array<float, 2>> u(100);
+  std::vector<std::array<float, RacerDubinsElevation::CONTROL_DIM>> u(num_rollouts);
 
   RacerDubinsElevation::state_array state;
+  RacerDubinsElevation::state_array next_state_cpu;
   RacerDubinsElevation::control_array control;
+  RacerDubinsElevation::output_array output;
   RacerDubinsElevation::state_array state_der_cpu = RacerDubinsElevation::state_array::Zero();
 
   // Run dynamics on dynamicsU
   // Run dynamics on GPU
   for (int y_dim = 1; y_dim <= 10; y_dim++)
   {
-    for (int state_index = 0; state_index < s.size(); state_index++)
+    for (int state_index = 0; state_index < num_rollouts; state_index++)
     {
       for (int dim = 0; dim < s[0].size(); dim++)
       {
@@ -318,22 +324,20 @@ TEST_F(RacerDubinsElevationTest, TestUpdateStateGPU)
       }
     }
 
-    launchComputeStateDerivTestKernel<RacerDubinsElevation, RacerDubinsElevation::STATE_DIM,
-                                      RacerDubinsElevation::CONTROL_DIM>(dynamics, s, u, s_der, y_dim);
-    launchUpdateStateTestKernel<RacerDubinsElevation, RacerDubinsElevation::STATE_DIM>(dynamics, s, s_der, 0.1f, y_dim);
-    for (int point = 0; point < 100; point++)
+    launchStepTestKernel<RacerDubinsElevation>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    for (int point = 0; point < num_rollouts; point++)
     {
-      RacerDubinsElevation::state_array state = state_trajectory.col(point);
-      RacerDubinsElevation::control_array control = control_trajectory.col(point);
-      RacerDubinsElevation::state_array state_der_cpu = RacerDubinsElevation::state_array::Zero();
+      state = state_trajectory.col(point);
+      control = control_trajectory.col(point);
+      state_der_cpu = RacerDubinsElevation::state_array::Zero();
 
-      dynamics.computeDynamics(state, control, state_der_cpu);
-      dynamics.updateState(state, state_der_cpu, 0.1f);
+      dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
       for (int dim = 0; dim < RacerDubinsElevation::STATE_DIM; dim++)
       {
         EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
-        EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-        EXPECT_TRUE(isfinite(s[point][dim]));
+        // EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(next_state_cpu(dim), s_next[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s_next[point][dim]));
       }
     }
   }

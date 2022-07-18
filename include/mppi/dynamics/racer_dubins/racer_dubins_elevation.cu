@@ -70,9 +70,9 @@ void RacerDubinsElevation::computeStateDeriv(const Eigen::Ref<const state_array>
 {
 }
 
-void RacerDubinsElevation::step(Eigen::Ref<state_array>& state, Eigen::Ref<state_array>& next_state,
-                                Eigen::Ref<state_array>& state_der, const Eigen::Ref<const control_array>& control,
-                                Eigen::Ref<output_array>& output, const float t, const float dt)
+void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                                Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
+                                Eigen::Ref<output_array> output, const float t, const float dt)
 {
   // computeStateDeriv(state, control, state_der);
   float pitch = 0;
