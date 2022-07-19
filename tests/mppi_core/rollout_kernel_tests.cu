@@ -375,9 +375,9 @@ TEST(RolloutKernel, compTestGenVsFastRollout)
 {
   cudaStream_t stream;
   cudaStreamCreate(&stream);
-  const int MPPI_NUM_ROLLOUTS__ = 1920;
-  const int NUM_TIMESTEPS = 8;
-  const int BLOCKSIZE_X = 8;
+  const int MPPI_NUM_ROLLOUTS__ = 128;
+  const int NUM_TIMESTEPS = 250;
+  const int BLOCKSIZE_X = 32;
   const int BLOCKSIZE_Y = 16;
   // typedef CartpoleDynamics DynamicsModel;
   // typedef CartpoleQuadraticCost MPPICostFunction;
@@ -477,10 +477,6 @@ TEST(RolloutKernel, compTestGenVsFastRollout)
     noise = distribution(generator);
   }
 
-  // launchAutorallyRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X,
-  //                                  BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
-  //                                               control_noise_array, control_std_dev, costs_autorally,
-  //                                               control_noise_autorally, 0, 0);
   launchGenericRolloutKernelTest<DynamicsModel, MPPICostFunction, MPPI_NUM_ROLLOUTS__, NUM_TIMESTEPS, BLOCKSIZE_X,
                                  BLOCKSIZE_Y>(dynamics, costs, dt, lambda, alpha, state_array, control_array,
                                               control_noise_array, control_std_dev, costs_generic,
@@ -493,9 +489,20 @@ TEST(RolloutKernel, compTestGenVsFastRollout)
 
   array_expect_float_eq<NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM>(control_noise_generic,
                                                                                           control_noise_fast);
-  // array_expect_near<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_fast, 1.0);
+  array_expect_near<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_fast, 0.01);
   // array_expect_float_eq<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_fast);
-  ASSERT_EQ(costs_generic[10], costs_fast[10]);
+  // std::cout << "Generic: ";
+  // for (int s = 0; s < MPPI_NUM_ROLLOUTS__; ++s)
+  // {
+  //   std::cout << ", " << costs_generic[s];
+  // }
+  // std::cout << std::endl;
+  // std::cout << "FastKer: ";
+  // for (int s = 0; s < MPPI_NUM_ROLLOUTS__; ++s)
+  // {
+  //   std::cout << ", " << costs_fast[s];
+  // }
+  // std::cout << std::endl;
 
   delete costs;
   delete dynamics;

@@ -86,7 +86,8 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
             (costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t, theta_c, crash_status) - running_cost) /
             (t);
         // running_cost +=
-        //     costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t, theta_c, crash_status) / num_timesteps;
+        //     costs->computeRunningCost(x, u, du, sigma_u, lambda, alpha, t, theta_c, crash_status) / (num_timesteps -
+        //     1);
       }
 
       // Compute state derivatives
@@ -270,7 +271,7 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int 
 
   /*<----Start of simulation loop-----> */
   costs->initializeCosts(x, u, theta_c, 0.0, dt);
-  for (int time_iter = 0; time_iter < ceilf(num_timesteps / blockDim.x); ++time_iter)
+  for (int time_iter = 0; time_iter < ceilf((float)num_timesteps / blockDim.x); ++time_iter)
   {
     int t = thread_idx + time_iter * blockDim.x + 1;
     // Load noise trajectories scaled by the exploration factor
@@ -304,9 +305,6 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int 
       {
         u[j] = du_d[control_index];
         du[j] = u[j] - u_d[t * DYN_T::CONTROL_DIM + j];
-        // if (isnan(u_d[control_index])){
-        //   printf("Global mem NAN at Rollout %d, t: %4d, c_dim: %d, ind: %d\n", global_idx, t, j, control_index);
-        // }
       }
     }
     __syncthreads();
@@ -386,10 +384,12 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int 
   __syncthreads();
   // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0)
   // {
-  //   printf("Summed Costs: running_cost %f, running_cost_shared %f\n", running_cost[0], running_cost_shared[0]);
+  //   printf("Summed Costs: running_cost %f, running_cost_shared %f\n", running_cost[0] / (num_timesteps - 1),
+  //          running_cost_shared[0] / (num_timesteps - 1));
   // }
   // Compute terminal cost and the final cost for each thread
-  computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost[0] / num_timesteps, theta_c, trajectory_costs_d);
+  computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, x, running_cost[0] / (num_timesteps - 1), theta_c,
+                     trajectory_costs_d);
 }
 
 __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float lambda_inv, float baseline)
