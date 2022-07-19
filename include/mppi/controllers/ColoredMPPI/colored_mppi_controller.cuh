@@ -16,7 +16,7 @@ template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
 struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 {
   std::vector<float> colored_noise_exponents_;
-  float state_leash_dist_[S_DIM] = { 0 };
+  Eigen::Matrix<float, S_DIM, 1> state_leash_dist_ = Eigen::Matrix<float, S_DIM, 1>::Zero();
 
   ColoredMPPIParams() = default;
   ColoredMPPIParams(const ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)
@@ -116,6 +116,16 @@ public:
     return this->params_.state_leash_dist_[index];
   }
 
+  bool getLeashActive()
+  {
+    return leash_active_;
+  }
+  
+  void setLeashActive(bool new_leash_active)
+  {
+    leash_active_ = new_leash_active;
+  }
+
   void calculateSampledStateTrajectories() override;
 
 protected:
@@ -128,6 +138,7 @@ protected:
 
   void smoothControlTrajectory();
   int leash_jump_ = 1;
+  bool leash_active_ = false;
 
 private:
   // ======== MUST BE OVERWRITTEN =========

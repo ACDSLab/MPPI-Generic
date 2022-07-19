@@ -62,19 +62,10 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 {
   // this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
   state_array local_state = state;
-  for (int i = 0; i < DYN_T::STATE_DIM; i++)
+
+  if (getLeashActive())
   {
-    float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
-    if (getStateLeashLength(i) < diff)
-    {
-      float leash_dir =
-          fminf(fmaxf(this->state_.col(leash_jump_)[i] - state[i], -getStateLeashLength(i)), getStateLeashLength(i));
-      local_state[i] = state[i] + leash_dir;
-    }
-    else
-    {
-      local_state[i] = this->state_.col(leash_jump_)[i];
-    }
+    this->model_->enforceLeash(state, this->state_.col(leash_jump_), this->params_.state_leash_dist_, local_state);
   }
 
   // Send the initial condition to the device

@@ -169,3 +169,60 @@ Eigen::Vector3f RacerSuspension::get_position(const Eigen::Ref<const state_array
 {
   return Eigen::Vector3f(state[STATE_PX], state[STATE_PY], state[STATE_PZ]);
 }
+
+void RacerSuspension::enforceLeash(const Eigen::Ref<const state_array>& state_true,
+                                   const Eigen::Ref<const state_array>& state_nominal,
+                                   const Eigen::Ref<const state_array>& leash_values,
+                                   Eigen::Ref<state_array> state_output)
+{
+  // update state_output for leash, need to handle x and y positions specially, convert to body frame and leash in body
+  // frame. transform x and y into body frame
+  float dx = state_nominal[S_INDEX(POS_X)] - state_true[S_INDEX(POS_X)];
+  float dy = state_nominal[S_INDEX(POS_Y)] - state_true[S_INDEX(POS_Y)];
+  float dx_body = dx * cos(state_true[S_INDEX(YAW)]) + dy * sin(state_true[S_INDEX(YAW)]);
+  float dy_body = -dx * sin(state_true[S_INDEX(YAW)]) + dy * cos(state_true[S_INDEX(YAW)]);
+
+  // determine leash in body frame
+  float x_leash = leash_values[S_INDEX(POS_X)];
+  float y_leash = leash_values[S_INDEX(POS_Y)];
+  dx_body = fminf(fmaxf(dx_body, -x_leash), x_leash);
+  dy_body = fminf(fmaxf(dy_body, -y_leash), y_leash);
+
+  // transform back to map frame
+  dx = dx_body * cos(state_true[S_INDEX(YAW)]) + -dy_body * sin(state_true[S_INDEX(YAW)]);
+  dy = dx_body * sin(state_true[S_INDEX(YAW)]) + dy_body * cos(state_true[S_INDEX(YAW)]);
+
+  // apply leash
+  state_output[S_INDEX(POS_X)] += dx;
+  state_output[S_INDEX(POS_Y)] += dy;
+
+  // handle leash for rest of states
+  float diff;
+  for (int i = 0; i < STATE_DIM; i++)
+  {
+    // use body x and y for leash
+    if (i == S_INDEX(POS_X) || i == S_INDEX(POS_Y))
+    {
+      // handle outside for loop
+      continue;
+    }
+    else if (i == S_INDEX(YAW))
+    {
+      diff = fabsf(angle_utils::shortestAngularDistance(state_nominal[i], state[i]));
+    }
+    else
+    {
+      diff = fabsf(state_nominal[i] - state[i]);
+    }
+
+    if (leash_values[i] < diff)
+    {
+      float leash_dir = fminf(fmaxf(state_nominal[i] - state[i], -leash_values[i]), leash_values[i]);
+      state_output[i] = state_true[i] + leash_dir;
+    }
+    else
+    {
+      state_output[i] = state_nominal[i];
+    }
+  }
+}
