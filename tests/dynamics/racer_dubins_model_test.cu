@@ -8,7 +8,7 @@
 TEST(RacerDubins, Template)
 {
   auto dynamics = RacerDubins();
-  EXPECT_EQ(5, RacerDubins::STATE_DIM);
+  EXPECT_EQ(7, RacerDubins::STATE_DIM);
   EXPECT_EQ(2, RacerDubins::CONTROL_DIM);
 }
 
@@ -109,7 +109,7 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), -1 / 2.45);
+  EXPECT_FLOAT_EQ(next_x(4), -1 * 2.45);
 
   x << 1, M_PI, 0, 0, 0.5;
   u << 1, -1;
@@ -118,7 +118,7 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0.5));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), 1 / 2.45);
+  EXPECT_FLOAT_EQ(next_x(4), 1 * 2.45);
 }
 
 TEST(RacerDubins, TestModelGPU)
@@ -219,8 +219,8 @@ TEST(RacerDubins, TestUpdateStateGPU)
   Eigen::Matrix<float, RacerDubins::STATE_DIM, 100> state_trajectory;
   state_trajectory = Eigen::Matrix<float, RacerDubins::STATE_DIM, 100>::Random();
 
-  std::vector<std::array<float, 5>> s(100);
-  std::vector<std::array<float, 5>> s_der(100);
+  std::vector<std::array<float, 7>> s(100);
+  std::vector<std::array<float, 7>> s_der(100);
   // steering, throttle
   std::vector<std::array<float, 2>> u(100);
 
@@ -270,9 +270,9 @@ TEST(RacerDubins, ComputeStateTrajectoryFiniteTest)
 {
   RacerDubins dynamics = RacerDubins();
   RacerDubinsParams params;
-  params.c_t = 3.0;
-  params.c_b = 0.2;
-  params.c_v = 0.2;
+  params.c_t[0] = 3.0;
+  params.c_b[0] = 0.2;
+  params.c_v[0] = 0.2;
   params.c_0 = 0.2;
   params.wheel_base = 3.0;
   params.steering_constant = 1.0;
