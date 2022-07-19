@@ -11,18 +11,12 @@ __global__ void runGPUDynamics(DYN_T* dynamics, const int num_timesteps, float d
                                float* __restrict__ output_d)
 {
   __shared__ float x_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z * 2];
-  // __shared__ float x_next_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
   __shared__ float x_dot_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
   __shared__ float u_shared[DYN_T::CONTROL_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
   __shared__ float y_shared[DYN_T::OUTPUT_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
   __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
 
   int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (global_idx >= NUM_ROLLOUTS)
-  {
-    printf("Num Rollouts: %d, global_idx: %d, thread_idy: %d thread_idz: %d\n", NUM_ROLLOUTS, global_idx, threadIdx.y,
-           threadIdx.z);
-  }
   int j = 0;
 
   float* x;
@@ -33,7 +27,6 @@ __global__ void runGPUDynamics(DYN_T* dynamics, const int num_timesteps, float d
   float* y;
 
   x = &x_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x + 0) * DYN_T::STATE_DIM];
-  // x_next = &x_next_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x) * DYN_T::STATE_DIM];
   x_next = &x_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x + 1) * DYN_T::STATE_DIM];
   x_dot = &x_dot_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x) * DYN_T::STATE_DIM];
   u = &u_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x) * DYN_T::CONTROL_DIM];
@@ -59,23 +52,10 @@ __global__ void runGPUDynamics(DYN_T* dynamics, const int num_timesteps, float d
     for (j = threadIdx.y; j < DYN_T::STATE_DIM; j += blockDim.y)
     {
       x_next_d[global_idx * num_timesteps * DYN_T::STATE_DIM + t * DYN_T::STATE_DIM + j] = x[j];
-      // printf("%p\n", &x_next_d[global_idx * num_timesteps * DYN_T::STATE_DIM + t * DYN_T::STATE_DIM + j]);
     }
-    __syncthreads();
     for (j = threadIdx.y; j < DYN_T::OUTPUT_DIM; j += blockDim.y)
     {
       output_d[global_idx * num_timesteps * DYN_T::OUTPUT_DIM + t * DYN_T::OUTPUT_DIM + j] = y[j];
-    }
-    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&
-        blockIdx.z == 0 && t == 1)
-    {
-      printf("Output saved: %p %p\n", x_init_d, output_d);
-      for (int j = 0; j < DYN_T::OUTPUT_DIM; j++)
-      {
-        printf("%6.2f, %6.2f\n", y[j],
-               output_d[global_idx * num_timesteps * DYN_T::OUTPUT_DIM + t * DYN_T::OUTPUT_DIM + j]);
-      }
-      printf("\n");
     }
     __syncthreads();
     dynamics->enforceConstraints(x, u);
@@ -85,18 +65,6 @@ __global__ void runGPUDynamics(DYN_T* dynamics, const int num_timesteps, float d
     x_temp = x;
     x = x_next;
     x_next = x_temp;
-    __syncthreads();
-  }
-  __syncthreads();
-  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
-  {
-    printf("Final Output: %p %p %p\n", x_init_d, output_d, x);
-    for (int j = 0; j < DYN_T::OUTPUT_DIM; j++)
-    {
-      printf("%6.2f, %6.2f\n", y[j],
-             output_d[global_idx * num_timesteps * DYN_T::OUTPUT_DIM + 1 * DYN_T::OUTPUT_DIM + j]);
-    }
-    printf("\n");
   }
 }
 
@@ -218,7 +186,6 @@ TEST_F(RacerSuspensionTest, CPUvsGPU)
   x_init[S_IND_CLASS(DYN_PARAMS, ATTITUDE_QW)] = 1;
   HANDLE_ERROR(
       cudaMemcpyAsync(x_init_d, x_init.data(), sizeof(float) * DYN::STATE_DIM, cudaMemcpyHostToDevice, stream));
-  HANDLE_ERROR(cudaStreamSynchronize(stream));
 
   control_trajectories u_noise;
   for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
@@ -274,6 +241,9 @@ TEST_F(RacerSuspensionTest, CPUvsGPU)
   const int NUM_GRIDS_X = (NUM_PARALLEL_TESTS - 1) / BLOCKSIZE_X + 1;
   dim3 block_dim(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
   dim3 grid_dim(NUM_GRIDS_X, 1, 1);
+  // Ensure that there won't memory overwriting due to inproper indexing
+  static_assert(NUM_PARALLEL_TESTS % BLOCKSIZE_X == 0);
+
   runGPUDynamics<DYN, NUM_PARALLEL_TESTS, BLOCKSIZE_X, BLOCKSIZE_Y>
       <<<grid_dim, block_dim, 0, stream>>>(dynamics.model_d_, NUM_TIMESTEPS, dt, x_init_d, u_d, x_next_d, output_d);
   for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
@@ -282,12 +252,8 @@ TEST_F(RacerSuspensionTest, CPUvsGPU)
                                  sizeof(float) * NUM_TIMESTEPS * DYN::STATE_DIM, cudaMemcpyDeviceToHost, stream));
     HANDLE_ERROR(cudaMemcpyAsync(output_GPU[s].data(), output_d + s * NUM_TIMESTEPS * DYN::OUTPUT_DIM,
                                  sizeof(float) * NUM_TIMESTEPS * DYN::OUTPUT_DIM, cudaMemcpyDeviceToHost, stream));
-    printf("X: %p, O: %p\n", x_next_d + s * NUM_TIMESTEPS * DYN::STATE_DIM,
-           output_d + s * NUM_TIMESTEPS * DYN::OUTPUT_DIM);
   }
   HANDLE_ERROR(cudaStreamSynchronize(stream));
-  std::cout << "OUTPUT CPU: " << output_CPU[0].col(0).transpose() << std::endl;
-  std::cout << "OUTPUT GPU: " << output_GPU[0].col(0).transpose() << std::endl;
   for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
   {
     for (int t = 0; t < NUM_TIMESTEPS; t++)

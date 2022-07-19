@@ -163,8 +163,6 @@ public:
 
   void paramsToDevice();
 
-  // void step(Eigen::Ref<state_array> state, Eigen::Ref<const control_array> control, const float dt);
-
   void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
                    Eigen::Ref<state_array> state_der, const float dt);
   void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
