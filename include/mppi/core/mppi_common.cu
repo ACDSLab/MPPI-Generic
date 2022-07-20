@@ -2,6 +2,9 @@
 #include <curand.h>
 #include <mppi/utils/gpu_err_chk.cuh>
 
+#include <cooperative_groups.h>
+namespace cg = cooperative_groups;
+
 namespace mppi_common
 {
 /*******************************************************************************************************************
@@ -200,7 +203,7 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
   }
 }
 
-template <class DYN_T, class COST_T, int NUM_ROLLOUTS>
+template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X>
 __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float lambda,
                                   float alpha, const float* __restrict__ init_x_d, const float* __restrict__ u_d,
                                   const float* __restrict__ du_d, const float* __restrict__ sigma_u_d,
@@ -270,8 +273,9 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int 
   __syncthreads();
 
   /*<----Start of simulation loop-----> */
+  int max_time_iters = ceilf((float)num_timesteps / BLOCKSIZE_X);
   costs->initializeCosts(x, u, theta_c, 0.0, dt);
-  for (int time_iter = 0; time_iter < ceilf((float)num_timesteps / blockDim.x); ++time_iter)
+  for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
     int t = thread_idx + time_iter * blockDim.x + 1;
     // Load noise trajectories scaled by the exploration factor
@@ -348,12 +352,13 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int 
   //          num_timesteps);
   // }
   // __syncthreads();
-  int prev_size = blockDim.x;
+  int prev_size = BLOCKSIZE_X;
   running_cost = &running_cost_shared[blockDim.x * thread_idz];
-  // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0)
-  // {
-  //   printf("First cost: %f\n", running_cost[0]);
-  // }
+// if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0)
+// {
+//   printf("First cost: %f\n", running_cost[0]);
+// }
+#pragma unroll
   for (int size = prev_size / 2; size > 0; size /= 2)
   {
     if (thread_idy == 0)
@@ -396,6 +401,16 @@ __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float
 {
   int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + threadIdx.z;
   int global_step = blockDim.x * gridDim.x * blockDim.z * gridDim.z;
+#if defined(CUDA_VERSION) && CUDA_VERSION > 11060
+  auto block = cg::this_grid();
+  int global_idx_b = block.thread_rank() + block.block_rank() * block.num_threads();
+  int global_step_b = block.num_threads() * block.num_blocks();
+  if (global_idx == 200 && threadIdx.y == 0 && threadIdx.z == 0)
+  {
+    printf("Global ind: %d, thread_rank: %d\n", global_idx, global_idx_b);
+    printf("Global step: %d, thread_rank: %d\n", global_step, global_step_b);
+  }
+#endif
   normExpTransform(num_rollouts * blockDim.z, trajectory_costs_d, lambda_inv, baseline, global_idx, global_step);
 }
 
@@ -649,8 +664,8 @@ __device__ inline float computeBaselineCost(int num_rollouts, const float* __res
   return min_cost;
 }
 
-__device__ inline void normExpTransform(int num_rollouts, float* __restrict__ trajectory_costs_d, float lambda_inv,
-                                        float baseline, int global_idx, int rollout_idx_step)
+__device__ __host__ inline void normExpTransform(int num_rollouts, float* __restrict__ trajectory_costs_d,
+                                                 float lambda_inv, float baseline, int global_idx, int rollout_idx_step)
 {
   for (int i = global_idx; i < num_rollouts; i += rollout_idx_step)
   {
@@ -973,7 +988,6 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
   rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z>
       <<<dimGrid, dimBlock, 0, stream>>>(dynamics, costs, dt, num_timesteps, optimization_stride, lambda, alpha, x_d,
                                          u_d, du_d, sigma_u_d, trajectory_costs);
-  // CudaCheckError();
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {
@@ -981,7 +995,8 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
   }
 }
 
-template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z>
+template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z,
+          int COST_BLOCK_X, int COST_BLOCK_Y>
 void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, const int num_timesteps, int optimization_stride,
                              float lambda, float alpha, float* init_x_d, float* x_d, float* u_d, float* du_d,
                              float* sigma_u_d, float* trajectory_costs, cudaStream_t stream, bool synchronize)
@@ -992,28 +1007,15 @@ void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, const int
   rolloutDynamicsKernel<DYN_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
       dynamics, dt, num_timesteps, optimization_stride, init_x_d, u_d, du_d, sigma_u_d, x_d);
 
-  const int thread_threshold = 800;
-  // int block_cost_x = num_timesteps;
-  int block_cost_x = BLOCKSIZE_X;
-  while (block_cost_x * BLOCKSIZE_Y * BLOCKSIZE_Z > thread_threshold && block_cost_x > 1)
-  {
-    --block_cost_x;
-  }
-  if (block_cost_x * BLOCKSIZE_Y * BLOCKSIZE_Z > thread_threshold)
-  {
-    std::cout << "Can't create block smaller than 1024 due to BLOCKSIZE_Y: " << BLOCKSIZE_Y
-              << ", BLOCKSIZE_Z: " << BLOCKSIZE_Z << std::endl;
-  }
-
-  dim3 dimCostBlock(block_cost_x, BLOCKSIZE_Y, BLOCKSIZE_Z);
+  dim3 dimCostBlock(COST_BLOCK_X, COST_BLOCK_Y, BLOCKSIZE_Z);
   dim3 dimCostGrid(NUM_ROLLOUTS, 1, 1);
   unsigned shared_mem_size =
-      ((block_cost_x * BLOCKSIZE_Z) * (DYN_T::STATE_DIM + 2 * DYN_T::CONTROL_DIM + 1) + DYN_T::CONTROL_DIM) *
+      ((COST_BLOCK_X * BLOCKSIZE_Z) * (DYN_T::STATE_DIM + 2 * DYN_T::CONTROL_DIM + 1) + DYN_T::CONTROL_DIM) *
           sizeof(float) +
-      (block_cost_x * BLOCKSIZE_Z) * sizeof(int) + COST_T::SHARED_MEM_REQUEST_GRD +
-      COST_T::SHARED_MEM_REQUEST_BLK * block_cost_x * BLOCKSIZE_Z * sizeof(float);
+      (COST_BLOCK_X * BLOCKSIZE_Z) * sizeof(int) + COST_T::SHARED_MEM_REQUEST_GRD +
+      COST_T::SHARED_MEM_REQUEST_BLK * COST_BLOCK_X * BLOCKSIZE_Z * sizeof(float);
   // std::cout << "Full size: " << shared_mem_size << std::endl;
-  rolloutCostKernel<DYN_T, COST_T, NUM_ROLLOUTS><<<dimCostGrid, dimCostBlock, shared_mem_size, stream>>>(
+  rolloutCostKernel<DYN_T, COST_T, NUM_ROLLOUTS, COST_BLOCK_X><<<dimCostGrid, dimCostBlock, shared_mem_size, stream>>>(
       dynamics, costs, dt, num_timesteps, lambda, alpha, init_x_d, u_d, du_d, sigma_u_d, x_d, trajectory_costs);
   // std::cout << "Grid dim: " << dimCostGrid.x << ", " << dimCostGrid.y << ", " << dimCostGrid.z << std::endl;
   // std::cout << "Block dim: " << dimCostBlock.x << ", " << dimCostBlock.y << ", " << dimCostBlock.z << std::endl;
@@ -1030,7 +1032,6 @@ void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_co
   dim3 dimBlock(blocksize_x, 1, 1);
   dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
   normExpKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, lambda_inv, baseline);
-  // CudaCheckError();
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {
