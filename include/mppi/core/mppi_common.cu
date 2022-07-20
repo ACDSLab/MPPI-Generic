@@ -22,6 +22,7 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
 
   // Create shared state and control arrays
   __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+  __shared__ float x_next_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
   __shared__ float y_shared[BLOCKSIZE_X * DYN_T::OUTPUT_DIM * BLOCKSIZE_Z];
   __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
   __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
@@ -34,6 +35,8 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
 
   // Create local state, state dot and controls
   float* x;
+  float* x_next;
+  float* x_temp;
   float* y;
   float* xdot;
   float* u;
@@ -46,6 +49,7 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
   if (global_idx < NUM_ROLLOUTS)
   {
     x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+    x_next = &x_next_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
     y = &y_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::OUTPUT_DIM];
     xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
     u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
@@ -92,11 +96,14 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
       // __syncthreads();
       // // Increment states
       // dynamics->updateState(x, xdot, dt);
-      dynamics->step(x, x, xdot, u, y, theta_s, t, dt);
+      dynamics->step(x, x_next, xdot, u, y, theta_s, t, dt);
       __syncthreads();
+      x_temp = x;
+      x = x_next;
+      x_next = x;
     }
     // Compute terminal cost and the final cost for each thread
-    computeAndSaveCost(NUM_ROLLOUTS, global_idx, costs, y, running_cost, trajectory_costs_d);
+    computeAndSaveCost(NUM_ROLLOUTS, num_timesteps, global_idx, costs, y, running_cost, trajectory_costs_d);
   }
 }
 
@@ -236,13 +243,14 @@ __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rol
 }
 
 template <class COST_T>
-__device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* output, float running_cost,
-                                   float* cost_rollouts_device)
+__device__ void computeAndSaveCost(int num_rollouts, int num_timesteps, int global_idx, COST_T* costs, float* output,
+                                   float running_cost, float* cost_rollouts_device)
 {
   // only want to save 1 cost per trajectory
   if (threadIdx.y == 0 && global_idx < num_rollouts)
   {
-    cost_rollouts_device[global_idx + num_rollouts * threadIdx.z] = running_cost + costs->terminalCost(output);
+    cost_rollouts_device[global_idx + num_rollouts * threadIdx.z] =
+        running_cost + costs->terminalCost(output) / (num_timesteps - 1);
   }
 }
 
@@ -526,6 +534,7 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
 
   // Create shared state and control arrays
   __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+  __shared__ float x_next_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
   __shared__ float y_shared[BLOCKSIZE_X * DYN_T::OUTPUT_DIM * BLOCKSIZE_Z];
   __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
   __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
@@ -539,6 +548,8 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
 
   // Create local state, state dot and controls
   float* x;
+  float* x_next;
+  float* x_temp;
   float* y;
   float* x_other;
   float* xdot;
@@ -552,6 +563,7 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
   {
     // Actual or nominal
     x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+    x_next = &x_next_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
     y = &y_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::OUTPUT_DIM];
     // The opposite state from above
     x_other = &x_shared[(blockDim.x * (1 - thread_idz) + thread_idx) * DYN_T::STATE_DIM];
@@ -628,8 +640,11 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
 
       // Increment states
       // dynamics->updateState(x, xdot, dt);
-      dynamics->step(x, x, xdot, u, y, theta_s, t, dt);
+      dynamics->step(x, x_next, xdot, u, y, theta_s, t, dt);
       __syncthreads();
+      x_temp = x;
+      x = x_next;
+      x_next = x;
 
       // save results, skips the first state location since that is known
       for (int i = thread_idy; i < DYN_T::STATE_DIM; i += blockDim.y)
@@ -639,7 +654,7 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
     }
     // get cost traj at +1
     cost_index = threadIdx.z * num_rollouts * (num_timesteps + 1) + global_idx * (num_timesteps + 1) + num_timesteps;
-    cost_traj_d[cost_index] = costs->terminalCost(y);
+    cost_traj_d[cost_index] = costs->terminalCost(y) / (num_timesteps - 1);
   }
 }
 
@@ -770,6 +785,8 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
 
   // Initialize the local state, controls, and noise
   float* state;
+  float* state_next;
+  float* state_temp;
   float* output;
   float* state_der;
   float* control;
@@ -778,6 +795,7 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
 
   // Create shared arrays for holding state and control data.
   __shared__ float state_shared[BLOCKSIZE_X * DYN_T::STATE_DIM];
+  __shared__ float state_next_shared[BLOCKSIZE_X * DYN_T::STATE_DIM];
   __shared__ float output_shared[BLOCKSIZE_X * DYN_T::OUTPUT_DIM];
   __shared__ float state_der_shared[BLOCKSIZE_X * DYN_T::STATE_DIM];
   __shared__ float control_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM];
@@ -796,6 +814,7 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
 
   // Get the pointer that belongs to the current thread with respect to the shared arrays
   state = &state_shared[tdx * DYN_T::STATE_DIM];
+  state_next = &state_next_shared[tdx * DYN_T::STATE_DIM];
   output = &output_shared[tdx * DYN_T::OUTPUT_DIM];
   state_der = &state_der_shared[tdx * DYN_T::STATE_DIM];
   control = &control_shared[tdx * DYN_T::CONTROL_DIM];
@@ -869,14 +888,17 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
 
     // Increment states
     // dynamics->updateState(state, state_der, dt);
-    dynamics->step(state, state, state_der, control, output, theta_s, i, dt);
+    dynamics->step(state, state_next, state_der, control, output, theta_s, i, dt);
     __syncthreads();
+    state_temp = state;
+    state = state_next;
+    state_next = state;
   }
   // End loop outer loop on timesteps
 
   if (tdy == 0)
   {  // Only save the costs once per global idx (thread y is only for parallelization)
-    costs_d[global_idx] = running_cost;  // This is the running average of the costs along the trajectory
+    costs_d[global_idx] = running_cost + costs->terminalCost(output) / (num_timesteps - 1);
   }
 }
 
@@ -894,6 +916,7 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
 
   // Create shared memory for state and control
   __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+  __shared__ float x_next_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
   __shared__ float y_shared[BLOCKSIZE_X * DYN_T::OUTPUT_DIM * BLOCKSIZE_Z];
   __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
   __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
@@ -913,6 +936,9 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
 
   // Create local state, state dot and controls
   float* x;
+  float* x_next;
+  float* x_next_other;
+  float* x_temp;
   float* y;
   float* x_other;
   float* xdot;
@@ -938,9 +964,11 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
   {
     // Actual or nominal
     x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+    x_next = &x_next_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
     y = &y_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::OUTPUT_DIM];
     // The opposite state from above
     x_other = &x_shared[(blockDim.x * (1 - thread_idz) + thread_idx) * DYN_T::STATE_DIM];
+    x_next_other = &x_next_shared[(blockDim.x * (1 - thread_idz) + thread_idx) * DYN_T::STATE_DIM];
     xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
     // Base trajectory
     u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
@@ -988,12 +1016,7 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
       __syncthreads();
       // Clamp the control in both the importance sampling sequence and the disturbed sequence.
       dynamics->enforceConstraints(x, u);
-
       __syncthreads();
-
-      // dynamics update
-      // dynamics->computeStateDeriv(x, u, xdot, theta_s, y);
-      // __syncthreads();
 
       // Calculate All the costs
       if (t > 0)
@@ -1018,15 +1041,15 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
             (curr_state_cost + costs->computeFeedbackCost(fb_control, sigma_u, lambda, alpha));
       }
 
-      //        if (global_idx == 29 && thread_idy == 0 && thread_idz == 0 && t > 0) {
-      //          printf("RMPPI Current state real: [%f, %f, %f, %f]\n", x[0], x[1], x[2], x[3]);
-      //          printf("RMPPI Current state cost real: [%f]\n",
-      //          (running_state_cost_real+running_control_cost_real)/t);
-      //        }
-      // __syncthreads();
-      // dynamics->updateState(x, xdot, dt);
-      dynamics->step(x, x, xdot, u, y, theta_s, t, dt);
       __syncthreads();
+      // Dynamics update
+      dynamics->step(x, x_next, xdot, u, y, theta_s, t, dt);
+      x_temp = x;
+      x = x_next;
+      x_next = x_temp;
+      x_temp = x_other;
+      x_other = x_next_other;
+      x_next_other = x_temp;
     }
 
     // Compute average cost per timestep
@@ -1046,16 +1069,17 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
     // calculate terminal costs
     if (thread_idz == 1 && thread_idy == 0)
     {  // Thread y required to prevent double addition
-      *running_state_cost_nom += costs->terminalCost(y);
+      *running_state_cost_nom += costs->terminalCost(y) / (num_timesteps - 1);
     }
 
     if (thread_idz == 0)
     {
-      running_state_cost_real += costs->terminalCost(y);
-      running_tracking_cost_real += costs->terminalCost(y);
+      running_state_cost_real += costs->terminalCost(y) / (num_timesteps - 1);
+      running_tracking_cost_real += costs->terminalCost(y) / (num_timesteps - 1);
     }
 
     // Figure out final form of nominal cost
+    __syncthreads();
     float running_cost_nom = 0;
     if (thread_idz == 0)
     {
@@ -1071,7 +1095,6 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
       trajectory_costs_d[global_idx + NUM_ROLLOUTS] = running_cost_nom;
     }
   }
-  __syncthreads();
 }
 
 /*******************************************************************************************************************

@@ -42,6 +42,8 @@ int main(int argc, char** argv)
                                                             control_var);
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
+  CartpoleDynamics::state_array next_state = CartpoleDynamics::state_array::Zero();
+  CartpoleDynamics::output_array output = CartpoleDynamics::output_array::Zero();
 
   int time_horizon = 5000;
 
@@ -57,8 +59,8 @@ int main(int argc, char** argv)
     CartpoleDynamics::control_array control;
     control = CartpoleController->getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
     model->enforceConstraints(current_state, control);
-    model->computeStateDeriv(current_state, control, xdot);
-    model->updateState(current_state, xdot, dt);
+    model->step(current_state, next_state, xdot, control, output, i, dt);
+    current_state = next_state;
 
     if (i % 50 == 0)
     {

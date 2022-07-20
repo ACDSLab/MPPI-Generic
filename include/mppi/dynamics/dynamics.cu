@@ -129,7 +129,7 @@ __device__ inline void Dynamics<CLASS_T, PARAMS_T>::step(float* state, float* ne
   {
     for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i += blockDim.y)
     {
-      output[i] = state[i];
+      output[i] = next_state[i];
     }
   }
 }
