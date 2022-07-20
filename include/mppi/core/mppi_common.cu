@@ -667,6 +667,7 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
                          float* trajectory_costs, cudaStream_t stream, bool synchronize)
 {
   const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
+  static_assert(NUM_ROLLOUTS % BLOCKSIZE_X == 0, "NUM_ROLLOUTS must be evenly divided by BLOCKSIZE_X");
   dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
   dim3 dimGrid(gridsize_x, 1, 1);
   rolloutKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z>
@@ -1108,6 +1109,9 @@ void launchInitEvalKernel(DYN_T* dynamics, COST_T* costs, int num_candidates, in
                           cudaStream_t stream, bool synchronize)
 {
   int GRIDSIZE_X = num_candidates * SAMPLES_PER_CONDITION / BLOCKSIZE_X;
+  static_assert(SAMPLES_PER_CONDITION % BLOCKSIZE_X == 0,
+                "SAMPLES_PER_CONDITION must be evenly divided by "
+                "BLOCKSIZE_X");
   dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
   dim3 dimGrid(GRIDSIZE_X, 1, 1);
   initEvalKernel<DYN_T, COST_T, BLOCKSIZE_X, BLOCKSIZE_Y, SAMPLES_PER_CONDITION>
@@ -1127,6 +1131,7 @@ void launchRMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_controlle
                               cudaStream_t stream, bool synchronize)
 {
   const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
+  static_assert(NUM_ROLLOUTS % BLOCKSIZE_X == 0, "NUM_ROLLOUTS must be evenly divided by BLOCKSIZE_X");
   dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
   dim3 dimGrid(gridsize_x, 1, 1);
   RMPPIRolloutKernel<DYN_T, COST_T, FB_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, BLOCKSIZE_Z>
