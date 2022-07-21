@@ -18,20 +18,23 @@ Header file for dynamics
 #include <vector>
 
 // helpful macros to use the enum setup
+#ifndef E_INDEX
+#define E_INDEX(ENUM, enum_val) static_cast<int>(ENUM::enum_val)
+#endif
 #ifndef S_INDEX
-#define S_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::StateIndex::enum_val)
+#define S_IND_CLASS(CLASS, enum_val) E_INDEX(CLASS::StateIndex, enum_val)
 #define S_IND(param, enum_val) S_IND_CLASS(decltype(param), enum_val)
 #define S_INDEX(enum_val) S_IND(this->params_, enum_val)
 #endif
 
 #ifndef C_INDEX
-#define C_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::ControlIndex::enum_val)
+#define C_IND_CLASS(CLASS, enum_val) E_INDEX(CLASS::ControlIndex, enum_val)
 #define C_IND(param, enum_val) C_IND_CLASS(decltype(param), enum_val)
 #define C_INDEX(enum_val) C_IND(this->params_, enum_val)
 #endif
 
 #ifndef O_INDEX
-#define O_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::OutputIndex::enum_val)
+#define O_IND_CLASS(CLASS, enum_val) E_INDEX(CLASS::OutputIndex, enum_val)
 #define O_IND(param, enum_val) O_IND_CLASS(decltype(param), enum_val)
 #define O_INDEX(enum_val) O_IND(this->params_, enum_val)
 #endif

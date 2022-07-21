@@ -16,7 +16,7 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::freeCudaMem()
     HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
     HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_d_));
   }
-  Cost<CLASS_T, PARAMS_T, this->STATE_DIM, this->CONTROL_DIM>::freeCudaMem();
+  PARENT_CLASS::freeCudaMem();
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -35,7 +35,7 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::paramsToDevice()
 }
 
 template <class CLASS_T, class PARAMS_T>
-float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(const Eigen::Ref<const state_array> s, int timestep,
+float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(const Eigen::Ref<const output_array> s, int timestep,
                                                                 int* crash_status)
 {
   // TODO query texture on CPU
@@ -98,7 +98,9 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float
 template <class CLASS_T, class PARAMS_T>
 __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::distToWaypoint(float* s, float4 waypoint)
 {
-  float dist = sqrt(powf(s[0] - waypoint.x, 2) + powf(s[1] - waypoint.y, 2) + powf(s[2] - waypoint.z, 2));
+  float dist =
+      sqrt(powf(s[E_INDEX(OutputIndex, POS_X)] - waypoint.x, 2) + powf(s[E_INDEX(OutputIndex, POS_Y)] - waypoint.y, 2) +
+           powf(s[E_INDEX(OutputIndex, POS_Z)] - waypoint.z, 2));
 
   return dist;
 }
@@ -166,8 +168,8 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeadin
   mppi::math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
 
   // Calculate heading to gate
-  float wx = this->params_.curr_waypoint.x - s[0];
-  float wy = this->params_.curr_waypoint.y - s[1];
+  float wx = this->params_.curr_waypoint.x - s[E_INDEX(OutputIndex, POS_X)];
+  float wy = this->params_.curr_waypoint.y - s[E_INDEX(OutputIndex, POS_Y)];
   float w_heading = atan2f(wy, wx);
 
   float dist_to_gate = distToWaypoint(s, this->params_.curr_waypoint);
@@ -202,15 +204,15 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeGateSi
 {
   float cost = 0;
   // Calculate the side border cost
-  float dist_to_left_side =
-      sqrtf(powf(s[0] - this->params_.curr_gate_left.x, 2) + powf(s[1] - this->params_.curr_gate_left.y, 2));
-  float dist_to_right_side =
-      sqrtf(powf(s[0] - this->params_.curr_gate_right.x, 2) + powf(s[1] - this->params_.curr_gate_right.y, 2));
+  float dist_to_left_side = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.curr_gate_left.x, 2) +
+                                  powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.curr_gate_left.y, 2));
+  float dist_to_right_side = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.curr_gate_right.x, 2) +
+                                   powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.curr_gate_right.y, 2));
 
-  float prev_dist_to_left_side =
-      sqrtf(powf(s[0] - this->params_.prev_gate_left.x, 2) + powf(s[1] - this->params_.prev_gate_left.y, 2));
-  float prev_dist_to_right_side =
-      sqrtf(powf(s[0] - this->params_.prev_gate_right.x, 2) + powf(s[1] - this->params_.prev_gate_right.y, 2));
+  float prev_dist_to_left_side = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.prev_gate_left.x, 2) +
+                                       powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.prev_gate_left.y, 2));
+  float prev_dist_to_right_side = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.prev_gate_right.x, 2) +
+                                        powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.prev_gate_right.y, 2));
 
   // Find the side closest to the current state
   float closest_side_dist =
@@ -227,17 +229,19 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
 {
   // Calculate height cost
   float cost = 0;
-  // if (s[2] < 1) {
+  // if (s[E_INDEX(OutputIndex, POS_Z)] < 1) {
   //   return this->params_.crash_coeff;
   // }
-  float d1 = sqrtf(powf(s[0] - this->params_.prev_waypoint.x, 2) + powf(s[1] - this->params_.prev_waypoint.y, 2));
-  float d2 = sqrtf(powf(s[0] - this->params_.curr_waypoint.x, 2) + powf(s[1] - this->params_.curr_waypoint.y, 2));
+  float d1 = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.prev_waypoint.x, 2) +
+                   powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.prev_waypoint.y, 2));
+  float d2 = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.curr_waypoint.x, 2) +
+                   powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.curr_waypoint.y, 2));
 
   float w1 = d1 / (d1 + d2 + 0.001);
   float w2 = d2 / (d1 + d2 + 0.001);
   float interpolated_height = (1.0 - w1) * this->params_.prev_waypoint.z + (1.0 - w2) * this->params_.curr_waypoint.z;
 
-  float height_diff = fabs(s[2] - interpolated_height);
+  float height_diff = fabs(s[E_INDEX(OutputIndex, POS_Z)] - interpolated_height);
   if (height_diff < 0)
   {
     cost += this->params_.crash_coeff;
@@ -256,7 +260,7 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeCostmapCost(flo
   float cost = 0;
 
   float u, v, w;  // Transformed coordinates
-  coorTransform(s[0], s[1], &u, &v, &w);
+  coorTransform(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)], &u, &v, &w);
   float normalized_u = u / w;
   float normalized_v = v / w;
 
@@ -284,7 +288,7 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeCostmapCost(flo
 }
 
 template <class CLASS_T, class PARAMS_T>
-float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(const Eigen::Ref<const state_array> s)
+float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(const Eigen::Ref<const output_array> s)
 {
   std::cout << "It is a cost function" << std::endl;
   return 0;

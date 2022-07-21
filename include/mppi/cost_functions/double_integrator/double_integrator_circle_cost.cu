@@ -31,7 +31,7 @@ __device__ float DoubleIntegratorCircleCost::computeStateCost(float* s, int time
   return cost;
 }
 
-float DoubleIntegratorCircleCost::computeStateCost(const Eigen::Ref<const state_array> s, int timestep,
+float DoubleIntegratorCircleCost::computeStateCost(const Eigen::Ref<const output_array> s, int timestep,
                                                    int* crash_status)
 {
   float radial_position = s[0] * s[0] + s[1] * s[1];
@@ -58,7 +58,7 @@ float DoubleIntegratorCircleCost::computeStateCost(const Eigen::Ref<const state_
   return cost;
 }
 
-float DoubleIntegratorCircleCost::terminalCost(const Eigen::Ref<const state_array> s)
+float DoubleIntegratorCircleCost::terminalCost(const Eigen::Ref<const output_array> s)
 {
   return 0;
 }

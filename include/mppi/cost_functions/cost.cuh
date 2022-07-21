@@ -9,6 +9,7 @@ Header file for costs
 #include <Eigen/Dense>
 #include <stdio.h>
 #include <math.h>
+#include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/managed.cuh>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -32,7 +33,7 @@ struct CostParams
 
 // removing PARAMS_T is probably impossible
 // https://cboard.cprogramming.com/cplusplus-programming/122412-crtp-how-pass-type.html
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T = DynamicsParams>
 class Cost : public Managed
 {
 public:
@@ -41,14 +42,16 @@ public:
   /**
    * typedefs for access to templated class from outside classes
    */
-  static const int STATE_DIM = S_DIM;
-  static const int CONTROL_DIM = C_DIM;
-  static const int OUTPUT_DIM = S_DIM;  // TODO
+  // static const int STATE_DIM = S_IND_CLASS(DYN_PARAMS_T, NUM_STATES);
+  // using StateIndex = typename DYN_PARAMS_T::StateIndex;
+  using ControlIndex = typename DYN_PARAMS_T::ControlIndex;
+  using OutputIndex = typename DYN_PARAMS_T::OutputIndex;
+  static const int CONTROL_DIM = E_INDEX(ControlIndex, NUM_CONTROLS);
+  static const int OUTPUT_DIM = E_INDEX(OutputIndex, NUM_OUTPUTS);  // TODO
   typedef CLASS_T COST_T;
   typedef PARAMS_T COST_PARAMS_T;
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;             // Control at a time t
   typedef Eigen::Matrix<float, CONTROL_DIM, CONTROL_DIM> control_matrix;  // Control at a time t
-  typedef Eigen::Matrix<float, STATE_DIM, 1> state_array;                 // State at a time t
   typedef Eigen::Matrix<float, OUTPUT_DIM, 1> output_array;               // Output at a time t
 
   Cost() = default;

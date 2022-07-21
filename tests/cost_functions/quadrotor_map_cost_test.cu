@@ -6,7 +6,7 @@ TEST(QuadrotorMapCost, checkHeadingCost)
 {
   using COST = QuadrotorMapCost;
   COST cost;
-  COST::state_array curr_state = COST::state_array::Zero();
+  COST::output_array curr_state = COST::output_array::Zero();
   Eigen::Quaternionf temp_quat;
   float deg2rad = M_PI / 180;
   // Have velocity in the y direction
@@ -34,7 +34,7 @@ TEST(QuadrotorMapCost, checkSpeedCost)
 {
   using COST = QuadrotorMapCost;
   COST cost;
-  COST::state_array curr_state = COST::state_array::Zero();
+  COST::output_array curr_state = COST::output_array::Zero();
   Eigen::Quaternionf temp_quat;
   // Get quaternion for yaw of 30 degrees
   curr_state[3] = 3;

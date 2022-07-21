@@ -5,6 +5,7 @@
 #define MPPI_COST_FUNCTIONS_QUADROTOR_MAP_COST_CUH_
 
 #include <mppi/cost_functions/cost.cuh>
+#include <mppi/dynamics/quadrotor/quadrotor_dynamics.cuh>
 #include <mppi/utils/math_utils.h>
 
 #include <string>
@@ -82,12 +83,15 @@ struct QuadrotorMapCostParams : public CostParams<4>
 };
 
 template <class CLASS_T, class PARAMS_T = QuadrotorMapCostParams>
-class QuadrotorMapCostImpl : public Cost<CLASS_T, PARAMS_T, 13, 4>
+class QuadrotorMapCostImpl : public Cost<CLASS_T, PARAMS_T, QuadrotorDynamicsParams>
 {
 public:
   // I think these typedefs are needed because this class is itself templated?
-  using state_array = typename Cost<CLASS_T, PARAMS_T, 13, 4>::state_array;
-  using control_array = typename Cost<CLASS_T, PARAMS_T, 13, 4>::control_array;
+  typedef Cost<CLASS_T, PARAMS_T, QuadrotorDynamicsParams> PARENT_CLASS;
+  using output_array = typename PARENT_CLASS::output_array;
+  using control_array = typename PARENT_CLASS::control_array;
+  using OutputIndex = typename PARENT_CLASS::OutputIndex;
+  using ControlIndex = typename PARENT_CLASS::ControlIndex;
 
   QuadrotorMapCostImpl(cudaStream_t stream = 0);
 
@@ -100,11 +104,11 @@ public:
     return std::string("Quadrotor Map Cost");
   }
 
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep, int* crash_status);
+  float computeStateCost(const Eigen::Ref<const output_array> s, int timestep, int* crash_status);
 
   __device__ float computeStateCost(float* s, int timestep, int* crash_status);
 
-  float terminalCost(const Eigen::Ref<const state_array> s);
+  float terminalCost(const Eigen::Ref<const output_array> s);
 
   __device__ float terminalCost(float* s);
 

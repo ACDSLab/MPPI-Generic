@@ -5,7 +5,7 @@ CartpoleQuadraticCost::CartpoleQuadraticCost(cudaStream_t stream)
   bindToStream(stream);
 }
 
-float CartpoleQuadraticCost::computeStateCost(const Eigen::Ref<const state_array> s, int timestep, int* crash_status)
+float CartpoleQuadraticCost::computeStateCost(const Eigen::Ref<const output_array> s, int timestep, int* crash_status)
 {
   return (s[0] - params_.desired_terminal_state[0]) * (s[0] - params_.desired_terminal_state[0]) *
              params_.cart_position_coeff +
