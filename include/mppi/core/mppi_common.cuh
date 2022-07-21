@@ -65,12 +65,17 @@ __device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* cos
                                    float* cost_rollouts_device);
 
 // Norm Exponential Kernel
-
 __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float baseline);
+// Tsallis Kernel
+__global__ void TsallisKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float r, float baseline);
 
 // Norm Exp Kernel Helpers
 __device__ inline void normExpTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
                                         const float lambda_inv, const float baseline, const int global_idx,
+                                        const int rollout_idx_step);
+// Tsallis Kernel Helpers
+__device__ inline void TsallisTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
+                                        const float gamma, float r, const float baseline, const int global_idx,
                                         const int rollout_idx_step);
 float computeBaselineCost(float* cost_rollouts_host, int num_rollouts);
 
@@ -117,6 +122,8 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
                          cudaStream_t stream, bool synchronize = true);
 
 void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda_inv, float baseline,
+                         cudaStream_t stream, bool synchronize = true);
+void launchTsallisKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float r, float baseline,
                          cudaStream_t stream, bool synchronize = true);
 template <class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
 void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float normalizer,

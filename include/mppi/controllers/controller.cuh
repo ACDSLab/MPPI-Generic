@@ -503,7 +503,8 @@ public:
       u.col(i) = u.col(ind);
       if (i + steps > getNumTimesteps() - 1)
       {
-        u.col(i) = (u.col(ind).array() - model_->zero_control_.array()) * params_.slide_control_scale_.array() + model_->zero_control_.array();
+        u.col(i) = (u.col(ind).array() - model_->zero_control_.array()) * params_.slide_control_scale_.array() +
+                   model_->zero_control_.array();
       }
     }
   }
