@@ -37,7 +37,6 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(const Eigen::Ref<const stat
   next_state(S_INDEX(STEER_ANGLE)) =
       state_der(S_INDEX(STEER_ANGLE)) + (next_state(S_INDEX(STEER_ANGLE)) - state_der(S_INDEX(STEER_ANGLE))) *
                                             expf(-this->params_.steering_constant * dt);
-  state_der.setZero();
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -70,7 +69,6 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(float* state, fl
       next_state[i] = state_der[i] + (next_state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
       // next_state[i] += state_der[i] * expf(-this->params_.steering_constant * dt);
     }
-    state_der[i] = 0;  // Important: reset the next_state derivative to zero.
   }
 }
 

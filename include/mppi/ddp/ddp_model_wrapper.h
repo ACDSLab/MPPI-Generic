@@ -81,13 +81,10 @@ struct ModelWrapperDDP : public DDP_structures::Dynamics<float, DYNAMICS_T::STAT
     //        }
 
     // Compute the state derivative xDot
-    State dx;  // dx can't be passed in directly at the moment
-               //        State state_der(DYNAMICS_T::STATE_DIM, 1);
-    model_->computeStateDeriv(state, control, dx);
-    //        for (int i = 0; i < DYNAMICS_T::STATE_DIM; i++) {
-    //            dx(i) = state_der(i);
-    //        }
-
+    State dx;
+    State next_state;
+    typename DYNAMICS_T::output_array output;
+    model_->step(state, next_state, dx, control, output, 0, 0.01);
     return dx;
   }
 

@@ -30,7 +30,6 @@ void DubinsDynamics::updateState(const Eigen::Ref<const state_array> state, Eige
 {
   next_state = state + state_der * dt;
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
-  state_der.setZero();
 }
 
 DubinsDynamics::state_array DubinsDynamics::interpolateState(const Eigen::Ref<state_array> state_1,
@@ -55,7 +54,6 @@ __device__ void DubinsDynamics::updateState(float* state, float* next_state, flo
     {
       next_state[i] = angle_utils::normalizeAngle(next_state[i]);
     }
-    state_der[i] = 0;  // Important: reset the state derivative to zero.
   }
 }
 

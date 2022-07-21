@@ -50,7 +50,6 @@ void RacerSuspension::updateState(const Eigen::Ref<const state_array> state, Eig
   next_state = state + state_der * dt;
   float q_norm = next_state.segment<4>(S_INDEX(ATTITUDE_QW)).norm();
   next_state.segment<4>(S_INDEX(ATTITUDE_QW)) /= q_norm;
-  state_der.setZero();
 }
 
 __device__ void RacerSuspension::updateState(float* state, float* next_state, float* state_der, const float dt)

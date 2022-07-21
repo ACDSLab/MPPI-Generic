@@ -181,7 +181,7 @@ TEST(RacerDubins, TestUpdateState)
   state << 0, 0, 0, 0, 0;
   state_der << 1, 1, 1, 1, 1;
   dynamics.updateState(state, state_der, 0.1);
-  EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 0.1);
   EXPECT_FLOAT_EQ(state(1), 0.1);
   EXPECT_FLOAT_EQ(state(2), 0.1);
@@ -191,7 +191,7 @@ TEST(RacerDubins, TestUpdateState)
   state << 0, M_PI - 0.1, 0, 0, 0;
   state_der << 1, 1, 1, 1, 1;
   dynamics.updateState(state, state_der, 1.0);
-  EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 1.0);
   EXPECT_FLOAT_EQ(state(1), 1.0 - M_PI - 0.1);
   EXPECT_FLOAT_EQ(state(2), 1.0);
@@ -201,7 +201,7 @@ TEST(RacerDubins, TestUpdateState)
   state << 0, -M_PI + 0.1, 0, 0, 0;
   state_der << 1, -1, 1, 1, 1;
   dynamics.updateState(state, state_der, 1.0);
-  EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 1.0);
   EXPECT_FLOAT_EQ(state(1), M_PI + 0.1 - 1.0);
   EXPECT_FLOAT_EQ(state(2), 1.0);
@@ -257,7 +257,7 @@ TEST(RacerDubins, TestUpdateStateGPU)
       dynamics.updateState(state, state_der_cpu, 0.1f);
       for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
       {
-        EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5) << "at index " << point << " with y_dim " << y_dim;
         EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
         EXPECT_TRUE(isfinite(s[point][dim]));
       }
@@ -296,7 +296,7 @@ TEST(RacerDubins, ComputeStateTrajectoryFiniteTest)
     dynamics.updateState(x, state_der, 0.02);
     EXPECT_TRUE(x.allFinite());
     EXPECT_TRUE(u.allFinite());
-    EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+    EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   }
   params.steering_constant = 0.5;
   dynamics.setParams(params);
@@ -312,7 +312,7 @@ TEST(RacerDubins, ComputeStateTrajectoryFiniteTest)
     dynamics.updateState(x, state_der, 0.02);
     EXPECT_TRUE(x.allFinite());
     EXPECT_TRUE(u.allFinite());
-    EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+    EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   }
 }
 
