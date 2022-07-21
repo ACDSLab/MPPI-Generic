@@ -249,8 +249,6 @@ void TubeMPPI::updateNominalState(const Eigen::Ref<const control_array>& u)
 {
   state_array xdot;
   output_array output;
-  // this->model_->computeDynamics(nominal_state_trajectory_.col(0), u, xdot);
-  // this->model_->updateState(nominal_state_trajectory_.col(0), xdot, this->getDt());
   this->model_->step(nominal_state_trajectory_.col(0), nominal_state_trajectory_.col(0), xdot, u, output, 0,
                      this->getDt());
 }

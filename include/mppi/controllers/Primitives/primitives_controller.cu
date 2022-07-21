@@ -370,8 +370,6 @@ void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& 
     this->control_.col(i) = u_i;
     this->model_->step(state, xnext, xdot, u_i, output, i, this->getDt());
     state = xnext;
-    // this->model_->computeStateDeriv(state, u_i, xdot);
-    // this->model_->updateState(state, xdot, this->getDt());
   }
 }
 

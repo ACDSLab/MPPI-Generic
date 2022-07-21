@@ -408,8 +408,6 @@ public:
   // device pointer, null on the device
   CLASS_T* model_d_ = nullptr;
 
-  // Eigen matrix holding the state and control jacobians required for DDP N X (N+M)
-  // Jacobian jac_;
 protected:
   // generic parameter structure
   PARAMS_T params_;
@@ -424,6 +422,9 @@ const int Dynamics<CLASS_T, PARAMS_T>::STATE_DIM;
 
 template <class CLASS_T, class PARAMS_T>
 const int Dynamics<CLASS_T, PARAMS_T>::CONTROL_DIM;
+
+template <class CLASS_T, class PARAMS_T>
+const int Dynamics<CLASS_T, PARAMS_T>::OUTPUT_DIM;
 
 template <class CLASS_T, class PARAMS_T>
 const int Dynamics<CLASS_T, PARAMS_T>::SHARED_MEM_REQUEST_BLK;

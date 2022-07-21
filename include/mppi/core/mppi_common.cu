@@ -57,7 +57,6 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
     crash_status = &crash_status_shared[thread_idz * blockDim.x + thread_idx];
     crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
   }
-  //__syncthreads();
   loadGlobalToShared(DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, NUM_ROLLOUTS, BLOCKSIZE_Y, global_idx, thread_idy,
                      thread_idz, x_d, sigma_u_d, x, xdot, u, du, sigma_u);
   __syncthreads();
@@ -92,10 +91,6 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
       }
 
       // Compute state derivatives
-      // dynamics->computeStateDeriv(x, u, xdot, theta_s);
-      // __syncthreads();
-      // // Increment states
-      // dynamics->updateState(x, xdot, dt);
       dynamics->step(x, x_next, xdot, u, y, theta_s, t, dt);
       __syncthreads();
       x_temp = x;
@@ -611,10 +606,6 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       dynamics->enforceConstraints(x, u);
       __syncthreads();
 
-      // Compute state derivatives
-      // dynamics->computeStateDeriv(x, u, xdot, theta_s);
-      // __syncthreads();
-
       if (thread_idy == 0 && t > 0)
       {
         curr_state_cost = costs->computeStateCost(x, t, crash_status);
@@ -639,7 +630,6 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       }
 
       // Increment states
-      // dynamics->updateState(x, xdot, dt);
       dynamics->step(x, x_next, xdot, u, y, theta_s, t, dt);
       __syncthreads();
       x_temp = x;
@@ -874,10 +864,6 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
     dynamics->enforceConstraints(state, control);
     __syncthreads();
 
-    // Compute state derivatives
-    // dynamics->computeStateDeriv(state, control, state_der, theta_s, output);
-    // __syncthreads();
-
     if (tdy == 0 && i > 0)
     {  // Only compute once per global index, make sure that we don't divide by zero
       running_cost += (costs->computeRunningCost(output, control, control_noise, exploration_std_dev, lambda, alpha, i,
@@ -888,7 +874,6 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
     __syncthreads();
 
     // Increment states
-    // dynamics->updateState(state, state_der, dt);
     dynamics->step(state, state_next, state_der, control, output, theta_s, i, dt);
     __syncthreads();
     state_temp = state;

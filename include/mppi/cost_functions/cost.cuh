@@ -11,8 +11,6 @@ Header file for costs
 #include <math.h>
 #include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/managed.cuh>
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
 
 #include <stdexcept>
 
@@ -31,7 +29,6 @@ struct CostParams
   }
 };
 
-// removing PARAMS_T is probably impossible
 // https://cboard.cprogramming.com/cplusplus-programming/122412-crtp-how-pass-type.html
 template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T = DynamicsParams>
 class Cost : public Managed
@@ -42,8 +39,6 @@ public:
   /**
    * typedefs for access to templated class from outside classes
    */
-  // static const int STATE_DIM = S_IND_CLASS(DYN_PARAMS_T, NUM_STATES);
-  // using StateIndex = typename DYN_PARAMS_T::StateIndex;
   using ControlIndex = typename DYN_PARAMS_T::ControlIndex;
   using OutputIndex = typename DYN_PARAMS_T::OutputIndex;
   static const int CONTROL_DIM = E_INDEX(ControlIndex, NUM_CONTROLS);
@@ -74,16 +69,6 @@ public:
   bool getDebugDisplayEnabled()
   {
     return false;
-  }
-
-  /**
-   * returns a debug display that will be visualized based off of the state
-   * @param state vector
-   * @return
-   */
-  cv::Mat getDebugDisplay(float* s)
-  {
-    return cv::Mat();
   }
 
   /**

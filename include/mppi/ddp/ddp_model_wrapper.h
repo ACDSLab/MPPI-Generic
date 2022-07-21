@@ -49,8 +49,6 @@ struct ModelWrapperDDP : public DDP_structures::Dynamics<float, DYNAMICS_T::STAT
 {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   using Scalar = float;
-  //  using State = typename DYNAMICS_T::state_array;
-  //  using Control = typename DYNAMICS_T::control_array;
   using State = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::State;
   using Control = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::Control;
   using Jacobian = typename DDP_structures::Dynamics<Scalar, DYNAMICS_T::STATE_DIM, DYNAMICS_T::CONTROL_DIM>::Jacobian;
@@ -74,11 +72,6 @@ struct ModelWrapperDDP : public DDP_structures::Dynamics<float, DYNAMICS_T::STAT
     // This section is specific to the neural network implementation for the autorally
     state = x;
     control = u;
-    //        model_->computeKinematics(state);
-    //        model_->computeDynamics(state, control);
-    //        for (int i = 0; i < DYNAMICS_T::STATE_DIM; i++){
-    //            dx(i) = model_->state_der_(i);
-    //        }
 
     // Compute the state derivative xDot
     State dx;
