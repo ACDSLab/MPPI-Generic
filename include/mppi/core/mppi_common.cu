@@ -100,7 +100,7 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
       __syncthreads();
       x_temp = x;
       x = x_next;
-      x_next = x;
+      x_next = x_temp;
     }
     // Compute terminal cost and the final cost for each thread
     computeAndSaveCost(NUM_ROLLOUTS, num_timesteps, global_idx, costs, y, running_cost, trajectory_costs_d);
@@ -644,7 +644,7 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       __syncthreads();
       x_temp = x;
       x = x_next;
-      x_next = x;
+      x_next = x_temp;
 
       // save results, skips the first state location since that is known
       for (int i = thread_idy; i < DYN_T::STATE_DIM; i += blockDim.y)

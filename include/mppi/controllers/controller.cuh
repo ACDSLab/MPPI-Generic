@@ -83,8 +83,11 @@ public:
 
   // State typedefs
   using state_array = typename DYN_T::state_array;
-  using output_array = typename DYN_T::output_array;
   typedef Eigen::Matrix<float, DYN_T::STATE_DIM, MAX_TIMESTEPS> state_trajectory;  // A state trajectory
+
+  // Output typedefs
+  using output_array = typename DYN_T::output_array;
+  typedef Eigen::Matrix<float, DYN_T::OUTPUT_DIM, MAX_TIMESTEPS> output_trajectory;  // An output trajectory
 
   // Cost typedefs
   typedef Eigen::Matrix<float, MAX_TIMESTEPS + 1, 1> cost_trajectory;  // +1 for terminal cost

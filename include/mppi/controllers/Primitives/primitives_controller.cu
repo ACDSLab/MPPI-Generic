@@ -359,6 +359,8 @@ void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& 
 {
   state_array xdot;
   state_array state = x0;
+  state_array xnext;
+  output_array output;
   control_array u_i = control_array::Zero();
   this->model_->initializeDynamics(state, u_i, 0, this->getDt());
   for (int i = 0; i < this->getNumTimesteps() - 1; ++i)
@@ -366,8 +368,10 @@ void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& 
     this->model_->getStoppingControl(state, u_i);
     this->model_->enforceConstraints(state, u_i);
     this->control_.col(i) = u_i;
-    this->model_->computeStateDeriv(state, u_i, xdot);
-    this->model_->updateState(state, xdot, this->getDt());
+    this->model_->step(state, xnext, xdot, u_i, output, i, this->getDt());
+    state = xnext;
+    // this->model_->computeStateDeriv(state, u_i, xdot);
+    // this->model_->updateState(state, xdot, this->getDt());
   }
 }
 

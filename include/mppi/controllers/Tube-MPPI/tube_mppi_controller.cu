@@ -248,8 +248,11 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void TubeMPPI::updateNominalState(const Eigen::Ref<const control_array>& u)
 {
   state_array xdot;
-  this->model_->computeDynamics(nominal_state_trajectory_.col(0), u, xdot);
-  this->model_->updateState(nominal_state_trajectory_.col(0), xdot, this->getDt());
+  output_array output;
+  // this->model_->computeDynamics(nominal_state_trajectory_.col(0), u, xdot);
+  // this->model_->updateState(nominal_state_trajectory_.col(0), xdot, this->getDt());
+  this->model_->step(nominal_state_trajectory_.col(0), nominal_state_trajectory_.col(0), xdot, u, output, 0,
+                     this->getDt());
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,

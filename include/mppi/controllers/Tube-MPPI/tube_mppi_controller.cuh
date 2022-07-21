@@ -33,6 +33,7 @@ public:
   using control_trajectory = typename PARENT_CLASS::control_trajectory;
   using state_trajectory = typename PARENT_CLASS::state_trajectory;
   using state_array = typename PARENT_CLASS::state_array;
+  using output_array = typename PARENT_CLASS::output_array;
   using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
   using FEEDBACK_PARAMS = typename PARENT_CLASS::TEMPLATED_FEEDBACK_PARAMS;
   using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
