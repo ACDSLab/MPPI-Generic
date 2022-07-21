@@ -322,6 +322,226 @@ inline __host__ double inverseNormalCDFSlow(double x, int num_precision = 10)
 }
 
 }  // namespace math
+namespace matrix_multiplication
+{
+inline __host__ __device__ int2 unravelColumnMajor(int index, int num_rows)
+{
+  int col = index / num_rows;
+  int row = index % num_rows;
+  return make_int2(row, col);
+}
+
+inline __host__ __device__ int2 unravelRowMajor(int index, int num_cols)
+{
+  int row = index / num_cols;
+  int col = index % num_cols;
+  return make_int2(row, col);
+}
+inline __host__ __device__ int columnMajorIndex(int row, int col, int num_rows)
+{
+  return col * num_rows + row;
+}
+
+inline __host__ __device__ int rowMajorIndex(int row, int col, int num_cols)
+{
+  return row * num_cols + col;
+}
+namespace p1  // parallelize using 1 thread dim
+{
+enum class Parallel1Dir : int
+{
+  THREAD_X = 0,
+  THREAD_Y,
+  THREAD_Z,
+  NONE,
+};
+
+template <Parallel1Dir P_DIR>
+inline __device__ void getParallel1DIndex(int& p_index, int& p_step);
+
+/**
+ * @brief GEneral Matrix Multiplication
+ * Conducts the operation
+ * C = alpha * A * B + beta * C
+ * TODO: Add transpose options like cuBLAS GEMM
+ * Inputs:
+ * A - float column-major matrix of size M * K, stored in shared/global mem
+ * B - float column-major matrix of size K * N, stored in shared/global mem
+ * alpha - float to multiply A * B
+ * beta - float multipling C
+ * Outputs:
+ * C - float column-major matrix of size M * N, stored in shared/global mem
+ *
+ */
+template <int M, int K, int N, Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y>
+inline __device__ void gemm(const float* A, const float* B, float* C, const float alpha = 1.0, const float beta = 0.0)
+{
+  int parallel_index;
+  int parallel_step;
+  getParallel1DIndex<P_DIR>(parallel_index, parallel_step);
+  int2 mn;
+  for (int p = parallel_index; p < M * N; p += parallel_step)
+  {
+    mn = unravelColumnMajor(p, M);
+    C[p] *= beta;
+#pragma unroll
+    for (int k = 0; k < K; k++)
+    {
+      C[p] += alpha * A[columnMajorIndex(mn.x, k, M)] * B[columnMajorIndex(k, mn.y, K)];
+    }
+  }
+}
+
+template <>
+inline __device__ void getParallel1DIndex<Parallel1Dir::THREAD_X>(int& p_index, int& p_step)
+{
+  p_index = threadIdx.x;
+  p_step = blockDim.x;
+}
+
+template <>
+inline __device__ void getParallel1DIndex<Parallel1Dir::THREAD_Y>(int& p_index, int& p_step)
+{
+  p_index = threadIdx.y;
+  p_step = blockDim.y;
+}
+
+template <>
+inline __device__ void getParallel1DIndex<Parallel1Dir::THREAD_Z>(int& p_index, int& p_step)
+{
+  p_index = threadIdx.z;
+  p_step = blockDim.z;
+}
+template <>
+inline __device__ void getParallel1DIndex<Parallel1Dir::NONE>(int& p_index, int& p_step)
+{
+  p_index = 0;
+  p_step = 1;
+}
+}  // namespace p1
+namespace p2  // parallelize using 2 thread dim
+{
+enum class Parallel2Dir : int
+{
+  THREAD_XY = 0,
+  THREAD_XZ,
+  THREAD_YZ,
+  THREAD_YX,
+  THREAD_ZX,
+  THREAD_ZY,
+  NONE
+};
+
+template <Parallel2Dir P_DIR>
+inline __device__ void getParallel2DIndex(int& p1_index, int& p2_index, int& p1_step, int& p2_step);
+
+/**
+ * @brief GEneral Matrix Multiplication
+ * Conducts the operation
+ * C = alpha * A * B + beta * C
+ * using two parallelization directions
+ * TODO: Add transpose options like cuBLAS GEMM
+ * Inputs:
+ * A - float column-major matrix of size M * K, stored in shared/global mem
+ * B - float column-major matrix of size K * N, stored in shared/global mem
+ * alpha - float to multiply A * B
+ * beta - float multipling C
+ * Outputs:
+ * C - float column-major matrix of size M * N, stored in shared/global mem
+ *
+ */
+template <int M, int K, int N, Parallel2Dir P_DIR = Parallel2Dir::THREAD_XY>
+inline __device__ void gemm(const float* A, const float* B, float* C, const float alpha = 1.0, const float beta = 0.0)
+{
+  int m_ind_start;
+  int m_ind_size;
+  int n_ind_start;
+  int n_ind_size;
+  getParallel2DIndex<P_DIR>(m_ind_start, n_ind_start, m_ind_size, n_ind_size);
+  for (int m = m_ind_start; m < M; m += m_ind_size)
+  {
+    for (int n = n_ind_start; n < N; n += n_ind_size)
+    {
+      C[columnMajorIndex(m, n, M)] *= beta;
+#pragma unroll
+      for (int k = 0; k < K; k++)
+      {
+        C[columnMajorIndex(m, n, M)] += alpha * A[columnMajorIndex(m, k, M)] * B[columnMajorIndex(k, n, K)];
+      }
+    }
+  }
+}
+
+template <>
+inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XY>(int& p1_index, int& p2_index, int& p1_step,
+                                                                   int& p2_step)
+{
+  p1_index = threadIdx.x;
+  p1_step = blockDim.x;
+  p2_index = threadIdx.y;
+  p2_step = blockDim.y;
+}
+
+template <>
+inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YZ>(int& p1_index, int& p2_index, int& p1_step,
+                                                                   int& p2_step)
+{
+  p1_index = threadIdx.y;
+  p1_step = blockDim.y;
+  p2_index = threadIdx.z;
+  p2_step = blockDim.z;
+}
+
+template <>
+inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XZ>(int& p1_index, int& p2_index, int& p1_step,
+                                                                   int& p2_step)
+{
+  p1_index = threadIdx.x;
+  p1_step = blockDim.x;
+  p2_index = threadIdx.z;
+  p2_step = blockDim.z;
+}
+
+template <>
+inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YX>(int& p1_index, int& p2_index, int& p1_step,
+                                                                   int& p2_step)
+{
+  p1_index = threadIdx.y;
+  p1_step = blockDim.y;
+  p2_index = threadIdx.x;
+  p2_step = blockDim.x;
+}
+
+template <>
+inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZY>(int& p1_index, int& p2_index, int& p1_step,
+                                                                   int& p2_step)
+{
+  p1_index = threadIdx.z;
+  p1_step = blockDim.z;
+  p2_index = threadIdx.y;
+  p2_step = blockDim.y;
+}
+
+template <>
+inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZX>(int& p1_index, int& p2_index, int& p1_step,
+                                                                   int& p2_step)
+{
+  p1_index = threadIdx.z;
+  p1_step = blockDim.z;
+  p2_index = threadIdx.x;
+  p2_step = blockDim.x;
+}
+
+template <>
+inline __device__ void getParallel2DIndex<Parallel2Dir::NONE>(int& p1_index, int& p2_index, int& p1_step, int& p2_step)
+{
+  p1_index = 0;
+  p1_step = 1;
+  p2_index = 0;
+  p2_step = 1;
+}
+}  // namespace p2
+}  // namespace matrix_multiplication
 }  // namespace mppi
 
 #endif  // MATH_UTILS_H_
