@@ -19,6 +19,8 @@ struct RacerDubinsElevationParams : public RacerDubinsParams
     STEER_ANGLE,
     ROLL,
     PITCH,
+    STEER_ANGLE_RATE,
+    ACCEL_X,
     NUM_STATES
   };
 };
@@ -47,8 +49,8 @@ public:
 
   void paramsToDevice();
 
-  // void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
-  //                  Eigen::Ref<state_array> state_der, const float dt);
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                   Eigen::Ref<state_array> state_der, const float dt);
 
   void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                          Eigen::Ref<state_array> state_der);
@@ -57,7 +59,7 @@ public:
             const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,
             const float dt);
 
-  // __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
 
   __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
 

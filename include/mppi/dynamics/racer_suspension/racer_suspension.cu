@@ -392,3 +392,63 @@ RacerSuspension::state_array RacerSuspension::stateFromOdometry(const Eigen::Qua
   s.segment<3>(S_INDEX(V_I_X)) = COM_v_I;
   return s;
 }
+
+void RacerSuspension::enforceLeash(const Eigen::Ref<const state_array>& state_true,
+                                   const Eigen::Ref<const state_array>& state_nominal,
+                                   const Eigen::Ref<const state_array>& leash_values,
+                                   Eigen::Ref<state_array> state_output)
+{
+  // update state_output for leash, need to handle x and y positions specially, convert to body frame and leash in body
+  // frame. transform x and y into body frame
+  float dx = state_nominal[S_INDEX(P_I_X)] - state_true[S_INDEX(P_I_X)];
+  float dy = state_nominal[S_INDEX(P_I_Y)] - state_true[S_INDEX(P_I_Y)];
+  float roll, pitch, yaw;
+  Eigen::Quaternionf q(state_true[S_INDEX(ATTITUDE_QW)], state_true[S_INDEX(ATTITUDE_QX)],
+                       state_true[S_INDEX(ATTITUDE_QY)], state_true[S_INDEX(ATTITUDE_QZ)]);
+  mppi::math::Quat2EulerNWU(q, roll, pitch, yaw);
+  float dx_body = dx * cos(yaw) + dy * sin(yaw);
+  float dy_body = -dx * sin(yaw) + dy * cos(yaw);
+
+  // determine leash in body frame
+  float x_leash = leash_values[S_INDEX(P_I_X)];
+  float y_leash = leash_values[S_INDEX(P_I_Y)];
+  dx_body = fminf(fmaxf(dx_body, -x_leash), x_leash);
+  dy_body = fminf(fmaxf(dy_body, -y_leash), y_leash);
+
+  // transform back to map frame
+  dx = dx_body * cos(yaw) + -dy_body * sin(yaw);
+  dy = dx_body * sin(yaw) + dy_body * cos(yaw);
+
+  // apply leash
+  state_output[S_INDEX(P_I_X)] += dx;
+  state_output[S_INDEX(P_I_Y)] += dy;
+
+  // TODO: Figure out leash for quaternion?
+
+  // handle leash for rest of states
+  float diff;
+  for (int i = 0; i < STATE_DIM; i++)
+  {
+    // use body x and y for leash
+    if (i == S_INDEX(P_I_X) || i == S_INDEX(P_I_Y) || i == S_INDEX(ATTITUDE_QW) || i == S_INDEX(ATTITUDE_QX) ||
+        i == S_INDEX(ATTITUDE_QY) || i == S_INDEX(ATTITUDE_QZ))
+    {
+      // handle outside for loop
+      continue;
+    }
+    else
+    {
+      diff = fabsf(state_nominal[i] - state_true[i]);
+    }
+
+    if (leash_values[i] < diff)
+    {
+      float leash_dir = fminf(fmaxf(state_nominal[i] - state_true[i], -leash_values[i]), leash_values[i]);
+      state_output[i] = state_true[i] + leash_dir;
+    }
+    else
+    {
+      state_output[i] = state_nominal[i];
+    }
+  }
+}

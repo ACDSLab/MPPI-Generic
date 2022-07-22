@@ -9,13 +9,17 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::Ref<const 
   bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0;
   // applying position throttle
   state_der(S_INDEX(VEL_X)) =
-      (!enable_brake) * this->params_.c_t * control(C_INDEX(THROTTLE_BRAKE)) +
-      (enable_brake) * this->params_.c_b * control(C_INDEX(THROTTLE_BRAKE)) * (state(S_INDEX(VEL_X)) >= 0 ? 1 : -1) -
-      this->params_.c_v * state(S_INDEX(VEL_X)) + this->params_.c_0;
-  state_der(S_INDEX(YAW)) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) * tan(state(4));
+      (!enable_brake) * this->params_.c_t[0] * control(C_INDEX(THROTTLE_BRAKE)) +
+      (enable_brake) * this->params_.c_b[0] * control(C_INDEX(THROTTLE_BRAKE)) * (state(S_INDEX(VEL_X)) >= 0 ? 1 : -1) -
+      this->params_.c_v[0] * state(S_INDEX(VEL_X)) + this->params_.c_0;
+  state_der(S_INDEX(YAW)) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) * tan(state(S_INDEX(STEER_ANGLE)));
   state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW)));
   state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW)));
-  state_der(S_INDEX(STEER_ANGLE)) = control(C_INDEX(STEER_CMD)) / this->params_.steer_command_angle_scale;
+  state_der(S_INDEX(STEER_ANGLE)) =
+      (control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
+      this->params_.steering_constant;
+  state_der(S_INDEX(STEER_ANGLE)) =
+      max(min(state_der(S_INDEX(STEER_ANGLE)), this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -31,12 +35,16 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(const Eigen::Ref<const stat
                                                      Eigen::Ref<state_array> next_state,
                                                      Eigen::Ref<state_array> state_der, const float dt)
 {
-  next_state = state + state_der * dt;
+  // Segmented it to ensure that roll and pitch don't get overwritten
+  for (int i = 0; i < 5; i++)
+  {
+    next_state[i] = state[i] + state_der[i] * dt;
+  }
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
-  next_state(S_INDEX(STEER_ANGLE)) -= state_der(S_INDEX(STEER_ANGLE)) * dt;
   next_state(S_INDEX(STEER_ANGLE)) =
-      state_der(S_INDEX(STEER_ANGLE)) + (next_state(S_INDEX(STEER_ANGLE)) - state_der(S_INDEX(STEER_ANGLE))) *
-                                            expf(-this->params_.steering_constant * dt);
+      max(min(state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
+  next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
+  next_state(S_INDEX(ACCEL_X)) = state_der(S_INDEX(VEL_X));  // include accel in state
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -56,18 +64,21 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(float* state, fl
   int tdy = threadIdx.y;
   // Add the state derivative time dt to the current state.
   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-  for (i = tdy; i < PARENT_CLASS::STATE_DIM; i += blockDim.y)
+  for (i = tdy; i < 5; i += blockDim.y)
   {
     next_state[i] = state[i] + state_der[i] * dt;
+    if (i == S_INDEX(VEL_X))
+    {
+      next_state[S_INDEX(ACCEL_X)] = state_der[i];  // include accel in state
+    }
     if (i == S_INDEX(YAW))
     {
       next_state[i] = angle_utils::normalizeAngle(next_state[i]);
     }
     if (i == S_INDEX(STEER_ANGLE))
     {
-      next_state[i] -= state_der[i] * dt;
-      next_state[i] = state_der[i] + (next_state[i] - state_der[i]) * expf(-this->params_.steering_constant * dt);
-      // next_state[i] += state_der[i] * expf(-this->params_.steering_constant * dt);
+      next_state[i] = max(min(next_state[i], this->params_.max_steer_angle), -this->params_.max_steer_angle);
+      next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[i];
     }
   }
 }
@@ -119,13 +130,18 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(float* state
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
   // applying position throttle
   state_der[S_INDEX(VEL_X)] =
-      (!enable_brake) * this->params_.c_t * control[C_INDEX(THROTTLE_BRAKE)] +
-      (enable_brake) * this->params_.c_b * control[C_INDEX(THROTTLE_BRAKE)] * (state[S_INDEX(VEL_X)] >= 0 ? 1 : -1) -
-      this->params_.c_v * state[S_INDEX(VEL_X)] + this->params_.c_0;
-  state_der[S_INDEX(YAW)] = (state[S_INDEX(VEL_X)] / this->params_.wheel_base) * tan(state[4]);
+      (!enable_brake) * this->params_.c_t[0] * control[0] +
+      (enable_brake) * this->params_.c_b[0] * control[0] * (state[S_INDEX(VEL_X)] >= 0 ? 1 : -1) -
+      this->params_.c_v[0] * state[S_INDEX(VEL_X)] + this->params_.c_0;
+  state_der[S_INDEX(YAW)] = (state[S_INDEX(VEL_X)] / this->params_.wheel_base) *
+                            tan(state[S_INDEX(STEER_ANGLE)] / this->params_.steer_angle_scale[0]);
   state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]);
-  state_der[S_INDEX(STEER_ANGLE)] = control[C_INDEX(STEER_CMD)] / this->params_.steer_command_angle_scale;
+  state_der[S_INDEX(STEER_ANGLE)] =
+      (control[1] * this->params_.steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+      this->params_.steering_constant;
+  state_der[S_INDEX(STEER_ANGLE)] =
+      max(min(state_der[S_INDEX(STEER_ANGLE)], this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -134,4 +150,62 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::getStoppingControl(const Eigen::Ref<con
 {
   u[0] = -1.0;  // full brake
   u[1] = 0.0;   // no steering
+}
+
+template <class CLASS_T, class PARAMS_T>
+void RacerDubinsImpl<CLASS_T, PARAMS_T>::enforceLeash(const Eigen::Ref<const state_array>& state_true,
+                                                      const Eigen::Ref<const state_array>& state_nominal,
+                                                      const Eigen::Ref<const state_array>& leash_values,
+                                                      Eigen::Ref<state_array> state_output)
+{
+  // update state_output for leash, need to handle x and y positions specially, convert to body frame and leash in body
+  // frame. transform x and y into body frame
+  float dx = state_nominal[S_INDEX(POS_X)] - state_true[S_INDEX(POS_X)];
+  float dy = state_nominal[S_INDEX(POS_Y)] - state_true[S_INDEX(POS_Y)];
+  float dx_body = dx * cos(state_true[S_INDEX(YAW)]) + dy * sin(state_true[S_INDEX(YAW)]);
+  float dy_body = -dx * sin(state_true[S_INDEX(YAW)]) + dy * cos(state_true[S_INDEX(YAW)]);
+
+  // determine leash in body frame
+  float y_leash = leash_values[S_INDEX(POS_Y)];
+  float x_leash = leash_values[S_INDEX(POS_X)];
+  dx_body = fminf(fmaxf(dx_body, -x_leash), x_leash);
+  dy_body = fminf(fmaxf(dy_body, -y_leash), y_leash);
+
+  // transform back to map frame
+  dx = dx_body * cos(state_true[S_INDEX(YAW)]) + -dy_body * sin(state_true[S_INDEX(YAW)]);
+  dy = dx_body * sin(state_true[S_INDEX(YAW)]) + dy_body * cos(state_true[S_INDEX(YAW)]);
+
+  // apply leash
+  state_output[S_INDEX(POS_X)] += dx;
+  state_output[S_INDEX(POS_Y)] += dy;
+
+  // handle leash for rest of states
+  float diff;
+  for (int i = 0; i < PARENT_CLASS::STATE_DIM; i++)
+  {
+    // use body x and y for leash
+    if (i == S_INDEX(POS_X) || i == S_INDEX(POS_Y))
+    {
+      // handle outside for loop
+      continue;
+    }
+    else if (i == S_INDEX(YAW))
+    {
+      diff = fabsf(angle_utils::shortestAngularDistance(state_nominal[i], state_true[i]));
+    }
+    else
+    {
+      diff = fabsf(state_nominal[i] - state_true[i]);
+    }
+
+    if (leash_values[i] < diff)
+    {
+      float leash_dir = fminf(fmaxf(state_nominal[i] - state_true[i], -leash_values[i]), leash_values[i]);
+      state_output[i] = state_true[i] + leash_dir;
+    }
+    else
+    {
+      state_output[i] = state_nominal[i];
+    }
+  }
 }

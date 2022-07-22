@@ -55,17 +55,10 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 {
   this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
   state_array local_state = state;
-  for (int i = 0; i < DYN_T::STATE_DIM; i++)
+
+  if (getLeashActive())
   {
-    float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
-    if (getStateLeashLength(i) < diff)
-    {
-      local_state[i] = state[i];
-    }
-    else
-    {
-      local_state[i] = this->state_.col(leash_jump_)[i];
-    }
+    this->model_->enforceLeash(state, this->state_.col(leash_jump_), this->params_.state_leash_dist_, local_state);
   }
   std::cout << "compute control initial state " << local_state << std::endl;
 
@@ -141,8 +134,16 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     baseline_prev = this->getBaselineCost();
 
     // Launch the norm exponential kernel
-    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
-                                     this->getBaselineCost(), this->stream_, false);
+    if (getGamma() == 0 || getRExp() == 0)
+    {
+      mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
+                                       this->getBaselineCost(), this->stream_, false);
+    }
+    else
+    {
+      mppi_common::launchTsallisKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, getGamma(), getRExp(),
+                                       this->getBaselineCost(), this->stream_, false);
+    }
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));

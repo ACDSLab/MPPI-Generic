@@ -117,6 +117,26 @@ public:
     return this->params_.num_primitive_iters_;
   }
 
+  void setGamma(float gamma)
+  {
+    this->params_.gamma = gamma;
+  }
+
+  float getGamma()
+  {
+    return this->params_.gamma;
+  }
+
+  void setRExp(float r)
+  {
+    this->params_.r = r;
+  }
+
+  float getRExp()
+  {
+    return this->params_.r;
+  }
+
   void setColoredNoiseExponents(std::vector<float>& new_exponents)
   {
     this->params_.colored_noise_exponents_ = new_exponents;
@@ -174,6 +194,16 @@ public:
   float getStateLeashLength(int index)
   {
     return this->params_.state_leash_dist_[index];
+  }
+
+  bool getLeashActive()
+  {
+    return leash_active_;
+  }
+
+  void setLeashActive(bool new_leash_active)
+  {
+    leash_active_ = new_leash_active;
   }
 
   void setStoppingCostThreshold(float new_stopping_cost_threshold)
@@ -236,9 +266,11 @@ protected:
   void smoothControlTrajectory();
 
   int leash_jump_ = 1;
+  bool leash_active_ = false;
 
   float* control_mppi_d_;                                         // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
   control_trajectory control_mppi_ = control_trajectory::Zero();  // host side mppi control trajectory
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_mppi_history_;
 
 private:
   // ======== MUST BE OVERWRITTEN =========

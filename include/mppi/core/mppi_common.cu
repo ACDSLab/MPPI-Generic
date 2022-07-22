@@ -109,6 +109,13 @@ __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float
   normExpTransform(num_rollouts * blockDim.z, trajectory_costs_d, lambda_inv, baseline, global_idx, global_step);
 }
 
+__global__ void TsallisKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float r, float baseline)
+{
+  int global_idx = (blockDim.x * blockIdx.x + threadIdx.x) * blockDim.z + threadIdx.z;
+  int global_step = blockDim.x * gridDim.x * blockDim.z * gridDim.z;
+  TsallisTransform(num_rollouts * blockDim.z, trajectory_costs_d, gamma, r, baseline, global_idx, global_step);
+}
+
 template <int CONTROL_DIM, int NUM_ROLLOUTS, int SUM_STRIDE>
 __global__ void weightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float normalizer,
                                         int num_timesteps)
@@ -305,7 +312,7 @@ __device__ inline float computeBaselineCost(int num_rollouts, const float* __res
 #if false
   // potential method to speed up copying costs
   int prev_size = min(blockDim.x, num_rollouts);
-  float my_val = (rollout_idx_global < num_rollouts) ? trajectory_costs_d[rollout_idx_global] : 10e37;
+  float my_val = (rollout_idx_global < num_rollouts) ? trajectory_costs_d[rollout_idx_global] : INFINITY;
   for (int i = rollout_idx_global + rollout_idx_step; i < num_rollouts; i += rollout_idx_step)
   {
     my_val = min(trajectory_costs_d[i], my_val);
@@ -359,6 +366,25 @@ __device__ inline void normExpTransform(int num_rollouts, float* __restrict__ tr
   {
     float cost_dif = trajectory_costs_d[i] - baseline;
     trajectory_costs_d[i] = expf(-lambda_inv * cost_dif);
+  }
+}
+
+__device__ inline void TsallisTransform(int num_rollouts, float* __restrict__ trajectory_costs_d, float gamma, float r,
+                                        float baseline, int global_idx, int rollout_idx_step)
+{
+  for (int i = global_idx; i < num_rollouts; i += rollout_idx_step)
+  {
+    float cost_dif = trajectory_costs_d[i] - baseline;
+    // trajectory_costs_d[i] = mppi::math::expr(-lambda_bar_inv * cost_dif);
+    // trajectory_costs_d[i] = (cost_dif < gamma) * expf(logf(1.0 - cost_dif / gamma) / (r - 1));
+    if (cost_dif < gamma)
+    {
+      trajectory_costs_d[i] = expf(logf(1.0 - cost_dif / gamma) / (r - 1));
+    }
+    else
+    {
+      trajectory_costs_d[i] = 0;
+    }
   }
 }
 
@@ -685,6 +711,20 @@ void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_co
   }
 }
 
+void launchTsallisKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float r,
+                         float baseline, cudaStream_t stream, bool synchronize)
+{
+  dim3 dimBlock(blocksize_x, 1, 1);
+  dim3 dimGrid((num_rollouts - 1) / blocksize_x + 1, 1, 1);
+  TsallisKernel<<<dimGrid, dimBlock, 0, stream>>>(num_rollouts, trajectory_costs_d, gamma, r, baseline);
+  // CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+  }
+}
+
 template <int NUM_ROLLOUTS>
 void launchWeightTransformKernel(float* __restrict__ costs_d, float2* __restrict__ baseline_and_norm_d,
                                  const float lambda_inv, const int num_systems, cudaStream_t stream, bool synchronize)
@@ -863,7 +903,6 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
 
     dynamics->enforceConstraints(state, control);
     __syncthreads();
-
     if (tdy == 0 && i > 0)
     {  // Only compute once per global index, make sure that we don't divide by zero
       running_cost += (costs->computeRunningCost(output, control, control_noise, exploration_std_dev, lambda, alpha, i,

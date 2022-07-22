@@ -178,6 +178,8 @@ public:
 
   __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s,
                                     float* output = nullptr);
+  void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal,
+                    const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output);
 
   __device__ void step(float* state, float* next_state, float* state_der, float* control, float* output, float* theta_s,
                        const float t, const float dt);

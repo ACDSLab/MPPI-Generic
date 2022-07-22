@@ -13,6 +13,8 @@ struct RacerDubinsParams : public DynamicsParams
     POS_X,
     POS_Y,
     STEER_ANGLE,
+    STEER_ANGLE_RATE,
+    ACCEL_X,
     NUM_STATES
   };
 
@@ -69,14 +71,18 @@ struct RacerDubinsParams : public DynamicsParams
     NUM_OUTPUTS
   };
 
-  float c_t = 1.3;
-  float c_b = 2.5;
-  float c_v = 3.7;
+  float c_t[3] = { 1.3, 2.6, 3.9 };
+  float c_b[3] = { 2.5, 3.5, 4.5 };
+  float c_v[3] = { 3.7, 4.7, 5.7 };
   float c_0 = 4.9;
   float steering_constant = .6;
   float wheel_base = 0.3;
-  float steer_command_angle_scale = -2.45;
+  float steer_command_angle_scale = 5;
+  float steer_angle_scale[3] = { -9.1, -10.2, -15.1 };
+  float low_min_throttle = 0.13;
   float gravity = -9.81;
+  float max_steer_angle = 0.5;
+  float max_steer_rate = 5;
 };
 
 using namespace MPPI_internal;
@@ -131,6 +137,9 @@ public:
   Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
   state_array stateFromOdometry(const Eigen::Quaternionf& q, const Eigen::Vector3f& pos, const Eigen::Vector3f& vel,
                                 const Eigen::Vector3f& omega);
+
+  void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal,
+                    const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output);
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins>
