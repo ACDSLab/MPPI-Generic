@@ -182,10 +182,12 @@ void RacerDubinsElevation::computeDynamics(const Eigen::Ref<const state_array>& 
   // applying position throttle
   float throttle = this->params_.c_t[index] * control(0);
   float brake = this->params_.c_b[index] * control(0) * (state(0) >= 0 ? 1 : -1);
-  if (abs(state(0)) <= 0.5)
+  float dt = 0.02;  // TODO
+  float linear_brake_slope = 0.9f * (2 / dt);
+  if (abs(state(0)) <= this->params_.c_b[index] / linear_brake_slope)
   {
     throttle = this->params_.c_t[index] * max(control(0) - this->params_.low_min_throttle, 0.0f);
-    brake = this->params_.c_b[index] * control(0) * state(0);
+    brake = linear_brake_slope * control(0) * state(0);
   }
 
   state_der(0) =
@@ -208,10 +210,12 @@ __device__ void RacerDubinsElevation::computeDynamics(float* state, float* contr
   // applying position throttle
   float throttle = this->params_.c_t[index] * control[0];
   float brake = this->params_.c_b[index] * control[0] * (state[0] >= 0 ? 1 : -1);
-  if (abs(state[0]) <= 0.5)
+  float dt = 0.02;  // TODO
+  float linear_brake_slope = 0.9f * (2 / dt);
+  if (abs(state[0]) <= this->params_.c_b[index] / linear_brake_slope)
   {
     throttle = this->params_.c_t[index] * max(control[0] - this->params_.low_min_throttle, 0.0f);
-    brake = this->params_.c_b[index] * control[0] * state[0];
+    brake = linear_brake_slope * control[0] * state[0];
   }
 
   state_der[0] =
