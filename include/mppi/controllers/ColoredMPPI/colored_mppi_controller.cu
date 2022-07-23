@@ -60,7 +60,6 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
   {
     this->model_->enforceLeash(state, this->state_.col(leash_jump_), this->params_.state_leash_dist_, local_state);
   }
-  std::cout << "compute control initial state " << local_state << std::endl;
 
   // Send the initial condition to the device
   HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, local_state.data(), DYN_T::STATE_DIM * sizeof(float),

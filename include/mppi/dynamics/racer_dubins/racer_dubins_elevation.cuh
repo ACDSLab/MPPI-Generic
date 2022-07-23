@@ -28,7 +28,9 @@ struct RacerDubinsElevationParams : public RacerDubinsParams
 class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation, RacerDubinsElevationParams>
 {
 public:
+  // static const int SHARED_MEM_REQUEST_GRD = sizeof(DYN_PARAMS_T);
   using PARENT_CLASS = RacerDubinsImpl<RacerDubinsElevation, RacerDubinsElevationParams>;
+  using PARENT_CLASS::initializeDynamics;
   RacerDubinsElevation(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -65,6 +67,8 @@ public:
 
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
+
+  __device__ void initializeDynamics(float* state, float* control, float* theta_s, float t_0, float dt);
 
   TwoDTextureHelper<float>* getTextureHelper()
   {

@@ -125,11 +125,8 @@ __device__ inline void Dynamics<CLASS_T, PARAMS_T>::step(float* state, float* ne
   derived->updateState(state, next_state, state_der, dt);
   __syncthreads();
   // TODO this is a hack
-  if (output)
+  for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i += blockDim.y)
   {
-    for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i += blockDim.y)
-    {
-      output[i] = next_state[i];
-    }
+    output[i] = next_state[i];
   }
 }

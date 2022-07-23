@@ -91,6 +91,7 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
       }
 
       // Compute state derivatives
+      __syncthreads();  // Ensure step doesn't change y while cost above is caclulating
       dynamics->step(x, x_next, xdot, u, y, theta_s, t, dt);
       __syncthreads();
       x_temp = x;
