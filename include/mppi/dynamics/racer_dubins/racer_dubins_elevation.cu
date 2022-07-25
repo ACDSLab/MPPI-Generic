@@ -234,6 +234,9 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
     params_p = &(this->params_);
   }
   // computeStateDeriv(state, control, state_der, theta_s);
+  const int tdy = threadIdx.y;
+  // if (tdy == 1 % blockDim.y)
+  // { // calculate on separate thread from cost to potentially have this happen in conjunction
   bool enable_brake = control[0] < 0;
   int index = (fabsf(state[S_INDEX(VEL_X)]) > 0.5 && fabsf(state[S_INDEX(VEL_X)]) <= 6.0) +
               (fabsf(state[S_INDEX(VEL_X)]) > 6.0) * 2;
@@ -260,10 +263,10 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
       (control[1] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) * params_p->steering_constant;
   state_der[S_INDEX(STEER_ANGLE)] =
       max(min(state_der[S_INDEX(STEER_ANGLE)], params_p->max_steer_rate), -params_p->max_steer_rate);
+  // }
   __syncthreads();
   // Use Euler Integration from racer_dubins parent class
-  updateState(state, next_state, state_der, dt);
-
+  // updateState(state, next_state, state_der, dt);
   float pitch = 0;
   float roll = 0;
 
@@ -271,27 +274,44 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
   float3 front_right = make_float3(2.981, -0.737, 0);
   float3 rear_left = make_float3(0, 0.737, 0);
   float3 rear_right = make_float3(0, -0.737, 0);
-  front_left = make_float3(front_left.x * cosf(next_state[1]) - front_left.y * sinf(next_state[1]) + next_state[2],
-                           front_left.x * sinf(next_state[1]) + front_left.y * cosf(next_state[1]) + next_state[3], 0);
-  front_right =
-      make_float3(front_right.x * cosf(next_state[1]) - front_right.y * sinf(next_state[1]) + next_state[2],
-                  front_right.x * sinf(next_state[1]) + front_right.y * cosf(next_state[1]) + next_state[3], 0);
-  rear_left = make_float3(rear_left.x * cosf(next_state[1]) - rear_left.y * sinf(next_state[1]) + next_state[2],
-                          rear_left.x * sinf(next_state[1]) + rear_left.y * cosf(next_state[1]) + next_state[3], 0);
-  rear_right = make_float3(rear_right.x * cosf(next_state[1]) - rear_right.y * sinf(next_state[1]) + next_state[2],
-                           rear_right.x * sinf(next_state[1]) + rear_right.y * cosf(next_state[1]) + next_state[3], 0);
+
   float front_left_height = 0;
   float front_right_height = 0;
   float rear_left_height = 0;
   float rear_right_height = 0;
-
-  const int roll_pitch_max_index = max(S_INDEX(ROLL), S_INDEX(PITCH));
-  for (int i = threadIdx.y; i < roll_pitch_max_index; i += blockDim.y)
+  for (int i = tdy; i < 5; i += blockDim.y)
   {
+    next_state[i] = state[i] + state_der[i] * dt;
+    switch (i)
+    {
+      case S_INDEX(VEL_X):
+        next_state[S_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
+        break;
+      case S_INDEX(YAW):
+        next_state[i] = angle_utils::normalizeAngle(next_state[i]);
+        break;
+      case S_INDEX(STEER_ANGLE):
+        next_state[S_INDEX(STEER_ANGLE)] =
+            max(min(next_state[S_INDEX(STEER_ANGLE)], this->params_.max_steer_angle), -this->params_.max_steer_angle);
+        next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
+        break;
+    }
     if (i == S_INDEX(ROLL) || i == S_INDEX(PITCH))
     {
       if (this->tex_helper_->checkTextureUse(0))
       {
+        front_left =
+            make_float3(front_left.x * cosf(next_state[1]) - front_left.y * sinf(next_state[1]) + next_state[2],
+                        front_left.x * sinf(next_state[1]) + front_left.y * cosf(next_state[1]) + next_state[3], 0);
+        front_right =
+            make_float3(front_right.x * cosf(next_state[1]) - front_right.y * sinf(next_state[1]) + next_state[2],
+                        front_right.x * sinf(next_state[1]) + front_right.y * cosf(next_state[1]) + next_state[3], 0);
+        rear_left =
+            make_float3(rear_left.x * cosf(next_state[1]) - rear_left.y * sinf(next_state[1]) + next_state[2],
+                        rear_left.x * sinf(next_state[1]) + rear_left.y * cosf(next_state[1]) + next_state[3], 0);
+        rear_right =
+            make_float3(rear_right.x * cosf(next_state[1]) - rear_right.y * sinf(next_state[1]) + next_state[2],
+                        rear_right.x * sinf(next_state[1]) + rear_right.y * cosf(next_state[1]) + next_state[3], 0);
         front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
         front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
         rear_left_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_left);
@@ -306,9 +326,9 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
           rear_diff = max(min(rear_diff, 0.736 * 2), -0.736 * 2);
           float front_roll = asinf(front_diff / (0.737 * 2));
           float rear_roll = asinf(rear_diff / (0.737 * 2));
-          next_state[i] = (front_roll + rear_roll) / 2;
+          next_state[5] = (front_roll + rear_roll) / 2;
         }
-        else if (i == S_INDEX(PITCH))
+        if (i == S_INDEX(PITCH))
         {
           float left_diff = rear_left_height - front_left_height;
           left_diff = max(min(left_diff, 2.98), -2.98);
@@ -316,9 +336,12 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
           right_diff = max(min(right_diff, 2.98), -2.98);
           float left_pitch = asinf((left_diff) / 2.981);
           float right_pitch = asinf((right_diff) / 2.981);
-          next_state[i] = (left_pitch + right_pitch) / 2;
+          next_state[6] = (left_pitch + right_pitch) / 2;
+          if (isnan(next_state[6]) || isinf(next_state[6]) || fabsf(next_state[6]) > M_PIf32)
+          {
+            next_state[6] = 4.0;
+          }
         }
-
         if (isnan(next_state[i]) || isinf(next_state[i]) || fabsf(next_state[i]) > M_PIf32)
         {
           next_state[i] = 4.0;
@@ -328,17 +351,16 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
       {
         next_state[5] = 0;
         next_state[6] = 0;
-        break;
       }
     }
   }
+  __syncthreads();
 
   float yaw = next_state[S_INDEX(YAW)];
   float q[4];
   mppi::math::Euler2QuatNWU(roll, pitch, yaw, q);
-  __syncthreads();
-#if true
-  for (int i = threadIdx.y; i < PARENT_CLASS::OUTPUT_DIM; i += blockDim.y)
+#if false
+  for (int i = tdy; i < PARENT_CLASS::OUTPUT_DIM; i += blockDim.y)
   {
     switch (i)
     {

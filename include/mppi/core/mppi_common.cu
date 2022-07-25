@@ -86,6 +86,8 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
       // Accumulate running cost
       if (thread_idy == 0 && t > 0)
       {
+        // running_cost +=
+        //     costs->computeRunningCost(y, u, du, sigma_u, lambda, alpha, t, crash_status);
         running_cost +=
             (costs->computeRunningCost(y, u, du, sigma_u, lambda, alpha, t, crash_status) - running_cost) / (1.0 * t);
       }

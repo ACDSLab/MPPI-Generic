@@ -73,10 +73,10 @@ __global__ void gemm1dBatchKernel(const float* A, const float* B, float* C)
 
 TEST(MATH_UTILS, Matrix3fMultiplicationP1)
 {
-  const int M = 300;
+  const int M = 3;
   const int K = 3;
-  const int N = 100;
-  const int max_thread_size = 30;
+  const int N = 10;
+  const int max_thread_size = 32;
   // typedef Eigen::Matrix<float, M, K> A_mat;
   // typedef Eigen::Matrix<float, K, N> B_mat;
   // typedef Eigen::Matrix<float, M, N> C_mat;
@@ -96,6 +96,7 @@ TEST(MATH_UTILS, Matrix3fMultiplicationP1)
   B_mat B;
   C_mat C_CPU;
   C_mat C_GPU;
+  float total_duration_ms;
   // std::cout << "C_CPU:\n" << C_CPU << std::endl;
   float* A_d;
   float* B_d;
@@ -126,6 +127,13 @@ TEST(MATH_UTILS, Matrix3fMultiplicationP1)
     {
       block.z = size;
     }
+
+    // namespace mm = mppi::matrix_multiplication;
+    // mm::devMatrix<M, K> A_test(A.data());
+    // mm::devMatrix<K, N> B_test(B.data());
+    // mm::devMatrix<M, N> C_test(C_CPU.data());
+    // mm1::matMult(A_test, B_test, C_test);
+
     cudaEventRecord(start, stream);
     HANDLE_ERROR(cudaMemcpyAsync(A_d, A.data(), sizeof(float) * A.size(), cudaMemcpyHostToDevice, stream));
     HANDLE_ERROR(cudaMemcpyAsync(B_d, B.data(), sizeof(float) * B.size(), cudaMemcpyHostToDevice, stream));
@@ -137,6 +145,7 @@ TEST(MATH_UTILS, Matrix3fMultiplicationP1)
     cudaEventRecord(stop, stream);
     float duration = 0;
     cudaEventElapsedTime(&duration, start, stop);
+    total_duration_ms += duration;
     // std::cout << "C_GPU " << " with " << block_x_size << " parallelization:\n" << C_GPU << std::endl;
     // std::cout << block_x_size << " parallelization diff " << duration << " ms:\n" << C_CPU - C_GPU << std::endl;
     double avg_err = (C_CPU - C_GPU).norm() / C_CPU.size();
@@ -181,6 +190,8 @@ TEST(MATH_UTILS, Matrix3fMultiplicationP1)
   inner_loop_before(1, mm1::Parallel1Dir::NONE);
   gemm1d<M, K, N, mm1::Parallel1Dir::NONE><<<grid, block, 0, stream>>>(A_d, B_d, C_d);
   inner_loop_after(1, mm1::Parallel1Dir::NONE);
+
+  std::cout << "Total time spent in Memcpy and kernel: " << total_duration_ms << " ms." << std::endl;
   cudaFree(A_d);
   cudaFree(B_d);
   cudaFree(C_d);

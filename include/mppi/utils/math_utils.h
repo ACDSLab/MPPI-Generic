@@ -25,7 +25,7 @@ namespace math
 {
 const float GRAVITY = 9.81;
 // Based off of https://gormanalysis.com/blog/random-numbers-in-cpp
-inline std::vector<int> sample_without_replacement(int k, int N,
+inline std::vector<int> sample_without_replacement(const int k, const int N,
                                                    std::default_random_engine g = std::default_random_engine())
 {
   if (k > N)
@@ -56,7 +56,7 @@ inline std::vector<int> sample_without_replacement(int k, int N,
   return final_sequence;
 }
 
-inline __host__ __device__ float expr(float r, float x)
+inline __host__ __device__ float expr(const float r, const float x)
 {
   float mid_term = 1.0 + (r - 1.0) * x;
   return (mid_term > 0) * powf(mid_term, 1.0 / (r - 1.0));
@@ -68,7 +68,8 @@ inline __host__ __device__ float expr(float r, float x)
  * And the x location of a third (x), return the y location
  * along the line between the two points
  */
-inline __host__ __device__ float linInterp(float x, float x_min, float x_max, float y_min, float y_max)
+inline __host__ __device__ float linInterp(const float x, const float x_min, const float x_max, const float y_min,
+                                           const float y_max)
 {
   return (x - x_min) / (x_max - x_min) * (y_max - y_min) + y_min;
 }
@@ -82,7 +83,7 @@ inline __host__ __device__ float linInterp(float x, float x_min, float x_max, fl
  * norm_dist = 0 -> on the centerline
  * norm_dist = 1 -> on one of the track boundaries inner, or outer
  */
-inline __host__ __device__ float normDistFromCenter(float r, float r_in, float r_out)
+inline __host__ __device__ float normDistFromCenter(const float r, const float r_in, const float r_out)
 {
   float r_center = (r_in + r_out) / 2;
   float r_width = (r_out - r_in);
@@ -99,7 +100,7 @@ inline __host__ __device__ float normDistFromCenter(float r, float r_in, float r
  *  q_2 - second quaternion
  *  q_3 - output quaternion
  */
-inline __host__ __device__ void QuatMultiply(float q_1[4], float q_2[4], float q_3[4])
+inline __host__ __device__ void QuatMultiply(const float q_1[4], const float q_2[4], float q_3[4])
 {
   q_3[0] = q_1[0] * q_2[0] - q_1[1] * q_2[1] - q_1[2] * q_2[2] - q_1[3] * q_2[3];
   q_3[1] = q_1[1] * q_2[0] + q_1[0] * q_2[1] - q_1[3] * q_2[2] + q_1[2] * q_2[3];
@@ -112,7 +113,7 @@ inline __host__ __device__ void QuatMultiply(float q_1[4], float q_2[4], float q
   }
 }
 
-inline __host__ __device__ void QuatInv(float q[4], float q_inv[4])
+inline __host__ __device__ void QuatInv(const float q[4], float q_inv[4])
 {
   float norm = sqrtf(powf(q[0], 2) + powf(q[1], 2) + powf(q[2], 2) + powf(q[3], 2));
   q_inv[0] = q[0] / norm;
@@ -136,32 +137,59 @@ inline __device__ void QuatSubtract(float q_1[4], float q_2[4], float q_3[4])
 /*
  * The Euler rotation sequence is 3-2-1 (roll, pitch, yaw) from Body to World
  */
+inline __device__ void Euler2QuatNWU(const double& r, const double& p, const double& y, double q[4])
+{
+  double phi_2 = r / 2.0;
+  double theta_2 = p / 2.0;
+  double psi_2 = y / 2.0;
+  double cos_phi_2 = cos(phi_2);
+  double sin_phi_2 = sin(phi_2);
+  double cos_theta_2 = cos(theta_2);
+  double sin_theta_2 = sin(theta_2);
+  double cos_psi_2 = cos(psi_2);
+  double sin_psi_2 = sin(psi_2);
+
+  q[0] = cos_phi_2 * cos_theta_2 * cos_psi_2 + sin_phi_2 * sin_theta_2 * sin_psi_2;
+  q[1] = -cos_phi_2 * sin_theta_2 * sin_psi_2 + cos_theta_2 * cos_psi_2 * sin_phi_2;
+  q[2] = cos_phi_2 * cos_psi_2 * sin_theta_2 + sin_phi_2 * cos_theta_2 * sin_psi_2;
+  q[3] = cos_phi_2 * cos_theta_2 * sin_psi_2 - sin_phi_2 * cos_psi_2 * sin_theta_2;
+}
+
+/*
+ * The Euler rotation sequence is 3-2-1 (roll, pitch, yaw) from Body to World
+ */
 inline __device__ void Euler2QuatNWU(const float& r, const float& p, const float& y, float q[4])
 {
-  double phi = r;
-  double theta = p;
-  double psi = y;
+  float phi_2 = r / 2.0;
+  float theta_2 = p / 2.0;
+  float psi_2 = y / 2.0;
+  float cos_phi_2 = cosf(phi_2);
+  float sin_phi_2 = sinf(phi_2);
+  float cos_theta_2 = cosf(theta_2);
+  float sin_theta_2 = sinf(theta_2);
+  float cos_psi_2 = cosf(psi_2);
+  float sin_psi_2 = sinf(psi_2);
 
-  q[0] = cos(phi / 2) * cos(theta / 2) * cos(psi / 2) + sin(phi / 2) * sin(theta / 2) * sin(psi / 2);
-  q[1] = -cos(phi / 2) * sin(theta / 2) * sin(psi / 2) + cos(theta / 2) * cos(psi / 2) * sin(phi / 2);
-  q[2] = cos(phi / 2) * cos(psi / 2) * sin(theta / 2) + sin(phi / 2) * cos(theta / 2) * sin(psi / 2);
-  q[3] = cos(phi / 2) * cos(theta / 2) * sin(psi / 2) - sin(phi / 2) * cos(psi / 2) * sin(theta / 2);
+  q[0] = cos_phi_2 * cos_theta_2 * cos_psi_2 + sin_phi_2 * sin_theta_2 * sin_psi_2;
+  q[1] = -cos_phi_2 * sin_theta_2 * sin_psi_2 + cos_theta_2 * cos_psi_2 * sin_phi_2;
+  q[2] = cos_phi_2 * cos_psi_2 * sin_theta_2 + sin_phi_2 * cos_theta_2 * sin_psi_2;
+  q[3] = cos_phi_2 * cos_theta_2 * sin_psi_2 - sin_phi_2 * cos_psi_2 * sin_theta_2;
 }
 
 // (RPY rotation sequence)
 /*
  * Returns an euler sequence 3-2-1 (roll pitch yaw) that when applied takes you from body to world
  */
-inline __host__ __device__ void Quat2EulerNWU(float q[4], float& r, float& p, float& y)
+inline __host__ __device__ void Quat2EulerNWU(const float q[4], float& r, float& p, float& y)
 {
-  r = atan2(2 * q[3] * q[2] + 2 * q[0] * q[1], q[0] * q[0] + q[3] * q[3] - q[2] * q[2] - q[1] * q[1]);
+  r = atan2f(2 * q[3] * q[2] + 2 * q[0] * q[1], q[0] * q[0] + q[3] * q[3] - q[2] * q[2] - q[1] * q[1]);
   float temp = -2 * q[0] * q[2] + 2 * q[1] * q[3];
   // Clamp value between -1 and 1 to prevent NaNs
-  p = -asin(fmaxf(fminf(1, temp), -1));
-  y = atan2(2 * q[2] * q[1] + 2 * q[3] * q[0], q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);
+  p = -asinf(fmaxf(fminf(1, temp), -1));
+  y = atan2f(2 * q[2] * q[1] + 2 * q[3] * q[0], q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);
 }
 
-inline __device__ void Quat2DCM(float q[4], float M[3][3])
+inline __device__ void Quat2DCM(const float q[4], float M[3][3])
 {
   M[0][0] = SQ(q[0]) + SQ(q[1]) - SQ(q[2]) - SQ(q[3]);
   M[0][1] = 2 * (q[1] * q[2] - q[0] * q[3]);
@@ -197,20 +225,20 @@ inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, co
   // double psi = clamp_radians(euler.roll);
   // double theta = clamp_radians(euler.pitch);
   // double phi = clamp_radians(euler.yaw);
+  float phi_2 = r / 2.0;
+  float theta_2 = p / 2.0;
+  float psi_2 = y / 2.0;
+  float cos_phi_2 = cosf(phi_2);
+  float sin_phi_2 = sinf(phi_2);
+  float cos_theta_2 = cosf(theta_2);
+  float sin_theta_2 = sinf(theta_2);
+  float cos_psi_2 = cosf(psi_2);
+  float sin_psi_2 = sinf(psi_2);
 
-  // q.w() = cos(phi/2)*cos(theta/2)*cos(psi/2) - sin(phi/2)*sin(theta/2)*sin(psi/2);
-  // q.x() = cos(phi/2)*cos(theta/2)*sin(psi/2) + sin(theta/2)*cos(psi/2)*sin(phi/2);
-  // q.y() = cos(phi/2)*cos(psi/2)*sin(theta/2) - sin(phi/2)*cos(theta/2)*sin(psi/2);
-  // q.z() = cos(phi/2)*sin(theta/2)*sin(psi/2) + sin(phi/2)*cos(psi/2)*cos(theta/2);
-
-  double phi = r;
-  double theta = p;
-  double psi = y;
-
-  q.w() = cos(phi / 2) * cos(theta / 2) * cos(psi / 2) + sin(phi / 2) * sin(theta / 2) * sin(psi / 2);
-  q.x() = -cos(phi / 2) * sin(theta / 2) * sin(psi / 2) + cos(theta / 2) * cos(psi / 2) * sin(phi / 2);
-  q.y() = cos(phi / 2) * cos(psi / 2) * sin(theta / 2) + sin(phi / 2) * cos(theta / 2) * sin(psi / 2);
-  q.z() = cos(phi / 2) * cos(theta / 2) * sin(psi / 2) - sin(phi / 2) * cos(psi / 2) * sin(theta / 2);
+  q.w() = cos_phi_2 * cos_theta_2 * cos_psi_2 + sin_phi_2 * sin_theta_2 * sin_psi_2;
+  q.x() = -cos_phi_2 * sin_theta_2 * sin_psi_2 + cos_theta_2 * cos_psi_2 * sin_phi_2;
+  q.y() = cos_phi_2 * cos_psi_2 * sin_theta_2 + sin_phi_2 * cos_theta_2 * sin_psi_2;
+  q.z() = cos_phi_2 * cos_theta_2 * sin_psi_2 - sin_phi_2 * cos_psi_2 * sin_theta_2;
 }
 
 // (RPY rotation sequence)
@@ -219,10 +247,10 @@ inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, co
  */
 inline void __host__ __device__ Quat2EulerNWU(const Eigen::Quaternionf& q, float& r, float& p, float& y)
 {
-  r = atan2(2 * q.z() * q.y() + 2 * q.w() * q.x(), q.w() * q.w() + q.z() * q.z() - q.y() * q.y() - q.x() * q.x());
+  r = atan2f(2 * q.z() * q.y() + 2 * q.w() * q.x(), q.w() * q.w() + q.z() * q.z() - q.y() * q.y() - q.x() * q.x());
   float temp = -2 * q.w() * q.y() + 2 * q.x() * q.z();
-  p = -asin(fmaxf(-1, fminf(temp, 1)));
-  y = atan2(2 * q.y() * q.x() + 2 * q.z() * q.w(), q.w() * q.w() + q.x() * q.x() - q.y() * q.y() - q.z() * q.z());
+  p = -asinf(fmaxf(-1, fminf(temp, 1)));
+  y = atan2f(2 * q.y() * q.x() + 2 * q.z() * q.w(), q.w() * q.w() + q.x() * q.x() - q.y() * q.y() - q.z() * q.z());
 }
 
 inline void Quat2DCM(const Eigen::Quaternionf& q, Eigen::Ref<Eigen::Matrix3f> DCM)
@@ -330,28 +358,47 @@ inline __host__ double inverseNormalCDFSlow(double x, int num_precision = 10)
 }  // namespace math
 namespace matrix_multiplication
 {
-inline __host__ __device__ int2 unravelColumnMajor(int index, int num_rows)
+inline __host__ __device__ int2 const unravelColumnMajor(const int index, const int num_rows)
 {
   int col = index / num_rows;
   int row = index % num_rows;
   return make_int2(row, col);
 }
 
-inline __host__ __device__ int2 unravelRowMajor(int index, int num_cols)
+inline __host__ __device__ int2 const unravelRowMajor(const int index, const int num_cols)
 {
   int row = index / num_cols;
   int col = index % num_cols;
   return make_int2(row, col);
 }
-inline __host__ __device__ int columnMajorIndex(int row, int col, int num_rows)
+inline __host__ __device__ constexpr int columnMajorIndex(const int row, const int col, const int num_rows)
 {
   return col * num_rows + row;
 }
 
-inline __host__ __device__ int rowMajorIndex(int row, int col, int num_cols)
+inline __host__ __device__ constexpr int rowMajorIndex(const int row, const int col, const int num_cols)
 {
   return row * num_cols + col;
 }
+
+template <int M, int N, class T = float>
+class devMatrix
+{
+public:
+  T* data = nullptr;
+  static constexpr int rows = M;
+  static constexpr int cols = N;
+  devMatrix(T* n_data)
+  {
+    data = n_data;
+  };
+
+  T operator()(const int i, const int j) const
+  {
+    return data[columnMajorIndex(i, j, rows)];
+  }
+};
+
 namespace p1  // parallelize using 1 thread dim
 {
 enum class Parallel1Dir : int
@@ -365,22 +412,30 @@ enum class Parallel1Dir : int
 template <Parallel1Dir P_DIR>
 inline __device__ void getParallel1DIndex(int& p_index, int& p_step);
 
+template <Parallel1Dir P_DIR>
+inline __host__ void getParallel1DIndex(int& p_index, int& p_step)
+{
+  p_index = 0;
+  p_step = 1;
+}
+
 /**
  * @brief GEneral Matrix Multiplication
  * Conducts the operation
  * C = alpha * A * B + beta * C
+ * on matrices of type T
  * TODO: Add transpose options like cuBLAS GEMM
  * Inputs:
- * A - float column-major matrix of size M * K, stored in shared/global mem
- * B - float column-major matrix of size K * N, stored in shared/global mem
- * alpha - float to multiply A * B
- * beta - float multipling C
+ * A - T-type column-major matrix of size M * K, stored in shared/global mem
+ * B - T-type column-major matrix of size K * N, stored in shared/global mem
+ * alpha - T-type to multiply A * B
+ * beta - T-type multipling C
  * Outputs:
  * C - float column-major matrix of size M * N, stored in shared/global mem
  *
  */
-template <int M, int K, int N, Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y>
-inline __device__ void gemm(const float* A, const float* B, float* C, const float alpha = 1.0, const float beta = 0.0)
+template <int M, int K, int N, Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y, class T = float>
+inline __device__ __host__ void gemm(const T* A, const T* B, T* C, const T alpha = 1, const T beta = 0)
 {
   int parallel_index;
   int parallel_step;
@@ -388,14 +443,21 @@ inline __device__ void gemm(const float* A, const float* B, float* C, const floa
   int2 mn;
   for (int p = parallel_index; p < M * N; p += parallel_step)
   {
+    T accumulator = 0;
     mn = unravelColumnMajor(p, M);
-    C[p] *= beta;
 #pragma unroll
     for (int k = 0; k < K; k++)
     {
-      C[p] += alpha * A[columnMajorIndex(mn.x, k, M)] * B[columnMajorIndex(k, mn.y, K)];
+      accumulator += A[columnMajorIndex(mn.x, k, M)] * B[columnMajorIndex(k, mn.y, K)];
     }
+    C[p] = alpha * accumulator + beta * C[p];
   }
+}
+
+template <Parallel1Dir P_DIR = Parallel1Dir::NONE, int M = 1, int K = 1, int N = 1, class T = float>
+void matMult(const devMatrix<M, K, T>& A, const devMatrix<K, N, T>& B, devMatrix<M, N, T>& C)
+{
+  gemm<M, K, N, P_DIR, T>(A.data, B.data, C.data);
 }
 
 template <>
@@ -468,12 +530,13 @@ inline __device__ void gemm(const float* A, const float* B, float* C, const floa
   {
     for (int n = n_ind_start; n < N; n += n_ind_size)
     {
-      C[columnMajorIndex(m, n, M)] *= beta;
+      float accumulator = 0;
 #pragma unroll
       for (int k = 0; k < K; k++)
       {
-        C[columnMajorIndex(m, n, M)] += alpha * A[columnMajorIndex(m, k, M)] * B[columnMajorIndex(k, n, K)];
+        accumulator += A[columnMajorIndex(m, k, M)] * B[columnMajorIndex(k, n, K)];
       }
+      C[columnMajorIndex(m, n, M)] = alpha * accumulator + beta * C[columnMajorIndex(m, n, M)];
     }
   }
 }
