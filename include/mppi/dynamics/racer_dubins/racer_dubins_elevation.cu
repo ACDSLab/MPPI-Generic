@@ -76,10 +76,11 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
   // applying position throttle
   float throttle = this->params_.c_t[index] * control(0);
   float brake = this->params_.c_b[index] * control(0) * (state(0) >= 0 ? 1 : -1);
-  if (abs(state(0)) <= 0.5)
+  float linear_brake_slope = 0.9f * (2 / dt);
+  if (abs(state(0)) <= this->params_.c_b[index] / linear_brake_slope)
   {
     throttle = this->params_.c_t[index] * max(control(0) - this->params_.low_min_throttle, 0.0f);
-    brake = this->params_.c_b[index] * control(0) * state(0);
+    brake = linear_brake_slope * control(0) * state(0);
   }
 
   state_der(0) =
@@ -234,10 +235,11 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
   // applying position throttle
   float throttle = params_p->c_t[index] * control[0];
   float brake = params_p->c_b[index] * control[0] * (state[S_INDEX(VEL_X)] >= 0 ? 1 : -1);
-  if (abs(state[S_INDEX(VEL_X)]) <= 0.5)
+  float linear_brake_slope = 0.9f * (2 / dt);
+  if (abs(state[S_INDEX(VEL_X)]) <= params_p->c_b[index] / linear_brake_slope)
   {
     throttle = params_p->c_t[index] * max(control[0] - params_p->low_min_throttle, 0.0f);
-    brake = params_p->c_b[index] * control[0] * state[S_INDEX(VEL_X)];
+    brake = linear_brake_slope * control[0] * state[S_INDEX(VEL_X)];
   }
 
   state_der[S_INDEX(VEL_X)] =
