@@ -219,7 +219,7 @@ public:
     fb_controller_->initTrackingController();
   };
 
-  virtual std::vector<state_trajectory> getSampledStateTrajectories() const
+  virtual std::vector<output_trajectory> getSampledOutputTrajectories() const
   {
     return sampled_trajectories_;
   }
@@ -779,11 +779,11 @@ protected:
   bool CUDA_mem_init_ = false;
 
   bool sampled_states_CUDA_mem_init_ = false;  // cudaMalloc, cudaFree boolean
-  float* sampled_states_d_;                    // result of states that have been sampled from state trajectory kernel
+  float* sampled_outputs_d_;                   // result of states that have been sampled from state trajectory kernel
   float* sampled_noise_d_;                     // noise to be passed to the state trajectory kernel
   float* sampled_costs_d_;       // result of cost that have been sampled from state and cost trajectory kernel
   int* sampled_crash_status_d_;  // result of crash_status that have been sampled
-  std::vector<state_trajectory> sampled_trajectories_;  // sampled state trajectories from state trajectory kernel
+  std::vector<output_trajectory> sampled_trajectories_;  // sampled state trajectories from state trajectory kernel
   std::vector<cost_trajectory> sampled_costs_;
   std::vector<crash_status_trajectory> sampled_crash_status_;
 

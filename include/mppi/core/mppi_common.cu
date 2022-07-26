@@ -546,8 +546,9 @@ __device__ void rolloutWeightReductionAndSaveControl(int thread_idx, int block_i
 
 template <class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Z>
 __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_controller, float* control,
-                                             float* state, float* state_traj_d, float* cost_traj_d, int* crash_status_d,
-                                             int num_rollouts, int num_timesteps, float dt, float value_func_threshold)
+                                             float* state, float* output_traj_d, float* cost_traj_d,
+                                             int* crash_status_d, int num_rollouts, int num_timesteps, float dt,
+                                             float value_func_threshold)
 {
   // Get thread and block id
   int thread_idx = threadIdx.x;
@@ -666,9 +667,9 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
       x_next = x_temp;
 
       // save results, skips the first state location since that is known
-      for (int i = thread_idy; i < DYN_T::STATE_DIM; i += blockDim.y)
+      for (int i = thread_idy; i < DYN_T::OUTPUT_DIM; i += blockDim.y)
       {
-        state_traj_d[t_index * DYN_T::STATE_DIM + i] = x[i];
+        output_traj_d[t_index * DYN_T::OUTPUT_DIM + i] = y[i];
       }
     }
     // get cost traj at +1
@@ -787,7 +788,7 @@ void launchweightedReductionKernel(float* exp_costs_d, float* du_d, float* du_ne
 
 template <class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z>
 void launchStateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* cost, FB_T* fb_controller, float* control_trajectories,
-                                        float* state, float* state_traj_result, float* cost_traj_result,
+                                        float* state, float* output_traj_result, float* cost_traj_result,
                                         int* crash_status_result, int num_rollouts, int num_timesteps, float dt,
                                         cudaStream_t stream, float value_func_threshold, bool synchronize)
 {
@@ -795,7 +796,7 @@ void launchStateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* cost, FB_T* fb_
   dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
   dim3 dimGrid(gridsize_x, 1, 1);
   stateAndCostTrajectoryKernel<DYN_T, COST_T, FB_T, BLOCKSIZE_X, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
-      dynamics, cost, fb_controller, control_trajectories, state, state_traj_result, cost_traj_result,
+      dynamics, cost, fb_controller, control_trajectories, state, output_traj_result, cost_traj_result,
       crash_status_result, num_rollouts, num_timesteps, dt, value_func_threshold);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)

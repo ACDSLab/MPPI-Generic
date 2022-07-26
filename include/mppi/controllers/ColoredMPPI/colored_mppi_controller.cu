@@ -243,17 +243,16 @@ void ColoredMPPI::calculateSampledStateTrajectories()
 
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,
-      this->initial_state_d_, this->sampled_states_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+      this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
       num_sampled_trajectories, this->getNumTimesteps(), this->getDt(), this->vis_stream_);
 
   for (int i = 0; i < num_sampled_trajectories; i++)
   {
     // set initial state to the first location
-    this->sampled_trajectories_[i].col(0) = this->state_.col(0);
     // shifted by one since we do not save the initial state
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data() + (DYN_T::STATE_DIM),
-                                 this->sampled_states_d_ + i * this->getNumTimesteps() * DYN_T::STATE_DIM,
-                                 (this->getNumTimesteps() - 1) * DYN_T::STATE_DIM * sizeof(float),
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data(),
+                                 this->sampled_outputs_d_ + i * this->getNumTimesteps() * DYN_T::OUTPUT_DIM,
+                                 (this->getNumTimesteps() - 1) * DYN_T::OUTPUT_DIM * sizeof(float),
                                  cudaMemcpyDeviceToHost, this->vis_stream_));
     HANDLE_ERROR(
         cudaMemcpyAsync(this->sampled_costs_[i].data(), this->sampled_costs_d_ + (i * (this->getNumTimesteps() + 1)),
