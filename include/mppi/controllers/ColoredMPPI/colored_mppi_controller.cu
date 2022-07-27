@@ -55,19 +55,10 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 {
   this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
   state_array local_state = state;
-  for (int i = 0; i < DYN_T::STATE_DIM; i++)
+
+  if (getLeashActive())
   {
-    float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
-    if (getStateLeashLength(i) < diff)
-    {
-      float leash_dir =
-          fminf(fmaxf(this->state_.col(leash_jump_)[i] - state[i], -getStateLeashLength(i)), getStateLeashLength(i));
-      local_state[i] = state[i] + leash_dir;
-    }
-    else
-    {
-      local_state[i] = this->state_.col(leash_jump_)[i];
-    }
+    this->model_->enforceLeash(state, this->state_.col(leash_jump_), this->params_.state_leash_dist_, local_state);
   }
 
   // Send the initial condition to the device
@@ -151,18 +142,26 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     baseline_prev = this->getBaselineCost();
 
     // Launch the norm exponential kernel
+    if (getGamma() == 0 || getRExp() == 0)
+    {
 #ifdef CPU_NORM_EXP
-    mppi_common::normExpTransform(NUM_ROLLOUTS, this->trajectory_costs_.data(), 1.0 / this->getLambda(),
-                                  this->getBaselineCost(), 0, 1);
-    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_d_, this->trajectory_costs_.data(),
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyHostToDevice, this->stream_));
+      mppi_common::normExpTransform(NUM_ROLLOUTS, this->trajectory_costs_.data(), 1.0 / this->getLambda(),
+                                    this->getBaselineCost(), 0, 1);
+      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_d_, this->trajectory_costs_.data(),
+                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyHostToDevice, this->stream_));
 #else
-    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, 64, this->trajectory_costs_d_, 1.0 / this->getLambda(),
-                                     this->getBaselineCost(), this->stream_, false);
-    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
-    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+      mppi_common::launchNormExpKernel(NUM_ROLLOUTS, 64, this->trajectory_costs_d_, 1.0 / this->getLambda(),
+                                       this->getBaselineCost(), this->stream_, false);
 #endif
+    }
+    else
+    {
+      mppi_common::launchTsallisKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, getGamma(), getRExp(),
+                                       this->getBaselineCost(), this->stream_, false);
+      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
+                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+    }
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Compute the normalizer
     this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS));
@@ -260,17 +259,16 @@ void ColoredMPPI::calculateSampledStateTrajectories()
 
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,
-      this->initial_state_d_, this->sampled_states_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+      this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
       num_sampled_trajectories, this->getNumTimesteps(), this->getDt(), this->vis_stream_);
 
   for (int i = 0; i < num_sampled_trajectories; i++)
   {
     // set initial state to the first location
-    this->sampled_trajectories_[i].col(0) = this->state_.col(0);
     // shifted by one since we do not save the initial state
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data() + (DYN_T::STATE_DIM),
-                                 this->sampled_states_d_ + i * this->getNumTimesteps() * DYN_T::STATE_DIM,
-                                 (this->getNumTimesteps() - 1) * DYN_T::STATE_DIM * sizeof(float),
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data(),
+                                 this->sampled_outputs_d_ + i * this->getNumTimesteps() * DYN_T::OUTPUT_DIM,
+                                 (this->getNumTimesteps() - 1) * DYN_T::OUTPUT_DIM * sizeof(float),
                                  cudaMemcpyDeviceToHost, this->vis_stream_));
     HANDLE_ERROR(
         cudaMemcpyAsync(this->sampled_costs_[i].data(), this->sampled_costs_d_ + (i * (this->getNumTimesteps() + 1)),

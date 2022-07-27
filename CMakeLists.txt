@@ -13,10 +13,15 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 set(BUILD_FLAGS "-Wuninitialized -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
+set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "${CMAKE_CUDA_FLAGS_RELWITHDEBINFO} --generate-line-info")
 set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G --keep")
 
 option(BUILD_TESTS "BUILD_TESTS" ON)
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
+# set(BUILD_TESTS OFF)
+# set(BUILD_EXAMPLES OFF)
+# add_subdirectory(submodules/cnpy)
+# include_directories(submodules/cnpy)
 
 # Allow the lib location to be overwritten from command line
 if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)

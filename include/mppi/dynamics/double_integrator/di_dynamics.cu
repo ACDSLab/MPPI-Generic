@@ -1,7 +1,7 @@
 #include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 
 DoubleIntegratorDynamics::DoubleIntegratorDynamics(float system_noise, cudaStream_t stream)
-  : Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams, 4, 2>(stream)
+  : Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams>(stream)
 {
   this->params_ = DoubleIntegratorParams(system_noise);
 

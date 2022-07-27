@@ -391,7 +391,7 @@ __global__ void computeAndSaveCostAllRollouts_KernelTest(COST_T* cost, int state
   //               terminal_state[state_dim * tid + 3]);
   //        printf("Current cost [%f]\n", running_costs[tid]);
   //    }
-  mppi_common::computeAndSaveCost(num_rollouts, tid, cost, &terminal_state[state_dim * tid], running_costs[tid],
+  mppi_common::computeAndSaveCost(num_rollouts, 2, tid, cost, &terminal_state[state_dim * tid], running_costs[tid],
                                   nullptr, cost_rollout_device);
   //    if (tid == 0) {
   //        printf("Total cost [%f]\n", cost_rollout_device[tid]);

@@ -12,10 +12,10 @@ struct TestDynamicsParams : public DynamicsParams
 
 using namespace MPPI_internal;
 
-class TestDynamics : public Dynamics<TestDynamics, TestDynamicsParams, 1, 1>
+class TestDynamics : public Dynamics<TestDynamics, TestDynamicsParams>
 {
 public:
-  explicit TestDynamics(cudaStream_t stream = nullptr) : Dynamics<TestDynamics, TestDynamicsParams, 1, 1>(stream){};
+  explicit TestDynamics(cudaStream_t stream = nullptr) : Dynamics<TestDynamics, TestDynamicsParams>(stream){};
 
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                        Eigen::Ref<state_array> state_der)

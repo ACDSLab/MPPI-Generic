@@ -110,7 +110,7 @@ TEST(CartpoleQuadraticCost, ComputeStateCost)
 {
   CartpoleQuadraticCost cost;
 
-  CartpoleQuadraticCost::state_array state;
+  CartpoleQuadraticCost::output_array state;
   state << 1, 2, 3, 4;
 
   float cost_compute = cost.computeStateCost(state);
@@ -147,7 +147,7 @@ TEST(CartpoleQuadraticCost, ComputeRunningCost)
 {
   CartpoleQuadraticCost cost;
 
-  CartpoleQuadraticCost::state_array state;
+  CartpoleQuadraticCost::output_array state;
   CartpoleQuadraticCost::control_array control, noise, std_dev;
   state << 5, 3, 2, 4;
   control << 6;

@@ -86,6 +86,10 @@ public:
   using state_array = typename DYN_T::state_array;
   typedef Eigen::Matrix<float, DYN_T::STATE_DIM, MAX_TIMESTEPS> state_trajectory;  // A state trajectory
 
+  // Output typedefs
+  using output_array = typename DYN_T::output_array;
+  typedef Eigen::Matrix<float, DYN_T::OUTPUT_DIM, MAX_TIMESTEPS> output_trajectory;  // An output trajectory
+
   // Cost typedefs
   typedef Eigen::Matrix<float, MAX_TIMESTEPS + 1, 1> cost_trajectory;  // +1 for terminal cost
   typedef Eigen::Matrix<float, NUM_ROLLOUTS, 1> sampled_cost_traj;
@@ -215,7 +219,7 @@ public:
     fb_controller_->initTrackingController();
   };
 
-  virtual std::vector<state_trajectory> getSampledStateTrajectories() const
+  virtual std::vector<output_trajectory> getSampledOutputTrajectories() const
   {
     return sampled_trajectories_;
   }
@@ -398,16 +402,16 @@ public:
     // Compute the nominal trajectory
     propagated_feedback_state_trajectory_.col(0) = getActualStateSeq().col(0);  // State that we optimized from
     state_array xdot;
-    state_array current_state;
+    state_array current_state, next_state;
+    output_array output;
     control_array current_control;
     for (int i = 0; i < getNumTimesteps() - 1; ++i)
     {
       current_state = propagated_feedback_state_trajectory_.col(i);
       // MPPI control apply feedback at the given timestep against the nominal trajectory at that timestep
       current_control = getControlSeq().col(i) + getFeedbackControl(current_state, getTargetStateSeq().col(i), i);
-      model_->computeStateDeriv(current_state, current_control, xdot);
-      model_->updateState(current_state, xdot, getDt());
-      propagated_feedback_state_trajectory_.col(i + 1) = current_state;
+      model_->step(current_state, next_state, xdot, current_control, output, i, getDt());
+      propagated_feedback_state_trajectory_.col(i + 1) = next_state;
     }
   }
 
@@ -537,16 +541,16 @@ public:
   {
     result.col(0) = x0;
     state_array xdot;
-    state_array state;
+    state_array state, next_state;
+    output_array output;
     model_->initializeDynamics(state.col(0), u.col(0), 0, getDt());
     for (int i = 0; i < getNumTimesteps() - 1; ++i)
     {
       state = result.col(i);
       control_array u_i = u.col(i);
       model_->enforceConstraints(state, u_i);
-      model_->computeStateDeriv(state, u_i, xdot);
-      model_->updateState(state, xdot, getDt());
-      result.col(i + 1) = state;
+      model_->step(state, next_state, xdot, u_i, output, i, getDt());
+      result.col(i + 1) = next_state;
     }
   }
 
@@ -775,11 +779,11 @@ protected:
   bool CUDA_mem_init_ = false;
 
   bool sampled_states_CUDA_mem_init_ = false;  // cudaMalloc, cudaFree boolean
-  float* sampled_states_d_;                    // result of states that have been sampled from state trajectory kernel
+  float* sampled_outputs_d_;                   // result of states that have been sampled from state trajectory kernel
   float* sampled_noise_d_;                     // noise to be passed to the state trajectory kernel
   float* sampled_costs_d_;       // result of cost that have been sampled from state and cost trajectory kernel
   int* sampled_crash_status_d_;  // result of crash_status that have been sampled
-  std::vector<state_trajectory> sampled_trajectories_;  // sampled state trajectories from state trajectory kernel
+  std::vector<output_trajectory> sampled_trajectories_;  // sampled state trajectories from state trajectory kernel
   std::vector<cost_trajectory> sampled_costs_;
   std::vector<crash_status_trajectory> sampled_crash_status_;
 

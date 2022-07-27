@@ -65,6 +65,7 @@ public:
   using control_trajectory = typename PARENT_CLASS::control_trajectory;
   using state_trajectory = typename PARENT_CLASS::state_trajectory;
   using state_array = typename PARENT_CLASS::state_array;
+  using output_array = typename PARENT_CLASS::output_array;
   using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
   using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
 
@@ -195,6 +196,16 @@ public:
     return this->params_.state_leash_dist_[index];
   }
 
+  bool getLeashActive()
+  {
+    return leash_active_;
+  }
+
+  void setLeashActive(bool new_leash_active)
+  {
+    leash_active_ = new_leash_active;
+  }
+
   void setStoppingCostThreshold(float new_stopping_cost_threshold)
   {
     this->params_.stopping_cost_threshold_ = new_stopping_cost_threshold;
@@ -255,6 +266,7 @@ protected:
   void smoothControlTrajectory();
 
   int leash_jump_ = 1;
+  bool leash_active_ = false;
 
   float* control_mppi_d_;                                         // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS
   control_trajectory control_mppi_ = control_trajectory::Zero();  // host side mppi control trajectory

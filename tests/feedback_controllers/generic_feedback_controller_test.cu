@@ -1,8 +1,22 @@
 #include <gtest/gtest.h>
 #include <mppi_test/mock_classes/mock_dynamics.h>
 #include <mppi/feedback_controllers/feedback.cuh>
-struct DynamicsTesterParams
+
+template <int STATE_DIM = 1, int CONTROL_DIM = 1, int OUTPUT_DIM = 1>
+struct DynamicsTesterParams : public DynamicsParams
 {
+  enum class StateIndex : int
+  {
+    NUM_STATES = STATE_DIM
+  };
+  enum class ControlIndex : int
+  {
+    NUM_CONTROLS = CONTROL_DIM
+  };
+  enum class OutputIndex : int
+  {
+    NUM_OUTPUTS = OUTPUT_DIM
+  };
   int var_1 = 1;
   int var_2 = 2;
   float4 var_4;
@@ -17,23 +31,20 @@ struct FeedbackParams
 
 template <int STATE_DIM = 1, int CONTROL_DIM = 1>
 class DynamicsTester
-  : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>
+  : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams<STATE_DIM, CONTROL_DIM>>
 {
 public:
-  using state_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams,
-                                                       STATE_DIM, CONTROL_DIM>::state_array;
-  using control_array = typename MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams,
-                                                         STATE_DIM, CONTROL_DIM>::control_array;
+  using PARENT_CLASS =
+      MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams<STATE_DIM, CONTROL_DIM>>;
+  using state_array = typename PARENT_CLASS::state_array;
+  using control_array = typename PARENT_CLASS::control_array;
 
-  DynamicsTester(cudaStream_t stream = 0)
-    : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(
-          stream)
+  DynamicsTester(cudaStream_t stream = 0) : PARENT_CLASS(stream)
   {
   }
 
   DynamicsTester(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream = 0)
-    : MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>(
-          control_rngs, stream)
+    : PARENT_CLASS(control_rngs, stream)
   {
   }
 

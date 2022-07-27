@@ -61,8 +61,8 @@ __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rol
                                    float* u_thread, float* du_thread);
 
 template <class COST_T>
-__device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* x_thread, float running_cost,
-                                   float* theta_c, float* cost_rollouts_device);
+__device__ void computeAndSaveCost(int num_rollouts, int num_timesteps, int global_idx, COST_T* costs, float* x_thread,
+                                   float running_cost, float* theta_c, float* cost_rollouts_device);
 
 // Norm Exponential Kernel
 __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float baseline);
@@ -137,7 +137,7 @@ void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_ne
 
 template <class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
 void launchStateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* cost, FB_T* fb_controller, float* control_trajectories,
-                                        float* state, float* state_traj_result, float* cost_traj_result,
+                                        float* state, float* output_traj_result, float* cost_traj_result,
                                         int* crash_status_result, int num_rollouts, int num_timesteps, float dt,
                                         cudaStream_t stream, float value_func_threshold = -1, bool synchronize = false);
 

@@ -188,6 +188,7 @@ public:
    */
   virtual s_array getState()
   {
+    std::lock_guard<std::mutex> lck(access_guard_);
     return state_;
   };
 

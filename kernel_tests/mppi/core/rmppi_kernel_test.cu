@@ -114,6 +114,7 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs, FB_T* fb_controlle
   using control_matrix = typename COST_T::control_matrix;
   using control_array = typename DYN_T::control_array;
   using state_array = typename DYN_T::state_array;
+  using output_array = typename DYN_T::output_array;
   using feedback_matrix = typename DYN_T::feedback_matrix;
   Eigen::Map<const state_array> x_init_nom(x0_nom.data());
   Eigen::Map<const state_array> x_init_act(x0_act.data());
@@ -141,6 +142,10 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs, FB_T* fb_controlle
     // Get all relevant values at time t in rollout i
     state_array x_t_nom = x_init_nom;
     state_array x_t_act = x_init_act;
+    state_array x_next_nom = x_init_nom;
+    state_array x_next_act = x_init_act;
+    output_array y_nom;
+    output_array y_act;
 
     for (int t = 0; t < num_timesteps; t++)
     {
@@ -173,27 +178,27 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs, FB_T* fb_controlle
       control_array fb_u_t = fb_controller->k(x_t_act, x_t_nom, t);
       control_array u_act = u_nom + fb_u_t;
 
+      model->enforceConstraints(x_t_nom, u_nom);
+      model->enforceConstraints(x_t_act, u_act);
+      float state_cost_act = 0;
       // Cost update
       if (t > 0)
       {
         control_array zero_u = control_array::Zero();
-        state_cost_nom += costs->computeStateCost(x_t_nom, t, crash_status_nom);
-        float state_cost_act = costs->computeStateCost(x_t_act, t, crash_status_act);
+        state_cost_nom += costs->computeStateCost(y_nom, t, crash_status_nom);
+        state_cost_act = costs->computeStateCost(y_act, t, crash_status_act);
         cost_real_w_tracking += state_cost_act + costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda, alpha);
 
         running_state_cost_real += state_cost_act;
         running_control_cost_real +=
             costs->computeLikelihoodRatioCost(u_t + fb_u_t, eps_t, cost_std_dev, lambda, alpha);
       }
-      model->enforceConstraints(x_t_nom, u_nom);
-      model->enforceConstraints(x_t_act, u_act);
 
       // Dyanamics Update
-      model->computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
-      model->computeStateDeriv(x_t_act, u_act, x_dot_t_act);
-
-      model->updateState(x_t_act, x_dot_t_act, dt);
-      model->updateState(x_t_nom, x_dot_t_nom, dt);
+      model->step(x_t_nom, x_next_nom, x_dot_t_nom, u_nom, y_nom, t, dt);
+      model->step(x_t_act, x_next_act, x_dot_t_act, u_act, y_act, t, dt);
+      x_t_nom = x_next_nom;
+      x_t_act = x_next_act;
     }
 
     // Compute average cost per timestep
@@ -201,9 +206,9 @@ void launchRMPPIRolloutKernelCPU(DYN_T* model, COST_T* costs, FB_T* fb_controlle
     cost_real_w_tracking /= ((float)num_timesteps - 1);
     running_state_cost_real /= ((float)num_timesteps - 1);
 
-    state_cost_nom += costs->terminalCost(x_t_nom);
-    cost_real_w_tracking += costs->terminalCost(x_t_act);
-    running_state_cost_real += costs->terminalCost(x_t_act);
+    state_cost_nom += costs->terminalCost(x_t_nom) / (num_timesteps - 1);
+    cost_real_w_tracking += costs->terminalCost(x_t_act) / (num_timesteps - 1);
+    running_state_cost_real += costs->terminalCost(x_t_act) / (num_timesteps - 1);
 
     float cost_nom =
         0.5 * state_cost_nom + 0.5 * std::max(std::min(cost_real_w_tracking, value_func_threshold), state_cost_nom);
@@ -283,6 +288,7 @@ void launchComparisonRolloutKernelTest(
   HANDLE_ERROR(cudaMemcpyAsync(mppi_costs_out.data(), costs_d, sizeof(float) * mppi_costs_out.size(),
                                cudaMemcpyDeviceToHost, stream));
 
+  HANDLE_ERROR(cudaStreamSynchronize(stream));
   // Deallocate CUDA Memory
   HANDLE_ERROR(cudaFree(state_d));
   HANDLE_ERROR(cudaFree(U_d));
@@ -329,6 +335,7 @@ void launchComparisonRolloutKernelTest(
   // Copy data back
   HANDLE_ERROR(cudaMemcpyAsync(rmppi_costs_out.data(), costs_d, sizeof(float) * rmppi_costs_out.size(),
                                cudaMemcpyDeviceToHost, stream));
+  HANDLE_ERROR(cudaStreamSynchronize(stream));
 
   // Deallocate CUDA Memory
   HANDLE_ERROR(cudaFree(state_d));
@@ -353,6 +360,7 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs, ccm::LinearCCM<
   using control_matrix = typename COST_T::control_matrix;
   using control_array = typename DYN_T::control_array;
   using state_array = typename DYN_T::state_array;
+  using output_array = typename DYN_T::output_array;
   using feedback_matrix = typename DYN_T::feedback_matrix;
   using dfdx = typename DYN_T::dfdx;
   Eigen::Map<const state_array> x_init_nom(x0_nom.data());
@@ -389,6 +397,10 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs, ccm::LinearCCM<
     // Get all relevant values at time t in rollout i
     state_array x_t_nom = x_init_nom;
     state_array x_t_act = x_init_act;
+    state_array x_next_nom = x_init_nom;
+    state_array x_next_act = x_init_act;
+    output_array y_nom;
+    output_array y_act;
 
     for (int t = 0; t < num_timesteps; t++)
     {
@@ -454,21 +466,24 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs, ccm::LinearCCM<
       pure_noise_nom = u_nom;
 
       // Cost update
-      state_cost_nom += costs->computeStateCost(x_t_nom);
-      float state_cost_act = costs->computeStateCost(x_t_act);
-      cost_real_w_tracking += state_cost_act + costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda, alpha);
+      if (t > 0)
+      {
+        state_cost_nom += costs->computeStateCost(y_nom);
+        float state_cost_act = costs->computeStateCost(y_act);
+        cost_real_w_tracking += state_cost_act + costs->computeFeedbackCost(fb_u_t, cost_std_dev, lambda, alpha);
 
-      running_state_cost_real += state_cost_act;
-      running_control_cost_real +=
-          costs->computeLikelihoodRatioCost(u_nom - eps_t + fb_u_t, eps_t, cost_std_dev, lambda, alpha);
-      running_control_cost_nom += costs->computeLikelihoodRatioCost(u_nom - eps_t, eps_t, cost_std_dev, lambda, alpha);
+        running_state_cost_real += state_cost_act;
+        running_control_cost_real +=
+            costs->computeLikelihoodRatioCost(u_nom - eps_t + fb_u_t, eps_t, cost_std_dev, lambda, alpha);
+        running_control_cost_nom +=
+            costs->computeLikelihoodRatioCost(u_nom - eps_t, eps_t, cost_std_dev, lambda, alpha);
+      }
 
       // Dyanamics Update
-      model->computeStateDeriv(x_t_nom, u_nom, x_dot_t_nom);
-      model->computeStateDeriv(x_t_act, u_act, x_dot_t_act);
-
-      model->updateState(x_t_act, x_dot_t_act, dt);
-      model->updateState(x_t_nom, x_dot_t_nom, dt);
+      model->step(x_t_nom, x_next_nom, x_dot_t_nom, u_nom, y_nom, t, dt);
+      model->step(x_t_act, x_next_act, x_dot_t_act, u_act, y_act, t, dt);
+      x_t_nom = x_next_nom;
+      x_t_act = x_next_act;
     }
 
     // Compute average cost per timestep
@@ -476,9 +491,9 @@ void launchRMPPIRolloutKernelCCMCPU(DYN_T* model, COST_T* costs, ccm::LinearCCM<
     cost_real_w_tracking /= ((float)num_timesteps - 1);
     running_state_cost_real /= ((float)num_timesteps - 1);
 
-    state_cost_nom += costs->terminalCost(x_t_nom);
-    cost_real_w_tracking += costs->terminalCost(x_t_act);
-    running_state_cost_real += costs->terminalCost(x_t_act);
+    state_cost_nom += costs->terminalCost(y_nom) / (num_timesteps - 1);
+    cost_real_w_tracking += costs->terminalCost(y_act) / (num_timesteps - 1);
+    running_state_cost_real += costs->terminalCost(y_act) / (num_timesteps - 1);
 
     float cost_nom =
         0.5 * state_cost_nom + 0.5 * std::max(std::min(cost_real_w_tracking, value_func_threshold), state_cost_nom);

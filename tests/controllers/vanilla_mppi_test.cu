@@ -143,7 +143,7 @@ TEST_F(Cartpole_VanillaMPPI, getSampledStateTrajectoriesTest)
   controller.setPercentageSampledControlTrajectories(0.25);
 
   controller.calculateSampledStateTrajectories();
-  controller.getSampledStateTrajectories();
+  controller.getSampledOutputTrajectories();
 }
 
 TEST_F(Cartpole_VanillaMPPI, ConstructWithNew)

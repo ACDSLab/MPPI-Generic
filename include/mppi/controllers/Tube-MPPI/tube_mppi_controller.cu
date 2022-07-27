@@ -248,8 +248,9 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void TubeMPPI::updateNominalState(const Eigen::Ref<const control_array>& u)
 {
   state_array xdot;
-  this->model_->computeDynamics(nominal_state_trajectory_.col(0), u, xdot);
-  this->model_->updateState(nominal_state_trajectory_.col(0), xdot, this->getDt());
+  output_array output;
+  this->model_->step(nominal_state_trajectory_.col(0), nominal_state_trajectory_.col(0), xdot, u, output, 0,
+                     this->getDt());
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
@@ -260,15 +261,16 @@ void TubeMPPI::calculateSampledStateTrajectories()
   // control already copied in compute control, so run kernel
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y, 2>(
       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,
-      this->initial_state_d_, this->sampled_states_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+      this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
       num_sampled_trajectories, this->getNumTimesteps(), this->getDt(), this->vis_stream_);
 
   // copy back results
   for (int i = 0; i < num_sampled_trajectories * 2; i++)
   {
-    HANDLE_ERROR(cudaMemcpyAsync(
-        this->sampled_trajectories_[i].data(), this->sampled_states_d_ + i * this->getNumTimesteps() * DYN_T::STATE_DIM,
-        this->getNumTimesteps() * DYN_T::STATE_DIM * sizeof(float), cudaMemcpyDeviceToHost, this->vis_stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data(),
+                                 this->sampled_outputs_d_ + i * this->getNumTimesteps() * DYN_T::OUTPUT_DIM,
+                                 this->getNumTimesteps() * DYN_T::OUTPUT_DIM * sizeof(float), cudaMemcpyDeviceToHost,
+                                 this->vis_stream_));
   }
   HANDLE_ERROR(cudaMemcpyAsync(this->sampled_costs_.data(), this->sampled_costs_d_,
                                this->getNumTimesteps() * 2 * sizeof(float), cudaMemcpyDeviceToHost, this->vis_stream_));

@@ -62,19 +62,10 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 {
   // this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
   state_array local_state = state;
-  for (int i = 0; i < DYN_T::STATE_DIM; i++)
+
+  if (getLeashActive())
   {
-    float diff = fabsf(this->state_.col(leash_jump_)[i] - state[i]);
-    if (getStateLeashLength(i) < diff)
-    {
-      float leash_dir =
-          fminf(fmaxf(this->state_.col(leash_jump_)[i] - state[i], -getStateLeashLength(i)), getStateLeashLength(i));
-      local_state[i] = state[i] + leash_dir;
-    }
-    else
-    {
-      local_state[i] = this->state_.col(leash_jump_)[i];
-    }
+    this->model_->enforceLeash(state, this->state_.col(leash_jump_), this->params_.state_leash_dist_, local_state);
   }
 
   // Send the initial condition to the device
@@ -419,6 +410,8 @@ void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& 
 {
   state_array xdot;
   state_array state = x0;
+  state_array xnext;
+  output_array output;
   control_array u_i = control_array::Zero();
   this->model_->initializeDynamics(state, u_i, 0, this->getDt());
   for (int i = 0; i < this->getNumTimesteps() - 1; ++i)
@@ -426,8 +419,8 @@ void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& 
     this->model_->getStoppingControl(state, u_i);
     this->model_->enforceConstraints(state, u_i);
     this->control_.col(i) = u_i;
-    this->model_->computeStateDeriv(state, u_i, xdot);
-    this->model_->updateState(state, xdot, this->getDt());
+    this->model_->step(state, xnext, xdot, u_i, output, i, this->getDt());
+    state = xnext;
   }
 }
 
@@ -462,17 +455,16 @@ void Primitives::calculateSampledStateTrajectories()
 
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,
-      this->initial_state_d_, this->sampled_states_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+      this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
       num_sampled_trajectories, this->getNumTimesteps(), this->getDt(), this->vis_stream_);
 
   for (int i = 0; i < num_sampled_trajectories; i++)
   {
     // set initial state to the first location
-    this->sampled_trajectories_[i].col(0) = this->state_.col(0);
     // shifted by one since we do not save the initial state
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data() + (DYN_T::STATE_DIM),
-                                 this->sampled_states_d_ + i * this->getNumTimesteps() * DYN_T::STATE_DIM,
-                                 (this->getNumTimesteps() - 1) * DYN_T::STATE_DIM * sizeof(float),
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data(),
+                                 this->sampled_outputs_d_ + i * this->getNumTimesteps() * DYN_T::OUTPUT_DIM,
+                                 (this->getNumTimesteps() - 1) * DYN_T::OUTPUT_DIM * sizeof(float),
                                  cudaMemcpyDeviceToHost, this->vis_stream_));
     HANDLE_ERROR(
         cudaMemcpyAsync(this->sampled_costs_[i].data(), this->sampled_costs_d_ + (i * (this->getNumTimesteps() + 1)),

@@ -9,6 +9,7 @@ Header file for costs
 #include <Eigen/Dense>
 #include <stdio.h>
 #include <math.h>
+#include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/managed.cuh>
 
 #include <stdexcept>
@@ -28,9 +29,8 @@ struct CostParams
   }
 };
 
-// removing PARAMS_T is probably impossible
 // https://cboard.cprogramming.com/cplusplus-programming/122412-crtp-how-pass-type.html
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T = DynamicsParams>
 class Cost : public Managed
 {
 public:
@@ -39,15 +39,17 @@ public:
   /**
    * typedefs for access to templated class from outside classes
    */
-  static const int STATE_DIM = S_DIM;
-  static const int CONTROL_DIM = C_DIM;
+  using ControlIndex = typename DYN_PARAMS_T::ControlIndex;
+  using OutputIndex = typename DYN_PARAMS_T::OutputIndex;
+  static const int CONTROL_DIM = E_INDEX(ControlIndex, NUM_CONTROLS);
+  static const int OUTPUT_DIM = E_INDEX(OutputIndex, NUM_OUTPUTS);  // TODO
   static const int SHARED_MEM_REQUEST_GRD = 1;
   static const int SHARED_MEM_REQUEST_BLK = 0;
   typedef CLASS_T COST_T;
   typedef PARAMS_T COST_PARAMS_T;
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;             // Control at a time t
   typedef Eigen::Matrix<float, CONTROL_DIM, CONTROL_DIM> control_matrix;  // Control at a time t
-  typedef Eigen::Matrix<float, STATE_DIM, 1> state_array;                 // State at a time t
+  typedef Eigen::Matrix<float, OUTPUT_DIM, 1> output_array;               // Output at a time t
 
   Cost() = default;
   /**
@@ -138,7 +140,7 @@ public:
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
    */
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep, int* crash_status)
+  float computeStateCost(const Eigen::Ref<const output_array> y, int timestep, int* crash_status)
   {
     throw std::logic_error("SubClass did not implement computeStateCost");
   }
@@ -148,12 +150,12 @@ public:
    * @param s current state as a float array
    * @return state cost on GPU
    */
-  __device__ float computeStateCost(float* s, int timestep, float* theta_c, int* crash_status);
+  __device__ float computeStateCost(float* y, int timestep, float* theta_c, int* crash_status);
 
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
    */
-  float terminalCost(const Eigen::Ref<const state_array> s)
+  float terminalCost(const Eigen::Ref<const output_array> y)
   {
     throw std::logic_error("SubClass did not implement terminalCost");
   }
@@ -163,13 +165,13 @@ public:
    * @param s terminal state as float array
    * @return terminal cost on GPU
    */
-  __device__ float terminalCost(float* s, float* theta_c);
+  __device__ float terminalCost(float* y, float* theta_c);
 
   /**
    * Method to allow setup of costs on the CPU. This is needed for
    * initializing the memory of an LSTM for example
    */
-  void initializeCosts(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+  void initializeCosts(const Eigen::Ref<const output_array>& output, const Eigen::Ref<const control_array>& control,
                        float t_0, float dt)
   {
   }
@@ -178,7 +180,7 @@ public:
    * Method to allow setup of costs on the GPU. This is needed for
    * initializing the memory of an LSTM for example
    */
-  __device__ void initializeCosts(float* state, float* control, float* theta_c, float t_0, float dt)
+  __device__ void initializeCosts(float* output, float* control, float* theta_c, float t_0, float dt)
   {
   }
 
@@ -220,21 +222,21 @@ public:
   // =================== END METHODS THAT SHOULD NOT BE OVERWRITTEN ============
 
   // =================== METHODS THAT CAN BE OVERWRITTEN =======================
-  float computeRunningCost(const Eigen::Ref<const state_array> s, const Eigen::Ref<const control_array> u,
+  float computeRunningCost(const Eigen::Ref<const output_array> y, const Eigen::Ref<const control_array> u,
                            const Eigen::Ref<const control_array> noise, const Eigen::Ref<const control_array> std_dev,
                            float lambda, float alpha, int timestep, int* crash)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
 
-    return derived->computeStateCost(s, timestep, crash) +
+    return derived->computeStateCost(y, timestep, crash) +
            derived->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
   }
 
-  __device__ float computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda, float alpha,
+  __device__ float computeRunningCost(float* y, float* u, float* du, float* std_dev, float lambda, float alpha,
                                       int timestep, float* theta_c, int* crash)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
-    return derived->computeStateCost(s, timestep, theta_c, crash) +
+    return derived->computeStateCost(y, timestep, theta_c, crash) +
            derived->computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
   }
   // =================== END METHODS THAT CAN BE OVERWRITTEN ===================
