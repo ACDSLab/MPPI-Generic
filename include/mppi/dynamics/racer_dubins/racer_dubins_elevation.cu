@@ -204,9 +204,10 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
   output[O_INDEX(CENTER_POS_I_Z)] = 0;
 }
 
-__device__ void RacerDubinsElevation::initializeDynamics(float* state, float* control, float* theta_s, float t_0,
-                                                         float dt)
+__device__ void RacerDubinsElevation::initializeDynamics(float* state, float* control, float* output, float* theta_s,
+                                                         float t_0, float dt)
 {
+  PARENT_CLASS::initializeDynamics(state, control, output, theta_s, t_0, dt);
   if (SHARED_MEM_REQUEST_GRD != 1)
   {  // Allows us to turn on or off global or shared memory version of params
     DYN_PARAMS_T* shared_params = (DYN_PARAMS_T*)theta_s;

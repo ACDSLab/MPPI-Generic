@@ -7,7 +7,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void CONTROLLER::deallocateCUDAMemory()
 {
   HANDLE_ERROR(cudaFree(control_d_));
-  HANDLE_ERROR(cudaFree(state_d_));
+  HANDLE_ERROR(cudaFree(output_d_));
   HANDLE_ERROR(cudaFree(trajectory_costs_d_));
   HANDLE_ERROR(cudaFree(control_std_dev_d_));
   HANDLE_ERROR(cudaFree(control_noise_d_));
@@ -215,7 +215,7 @@ void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size, bool allocate_double
   HANDLE_ERROR(cudaMalloc((void**)&initial_state_d_, sizeof(float) * DYN_T::STATE_DIM * nominal_size));
   HANDLE_ERROR(cudaMalloc((void**)&control_d_, sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS * nominal_size));
   HANDLE_ERROR(
-      cudaMalloc((void**)&state_d_, sizeof(float) * DYN_T::STATE_DIM * MAX_TIMESTEPS * NUM_ROLLOUTS * nominal_size));
+      cudaMalloc((void**)&output_d_, sizeof(float) * DYN_T::OUTPUT_DIM * MAX_TIMESTEPS * NUM_ROLLOUTS * nominal_size));
   HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d_, sizeof(float) * NUM_ROLLOUTS * nominal_size));
   HANDLE_ERROR(cudaMalloc((void**)&control_std_dev_d_, sizeof(float) * DYN_T::CONTROL_DIM));
   HANDLE_ERROR(cudaMalloc((void**)&control_noise_d_, sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS * NUM_ROLLOUTS *

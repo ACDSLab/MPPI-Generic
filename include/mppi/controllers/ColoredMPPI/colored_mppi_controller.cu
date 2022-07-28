@@ -104,7 +104,7 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 #else
     mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
-        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->state_d_, this->control_d_,
+        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->control_d_,
         this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
 #endif
     /*

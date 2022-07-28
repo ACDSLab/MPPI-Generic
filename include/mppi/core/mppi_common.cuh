@@ -121,7 +121,7 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
                          float alpha, float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs,
                          cudaStream_t stream, bool synchronize = true);
 
-template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1,
+template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int DYN_BLOCK_X, int DYN_BLOCK_Y, int BLOCKSIZE_Z = 1,
           int COST_BLOCK_X = 128, int COST_BLOCK_Y = 1>
 void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, int optimization_stride,
                              float lambda, float alpha, float* init_x_d, float* x_d, float* u_d, float* du_d,

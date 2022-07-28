@@ -74,7 +74,7 @@ public:
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
 
-  __device__ void initializeDynamics(float* state, float* control, float* theta_s, float t_0, float dt);
+  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
 
   TwoDTextureHelper<float>* getTextureHelper()
   {

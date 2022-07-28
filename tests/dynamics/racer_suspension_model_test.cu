@@ -41,7 +41,7 @@ __global__ void runGPUDynamics(DYN_T* dynamics, const int num_timesteps, float d
     y[j] = 0;
   }
   __syncthreads();
-  dynamics->initializeDynamics(x, u, theta_s, 0, dt);
+  dynamics->initializeDynamics(x, u, y, theta_s, 0, dt);
   __syncthreads();
   for (int t = 0; t < num_timesteps; t++)
   {
@@ -219,15 +219,15 @@ TEST_F(RacerSuspensionTest, CPUvsGPU)
     control_array u;
     for (int t = 0; t < NUM_TIMESTEPS; t++)
     {
+      if (t == 0)
+      {
+        dynamics.initializeDynamics(x, u, output, t, dt);
+      }
       u = u_noise[s].col(t);
       sample_state_traj.col(t) = x;
       sample_output_traj.col(t) = output;
 
       dynamics.enforceConstraints(x, u);
-      if (t == 0)
-      {
-        dynamics.initializeDynamics(x, u, t, dt);
-      }
       dynamics.step(x, x_next, xdot, u, output, t, dt);
       x = x_next;
     }

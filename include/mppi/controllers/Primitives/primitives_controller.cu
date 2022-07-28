@@ -110,7 +110,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 #else
     mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
-        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->state_d_, this->control_d_,
+        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->control_d_,
         this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
 #endif
 
@@ -212,7 +212,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 #else
     mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
-        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->state_d_, control_mppi_d_,
+        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, control_mppi_d_,
         this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
 #endif
     /*
@@ -413,7 +413,7 @@ void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& 
   state_array xnext;
   output_array output;
   control_array u_i = control_array::Zero();
-  this->model_->initializeDynamics(state, u_i, 0, this->getDt());
+  this->model_->initializeDynamics(state, u_i, output, 0, this->getDt());
   for (int i = 0; i < this->getNumTimesteps() - 1; ++i)
   {
     this->model_->getStoppingControl(state, u_i);

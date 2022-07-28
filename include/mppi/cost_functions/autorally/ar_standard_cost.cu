@@ -351,9 +351,9 @@ inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::get
 }
 
 template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
-inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::ccomputeStateCost(float* s, int timestep,
-                                                                                               float* theta_c,
-                                                                                               int* crash_status)
+inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::computeStateCost(float* s, int timestep,
+                                                                                              float* theta_c,
+                                                                                              int* crash_status)
 {
   // printf("input state %f %f %f %f %f %f %f\n", s[0], s[1], s[2], s[3], s[4], s[5], s[6]);
   /*

@@ -553,6 +553,7 @@ __global__ void autorallyRolloutKernel(int num_timesteps, float* state_d, float*
   // Create a shared array for the dynamics model to use
   __shared__ float theta[SHARED_MEM_REQUEST_GRD + SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
   __shared__ float theta_c[COSTS_T::SHARED_MEM_REQUEST_GRD + COSTS_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
+  __shared__ float y[DYNAMICS_T::OUTPUT_DIM];
 
   // Initialize trajectory cost
   float running_cost = 0;
@@ -584,7 +585,7 @@ __global__ void autorallyRolloutKernel(int num_timesteps, float* state_d, float*
   }
   __syncthreads();
   /*<----Start of simulation loop-----> */
-  dynamics_model->initializeDynamics(s, u, theta, 0.0, dt);
+  dynamics_model->initializeDynamics(s, u, y, theta, 0.0, dt);
   mppi_costs->initializeCosts(s, u, theta_c, 0.0, dt);
   for (i = 0; i < num_timesteps; i++)
   {
