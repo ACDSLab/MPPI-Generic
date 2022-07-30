@@ -1,6 +1,8 @@
 #include <mppi/core/mppi_common.cuh>
 #include <curand.h>
 #include <mppi/utils/gpu_err_chk.cuh>
+#include <mppi/utils/math_utils.h>
+#include <mppi/utils/cuda_math_utils.cuh>
 
 #include <cooperative_groups.h>
 namespace cg = cooperative_groups;
@@ -172,10 +174,15 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
     {
       // Copy state to global memory
       int sample_time_offset = (NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + t;
+#if true
+      namespace mm1 = mppi::matrix_multiplication::p1;
+      mm1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y_d, sample_time_offset * DYN_T::OUTPUT_DIM, y, 0);
+#else
       for (int j = thread_idy; j < DYN_T::OUTPUT_DIM; j += BLOCKSIZE_Y)
       {
         y_d[sample_time_offset * DYN_T::OUTPUT_DIM + j] = y[j];
       }
+#endif
       // Load noise trajectories scaled by the exploration factor
       injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy,
                          optimization_stride, u_d, du_d, sigma_u, u, du);
@@ -202,7 +209,7 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
 }
 
 template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int BLOCKSIZE_X>
-__global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, float lambda,
+__global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, const int num_timesteps, float lambda,
                                   float alpha, const float* __restrict__ init_x_d, const float* __restrict__ u_d,
                                   const float* __restrict__ du_d, const float* __restrict__ sigma_u_d,
                                   const float* __restrict__ y_d, float* __restrict__ trajectory_costs_d)
@@ -219,7 +226,7 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
   float* y_shared = entire_buffer;
-  float* u_shared = &entire_buffer[blockDim.x * blockDim.z * DYN_T::OUTPUT_DIM];
+  float* u_shared = &y_shared[blockDim.x * blockDim.z * DYN_T::OUTPUT_DIM];
   float* du_shared = &u_shared[blockDim.x * blockDim.z * DYN_T::CONTROL_DIM];
   float* sigma_u = &du_shared[blockDim.x * blockDim.z * DYN_T::CONTROL_DIM];
   float* running_cost_shared = &sigma_u[DYN_T::CONTROL_DIM];
@@ -285,11 +292,34 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int 
 
     // TODO: Read state and control from global memory
     sample_time_offset = (NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + t;
+// #define COALESCED
+#define PARALLEL_Y
+#ifdef COALESCED
+    namespace mm1 = mppi::matrix_multiplication::p1;
+    mm1::loadArrayParallel<DYN_T::OUTPUT_DIM * BLOCKSIZE_X, mm1::Parallel1Dir::THREAD_X>(
+        y_shared, blockDim.x * thread_idz, y_d,
+        ((NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x + 1) * DYN_T::OUTPUT_DIM);
+    // for (j = thread_idy; j < DYN_T::OUTPUT_DIM / 2; j += blockDim.y)
+    // {
+    //   // ((float2*)y)[j] = ((float2*)(&y_d[sample_time_offset * DYN_T::OUTPUT_DIM]))[j];
+    //   reinterpret_cast<float2*>(y)[j] = reinterpret_cast<const float2*>(&y_d[sample_time_offset *
+    //   DYN_T::OUTPUT_DIM])[j];
+    // }
+    // if (thread_idy == 0 && DYN_T::OUTPUT_DIM % 2 == 1)
+    // {
+    //   y[DYN_T::OUTPUT_DIM - 1] = y_d[(sample_time_offset + 1) * DYN_T::OUTPUT_DIM - 1];
+    // }
+#elif defined(PARALLEL_Y)
+    namespace mm1 = mppi::matrix_multiplication::p1;
+    mm1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * DYN_T::OUTPUT_DIM);
+#else
     for (j = thread_idy; j < DYN_T::OUTPUT_DIM; j += blockDim.y)
     {
       y[j] = y_d[sample_time_offset * DYN_T::OUTPUT_DIM + j];
     }
+#endif
     // Have to do similar steps as injectControlNoise but using the already transformed cost samples
+#if false
     for (j = thread_idy; j < DYN_T::CONTROL_DIM; j += blockDim.y)
     {
       control_index = sample_time_offset * DYN_T::CONTROL_DIM + j;
@@ -309,6 +339,32 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, int 
         du[j] = u[j] - u_d[t * DYN_T::CONTROL_DIM + j];
       }
     }
+#elif true
+    readControlsFromGlobal(DYN_T::CONTROL_DIM, blockDim.y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy, u_d,
+                           du_d, u, du);
+#else
+    for (j = thread_idy; j < DYN_T::CONTROL_DIM / 2; j += blockDim.y)
+    {
+      control_index = sample_time_offset * DYN_T::CONTROL_DIM;
+      float2* du2 = reinterpret_cast<float2*>(du);
+      float2* u2 = reinterpret_cast<float2*>(u);
+      if (global_idx == 0)
+      {
+        du2[j] = make_float2(0, 0);
+        u2[j] = reinterpret_cast<const float2*>(&u_d[control_index])[j];
+      }
+      else if (global_idx >= 0.99 * NUM_ROLLOUTS)
+      {
+        du2[j] = reinterpret_cast<const float2*>(&du_d[control_index])[j];
+        u2[j] = du2[j];
+      }
+      else
+      {
+        u2[j] = reinterpret_cast<const float2*>(&du_d[control_index])[j];
+        du2[j] = u2[j] - reinterpret_cast<const float2*>(&u_d[t * DYN_T::CONTROL_DIM])[j];
+      }
+    }
+#endif
     __syncthreads();
 
     // dynamics->enforceConstraints(x, u);
@@ -509,6 +565,84 @@ __device__ void loadGlobalToShared(int state_dim, int control_dim, int num_rollo
   }
 }
 
+__device__ void readControlsFromGlobal(const int control_dim, const int blocksize_y, const int num_rollouts,
+                                       const int num_timesteps, const int t, const int global_idx, const int thread_idy,
+                                       const float* u_d, const float* du_d, float* u_thread, float* du_thread)
+{
+  const int control_index = ((num_rollouts * threadIdx.z + global_idx) * num_timesteps + t) * control_dim;
+  if (control_dim % 4 == 0)
+  {
+    float4* du4 = reinterpret_cast<float4*>(du_thread);
+    float4* u4 = reinterpret_cast<float4*>(u_thread);
+    const float4* u4_mean_d = reinterpret_cast<const float4*>(&u_d[t * control_dim]);
+    const float4* du4_d = reinterpret_cast<const float4*>(&du_d[control_index]);
+    for (int j = thread_idy; j < control_dim / 4; j += blocksize_y)
+    {
+      if (global_idx == 0)
+      {
+        du4[j] = make_float4(0, 0, 0, 0);
+        u4[j] = u4_mean_d[j];
+      }
+      else if (global_idx >= 0.99 * num_rollouts)
+      {
+        du4[j] = du4_d[j];
+        u4[j] = du4[j];
+      }
+      else
+      {
+        u4[j] = du4_d[j];
+        du4[j] = u4[j] - u4_mean_d[j];
+      }
+    }
+  }
+  else if (control_dim % 2 == 0)
+  {
+    float2* du2 = reinterpret_cast<float2*>(du_thread);
+    float2* u2 = reinterpret_cast<float2*>(u_thread);
+    const float2* u2_mean_d = reinterpret_cast<const float2*>(&u_d[t * control_dim]);
+    const float2* du2_d = reinterpret_cast<const float2*>(&du_d[control_index]);
+    for (int j = thread_idy; j < control_dim / 2; j += blocksize_y)
+    {
+      if (global_idx == 0)
+      {
+        du2[j] = make_float2(0, 0);
+        u2[j] = u2_mean_d[j];
+      }
+      else if (global_idx >= 0.99 * num_rollouts)
+      {
+        du2[j] = du2_d[j];
+        u2[j] = du2[j];
+      }
+      else
+      {
+        u2[j] = du2_d[j];
+        du2[j] = u2[j] - u2_mean_d[j];
+      }
+    }
+  }
+  else
+  {
+    for (int j = thread_idy; j < control_dim; j += blockDim.y)
+    {
+      if (global_idx == 0)
+      {
+        du_thread[j] = 0;
+        u_thread[j] = u_d[t * control_dim + j];
+      }
+      else if (global_idx >= 0.99 * num_rollouts)
+      {
+        du_thread[j] = du_d[control_index + j];
+        u_thread[j] = du_thread[j];
+      }
+      else
+      {
+        u_thread[j] = du_d[control_index + j];
+        du_thread[j] = u_thread[j] - u_d[t * control_dim + j];
+      }
+    }
+  }
+}
+
 // TODO generalize the trim control
 // The zero control trajectory should be an equilbrium control defined in the dynamics.
 __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rollouts, int num_timesteps,
@@ -522,28 +656,90 @@ __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rol
                       control_dim;  // normal part
   // Load the noise trajectory scaled by the exploration factor
   // The prior loop already guarantees that the global index is less than the number of rollouts
-
-  for (int i = thread_idy; i < control_dim; i += blocksize_y)
+  if (control_dim % 4 == 0)
   {
-    // Keep one noise free trajectory
-    if (global_idx == 0 || current_timestep < optimization_stride)
+    float4* u4_thread = reinterpret_cast<float4*>(u_thread);
+    float4* du4_thread = reinterpret_cast<float4*>(du_thread);
+    const float4* sigma_u4_thread = reinterpret_cast<const float4*>(sigma_u_thread);
+    const float4* u4_traj_device = reinterpret_cast<const float4*>(&u_traj_device[current_timestep * control_dim]);
+    float4* ep4_v_device = reinterpret_cast<float4*>(&ep_v_device[control_index]);
+    for (int i = thread_idy; i < control_dim / 4; i += blocksize_y)
     {
-      du_thread[i] = 0;
-      u_thread[i] = u_traj_device[current_timestep * control_dim + i];
+      // Keep one noise free trajectory
+      if (global_idx == 0 || current_timestep < optimization_stride)
+      {
+        du4_thread[i] = make_float4(0, 0, 0, 0);
+        u4_thread[i] = u4_traj_device[i];
+      }
+      // Generate 1% zero control trajectory
+      else if (global_idx >= 0.99 * num_rollouts)
+      {
+        du4_thread[i] = ep4_v_device[i] * sigma_u4_thread[i];
+        u4_thread[i] = du4_thread[i];
+      }
+      else
+      {
+        du4_thread[i] = ep4_v_device[i] * sigma_u4_thread[i];
+        u4_thread[i] = u4_traj_device[i] + du4_thread[i];
+      }
+      // Saves the control but doesn't clamp it.
+      ep4_v_device[i] = u4_thread[i];
     }
-    // Generate 1% zero control trajectory
-    else if (global_idx >= 0.99 * num_rollouts)
+  }
+  else if (control_dim % 2 == 0)
+  {
+    float2* u2_thread = reinterpret_cast<float2*>(u_thread);
+    float2* du2_thread = reinterpret_cast<float2*>(du_thread);
+    const float2* sigma_u2_thread = reinterpret_cast<const float2*>(sigma_u_thread);
+    const float2* u2_traj_device = reinterpret_cast<const float2*>(&u_traj_device[current_timestep * control_dim]);
+    float2* ep2_v_device = reinterpret_cast<float2*>(&ep_v_device[control_index]);
+    for (int i = thread_idy; i < control_dim / 2; i += blocksize_y)
     {
-      du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
-      u_thread[i] = du_thread[i];
+      // Keep one noise free trajectory
+      if (global_idx == 0 || current_timestep < optimization_stride)
+      {
+        du2_thread[i] = make_float2(0, 0);
+        u2_thread[i] = u2_traj_device[i];
+      }
+      // Generate 1% zero control trajectory
+      else if (global_idx >= 0.99 * num_rollouts)
+      {
+        du2_thread[i] = ep2_v_device[i] * sigma_u2_thread[i];
+        u2_thread[i] = du2_thread[i];
+      }
+      else
+      {
+        du2_thread[i] = ep2_v_device[i] * sigma_u2_thread[i];
+        u2_thread[i] = u2_traj_device[i] + du2_thread[i];
+      }
+      // Saves the control but doesn't clamp it.
+      ep2_v_device[i] = u2_thread[i];
     }
-    else
+  }
+  else
+  {
+    for (int i = thread_idy; i < control_dim; i += blocksize_y)
     {
-      du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
-      u_thread[i] = u_traj_device[current_timestep * control_dim + i] + du_thread[i];
+      // Keep one noise free trajectory
+      if (global_idx == 0 || current_timestep < optimization_stride)
+      {
+        du_thread[i] = 0;
+        u_thread[i] = u_traj_device[current_timestep * control_dim + i];
+      }
+      // Generate 1% zero control trajectory
+      else if (global_idx >= 0.99 * num_rollouts)
+      {
+        du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
+        u_thread[i] = du_thread[i];
+      }
+      else
+      {
+        du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
+        u_thread[i] = u_traj_device[current_timestep * control_dim + i] + du_thread[i];
+      }
+      // Saves the control but doesn't clamp it.
+      ep_v_device[control_index + i] = u_thread[i];
     }
-    // Saves the control but doesn't clamp it.
-    ep_v_device[control_index + i] = u_thread[i];
   }
 }
 

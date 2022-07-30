@@ -252,17 +252,27 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     // Launch the norm exponential kernel
     if (getGamma() == 0 || getRExp() == 0)
     {
+#ifdef CPU_NORM_EXP
+      mppi_common::normExpTransform(NUM_ROLLOUTS, this->trajectory_costs_.data(), 1.0 / this->getLambda(),
+                                    this->getBaselineCost(), 0, 1);
+      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_d_, this->trajectory_costs_.data(),
+                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyHostToDevice, this->stream_));
+#else
       mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
                                        this->getBaselineCost(), this->stream_, false);
+      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
+                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+      HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+#endif
     }
     else
     {
       mppi_common::launchTsallisKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, getGamma(), getRExp(),
                                        this->getBaselineCost(), this->stream_, false);
+      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
+                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+      HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
     }
-    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
-    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Compute the normalizer
     this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS));

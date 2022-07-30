@@ -486,6 +486,36 @@ inline __device__ void getParallel1DIndex<Parallel1Dir::NONE>(int& p_index, int&
   p_index = 0;
   p_step = 1;
 }
+
+template <int N, Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y>
+inline __device__ void loadArrayParallel(float* __restrict__ a1, const int off1, const float* __restrict__ a2,
+                                         const int off2)
+{
+  int p_index, p_step;
+  getParallel1DIndex<P_DIR>(p_index, p_step);
+  if (N % 4 == 0)
+  {
+    for (int i = p_index; i < N / 4; i += p_step)
+    {
+      reinterpret_cast<float4*>(&a1[off1])[i] = reinterpret_cast<const float4*>(&a2[off2])[i];
+    }
+  }
+  else if (N % 2 == 0)
+  {
+    for (int i = p_index; i < N / 2; i += p_step)
+    {
+      reinterpret_cast<float2*>(&a1[off1])[i] = reinterpret_cast<const float2*>(&a2[off2])[i];
+    }
+  }
+  else
+  {
+    for (int i = p_index; i < N; i += p_step)
+    {
+      a1[off1 + i] = a2[off2 + i];
+    }
+  }
+}
+
 }  // namespace p1
 namespace p2  // parallelize using 2 thread dim
 {

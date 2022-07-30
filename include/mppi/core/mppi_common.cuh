@@ -38,6 +38,26 @@ __device__ void loadGlobalToShared(int state_dim, int control_dim, int num_rollo
                                    float* x_thread, float* xdot_thread, float* u_thread, float* du_thread,
                                    float* sigma_u_thread);
 /*
+ * readControlsFromGlobal
+ * Get back the control and deviation from the mean after injectControlNoise has been run
+ *
+ * Args:
+ * control_dim: Number of controls, defined in DYN_T
+ * blocksize_y: Y dimension of each block of threads
+ * num_rollouts: Total number of rollouts
+ * num_timesteps: Trajectory length
+ * t: Index of time in current trajectory
+ * global_idx: Current rollout index.
+ * thread_idy: Current y index of block dimension.
+ * u_d: Mean control trajectory
+ * du_d: Complete set of disturbances for all rollouts and timesteps (i.e. u + noise)
+ * u_thread: Current control for the given rollout
+ * du_thread: Current disturbance for the given rollout
+ */
+__device__ void readControlsFromGlobal(const int control_dim, const int blocksize_y, const int num_rollouts,
+                                       const int num_timesteps, const int t, const int global_idx, const int thread_idy,
+                                       const float* u_d, const float* du_d, float* u_thread, float* du_thread);
+/*
  * injectControlNoise
  * Disturb control trajectories per timestep
  *
@@ -122,7 +142,7 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
                          cudaStream_t stream, bool synchronize = true);
 
 template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int DYN_BLOCK_X, int DYN_BLOCK_Y, int BLOCKSIZE_Z = 1,
-          int COST_BLOCK_X = 128, int COST_BLOCK_Y = 1>
+          int COST_BLOCK_X = 64, int COST_BLOCK_Y = 2>
 void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, int optimization_stride,
                              float lambda, float alpha, float* init_x_d, float* x_d, float* u_d, float* du_d,
                              float* sigma_u_d, float* trajectory_costs, cudaStream_t stream, bool synchronize = true);
