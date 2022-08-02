@@ -33,10 +33,11 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
  * sigma_u_thread: control exploration variance in shared memory
  *
  */
-__device__ void loadGlobalToShared(int state_dim, int control_dim, int num_rollouts, int blocksize_y, int global_idx,
-                                   int thread_idy, int thread_idz, const float* x0_device, const float* sigma_u_device,
-                                   float* x_thread, float* xdot_thread, float* u_thread, float* du_thread,
-                                   float* sigma_u_thread);
+template <int STATE_DIM, int CONTROL_DIM>
+__device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y, const int global_idx,
+                                   const int thread_idy, const int thread_idz, const float* x0_device,
+                                   const float* sigma_u_device, float* x_thread, float* xdot_thread, float* u_thread,
+                                   float* du_thread, float* sigma_u_thread);
 /*
  * readControlsFromGlobal
  * Get back the control and deviation from the mean after injectControlNoise has been run
