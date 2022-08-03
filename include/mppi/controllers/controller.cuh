@@ -543,7 +543,7 @@ public:
     state_array xdot;
     state_array state, next_state;
     output_array output;
-    model_->initializeDynamics(state.col(0), u.col(0), output, 0, getDt());
+    model_->initializeDynamics(result.col(0), u.col(0), output, 0, getDt());
     for (int i = 0; i < getNumTimesteps() - 1; ++i)
     {
       state = result.col(i);

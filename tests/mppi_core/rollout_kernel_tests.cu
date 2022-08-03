@@ -489,6 +489,8 @@ TEST(RolloutKernel, compTestGenVsFastRollout)
 
   array_expect_float_eq<NUM_TIMESTEPS * MPPI_NUM_ROLLOUTS__ * DynamicsModel::CONTROL_DIM>(control_noise_generic,
                                                                                           control_noise_fast);
+
+  ASSERT_TRUE(isfinite(costs_fast.sum()));
   array_expect_near<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_fast, 0.01);
   // array_expect_float_eq<MPPI_NUM_ROLLOUTS__>(costs_generic, costs_fast);
   // std::cout << "Generic: ";

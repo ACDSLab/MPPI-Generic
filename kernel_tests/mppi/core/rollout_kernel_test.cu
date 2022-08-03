@@ -49,9 +49,9 @@ __global__ void loadGlobalToShared_KernelTest(float* x0_device, float* sigma_u_d
     du_thread = &du_shared[(blockDim.x * thread_idz + thread_idx) * CONTROL_DIM];
   }
   __syncthreads();
-  mppi_common::loadGlobalToShared(STATE_DIM, CONTROL_DIM, NUM_ROLLOUTS, BLOCKSIZE_Y, global_idx, thread_idy, thread_idz,
-                                  x0_device, sigma_u_device, x_thread, xdot_thread, u_thread, du_thread,
-                                  sigma_u_thread);
+  mppi_common::loadGlobalToShared<STATE_DIM, CONTROL_DIM>(NUM_ROLLOUTS, BLOCKSIZE_Y, global_idx, thread_idy, thread_idz,
+                                                          x0_device, sigma_u_device, x_thread, xdot_thread, u_thread,
+                                                          du_thread, sigma_u_thread);
   __syncthreads();
 
   // Check if on the first rollout the correct values were coped over

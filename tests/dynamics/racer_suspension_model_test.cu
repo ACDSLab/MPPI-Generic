@@ -265,6 +265,8 @@ TEST_F(RacerSuspensionTest, CPUvsGPU)
       }
       for (int d = 0; d < DYN::OUTPUT_DIM; d++)
       {
+        ASSERT_TRUE(isfinite(output_CPU[s](d, t)))
+            << "NaNs/inf at sample " << s << " t: " << t << ", dim: " << d << std::endl;
         ASSERT_NEAR(output_CPU[s](d, t), output_GPU[s](d, t), 1.0)
             << "Sample " << s << ", t = " << t << ", output_dim: " << d << std::endl;
       }

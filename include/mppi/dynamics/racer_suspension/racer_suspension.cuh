@@ -119,6 +119,26 @@ struct RacerSuspensionParams : public DynamicsParams
   // steering model params
   float steering_constant = .6;
   float steer_command_angle_scale = -2.45;
+  RacerSuspensionParams()
+  {
+    recalcParams();
+  }
+
+  void __host__ recalcParams()
+  {
+    cg_pos_wrt_base_link = make_float3(wheel_base / 2, 0, 0.2);
+    l_0[0] = wheel_radius + mass / 4 * (-gravity) / k_s[0];
+    l_0[1] = wheel_radius + mass / 4 * (-gravity) / k_s[1];
+    l_0[2] = wheel_radius + mass / 4 * (-gravity) / k_s[2];
+    l_0[3] = wheel_radius + mass / 4 * (-gravity) / k_s[3];
+    wheel_pos_wrt_base_link[0] = make_float3(wheel_base, width / 2, 0);
+    wheel_pos_wrt_base_link[1] = make_float3(wheel_base, -width / 2, 0);
+    wheel_pos_wrt_base_link[2] = make_float3(0, width / 2, 0);
+    wheel_pos_wrt_base_link[3] = make_float3(0, -width / 2, 0);
+    Jxx = 1.0 / 12 * mass * (height * height + width * width);
+    Jyy = 1.0 / 12 * mass * (height * height + wheel_base * wheel_base);
+    Jzz = 1.0 / 12 * mass * (wheel_base * wheel_base + width * width);
+  }
 };
 
 using namespace MPPI_internal;
@@ -145,11 +165,11 @@ public:
 
   RacerSuspension(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
   {
-    tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
+    tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
   RacerSuspension(RacerSuspensionParams& params, cudaStream_t stream) : PARENT_CLASS(params, stream)
   {
-    tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
+    tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
 
   ~RacerSuspension()
@@ -184,7 +204,7 @@ public:
   __device__ void step(float* state, float* next_state, float* state_der, float* control, float* output, float* theta_s,
                        const float t, const float dt);
 
-  TwoDTextureHelper<float4>* getTextureHelper()
+  TwoDTextureHelper<float>* getTextureHelper()
   {
     return tex_helper_;
   }
@@ -197,7 +217,7 @@ public:
                                 const Eigen::Vector3f& vel_base_link_B, const Eigen::Vector3f& omega_B);
 
 protected:
-  TwoDTextureHelper<float4>* tex_helper_ = nullptr;
+  TwoDTextureHelper<float>* tex_helper_ = nullptr;
 };
 
 #if __CUDACC__
