@@ -5,10 +5,11 @@
 #include <mppi/sampling_distributions/piecewise_linear/piecewise_linear_noise.cuh>
 #include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
 
-#define Primitives PrimitivesController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
+#define Primitives                                                                                                     \
+  PrimitivesController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, COST_B_X, COST_B_Y, PARAMS_T>
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda,
                                  float alpha, const Eigen::Ref<const control_array>& control_std_dev, int num_timesteps,
                                  const Eigen::Ref<const control_trajectory>& init_control_traj, cudaStream_t stream)
@@ -28,7 +29,7 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params, cudaStream_t stream)
   : PARENT_CLASS(model, cost, fb_controller, params, stream)
 {
@@ -50,14 +51,14 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 Primitives::~PrimitivesController()
 {
   // all implemented in standard controller
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
 {
   // this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
@@ -108,7 +109,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
         this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
 #else
-    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->control_d_,
         this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
@@ -204,17 +205,10 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
      */
 
     // Launch the rollout kernel
-#ifndef USE_FAST_KERNEL
-    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
-        this->getLambda(), this->getAlpha(), this->initial_state_d_, control_mppi_d_, this->control_noise_d_,
-        this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
-#else
-    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, control_mppi_d_,
         this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
-#endif
     /*
     noise = this->getSampledNoise();
     mean = 0;
@@ -252,27 +246,17 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     // Launch the norm exponential kernel
     if (getGamma() == 0 || getRExp() == 0)
     {
-#ifdef CPU_NORM_EXP
-      mppi_common::normExpTransform(NUM_ROLLOUTS, this->trajectory_costs_.data(), 1.0 / this->getLambda(),
-                                    this->getBaselineCost(), 0, 1);
-      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_d_, this->trajectory_costs_.data(),
-                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-#else
       mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
                                        this->getBaselineCost(), this->stream_, false);
-      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
-      HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
-#endif
     }
     else
     {
       mppi_common::launchTsallisKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, getGamma(), getRExp(),
                                        this->getBaselineCost(), this->stream_, false);
-      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
-      HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
     }
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
+                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Compute the normalizer
     this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS));
@@ -388,7 +372,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::allocateCUDAMemory()
 {
   PARENT_CLASS::allocateCUDAMemoryHelper();
@@ -396,7 +380,7 @@ void Primitives::allocateCUDAMemory()
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::copyMPPIControlToDevice(bool synchronize)
 {
   HANDLE_ERROR(cudaMemcpyAsync(control_mppi_d_, control_mppi_.data(), sizeof(float) * control_mppi_.size(),
@@ -408,14 +392,14 @@ void Primitives::copyMPPIControlToDevice(bool synchronize)
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::computeStateTrajectory(const Eigen::Ref<const state_array>& x0)
 {
   this->computeStateTrajectoryHelper(this->state_, x0, this->control_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& x0)
 {
   state_array xdot;
@@ -435,7 +419,7 @@ void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& 
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::slideControlSequence(int steps)
 {
   // TODO does the logic of handling control history reasonable?
@@ -449,7 +433,7 @@ void Primitives::slideControlSequence(int steps)
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::smoothControlTrajectory()
 {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
@@ -457,7 +441,7 @@ void Primitives::smoothControlTrajectory()
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories = this->getTotalSampledTrajectories();

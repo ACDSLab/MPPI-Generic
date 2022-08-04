@@ -18,7 +18,14 @@ TEST(cuFFT, checkErrorCode)
   cufftHandle plan;
   cuComplex* input_d;
   float* output_d;
+  // As this call is intended to cause issues, disable compiler warning
+  // src: https://stackoverflow.com/questions/14831051/how-to-disable-a-specific-nvcc-compiler-warnings
+  // https://stackoverflow.com/questions/56193080/how-do-i-apply-a-flag-setting-nvcc-pragma-to-only-a-few-lines-of-code
+  // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#nv-diagnostic-pragmas
+#pragma push
+#pragma diag_suppress = used_before_set
   auto status = cufftExecC2R(plan, input_d, output_d);
+#pragma pop
   // cufftAssert(status, __FILE__, __LINE__);
   std::string error_string = cufftGetErrorString(status);
   // std::cout << error_string << std::endl;

@@ -43,6 +43,11 @@ cmake-build-release*
 # Build directories
 build
 
+# clangd build
+.clangd
+compile_commands.json
+.cache
+
 # resouces folder
 resource
 

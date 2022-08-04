@@ -7,6 +7,7 @@
 
 // Needed for sampling without replacement
 #include <chrono>
+#include <type_traits>
 #include <unordered_set>
 #include <random>
 #include <vector>
@@ -410,14 +411,59 @@ enum class Parallel1Dir : int
 };
 
 template <Parallel1Dir P_DIR>
-inline __device__ void getParallel1DIndex(int& p_index, int& p_step);
-
-template <Parallel1Dir P_DIR>
-inline __host__ void getParallel1DIndex(int& p_index, int& p_step)
+inline __host__ __device__ void getParallel1DIndex(int& p_index, int& p_step)
 {
+#ifndef __CUDA_ARCH__
   p_index = 0;
   p_step = 1;
+#endif
 }
+
+// Matching float4 syntax
+template <class T = float>
+struct __align__(4 * sizeof(T)) type4
+{
+  T x;
+  T y;
+  T z;
+  T w;
+  // Allow writing to struct using array index
+  __host__ __device__ T& operator[](int i)
+  {
+    assert(i >= 0);
+    assert(i < 4);
+    return (i > 1) ? ((i == 2) ? z : w) : ((i == 0) ? x : y);
+  }
+  // Allow reading from struct using array index
+  __host__ __device__ const T& operator[](int i) const
+  {
+    assert(i >= 0);
+    assert(i < 4);
+    return (i > 1) ? ((i == 2) ? z : w) : ((i == 0) ? x : y);
+  }
+};
+
+template <class T = float>
+struct __align__(2 * sizeof(T)) type2
+{
+  T x;
+  T y;
+
+  // Allow writing to struct using array index
+  __host__ __device__ T& operator[](int i)
+  {
+    assert(i >= 0);
+    assert(i < 2);
+    return (i == 0) ? x : y;
+  }
+  // Allow reading from struct using array index
+  __host__ __device__ const T& operator[](int i) const
+  {
+    assert(i >= 0);
+    assert(i < 2);
+    return (i == 0) ? x : y;
+  }
+};
 
 /**
  * @brief GEneral Matrix Multiplication
@@ -439,18 +485,51 @@ inline __device__ __host__ void gemm(const T* A, const T* B, T* C, const T alpha
 {
   int parallel_index;
   int parallel_step;
+  int p, k;
   getParallel1DIndex<P_DIR>(parallel_index, parallel_step);
   int2 mn;
-  for (int p = parallel_index; p < M * N; p += parallel_step)
+  for (p = parallel_index; p < M * N; p += parallel_step)
   {
     T accumulator = 0;
     mn = unravelColumnMajor(p, M);
+    if (K % 4 == 0 && sizeof(type4<T>) <= 16)
+    {  // Fetch 4 B values using single load memory operator of up to 128 bits since B is contiguous wrt k
 #pragma unroll
-    for (int k = 0; k < K; k++)
-    {
-      accumulator += A[columnMajorIndex(mn.x, k, M)] * B[columnMajorIndex(k, mn.y, K)];
+      for (k = 0; k < K; k += 4)
+      {
+        const type4<T> b_tmp = reinterpret_cast<const type4<T>*>(&B[columnMajorIndex(k, mn.y, K)])[0];
+        accumulator += A[columnMajorIndex(mn.x, k + 0, M)] * b_tmp[0];
+        accumulator += A[columnMajorIndex(mn.x, k + 1, M)] * b_tmp[1];
+        accumulator += A[columnMajorIndex(mn.x, k + 2, M)] * b_tmp[2];
+        accumulator += A[columnMajorIndex(mn.x, k + 3, M)] * b_tmp[3];
+      }
     }
-    C[p] = alpha * accumulator + beta * C[p];
+    else if (K % 2 == 0 && sizeof(type2<T>) <= 16)
+    {  // Fetch 2 B values using single load memory operator of up to 128 bits since B is contiguous wrt k
+#pragma unroll
+      for (k = 0; k < K; k += 2)
+      {
+        const type2<T> b_tmp = reinterpret_cast<const type2<T>*>(&B[columnMajorIndex(k, mn.y, K)])[0];
+        accumulator += A[columnMajorIndex(mn.x, k + 0, M)] * b_tmp.x;
+        accumulator += A[columnMajorIndex(mn.x, k + 1, M)] * b_tmp.y;
+      }
+    }
+    else
+    {  // Either K is odd or sizeof(T) is large enough that
+#pragma unroll
+      for (k = 0; k < K; k++)
+      {
+        accumulator += A[columnMajorIndex(mn.x, k, M)] * B[columnMajorIndex(k, mn.y, K)];
+      }
+    }
+    if (beta == 0)
+    {  // Special case to remove extraneous memory accesses
+      C[p] = alpha * accumulator;
+    }
+    else
+    {
+      C[p] = alpha * accumulator + beta * C[p];
+    }
   }
 }
 
@@ -493,14 +572,14 @@ inline __device__ void loadArrayParallel(float* __restrict__ a1, const int off1,
 {
   int p_index, p_step;
   getParallel1DIndex<P_DIR>(p_index, p_step);
-  if (N % 4 == 0)
+  if (N % 4 == 0 && off1 % 4 == 0 && off2 % 4 == 0)
   {
     for (int i = p_index; i < N / 4; i += p_step)
     {
       reinterpret_cast<float4*>(&a1[off1])[i] = reinterpret_cast<const float4*>(&a2[off2])[i];
     }
   }
-  else if (N % 2 == 0)
+  else if (N % 2 == 0 && off1 % 2 == 0 && off2 % 2 == 0)
   {
     for (int i = p_index; i < N / 2; i += p_step)
     {

@@ -73,9 +73,9 @@ __global__ void gemm1dBatchKernel(const float* A, const float* B, float* C)
 
 TEST(MATH_UTILS, Matrix3fMultiplicationP1)
 {
-  const int M = 3;
-  const int K = 3;
-  const int N = 10;
+  const int M = 16;
+  const int K = 256;
+  const int N = 16;
   const int max_thread_size = 32;
   // typedef Eigen::Matrix<float, M, K> A_mat;
   // typedef Eigen::Matrix<float, K, N> B_mat;

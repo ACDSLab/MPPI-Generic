@@ -51,6 +51,7 @@ struct PrimitivesParams : public ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          int COST_B_X = 64, int COST_B_Y = 2,
           class PARAMS_T = PrimitivesParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class PrimitivesController
   : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>

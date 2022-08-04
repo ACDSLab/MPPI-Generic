@@ -4,10 +4,11 @@
 #include <iostream>
 #include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
 
-#define ColoredMPPI ColoredMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
+#define ColoredMPPI                                                                                                    \
+  ColoredMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, COST_B_X, COST_B_Y, PARAMS_T>
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                                    float lambda, float alpha, const Eigen::Ref<const control_array>& control_std_dev,
                                    int num_timesteps, const Eigen::Ref<const control_trajectory>& init_control_traj,
@@ -25,7 +26,7 @@ ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params,
                                    cudaStream_t stream)
   : PARENT_CLASS(model, cost, fb_controller, params, stream)
@@ -43,14 +44,14 @@ ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 ColoredMPPI::~ColoredMPPIController()
 {
   // all implemented in standard controller
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
 {
   this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
@@ -75,52 +76,11 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     // Generate noise data
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
                           this->control_noise_d_, this->gen_, this->stream_);
-    // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->getNumTimesteps() *
-    // DYN_T::CONTROL_DIM,
-    //                      0.0, 1.0);
-    /*
-    std::vector<float> noise = this->getSampledNoise();
-    float mean = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      mean += (noise[k]/noise.size());
-    }
-
-    float std_dev = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      std_dev += powf(noise[k] - mean, 2);
-    }
-    std_dev = sqrt(std_dev/noise.size());
-    printf("CPU 1 side N(%f, %f)\n", mean, std_dev);
-     */
-
     // Launch the rollout kernel
-#define USE_FAST_KERNEL
-#define CPU_NORM_EXP
-#ifndef USE_FAST_KERNEL
-    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
-        this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
-        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
-        this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
-#else
-    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->control_d_,
         this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
-#endif
-    /*
-    noise = this->getSampledNoise();
-    mean = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      mean += (noise[k]/noise.size());
-    }
-
-    std_dev = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      std_dev += powf(noise[k] - mean, 2);
-    }
-    std_dev = sqrt(std_dev/noise.size());
-    printf("CPU 2 side N(%f, %f)\n", mean, std_dev);
-     */
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
@@ -144,23 +104,16 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     // Launch the norm exponential kernel
     if (getGamma() == 0 || getRExp() == 0)
     {
-#ifdef CPU_NORM_EXP
-      mppi_common::normExpTransform(NUM_ROLLOUTS, this->trajectory_costs_.data(), 1.0 / this->getLambda(),
-                                    this->getBaselineCost(), 0, 1);
-      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_d_, this->trajectory_costs_.data(),
-                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-#else
       mppi_common::launchNormExpKernel(NUM_ROLLOUTS, 64, this->trajectory_costs_d_, 1.0 / this->getLambda(),
                                        this->getBaselineCost(), this->stream_, false);
-#endif
     }
     else
     {
       mppi_common::launchTsallisKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, getGamma(), getRExp(),
                                        this->getBaselineCost(), this->stream_, false);
-      HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                   NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     }
+    HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
+                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Compute the normalizer
@@ -176,21 +129,6 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
         this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->getNormalizerCost(),
         this->getNumTimesteps(), this->stream_, false);
-
-    /*
-    noise = this->getSampledNoise();
-    mean = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      mean += (noise[k]/noise.size());
-    }
-
-    std_dev = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      std_dev += powf(noise[k] - mean, 2);
-    }
-    std_dev = sqrt(std_dev/noise.size());
-    printf("CPU 3 side N(%f, %f)\n", mean, std_dev);
-     */
 
     // Transfer the new control to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->control_.data(), this->control_d_,
@@ -218,21 +156,21 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void ColoredMPPI::allocateCUDAMemory()
 {
   PARENT_CLASS::allocateCUDAMemoryHelper();
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void ColoredMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0)
 {
   this->computeStateTrajectoryHelper(this->state_, x0, this->control_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void ColoredMPPI::slideControlSequence(int steps)
 {
   // TODO does the logic of handling control history reasonable?
@@ -244,14 +182,14 @@ void ColoredMPPI::slideControlSequence(int steps)
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void ColoredMPPI::smoothControlTrajectory()
 {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void ColoredMPPI::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories = this->getTotalSampledTrajectories();

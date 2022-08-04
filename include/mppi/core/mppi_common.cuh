@@ -95,9 +95,9 @@ __device__ __host__ inline void normExpTransform(const int num_rollouts, float* 
                                                  const float lambda_inv, const float baseline, const int global_idx,
                                                  const int rollout_idx_step);
 // Tsallis Kernel Helpers
-__device__ inline void TsallisTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
-                                        const float gamma, float r, const float baseline, const int global_idx,
-                                        const int rollout_idx_step);
+__device__ __host__ inline void TsallisTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
+                                                 const float gamma, float r, const float baseline, const int global_idx,
+                                                 const int rollout_idx_step);
 float computeBaselineCost(float* cost_rollouts_host, int num_rollouts);
 
 float computeNormalizer(float* cost_rollouts_host, int num_rollouts);
