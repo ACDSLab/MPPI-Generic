@@ -76,6 +76,9 @@ struct RacerSuspensionParams : public DynamicsParams
     CENTER_POS_I_X,
     CENTER_POS_I_Y,
     CENTER_POS_I_Z,
+    ACCEL_X,
+    FILLER_1,
+    FILLER_2,
     NUM_OUTPUTS
   };
   // suspension model params

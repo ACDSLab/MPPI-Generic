@@ -6,7 +6,7 @@
 
 #include <cooperative_groups.h>
 namespace cg = cooperative_groups;
-namespace mm1 = mppi::matrix_multiplication::p1;
+namespace mp1 = mppi::p1;
 
 namespace mppi_common
 {
@@ -171,7 +171,7 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
     {
       // Copy state to global memory
       int sample_time_offset = (NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + t;
-      mm1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y_d, sample_time_offset * DYN_T::OUTPUT_DIM, y, 0);
+      mp1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y_d, sample_time_offset * DYN_T::OUTPUT_DIM, y, 0);
       // Load noise trajectories scaled by the exploration factor
       injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy,
                          optimization_stride, u_d, du_d, sigma_u, u, du);
@@ -241,7 +241,7 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, cons
   running_cost[0] = 0;
   if (thread_idx == 0)
   {
-    mm1::loadArrayParallel<DYN_T::CONTROL_DIM>(sigma_u, 0, sigma_u_d, 0);
+    mp1::loadArrayParallel<DYN_T::CONTROL_DIM>(sigma_u, 0, sigma_u_d, 0);
   }
 
   /*<----Start of simulation loop-----> */
@@ -253,14 +253,14 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, cons
     int t = thread_idx + time_iter * blockDim.x + 1;
     if (COALESCE)
     {  // Fill entire shared mem sequentially using sequential threads_idx
-      mm1::loadArrayParallel<DYN_T::OUTPUT_DIM * BLOCKSIZE_X, mm1::Parallel1Dir::THREAD_X>(
+      mp1::loadArrayParallel<DYN_T::OUTPUT_DIM * BLOCKSIZE_X, mp1::Parallel1Dir::THREAD_X>(
           y_shared, blockDim.x * thread_idz, y_d,
           ((NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x + 1) * DYN_T::OUTPUT_DIM);
     }
     else
     {
       sample_time_offset = (NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + t;
-      mm1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * DYN_T::OUTPUT_DIM);
+      mp1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * DYN_T::OUTPUT_DIM);
     }
     // Have to do similar steps as injectControlNoise but using the already transformed cost samples
     readControlsFromGlobal(DYN_T::CONTROL_DIM, blockDim.y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy, u_d,
@@ -399,7 +399,7 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
   if (global_idx < num_rollouts)
   {
 #if false
-    mm1::loadArrayParallel<STATE_DIM>(x_thread, 0, x_device, STATE_DIM * thread_idz);
+    mp1::loadArrayParallel<STATE_DIM>(x_thread, 0, x_device, STATE_DIM * thread_idz);
     if (STATE_DIM % 4 == 0)
     {
       float4* xdot4_t = reinterpret_cast<float4*>(xdot_thread);
@@ -467,7 +467,7 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
   }
   if (threadIdx.x == 0 /*&& threadIdx.z == 0*/)
   {
-    mm1::loadArrayParallel<CONTROL_DIM>(sigma_u_thread, 0, sigma_u_device, 0);
+    mp1::loadArrayParallel<CONTROL_DIM>(sigma_u_thread, 0, sigma_u_device, 0);
     // for (i = thread_idy; i < control_dim; i += blocksize_y)
     // {
     //   sigma_u_thread[i] = sigma_u_device[i];
