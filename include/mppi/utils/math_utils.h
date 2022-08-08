@@ -21,15 +21,13 @@
 #endif  // SQ
 
 #ifndef __UNROLL
-#define xstr(s) str(s)
-#define str(s) #s
+#define __xstr__(s) __str__(s)
+#define __str__(s) #s
 #ifdef __GNUG__  // GCC is the compiler
-#define __UNROLL(a) _Pragma(xstr(GCC unroll a))
+#define __UNROLL(a) _Pragma(__xstr__(GCC unroll a))
 #else
 #define __UNROLL(a) _Pragma("unroll")
 #endif
-// #undef str
-// #undef xstr
 #endif
 
 namespace mppi
@@ -472,24 +470,23 @@ inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::NONE>(int& p_in
   p_step = 1;
 }
 
-template <int N, Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y>
-inline __device__ void loadArrayParallel(float* __restrict__ a1, const int off1, const float* __restrict__ a2,
-                                         const int off2)
+template <int N, Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y, class T = float>
+inline __device__ void loadArrayParallel(T* __restrict__ a1, const int off1, const T* __restrict__ a2, const int off2)
 {
   int p_index, p_step;
   getParallel1DIndex<P_DIR>(p_index, p_step);
-  if (N % 4 == 0 && off1 % 4 == 0 && off2 % 4 == 0)
+  if (N % 4 == 0 && sizeof(type4<T>) < 16 && off1 % 4 == 0 && off2 % 4 == 0)
   {
     for (int i = p_index; i < N / 4; i += p_step)
     {
-      reinterpret_cast<float4*>(&a1[off1])[i] = reinterpret_cast<const float4*>(&a2[off2])[i];
+      reinterpret_cast<type4<T>*>(&a1[off1])[i] = reinterpret_cast<const type4<T>*>(&a2[off2])[i];
     }
   }
-  else if (N % 2 == 0 && off1 % 2 == 0 && off2 % 2 == 0)
+  else if (N % 2 == 0 && sizeof(type2<T>) < 16 && off1 % 2 == 0 && off2 % 2 == 0)
   {
     for (int i = p_index; i < N / 2; i += p_step)
     {
-      reinterpret_cast<float2*>(&a1[off1])[i] = reinterpret_cast<const float2*>(&a2[off2])[i];
+      reinterpret_cast<type2<T>*>(&a1[off1])[i] = reinterpret_cast<const type2<T>*>(&a2[off2])[i];
     }
   }
   else

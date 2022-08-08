@@ -104,7 +104,7 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     // Launch the norm exponential kernel
     if (getGamma() == 0 || getRExp() == 0)
     {
-      mppi_common::launchNormExpKernel(NUM_ROLLOUTS, 64, this->trajectory_costs_d_, 1.0 / this->getLambda(),
+      mppi_common::launchNormExpKernel(NUM_ROLLOUTS, BDIM_X, this->trajectory_costs_d_, 1.0 / this->getLambda(),
                                        this->getBaselineCost(), this->stream_, false);
     }
     else
