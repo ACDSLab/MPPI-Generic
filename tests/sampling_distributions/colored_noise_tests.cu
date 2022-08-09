@@ -49,7 +49,7 @@ TEST(ColoredNoise, checkWhiteNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, gen, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -96,7 +96,7 @@ TEST(ColoredNoise, checkPinkNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, gen, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -138,7 +138,7 @@ TEST(ColoredNoise, checkRedNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, gen, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -190,7 +190,7 @@ TEST(ColoredNoise, checkMultiNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, gen, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
