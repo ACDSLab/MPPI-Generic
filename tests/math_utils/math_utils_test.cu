@@ -60,9 +60,26 @@ namespace mp2 = mppi::p2;
 
 template <int M, int K, int N, mp1::Parallel1Dir PARALLELIZATION_DIR, mm::MAT_OP A_OP = mm::MAT_OP::NONE,
           mm::MAT_OP B_OP = mm::MAT_OP::NONE, class T = float>
-__global__ void gemm1d(const T* A, const T* B, T* C, T alpha = 1, T beta = 0)
+__global__ void gemm1d(T* A, T* B, T* C, T alpha = 1, T beta = 0, int shared_mem_size = 0)
 {
-  mm::gemm1<M, K, N, PARALLELIZATION_DIR, T>(A, B, C, alpha, beta, A_OP, B_OP);
+  extern __shared__ float buff[];
+  T* A_p;
+  T* B_p;
+  if (shared_mem_size != 0)
+  {
+    A_p = (T*)&buff[0];
+    B_p = &A_p[M * K];
+    mp1::loadArrayParallel<M * K, PARALLELIZATION_DIR, T>(A_p, 0, A, 0);
+    mp1::loadArrayParallel<K * N, PARALLELIZATION_DIR, T>((T*)&buff[0], M * K, B, 0);
+    __syncthreads();
+  }
+  else
+  {
+    A_p = A;
+    B_p = B;
+  }
+
+  mm::gemm1<M, K, N, PARALLELIZATION_DIR, T>(A_p, B_p, C, alpha, beta, A_OP, B_OP);
 }
 
 template <int M, int K, int N>
@@ -201,6 +218,8 @@ float2 testMatMulp1(int size, T alpha = 1, T beta = 0)
     cpu_time_ms = mppi::math::timeDiffms(stop, start);
   }
 
+  int grid_dim = 1;
+
   if (P_DIR == mp1::Parallel1Dir::THREAD_X)
   {
     block.x = size;
@@ -213,12 +232,32 @@ float2 testMatMulp1(int size, T alpha = 1, T beta = 0)
   {
     block.z = size;
   }
+  else if (P_DIR == mp1::Parallel1Dir::GLOBAL_X)
+  {
+    grid_dim = (M * N - 1) / (size) + 1;
+    block.x = size;
+    grid.x = grid_dim;
+  }
+  else if (P_DIR == mp1::Parallel1Dir::GLOBAL_Y)
+  {
+    grid_dim = (M * N - 1) / (size) + 1;
+    block.y = size;
+    grid.y = grid_dim;
+  }
+  else if (P_DIR == mp1::Parallel1Dir::GLOBAL_Z)
+  {
+    grid_dim = (M * N - 1) / (size) + 1;
+    block.y = size;
+    grid.y = grid_dim;
+  }
+  int shared_mem_num = ((M * K + K * N) * sizeof(T) <= 1 << 16) ? (M * K + K * N) : 0;
 
   HANDLE_ERROR(cudaMemcpyAsync(A_d, A.data(), sizeof(T) * M * K, cudaMemcpyHostToDevice, stream));
   HANDLE_ERROR(cudaMemcpyAsync(B_d, B.data(), sizeof(T) * K * N, cudaMemcpyHostToDevice, stream));
   HANDLE_ERROR(cudaMemcpyAsync(C_d, C_GPU.data(), sizeof(T) * M * N, cudaMemcpyHostToDevice, stream));
   cudaEventRecord(start, stream);
-  gemm1d<M, K, N, P_DIR, A_OP, B_OP, T><<<grid, block, 0, stream>>>(A_d, B_d, C_d, alpha, beta);
+  gemm1d<M, K, N, P_DIR, A_OP, B_OP, T>
+      <<<grid, block, shared_mem_num * sizeof(T), stream>>>(A_d, B_d, C_d, alpha, beta, shared_mem_num);
   cudaEventRecord(stop, stream);
   HANDLE_ERROR(cudaMemcpyAsync(C_GPU.data(), C_d, sizeof(T) * M * N, cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -340,16 +379,50 @@ TEST(MATH_UTILS, HostMatrixMult)
   T beta = 0.0;
   testMatMulHost<M, K, N, A_OP, B_OP, P_DIR, T>(alpha, beta);
 }
+TEST(MATH_UTILS, SpeedSharedMemMatrixMult)
+{
+  const int NUM_ITERATIONS = 100;
+  float2 total_ms = make_float2(0, 0);
+  const int thread_dim = 1024;
+  for (int i = 0; i < NUM_ITERATIONS; i++)
+  {
+    total_ms +=
+        testMatMulp1<128, 256, 128, mm::MAT_OP::TRANSPOSE, mm::MAT_OP::NONE, mp1::Parallel1Dir::THREAD_X, float>(
+            thread_dim, 3.0, 0.2);
+  }
+  std::cout << NUM_ITERATIONS << " GPU Shared Mem Matrix Multiplications took " << total_ms.y / NUM_ITERATIONS
+            << " ms on average" << std::endl;
+  std::cout << NUM_ITERATIONS << " CPU Shared Mem Matrix Multiplications took " << total_ms.x / NUM_ITERATIONS
+            << " ms on average" << std::endl;
+}
 
 TEST(MATH_UTILS, SpeedLargeMatrixMult)
+{
+  const int NUM_ITERATIONS = 5;
+  float2 total_ms = make_float2(0, 0);
+  const int thread_dim = 1024;
+  for (int i = 0; i < NUM_ITERATIONS; i++)
+  {
+    total_ms +=
+        testMatMulp1<1024, 2048, 1024, mm::MAT_OP::TRANSPOSE, mm::MAT_OP::NONE, mp1::Parallel1Dir::THREAD_X, float>(
+            thread_dim, 3.0, 0.2);
+  }
+  std::cout << NUM_ITERATIONS << " GPU Matrix Multiplications took " << total_ms.y / NUM_ITERATIONS << " ms on average"
+            << std::endl;
+  std::cout << NUM_ITERATIONS << " CPU Matrix Multiplications took " << total_ms.x / NUM_ITERATIONS << " ms on average"
+            << std::endl;
+}
+
+TEST(MATH_UTILS, SpeedLargeMatrixMultGlobal)
 {
   const int NUM_ITERATIONS = 10;
   float2 total_ms = make_float2(0, 0);
   const int thread_dim = 1024;
   for (int i = 0; i < NUM_ITERATIONS; i++)
   {
-    total_ms += testMatMulp1<1024, 1024, 1024, mm::MAT_OP::NONE, mm::MAT_OP::NONE, mp1::Parallel1Dir::THREAD_X, float>(
-        thread_dim, 3.0, 0.2);
+    total_ms +=
+        testMatMulp1<1024, 2048, 1024, mm::MAT_OP::TRANSPOSE, mm::MAT_OP::NONE, mp1::Parallel1Dir::GLOBAL_X, float>(
+            thread_dim, 3.0, 0.2);
   }
   std::cout << NUM_ITERATIONS << " GPU Matrix Multiplications took " << total_ms.y / NUM_ITERATIONS << " ms on average"
             << std::endl;

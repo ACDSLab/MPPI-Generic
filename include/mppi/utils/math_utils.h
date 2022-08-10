@@ -421,6 +421,9 @@ enum class Parallel1Dir : int
   THREAD_X = 0,
   THREAD_Y,
   THREAD_Z,
+  GLOBAL_X,
+  GLOBAL_Y,
+  GLOBAL_Z,
   NONE,
 };
 
@@ -457,6 +460,42 @@ inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::THREAD_Z>(int& 
 #ifdef __CUDA_ARCH__
   p_index = threadIdx.z;
   p_step = blockDim.z;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::GLOBAL_X>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.x + blockDim.x * blockIdx.x;
+  p_step = gridDim.x * blockDim.x;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::GLOBAL_Y>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.y + blockDim.y * blockIdx.y;
+  p_step = gridDim.y * blockDim.y;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::GLOBAL_Z>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.z + blockDim.z * blockIdx.z;
+  p_step = gridDim.z * blockDim.z;
 #else
   p_index = 0;
   p_step = 1;
