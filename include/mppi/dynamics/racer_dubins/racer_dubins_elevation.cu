@@ -72,7 +72,7 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
 {
   // computeStateDeriv(state, control, state_der);
   bool enable_brake = control(0) < 0;
-  int index = (abs(state(0)) > 0.5 && abs(state(0)) <= 6.0) + (abs(state(0)) > 6.0) * 2;
+  int index = (abs(state(0)) > 0.2 && abs(state(0)) <= 3.0) + (abs(state(0)) > 3.0) * 2;
   // applying position throttle
   float throttle = this->params_.c_t[index] * control(0);
   float brake = this->params_.c_b[index] * control(0) * (state(0) >= 0 ? 1 : -1);
@@ -231,8 +231,8 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
 
   // Compute dynamics
   bool enable_brake = control[0] < 0;
-  int index = (fabsf(state[S_INDEX(VEL_X)]) > 0.5 && fabsf(state[S_INDEX(VEL_X)]) <= 6.0) +
-              (fabsf(state[S_INDEX(VEL_X)]) > 6.0) * 2;
+  int index = (fabsf(state[S_INDEX(VEL_X)]) > 0.2 && fabsf(state[S_INDEX(VEL_X)]) <= 3.0) +
+              (fabsf(state[S_INDEX(VEL_X)]) > 3.0) * 2;
   // applying position throttle
   float throttle = params_p->c_t[index] * control[0];
   float brake = params_p->c_b[index] * control[0] * (state[S_INDEX(VEL_X)] >= 0 ? 1 : -1);
