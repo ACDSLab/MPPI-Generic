@@ -566,60 +566,102 @@ template <>
 inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XY>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
+#ifdef __CUDA_ARCH__
   p1_index = threadIdx.x;
   p1_step = blockDim.x;
   p2_index = threadIdx.y;
   p2_step = blockDim.y;
+#else
+  p1_index = 0;
+  p2_index = 0;
+  p1_step = 1;
+  p2_step = 1;
+#endif
 }
 
 template <>
 inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YZ>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
+#ifdef __CUDA_ARCH__
   p1_index = threadIdx.y;
   p1_step = blockDim.y;
   p2_index = threadIdx.z;
   p2_step = blockDim.z;
+#else
+  p1_index = 0;
+  p2_index = 0;
+  p1_step = 1;
+  p2_step = 1;
+#endif
 }
 
 template <>
 inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XZ>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
+#ifdef __CUDA_ARCH__
   p1_index = threadIdx.x;
   p1_step = blockDim.x;
   p2_index = threadIdx.z;
   p2_step = blockDim.z;
+#else
+  p1_index = 0;
+  p2_index = 0;
+  p1_step = 1;
+  p2_step = 1;
+#endif
 }
 
 template <>
 inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YX>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
+#ifdef __CUDA_ARCH__
   p1_index = threadIdx.y;
   p1_step = blockDim.y;
   p2_index = threadIdx.x;
   p2_step = blockDim.x;
+#else
+  p1_index = 0;
+  p2_index = 0;
+  p1_step = 1;
+  p2_step = 1;
+#endif
 }
 
 template <>
 inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZY>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
+#ifdef __CUDA_ARCH__
   p1_index = threadIdx.z;
   p1_step = blockDim.z;
   p2_index = threadIdx.y;
   p2_step = blockDim.y;
+#else
+  p1_index = 0;
+  p2_index = 0;
+  p1_step = 1;
+  p2_step = 1;
+#endif
 }
 
 template <>
 inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZX>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
+#ifdef __CUDA_ARCH__
   p1_index = threadIdx.z;
   p1_step = blockDim.z;
   p2_index = threadIdx.x;
   p2_step = blockDim.x;
+#else
+  p1_index = 0;
+  p2_index = 0;
+  p1_step = 1;
+  p2_step = 1;
+#endif
 }
 
 template <>
