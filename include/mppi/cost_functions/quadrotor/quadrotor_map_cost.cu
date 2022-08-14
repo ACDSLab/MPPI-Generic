@@ -6,6 +6,18 @@ template <class CLASS_T, class PARAMS_T>
 QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::QuadrotorMapCostImpl(cudaStream_t stream)
 {
   this->bindToStream(stream);
+  tex_helper_ = new TwoDTextureHelper<float>(1, stream);
+}
+template <class CLASS_T, class PARAMS_T>
+QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::~QuadrotorMapCostImpl()
+{
+  delete tex_helper_;
+}
+template <class CLASS_T, class PARAMS_T>
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::bindToStream(cudaStream_t stream)
+{
+  PARENT_CLASS::bindToStream(stream);
+  tex_helper_->bindToStream(stream);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -13,8 +25,9 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::freeCudaMem()
 {
   if (this->GPUMemStatus_)
   {
-    HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
-    HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_d_));
+    // HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
+    // HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_d_));
+    tex_helper_->freeCudaMem();
   }
   PARENT_CLASS::freeCudaMem();
 }
@@ -24,14 +37,16 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::paramsToDevice()
 {
   if (this->GPUMemStatus_)
   {
-    HANDLE_ERROR(cudaMemcpyAsync(&this->cost_d_->params_, &this->params_, sizeof(PARAMS_T), cudaMemcpyHostToDevice,
-                                 this->stream_));
-    HANDLE_ERROR(
-        cudaMemcpyAsync(&this->cost_d_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-    HANDLE_ERROR(
-        cudaMemcpyAsync(&this->cost_d_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+    // HANDLE_ERROR(cudaMemcpyAsync(&this->cost_d_->params_, &this->params_, sizeof(PARAMS_T), cudaMemcpyHostToDevice,
+    //                              this->stream_));
+    // HANDLE_ERROR(
+    //     cudaMemcpyAsync(&this->cost_d_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
+    // HANDLE_ERROR(
+    //     cudaMemcpyAsync(&this->cost_d_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
+    // HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+    tex_helper_->copyToDevice();
   }
+  PARENT_CLASS::paramsToDevice();
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -259,27 +274,17 @@ template <class CLASS_T, class PARAMS_T>
 __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeCostmapCost(float* s)
 {
   float cost = 0;
-
-  float u, v, w;  // Transformed coordinates
-  coorTransform(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)], &u, &v, &w);
-  float normalized_u = u / w;
-  float normalized_v = v / w;
-
-  // Query texture
-  float4 track_params = queryTexture(normalized_u, normalized_v);
-  // Outside of cost map
-  if (normalized_u < 0.001 || normalized_u > 0.999 || normalized_v < 0.001 || normalized_v > 0.999)
-  {
-    cost += this->params_.crash_coeff;
-  }
+  float3 query_point =
+      make_float3(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)], s[E_INDEX(OutputIndex, POS_Z)]);
+  float track_cost = this->tex_helper_->queryTextureAtWorldPose(0, query_point);
 
   // Calculate cost based on distance from centerline of the track
-  if (track_params.x > this->params_.track_slop)
+  if (track_cost > this->params_.track_slop)
   {
-    cost += this->params_.track_coeff * track_params.x;
+    cost += this->params_.track_coeff * track_cost;
   }
 
-  if (track_params.x > this->params_.track_boundary_cost)
+  if (track_cost > this->params_.track_boundary_cost)
   {
     // the cost at this point on the costmap indicates no longer being on the track
     cost += this->params_.crash_coeff;

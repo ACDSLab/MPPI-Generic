@@ -7,6 +7,7 @@
 #include <mppi/cost_functions/cost.cuh>
 #include <mppi/dynamics/quadrotor/quadrotor_dynamics.cuh>
 #include <mppi/utils/math_utils.h>
+#include <mppi/utils/texture_helpers/two_d_texture_helper.cuh>
 
 #include <string>
 
@@ -95,6 +96,10 @@ public:
 
   QuadrotorMapCostImpl(cudaStream_t stream = 0);
 
+  ~QuadrotorMapCostImpl();
+
+  void bindToStream(cudaStream_t stream);
+
   void freeCudaMem();
 
   void paramsToDevice();
@@ -169,6 +174,8 @@ public:
    * Queries the texture using coorTransform beforehand
    */
   __device__ float4 queryTextureTransformed(float x, float y);
+
+  TwoDTextureHelper<float>* tex_helper_ = nullptr;
 
 protected:
   std::string map_path_;

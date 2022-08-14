@@ -121,7 +121,7 @@ public:
   {
     return textures_;
   }
-  std::vector<TextureParams<float4>> getBufferTextures()
+  std::vector<TextureParams<DATA_T>> getBufferTextures()
   {
     return textures_buffer_;
   }

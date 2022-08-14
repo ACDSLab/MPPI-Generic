@@ -42,6 +42,7 @@ public:
    */
   using ControlIndex = typename DYN_PARAMS_T::ControlIndex;
   using OutputIndex = typename DYN_PARAMS_T::OutputIndex;
+  using TEMPLATED_DYN_PARAMS = DYN_PARAMS_T;
   static const int CONTROL_DIM = E_INDEX(ControlIndex, NUM_CONTROLS);
   static const int OUTPUT_DIM = E_INDEX(OutputIndex, NUM_OUTPUTS);  // TODO
   static const int SHARED_MEM_REQUEST_GRD = 1;
