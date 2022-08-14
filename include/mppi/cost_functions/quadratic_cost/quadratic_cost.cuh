@@ -12,6 +12,7 @@
 template <class DYN_T, int SIM_TIME_HORIZON = 1>
 struct QuadraticCostTrajectoryParams : public CostParams<DYN_T::CONTROL_DIM>
 {
+  typedef DYN_T TEMPLATED_DYN;
   static const int TIME_HORIZON = SIM_TIME_HORIZON;
   /**
    * Defines a general desired state and coeffs

@@ -17,6 +17,7 @@ Header file for costs
 template <int C_DIM>
 struct CostParams
 {
+  static const int CONTROL_DIM = C_DIM;
   float control_cost_coeff[C_DIM];
   float discount = 1.0;
   CostParams()
