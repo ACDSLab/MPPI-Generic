@@ -5,8 +5,8 @@
 template <class CLASS_T, class PARAMS_T>
 QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::QuadrotorMapCostImpl(cudaStream_t stream)
 {
-  this->bindToStream(stream);
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
+  this->bindToStream(stream);
 }
 template <class CLASS_T, class PARAMS_T>
 QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::~QuadrotorMapCostImpl()
@@ -30,6 +30,16 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::freeCudaMem()
     tex_helper_->freeCudaMem();
   }
   PARENT_CLASS::freeCudaMem();
+}
+
+template <class CLASS_T, class PARAMS_T>
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::GPUSetup()
+{
+  PARENT_CLASS* derived = static_cast<PARENT_CLASS*>(this);
+  tex_helper_->GPUSetup();
+  derived->GPUSetup();
+  HANDLE_ERROR(cudaMemcpyAsync(&(this->cost_d_->tex_helper_), &(tex_helper_->ptr_d_), sizeof(TwoDTextureHelper<float>*),
+                               cudaMemcpyHostToDevice, this->stream_));
 }
 
 template <class CLASS_T, class PARAMS_T>

@@ -566,7 +566,7 @@ __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rol
                       control_dim;  // normal part
   // Load the noise trajectory scaled by the exploration factor
   // The prior loop already guarantees that the global index is less than the number of rollouts
-  if (control_dim % 4 == 0)
+  if (control_dim % 4 == 0 && false)
   {
     float4* u4_thread = reinterpret_cast<float4*>(u_thread);
     float4* du4_thread = reinterpret_cast<float4*>(du_thread);

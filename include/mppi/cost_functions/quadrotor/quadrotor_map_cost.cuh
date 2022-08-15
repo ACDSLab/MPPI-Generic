@@ -100,6 +100,8 @@ public:
 
   void bindToStream(cudaStream_t stream);
 
+  void GPUSetup();
+
   void freeCudaMem();
 
   void paramsToDevice();
