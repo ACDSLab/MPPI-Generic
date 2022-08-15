@@ -202,6 +202,7 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
   output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
   output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
   output[O_INDEX(CENTER_POS_I_Z)] = 0;
+  output[O_INDEX(ACCEL_X)] = next_state[S_INDEX(ACCEL_X)];
 }
 
 __device__ void RacerDubinsElevation::initializeDynamics(float* state, float* control, float* output, float* theta_s,
@@ -391,4 +392,5 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
   output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
   output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
   output[O_INDEX(CENTER_POS_I_Z)] = 0;
+  output[O_INDEX(ACCEL_X)] = next_state[S_INDEX(ACCEL_X)];
 }

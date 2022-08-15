@@ -141,6 +141,11 @@ public:
     this->textures_buffer_[index].update_data = true;
   }
 
+  __device__ __host__ int size()
+  {
+    return size_;
+  }
+
   TEX_T* ptr_d_ = nullptr;
 
 protected:
@@ -160,6 +165,7 @@ protected:
 
   // device pointer to the parameters malloced memory
   TextureParams<DATA_T>* params_d_ = nullptr;
+  int size_ = 0;
 };
 
 #if __CUDACC__
