@@ -97,7 +97,7 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float
   stable_cost = computeStabilizingCost(s);
   waypoint_cost = computeWaypointCost(s);
 
-  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
+  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
   {
     if (isnan(costmap_cost) || isnan(gate_cost) || isnan(height_cost) || isnan(heading_cost) || isnan(speed_cost) ||
         isnan(stable_cost) || isnan(waypoint_cost))
@@ -107,6 +107,8 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float
           " Heading %5.2f, Speed %5.2f, Stabilization %5.2f, Waypoint %5.2f\n",
           costmap_cost, gate_cost, height_cost, heading_cost, speed_cost, stable_cost, waypoint_cost);
     }
+    // printf("Costs %d: height - %5.2f, stable - %5.2f prev_height %5.2f, cur_height: %5.2f\n", timestep, height_cost,
+    //        stable_cost, this->params_.prev_waypoint.z, this->params_.curr_waypoint.z);
   }
 
   cost += costmap_cost + gate_cost + height_cost + heading_cost + speed_cost + stable_cost;

@@ -35,10 +35,11 @@ struct QuadrotorMapCostParams : public CostParams<4>
   float3 prev_gate_right;
 
   // if the costmap cost is above this, we are no longer on the track
-  float desired_speed = 5;
-  float gate_margin = 0.5;
-  float min_dist_to_gate_side = 0.5;  // TODO find correct value for this
+  float desired_speed = 5;            // [m/s]
+  float gate_margin = 0.5;            // [m]
+  float min_dist_to_gate_side = 0.5;  // [m] TODO find correct value for this
   float track_boundary_cost = 2.5;
+  float gate_width = 2.15;  // [m]
 
   QuadrotorMapCostParams()
   {
@@ -62,6 +63,9 @@ struct QuadrotorMapCostParams : public CostParams<4>
     {
       prev_waypoint = curr_waypoint;
       curr_waypoint = make_float4(x, y, z, heading);
+      float3 curr_left = make_float3(x + cosf(heading) * gate_width, y + sinf(heading) * gate_width, z);
+      float3 curr_right = make_float3(x - cosf(heading) * gate_width, y - sinf(heading) * gate_width, z);
+      updateGateBoundaries(curr_left.x, curr_left.y, curr_left.z, curr_right.x, curr_right.y, curr_right.z);
       changed = true;
     }
     return changed;
@@ -75,8 +79,8 @@ struct QuadrotorMapCostParams : public CostParams<4>
     {
       prev_gate_left = curr_gate_left;
       prev_gate_right = curr_gate_right;
-      prev_gate_left = make_float3(left_x, left_y, left_z);
-      prev_gate_right = make_float3(right_x, right_y, right_z);
+      curr_gate_left = make_float3(left_x, left_y, left_z);
+      curr_gate_right = make_float3(right_x, right_y, right_z);
       changed = true;
     }
     return changed;
