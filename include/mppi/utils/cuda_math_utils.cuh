@@ -132,4 +132,37 @@ __host__ __device__ inline float4& operator+=(float4& a, const float4& b)
   return a;
 }
 
+__host__ __device__ inline float dot(const float2& a, const float2&b)
+{
+  return a.x * b.x + a.y * b.y;
+}
+
+
+__host__ __device__ inline float norm(const float2& a)
+{
+  return sqrtf(dot(a, a));
+}
+
+__host__ __device__ inline float dot(const float3& a, const float3&b)
+{
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+
+__host__ __device__ inline float norm(const float3& a)
+{
+  return sqrtf(dot(a, a));
+}
+
+__host__ __device__ inline float dot(const float4& a, const float4&b)
+{
+  return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
+
+
+__host__ __device__ inline float norm(const float4& a)
+{
+  return sqrtf(dot(a, a));
+}
+
 #endif  // MPPIGENERIC_CUDA_MATH_UTILS_CUH
