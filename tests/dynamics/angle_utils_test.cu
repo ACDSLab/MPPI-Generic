@@ -30,16 +30,16 @@ TEST(AngleUtils, normalizeAngleKnownFloat)
   EXPECT_FLOAT_EQ(angle_utils::normalizeAngle(angle), 0.5);
 
   angle = M_PI_2;
-  EXPECT_FLOAT_EQ(angle_utils::normalizeAngle(angle), M_PI_2);
+  EXPECT_FLOAT_EQ(angle_utils::normalizeAngle(angle), M_PI_2f32);
 
   angle = M_PI;
-  EXPECT_FLOAT_EQ(angle_utils::normalizeAngle(angle), M_PI);
+  EXPECT_FLOAT_EQ(angle_utils::normalizeAngle(angle), M_PIf32);
 
   angle = -M_PI;
-  EXPECT_FLOAT_EQ(angle_utils::normalizeAngle(angle), M_PI);
+  EXPECT_FLOAT_EQ(angle_utils::normalizeAngle(angle), M_PIf32);
 
-  angle = -M_PI * 3;
-  EXPECT_FLOAT_EQ(angle_utils::normalizeAngle(angle), M_PI);
+  angle = -M_PIf32 * 3 + 1e-3;
+  EXPECT_FLOAT_EQ(angle_utils::normalizeAngle(angle), -M_PIf32 + 1e-3);
 
   angle = M_PI * 8;
   EXPECT_NEAR(angle_utils::normalizeAngle(angle), 0, 1e-6);
