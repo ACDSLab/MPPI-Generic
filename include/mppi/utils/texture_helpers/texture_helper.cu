@@ -1,7 +1,7 @@
 #include "texture_helper.cuh"
 
 template <class TEX_T, class DATA_T>
-TextureHelper<TEX_T, DATA_T>::TextureHelper(int number, cudaStream_t stream) : Managed(stream)
+TextureHelper<TEX_T, DATA_T>::TextureHelper(int number, cudaStream_t stream) : Managed(stream), size_(number)
 {
   textures_.resize(number);
   textures_buffer_.resize(number);

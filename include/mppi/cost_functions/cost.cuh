@@ -17,6 +17,7 @@ Header file for costs
 template <int C_DIM>
 struct CostParams
 {
+  static const int CONTROL_DIM = C_DIM;
   float control_cost_coeff[C_DIM];
   float discount = 1.0;
   CostParams()
@@ -41,8 +42,11 @@ public:
    */
   using ControlIndex = typename DYN_PARAMS_T::ControlIndex;
   using OutputIndex = typename DYN_PARAMS_T::OutputIndex;
+  using TEMPLATED_DYN_PARAMS = DYN_PARAMS_T;
   static const int CONTROL_DIM = E_INDEX(ControlIndex, NUM_CONTROLS);
   static const int OUTPUT_DIM = E_INDEX(OutputIndex, NUM_OUTPUTS);  // TODO
+  static const int SHARED_MEM_REQUEST_GRD = 1;
+  static const int SHARED_MEM_REQUEST_BLK = 0;
   typedef CLASS_T COST_T;
   typedef PARAMS_T COST_PARAMS_T;
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;             // Control at a time t
@@ -148,7 +152,7 @@ public:
    * @param s current state as a float array
    * @return state cost on GPU
    */
-  __device__ float computeStateCost(float* y, int timestep, int* crash_status);
+  __device__ float computeStateCost(float* y, int timestep, float* theta_c, int* crash_status);
 
   /**
    * Computes the state cost on the CPU. Should be implemented in subclasses
@@ -163,7 +167,24 @@ public:
    * @param s terminal state as float array
    * @return terminal cost on GPU
    */
-  __device__ float terminalCost(float* y);
+  __device__ float terminalCost(float* y, float* theta_c);
+
+  /**
+   * Method to allow setup of costs on the CPU. This is needed for
+   * initializing the memory of an LSTM for example
+   */
+  void initializeCosts(const Eigen::Ref<const output_array>& output, const Eigen::Ref<const control_array>& control,
+                       float t_0, float dt)
+  {
+  }
+
+  /**
+   * Method to allow setup of costs on the GPU. This is needed for
+   * initializing the memory of an LSTM for example
+   */
+  __device__ void initializeCosts(float* output, float* control, float* theta_c, float t_0, float dt)
+  {
+  }
 
   // ================ END OF METHODS WITH NO DEFAULT ===========================
 
@@ -214,10 +235,10 @@ public:
   }
 
   __device__ float computeRunningCost(float* y, float* u, float* du, float* std_dev, float lambda, float alpha,
-                                      int timestep, int* crash)
+                                      int timestep, float* theta_c, int* crash)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
-    return derived->computeStateCost(y, timestep, crash) +
+    return derived->computeStateCost(y, timestep, theta_c, crash) +
            derived->computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
   }
   // =================== END METHODS THAT CAN BE OVERWRITTEN ===================

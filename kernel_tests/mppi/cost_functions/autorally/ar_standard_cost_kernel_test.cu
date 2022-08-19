@@ -272,7 +272,7 @@ __global__ void terminalCostTestKernel(COST_T& cost, float* test_xu, float* cost
   if (tid < num_points)
   {
     float* state = &test_xu[tid];
-    cost_results[tid] = cost.terminalCost(state);
+    cost_results[tid] = cost.terminalCost(state, nullptr);
   }
 }
 
@@ -319,6 +319,7 @@ template <typename COST_T>
 __global__ void computeCostTestKernel(COST_T* cost, float* test_xu, float* cost_results, int* timestep, int* crash,
                                       int num_points)
 {
+  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD + COST_T::SHARED_MEM_REQUEST_BLK * 1024];
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < num_points)
   {
@@ -328,7 +329,9 @@ __global__ void computeCostTestKernel(COST_T* cost, float* test_xu, float* cost_
     float du[2] = { 0, 0 };
     float lambda = 1.0;
     float alpha = 0.0;
-    cost_results[tid] = cost->computeRunningCost(state, control, du, vars, lambda, alpha, timestep[tid], crash + tid);
+    cost->initializeCosts(state, control, theta_c, 0.0, 0.01);
+    cost_results[tid] =
+        cost->computeRunningCost(state, control, du, vars, lambda, alpha, timestep[tid], theta_c, crash + tid);
   }
 }
 

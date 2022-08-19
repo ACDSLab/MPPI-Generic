@@ -13,8 +13,8 @@ public:
   float computeStateCost(const Eigen::Ref<const output_array> s, int timestep = 0, int* crash_status = nullptr);
   float terminalCost(const Eigen::Ref<const output_array> s);
 
-  __device__ float computeStateCost(float* s, int timestep = 0, int* crash_status = nullptr);
-  __device__ float terminalCost(float* s);
+  __device__ float computeStateCost(float* s, int timestep = 0, float* theta_c = nullptr, int* crash_status = nullptr);
+  __device__ float terminalCost(float* s, float* theta_c);
 
   float getLipshitzConstantCost()
   {

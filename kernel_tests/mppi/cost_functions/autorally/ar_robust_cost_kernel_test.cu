@@ -56,6 +56,7 @@ void launchGetCostmapCostTestKernel(CLASS_T& cost, std::vector<std::array<float,
 template <class CLASS_T>
 __global__ void computeCostTestKernel(CLASS_T* cost, float* test_xu, float* cost_results, int num_points)
 {
+  __shared__ float theta_c[CLASS_T::SHARED_MEM_REQUEST_GRD + CLASS_T::SHARED_MEM_REQUEST_BLK * 1024];
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < num_points)
   {
@@ -66,7 +67,8 @@ __global__ void computeCostTestKernel(CLASS_T* cost, float* test_xu, float* cost
     float lambda = 1.0;
     float alpha = 0.0;
     int crash_status[1] = { 0 };
-    cost_results[tid] = cost->computeRunningCost(state, control, du, vars, lambda, alpha, tid, crash_status);
+    cost->initializeCosts(state, control, theta_c, 0.0, 0.1);
+    cost_results[tid] = cost->computeRunningCost(state, control, du, vars, lambda, alpha, tid, theta_c, crash_status);
   }
 }
 

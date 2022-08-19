@@ -18,7 +18,14 @@ TEST(cuFFT, checkErrorCode)
   cufftHandle plan;
   cuComplex* input_d;
   float* output_d;
+  // As this call is intended to cause issues, disable compiler warning
+  // src: https://stackoverflow.com/questions/14831051/how-to-disable-a-specific-nvcc-compiler-warnings
+  // https://stackoverflow.com/questions/56193080/how-do-i-apply-a-flag-setting-nvcc-pragma-to-only-a-few-lines-of-code
+  // https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#nv-diagnostic-pragmas
+#pragma push
+#pragma diag_suppress = used_before_set
   auto status = cufftExecC2R(plan, input_d, output_d);
+#pragma pop
   // cufftAssert(status, __FILE__, __LINE__);
   std::string error_string = cufftGetErrorString(status);
   // std::cout << error_string << std::endl;
@@ -42,7 +49,7 @@ TEST(ColoredNoise, checkWhiteNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, gen, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -89,7 +96,7 @@ TEST(ColoredNoise, checkPinkNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, gen, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -131,7 +138,7 @@ TEST(ColoredNoise, checkRedNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, gen, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -183,7 +190,7 @@ TEST(ColoredNoise, checkMultiNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, gen, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));

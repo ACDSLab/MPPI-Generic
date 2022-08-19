@@ -383,16 +383,24 @@ public:
    * initializing the memory of an LSTM for example
    */
   void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                          float t_0, float dt)
+                          Eigen::Ref<output_array> output, float t_0, float dt)
   {
+    for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++)
+    {
+      output[i] = state[i];
+    }
   }
 
   /**
    * Method to allow setup of dynamics on the GPU. This is needed for
    * initializing the memory of an LSTM for example
    */
-  __device__ void initializeDynamics(float* state, float* control, float* theta_s, float t_0, float dt)
+  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt)
   {
+    for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++)
+    {
+      output[i] = state[i];
+    }
   }
 
   /**

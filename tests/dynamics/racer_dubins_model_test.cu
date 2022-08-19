@@ -226,10 +226,10 @@ TEST(RacerDubins, TestUpdateStateGPU)
   Eigen::Matrix<float, RacerDubins::STATE_DIM, 100> state_trajectory;
   state_trajectory = Eigen::Matrix<float, RacerDubins::STATE_DIM, 100>::Random();
 
-  std::vector<std::array<float, 7>> s(100);
-  std::vector<std::array<float, 7>> s_der(100);
+  std::vector<std::array<float, RacerDubins::STATE_DIM>> s(100);
+  std::vector<std::array<float, RacerDubins::STATE_DIM>> s_der(100);
   // steering, throttle
-  std::vector<std::array<float, 2>> u(100);
+  std::vector<std::array<float, RacerDubins::CONTROL_DIM>> u(100);
 
   RacerDubins::state_array state;
   RacerDubins::control_array control;

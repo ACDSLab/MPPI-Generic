@@ -32,7 +32,7 @@ float QuadraticCostImpl<CLASS_T, DYN_T, PARAMS_T>::terminalCost(const Eigen::Ref
 }
 
 template <class CLASS_T, class DYN_T, class PARAMS_T>
-__device__ float QuadraticCostImpl<CLASS_T, DYN_T, PARAMS_T>::computeStateCost(float* s, int timestep,
+__device__ float QuadraticCostImpl<CLASS_T, DYN_T, PARAMS_T>::computeStateCost(float* s, int timestep, float* theta_c,
                                                                                int* crash_status)
 {
   float cost = 0;
@@ -48,7 +48,7 @@ __device__ float QuadraticCostImpl<CLASS_T, DYN_T, PARAMS_T>::computeStateCost(f
 }
 
 template <class CLASS_T, class DYN_T, class PARAMS_T>
-__device__ float QuadraticCostImpl<CLASS_T, DYN_T, PARAMS_T>::terminalCost(float* s)
+__device__ float QuadraticCostImpl<CLASS_T, DYN_T, PARAMS_T>::terminalCost(float* s, float* theta_c)
 {
   return 0.0;
 }

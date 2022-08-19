@@ -67,7 +67,7 @@ float QuadrotorQuadraticCost::terminalCost(const Eigen::Ref<const output_array> 
 /**
  * Device Functions
  */
-__device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep, int* crash_status)
+__device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep, float* theta_c, int* crash_status)
 {
   float s_diff[OUTPUT_DIM];
   int i;
@@ -126,13 +126,15 @@ __device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep
 }
 
 __device__ float QuadrotorQuadraticCost::computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda,
-                                                            float alpha, int timestep, int* crash_status)
+                                                            float alpha, int timestep, float* theta_c,
+                                                            int* crash_status)
 {
-  float cost = computeStateCost(s, timestep, crash_status) + computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
+  float cost =
+      computeStateCost(s, timestep, theta_c, crash_status) + computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
   return cost * (1 - isnan(cost)) + isnan(cost) * MAX_COST_VALUE;
 }
 
-__device__ float QuadrotorQuadraticCost::terminalCost(float* s)
+__device__ float QuadrotorQuadraticCost::terminalCost(float* s, float* theta_c)
 {
   float cost = this->params_.terminal_cost_coeff * computeStateCost(s);
   return cost * (1 - isnan(cost)) + isnan(cost) * MAX_COST_VALUE;

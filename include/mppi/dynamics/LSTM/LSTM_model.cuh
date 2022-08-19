@@ -347,6 +347,7 @@ public:
   // Define Eigen fixed size matrices
   using state_array = typename PARENT_CLASS::state_array;
   using control_array = typename PARENT_CLASS::control_array;
+  using output_array = typename PARENT_CLASS::output_array;
   using dfdx = typename PARENT_CLASS::dfdx;
   using dfdu = typename PARENT_CLASS::dfdu;
 
@@ -427,11 +428,11 @@ public:
   void computeKinematics(const Eigen::Ref<const state_array>& state, Eigen::Ref<state_array> s_der);
 
   void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                          float t_0, float dt);
+                          Eigen::Ref<output_array> output, float t_0, float dt);
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
-  __device__ void initializeDynamics(float* state, float* control, float* theta_s, float t_0, float dt);
+  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
 
 protected:
   Eigen::Matrix<float, H_DIM, 1> hidden_state_;

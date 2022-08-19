@@ -284,6 +284,7 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
     output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
     output[O_INDEX(CENTER_POS_I_Z)] = output[O_INDEX(BASELINK_POS_I_Z)];
+    output[O_INDEX(ACCEL_X)] = 0;  // TODO: fill in with proper accel_x
     // #ifdef __CUDA_ARCH__
     //     if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&
     //         blockIdx.z == 0)

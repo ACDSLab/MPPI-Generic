@@ -543,7 +543,7 @@ public:
     state_array xdot;
     state_array state, next_state;
     output_array output;
-    model_->initializeDynamics(state.col(0), u.col(0), 0, getDt());
+    model_->initializeDynamics(result.col(0), u.col(0), output, 0, getDt());
     for (int i = 0; i < getNumTimesteps() - 1; ++i)
     {
       state = result.col(i);
@@ -768,7 +768,7 @@ protected:
   // so it can be the size*N for N nominal states
   // [actual, nominal]
   float* control_d_;                  // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*N
-  float* state_d_;                    // Array of size DYN_T::STATE_DIM*NUM_ROLLOUTS*N
+  float* output_d_;                   // Array of size DYN_T::OUTPUT_DIM*NUM_ROLLOUTS*N
   float* trajectory_costs_d_;         // Array of size NUM_ROLLOUTS*N
   float* control_noise_d_;            // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS*N
   float2* cost_baseline_and_norm_d_;  // Array of size number of systems

@@ -6,15 +6,13 @@ if (POLICY CMP0104)
     cmake_policy(SET CMP0104 OLD)
 endif()
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CUDA_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+# Configure CMake Cuda Flags for MPPI
+set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(MPPIGenericToolsConfig)
 
 set(BUILD_FLAGS "-Wuninitialized -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
-set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "${CMAKE_CUDA_FLAGS_RELWITHDEBINFO} --generate-line-info")
-set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G --keep")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w")
 
 option(BUILD_TESTS "BUILD_TESTS" ON)
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
@@ -57,37 +55,6 @@ if (BUILD_TESTS OR BUILD_EXAMPLES)
     # Set the no package registry back to default
     set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 endif()
-
-# required for curand on some systems
-find_package(CUDA REQUIRED)
-
-if(NOT ${CUDA_curand_LIBRARY} MATCHES "NOTFOUND")
-    set(CURAND_LIBRARY ${CUDA_curand_LIBRARY})
-endif()
-
-set(CUDA_PROPAGATE_HOST_FLAGS OFF)
-
-set(MPPI_GENERIC_CUDA_EXTRA_LIBS "")
-list(APPEND MPPI_GENERIC_CUDA_EXTRA_LIBS ${CUDA_curand_LIBRARY} ${CUDA_CUFFT_LIBRARIES})
-
-# Autodetect Cuda Architecture on system and add to executables
-# More info for autodetection:
-# https://stackoverflow.com/questions/35485087/determining-which-gencode-compute-arch-values-i-need-for-nvcc-within-cmak
-CUDA_SELECT_NVCC_ARCH_FLAGS(MPPI_ARCH_FLAGS ${CUDA_ARCH_LIST})
-
-if (MPPI_ARCH_FLAGS STREQUAL "")
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -maxrregcount=32 -arch=sm_35 -w")
-else()
-  string(REGEX REPLACE "-gencode;arch" "-gencode=arch" MPPI_ARCH_FLAGS "${MPPI_ARCH_FLAGS}")
-  string(REPLACE ";" " " MPPI_ARCH_FLAGS "${MPPI_ARCH_FLAGS}")
-  # string(REGEX REPLACE "^-gencode=arch" "-arch" MPPI_ARCH_FLAGS "${MPPI_ARCH_FLAGS}")
-  message(STATUS "Additional Architectures: ${MPPI_ARCH_FLAGS}")
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -maxrregcount=32 ${MPPI_ARCH_FLAGS} -w")
-endif()
-
-# Add debug flags so cuda-gdb can be used to stop inside a kernel.
-# NOTE: You may have to run make multiple times for it to compile successfully.
-set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G --keep")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 # Install all library header files
