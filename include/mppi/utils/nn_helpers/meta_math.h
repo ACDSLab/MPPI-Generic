@@ -10,6 +10,27 @@
 #ifndef MPPIGENERIC_META_MATH_H
 #define MPPIGENERIC_META_MATH_H
 
+#define TANH(ans) tanh(ans)
+#define TANH_DERIV(ans) (1 - powf(tanh(ans), 2))
+
+template <typename... Args>
+constexpr int input_dim(int first, Args... args)
+{
+  return first;
+}
+
+template <typename... Args>
+constexpr int output_dim(int last)
+{
+  return last;
+}
+
+template <typename... Args>
+constexpr int output_dim(int first, Args... args)
+{
+  return output_dim(args...);
+}
+
 template <typename... Args>
 constexpr int param_counter(int first)
 {
