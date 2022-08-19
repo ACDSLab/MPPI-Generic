@@ -5,10 +5,11 @@
 #include <mppi/sampling_distributions/piecewise_linear/piecewise_linear_noise.cuh>
 #include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
 
-#define Primitives PrimitivesController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
+#define Primitives                                                                                                     \
+  PrimitivesController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, COST_B_X, COST_B_Y, PARAMS_T>
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda,
                                  float alpha, const Eigen::Ref<const control_array>& control_std_dev, int num_timesteps,
                                  const Eigen::Ref<const control_trajectory>& init_control_traj, cudaStream_t stream)
@@ -28,7 +29,7 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params, cudaStream_t stream)
   : PARENT_CLASS(model, cost, fb_controller, params, stream)
 {
@@ -50,14 +51,14 @@ Primitives::PrimitivesController(DYN_T* model, COST_T* cost, FB_T* fb_controller
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 Primitives::~PrimitivesController()
 {
   // all implemented in standard controller
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
 {
   // this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
@@ -87,7 +88,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   for (int opt_iter = 0; opt_iter < getNumPrimitiveIterations(); opt_iter++)
   {
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
-                          this->control_noise_d_, this->gen_, this->stream_);
+                          this->control_noise_d_, optimization_stride, this->gen_, this->stream_);
 
     // Generate piecewise linear noise data, update control_noise_d_
     piecewise_linear_noise(this->getNumTimesteps(), NUM_ROLLOUTS, DYN_T::CONTROL_DIM, getPiecewiseSegments(),
@@ -102,10 +103,10 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     // this->copyNominalControlToDevice();
 
     // Launch the rollout kernel
-    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
-        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
-        this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
+        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->control_d_,
+        this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
@@ -177,7 +178,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 
     // Generate noise data
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
-                          this->control_noise_d_, this->gen_, this->stream_);
+                          this->control_noise_d_, optimization_stride, this->gen_, this->stream_);
     // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->getNumTimesteps() *
     // DYN_T::CONTROL_DIM,
     //                      0.0, 1.0);
@@ -197,10 +198,10 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
      */
 
     // Launch the rollout kernel
-    mppi_common::launchRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y>(
+    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
-        this->getLambda(), this->getAlpha(), this->initial_state_d_, control_mppi_d_, this->control_noise_d_,
-        this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
+        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, control_mppi_d_,
+        this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
     /*
     noise = this->getSampledNoise();
     mean = 0;
@@ -364,7 +365,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::allocateCUDAMemory()
 {
   PARENT_CLASS::allocateCUDAMemoryHelper();
@@ -372,7 +373,7 @@ void Primitives::allocateCUDAMemory()
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::copyMPPIControlToDevice(bool synchronize)
 {
   HANDLE_ERROR(cudaMemcpyAsync(control_mppi_d_, control_mppi_.data(), sizeof(float) * control_mppi_.size(),
@@ -384,32 +385,34 @@ void Primitives::copyMPPIControlToDevice(bool synchronize)
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::computeStateTrajectory(const Eigen::Ref<const state_array>& x0)
 {
   this->computeStateTrajectoryHelper(this->state_, x0, this->control_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::computeStoppingTrajectory(const Eigen::Ref<const state_array>& x0)
 {
   state_array xdot;
   state_array state = x0;
+  state_array xnext;
+  output_array output;
   control_array u_i = control_array::Zero();
-  this->model_->initializeDynamics(state, u_i, 0, this->getDt());
+  this->model_->initializeDynamics(state, u_i, output, 0, this->getDt());
   for (int i = 0; i < this->getNumTimesteps() - 1; ++i)
   {
     this->model_->getStoppingControl(state, u_i);
     this->model_->enforceConstraints(state, u_i);
     this->control_.col(i) = u_i;
-    this->model_->computeStateDeriv(state, u_i, xdot);
-    this->model_->updateState(state, xdot, this->getDt());
+    this->model_->step(state, xnext, xdot, u_i, output, i, this->getDt());
+    state = xnext;
   }
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::slideControlSequence(int steps)
 {
   // TODO does the logic of handling control history reasonable?
@@ -423,7 +426,7 @@ void Primitives::slideControlSequence(int steps)
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::smoothControlTrajectory()
 {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
@@ -431,7 +434,7 @@ void Primitives::smoothControlTrajectory()
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void Primitives::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories = this->getTotalSampledTrajectories();
@@ -439,17 +442,16 @@ void Primitives::calculateSampledStateTrajectories()
 
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,
-      this->initial_state_d_, this->sampled_states_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+      this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
       num_sampled_trajectories, this->getNumTimesteps(), this->getDt(), this->vis_stream_);
 
   for (int i = 0; i < num_sampled_trajectories; i++)
   {
     // set initial state to the first location
-    this->sampled_trajectories_[i].col(0) = this->state_.col(0);
     // shifted by one since we do not save the initial state
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data() + (DYN_T::STATE_DIM),
-                                 this->sampled_states_d_ + i * this->getNumTimesteps() * DYN_T::STATE_DIM,
-                                 (this->getNumTimesteps() - 1) * DYN_T::STATE_DIM * sizeof(float),
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_trajectories_[i].data(),
+                                 this->sampled_outputs_d_ + i * this->getNumTimesteps() * DYN_T::OUTPUT_DIM,
+                                 (this->getNumTimesteps() - 1) * DYN_T::OUTPUT_DIM * sizeof(float),
                                  cudaMemcpyDeviceToHost, this->vis_stream_));
     HANDLE_ERROR(
         cudaMemcpyAsync(this->sampled_costs_[i].data(), this->sampled_costs_d_ + (i * (this->getNumTimesteps() + 1)),

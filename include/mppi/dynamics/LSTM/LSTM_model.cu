@@ -1,16 +1,13 @@
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::LSTMModel(std::array<float2, C_DIM> control_rngs,
                                                                    cudaStream_t stream)
-  : Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-             LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>, S_DIM, C_DIM>(control_rngs, stream)
+  : PARENT_CLASS(control_rngs, stream)
 {
   CPUSetup();
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
-LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::LSTMModel(cudaStream_t stream)
-  : Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-             LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>, S_DIM, C_DIM>(stream)
+LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::LSTMModel(cudaStream_t stream) : PARENT_CLASS(stream)
 {
   CPUSetup();
 }
@@ -33,8 +30,7 @@ LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::~LSTMModel()
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::freeCudaMem()
 {
-  Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-           LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>, S_DIM, C_DIM>::freeCudaMem();
+  PARENT_CLASS::freeCudaMem();
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
@@ -454,16 +450,18 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
-__device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initializeDynamics(float* state,
-                                                                                            float* control,
-                                                                                            float* theta_s, float t_0,
-                                                                                            float dt)
+__device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initializeDynamics(
+    float* state, float* control, float* output, float* theta_s, float t_0, float dt)
 {
   int shared_mem_size = this->params_.SHARED_MEM_REQUEST_BLK;
   int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * (shared_mem_size);
 
   float* c = &theta_s[block_idx];
   float* h = &theta_s[block_idx + H_DIM];
+  for (int i = threadIdx.y; i < PARENT_CLASS::OUTPUT_DIM && i < PARENT_CLASS::STATE_DIM; ++i)
+  {
+    output[i] = state[i];
+  }
   for (int i = threadIdx.y; i < H_DIM; i += blockDim.y)
   {
     c[i] = this->params_.initial_cell[i];
@@ -474,10 +472,12 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initial
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initializeDynamics(
-    const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control, float t_0, float dt)
+    const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+    Eigen::Ref<output_array> output, float t_0, float dt)
 {
   Eigen::Map<Eigen::Matrix<float, H_DIM, 1>> init_hidden(this->params_.initial_hidden);
   Eigen::Map<Eigen::Matrix<float, H_DIM, 1>> init_cell(this->params_.initial_cell);
+  output = state;
   hidden_state_ = init_hidden;
   cell_state_ = init_cell;
 }

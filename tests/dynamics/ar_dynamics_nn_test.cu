@@ -350,9 +350,9 @@ TEST(ARNeuralNetDynamics, updateStateGPUTest)
 
     launchUpdateStateTestKernel<NeuralNetModel<7, 2, 3, 6, 32, 32, 4>, 7>(model, s, s_der, 0.1, j);
 
-    EXPECT_FLOAT_EQ(s_der[0][0], 0);
-    EXPECT_FLOAT_EQ(s_der[0][1], 0);
-    EXPECT_FLOAT_EQ(s_der[0][2], 0);
+    EXPECT_FLOAT_EQ(s_der[0][0], 1);
+    EXPECT_FLOAT_EQ(s_der[0][1], 2);
+    EXPECT_FLOAT_EQ(s_der[0][2], 3);
     EXPECT_FLOAT_EQ(s_der[0][3], 0);
     EXPECT_FLOAT_EQ(s_der[0][4], 0);
     EXPECT_FLOAT_EQ(s_der[0][5], 0);

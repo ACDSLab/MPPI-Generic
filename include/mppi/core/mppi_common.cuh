@@ -33,10 +33,31 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
  * sigma_u_thread: control exploration variance in shared memory
  *
  */
-__device__ void loadGlobalToShared(int state_dim, int control_dim, int num_rollouts, int blocksize_y, int global_idx,
-                                   int thread_idy, int thread_idz, const float* x0_device, const float* sigma_u_device,
-                                   float* x_thread, float* xdot_thread, float* u_thread, float* du_thread,
-                                   float* sigma_u_thread);
+template <int STATE_DIM, int CONTROL_DIM>
+__device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y, const int global_idx,
+                                   const int thread_idy, const int thread_idz, const float* x0_device,
+                                   const float* sigma_u_device, float* x_thread, float* xdot_thread, float* u_thread,
+                                   float* du_thread, float* sigma_u_thread);
+/*
+ * readControlsFromGlobal
+ * Get back the control and deviation from the mean after injectControlNoise has been run
+ *
+ * Args:
+ * control_dim: Number of controls, defined in DYN_T
+ * blocksize_y: Y dimension of each block of threads
+ * num_rollouts: Total number of rollouts
+ * num_timesteps: Trajectory length
+ * t: Index of time in current trajectory
+ * global_idx: Current rollout index.
+ * thread_idy: Current y index of block dimension.
+ * u_d: Mean control trajectory
+ * du_d: Complete set of disturbances for all rollouts and timesteps (i.e. u + noise)
+ * u_thread: Current control for the given rollout
+ * du_thread: Current disturbance for the given rollout
+ */
+__device__ void readControlsFromGlobal(const int control_dim, const int blocksize_y, const int num_rollouts,
+                                       const int num_timesteps, const int t, const int global_idx, const int thread_idy,
+                                       const float* u_d, const float* du_d, float* u_thread, float* du_thread);
 /*
  * injectControlNoise
  * Disturb control trajectories per timestep
@@ -61,8 +82,8 @@ __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rol
                                    float* u_thread, float* du_thread);
 
 template <class COST_T>
-__device__ void computeAndSaveCost(int num_rollouts, int global_idx, COST_T* costs, float* x_thread, float running_cost,
-                                   float* cost_rollouts_device);
+__device__ void computeAndSaveCost(int num_rollouts, int num_timesteps, int global_idx, COST_T* costs, float* x_thread,
+                                   float running_cost, float* theta_c, float* cost_rollouts_device);
 
 // Norm Exponential Kernel
 __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float baseline);
@@ -70,13 +91,13 @@ __global__ void normExpKernel(int num_rollouts, float* trajectory_costs_d, float
 __global__ void TsallisKernel(int num_rollouts, float* trajectory_costs_d, float gamma, float r, float baseline);
 
 // Norm Exp Kernel Helpers
-__device__ inline void normExpTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
-                                        const float lambda_inv, const float baseline, const int global_idx,
-                                        const int rollout_idx_step);
+__device__ __host__ inline void normExpTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
+                                                 const float lambda_inv, const float baseline, const int global_idx,
+                                                 const int rollout_idx_step);
 // Tsallis Kernel Helpers
-__device__ inline void TsallisTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
-                                        const float gamma, float r, const float baseline, const int global_idx,
-                                        const int rollout_idx_step);
+__device__ __host__ inline void TsallisTransform(const int num_rollouts, float* __restrict__ trajectory_costs_d,
+                                                 const float gamma, float r, const float baseline, const int global_idx,
+                                                 const int rollout_idx_step);
 float computeBaselineCost(float* cost_rollouts_host, int num_rollouts);
 
 float computeNormalizer(float* cost_rollouts_host, int num_rollouts);
@@ -121,17 +142,23 @@ void launchRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_times
                          float alpha, float* x_d, float* u_d, float* du_d, float* sigma_u_d, float* trajectory_costs,
                          cudaStream_t stream, bool synchronize = true);
 
+template <class DYN_T, class COST_T, int NUM_ROLLOUTS, int DYN_BLOCK_X, int DYN_BLOCK_Y, int BLOCKSIZE_Z = 1,
+          int COST_BLOCK_X = 64, int COST_BLOCK_Y = 1>
+void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_timesteps, int optimization_stride,
+                             float lambda, float alpha, float* init_x_d, float* x_d, float* u_d, float* du_d,
+                             float* sigma_u_d, float* trajectory_costs, cudaStream_t stream, bool synchronize = true);
+
 void launchNormExpKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float lambda_inv, float baseline,
                          cudaStream_t stream, bool synchronize = true);
-void launchTsallisKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float r, float baseline,
-                         cudaStream_t stream, bool synchronize = true);
+void launchTsallisKernel(int num_rollouts, int blocksize_x, float* trajectory_costs_d, float gamma, float r,
+                         float baseline, cudaStream_t stream, bool synchronize = true);
 template <class DYN_T, int NUM_ROLLOUTS, int SUM_STRIDE>
 void launchWeightedReductionKernel(float* exp_costs_d, float* du_d, float* du_new_d, float normalizer,
                                    int num_timesteps, cudaStream_t stream, bool synchronize = true);
 
 template <class DYN_T, class COST_T, class FB_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
 void launchStateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* cost, FB_T* fb_controller, float* control_trajectories,
-                                        float* state, float* state_traj_result, float* cost_traj_result,
+                                        float* state, float* output_traj_result, float* cost_traj_result,
                                         int* crash_status_result, int num_rollouts, int num_timesteps, float dt,
                                         cudaStream_t stream, float value_func_threshold = -1, bool synchronize = false);
 

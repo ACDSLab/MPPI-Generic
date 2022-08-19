@@ -1,6 +1,6 @@
 #include <mppi/dynamics/dubins/dubins.cuh>
 
-DubinsDynamics::DubinsDynamics(cudaStream_t stream) : Dynamics<DubinsDynamics, DubinsParams, 3, 2>(stream)
+DubinsDynamics::DubinsDynamics(cudaStream_t stream) : Dynamics<DubinsDynamics, DubinsParams>(stream)
 {
   this->params_ = DubinsParams();
 }
@@ -25,11 +25,11 @@ bool DubinsDynamics::computeGrad(const Eigen::Ref<const state_array>& state,
   return true;
 }
 
-void DubinsDynamics::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
+void DubinsDynamics::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                                 Eigen::Ref<state_array> state_der, const float dt)
 {
-  state += state_der * dt;
-  state(S_INDEX(YAW)) = angle_utils::normalizeAngle(state(S_INDEX(YAW)));
-  state_der.setZero();
+  next_state = state + state_der * dt;
+  next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
 }
 
 DubinsDynamics::state_array DubinsDynamics::interpolateState(const Eigen::Ref<state_array> state_1,
@@ -40,7 +40,7 @@ DubinsDynamics::state_array DubinsDynamics::interpolateState(const Eigen::Ref<st
   return result;
 }
 
-__device__ void DubinsDynamics::updateState(float* state, float* state_der, const float dt)
+__device__ void DubinsDynamics::updateState(float* state, float* next_state, float* state_der, const float dt)
 {
   int i;
   int tdy = threadIdx.y;
@@ -49,12 +49,11 @@ __device__ void DubinsDynamics::updateState(float* state, float* state_der, cons
   // state_der[S_INDEX(POS_X)]);
   for (i = tdy; i < STATE_DIM; i += blockDim.y)
   {
-    state[i] += state_der[i] * dt;
-    if (tdy == 2)
+    next_state[i] + state_der[i] * dt;
+    if (i == S_INDEX(YAW))
     {
-      state[i] = angle_utils::normalizeAngle(state[i]);
+      next_state[i] = angle_utils::normalizeAngle(next_state[i]);
     }
-    state_der[i] = 0;  // Important: reset the state derivative to zero.
   }
 }
 

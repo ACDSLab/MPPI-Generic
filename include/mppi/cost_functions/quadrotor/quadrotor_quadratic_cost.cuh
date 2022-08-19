@@ -5,6 +5,7 @@
 #define MPPI_COST_FUNCTIONS_QUADROTOR_QUADRATIC_COST_CUH_
 
 #include <mppi/cost_functions/cost.cuh>
+#include <mppi/dynamics/quadrotor/quadrotor_dynamics.cuh>
 #include <mppi/utils/math_utils.h>
 struct QuadrotorQuadraticCostParams : public CostParams<4>
 {
@@ -68,7 +69,8 @@ struct QuadrotorQuadraticCostParams : public CostParams<4>
   }
 };
 
-class QuadrotorQuadraticCost : public Cost<QuadrotorQuadraticCost, QuadrotorQuadraticCostParams, 13, 4>
+class QuadrotorQuadraticCost
+  : public Cost<QuadrotorQuadraticCost, QuadrotorQuadraticCostParams, QuadrotorDynamicsParams>
 {
   /**
    * State for this class is defined as follows:
@@ -93,20 +95,20 @@ public:
   /**
    * Host Functions
    */
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep = 0, int* crash_status = nullptr);
+  float computeStateCost(const Eigen::Ref<const output_array> s, int timestep = 0, int* crash_status = nullptr);
 
-  float terminalCost(const Eigen::Ref<const state_array> s);
+  float terminalCost(const Eigen::Ref<const output_array> s);
 
   /**
    * Device Functions
    */
-  __device__ float computeStateCost(float* s, int timestep = 0, int* crash_status = nullptr);
+  __device__ float computeStateCost(float* s, int timestep = 0, float* theta_c = nullptr, int* crash_status = nullptr);
 
   // Custom implementation that does a Nan check.
   __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha,
-                                      int timestep, int* crash_status);
+                                      int timestep, float* theta_c, int* crash_status);
 
-  __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* s, float* theta_c = nullptr);
 };
 
 #if __CUDACC__

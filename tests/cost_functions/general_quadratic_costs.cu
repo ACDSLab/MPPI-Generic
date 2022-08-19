@@ -13,7 +13,7 @@ template <class COST_T>
 __global__ void computeCostKernel(COST_T* cost, float* s, int* t, float* result)
 {
   int crash = 0;
-  *result = cost->computeStateCost(s, *t, &crash);
+  *result = cost->computeStateCost(s, *t, nullptr, &crash);
 }
 
 class DITargetQuadraticCost : public testing::Test
@@ -23,7 +23,7 @@ public:
   using COST = QuadraticCost<DYN>;
   DIQuadCost cost;
   DIQuadCost::COST_PARAMS_T cost_params;
-  DYN::state_array s;
+  DYN::output_array s;
   dim3 dimBlock;
   dim3 dimGrid;
   void SetUp() override
@@ -50,7 +50,7 @@ public:
   COST cost;
   COST::COST_PARAMS_T cost_params;
   float s_traj[28] = { 1, -5, 0, 0.5, 2, -5.5, 0, 1, 5, 5, 1, 10, 1, 1, 1, 1, 2, 3, 4, 5, 11, -5, 3, 8, 8, 8, 8, 8 };
-  DYN::state_array s;
+  DYN::output_array s;
   // GPU Variables
   dim3 dimBlock;
   dim3 dimGrid;
@@ -62,7 +62,7 @@ public:
   void SetUp() override
   {
     cost_params = cost.getParams();
-    for (int i = 0; i < TIME_HORIZON * DYN::STATE_DIM; i++)
+    for (int i = 0; i < TIME_HORIZON * DYN::OUTPUT_DIM; i++)
     {
       cost_params.s_goal[i] = s_traj[i];
     }
@@ -76,7 +76,7 @@ public:
 
     dimBlock = dim3(10, 11, 5);
     dimGrid = dim3(1, 1, 1);
-    HANDLE_ERROR(cudaMalloc((void**)&s_dev, sizeof(float) * DYN::STATE_DIM));
+    HANDLE_ERROR(cudaMalloc((void**)&s_dev, sizeof(float) * DYN::OUTPUT_DIM));
     HANDLE_ERROR(cudaMalloc((void**)&resulting_cost_d, sizeof(float)));
     HANDLE_ERROR(cudaMalloc((void**)&time_d, sizeof(int)));
 
@@ -141,11 +141,11 @@ TEST_F(DITargetQuadraticCost, StateCostGPU)
   float* s_dev;
   float* resulting_cost_d;
   int* time_d;
-  HANDLE_ERROR(cudaMalloc((void**)&s_dev, sizeof(float) * DYN::STATE_DIM));
+  HANDLE_ERROR(cudaMalloc((void**)&s_dev, sizeof(float) * DYN::OUTPUT_DIM));
   HANDLE_ERROR(cudaMalloc((void**)&resulting_cost_d, sizeof(float)));
   HANDLE_ERROR(cudaMalloc((void**)&time_d, sizeof(int)));
 
-  HANDLE_ERROR(cudaMemcpyAsync(s_dev, s.data(), sizeof(float) * DYN::STATE_DIM, cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(s_dev, s.data(), sizeof(float) * DYN::OUTPUT_DIM, cudaMemcpyHostToDevice, stream));
   HANDLE_ERROR(cudaMemcpyAsync(time_d, &time, sizeof(int), cudaMemcpyHostToDevice, stream));
   computeCostKernel<COST><<<dimGrid, dimBlock, 0, stream>>>(cost.cost_d_, s_dev, time_d, resulting_cost_d);
 
@@ -167,11 +167,11 @@ TEST_F(DITargetQuadraticCost, LateStateCostGPU)
   float* s_dev;
   float* resulting_cost_d;
   int* time_d;
-  HANDLE_ERROR(cudaMalloc((void**)&s_dev, sizeof(float) * DYN::STATE_DIM));
+  HANDLE_ERROR(cudaMalloc((void**)&s_dev, sizeof(float) * DYN::OUTPUT_DIM));
   HANDLE_ERROR(cudaMalloc((void**)&resulting_cost_d, sizeof(float)));
   HANDLE_ERROR(cudaMalloc((void**)&time_d, sizeof(int)));
 
-  HANDLE_ERROR(cudaMemcpyAsync(s_dev, s.data(), sizeof(float) * DYN::STATE_DIM, cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(s_dev, s.data(), sizeof(float) * DYN::OUTPUT_DIM, cudaMemcpyHostToDevice, stream));
   HANDLE_ERROR(cudaMemcpyAsync(time_d, &time, sizeof(int), cudaMemcpyHostToDevice, stream));
   computeCostKernel<COST><<<dimGrid, dimBlock, 0, stream>>>(cost.cost_d_, s_dev, time_d, resulting_cost_d);
 
@@ -186,7 +186,7 @@ TEST_F(DITrajQuadraticCost, MidTrajStateCostGPU)
   float result_cost_h = -1;
 
   // Setup GPU params
-  HANDLE_ERROR(cudaMemcpyAsync(s_dev, s.data(), sizeof(float) * DYN::STATE_DIM, cudaMemcpyHostToDevice, stream));
+  HANDLE_ERROR(cudaMemcpyAsync(s_dev, s.data(), sizeof(float) * DYN::OUTPUT_DIM, cudaMemcpyHostToDevice, stream));
   HANDLE_ERROR(cudaMemcpyAsync(time_d, &time, sizeof(int), cudaMemcpyHostToDevice, stream));
   computeCostKernel<COST><<<dimGrid, dimBlock, 0, stream>>>(cost.cost_d_, s_dev, time_d, resulting_cost_d);
 

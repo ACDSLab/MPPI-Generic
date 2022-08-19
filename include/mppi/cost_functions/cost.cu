@@ -1,7 +1,7 @@
 #include <mppi/cost_functions/cost.cuh>
 
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
-void Cost<CLASS_T, PARAMS_T, S_DIM, C_DIM>::paramsToDevice()
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+void Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::paramsToDevice()
 {
   if (GPUMemStatus_)
   {
@@ -10,8 +10,8 @@ void Cost<CLASS_T, PARAMS_T, S_DIM, C_DIM>::paramsToDevice()
   }
 }
 
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
-void Cost<CLASS_T, PARAMS_T, S_DIM, C_DIM>::freeCudaMem()
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+void Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::freeCudaMem()
 {
   if (GPUMemStatus_)
   {
@@ -21,8 +21,8 @@ void Cost<CLASS_T, PARAMS_T, S_DIM, C_DIM>::freeCudaMem()
   }
 }
 
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
-void Cost<CLASS_T, PARAMS_T, S_DIM, C_DIM>::GPUSetup()
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+void Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::GPUSetup()
 {
   CLASS_T* derived = static_cast<CLASS_T*>(this);
   if (!GPUMemStatus_)

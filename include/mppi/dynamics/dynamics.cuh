@@ -19,16 +19,25 @@ Header file for dynamics
 #include <vector>
 
 // helpful macros to use the enum setup
+#ifndef E_INDEX
+#define E_INDEX(ENUM, enum_val) static_cast<int>(ENUM::enum_val)
+#endif
 #ifndef S_INDEX
-#define S_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::StateIndex::enum_val)
+#define S_IND_CLASS(CLASS, enum_val) E_INDEX(CLASS::StateIndex, enum_val)
 #define S_IND(param, enum_val) S_IND_CLASS(decltype(param), enum_val)
 #define S_INDEX(enum_val) S_IND(this->params_, enum_val)
 #endif
 
 #ifndef C_INDEX
-#define C_IND_CLASS(CLASS, enum_val) static_cast<int>(CLASS::ControlIndex::enum_val)
+#define C_IND_CLASS(CLASS, enum_val) E_INDEX(CLASS::ControlIndex, enum_val)
 #define C_IND(param, enum_val) C_IND_CLASS(decltype(param), enum_val)
 #define C_INDEX(enum_val) C_IND(this->params_, enum_val)
+#endif
+
+#ifndef O_INDEX
+#define O_IND_CLASS(CLASS, enum_val) E_INDEX(CLASS::OutputIndex, enum_val)
+#define O_IND(param, enum_val) O_IND_CLASS(decltype(param), enum_val)
+#define O_INDEX(enum_val) O_IND(this->params_, enum_val)
 #endif
 
 struct DynamicsParams
@@ -43,6 +52,11 @@ struct DynamicsParams
     VEL_X = 0,
     NUM_CONTROLS
   };
+  enum class OutputIndex : int
+  {
+    POS_X = 0,
+    NUM_OUTPUTS
+  };
 };
 
 template <typename T>
@@ -50,15 +64,16 @@ using paramsInheritsFrom = typename std::is_base_of<DynamicsParams, T>;
 
 namespace MPPI_internal
 {
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
+template <class CLASS_T, class PARAMS_T>
 class Dynamics : public Managed
 {
   static_assert(paramsInheritsFrom<PARAMS_T>::value, "Dynamics PARAMS_T does not inherit from DynamicsParams");
 
 public:
   //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  static const int STATE_DIM = S_DIM;
-  static const int CONTROL_DIM = C_DIM;
+  static const int STATE_DIM = S_IND_CLASS(PARAMS_T, NUM_STATES);
+  static const int CONTROL_DIM = C_IND_CLASS(PARAMS_T, NUM_CONTROLS);
+  static const int OUTPUT_DIM = O_IND_CLASS(PARAMS_T, NUM_OUTPUTS);
   static const int SHARED_MEM_REQUEST_GRD = 1;  // TODO set to one to prevent array of size 0 error
   static const int SHARED_MEM_REQUEST_BLK = 0;
   typedef CLASS_T DYN_T;
@@ -69,6 +84,7 @@ public:
    */
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;                 // Control at a time t
   typedef Eigen::Matrix<float, STATE_DIM, 1> state_array;                     // State at a time t
+  typedef Eigen::Matrix<float, OUTPUT_DIM, 1> output_array;                   // Output at a time t
   typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM> dfdx;                    // Jacobian wrt x
   typedef Eigen::Matrix<float, STATE_DIM, CONTROL_DIM> dfdu;                  // Jacobian wrt u
   typedef Eigen::Matrix<float, CONTROL_DIM, STATE_DIM> feedback_matrix;       // Feedback matrix
@@ -82,7 +98,7 @@ protected:
   Dynamics(cudaStream_t stream = 0) : Managed(stream)
   {
     // TODO handle at Managed
-    for (int i = 0; i < C_DIM; i++)
+    for (int i = 0; i < CONTROL_DIM; i++)
     {
       control_rngs_[i].x = -FLT_MAX;
       control_rngs_[i].y = FLT_MAX;
@@ -94,12 +110,12 @@ protected:
    * @param control_rngs
    * @param stream
    */
-  Dynamics(std::array<float2, C_DIM>& control_rngs, cudaStream_t stream = 0) : Managed(stream)
+  Dynamics(std::array<float2, CONTROL_DIM>& control_rngs, cudaStream_t stream = 0) : Managed(stream)
   {
     setControlRanges(control_rngs);
   }
 
-  Dynamics(PARAMS_T& params, std::array<float2, C_DIM>& control_rngs, cudaStream_t stream = 0) : Managed(stream)
+  Dynamics(PARAMS_T& params, std::array<float2, CONTROL_DIM>& control_rngs, cudaStream_t stream = 0) : Managed(stream)
   {
     setParams(params);
     setControlRanges(control_rngs);
@@ -139,10 +155,10 @@ public:
     return zero_control_;
   }
 
-  std::array<float2, C_DIM> getControlRanges()
+  std::array<float2, CONTROL_DIM> getControlRanges()
   {
-    std::array<float2, C_DIM> result;
-    for (int i = 0; i < C_DIM; i++)
+    std::array<float2, CONTROL_DIM> result;
+    for (int i = 0; i < CONTROL_DIM; i++)
     {
       result[i] = control_rngs_[i];
     }
@@ -153,7 +169,7 @@ public:
     return control_rngs_;
   }
 
-  void setControlRanges(std::array<float2, C_DIM>& control_rngs, bool synchronize = true);
+  void setControlRanges(std::array<float2, CONTROL_DIM>& control_rngs, bool synchronize = true);
 
   void setParams(const PARAMS_T& params)
   {
@@ -226,7 +242,7 @@ public:
    */
   void enforceConstraints(Eigen::Ref<state_array> state, Eigen::Ref<control_array> control)
   {
-    for (int i = 0; i < C_DIM; i++)
+    for (int i = 0; i < CONTROL_DIM; i++)
     {
       // printf("enforceConstraints %f, min = %f, max = %f\n", control(i), control_rngs_[i].x, control_rngs_[i].y);
       if (control(i) < control_rngs_[i].x)
@@ -245,10 +261,31 @@ public:
    * @param s state
    * @param s_der
    */
-  void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
+  DEPRECATED void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt)
   {
-    state += state_der * dt;
-    state_der.setZero();
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    derived->updateState(state, state, state_der, dt);
+  }
+
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                   Eigen::Ref<state_array> state_der, const float dt)
+  {
+    next_state = state + state_der * dt;
+  }
+
+  void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
+            const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,
+            const float dt)
+  {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    derived->computeStateDeriv(state, control, state_der);
+    derived->updateState(state, next_state, state_der, dt);
+
+    // TODO this is a hack
+    for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++)
+    {
+      output[i] = next_state[i];
+    }
   }
 
   /**
@@ -317,20 +354,10 @@ public:
    * @param state_der
    * @param theta_s shared memory that can be used when computation is computed across the same block
    */
-  __device__ inline void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s)
-  {
-    CLASS_T* derived = static_cast<CLASS_T*>(this);
-    // only propagate a single state, i.e. thread.y = 0
-    // find the change in x,y,theta based off of the rest of the state
-    if (threadIdx.y == 0)
-    {
-      // printf("state at 0 before kin: %f\n", state[0]);
-      derived->computeKinematics(state, state_der);
-      // printf("state at 0 after kin: %f\n", state[0]);
-    }
-    derived->computeDynamics(state, control, state_der, theta_s);
-    // printf("state at 0 after dyn: %f\n", state[0]);
-  }
+  __device__ inline void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s);
+
+  __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
+                              float* theta_s, const float t, const float dt);
 
   /**
    * applies the state derivative
@@ -338,58 +365,42 @@ public:
    * @param state_der
    * @param dt
    */
-  __device__ void updateState(float* state, float* state_der, const float dt)
+  DEPRECATED __device__ void updateState(float* state, float* state_der, const float dt)
   {
-    int i;
-    int tdy = threadIdx.y;
-    // Add the state derivative time dt to the current state.
-    // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-    for (i = tdy; i < STATE_DIM; i += blockDim.y)
-    {
-      state[i] += state_der[i] * dt;
-      state_der[i] = 0;  // Important: reset the state derivative to zero.
-    }
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    derived->updateState(state, state, state_der, dt);
   }
+
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
 
   /**
    * enforces control constraints
    */
-  __device__ void enforceConstraints(float* state, float* control)
-  {
-    // TODO should control_rngs_ be a constant memory parameter
-    int i;
-    int tdy = threadIdx.y;
-    // parallelize setting the constraints with y dim
-    for (i = tdy; i < CONTROL_DIM; i += blockDim.y)
-    {
-      // printf("thread index = %d, %d, control %f\n", threadIdx.x, tdy, control[i]);
-      if (control[i] < control_rngs_[i].x)
-      {
-        control[i] = control_rngs_[i].x;
-      }
-      else if (control[i] > control_rngs_[i].y)
-      {
-        control[i] = control_rngs_[i].y;
-      }
-      // printf("finished thread index = %d, %d, control %f\n", threadIdx.x, tdy, control[i]);
-    }
-  }
+  __device__ void enforceConstraints(float* state, float* control);
 
   /**
    * Method to allow setup of dynamics on the GPU. This is needed for
    * initializing the memory of an LSTM for example
    */
   void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                          float t_0, float dt)
+                          Eigen::Ref<output_array> output, float t_0, float dt)
   {
+    for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++)
+    {
+      output[i] = state[i];
+    }
   }
 
   /**
    * Method to allow setup of dynamics on the GPU. This is needed for
    * initializing the memory of an LSTM for example
    */
-  __device__ void initializeDynamics(float* state, float* control, float* theta_s, float t_0, float dt)
+  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt)
   {
+    for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++)
+    {
+      output[i] = state[i];
+    }
   }
 
   /**
@@ -403,15 +414,17 @@ public:
   /**
    * Method to enforce a leash on the initial state, which depends on type of dynamics.
    */
-  virtual void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal, const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output){
+  virtual void enforceLeash(const Eigen::Ref<const state_array>& state_true,
+                            const Eigen::Ref<const state_array>& state_nominal,
+                            const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output)
+  {
     for (int i = 0; i < DYN_T::STATE_DIM; i++)
     {
       float diff = fabsf(state_nominal[i] - state_true[i]);
-      
+
       if (leash_values[i] < diff)
       {
-        float leash_dir =
-            fminf(fmaxf(state_nominal[i] - state_true[i], -leash_values[i]), leash_values[i]);
+        float leash_dir = fminf(fmaxf(state_nominal[i] - state_true[i], -leash_values[i]), leash_values[i]);
         state_output[i] = state_true[i] + leash_dir;
       }
       else
@@ -422,13 +435,11 @@ public:
   }
 
   // control ranges [.x, .y]
-  float2 control_rngs_[C_DIM];
+  float2 control_rngs_[CONTROL_DIM];
 
   // device pointer, null on the device
   CLASS_T* model_d_ = nullptr;
 
-  // Eigen matrix holding the state and control jacobians required for DDP N X (N+M)
-  // Jacobian jac_;
 protected:
   // generic parameter structure
   PARAMS_T params_;
@@ -438,16 +449,19 @@ protected:
 #include "dynamics.cu"
 #endif
 
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
-const int Dynamics<CLASS_T, PARAMS_T, S_DIM, C_DIM>::STATE_DIM;
+template <class CLASS_T, class PARAMS_T>
+const int Dynamics<CLASS_T, PARAMS_T>::STATE_DIM;
 
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
-const int Dynamics<CLASS_T, PARAMS_T, S_DIM, C_DIM>::CONTROL_DIM;
+template <class CLASS_T, class PARAMS_T>
+const int Dynamics<CLASS_T, PARAMS_T>::CONTROL_DIM;
 
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
-const int Dynamics<CLASS_T, PARAMS_T, S_DIM, C_DIM>::SHARED_MEM_REQUEST_BLK;
+template <class CLASS_T, class PARAMS_T>
+const int Dynamics<CLASS_T, PARAMS_T>::OUTPUT_DIM;
 
-template <class CLASS_T, class PARAMS_T, int S_DIM, int C_DIM>
-const int Dynamics<CLASS_T, PARAMS_T, S_DIM, C_DIM>::SHARED_MEM_REQUEST_GRD;
+template <class CLASS_T, class PARAMS_T>
+const int Dynamics<CLASS_T, PARAMS_T>::SHARED_MEM_REQUEST_BLK;
+
+template <class CLASS_T, class PARAMS_T>
+const int Dynamics<CLASS_T, PARAMS_T>::SHARED_MEM_REQUEST_GRD;
 }  // namespace MPPI_internal
 #endif  // DYNAMICS_CUH_

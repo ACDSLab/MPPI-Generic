@@ -4,6 +4,7 @@
 #define AR_STANDARD_COST_CUH_
 
 #include <mppi/cost_functions/cost.cuh>
+#include <mppi/dynamics/autorally/ar_nn_model.cuh>
 #include <mppi/utils/file_utils.h>
 #include <vector>
 #include <Eigen/Dense>
@@ -40,8 +41,9 @@ struct ARStandardCostParams : public CostParams<2>
   }
 };
 
-template <class CLASS_T, class PARAMS_T = ARStandardCostParams>
-class ARStandardCostImpl : public Cost<CLASS_T, PARAMS_T, 7, 2>
+template <class CLASS_T, class PARAMS_T = ARStandardCostParams,
+          class DYN_PARAMS_T = NNDynamicsParams<7, 2, 3, 6, 32, 32, 4>>
+class ARStandardCostImpl : public Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>
 {
 public:
   //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -201,14 +203,14 @@ public:
   /**
    * @brief Compute all of the individual cost terms and adds them together.
    */
-  inline __device__ float computeStateCost(float* s, int timestep, int* crash_status);
+  inline __device__ float computeStateCost(float* s, int timestep, float* theta_c, int* crash_status);
   inline __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda,
-                                             float alpha, int timestep, int* crash_status);
+                                             float alpha, int timestep, float* theta_c, int* crash_status);
 
   /**
    * @brief Computes the terminal cost from a state
    */
-  __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* s, float* theta_c);
 
   // Constant variables
   const float FRONT_D = 0.5;  ///< Distance from GPS receiver to front of car.

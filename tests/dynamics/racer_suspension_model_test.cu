@@ -5,6 +5,69 @@
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 
+template <class DYN_T, int NUM_ROLLOUTS, int BLOCKSIZE_X, int BLOCKSIZE_Y, int BLOCKSIZE_Z = 1>
+__global__ void runGPUDynamics(DYN_T* dynamics, const int num_timesteps, float dt, const float* __restrict__ x_init_d,
+                               const float* __restrict__ u_d, float* __restrict__ x_next_d,
+                               float* __restrict__ output_d)
+{
+  __shared__ float x_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z * 2];
+  __shared__ float x_dot_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float u_shared[DYN_T::CONTROL_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float y_shared[DYN_T::OUTPUT_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
+
+  int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = 0;
+
+  float* x;
+  float* x_next;
+  float* x_temp;
+  float* x_dot;
+  float* u;
+  float* y;
+
+  x = &x_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x + 0) * DYN_T::STATE_DIM];
+  x_next = &x_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x + 1) * DYN_T::STATE_DIM];
+  x_dot = &x_dot_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x) * DYN_T::STATE_DIM];
+  u = &u_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x) * DYN_T::CONTROL_DIM];
+  y = &y_shared[(BLOCKSIZE_X * threadIdx.z + threadIdx.x) * DYN_T::OUTPUT_DIM];
+  for (j = threadIdx.y; j < DYN_T::STATE_DIM; j += blockDim.y)
+  {
+    x[j] = x_init_d[j];
+    x_dot[j] = 0;
+  }
+  for (j = threadIdx.y; j < DYN_T::OUTPUT_DIM; j += blockDim.y)
+  {
+    y[j] = 0;
+  }
+  __syncthreads();
+  dynamics->initializeDynamics(x, u, y, theta_s, 0, dt);
+  __syncthreads();
+  for (int t = 0; t < num_timesteps; t++)
+  {
+    for (j = threadIdx.y; j < DYN_T::CONTROL_DIM; j += blockDim.y)
+    {
+      u[j] = u_d[global_idx * num_timesteps * DYN_T::CONTROL_DIM + t * DYN_T::CONTROL_DIM + j];
+    }
+    for (j = threadIdx.y; j < DYN_T::STATE_DIM; j += blockDim.y)
+    {
+      x_next_d[global_idx * num_timesteps * DYN_T::STATE_DIM + t * DYN_T::STATE_DIM + j] = x[j];
+    }
+    for (j = threadIdx.y; j < DYN_T::OUTPUT_DIM; j += blockDim.y)
+    {
+      output_d[global_idx * num_timesteps * DYN_T::OUTPUT_DIM + t * DYN_T::OUTPUT_DIM + j] = y[j];
+    }
+    __syncthreads();
+    dynamics->enforceConstraints(x, u);
+    __syncthreads();
+    dynamics->step(x, x_next, x_dot, u, y, theta_s, t, dt);
+    __syncthreads();
+    x_temp = x;
+    x = x_next;
+    x_next = x_temp;
+  }
+}
+
 class RacerSuspensionTest : public ::testing::Test
 {
 public:
@@ -25,8 +88,8 @@ public:
 
 TEST_F(RacerSuspensionTest, Template)
 {
-  auto dynamics = RacerSuspension();
-  EXPECT_EQ(15, RacerSuspension::STATE_DIM);
+  auto dynamics = RacerSuspension(stream);
+  EXPECT_EQ(14, RacerSuspension::STATE_DIM);
   EXPECT_EQ(2, RacerSuspension::CONTROL_DIM);
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
 }
@@ -38,6 +101,177 @@ TEST_F(RacerSuspensionTest, BindStream)
   EXPECT_EQ(dynamics.stream_, stream) << "Stream binding failure.";
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
   EXPECT_EQ(dynamics.getTextureHelper()->stream_, stream);
+}
+
+TEST_F(RacerSuspensionTest, OmegaJacobian)
+{
+  using DYN_PARAMS = RacerSuspensionParams;
+  auto dynamics = RacerSuspension(stream);
+  RacerSuspension::state_array x = RacerSuspension::state_array::Zero();
+  x[S_IND_CLASS(DYN_PARAMS, ATTITUDE_QW)] = 1;
+  x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X)] = 0.1;
+  x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Y)] = -0.03;
+  x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Z)] = 0.02;
+  x[S_IND_CLASS(DYN_PARAMS, V_I_X)] = 2;
+
+  RacerSuspension::state_array x_dot0 = RacerSuspension::state_array::Zero();
+  RacerSuspension::state_array x_dot1 = RacerSuspension::state_array::Zero();
+  RacerSuspension::control_array u = RacerSuspension::control_array::Zero();
+  RacerSuspension::output_array output = RacerSuspension::output_array::Zero();
+  Eigen::Matrix3f omega_jac;
+  float delta = 0.001;
+  dynamics.computeStateDeriv(x, u, x_dot0, output, &omega_jac);
+  for (int i = 0; i < 3; i++)
+  {
+    x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X) + i] += delta;
+    dynamics.computeStateDeriv(x, u, x_dot1, output);
+    x[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X) + i] -= delta;
+
+    float abs_tol = 2;
+    EXPECT_NEAR(omega_jac.col(i)[0],
+                (x_dot1[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X)] - x_dot0[S_IND_CLASS(DYN_PARAMS, OMEGA_B_X)]) / delta,
+                abs_tol);
+    EXPECT_NEAR(omega_jac.col(i)[1],
+                (x_dot1[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Y)] - x_dot0[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Y)]) / delta,
+                abs_tol);
+    EXPECT_NEAR(omega_jac.col(i)[2],
+                (x_dot1[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Z)] - x_dot0[S_IND_CLASS(DYN_PARAMS, OMEGA_B_Z)]) / delta,
+                abs_tol);
+  }
+}
+
+TEST_F(RacerSuspensionTest, CPUvsGPU)
+{
+  const int NUM_PARALLEL_TESTS = 10;  // MUST BE EVEN
+  const int NUM_TIMESTEPS = 8;
+  const float dt = 0.02;
+  typedef RacerSuspension DYN;
+  typedef Eigen::Matrix<float, DYN::STATE_DIM, NUM_TIMESTEPS> state_traj;
+  typedef Eigen::Matrix<float, DYN::CONTROL_DIM, NUM_TIMESTEPS> control_traj;
+  typedef Eigen::Matrix<float, DYN::OUTPUT_DIM, NUM_TIMESTEPS> output_traj;
+  typedef util::EigenAlignedVector<float, DYN::CONTROL_DIM, NUM_TIMESTEPS> control_trajectories;
+  typedef util::EigenAlignedVector<float, DYN::STATE_DIM, NUM_TIMESTEPS> state_trajectories;
+  typedef util::EigenAlignedVector<float, DYN::OUTPUT_DIM, NUM_TIMESTEPS> output_trajectories;
+  using state_array = typename DYN::state_array;
+  using control_array = typename DYN::control_array;
+  using output_array = typename DYN::output_array;
+  using DYN_PARAMS = RacerSuspensionParams;
+
+  auto dynamics = RacerSuspension(stream);
+  auto control_range = dynamics.getControlRanges();
+  control_range[0] = make_float2(-1, 1);
+  control_range[1] = make_float2(-1, 1);
+  dynamics.setControlRanges(control_range);
+  dynamics.GPUSetup();
+
+  std::default_random_engine generator(15.0);
+  std::normal_distribution<float> throttle_distribution(0.3, 0.3);
+  std::normal_distribution<float> steering_distribution(0.0, 0.8);
+
+  float* x_init_d;
+  float* u_d;
+  float* x_next_d;
+  float* output_d;
+
+  HANDLE_ERROR(cudaMalloc((void**)&x_init_d, sizeof(float) * DYN::STATE_DIM * NUM_PARALLEL_TESTS));
+  HANDLE_ERROR(cudaMalloc((void**)&u_d, sizeof(float) * DYN::CONTROL_DIM * NUM_PARALLEL_TESTS * NUM_TIMESTEPS));
+  HANDLE_ERROR(cudaMalloc((void**)&x_next_d, sizeof(float) * DYN::STATE_DIM * NUM_PARALLEL_TESTS * NUM_TIMESTEPS));
+  HANDLE_ERROR(cudaMalloc((void**)&output_d, sizeof(float) * DYN::OUTPUT_DIM * NUM_PARALLEL_TESTS * NUM_TIMESTEPS));
+
+  // Input variables
+  DYN::state_array x_init = DYN::state_array::Zero();
+  x_init[S_IND_CLASS(DYN_PARAMS, P_I_X)] = 10;
+  x_init[S_IND_CLASS(DYN_PARAMS, P_I_Y)] = 20;
+  x_init[S_IND_CLASS(DYN_PARAMS, P_I_Z)] = 30;
+  x_init[S_IND_CLASS(DYN_PARAMS, ATTITUDE_QW)] = 1;
+  HANDLE_ERROR(
+      cudaMemcpyAsync(x_init_d, x_init.data(), sizeof(float) * DYN::STATE_DIM, cudaMemcpyHostToDevice, stream));
+
+  control_trajectories u_noise;
+  for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
+  {
+    control_traj sample_u = control_traj::Zero();
+    for (int t = 0; t < NUM_TIMESTEPS; t++)
+    {
+      sample_u(0, t) = throttle_distribution(generator);
+      sample_u(1, t) = steering_distribution(generator);
+    }
+    u_noise.push_back(sample_u);
+    HANDLE_ERROR(cudaMemcpyAsync(u_d + s * NUM_TIMESTEPS * DYN::CONTROL_DIM, u_noise[s].data(),
+                                 sizeof(float) * NUM_TIMESTEPS * DYN::CONTROL_DIM, cudaMemcpyHostToDevice, stream));
+  }
+
+  // Output variables
+  state_trajectories x_next_CPU(NUM_PARALLEL_TESTS);
+  state_trajectories x_next_GPU(NUM_PARALLEL_TESTS);
+  output_trajectories output_CPU(NUM_PARALLEL_TESTS);
+  output_trajectories output_GPU(NUM_PARALLEL_TESTS);
+
+  // CPU Test
+  for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
+  {
+    state_traj sample_state_traj;
+    output_traj sample_output_traj;
+    state_array xdot;
+    state_array x = x_init;
+    state_array x_next = x_init;
+    output_array output = output_array::Zero();
+    control_array u;
+    for (int t = 0; t < NUM_TIMESTEPS; t++)
+    {
+      if (t == 0)
+      {
+        dynamics.initializeDynamics(x, u, output, t, dt);
+      }
+      u = u_noise[s].col(t);
+      sample_state_traj.col(t) = x;
+      sample_output_traj.col(t) = output;
+
+      dynamics.enforceConstraints(x, u);
+      dynamics.step(x, x_next, xdot, u, output, t, dt);
+      x = x_next;
+    }
+    x_next_CPU[s] = sample_state_traj;
+    output_CPU[s] = sample_output_traj;
+  }
+
+  // GPU Test
+  const int BLOCKSIZE_X = 2;
+  const int BLOCKSIZE_Y = 8;
+  const int NUM_GRIDS_X = (NUM_PARALLEL_TESTS - 1) / BLOCKSIZE_X + 1;
+  dim3 block_dim(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
+  dim3 grid_dim(NUM_GRIDS_X, 1, 1);
+  // Ensure that there won't memory overwriting due to inproper indexing
+  static_assert(NUM_PARALLEL_TESTS % BLOCKSIZE_X == 0);
+
+  runGPUDynamics<DYN, NUM_PARALLEL_TESTS, BLOCKSIZE_X, BLOCKSIZE_Y>
+      <<<grid_dim, block_dim, 0, stream>>>(dynamics.model_d_, NUM_TIMESTEPS, dt, x_init_d, u_d, x_next_d, output_d);
+  for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
+  {
+    HANDLE_ERROR(cudaMemcpyAsync(x_next_GPU[s].data(), x_next_d + s * NUM_TIMESTEPS * DYN::STATE_DIM,
+                                 sizeof(float) * NUM_TIMESTEPS * DYN::STATE_DIM, cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(cudaMemcpyAsync(output_GPU[s].data(), output_d + s * NUM_TIMESTEPS * DYN::OUTPUT_DIM,
+                                 sizeof(float) * NUM_TIMESTEPS * DYN::OUTPUT_DIM, cudaMemcpyDeviceToHost, stream));
+  }
+  HANDLE_ERROR(cudaStreamSynchronize(stream));
+  for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
+  {
+    for (int t = 0; t < NUM_TIMESTEPS; t++)
+    {
+      for (int d = 0; d < DYN::STATE_DIM; d++)
+      {
+        ASSERT_NEAR(x_next_CPU[s](d, t), x_next_GPU[s](d, t), 1.0)
+            << "Sample " << s << ", t = " << t << ", state_dim: " << d << std::endl;
+      }
+      for (int d = 0; d < DYN::OUTPUT_DIM; d++)
+      {
+        ASSERT_TRUE(isfinite(output_CPU[s](d, t)))
+            << "NaNs/inf at sample " << s << " t: " << t << ", dim: " << d << std::endl;
+        ASSERT_NEAR(output_CPU[s](d, t), output_GPU[s](d, t), 1.0)
+            << "Sample " << s << ", t = " << t << ", output_dim: " << d << std::endl;
+      }
+    }
+  }
 }
 
 /*

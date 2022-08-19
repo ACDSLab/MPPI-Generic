@@ -2,14 +2,13 @@
 #include <mppi/utils/math_utils.h>
 
 QuadrotorDynamics::QuadrotorDynamics(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream)
-  : Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, CONTROL_DIM>(control_rngs, stream)
+  : PARENT_CLASS(control_rngs, stream)
 {
   this->params_ = QuadrotorDynamicsParams();
   zero_control_[3] = mppi::math::GRAVITY;
 }
 
-QuadrotorDynamics::QuadrotorDynamics(cudaStream_t stream)
-  : Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, CONTROL_DIM>(stream)
+QuadrotorDynamics::QuadrotorDynamics(cudaStream_t stream) : PARENT_CLASS(stream)
 {
   this->params_ = QuadrotorDynamicsParams();
   float2 thrust_rng;
@@ -115,13 +114,14 @@ void QuadrotorDynamics::computeDynamics(const Eigen::Ref<const state_array>& sta
   state_der.block<3, 1>(10, 0) = angular_speed_d;
 }
 
-void QuadrotorDynamics::updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, float dt)
+void QuadrotorDynamics::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                                    Eigen::Ref<state_array> state_der, const float dt)
 {
-  Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, 13, 4>::updateState(state, state_der, dt);
+  PARENT_CLASS::updateState(state, next_state, state_der, dt);
 
   // Renormalize quaternion
-  Eigen::Quaternionf q(state[6], state[7], state[8], state[9]);
-  state.block<4, 1>(6, 0) /= q.norm() * copysign(1.0, q.w());
+  Eigen::Quaternionf q(next_state[6], next_state[7], next_state[8], next_state[9]);
+  next_state.block<4, 1>(6, 0) /= q.norm() * copysign(1.0, q.w());
 }
 
 __device__ void QuadrotorDynamics::computeDynamics(float* state, float* control, float* state_der, float* theta)
@@ -172,13 +172,13 @@ __device__ void QuadrotorDynamics::computeDynamics(float* state, float* control,
   __syncthreads();
 }
 
-__device__ void QuadrotorDynamics::updateState(float* state, float* state_der, float dt)
+__device__ void QuadrotorDynamics::updateState(float* state, float* next_state, float* state_der, float dt)
 {
-  Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams, STATE_DIM, CONTROL_DIM>::updateState(state, state_der, dt);
+  PARENT_CLASS::updateState(state, next_state, state_der, dt);
 
   int i = 0;
   // renormalze quaternion
-  float* q = state + 6;
+  float* q = next_state + 6;
   float q_norm = sqrtf(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
   for (i = threadIdx.y; i < 4; i += blockDim.y)
   {

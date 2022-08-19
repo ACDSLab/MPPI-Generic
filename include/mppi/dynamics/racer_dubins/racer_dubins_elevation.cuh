@@ -7,19 +7,35 @@
 #include <mppi/utils/angle_utils.cuh>
 
 using namespace MPPI_internal;
-/**
- * state: v, theta, p_x, p_y, true steering angle, roll, pitch
- * control: throttle, steering angle command
- */
-class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation, 9>
+
+struct RacerDubinsElevationParams : public RacerDubinsParams
+{
+  enum class StateIndex : int
+  {
+    VEL_X = 0,
+    YAW,
+    POS_X,
+    POS_Y,
+    STEER_ANGLE,
+    ROLL,
+    PITCH,
+    STEER_ANGLE_RATE,
+    ACCEL_X,
+    NUM_STATES
+  };
+};
+
+class RacerDubinsElevation : public RacerDubinsImpl<RacerDubinsElevation, RacerDubinsElevationParams>
 {
 public:
-  RacerDubinsElevation(cudaStream_t stream = nullptr) : RacerDubinsImpl<RacerDubinsElevation, 9>(stream)
+  // static const int SHARED_MEM_REQUEST_GRD = sizeof(DYN_PARAMS_T);
+  using PARENT_CLASS = RacerDubinsImpl<RacerDubinsElevation, RacerDubinsElevationParams>;
+  using PARENT_CLASS::initializeDynamics;
+  RacerDubinsElevation(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
-  RacerDubinsElevation(RacerDubinsParams& params, cudaStream_t stream = nullptr)
-    : RacerDubinsImpl<RacerDubinsElevation, 9>(params, stream)
+  RacerDubinsElevation(RacerDubinsElevationParams& params, cudaStream_t stream = nullptr) : PARENT_CLASS(params, stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
@@ -35,14 +51,30 @@ public:
 
   void paramsToDevice();
 
-  void updateState(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der, const float dt);
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                   Eigen::Ref<state_array> state_der, const float dt);
 
-  void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                       Eigen::Ref<state_array> state_der);
+  void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                         Eigen::Ref<state_array> state_der)
+  {
+  }
 
-  __device__ void updateState(float* state, float* state_der, const float dt);
+  void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
+            const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,
+            const float dt);
 
-  __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt)
+  {
+  }
+
+  __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s)
+  {
+  }
+
+  __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
+                              float* theta_s, const float t, const float dt);
+
+  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
 
   TwoDTextureHelper<float>* getTextureHelper()
   {

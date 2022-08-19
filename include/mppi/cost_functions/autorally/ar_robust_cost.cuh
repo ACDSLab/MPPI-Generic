@@ -42,9 +42,9 @@ public:
 
   __host__ __device__ float getStabilizingCost(float* s);
   __device__ float getCostmapCost(float* s);
-  __device__ float computeStateCost(float* s, int timestep, int* crash_status);
+  __device__ float computeStateCost(float* s, int timestep, float* theta_c, int* crash_status);
   __device__ float computeRunningCost(float* s, float* u, float* du, float* vars, float lambda, float alpha,
-                                      int timestep, int* crash_status);
+                                      int timestep, float* theta_c, int* crash_status);
 
 private:
 };

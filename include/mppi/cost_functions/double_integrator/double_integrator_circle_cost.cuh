@@ -3,6 +3,7 @@
 #define DOUBLE_INTEGRATOR_CIRCLE_COST_CUH_
 
 #include <mppi/cost_functions/cost.cuh>
+#include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 
 struct DoubleIntegratorCircleCostParams : public CostParams<2>
 {
@@ -21,16 +22,17 @@ struct DoubleIntegratorCircleCostParams : public CostParams<2>
   }
 };
 
-class DoubleIntegratorCircleCost : public Cost<DoubleIntegratorCircleCost, DoubleIntegratorCircleCostParams, 4, 2>
+class DoubleIntegratorCircleCost
+  : public Cost<DoubleIntegratorCircleCost, DoubleIntegratorCircleCostParams, DoubleIntegratorParams>
 {
 public:
   DoubleIntegratorCircleCost(cudaStream_t stream = nullptr);
 
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep = 0, int* crash_status = nullptr);
-  float terminalCost(const Eigen::Ref<const state_array> s);
+  float computeStateCost(const Eigen::Ref<const output_array> s, int timestep = 0, int* crash_status = nullptr);
+  float terminalCost(const Eigen::Ref<const output_array> s);
 
-  __device__ float computeStateCost(float* s, int timestep = 0, int* crash_status = nullptr);
-  __device__ float terminalCost(float* s);
+  __device__ float computeStateCost(float* s, int timestep = 0, float* theta_c = nullptr, int* crash_status = nullptr);
+  __device__ float terminalCost(float* s, float* theta_c);
 };
 
 #if __CUDACC__

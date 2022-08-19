@@ -1,19 +1,19 @@
 #include <mppi/cost_functions/autorally/ar_standard_cost.cuh>
 
-template <class CLASS_T, class PARAMS_T>
-ARStandardCostImpl<CLASS_T, PARAMS_T>::ARStandardCostImpl(cudaStream_t stream)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::ARStandardCostImpl(cudaStream_t stream)
 {
   this->bindToStream(stream);
 }
 
-// template <class CLASS_T, class PARAMS_T>
-// void ARStandardCostImpl<CLASS_T, PARAMS_T>::freeCudaMem() {
+// template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+// void ARStandardCostImpl<CLASS_T, PARAMS_T,  DYN_PARAMS_T>::freeCudaMem() {
 //   // TODO free everything
 //   Cost<CLASS_T, PARAMS_T, this->STATE_DIM, this->CONTROL_DIM>::freeCudaMem();
 // }
 
-template <class CLASS_T, class PARAMS_T>
-void ARStandardCostImpl<CLASS_T, PARAMS_T>::paramsToDevice()
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+void ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::paramsToDevice()
 {
   HANDLE_ERROR(cudaMemcpyAsync(&this->cost_d_->params_, &this->params_, sizeof(PARAMS_T), cudaMemcpyHostToDevice,
                                this->stream_));
@@ -23,8 +23,8 @@ void ARStandardCostImpl<CLASS_T, PARAMS_T>::paramsToDevice()
   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 }
 
-template <class CLASS_T, class PARAMS_T>
-bool ARStandardCostImpl<CLASS_T, PARAMS_T>::changeCostmapSize(int width, int height)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+bool ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::changeCostmapSize(int width, int height)
 {
   // TODO set flag at top that indicates memory allocation changes
   if (height < 0 && width < 0)
@@ -58,8 +58,8 @@ bool ARStandardCostImpl<CLASS_T, PARAMS_T>::changeCostmapSize(int width, int hei
   return true;
 }
 
-template <class CLASS_T, class PARAMS_T>
-void ARStandardCostImpl<CLASS_T, PARAMS_T>::clearCostmapCPU(int width, int height)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+void ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::clearCostmapCPU(int width, int height)
 {
   changeCostmapSize(width, height);
 
@@ -77,8 +77,8 @@ void ARStandardCostImpl<CLASS_T, PARAMS_T>::clearCostmapCPU(int width, int heigh
   }
 }
 
-template <class CLASS_T, class PARAMS_T>
-std::vector<float4> ARStandardCostImpl<CLASS_T, PARAMS_T>::loadTrackData(std::string map_path)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+std::vector<float4> ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::loadTrackData(std::string map_path)
 {
   // check if file exists
   if (!fileExists(map_path))
@@ -137,8 +137,8 @@ std::vector<float4> ARStandardCostImpl<CLASS_T, PARAMS_T>::loadTrackData(std::st
   return track_costs_;
 }
 
-template <class CLASS_T, class PARAMS_T>
-void ARStandardCostImpl<CLASS_T, PARAMS_T>::costmapToTexture()
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+void ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::costmapToTexture()
 {
   if (width_ < 0 || height_ < 0)
   {
@@ -179,15 +179,15 @@ void ARStandardCostImpl<CLASS_T, PARAMS_T>::costmapToTexture()
   cudaStreamSynchronize(this->stream_);
 }
 
-template <class CLASS_T, class PARAMS_T>
-inline __device__ float4 ARStandardCostImpl<CLASS_T, PARAMS_T>::queryTexture(float x, float y) const
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+inline __device__ float4 ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::queryTexture(float x, float y) const
 {
   // printf("\nquerying point (%f, %f)", x, y);
   return tex2D<float4>(costmap_tex_d_, x, y);
 }
 
-template <class CLASS_T, class PARAMS_T>
-void ARStandardCostImpl<CLASS_T, PARAMS_T>::updateTransform(Eigen::MatrixXf m, Eigen::ArrayXf trs)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+void ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::updateTransform(Eigen::MatrixXf m, Eigen::ArrayXf trs)
 {
   this->params_.r_c1.x = m(0, 0);
   this->params_.r_c1.y = m(1, 0);
@@ -205,9 +205,9 @@ void ARStandardCostImpl<CLASS_T, PARAMS_T>::updateTransform(Eigen::MatrixXf m, E
   }
 }
 
-template <class CLASS_T, class PARAMS_T>
-__host__ __device__ void ARStandardCostImpl<CLASS_T, PARAMS_T>::coorTransform(float x, float y, float* u, float* v,
-                                                                              float* w)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+__host__ __device__ void ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::coorTransform(float x, float y, float* u,
+                                                                                            float* v, float* w)
 {
   ////Compute a projective transform of (x, y, 0, 1)
   // printf("coordiante transform %f, %f, %f\n", params_.r_c1.x, params_.r_c2.x, params_.trs.x);
@@ -217,8 +217,8 @@ __host__ __device__ void ARStandardCostImpl<CLASS_T, PARAMS_T>::coorTransform(fl
   w[0] = this->params_.r_c1.z * x + this->params_.r_c2.z * y + this->params_.trs.z;
 }
 
-template <class CLASS_T, class PARAMS_T>
-__device__ float4 ARStandardCostImpl<CLASS_T, PARAMS_T>::queryTextureTransformed(float x, float y)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+__device__ float4 ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::queryTextureTransformed(float x, float y)
 {
   float u, v, w;
   coorTransform(x, y, &u, &v, &w);
@@ -228,8 +228,8 @@ __device__ float4 ARStandardCostImpl<CLASS_T, PARAMS_T>::queryTextureTransformed
   return tex2D<float4>(costmap_tex_d_, u / w, v / w);
 }
 
-template <class CLASS_T, class PARAMS_T>
-Eigen::Matrix3f ARStandardCostImpl<CLASS_T, PARAMS_T>::getRotation()
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+Eigen::Matrix3f ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::getRotation()
 {
   Eigen::Matrix3f m;
   m(0, 0) = this->params_.r_c1.x;
@@ -244,8 +244,8 @@ Eigen::Matrix3f ARStandardCostImpl<CLASS_T, PARAMS_T>::getRotation()
   return m;
 }
 
-template <class CLASS_T, class PARAMS_T>
-Eigen::Array3f ARStandardCostImpl<CLASS_T, PARAMS_T>::getTranslation()
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+Eigen::Array3f ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::getTranslation()
 {
   Eigen::Array3f array;
   array(0) = this->params_.trs.x;
@@ -254,14 +254,14 @@ Eigen::Array3f ARStandardCostImpl<CLASS_T, PARAMS_T>::getTranslation()
   return array;
 }
 
-template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::terminalCost(float* s)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::terminalCost(float* s, float* theta_c)
 {
   return 0.0;
 }
 
-template <class CLASS_T, class PARAMS_T>
-inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getSpeedCost(float* s, int* crash)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::getSpeedCost(float* s, int* crash)
 {
   float cost = 0;
   float error = s[4] - this->params_.desired_speed;
@@ -276,8 +276,9 @@ inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getSpeed
   return (this->params_.speed_coeff * cost);
 }
 
-template <class CLASS_T, class PARAMS_T>
-inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getStabilizingCost(float* s, int* crash_status)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+inline __host__ __device__ float
+ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::getStabilizingCost(float* s, int* crash_status)
 {
   float stabilizing_cost = 0;
   if (fabs(s[4]) > 0.001)
@@ -299,9 +300,9 @@ inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getStabi
   return stabilizing_cost;
 }
 
-template <class CLASS_T, class PARAMS_T>
-inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getCrashCost(float* s, int* crash,
-                                                                                     int num_timestep)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::getCrashCost(float* s, int* crash,
+                                                                                                   int num_timestep)
 {
   float crash_cost = 0;
   if (crash[0] > 0)
@@ -312,8 +313,8 @@ inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getCrash
   return crash_cost;
 }
 
-template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getTrackCost(float* s, int* crash)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::getTrackCost(float* s, int* crash)
 {
   float track_cost = 0;
 
@@ -349,9 +350,10 @@ inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::getTrackCost(floa
   return track_cost;
 }
 
-template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float* s, int timestep,
-                                                                                int* crash_status)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::computeStateCost(float* s, int timestep,
+                                                                                              float* theta_c,
+                                                                                              int* crash_status)
 {
   // printf("input state %f %f %f %f %f %f %f\n", s[0], s[1], s[2], s[3], s[4], s[5], s[6]);
   /*
@@ -383,12 +385,12 @@ inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::computeStateCost(
   return cost;
 }
 
-template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T>::computeRunningCost(float* s, float* u, float* noise,
-                                                                                  float* std_dev, float lambda,
-                                                                                  float alpha, int timestep,
-                                                                                  int* crash_status)
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+inline __device__ float
+ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::computeRunningCost(float* s, float* u, float* noise,
+                                                                        float* std_dev, float lambda, float alpha,
+                                                                        int timestep, float* theta_c, int* crash_status)
 {
-  return computeStateCost(s, timestep, crash_status) +
+  return computeStateCost(s, timestep, theta_c, crash_status) +
          this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
 }

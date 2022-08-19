@@ -42,14 +42,14 @@ __global__ void configureFrequencyNoise(cufftComplex* noise, float* variance, in
 }
 
 __global__ void rearrangeNoise(float* input, float* output, float* variance, int num_trajectories, int num_timesteps,
-                               int control_dim)
+                               int control_dim, int offset_t)
 {
   int sample_index = blockIdx.x * blockDim.x + threadIdx.x;
   int time_index = blockIdx.y * blockDim.y + threadIdx.y;
   int control_index = blockIdx.z * blockDim.z + threadIdx.z;
-  if (sample_index < num_trajectories && time_index < num_timesteps && control_index < control_dim)
+  if (sample_index < num_trajectories && time_index < (num_timesteps - offset_t) && control_index < control_dim)
   {  // cuFFT does not normalize inverse transforms so a division by the num_timesteps is required
-    output[(sample_index * num_timesteps + time_index) * control_dim + control_index] =
+    output[(sample_index * num_timesteps + time_index + offset_t) * control_dim + control_index] =
         input[(sample_index * control_dim + control_index) * num_timesteps + time_index] /
         (variance[control_index] * num_timesteps);
     // printf("ROLLOUT %d CONTROL %d TIME %d: in %f out: %f\n", sample_index, control_index, time_index,
@@ -71,7 +71,8 @@ void fftfreq(const int num_samples, std::vector<float>& result, const float spac
 }
 
 void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int num_trajectories,
-                           float* control_noise_d, curandGenerator_t& gen, cudaStream_t stream = 0, float fmin = 0.0)
+                           float* control_noise_d, int offset_t, curandGenerator_t& gen, cudaStream_t stream = 0,
+                           float fmin = 0.0)
 {
   const int BLOCKSIZE_X = 32;
   const int BLOCKSIZE_Y = 32;
@@ -166,7 +167,7 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   // std::cout << "Grid: " << reorder_grid.x << ", " << reorder_grid.y << ", " << reorder_grid.z << std::endl;
   // std::cout << "Block: " << reorder_block.x << ", " << reorder_block.y << ", " << reorder_block.z << std::endl;
   rearrangeNoise<<<reorder_grid, reorder_block, 0, stream>>>(noise_in_time_d, control_noise_d, sigma_d,
-                                                             num_trajectories, num_timesteps, control_dim);
+                                                             num_trajectories, num_timesteps, control_dim, offset_t);
   HANDLE_ERROR(cudaGetLastError());
   HANDLE_ERROR(cudaStreamSynchronize(stream));
   HANDLE_CUFFT_ERROR(cufftDestroy(plan));

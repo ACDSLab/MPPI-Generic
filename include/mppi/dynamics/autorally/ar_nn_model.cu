@@ -1,16 +1,13 @@
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(std::array<float2, C_DIM> control_rngs,
                                                                    cudaStream_t stream)
-  : Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams<S_DIM, C_DIM, K_DIM, layer_args...>,
-             S_DIM, C_DIM>(control_rngs, stream)
+  : PARENT_CLASS(control_rngs, stream)
 {
   CPUSetup();
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t stream)
-  : Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams<S_DIM, C_DIM, K_DIM, layer_args...>,
-             S_DIM, C_DIM>(stream)
+NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t stream) : PARENT_CLASS(stream)
 {
   CPUSetup();
 }
@@ -36,8 +33,7 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel()
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem()
 {
-  Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>, NNDynamicsParams<S_DIM, C_DIM, K_DIM, layer_args...>,
-           S_DIM, C_DIM>::freeCudaMem();
+  PARENT_CLASS::freeCudaMem();
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>

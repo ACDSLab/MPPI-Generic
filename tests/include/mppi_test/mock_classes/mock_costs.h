@@ -15,7 +15,7 @@ typedef struct
   int test = 1;
 } mockCostParams;
 
-class MockCost : public Cost<MockCost, mockCostParams, 1, 1>
+class MockCost : public Cost<MockCost, mockCostParams, DynamicsParams>
 {
 public:
   MOCK_METHOD1(bindToStream, void(cudaStream_t stream));

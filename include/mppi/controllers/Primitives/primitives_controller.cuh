@@ -51,6 +51,7 @@ struct PrimitivesParams : public ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 };
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+          int COST_B_X = 64, int COST_B_Y = 2,
           class PARAMS_T = PrimitivesParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class PrimitivesController
   : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
@@ -65,6 +66,7 @@ public:
   using control_trajectory = typename PARENT_CLASS::control_trajectory;
   using state_trajectory = typename PARENT_CLASS::state_trajectory;
   using state_array = typename PARENT_CLASS::state_array;
+  using output_array = typename PARENT_CLASS::output_array;
   using sampled_cost_traj = typename PARENT_CLASS::sampled_cost_traj;
   using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
 
@@ -199,7 +201,7 @@ public:
   {
     return leash_active_;
   }
-  
+
   void setLeashActive(bool new_leash_active)
   {
     leash_active_ = new_leash_active;

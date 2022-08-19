@@ -264,3 +264,89 @@ void launchComputeStateDerivTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
   cudaFree(state_der_d);
   cudaFree(control_d);
 }
+
+template <typename DYNAMICS_T>
+__global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* control, float* state_der, float* next_state,
+                               float* output, int t, float dt, int num)
+{
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  __shared__ float theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD + DYNAMICS_T::SHARED_MEM_REQUEST_BLK];
+  float* x = state + (tid * DYNAMICS_T::STATE_DIM);
+  float* x_dot = state_der + (tid * DYNAMICS_T::STATE_DIM);
+  float* x_next = next_state + (tid * DYNAMICS_T::STATE_DIM);
+  float* u = control + (tid * DYNAMICS_T::CONTROL_DIM);
+  float* y = output + (tid * DYNAMICS_T::OUTPUT_DIM);
+
+  if (tid < num)
+  {
+    // printf("calling on thread %d, %d\n", tid, threadIdx.y);
+    dynamics->step(x, x_next, x_dot, u, y, theta, t, dt);
+    // dynamics->computeStateDeriv(state + (tid * S_DIM), control + (tid * C_DIM), state_der + (tid * S_DIM), theta);
+  }
+}
+
+template <typename DYNAMICS_T>
+void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& state,
+                          std::vector<std::array<float, DYNAMICS_T::CONTROL_DIM>>& control,
+                          std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& state_der,
+                          std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& next_state, int t, float dt, int dim_y)
+{
+  if (state.size() != control.size())
+  {
+    std::cerr << "Num States doesn't match num controls" << std::endl;
+    return;
+  }
+  if (state.size() != state_der.size())
+  {
+    std::cerr << "Num States doesn't match num state_ders" << std::endl;
+    return;
+  }
+  if (state.size() != next_state.size())
+  {
+    std::cerr << "Num States doesn't match num next_states" << std::endl;
+    return;
+  }
+  int count = state.size();
+  float* state_d;
+  float* control_d;
+  float* state_der_d;
+  float* next_state_d;
+  float* output_d;
+  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float) * DYNAMICS_T::STATE_DIM * count));
+  HANDLE_ERROR(cudaMalloc((void**)&state_der_d, sizeof(float) * DYNAMICS_T::STATE_DIM * count));
+  HANDLE_ERROR(cudaMalloc((void**)&next_state_d, sizeof(float) * DYNAMICS_T::STATE_DIM * count));
+  HANDLE_ERROR(cudaMalloc((void**)&control_d, sizeof(float) * DYNAMICS_T::CONTROL_DIM * count));
+  HANDLE_ERROR(cudaMalloc((void**)&output_d, sizeof(float) * DYNAMICS_T::OUTPUT_DIM * count));
+
+  HANDLE_ERROR(
+      cudaMemcpy(state_d, state.data(), sizeof(float) * DYNAMICS_T::STATE_DIM * count, cudaMemcpyHostToDevice));
+  HANDLE_ERROR(
+      cudaMemcpy(state_der_d, state_der.data(), sizeof(float) * DYNAMICS_T::STATE_DIM * count, cudaMemcpyHostToDevice));
+  HANDLE_ERROR(cudaMemcpy(next_state_d, next_state.data(), sizeof(float) * DYNAMICS_T::STATE_DIM * count,
+                          cudaMemcpyHostToDevice));
+  HANDLE_ERROR(
+      cudaMemcpy(control_d, control.data(), sizeof(float) * DYNAMICS_T::CONTROL_DIM * count, cudaMemcpyHostToDevice));
+
+  dim3 threadsPerBlock(count, dim_y);
+  dim3 numBlocks(1, 1);
+  stepTestKernel<DYNAMICS_T><<<numBlocks, threadsPerBlock>>>(dynamics.model_d_, state_d, control_d, state_der_d,
+                                                             next_state_d, output_d, t, dt, count);
+  CudaCheckError();
+
+  // Copy the memory back to the host
+  HANDLE_ERROR(
+      cudaMemcpy(state.data(), state_d, sizeof(float) * DYNAMICS_T::STATE_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(
+      cudaMemcpy(state_der.data(), state_der_d, sizeof(float) * DYNAMICS_T::STATE_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(next_state.data(), next_state_d, sizeof(float) * DYNAMICS_T::STATE_DIM * count,
+                          cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(
+      cudaMemcpy(control.data(), control_d, sizeof(float) * DYNAMICS_T::CONTROL_DIM * count, cudaMemcpyDeviceToHost));
+  cudaDeviceSynchronize();
+
+  cudaFree(state_d);
+  cudaFree(state_der_d);
+  cudaFree(control_d);
+  cudaFree(next_state_d);
+  cudaFree(output_d);
+}

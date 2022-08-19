@@ -5,8 +5,21 @@
 
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 
+template <int STATE_DIM = 1, int CONTROL_DIM = 1, int OUTPUT_DIM = 1>
 struct DynamicsTesterParams : public DynamicsParams
 {
+  enum class StateIndex : int
+  {
+    NUM_STATES = STATE_DIM
+  };
+  enum class ControlIndex : int
+  {
+    NUM_CONTROLS = CONTROL_DIM
+  };
+  enum class OutputIndex : int
+  {
+    NUM_OUTPUTS = OUTPUT_DIM
+  };
   int var_1 = 1;
   int var_2 = 2;
   float4 var_4;
@@ -14,10 +27,10 @@ struct DynamicsTesterParams : public DynamicsParams
 
 template <int STATE_DIM = 1, int CONTROL_DIM = 1>
 class DynamicsTester
-  : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>
+  : public MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams<STATE_DIM, CONTROL_DIM>>
 {
 public:
-  typedef MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams, STATE_DIM, CONTROL_DIM>
+  typedef MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams<STATE_DIM, CONTROL_DIM>>
       PARENT_CLASS;
 
   using state_array = typename PARENT_CLASS::state_array;
@@ -96,11 +109,11 @@ TEST(Dynamics, GPUSetupAndCudaFree)
 TEST(Dynamics, setParamsCPU)
 {
   DynamicsTester<> tester;
-  DynamicsTesterParams params_result = tester.getParams();
+  DynamicsTesterParams<> params_result = tester.getParams();
   EXPECT_EQ(params_result.var_1, 1);
   EXPECT_EQ(params_result.var_2, 2);
 
-  DynamicsTesterParams params;
+  DynamicsTesterParams<> params;
   params.var_1 = 10;
   params.var_2 = 20;
   params.var_4.x = 1.5;
@@ -123,11 +136,11 @@ TEST(Dynamics, setParamsGPU)
 {
   DynamicsTester<> tester;
   tester.GPUSetup();
-  DynamicsTesterParams params_result = tester.getParams();
+  DynamicsTesterParams<> params_result = tester.getParams();
   EXPECT_EQ(params_result.var_1, 1);
   EXPECT_EQ(params_result.var_2, 2);
 
-  DynamicsTesterParams params;
+  DynamicsTesterParams<> params;
   params.var_1 = 10;
   params.var_2 = 20;
   params.var_4.x = 1.5;
@@ -136,7 +149,7 @@ TEST(Dynamics, setParamsGPU)
   params.var_4.w = 4.5;
 
   tester.setParams(params);
-  launchParameterTestKernel<DynamicsTester<>, DynamicsTesterParams>(tester, params_result);
+  launchParameterTestKernel<DynamicsTester<>, DynamicsTesterParams<>>(tester, params_result);
 
   EXPECT_EQ(params_result.var_1, params.var_1);
   EXPECT_EQ(params_result.var_2, params.var_2);
@@ -355,7 +368,7 @@ TEST(Dynamics, updateStateCPU)
   tester.updateState(s, s_der, 0.1);
 
   EXPECT_FLOAT_EQ(s(0), 6);
-  EXPECT_FLOAT_EQ(s_der(0), 0);
+  EXPECT_FLOAT_EQ(s_der(0), 10);
 }
 
 TEST(Dynamics, updateStateGPU)
@@ -393,9 +406,9 @@ TEST(Dynamics, updateStateGPU)
     EXPECT_FLOAT_EQ(s[0][2], 2.2);
     EXPECT_FLOAT_EQ(s[0][3], 3.3);
     EXPECT_FLOAT_EQ(s_der[0][0], 0);
-    EXPECT_FLOAT_EQ(s_der[0][1], 0);
-    EXPECT_FLOAT_EQ(s_der[0][2], 0);
-    EXPECT_FLOAT_EQ(s_der[0][3], 0);
+    EXPECT_FLOAT_EQ(s_der[0][1], 1);
+    EXPECT_FLOAT_EQ(s_der[0][2], 2);
+    EXPECT_FLOAT_EQ(s_der[0][3], 3);
   }
 }
 
@@ -444,6 +457,65 @@ TEST(Dynamics, computeStateDerivGPU)
     EXPECT_FLOAT_EQ(s_der[0][1], 3) << "j = " << j;
     EXPECT_FLOAT_EQ(u[0][0], 3) << "j = " << j;
   }
+}
+
+TEST(Dynamics, stepGPU)
+{
+  DynamicsTester<2, 1> tester;
+  std::vector<std::array<float, 2>> s(1);
+  std::vector<std::array<float, 1>> u(1);
+  std::vector<std::array<float, 2>> s_der(1);
+  std::vector<std::array<float, 2>> s_next(1);
+  int t = 0;
+  float dt = 0.5;
+
+  for (int dim_y = 1; dim_y < 6; dim_y++)
+  {
+    s[0][0] = 5;
+    s[0][1] = 10;
+    s_der[0][0] = 10;
+    s_der[0][1] = 20;
+    u[0][0] = 3;
+
+    launchStepTestKernel<DynamicsTester<2, 1>>(tester, s, u, s_der, s_next, t, dt, dim_y);
+
+    EXPECT_FLOAT_EQ(s[0][0], 5) << "dim_y = " << dim_y;
+    EXPECT_FLOAT_EQ(s[0][1], 10) << "dim_y = " << dim_y;
+    EXPECT_FLOAT_EQ(s_der[0][0], 15) << "dim_y = " << dim_y;
+    EXPECT_FLOAT_EQ(s_der[0][1], 3) << "dim_y = " << dim_y;
+    EXPECT_FLOAT_EQ(s_next[0][0], 5 + 7.5) << "dim_y = " << dim_y;
+    EXPECT_FLOAT_EQ(s_next[0][1], 10 + 1.5) << "dim_y = " << dim_y;
+    EXPECT_FLOAT_EQ(u[0][0], 3) << "dim_y = " << dim_y;
+  }
+}
+
+TEST(Dynamics, stepCPU)
+{
+  using DYN = DynamicsTester<2, 1>;
+  DYN tester;
+  DYN::state_array x;
+  DYN::state_array x_dot;
+  DYN::state_array x_next;
+  DYN::control_array u;
+  DYN::output_array output;
+
+  int t = 0;
+  float dt = 0.5;
+  x(0) = 5;
+  x(1) = 10;
+  x_dot(0) = 10;
+  x_dot(1) = 20;
+  u(0) = 3;
+
+  tester.step(x, x_next, x_dot, u, output, t, dt);
+
+  EXPECT_FLOAT_EQ(x(0), 5);
+  EXPECT_FLOAT_EQ(x(1), 10);
+  EXPECT_FLOAT_EQ(x_dot(0), 15);
+  EXPECT_FLOAT_EQ(x_dot(1), 3);
+  EXPECT_FLOAT_EQ(x_next(0), 5 + 7.5);
+  EXPECT_FLOAT_EQ(x_next(1), 10 + 1.5);
+  EXPECT_FLOAT_EQ(u(0), 3);
 }
 
 TEST(Dynamics, interpolateState)

@@ -8,7 +8,7 @@ QuadrotorQuadraticCost::QuadrotorQuadraticCost(cudaStream_t stream)
 /**
  * Host Functions
  */
-float QuadrotorQuadraticCost::computeStateCost(const Eigen::Ref<const state_array> s, int timestep, int* crash_status)
+float QuadrotorQuadraticCost::computeStateCost(const Eigen::Ref<const output_array> s, int timestep, int* crash_status)
 {
   Eigen::Vector3f x, v, w;
   // Eigen::Vector4f q;
@@ -17,9 +17,9 @@ float QuadrotorQuadraticCost::computeStateCost(const Eigen::Ref<const state_arra
   Eigen::Map<const Eigen::Vector3f> v_g(this->params_.v_goal());
   Eigen::Map<const Eigen::Vector3f> w_g(this->params_.w_goal());
 
-  x = s.block<3, 1>(0, 0);
-  v = s.block<3, 1>(3, 0);
-  w = s.block<3, 1>(10, 0);
+  x = s.block<3, 1>(E_INDEX(OutputIndex, POS_X), 0);
+  v = s.block<3, 1>(E_INDEX(OutputIndex, VEL_X), 0);
+  w = s.block<3, 1>(E_INDEX(OutputIndex, ANG_VEL_X), 0);
 
   // Quaternion/Angle Costs
   Eigen::Quaternionf q(s[6], s[7], s[8], s[9]);
@@ -59,7 +59,7 @@ float QuadrotorQuadraticCost::computeStateCost(const Eigen::Ref<const state_arra
   return x_cost.sum() + v_cost.sum() + q_cost.sum() + w_cost.sum();
 }
 
-float QuadrotorQuadraticCost::terminalCost(const Eigen::Ref<const state_array> s)
+float QuadrotorQuadraticCost::terminalCost(const Eigen::Ref<const output_array> s)
 {
   return this->params_.terminal_cost_coeff * computeStateCost(s);
 }
@@ -67,13 +67,13 @@ float QuadrotorQuadraticCost::terminalCost(const Eigen::Ref<const state_array> s
 /**
  * Device Functions
  */
-__device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep, int* crash_status)
+__device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep, float* theta_c, int* crash_status)
 {
-  float s_diff[STATE_DIM];
+  float s_diff[OUTPUT_DIM];
   int i;
   float sum = 0;
 
-  for (i = 0; i < STATE_DIM; i++)
+  for (i = 0; i < OUTPUT_DIM; i++)
   {
     s_diff[i] = powf(s[i] - this->params_.s_goal[i], 2);
   }
@@ -117,7 +117,7 @@ __device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep
     s_diff[i] *= this->params_.w_coeff;
   }
 
-  for (i = 0; i < STATE_DIM; i++)
+  for (i = 0; i < OUTPUT_DIM; i++)
   {
     sum += s_diff[i];
   }
@@ -126,13 +126,15 @@ __device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep
 }
 
 __device__ float QuadrotorQuadraticCost::computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda,
-                                                            float alpha, int timestep, int* crash_status)
+                                                            float alpha, int timestep, float* theta_c,
+                                                            int* crash_status)
 {
-  float cost = computeStateCost(s, timestep, crash_status) + computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
+  float cost =
+      computeStateCost(s, timestep, theta_c, crash_status) + computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
   return cost * (1 - isnan(cost)) + isnan(cost) * MAX_COST_VALUE;
 }
 
-__device__ float QuadrotorQuadraticCost::terminalCost(float* s)
+__device__ float QuadrotorQuadraticCost::terminalCost(float* s, float* theta_c)
 {
   float cost = this->params_.terminal_cost_coeff * computeStateCost(s);
   return cost * (1 - isnan(cost)) + isnan(cost) * MAX_COST_VALUE;

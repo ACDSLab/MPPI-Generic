@@ -3,7 +3,7 @@ file(GLOB TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
 
 foreach(T_FILE IN LISTS TARGET_SRCS)
   get_filename_component(T_NAME ${T_FILE} NAME_WE)
-  add_executable(${T_NAME} ../test_main.cpp ${T_FILE})
+  add_executable(${T_NAME} ${PROJECT_SOURCE_DIR}/tests/test_main.cpp ${T_FILE})
   target_link_libraries(${T_NAME}
           ${GTEST_LIBRARIES}
           cnpy

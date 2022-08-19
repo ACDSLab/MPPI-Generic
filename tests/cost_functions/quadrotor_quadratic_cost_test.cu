@@ -25,7 +25,7 @@ TEST(QuadrotorQuadraticCost, ControlCost)
    * CPU Setup
    */
   COST cost;
-  COST::state_array s = COST::state_array::Random();
+  COST::output_array s = COST::output_array::Random();
   Eigen::Quaternionf q_test(s[6], s[7], s[8], s[9]);
   q_test.normalize();
   s[6] = q_test.w();
@@ -49,7 +49,7 @@ TEST(QuadrotorQuadraticCost, ControlCost)
   // float* std_dev_d;
   float* GPU_result_d;
   // Allocate Memory on GPU
-  size_t state_size = sizeof(float) * COST::STATE_DIM;
+  size_t state_size = sizeof(float) * COST::OUTPUT_DIM;
   HANDLE_ERROR(cudaMalloc((void**)&s_d, state_size));
   // HANDLE_ERROR(cudaMalloc((void**)&eps_d, state_size));
   // HANDLE_ERROR(cudaMalloc((void**)&std_dev_d, state_size));

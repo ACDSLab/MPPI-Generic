@@ -1,11 +1,24 @@
 #include <cnpy.h>
 #include <mppi/utils/file_utils.h>
 #include <mppi/cost_functions/quadrotor/quadrotor_map_cost.cuh>
+#include <mppi/utils/cuda_math_utils.cuh>
 
 template <class CLASS_T, class PARAMS_T>
 QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::QuadrotorMapCostImpl(cudaStream_t stream)
 {
+  tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   this->bindToStream(stream);
+}
+template <class CLASS_T, class PARAMS_T>
+QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::~QuadrotorMapCostImpl()
+{
+  delete tex_helper_;
+}
+template <class CLASS_T, class PARAMS_T>
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::bindToStream(cudaStream_t stream)
+{
+  PARENT_CLASS::bindToStream(stream);
+  tex_helper_->bindToStream(stream);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -13,10 +26,21 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::freeCudaMem()
 {
   if (this->GPUMemStatus_)
   {
-    HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
-    HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_d_));
+    // HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
+    // HANDLE_ERROR(cudaDestroyTextureObject(costmap_tex_d_));
+    tex_helper_->freeCudaMem();
   }
-  Cost<CLASS_T, PARAMS_T, this->STATE_DIM, this->CONTROL_DIM>::freeCudaMem();
+  PARENT_CLASS::freeCudaMem();
+}
+
+template <class CLASS_T, class PARAMS_T>
+void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::GPUSetup()
+{
+  PARENT_CLASS* derived = static_cast<PARENT_CLASS*>(this);
+  tex_helper_->GPUSetup();
+  derived->GPUSetup();
+  HANDLE_ERROR(cudaMemcpyAsync(&(this->cost_d_->tex_helper_), &(tex_helper_->ptr_d_), sizeof(TwoDTextureHelper<float>*),
+                               cudaMemcpyHostToDevice, this->stream_));
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -24,18 +48,20 @@ void QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::paramsToDevice()
 {
   if (this->GPUMemStatus_)
   {
-    HANDLE_ERROR(cudaMemcpyAsync(&this->cost_d_->params_, &this->params_, sizeof(PARAMS_T), cudaMemcpyHostToDevice,
-                                 this->stream_));
-    HANDLE_ERROR(
-        cudaMemcpyAsync(&this->cost_d_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-    HANDLE_ERROR(
-        cudaMemcpyAsync(&this->cost_d_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
-    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+    // HANDLE_ERROR(cudaMemcpyAsync(&this->cost_d_->params_, &this->params_, sizeof(PARAMS_T), cudaMemcpyHostToDevice,
+    //                              this->stream_));
+    // HANDLE_ERROR(
+    //     cudaMemcpyAsync(&this->cost_d_->width_, &width_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
+    // HANDLE_ERROR(
+    //     cudaMemcpyAsync(&this->cost_d_->height_, &height_, sizeof(float), cudaMemcpyHostToDevice, this->stream_));
+    // HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+    tex_helper_->copyToDevice();
   }
+  PARENT_CLASS::paramsToDevice();
 }
 
 template <class CLASS_T, class PARAMS_T>
-float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(const Eigen::Ref<const state_array> s, int timestep,
+float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(const Eigen::Ref<const output_array> s, int timestep,
                                                                 int* crash_status)
 {
   // TODO query texture on CPU
@@ -58,7 +84,8 @@ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(const Eigen::Ref
 }
 
 template <class CLASS_T, class PARAMS_T>
-__device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float* s, int timestep, int* crash_status)
+__device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float* s, int timestep, float* theta_c,
+                                                                           int* crash_status)
 {
   float cost = 0;
   float costmap_cost, gate_cost, height_cost, heading_cost, speed_cost, stable_cost;
@@ -70,18 +97,25 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float
   speed_cost = computeSpeedCost(s);
   stable_cost = computeStabilizingCost(s);
   waypoint_cost = computeWaypointCost(s);
-
-  if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
+  if (gate_cost != 0)
   {
-    if (isnan(costmap_cost) || isnan(gate_cost) || isnan(height_cost) || isnan(heading_cost) || isnan(speed_cost) ||
-        isnan(stable_cost) || isnan(waypoint_cost))
-    {
-      printf(
-          "Costs rollout: Costmap %5.2f, Gate %5.2f, Height %5.2f,"
-          " Heading %5.2f, Speed %5.2f, Stabilization %5.2f, Waypoint %5.2f\n",
-          costmap_cost, gate_cost, height_cost, heading_cost, speed_cost, stable_cost, waypoint_cost);
-    }
+    *crash_status = 1;
   }
+
+  // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0
+  //     && timestep == 1)
+  // {
+  //   // if (isnan(costmap_cost) || isnan(gate_cost) || isnan(height_cost) || isnan(heading_cost) || isnan(speed_cost) ||
+  //   //     isnan(stable_cost) || isnan(waypoint_cost))
+  //   // {
+  //     printf(
+  //         "Costs rollout %d: Costmap %5.2f, Gate %5.2f, Height %5.2f,"
+  //         " Heading %5.2f, Speed %5.2f, Stabilization %5.2f, Waypoint %5.2f\n", timestep,
+  //         costmap_cost, gate_cost, height_cost, heading_cost, speed_cost, stable_cost, waypoint_cost);
+  //   // }
+  //   // printf("Costs %d: height - %5.2f, stable - %5.2f prev_height %5.2f, cur_height: %5.2f\n", timestep, height_cost,
+  //   //        stable_cost, this->params_.prev_waypoint.z, this->params_.curr_waypoint.z);
+  // }
 
   cost += costmap_cost + gate_cost + height_cost + heading_cost + speed_cost + stable_cost;
 
@@ -92,13 +126,16 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float
   {
     cost += this->params_.gate_pass_cost;
   }
+  cost += *crash_status * this->params_.crash_coeff;
   return cost;
 }
 
 template <class CLASS_T, class PARAMS_T>
 __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::distToWaypoint(float* s, float4 waypoint)
 {
-  float dist = sqrt(powf(s[0] - waypoint.x, 2) + powf(s[1] - waypoint.y, 2) + powf(s[2] - waypoint.z, 2));
+  float dist =
+      sqrt(powf(s[E_INDEX(OutputIndex, POS_X)] - waypoint.x, 2) + powf(s[E_INDEX(OutputIndex, POS_Y)] - waypoint.y, 2) +
+           powf(s[E_INDEX(OutputIndex, POS_Z)] - waypoint.z, 2));
 
   return dist;
 }
@@ -166,8 +203,8 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeadin
   mppi::math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
 
   // Calculate heading to gate
-  float wx = this->params_.curr_waypoint.x - s[0];
-  float wy = this->params_.curr_waypoint.y - s[1];
+  float wx = this->params_.curr_waypoint.x - s[E_INDEX(OutputIndex, POS_X)];
+  float wy = this->params_.curr_waypoint.y - s[E_INDEX(OutputIndex, POS_Y)];
   float w_heading = atan2f(wy, wx);
 
   float dist_to_gate = distToWaypoint(s, this->params_.curr_waypoint);
@@ -201,21 +238,26 @@ template <class CLASS_T, class PARAMS_T>
 __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeGateSideCost(float* s)
 {
   float cost = 0;
+  float2 curr_left = make_float2(this->params_.curr_gate_left.x, this->params_.curr_gate_left.y);
+  float2 curr_right = make_float2(this->params_.curr_gate_right.x, this->params_.curr_gate_right.y);
   // Calculate the side border cost
-  float dist_to_left_side =
-      sqrtf(powf(s[0] - this->params_.curr_gate_left.x, 2) + powf(s[1] - this->params_.curr_gate_left.y, 2));
-  float dist_to_right_side =
-      sqrtf(powf(s[0] - this->params_.curr_gate_right.x, 2) + powf(s[1] - this->params_.curr_gate_right.y, 2));
+  float dist_to_left_side = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - curr_left.x, 2) +
+                                  powf(s[E_INDEX(OutputIndex, POS_Y)] - curr_left.y, 2));
+  float dist_to_right_side = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - curr_right.x, 2) +
+                                   powf(s[E_INDEX(OutputIndex, POS_Y)] - curr_right.y, 2));
 
-  float prev_dist_to_left_side =
-      sqrtf(powf(s[0] - this->params_.prev_gate_left.x, 2) + powf(s[1] - this->params_.prev_gate_left.y, 2));
-  float prev_dist_to_right_side =
-      sqrtf(powf(s[0] - this->params_.prev_gate_right.x, 2) + powf(s[1] - this->params_.prev_gate_right.y, 2));
+  float prev_dist_to_left_side = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.prev_gate_left.x, 2) +
+                                       powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.prev_gate_left.y, 2));
+  float prev_dist_to_right_side = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.prev_gate_right.x, 2) +
+                                        powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.prev_gate_right.y, 2));
 
+  float2 gate_vec = curr_left - curr_right;
+  float2 state_vec = make_float2(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)]) - curr_right;
+  float comp_state_along_gate = dot(state_vec, gate_vec) / norm(gate_vec);
   // Find the side closest to the current state
   float closest_side_dist =
       fminf(dist_to_left_side, fminf(dist_to_right_side, fminf(prev_dist_to_left_side, prev_dist_to_right_side)));
-  if (closest_side_dist < this->params_.min_dist_to_gate_side)
+  if (closest_side_dist < this->params_.min_dist_to_gate_side && fabsf(comp_state_along_gate) > 1.0f)
   {
     cost += this->params_.crash_coeff;
   }
@@ -227,17 +269,19 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
 {
   // Calculate height cost
   float cost = 0;
-  // if (s[2] < 1) {
+  // if (s[E_INDEX(OutputIndex, POS_Z)] < 1) {
   //   return this->params_.crash_coeff;
   // }
-  float d1 = sqrtf(powf(s[0] - this->params_.prev_waypoint.x, 2) + powf(s[1] - this->params_.prev_waypoint.y, 2));
-  float d2 = sqrtf(powf(s[0] - this->params_.curr_waypoint.x, 2) + powf(s[1] - this->params_.curr_waypoint.y, 2));
+  float d1 = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.prev_waypoint.x, 2) +
+                   powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.prev_waypoint.y, 2));
+  float d2 = sqrtf(powf(s[E_INDEX(OutputIndex, POS_X)] - this->params_.curr_waypoint.x, 2) +
+                   powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.curr_waypoint.y, 2));
 
   float w1 = d1 / (d1 + d2 + 0.001);
   float w2 = d2 / (d1 + d2 + 0.001);
   float interpolated_height = (1.0 - w1) * this->params_.prev_waypoint.z + (1.0 - w2) * this->params_.curr_waypoint.z;
 
-  float height_diff = fabs(s[2] - interpolated_height);
+  float height_diff = fabs(s[E_INDEX(OutputIndex, POS_Z)] - interpolated_height);
   if (height_diff < 0)
   {
     cost += this->params_.crash_coeff;
@@ -254,27 +298,17 @@ template <class CLASS_T, class PARAMS_T>
 __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeCostmapCost(float* s)
 {
   float cost = 0;
-
-  float u, v, w;  // Transformed coordinates
-  coorTransform(s[0], s[1], &u, &v, &w);
-  float normalized_u = u / w;
-  float normalized_v = v / w;
-
-  // Query texture
-  float4 track_params = queryTexture(normalized_u, normalized_v);
-  // Outside of cost map
-  if (normalized_u < 0.001 || normalized_u > 0.999 || normalized_v < 0.001 || normalized_v > 0.999)
-  {
-    cost += this->params_.crash_coeff;
-  }
+  float3 query_point =
+      make_float3(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)], s[E_INDEX(OutputIndex, POS_Z)]);
+  float track_cost = this->tex_helper_->queryTextureAtWorldPose(0, query_point);
 
   // Calculate cost based on distance from centerline of the track
-  if (track_params.x > this->params_.track_slop)
+  if (track_cost > this->params_.track_slop)
   {
-    cost += this->params_.track_coeff * track_params.x;
+    cost += this->params_.track_coeff * track_cost;
   }
 
-  if (track_params.x > this->params_.track_boundary_cost)
+  if (track_cost > this->params_.track_boundary_cost)
   {
     // the cost at this point on the costmap indicates no longer being on the track
     cost += this->params_.crash_coeff;
@@ -284,14 +318,14 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeCostmapCost(flo
 }
 
 template <class CLASS_T, class PARAMS_T>
-float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(const Eigen::Ref<const state_array> s)
+float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(const Eigen::Ref<const output_array> s)
 {
   std::cout << "It is a cost function" << std::endl;
   return 0;
 }
 
 template <class CLASS_T, class PARAMS_T>
-__device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(float* s)
+__device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(float* s, float* theta_c)
 {
   return 0;
 }

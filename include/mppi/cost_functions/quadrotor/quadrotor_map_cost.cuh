@@ -5,7 +5,9 @@
 #define MPPI_COST_FUNCTIONS_QUADROTOR_MAP_COST_CUH_
 
 #include <mppi/cost_functions/cost.cuh>
+#include <mppi/dynamics/quadrotor/quadrotor_dynamics.cuh>
 #include <mppi/utils/math_utils.h>
+#include <mppi/utils/texture_helpers/two_d_texture_helper.cuh>
 
 #include <string>
 
@@ -33,10 +35,11 @@ struct QuadrotorMapCostParams : public CostParams<4>
   float3 prev_gate_right;
 
   // if the costmap cost is above this, we are no longer on the track
-  float desired_speed = 5;
-  float gate_margin = 0.5;
-  float min_dist_to_gate_side = 0.5;  // TODO find correct value for this
+  float desired_speed = 5;            // [m/s]
+  float gate_margin = 0.5;            // [m]
+  float min_dist_to_gate_side = 0.5;  // [m] TODO find correct value for this
   float track_boundary_cost = 2.5;
+  float gate_width = 2.15;  // [m]
 
   QuadrotorMapCostParams()
   {
@@ -60,6 +63,9 @@ struct QuadrotorMapCostParams : public CostParams<4>
     {
       prev_waypoint = curr_waypoint;
       curr_waypoint = make_float4(x, y, z, heading);
+      float3 curr_left = make_float3(x + cosf(heading) * gate_width, y + sinf(heading) * gate_width, z);
+      float3 curr_right = make_float3(x - cosf(heading) * gate_width, y - sinf(heading) * gate_width, z);
+      updateGateBoundaries(curr_left.x, curr_left.y, curr_left.z, curr_right.x, curr_right.y, curr_right.z);
       changed = true;
     }
     return changed;
@@ -73,8 +79,8 @@ struct QuadrotorMapCostParams : public CostParams<4>
     {
       prev_gate_left = curr_gate_left;
       prev_gate_right = curr_gate_right;
-      prev_gate_left = make_float3(left_x, left_y, left_z);
-      prev_gate_right = make_float3(right_x, right_y, right_z);
+      curr_gate_left = make_float3(left_x, left_y, left_z);
+      curr_gate_right = make_float3(right_x, right_y, right_z);
       changed = true;
     }
     return changed;
@@ -82,14 +88,23 @@ struct QuadrotorMapCostParams : public CostParams<4>
 };
 
 template <class CLASS_T, class PARAMS_T = QuadrotorMapCostParams>
-class QuadrotorMapCostImpl : public Cost<CLASS_T, PARAMS_T, 13, 4>
+class QuadrotorMapCostImpl : public Cost<CLASS_T, PARAMS_T, QuadrotorDynamicsParams>
 {
 public:
   // I think these typedefs are needed because this class is itself templated?
-  using state_array = typename Cost<CLASS_T, PARAMS_T, 13, 4>::state_array;
-  using control_array = typename Cost<CLASS_T, PARAMS_T, 13, 4>::control_array;
+  typedef Cost<CLASS_T, PARAMS_T, QuadrotorDynamicsParams> PARENT_CLASS;
+  using output_array = typename PARENT_CLASS::output_array;
+  using control_array = typename PARENT_CLASS::control_array;
+  using OutputIndex = typename PARENT_CLASS::OutputIndex;
+  using ControlIndex = typename PARENT_CLASS::ControlIndex;
 
   QuadrotorMapCostImpl(cudaStream_t stream = 0);
+
+  ~QuadrotorMapCostImpl();
+
+  void bindToStream(cudaStream_t stream);
+
+  void GPUSetup();
 
   void freeCudaMem();
 
@@ -100,13 +115,13 @@ public:
     return std::string("Quadrotor Map Cost");
   }
 
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep, int* crash_status);
+  float computeStateCost(const Eigen::Ref<const output_array> s, int timestep, int* crash_status);
 
-  __device__ float computeStateCost(float* s, int timestep, int* crash_status);
+  __device__ float computeStateCost(float* s, int timestep, float* theta_c, int* crash_status);
 
-  float terminalCost(const Eigen::Ref<const state_array> s);
+  float terminalCost(const Eigen::Ref<const output_array> s);
 
-  __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* s, float* theta_c = nullptr);
 
   __host__ __device__ float computeGateSideCost(float* s);
 
@@ -165,6 +180,8 @@ public:
    * Queries the texture using coorTransform beforehand
    */
   __device__ float4 queryTextureTransformed(float x, float y);
+
+  TwoDTextureHelper<float>* tex_helper_ = nullptr;
 
 protected:
   std::string map_path_;

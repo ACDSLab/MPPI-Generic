@@ -72,6 +72,8 @@ __global__ void run_dynamics(DYN_T* dynamics, float* initial_state, float* contr
 
   // Create shared state and control arrays
   __shared__ float x_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+  __shared__ float y_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
+  __shared__ float x_next_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
   __shared__ float xdot_shared[BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z];
   __shared__ float u_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
   __shared__ float du_shared[BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z];
@@ -83,6 +85,9 @@ __global__ void run_dynamics(DYN_T* dynamics, float* initial_state, float* contr
 
   float* x;
   float* xdot;
+  float* x_next;
+  float* x_temp;
+  float* y;
   float* u;
   float dt = 0.02;
   // float* du;
@@ -90,6 +95,8 @@ __global__ void run_dynamics(DYN_T* dynamics, float* initial_state, float* contr
   if (global_idx < NUM_ROLLOUTS)
   {
     x = &x_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+    x_next = &x_next_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
+    y = &y_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
     xdot = &xdot_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM];
     u = &u_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
     // du = &du_shared[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM];
@@ -107,8 +114,9 @@ __global__ void run_dynamics(DYN_T* dynamics, float* initial_state, float* contr
     }
     __syncthreads();
     /*<----Start of simulation loop-----> */
-    dynamics->initializeDynamics(x, u, theta_s, 0.0, 0.0);
-    dynamics->computeStateDeriv(x, u, xdot, theta_s);
+    dynamics->initializeDynamics(x, u, y, theta_s, 0.0, 0.0);
+    // dynamics->computeStateDeriv(x, u, xdot, theta_s);
+    dynamics->step(x, x_next, xdot, u, y, theta_s, 0.0, 0.1);
     // __syncthreads();
     // dynamics->updateState(x, xdot, dt);
     // __syncthreads();
@@ -405,7 +413,8 @@ TEST_F(LSTMDynamicsTest, LoadWeights)
   Eigen::Map<DYNAMICS::state_array> initial_state_mat(initial_state_cpu);
   Eigen::Map<DYNAMICS::control_array> control_cpu_mat(control_cpu);
   DYNAMICS::state_array state_der_mat;
-  model.initializeDynamics(initial_state_mat, control_cpu_mat, 0.0, 0.02);
+  DYNAMICS::output_array output;
+  model.initializeDynamics(initial_state_mat, control_cpu_mat, output, 0.0, 0.02);
   model.computeDynamics(initial_state_mat, control_cpu_mat, state_der_mat);
   auto dyn_cpu_params = model.getParams();
 

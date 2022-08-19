@@ -7,14 +7,14 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
 void CONTROLLER::deallocateCUDAMemory()
 {
   HANDLE_ERROR(cudaFree(control_d_));
-  HANDLE_ERROR(cudaFree(state_d_));
+  HANDLE_ERROR(cudaFree(output_d_));
   HANDLE_ERROR(cudaFree(trajectory_costs_d_));
   HANDLE_ERROR(cudaFree(control_std_dev_d_));
   HANDLE_ERROR(cudaFree(control_noise_d_));
   HANDLE_ERROR(cudaFree(cost_baseline_and_norm_d_));
   if (sampled_states_CUDA_mem_init_)
   {
-    HANDLE_ERROR(cudaFree(sampled_states_d_));
+    HANDLE_ERROR(cudaFree(sampled_outputs_d_));
     HANDLE_ERROR(cudaFree(sampled_noise_d_));
     HANDLE_ERROR(cudaFree(sampled_costs_d_));
     sampled_states_CUDA_mem_init_ = false;
@@ -214,7 +214,8 @@ void CONTROLLER::allocateCUDAMemoryHelper(int nominal_size, bool allocate_double
   }
   HANDLE_ERROR(cudaMalloc((void**)&initial_state_d_, sizeof(float) * DYN_T::STATE_DIM * nominal_size));
   HANDLE_ERROR(cudaMalloc((void**)&control_d_, sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS * nominal_size));
-  HANDLE_ERROR(cudaMalloc((void**)&state_d_, sizeof(float) * DYN_T::STATE_DIM * MAX_TIMESTEPS * nominal_size));
+  HANDLE_ERROR(
+      cudaMalloc((void**)&output_d_, sizeof(float) * DYN_T::OUTPUT_DIM * MAX_TIMESTEPS * NUM_ROLLOUTS * nominal_size));
   HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d_, sizeof(float) * NUM_ROLLOUTS * nominal_size));
   HANDLE_ERROR(cudaMalloc((void**)&control_std_dev_d_, sizeof(float) * DYN_T::CONTROL_DIM));
   HANDLE_ERROR(cudaMalloc((void**)&control_noise_d_, sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS * NUM_ROLLOUTS *
@@ -232,13 +233,13 @@ void CONTROLLER::resizeSampledControlTrajectories(float perc, int multiplier, in
 
   if (sampled_states_CUDA_mem_init_)
   {
-    cudaFree(sampled_states_d_);
+    cudaFree(sampled_outputs_d_);
     cudaFree(sampled_noise_d_);
     cudaFree(sampled_costs_d_);
     cudaFree(sampled_crash_status_d_);
     sampled_states_CUDA_mem_init_ = false;
   }
-  sampled_trajectories_.resize(num_sampled_trajectories * multiplier, state_trajectory::Zero());
+  sampled_trajectories_.resize(num_sampled_trajectories * multiplier, output_trajectory::Zero());
   sampled_costs_.resize(num_sampled_trajectories * multiplier, cost_trajectory::Zero());
   sampled_crash_status_.resize(num_sampled_trajectories * multiplier, crash_status_trajectory::Zero());
   if (num_sampled_trajectories <= 0)
@@ -246,8 +247,8 @@ void CONTROLLER::resizeSampledControlTrajectories(float perc, int multiplier, in
     return;
   }
 
-  HANDLE_ERROR(cudaMalloc((void**)&sampled_states_d_,
-                          sizeof(float) * DYN_T::STATE_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
+  HANDLE_ERROR(cudaMalloc((void**)&sampled_outputs_d_,
+                          sizeof(float) * DYN_T::OUTPUT_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
   HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_,
                           sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
   // +1 for terminal cost

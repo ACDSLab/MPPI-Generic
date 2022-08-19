@@ -109,16 +109,16 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), -1 * 2.45);
+  EXPECT_FLOAT_EQ(next_x(4), 1 * 5 * 0.6);
 
   x << 1, M_PI, 0, 0, 0.5;
   u << 1, -1;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7 + 1.3);
-  EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0.5));
+  EXPECT_FLOAT_EQ(next_x(1), (1 / .3) * tan(0.5 / -9.1));
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
-  EXPECT_FLOAT_EQ(next_x(4), 1 * 2.45);
+  EXPECT_FLOAT_EQ(next_x(4), (-1 * 5 - 0.5) * 0.6);
 }
 
 TEST(RacerDubins, TestModelGPU)
@@ -131,8 +131,8 @@ TEST(RacerDubins, TestModelGPU)
   Eigen::Matrix<float, RacerDubins::STATE_DIM, 100> state_trajectory;
   state_trajectory = Eigen::Matrix<float, RacerDubins::STATE_DIM, 100>::Random();
 
-  std::vector<std::array<float, 5>> s(100);
-  std::vector<std::array<float, 5>> s_der(100);
+  std::vector<std::array<float, 7>> s(100);
+  std::vector<std::array<float, 7>> s_der(100);
   // steering, throttle
   std::vector<std::array<float, 2>> u(100);
   for (int state_index = 0; state_index < s.size(); state_index++)
@@ -153,7 +153,7 @@ TEST(RacerDubins, TestModelGPU)
   // Run dynamics on GPU
   for (int y_dim = 1; y_dim <= 4; y_dim++)
   {
-    launchComputeDynamicsTestKernel<RacerDubins, 5, 2>(dynamics, s, u, s_der, y_dim);
+    launchComputeDynamicsTestKernel<RacerDubins, 7, 2>(dynamics, s, u, s_der, y_dim);
     for (int point = 0; point < 100; point++)
     {
       RacerDubins::state_array state = state_trajectory.col(point);
@@ -163,7 +163,8 @@ TEST(RacerDubins, TestModelGPU)
       dynamics.computeDynamics(state, control, state_der_cpu);
       for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
       {
-        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5)
+            << "at sample " << point << ", state dim: " << dim << " with y_dim " << y_dim;
         EXPECT_TRUE(isfinite(s_der[point][dim]));
       }
     }
@@ -181,32 +182,38 @@ TEST(RacerDubins, TestUpdateState)
   state << 0, 0, 0, 0, 0;
   state_der << 1, 1, 1, 1, 1;
   dynamics.updateState(state, state_der, 0.1);
-  EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 0.1);
   EXPECT_FLOAT_EQ(state(1), 0.1);
   EXPECT_FLOAT_EQ(state(2), 0.1);
   EXPECT_FLOAT_EQ(state(3), 0.1);
-  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 0.1));
+  EXPECT_FLOAT_EQ(state(4), 0.1);
+  EXPECT_FLOAT_EQ(state(5), 1);
+  EXPECT_FLOAT_EQ(state(6), 1);
 
   state << 0, M_PI - 0.1, 0, 0, 0;
   state_der << 1, 1, 1, 1, 1;
   dynamics.updateState(state, state_der, 1.0);
-  EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 1.0);
   EXPECT_FLOAT_EQ(state(1), 1.0 - M_PI - 0.1);
   EXPECT_FLOAT_EQ(state(2), 1.0);
   EXPECT_FLOAT_EQ(state(3), 1.0);
-  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
+  EXPECT_FLOAT_EQ(state(4), 0.5);  // max steer angle is 0.5
+  EXPECT_FLOAT_EQ(state(5), 1);
+  EXPECT_FLOAT_EQ(state(6), 1);
 
   state << 0, -M_PI + 0.1, 0, 0, 0;
   state_der << 1, -1, 1, 1, 1;
   dynamics.updateState(state, state_der, 1.0);
-  EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+  EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 1.0);
   EXPECT_FLOAT_EQ(state(1), M_PI + 0.1 - 1.0);
   EXPECT_FLOAT_EQ(state(2), 1.0);
   EXPECT_FLOAT_EQ(state(3), 1.0);
-  EXPECT_FLOAT_EQ(state(4), 1.0 + (0 - 1.0) * expf(-0.6 * 1.0));
+  EXPECT_FLOAT_EQ(state(4), 0.5);  // max steer angle is 0.5
+  EXPECT_FLOAT_EQ(state(5), 1);
+  EXPECT_FLOAT_EQ(state(6), 1);
 }
 
 TEST(RacerDubins, TestUpdateStateGPU)
@@ -219,10 +226,10 @@ TEST(RacerDubins, TestUpdateStateGPU)
   Eigen::Matrix<float, RacerDubins::STATE_DIM, 100> state_trajectory;
   state_trajectory = Eigen::Matrix<float, RacerDubins::STATE_DIM, 100>::Random();
 
-  std::vector<std::array<float, 7>> s(100);
-  std::vector<std::array<float, 7>> s_der(100);
+  std::vector<std::array<float, RacerDubins::STATE_DIM>> s(100);
+  std::vector<std::array<float, RacerDubins::STATE_DIM>> s_der(100);
   // steering, throttle
-  std::vector<std::array<float, 2>> u(100);
+  std::vector<std::array<float, RacerDubins::CONTROL_DIM>> u(100);
 
   RacerDubins::state_array state;
   RacerDubins::control_array control;
@@ -257,7 +264,7 @@ TEST(RacerDubins, TestUpdateStateGPU)
       dynamics.updateState(state, state_der_cpu, 0.1f);
       for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
       {
-        EXPECT_FLOAT_EQ(state_der_cpu(dim), s_der[point][dim]) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5) << "at index " << point << " with y_dim " << y_dim;
         EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
         EXPECT_TRUE(isfinite(s[point][dim]));
       }
@@ -296,7 +303,7 @@ TEST(RacerDubins, ComputeStateTrajectoryFiniteTest)
     dynamics.updateState(x, state_der, 0.02);
     EXPECT_TRUE(x.allFinite());
     EXPECT_TRUE(u.allFinite());
-    EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+    EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   }
   params.steering_constant = 0.5;
   dynamics.setParams(params);
@@ -312,7 +319,7 @@ TEST(RacerDubins, ComputeStateTrajectoryFiniteTest)
     dynamics.updateState(x, state_der, 0.02);
     EXPECT_TRUE(x.allFinite());
     EXPECT_TRUE(u.allFinite());
-    EXPECT_TRUE(state_der == RacerDubins::state_array::Zero());
+    EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   }
 }
 

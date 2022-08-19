@@ -48,13 +48,25 @@ struct LSTMDynamicsParams : public DynamicsParams
     BODY_VEL_X,
     BODY_VEL_Y,
     YAW_RATE,
-    NUM_STATES
+    NUM_STATES = S_DIM
   };
   enum class ControlIndex : int
   {
     STEERING = 0,
     THROTTLE,
-    NUM_CONTROLS
+    NUM_CONTROLS = C_DIM
+  };
+
+  enum class OutputIndex : int
+  {
+    POS_X = 0,
+    POS_Y,
+    YAW,
+    ROLL,
+    BODY_VEL_X,
+    BODY_VEL_Y,
+    YAW_RATE,
+    NUM_OUTPUTS = S_DIM
   };
   static const int DYNAMICS_DIM = S_DIM - K_DIM;  ///< number of inputs from state
   // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
@@ -323,19 +335,21 @@ using namespace MPPI_internal;
 
 template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER = 11, int INIT_DIM = 200>
 class LSTMModel : public Dynamics<LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>,
-                                  LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>, S_DIM, C_DIM>
+                                  LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>>
 {
 public:
   // TODO remove duplication of calculation of values, pull from the structure
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   using LSTM_MODEL = LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
   using LSTM_PARAMS = LSTMDynamicsParams<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>;
+  using PARENT_CLASS = Dynamics<LSTM_MODEL, LSTM_PARAMS>;
 
   // Define Eigen fixed size matrices
-  using state_array = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::state_array;
-  using control_array = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::control_array;
-  using dfdx = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::dfdx;
-  using dfdu = typename Dynamics<LSTM_MODEL, LSTM_PARAMS, S_DIM, C_DIM>::dfdu;
+  using state_array = typename PARENT_CLASS::state_array;
+  using control_array = typename PARENT_CLASS::control_array;
+  using output_array = typename PARENT_CLASS::output_array;
+  using dfdx = typename PARENT_CLASS::dfdx;
+  using dfdu = typename PARENT_CLASS::dfdu;
 
   static const int DYNAMICS_DIM = S_DIM - K_DIM;  ///< number of inputs from state
   // static const int NUM_LAYERS = layer_counter(layer_args...); ///< Total number of layers (including in/out layer)
@@ -414,11 +428,11 @@ public:
   void computeKinematics(const Eigen::Ref<const state_array>& state, Eigen::Ref<state_array> s_der);
 
   void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                          float t_0, float dt);
+                          Eigen::Ref<output_array> output, float t_0, float dt);
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
-  __device__ void initializeDynamics(float* state, float* control, float* theta_s, float t_0, float dt);
+  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
 
 protected:
   Eigen::Matrix<float, H_DIM, 1> hidden_state_;

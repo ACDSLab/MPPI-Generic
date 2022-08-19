@@ -4,6 +4,7 @@
 #define CARTPOLE_QUADRATIC_COST_CUH_
 
 #include <mppi/cost_functions/cost.cuh>
+#include <mppi/dynamics/cartpole/cartpole_dynamics.cuh>
 #include <mppi/utils/file_utils.h>
 #include <vector>
 #include <eigen3/Eigen/Dense>
@@ -24,7 +25,7 @@ struct CartpoleQuadraticCostParams : public CostParams<1>
   }
 };
 
-class CartpoleQuadraticCost : public Cost<CartpoleQuadraticCost, CartpoleQuadraticCostParams, 4, 1>
+class CartpoleQuadraticCost : public Cost<CartpoleQuadraticCost, CartpoleQuadraticCostParams, CartpoleDynamicsParams>
 {
 public:
   /**
@@ -37,17 +38,17 @@ public:
   /**
    * @brief Compute the state cost
    */
-  __device__ float computeStateCost(float* s, int timestep = 0, int* crash_status = nullptr);
+  __device__ float computeStateCost(float* s, int timestep = 0, float* theta_c = nullptr, int* crash_status = nullptr);
 
   /**
    * @brief Compute the state cost on the CPU
    */
-  float computeStateCost(const Eigen::Ref<const state_array> s, int timestep = 0, int* crash_status = nullptr);
+  float computeStateCost(const Eigen::Ref<const output_array> s, int timestep = 0, int* crash_status = nullptr);
 
   /**
    * @brief Compute the terminal cost of the system
    */
-  __device__ float terminalCost(float* s);
+  __device__ float terminalCost(float* s, float* theta_c);
 
 protected:
 };

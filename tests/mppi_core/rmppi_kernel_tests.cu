@@ -113,7 +113,8 @@ TEST_F(RMPPIKernels, InitEvalRollout)
   strides << 1, 2, 3, 4, 4, 4, 4, 4, 4;
 
   // Let us make temporary variables to hold the states and state derivatives and controls
-  dynamics::state_array x_current, x_dot_current;
+  dynamics::state_array x_current, x_dot_current, x_next;
+  dynamics::output_array output = dynamics::output_array::Zero();
   dynamics::control_array u_current;
   dynamics::control_array noise_current;
 
@@ -158,19 +159,17 @@ TEST_F(RMPPIKernels, InitEvalRollout)
         // compute the cost
         if (k > 0)
         {
-          cost_current += (cost->computeRunningCost(x_current, candidate_nominal_control.col(k), noise_current,
+          cost_current += (cost->computeRunningCost(output, candidate_nominal_control.col(k), noise_current,
                                                     exploration_var, lambda, alpha, k, crash_status) -
                            cost_current) /
                           (1.0f * k);
         }
-
-        // compute the next state_dot
-        model->computeStateDeriv(x_current, u_current, x_dot_current);
-        // update the state to the next
-        model->updateState(x_current, x_dot_current, dt);
+        // Update State
+        model->step(x_current, x_next, x_dot_current, u_current, output, k, dt);
+        x_current = x_next;
       }
       // compute the terminal cost -> this is the free energy estimate, save it!
-      cost_vector.col(i * num_samples + j) << cost_current;
+      cost_vector.col(i * num_samples + j) << cost_current + cost->terminalCost(output) / (num_timesteps - 1);
       cost_current = 0.0;
     }
   }
@@ -202,8 +201,8 @@ TEST_F(RMPPIKernels, InitEvalRollout)
   // Compare with the CPU version
   HANDLE_ERROR(cudaMemcpy(cost_vector_GPU.data(), costs_d, sizeof(float) * num_samples * num_candidates,
                           cudaMemcpyDeviceToHost));
-
-  EXPECT_LT((cost_vector - cost_vector_GPU).norm(), 5e-3);
+  auto cost_diff = cost_vector - cost_vector_GPU;
+  EXPECT_LT(cost_diff.norm(), 5e-3);
 }
 
 TEST(RMPPITest, RMPPIRolloutKernel_CPU_v_GPU)
