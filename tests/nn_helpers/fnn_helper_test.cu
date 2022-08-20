@@ -9,6 +9,8 @@
 // Auto-generated header file
 #include <autorally_test_network.h>
 #include <mppi/utils/network_helper_kernel_test.cuh>
+#include <unsupported/Eigen/NumericalDiff>
+#include "mppi/ddp/ddp_dynamics.h"
 
 class FNNHelperTest : public testing::Test
 {
@@ -425,4 +427,51 @@ TEST_F(FNNHelperTest, forwardGPU)
       }
     }
   }
+}
+
+TEST_F(FNNHelperTest, TestComputeGradComputation)
+{
+  FNNHelper<FNNParams<6, 32, 32, 4>> model;
+  std::vector<float> theta(1412);
+  for (int i = 0; i < 1412; i++)
+  {
+    theta[i] = distribution(generator);
+  }
+  model.updateModel({ 6, 32, 32, 4 }, theta);
+
+  FNNHelper<FNNParams<6, 32, 32, 4>>::dfdx numeric_jac;
+  FNNHelper<FNNParams<6, 32, 32, 4>>::dfdx analytic_jac;
+
+  FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input;
+  input << 1, 2, 3, 4, 5, 6;
+
+  model.computeGrad(input, analytic_jac);
+
+  EXPECT_TRUE(analytic_jac.allFinite());
+}
+
+TEST_F(FNNHelperTest, TestComputeGradComputationCompare)
+{
+  GTEST_SKIP();
+  FNNHelper<FNNParams<6, 32, 32, 4>> model;
+  std::vector<float> theta(1412);
+  for (int i = 0; i < 1412; i++)
+  {
+    theta[i] = distribution(generator);
+  }
+  model.updateModel({ 6, 32, 32, 4 }, theta);
+
+  FNNHelper<FNNParams<6, 32, 32, 4>>::dfdx numeric_jac;
+  FNNHelper<FNNParams<6, 32, 32, 4>>::dfdx analytic_jac;
+
+  FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input;
+  input << 1, 2, 3, 4, 5, 6;
+
+  model.computeGrad(input, analytic_jac);
+
+  // numeric_jac = num_diff.df(input, numeric_jac);
+
+  ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n"
+                                                       << numeric_jac << "\nAnalytic Jacobian\n"
+                                                       << analytic_jac;
 }

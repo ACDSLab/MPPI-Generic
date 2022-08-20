@@ -495,7 +495,7 @@ TEST_F(LSTMDynamicsTest, CompareComputeControl)
                         mppi::tests::autorally_cell_network_file, mppi::tests::autorally_output_network_file);
 
   std::cout << "LSTM Num params: " << LSTM_model.getParams().LSTM_NUM_WEIGHTS << std::endl;
-  std::cout << "FF Num params: " << FF_model.getParams().NUM_PARAMS << std::endl;
+  // std::cout << "FF Num params: " << FF_model.getParams().NUM_PARAMS << std::endl;
 
   std::vector<float> x_0 = { 2.9642e-04, 5.7054e+00, 1.1859e-03, 1.3721e-01, 2.4944e-02, 1.2798e-01 };
   std::vector<float> x_1 = { 7.8346e-04, 5.6928e+00, -1.4520e-02, 1.7258e-01, -3.1522e-03, 8.4512e-02 };

@@ -6,6 +6,11 @@
 #include <mppi/utils/file_utils.h>
 #include <cnpy.h>
 
+// Including neural net model
+#ifdef MPPI_NNET_USING_CONSTANT_MEM__
+__device__ __constant__ float NNET_PARAMS[param_counter(6, 32, 32, 4)];
+#endif
+
 template<int... layer_args>
 struct FNNParams {
   static const int NUM_LAYERS = layer_counter(layer_args...);  ///< Total number of layers (including in/out layer)
@@ -25,7 +30,7 @@ struct FNNParams {
 
   // packed by all weights that connect layer 1 to layer 2 neuron 1, bias for all connections from layer 1 to layer 2
   // then layer 2 neuron 2, etc
-  ThetaArr theta = { 0.0 };
+  ThetaArr theta = { 0.0f };
   // TODO stride_idcs and net_strucutre should be write protected, so user cannot modify these values
 
   // index into theta for weights and bias (layer 0 weights start, no bias in input layer, layer 1 weights start, layer1
@@ -85,12 +90,14 @@ public:
 
   void paramsToDevice();
 
+  bool computeGrad(Eigen::Ref<dfdx> A);
+
   bool computeGrad(const Eigen::Ref<const input_array>& input,
                    Eigen::Ref<dfdx> A);
 
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
 
-  __device__ void forward(float* input, float* output, float* theta_s);
+  __device__ float* forward(float* input, float* theta_s);
 
   std::array<int, NUM_LAYERS> getNetStructure()
   {

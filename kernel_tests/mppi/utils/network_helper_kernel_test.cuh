@@ -66,7 +66,12 @@ __global__ void forwardTestKernel(NETWORK_T* network, float* input, float* outpu
 
   if (tid < num)
   {
-    network->forward(local_input, local_output, theta);
+    float* curr_act = network->forward(local_input, theta);
+    for (int i = threadIdx.y; i < NETWORK_T::OUTPUT_DIM; i += blockDim.y)
+    {
+      output[i] = curr_act[i];
+    }
+    __syncthreads();
   }
 }
 

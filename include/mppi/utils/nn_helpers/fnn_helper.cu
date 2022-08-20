@@ -182,39 +182,50 @@ void FNNHelper<PARAMS_T>::GPUSetup()
 template <class PARAMS_T>
 void FNNHelper<PARAMS_T>::paramsToDevice()
 {
-  // the only thing that should change is theta
-  HANDLE_ERROR(cudaMemcpyAsync(this->network_d_->params_.theta, this->params_.theta, NUM_PARAMS * sizeof(float),
-                               cudaMemcpyHostToDevice));
+  if (this->GPUMemStatus_)
+  {
+    // the only thing that should change is theta
+    HANDLE_ERROR(cudaMemcpyAsync(this->network_d_->params_.theta, this->params_.theta, NUM_PARAMS * sizeof(float),
+                                 cudaMemcpyHostToDevice));
+  }
 }
 
 template <class PARAMS_T>
 bool FNNHelper<PARAMS_T>::computeGrad(const Eigen::Ref<const input_array>& input, Eigen::Ref<dfdx> A)
 {
-  return false;
   // compute forward to see gradient values
-  // TODO
-  // output_array output;
-  // forward(input, output);
+  output_array output;
+  forward(input, output);
+  return computeGrad(A);
+}
 
-  // // Start backprop
-  // Eigen::MatrixXf ip_delta = Eigen::MatrixXf::Identity(INPUT_DIM, INPUT_DIM);
+template <class PARAMS_T>
+bool FNNHelper<PARAMS_T>::computeGrad(Eigen::Ref<dfdx> A)
+{
+  // Start backprop
+  Eigen::MatrixXf ip_delta = Eigen::MatrixXf::Identity(OUTPUT_DIM, OUTPUT_DIM);
 
-  // // Main backprop loop
-  // for (int i = NUM_LAYERS - 2; i > 0; i--)
-  // {
-  //   Eigen::MatrixXf zp = weighted_in_[i - 1];
-  //   for (int j = 0; j < this->params_.net_structure[i]; j++)
-  //   {
-  //     zp(j) = TANH_DERIV(zp(j));
-  //   }
-  //   ip_delta = ((weights_[i]).transpose() * ip_delta).eval();
-  //   for (int j = 0; j < INPUT_DIM; j++)
-  //   {
-  //     ip_delta.col(j) = ip_delta.col(j).array() * zp.array();
-  //   }
-  // }
-  // ip_delta = (((weights_[0]).transpose()) * ip_delta).eval();
-  // return true;
+  // Main backprop loop
+  for (int i = NUM_LAYERS - 2; i > 0; i--)
+  {
+    Eigen::MatrixXf zp = weighted_in_[i - 1];
+    for (int j = 0; j < this->params_.net_structure[i]; j++)
+    {
+      zp(j) = TANH_DERIV(zp(j));
+    }
+    ip_delta = ((weights_[i]).transpose() * ip_delta).eval();
+    for (int j = 0; j < OUTPUT_DIM; j++)
+    {
+      ip_delta.col(j) = ip_delta.col(j).array() * zp.array();
+    }
+  }
+
+  ip_delta = (((weights_[0]).transpose()) * ip_delta).transpose().eval();
+  for (int i = 0; i < INPUT_DIM; i++)
+  {
+    A.col(i) = ip_delta.col(i);
+  }
+  return true;
 }
 
 template <class PARAMS_T>
@@ -245,7 +256,7 @@ void FNNHelper<PARAMS_T>::forward(const Eigen::Ref<const input_array>& input, Ei
 }
 
 template <class PARAMS_T>
-__device__ void FNNHelper<PARAMS_T>::forward(float* input, float* output, float* theta_s)
+__device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
 {
   float* curr_act;
   float* next_act;
@@ -260,9 +271,12 @@ __device__ void FNNHelper<PARAMS_T>::forward(float* input, float* output, float*
   curr_act = &theta_s[(2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx)];
   next_act = &theta_s[(2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx) + LARGEST_LAYER];
   // iterate through the part of the state that should be an input to the NN
-  for (i = tdy; i < INPUT_DIM; i += blockDim.y)
+  if (input != nullptr)
   {
-    curr_act[i] = input[i];
+    for (i = tdy; i < INPUT_DIM; i += blockDim.y)
+    {
+      curr_act[i] = input[i];
+    }
   }
   __syncthreads();
   // iterate through each layer
@@ -301,10 +315,5 @@ __device__ void FNNHelper<PARAMS_T>::forward(float* input, float* output, float*
     next_act = tmp_act;
     __syncthreads();
   }
-  // copies results back into state derivative
-  for (i = tdy; i < OUTPUT_DIM; i += blockDim.y)
-  {
-    output[i] = curr_act[i];
-  }
-  __syncthreads();
+  return curr_act;
 }

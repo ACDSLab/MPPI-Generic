@@ -42,7 +42,7 @@ struct ARStandardCostParams : public CostParams<2>
 };
 
 template <class CLASS_T, class PARAMS_T = ARStandardCostParams,
-          class DYN_PARAMS_T = NNDynamicsParams<7, 2, 3, 6, 32, 32, 4>>
+          class DYN_PARAMS_T = NNDynamicsParams>
 class ARStandardCostImpl : public Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>
 {
 public:
