@@ -173,7 +173,7 @@ TEST(DubinsDynamics, TestComputeGradComputation)
   Eigen::Matrix<float, DubinsDynamics::STATE_DIM, DubinsDynamics::STATE_DIM + DubinsDynamics::CONTROL_DIM> numeric_jac;
   Eigen::Matrix<float, DubinsDynamics::STATE_DIM, DubinsDynamics::STATE_DIM + DubinsDynamics::CONTROL_DIM> analytic_jac;
   DubinsDynamics::state_array state;
-  state << 1, 2, 3, 4;
+  state << 1, 2, 3;
   DubinsDynamics::control_array control;
   control << 5;
 

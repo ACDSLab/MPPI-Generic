@@ -184,7 +184,7 @@ TEST(RacerDubins, TestUpdateState)
   dynamics.updateState(state, state_der, 0.1);
   EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 0.1);
-  EXPECT_FLOAT_EQ(state(1), 0.1);
+  EXPECT_NEAR(state(1), 0.1, 1e-7);
   EXPECT_FLOAT_EQ(state(2), 0.1);
   EXPECT_FLOAT_EQ(state(3), 0.1);
   EXPECT_FLOAT_EQ(state(4), 0.1);

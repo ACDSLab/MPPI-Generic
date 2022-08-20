@@ -41,3 +41,15 @@ __device__ float CartpoleQuadraticCost::terminalCost(float* state, float* theta_
               params_.pole_angular_velocity_coeff) *
          params_.terminal_cost_coeff;
 }
+float CartpoleQuadraticCost::terminalCost(const Eigen::Ref<const output_array> state)
+{
+  return ((state[0] - params_.desired_terminal_state[0]) * (state[0] - params_.desired_terminal_state[0]) *
+              params_.cart_position_coeff +
+          (state[1] - params_.desired_terminal_state[1]) * (state[1] - params_.desired_terminal_state[1]) *
+              params_.cart_velocity_coeff +
+          (state[2] - params_.desired_terminal_state[2]) * (state[2] - params_.desired_terminal_state[2]) *
+              params_.pole_angle_coeff +
+          (state[3] - params_.desired_terminal_state[3]) * (state[3] - params_.desired_terminal_state[3]) *
+              params_.pole_angular_velocity_coeff) *
+         params_.terminal_cost_coeff;
+}
