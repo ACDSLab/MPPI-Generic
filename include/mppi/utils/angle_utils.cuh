@@ -15,9 +15,11 @@ __host__ __device__ static inline double normalizeAngle(double angle)
     return result + M_PI;
   return result - M_PI;
 }
+// float version might not be exact
+// different systems will have slightly different values.
 __host__ __device__ static inline float normalizeAngle(float angle)
 {
-  const float result = fmodf(angle + M_PIf32, 2.0 * M_PIf32);
+  const float result = fmodf(angle + M_PIf32, 2.0f * M_PIf32);
   if (result <= 0.0f)
     return result + M_PIf32;
   return result - M_PIf32;

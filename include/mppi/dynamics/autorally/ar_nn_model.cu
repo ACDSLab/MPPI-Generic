@@ -171,7 +171,6 @@ bool NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const Eigen
 
   // Start backprop
   Eigen::MatrixXf ip_delta = Eigen::MatrixXf::Identity(DYNAMICS_DIM, DYNAMICS_DIM);
-  Eigen::MatrixXf temp_delta = Eigen::MatrixXf::Identity(DYNAMICS_DIM, DYNAMICS_DIM);
 
   // Main backprop loop
   for (int i = NUM_LAYERS - 2; i > 0; i--)
