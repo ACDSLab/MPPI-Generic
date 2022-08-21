@@ -50,6 +50,8 @@ public:
    */
   __device__ float terminalCost(float* s, float* theta_c);
 
+  float terminalCost(const Eigen::Ref<const output_array> s);
+
 protected:
 };
 

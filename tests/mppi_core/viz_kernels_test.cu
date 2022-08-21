@@ -53,7 +53,7 @@ protected:
     HANDLE_ERROR(
         cudaMalloc((void**)&control_d, sizeof(float) * CartpoleDynamics::CONTROL_DIM * MAX_TIMESTEPS * num_rollouts));
     // Create cost trajectory cuda array
-    HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d, sizeof(float) * num_rollouts * MAX_TIMESTEPS * 2));
+    HANDLE_ERROR(cudaMalloc((void**)&trajectory_costs_d, sizeof(float) * num_rollouts * (MAX_TIMESTEPS + 1) * 2));
     // Create result state cuda array
     HANDLE_ERROR(cudaMalloc((void**)&result_state_d,
                             sizeof(float) * num_rollouts * MAX_TIMESTEPS * CartpoleDynamics::STATE_DIM * 2));
@@ -75,7 +75,7 @@ protected:
   typedef Eigen::Matrix<float, CartpoleDynamics::STATE_DIM, MAX_TIMESTEPS> state_trajectory;      // A state trajectory
   typedef Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, MAX_TIMESTEPS> control_trajectory;  // A control
                                                                                                   // trajectory
-  typedef Eigen::Matrix<float, MAX_TIMESTEPS, 1> cost_trajectory;
+  typedef Eigen::Matrix<float, MAX_TIMESTEPS + 1, 1> cost_trajectory;
   typedef Eigen::Matrix<int, MAX_TIMESTEPS, 1> crash_status_trajectory;
 
   CartpoleDynamics dynamics = CartpoleDynamics(1, 1, 1);
@@ -83,14 +83,12 @@ protected:
   DDPFeedback<CartpoleDynamics, MAX_TIMESTEPS> fb_controller =
       DDPFeedback<CartpoleDynamics, MAX_TIMESTEPS>(&dynamics, dt);
 
-  float dt = 0.2;
+  float dt = 0.02;
   int num_rollouts = 20;
   float lambda = 0.5;
   float alpha = 0.001;
 
   cudaStream_t stream;
-  const int BLOCKSIZE_X = 32;
-  const int BLOCKSIZE_Y = 4;
 
   float* initial_state_d;
   float* control_d;
@@ -143,8 +141,8 @@ TEST_F(VizualizationKernelsTest, stateAndCostTrajectoryKernelNoZNoFeedbackTest)
                                    result_state_d + i * MAX_TIMESTEPS * CartpoleDynamics::STATE_DIM,
                                    (MAX_TIMESTEPS - 1) * CartpoleDynamics::STATE_DIM * sizeof(float),
                                    cudaMemcpyDeviceToHost, stream));
-      HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs[i].data(), trajectory_costs_d + i * MAX_TIMESTEPS,
-                                   MAX_TIMESTEPS * sizeof(float), cudaMemcpyDeviceToHost, stream));
+      HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs[i].data(), trajectory_costs_d + i * (MAX_TIMESTEPS + 1),
+                                   (MAX_TIMESTEPS + 1) * sizeof(float), cudaMemcpyDeviceToHost, stream));
       HANDLE_ERROR(cudaMemcpyAsync(crash_status[i].data(), crash_status_d + i * MAX_TIMESTEPS,
                                    MAX_TIMESTEPS * sizeof(float), cudaMemcpyDeviceToHost, stream));
     }
@@ -157,7 +155,8 @@ TEST_F(VizualizationKernelsTest, stateAndCostTrajectoryKernelNoZNoFeedbackTest)
       control_trajectory u_traj = control[sample];
       int crash_status_val = 0;
 
-      for (int t = 0; t < MAX_TIMESTEPS; t++)
+      int t = 0;
+      for (; t < MAX_TIMESTEPS; t++)
       {
         EXPECT_NEAR(x(0), result_state[sample].col(t)(0), 1e-5)
             << "\ntdy: " << tdy << "\nsample: " << sample << "\nat time: " << t;
@@ -170,13 +169,23 @@ TEST_F(VizualizationKernelsTest, stateAndCostTrajectoryKernelNoZNoFeedbackTest)
 
         CartpoleDynamics::control_array u = u_traj.col(t);
         float cost_val = cost.computeStateCost(x, t, &crash_status_val);
-        EXPECT_FLOAT_EQ(cost_val, trajectory_costs[sample](t)) << "\nsample: " << sample << "\nat time: " << t;
-        EXPECT_FLOAT_EQ(crash_status_val, crash_status[sample](t)) << "\nsample: " << sample << "\nat time: " << t;
+        if (t == 0)
+        {
+          // don't weight the first state
+          EXPECT_FLOAT_EQ(trajectory_costs[sample](t), 0);
+        }
+        else
+        {
+          EXPECT_FLOAT_EQ(cost_val, trajectory_costs[sample](t)) << "\nsample: " << sample << "\nat time: " << t;
+        }
+        EXPECT_EQ(crash_status_val, crash_status[sample](t)) << "\nsample: " << sample << "\nat time: " << t;
 
         dynamics.enforceConstraints(x, u);
         dynamics.computeStateDeriv(x, u, x_dot);
         dynamics.updateState(x, x_dot, dt);
       }
+      float terminal_cost = cost.terminalCost(x);
+      EXPECT_FLOAT_EQ(terminal_cost, trajectory_costs[sample](t)) << "\nsample: " << sample << "\nat terminal";
     }
   }
 }
