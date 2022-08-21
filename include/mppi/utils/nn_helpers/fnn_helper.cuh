@@ -6,11 +6,6 @@
 #include <mppi/utils/file_utils.h>
 #include <cnpy.h>
 
-// Including neural net model
-#ifdef MPPI_NNET_USING_CONSTANT_MEM__
-__device__ __constant__ float NNET_PARAMS[param_counter(6, 32, 32, 4)];
-#endif
-
 template<int... layer_args>
 struct FNNParams {
   static const int NUM_LAYERS = layer_counter(layer_args...);  ///< Total number of layers (including in/out layer)
@@ -18,7 +13,7 @@ struct FNNParams {
   static const int LARGEST_LAYER = neuron_counter(layer_args...) +
                                    PRIME_PADDING;  ///< Number of neurons in the largest layer(including in/out neurons)
   static const int NUM_PARAMS = param_counter(layer_args...);   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = 0;                  ///< Amount of shared memory we need per BLOCK.
+  static const int SHARED_MEM_REQUEST_GRD = sizeof(FNNParams<layer_args...>);  ///< Amount of shared memory we need per BLOCK.
   static const int SHARED_MEM_REQUEST_BLK = 2 * LARGEST_LAYER;  ///< Amount of shared memory we need per ROLLOUT.
 
   static const int INPUT_DIM = input_dim(layer_args...);
@@ -68,6 +63,7 @@ public:
 
   static const int INPUT_DIM = PARAMS_T::INPUT_DIM;
   static const int OUTPUT_DIM = PARAMS_T::OUTPUT_DIM;
+  typedef PARAMS_T NN_PARAMS_T;
 
   typedef Eigen::Matrix<float, PARAMS_T::INPUT_DIM, 1> input_array;
   typedef Eigen::Matrix<float, PARAMS_T::OUTPUT_DIM, 1> output_array;
@@ -96,6 +92,8 @@ public:
                    Eigen::Ref<dfdx> A);
 
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
+
+  __device__ void initialize(float* theta_s);
 
   __device__ float* forward(float* input, float* theta_s);
 

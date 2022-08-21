@@ -256,6 +256,13 @@ void FNNHelper<PARAMS_T>::forward(const Eigen::Ref<const input_array>& input, Ei
 }
 
 template <class PARAMS_T>
+__device__ void FNNHelper<PARAMS_T>::initialize(float* theta_s)
+{
+  PARAMS_T* shared_params = (PARAMS_T*)theta_s;
+  *shared_params = this->params_;
+}
+
+template <class PARAMS_T>
 __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
 {
   float* curr_act;
@@ -268,8 +275,9 @@ __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
   int tdy = threadIdx.y;
   int tdz = threadIdx.z;
   int i, j, k;
-  curr_act = &theta_s[(2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx)];
-  next_act = &theta_s[(2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx) + LARGEST_LAYER];
+  PARAMS_T* params = (PARAMS_T*)theta_s;
+  curr_act = &theta_s[SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx)];
+  next_act = &theta_s[SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx) + LARGEST_LAYER];
   // iterate through the part of the state that should be an input to the NN
   if (input != nullptr)
   {
@@ -282,24 +290,19 @@ __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
   // iterate through each layer
   for (i = 0; i < NUM_LAYERS - 1; i++)
   {
-    // Conditional compilation depending on if we're using a global constant memory array or not.
-#if defined(MPPI_NNET_USING_CONSTANT_MEM__)                  // Use constant memory.
-    W = &NNET_PARAMS[this->params_.stride_idcs[2 * i]];      // weights
-    b = &NNET_PARAMS[this->params_.stride_idcs[2 * i + 1]];  // biases
-#else                                                        // Use (slow) global memory.
-    W = &this->params_.theta[this->params_.stride_idcs[2 * i]];      // weights
-    b = &this->params_.theta[this->params_.stride_idcs[2 * i + 1]];  // biases
-#endif
+    W = &params->theta[params->stride_idcs[2 * i]];      // weights
+    b = &params->theta[params->stride_idcs[2 * i + 1]];  // biases
+
     // for first non input layer until last layer this thread deals with
     // calculates the next activation based on current
-    for (j = tdy; j < this->params_.net_structure[i + 1]; j += blockDim.y)
+    for (j = tdy; j < params->net_structure[i + 1]; j += blockDim.y)
     {
       tmp = 0;
       // apply each neuron activation from current layer
-      for (k = 0; k < this->params_.net_structure[i]; k++)
+      for (k = 0; k < params->net_structure[i]; k++)
       {
         // No atomic add necessary.
-        tmp += W[j * this->params_.net_structure[i] + k] * curr_act[k];
+        tmp += W[j * params->net_structure[i] + k] * curr_act[k];
       }
       // add bias from next layer and neuron
       tmp += b[j];

@@ -147,9 +147,6 @@ TEST(RacerDubins, TestModelGPU)
     }
   }
 
-  // These variables will be changed so initialized to the right size only
-
-  // Run dynamics on dynamicsU
   // Run dynamics on GPU
   for (int y_dim = 1; y_dim <= 4; y_dim++)
   {
@@ -161,6 +158,19 @@ TEST(RacerDubins, TestModelGPU)
       RacerDubins::state_array state_der_cpu = RacerDubins::state_array::Zero();
 
       dynamics.computeDynamics(state, control, state_der_cpu);
+
+      for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
+      {
+        EXPECT_NEAR(state(dim), s[point][dim], 1e-5)
+            << "at sample " << point << ", state dim: " << dim << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s[point][dim]));
+      }
+      for (int dim = 0; dim < RacerDubins::CONTROL_DIM; dim++)
+      {
+        EXPECT_NEAR(control(dim), u[point][dim], 1e-5)
+            << "at sample " << point << ", state dim: " << dim << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(u[point][dim]));
+      }
       for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
       {
         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5)

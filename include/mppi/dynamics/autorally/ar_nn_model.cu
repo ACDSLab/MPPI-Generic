@@ -128,7 +128,7 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   int tdy = threadIdx.y;
   int tdz = threadIdx.z;
   int i, j, k;
-  curr_act = &theta_s[(2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx)];
+  curr_act = &theta_s[SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx)];
   // iterate through the part of the state that should be an input to the NN
   for (i = tdy; i < DYNAMICS_DIM; i += blockDim.y)
   {
@@ -159,4 +159,13 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::GPUSetup()
 
   HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->helper_), &(this->helper_->network_d_),
                                sizeof(FNNHelper<FNNParams<layer_args...>>*), cudaMemcpyHostToDevice, this->stream_));
+}
+
+template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::initializeDynamics(float* state, float* control,
+                                                                                       float* output, float* theta_s,
+                                                                                       float t_0, float dt)
+{
+  PARENT_CLASS::initializeDynamics(state, control, output, theta_s, t_0, dt);
+  helper_->initialize(theta_s);
 }

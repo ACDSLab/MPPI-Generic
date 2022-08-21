@@ -41,7 +41,7 @@ TEST_F(FNNHelperTest, ParamsConstructor1)
   EXPECT_EQ(layers, 3);
   EXPECT_EQ(padding, 1);
   EXPECT_EQ(largest_layer, 11);
-  EXPECT_EQ(shared_mem_grd, 0);
+  EXPECT_EQ(shared_mem_grd, sizeof(FNNParams<5, 10, 3>));
   EXPECT_EQ(shared_mem_blk, 22);
   EXPECT_EQ(input_dim, 5);
   EXPECT_EQ(output_dim, 3);
@@ -86,7 +86,7 @@ TEST_F(FNNHelperTest, ParamsConstructor2)
   EXPECT_EQ(layers, 5);
   EXPECT_EQ(padding, 1);
   EXPECT_EQ(largest_layer, 21);
-  EXPECT_EQ(shared_mem_grd, 0);
+  EXPECT_EQ(shared_mem_grd, sizeof(FNNParams<5, 10, 20, 3, 3>));
   EXPECT_EQ(shared_mem_blk, 42);
   EXPECT_EQ(input_dim, 5);
   EXPECT_EQ(output_dim, 3);
@@ -137,7 +137,7 @@ TEST_F(FNNHelperTest, ParamsConstructor3)
   EXPECT_EQ(layers, 2);
   EXPECT_EQ(padding, 1);
   EXPECT_EQ(largest_layer, 6);
-  EXPECT_EQ(shared_mem_grd, 0);
+  EXPECT_EQ(shared_mem_grd, sizeof(FNNParams<5, 3>));
   EXPECT_EQ(shared_mem_blk, 12);
   EXPECT_EQ(input_dim, 5);
   EXPECT_EQ(output_dim, 3);
@@ -188,6 +188,9 @@ TEST_F(FNNHelperTest, GPUSetupAndParamsCheck)
   std::array<float, 1412> theta_result = {};
   std::array<int, 6> stride_result = {};
   std::array<int, 4> net_structure_result = {};
+  std::array<float, 1412> shared_theta_result = {};
+  std::array<int, 6> shared_stride_result = {};
+  std::array<int, 4> shared_net_structure_result = {};
 
   EXPECT_EQ(model.GPUMemStatus_, false);
   EXPECT_EQ(model.network_d_, nullptr);
@@ -198,25 +201,26 @@ TEST_F(FNNHelperTest, GPUSetupAndParamsCheck)
   EXPECT_NE(model.network_d_, nullptr);
 
   // launch kernel
-  launchParameterCheckTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 1412, 6, 4>(model, theta_result, stride_result,
-                                                                                 net_structure_result);
+  launchParameterCheckTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 1412, 6, 4>(
+      model, theta_result, stride_result, net_structure_result, shared_theta_result, shared_stride_result,
+      shared_net_structure_result);
 
   for (int i = 0; i < 1412; i++)
   {
     // these are a bunch of mostly random values and nan != nan
-    if (!isnan(theta[i]))
-    {
-      EXPECT_FLOAT_EQ(theta_result[i], theta[i]);
-    }
+    EXPECT_FLOAT_EQ(theta_result[i], theta[i]);
+    EXPECT_FLOAT_EQ(shared_theta_result[i], theta[i]);
   }
   for (int i = 0; i < 6; i++)
   {
     EXPECT_EQ(stride_result[i], stride[i]);
+    EXPECT_EQ(shared_stride_result[i], stride[i]);
   }
 
   for (int i = 0; i < 4; i++)
   {
     EXPECT_EQ(net_structure[i], net_structure_result[i]);
+    EXPECT_EQ(net_structure[i], shared_net_structure_result[i]);
   }
 }
 
@@ -230,6 +234,9 @@ TEST_F(FNNHelperTest, UpdateModelTest)
   std::array<float, 1412> theta_result = {};
   std::array<int, 6> stride_result = {};
   std::array<int, 4> net_structure_result = {};
+  std::array<float, 1412> shared_theta_result = {};
+  std::array<int, 6> shared_stride_result = {};
+  std::array<int, 4> shared_net_structure_result = {};
 
   model.GPUSetup();
 
@@ -245,32 +252,30 @@ TEST_F(FNNHelperTest, UpdateModelTest)
   for (int i = 0; i < 1412; i++)
   {
     // these are a bunch of mostly random values and nan != nan
-    if (!isnan(theta_vec[i]))
-    {
-      EXPECT_FLOAT_EQ(model.getTheta()[i], theta_vec[i]);
-    }
+    EXPECT_FLOAT_EQ(model.getTheta()[i], theta_vec[i]);
   }
 
   // launch kernel
-  launchParameterCheckTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 1412, 6, 4>(model, theta_result, stride_result,
-                                                                                 net_structure_result);
+  launchParameterCheckTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 1412, 6, 4>(
+      model, theta_result, stride_result, net_structure_result, shared_theta_result, shared_stride_result,
+      shared_net_structure_result);
 
   for (int i = 0; i < 1412; i++)
   {
     // these are a bunch of mostly random values and nan != nan
-    if (!isnan(theta_vec[i]))
-    {
-      EXPECT_FLOAT_EQ(theta_result[i], theta_vec[i]) << "failed at index " << i;
-    }
+    EXPECT_FLOAT_EQ(theta_result[i], theta_vec[i]);
+    EXPECT_FLOAT_EQ(shared_theta_result[i], theta_vec[i]);
   }
   for (int i = 0; i < 6; i++)
   {
     EXPECT_EQ(stride_result[i], stride[i]);
+    EXPECT_EQ(shared_stride_result[i], stride[i]);
   }
 
   for (int i = 0; i < 4; i++)
   {
     EXPECT_EQ(net_structure[i], net_structure_result[i]);
+    EXPECT_EQ(net_structure[i], shared_net_structure_result[i]);
   }
 }
 
@@ -291,14 +296,19 @@ TEST_F(FNNHelperTest, LoadModelTest)
   std::array<float, 1412> theta_result = {};
   std::array<int, 6> stride_result = {};
   std::array<int, 4> net_structure_result = {};
+  std::array<float, 1412> shared_theta_result = {};
+  std::array<int, 6> shared_stride_result = {};
+  std::array<int, 4> shared_net_structure_result = {};
 
   // launch kernel
-  launchParameterCheckTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 1412, 6, 4>(model, theta_result, stride_result,
-                                                                                 net_structure_result);
+  launchParameterCheckTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 1412, 6, 4>(
+      model, theta_result, stride_result, net_structure_result, shared_theta_result, shared_stride_result,
+      shared_net_structure_result);
 
   for (int i = 0; i < 1412; i++)
   {
     EXPECT_FLOAT_EQ(theta_result[i], i) << "failed at index " << i;
+    EXPECT_FLOAT_EQ(shared_theta_result[i], i) << "failed at index " << i;
   }
 }
 
@@ -325,14 +335,18 @@ TEST_F(FNNHelperTest, LoadModelNPZTest)
   std::array<float, 1412> theta_result = {};
   std::array<int, 6> stride_result = {};
   std::array<int, 4> net_structure_result = {};
+  std::array<float, 1412> shared_theta_result = {};
+  std::array<int, 6> shared_stride_result = {};
+  std::array<int, 4> shared_net_structure_result = {};
 
   // launch kernel
-  launchParameterCheckTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 1412, 6, 4>(model, theta_result, stride_result,
-                                                                                 net_structure_result);
+  launchParameterCheckTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 1412, 6, 4>(
+      model, theta_result, stride_result, net_structure_result, shared_theta_result, shared_stride_result,
+      shared_net_structure_result);
 
   for (int i = 0; i < 1412; i++)
   {
-    EXPECT_FLOAT_EQ(theta_result[i], i) << "failed at index " << i;
+    EXPECT_FLOAT_EQ(shared_theta_result[i], i) << "failed at index " << i;
   }
 }
 
@@ -387,6 +401,54 @@ TEST_F(FNNHelperTest, forwardGPU)
   model.GPUSetup();
 
   std::vector<float> theta(1412);
+  std::fill(theta.begin(), theta.end(), 1);
+  model.updateModel({ 6, 32, 32, 4 }, theta);
+
+  Eigen::Matrix<float, 6, num_rollouts> inputs;
+  inputs = Eigen::Matrix<float, 6, num_rollouts>::Zero();
+
+  std::vector<std::array<float, FNNHelper<FNNParams<6, 32, 32, 4>>::INPUT_DIM>> input_arr(num_rollouts);
+  std::vector<std::array<float, FNNHelper<FNNParams<6, 32, 32, 4>>::OUTPUT_DIM>> output_arr(num_rollouts);
+
+  for (int y_dim = 1; y_dim < 16; y_dim++)
+  {
+    for (int state_index = 0; state_index < num_rollouts; state_index++)
+    {
+      for (int dim = 0; dim < input_arr[0].size(); dim++)
+      {
+        input_arr[state_index][dim] = inputs.col(state_index)(dim);
+      }
+    }
+
+    launchForwardTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 32>(model, input_arr, output_arr, y_dim);
+    for (int point = 0; point < num_rollouts; point++)
+    {
+      FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input = inputs.col(point);
+      FNNHelper<FNNParams<6, 32, 32, 4>>::output_array output;
+
+      model.forward(input, output);
+      for (int dim = 0; dim < 6; dim++)
+      {
+        EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+      }
+      for (int dim = 0; dim < 4; dim++)
+      {
+        EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(output_arr[point][dim]));
+        EXPECT_FLOAT_EQ(output(dim), 33);
+      }
+    }
+  }
+}
+
+TEST_F(FNNHelperTest, forwardGPUCompare)
+{
+  const int num_rollouts = 1000;
+
+  FNNHelper<FNNParams<6, 32, 32, 4>> model;
+  model.GPUSetup();
+
+  std::vector<float> theta(1412);
   for (int i = 0; i < 1412; i++)
   {
     theta[i] = distribution(generator);
@@ -409,7 +471,7 @@ TEST_F(FNNHelperTest, forwardGPU)
       }
     }
 
-    launchForwardTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>>(model, input_arr, output_arr, y_dim);
+    launchForwardTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 32>(model, input_arr, output_arr, y_dim);
     for (int point = 0; point < num_rollouts; point++)
     {
       FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input = inputs.col(point);
@@ -429,7 +491,7 @@ TEST_F(FNNHelperTest, forwardGPU)
   }
 }
 
-TEST_F(FNNHelperTest, TestComputeGradComputation)
+TEST_F(FNNHelperTest, TestComputeGradComputationFinite)
 {
   FNNHelper<FNNParams<6, 32, 32, 4>> model;
   std::vector<float> theta(1412);
@@ -442,12 +504,14 @@ TEST_F(FNNHelperTest, TestComputeGradComputation)
   FNNHelper<FNNParams<6, 32, 32, 4>>::dfdx numeric_jac;
   FNNHelper<FNNParams<6, 32, 32, 4>>::dfdx analytic_jac;
 
-  FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input;
-  input << 1, 2, 3, 4, 5, 6;
+  for (int i = 0; i < 1000; i++)
+  {
+    FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input;
+    input = FNNHelper<FNNParams<6, 32, 32, 4>>::input_array::Random();
 
-  model.computeGrad(input, analytic_jac);
-
-  EXPECT_TRUE(analytic_jac.allFinite());
+    model.computeGrad(input, analytic_jac);
+    EXPECT_TRUE(analytic_jac.allFinite());
+  }
 }
 
 TEST_F(FNNHelperTest, TestComputeGradComputationCompare)

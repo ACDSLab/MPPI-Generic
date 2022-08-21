@@ -40,7 +40,7 @@ TEST(ARNeuralNetDynamics, verifyTemplateParamters)
   EXPECT_EQ(num_params, (6 + 1) * 32 + (32 + 1) * 32 + (32 + 1) * 4);
 
   int shared_mem_request_grd = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::SHARED_MEM_REQUEST_GRD;
-  EXPECT_EQ(shared_mem_request_grd, 0);
+  EXPECT_EQ(shared_mem_request_grd, sizeof(FNNParams<6, 32, 32, 4>));
 
   int shared_mem_request_blk = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::SHARED_MEM_REQUEST_BLK;
   EXPECT_EQ(shared_mem_request_blk, (32 + 1) * 2);
@@ -528,10 +528,10 @@ TEST(ARNeuralNetDynamics, computeDynamicsGPU)
     EXPECT_FLOAT_EQ(s_der[0][0], 0);
     EXPECT_FLOAT_EQ(s_der[0][1], 0);
     EXPECT_FLOAT_EQ(s_der[0][2], 0);
-    EXPECT_FLOAT_EQ(s_der[0][3], 33);
-    EXPECT_FLOAT_EQ(s_der[0][4], 33);
-    EXPECT_FLOAT_EQ(s_der[0][5], 33);
-    EXPECT_FLOAT_EQ(s_der[0][6], 33);
+    EXPECT_FLOAT_EQ(s_der[0][3], 33) << "at y_dim " << y_dim;
+    EXPECT_FLOAT_EQ(s_der[0][4], 33) << "at y_dim " << y_dim;
+    EXPECT_FLOAT_EQ(s_der[0][5], 33) << "at y_dim " << y_dim;
+    EXPECT_FLOAT_EQ(s_der[0][6], 33) << "at y_dim " << y_dim;
 
     EXPECT_FLOAT_EQ(u[0][0], 1.0);
     EXPECT_FLOAT_EQ(u[0][1], -1.0);

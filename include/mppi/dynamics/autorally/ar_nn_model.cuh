@@ -80,6 +80,7 @@ public:
   // Define Eigen fixed size matrices
   using state_array = typename PARENT_CLASS::state_array;
   using control_array = typename PARENT_CLASS::control_array;
+  using output_array = typename PARENT_CLASS::output_array;
   using dfdx = typename PARENT_CLASS::dfdx;
   using dfdu = typename PARENT_CLASS::dfdu;
   using nn_input_array = typename FNNHelper<FNNParams<layer_args...>>::input_array;
@@ -92,8 +93,8 @@ public:
   static const int LARGEST_LAYER = neuron_counter(layer_args...) +
                                    PRIME_PADDING;  ///< Number of neurons in the largest layer(including in/out neurons)
   static const int NUM_PARAMS = param_counter(layer_args...);   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = 0;                  ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = 2 * LARGEST_LAYER;  ///< Amount of shared memory we need per ROLLOUT.
+  static const int SHARED_MEM_REQUEST_GRD = FNNParams<layer_args...>::SHARED_MEM_REQUEST_GRD;  ///< Amount of shared memory we need per BLOCK.
+  static const int SHARED_MEM_REQUEST_BLK = FNNParams<layer_args...>::SHARED_MEM_REQUEST_BLK;  ///< Amount of shared memory we need per ROLLOUT.
 
   NeuralNetModel(cudaStream_t stream = 0);
   NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream = 0);
@@ -130,6 +131,14 @@ public:
   }
 
   void paramsToDevice();
+
+  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
+
+  void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                          Eigen::Ref<output_array> output, float t_0, float dt)
+  {
+    PARENT_CLASS::initializeDynamics(state, control, output, t_0, dt);
+  }
 
   void GPUSetup();
 

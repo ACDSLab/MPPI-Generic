@@ -53,7 +53,10 @@ __global__ void fullARNNTestKernel(NETWORK_T* model, float* state, float* contro
 {
   __shared__ float
       theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK * BLOCKDIM_X * BLOCKDIM_Z];
+  __shared__ float output[S_DIM * BLOCKDIM_X * BLOCKDIM_Z];
   __shared__ float s_der[S_DIM * BLOCKDIM_X * BLOCKDIM_Z];
+
+  model->initializeDynamics(state, control, output, theta, 0.0f, 0.0f);
 
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   // calls enforce constraints -> compute state derivative -> increment state
