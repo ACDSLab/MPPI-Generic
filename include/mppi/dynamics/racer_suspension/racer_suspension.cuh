@@ -41,16 +41,9 @@ struct RacerSuspensionParams : public DynamicsParams
     BASELINK_POS_I_X,
     BASELINK_POS_I_Y,
     BASELINK_POS_I_Z,
-    OMEGA_B_X,
-    OMEGA_B_Y,
-    OMEGA_B_Z,
     YAW,
     ROLL,
     PITCH,
-    ATTITUDE_QW,
-    ATTITUDE_QX,
-    ATTITUDE_QY,
-    ATTITUDE_QZ,
     STEER_ANGLE,
     STEER_ANGLE_RATE,
     WHEEL_POS_I_FL_X,
@@ -78,7 +71,6 @@ struct RacerSuspensionParams : public DynamicsParams
     CENTER_POS_I_Z,
     ACCEL_X,
     FILLER_1,
-    FILLER_2,
     NUM_OUTPUTS
   };
   // suspension model params

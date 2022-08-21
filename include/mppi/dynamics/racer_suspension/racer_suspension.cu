@@ -267,18 +267,11 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     output[O_INDEX(BASELINK_POS_I_X)] = base_link_p_I[0];
     output[O_INDEX(BASELINK_POS_I_Y)] = base_link_p_I[1];
     output[O_INDEX(BASELINK_POS_I_Z)] = base_link_p_I[2];
-    output[O_INDEX(OMEGA_B_X)] = omega[0];
-    output[O_INDEX(OMEGA_B_Y)] = omega[1];
-    output[O_INDEX(OMEGA_B_Z)] = omega[2];
     float roll, pitch, yaw;
     mppi::math::Quat2EulerNWU(q, roll, pitch, yaw);
     output[O_INDEX(YAW)] = yaw;
     output[O_INDEX(PITCH)] = pitch;
     output[O_INDEX(ROLL)] = roll;
-    output[O_INDEX(ATTITUDE_QW)] = q.w();
-    output[O_INDEX(ATTITUDE_QX)] = q.x();
-    output[O_INDEX(ATTITUDE_QY)] = q.y();
-    output[O_INDEX(ATTITUDE_QZ)] = q.z();
     output[O_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE)];
     output[O_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
     output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
