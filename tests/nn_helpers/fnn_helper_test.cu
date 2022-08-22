@@ -395,7 +395,7 @@ TEST_F(FNNHelperTest, forwardCPU)
 
 TEST_F(FNNHelperTest, forwardGPU)
 {
-  const int num_rollouts = 1;
+  const int num_rollouts = 1000;
 
   FNNHelper<FNNParams<6, 32, 32, 4>> model;
   model.GPUSetup();

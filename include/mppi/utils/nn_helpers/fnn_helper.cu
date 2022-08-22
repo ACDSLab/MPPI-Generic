@@ -258,12 +258,13 @@ void FNNHelper<PARAMS_T>::forward(const Eigen::Ref<const input_array>& input, Ei
 template <class PARAMS_T>
 __device__ void FNNHelper<PARAMS_T>::initialize(float* theta_s)
 {
+  static_assert(std::is_trivially_copyable<PARAMS_T>::value);
   PARAMS_T* shared_params = (PARAMS_T*)theta_s;
   *shared_params = this->params_;
 }
 
 template <class PARAMS_T>
-__device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
+__device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s, PARAMS_T* params, int shift)
 {
   float* curr_act;
   float* next_act;
@@ -275,9 +276,8 @@ __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
   int tdy = threadIdx.y;
   int tdz = threadIdx.z;
   int i, j, k;
-  PARAMS_T* params = (PARAMS_T*)theta_s;
-  curr_act = &theta_s[SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx)];
-  next_act = &theta_s[SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx) + LARGEST_LAYER];
+  curr_act = &theta_s[shift];
+  next_act = &theta_s[shift + LARGEST_LAYER];
   // iterate through the part of the state that should be an input to the NN
   if (input != nullptr)
   {
@@ -319,4 +319,13 @@ __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
     __syncthreads();
   }
   return curr_act;
+}
+
+template <class PARAMS_T>
+__device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
+{
+  int tdx = threadIdx.x;
+  int tdz = threadIdx.z;
+  PARAMS_T* params = (PARAMS_T*)theta_s;
+  forward(input, theta_s, params, SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
 }

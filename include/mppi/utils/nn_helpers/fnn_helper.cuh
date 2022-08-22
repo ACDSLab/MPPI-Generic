@@ -96,6 +96,7 @@ public:
   __device__ void initialize(float* theta_s);
 
   __device__ float* forward(float* input, float* theta_s);
+  __device__ float* forward(float* input, float* theta_s, PARAMS_T* params, int shift);
 
   std::array<int, NUM_LAYERS> getNetStructure()
   {
@@ -135,6 +136,10 @@ public:
   __device__ float* getThetaPtr()
   {
     return this->params_.theta;
+  }
+
+  __device__ __host__ PARAMS_T getParams() {
+    return params_;
   }
 
   // device pointer, null on the device

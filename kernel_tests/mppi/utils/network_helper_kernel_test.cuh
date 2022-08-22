@@ -12,7 +12,6 @@ __global__ void parameterCheckTestKernel(NETWORK_T* model, float* theta, int* st
                                          float* shared_theta, int* shared_stride, int* shared_net_structure)
 {
   __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK];
-  int tid = blockIdx.x * blockDim.x + threadIdx.x;
   model->initialize(theta_s);
   typename NETWORK_T::NN_PARAMS_T* params_shared = (typename NETWORK_T::NN_PARAMS_T*) theta_s;
   for (int i = 0; i < THETA_SIZE; i++)
@@ -76,6 +75,66 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::array<float, THETA_SI
   cudaFree(shared_theta_d);
   cudaFree(shared_stride_d);
   cudaFree(shared_net_structure_d);
+}
+
+template <class NETWORK_T>
+__global__ void parameterCheckTestKernel(NETWORK_T* model, typename NETWORK_T::LSTM_PARAMS_T* lstm_params,
+                                         typename NETWORK_T::LSTM_PARAMS_T* shared_lstm_params,
+                                         typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T* fnn_params,
+                                         typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T* shared_fnn_params)
+{
+  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK];
+  int tid = blockIdx.x;
+
+  *(lstm_params + tid) = model->getLSTMParams();
+  *(fnn_params + tid) = model->output_nn_->getParams();
+
+  model->initialize(theta_s);
+
+  const int slide = NETWORK_T::LSTM_PARAMS_T::SHARED_MEM_REQUEST_GRD;
+  auto* fnn_params_shared =
+          (typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T*) (theta_s + slide);
+  *(shared_fnn_params + tid) = *fnn_params_shared;
+
+  auto* lstm_params_shared = (typename NETWORK_T::LSTM_PARAMS_T*) theta_s;
+  *(shared_lstm_params + tid) = *lstm_params_shared;
+}
+
+template <class NETWORK_T>
+void launchParameterCheckTestKernel(NETWORK_T& model, std::vector<typename NETWORK_T::LSTM_PARAMS_T>& lstm_params,
+                                    std::vector<typename NETWORK_T::LSTM_PARAMS_T>& shared_lstm_params,
+                                    std::vector<typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T>& fnn_params,
+                                    std::vector<typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T>& shared_fnn_params)
+{
+
+  typename NETWORK_T::LSTM_PARAMS_T* lstm_params_d = nullptr;
+  typename NETWORK_T::LSTM_PARAMS_T* shared_lstm_params_d = nullptr;
+  typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T* fnn_params_d = nullptr;
+  typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T* shared_fnn_params_d = nullptr;
+
+  int num = lstm_params.size();
+
+  HANDLE_ERROR(cudaMalloc((void**)&lstm_params_d, sizeof(typename NETWORK_T::LSTM_PARAMS_T) * num));
+  HANDLE_ERROR(cudaMalloc((void**)&shared_lstm_params_d, sizeof(typename NETWORK_T::LSTM_PARAMS_T) * num));
+  HANDLE_ERROR(cudaMalloc((void**)&fnn_params_d, sizeof(typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T) * num));
+  HANDLE_ERROR(cudaMalloc((void**)&shared_fnn_params_d, sizeof(typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T) * num));
+
+  dim3 threadsPerBlock(1, 1);
+  dim3 numBlocks(num, 1);
+  parameterCheckTestKernel<NETWORK_T>
+  <<<numBlocks, threadsPerBlock>>>(model.network_d_, lstm_params_d, shared_lstm_params_d, fnn_params_d, shared_fnn_params_d);
+  CudaCheckError();
+
+  HANDLE_ERROR(cudaMemcpy(lstm_params.data(), lstm_params_d, sizeof(typename NETWORK_T::LSTM_PARAMS_T) * num, cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(shared_lstm_params.data(), shared_lstm_params_d, sizeof(typename NETWORK_T::LSTM_PARAMS_T) * num, cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(fnn_params.data(), fnn_params_d, sizeof(typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T) * num, cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(shared_fnn_params.data(), shared_fnn_params_d, sizeof(typename NETWORK_T::OUTPUT_FNN_T::NN_PARAMS_T) * num, cudaMemcpyDeviceToHost))
+  cudaDeviceSynchronize();
+
+  cudaFree(lstm_params_d);
+  cudaFree(shared_lstm_params_d);
+  cudaFree(fnn_params_d);
+  cudaFree(shared_fnn_params_d);
 }
 
 template <typename NETWORK_T, int BLOCKSIZE_X>

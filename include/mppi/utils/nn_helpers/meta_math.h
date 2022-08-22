@@ -10,8 +10,8 @@
 #ifndef MPPIGENERIC_META_MATH_H
 #define MPPIGENERIC_META_MATH_H
 
-#define TANH(ans) tanh(ans)
-#define TANH_DERIV(ans) (1 - powf(tanh(ans), 2))
+#define TANH(ans) tanhf(ans)
+#define TANH_DERIV(ans) (1 - powf(tanhf(ans), 2))
 #define RELU(ans) fmaxf(0, ans)
 #define SIGMOID(ans) (1.0f / (1 + expf(-(ans))))
 
