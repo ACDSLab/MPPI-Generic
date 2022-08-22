@@ -243,9 +243,6 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
       max(min(state_der[S_INDEX(STEER_ANGLE)], params_p->max_steer_rate), -params_p->max_steer_rate);
 
   // Calculate the next state
-  float pitch = 0;
-  float roll = 0;
-
   float3 front_left = make_float3(2.981, 0.737, 0);
   float3 front_right = make_float3(2.981, -0.737, 0);
   float3 rear_left = make_float3(0, 0.737, 0);
@@ -331,7 +328,6 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
   __syncthreads();
 
   // Fill in output
-  float yaw = next_state[S_INDEX(YAW)];
   output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
   output[O_INDEX(BASELINK_VEL_B_Y)] = 0;
   output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
