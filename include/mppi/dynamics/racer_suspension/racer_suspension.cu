@@ -224,9 +224,8 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     {
       output[O_INDEX(WHEEL_POS_I_FL_X) + i * 2] = p_w_nom_I_i[0];
       output[O_INDEX(WHEEL_POS_I_FL_Y) + i * 2] = p_w_nom_I_i[1];
-      output[O_INDEX(WHEEL_FORCE_B_FL_X) + i * 3] = f_r_B[i][0];
-      output[O_INDEX(WHEEL_FORCE_B_FL_Y) + i * 3] = f_r_B[i][1];
-      output[O_INDEX(WHEEL_FORCE_B_FL_Z) + i * 3] = f_r_B[i][2];
+      const float force_magn = sqrtf(powf(f_r_B[i][0], 2.0f) + powf(f_r_B[i][1], 2.0f) + powf(f_r_B[i][2], 2.0f));
+      output[O_INDEX(WHEEL_FORCE_B_FL) + i] = force_magn;
     }
   }
 
@@ -267,23 +266,16 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     output[O_INDEX(BASELINK_POS_I_X)] = base_link_p_I[0];
     output[O_INDEX(BASELINK_POS_I_Y)] = base_link_p_I[1];
     output[O_INDEX(BASELINK_POS_I_Z)] = base_link_p_I[2];
-    output[O_INDEX(OMEGA_B_X)] = omega[0];
-    output[O_INDEX(OMEGA_B_Y)] = omega[1];
-    output[O_INDEX(OMEGA_B_Z)] = omega[2];
     float roll, pitch, yaw;
     mppi::math::Quat2EulerNWU(q, roll, pitch, yaw);
     output[O_INDEX(YAW)] = yaw;
     output[O_INDEX(PITCH)] = pitch;
     output[O_INDEX(ROLL)] = roll;
-    output[O_INDEX(ATTITUDE_QW)] = q.w();
-    output[O_INDEX(ATTITUDE_QX)] = q.x();
-    output[O_INDEX(ATTITUDE_QY)] = q.y();
-    output[O_INDEX(ATTITUDE_QZ)] = q.z();
     output[O_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE)];
     output[O_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
-    output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
-    output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
-    output[O_INDEX(CENTER_POS_I_Z)] = output[O_INDEX(BASELINK_POS_I_Z)];
+    // output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
+    // output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
+    // output[O_INDEX(CENTER_POS_I_Z)] = output[O_INDEX(BASELINK_POS_I_Z)];
     output[O_INDEX(ACCEL_X)] = 0;  // TODO: fill in with proper accel_x
     // #ifdef __CUDA_ARCH__
     //     if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&

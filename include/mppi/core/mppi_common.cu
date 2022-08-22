@@ -227,7 +227,6 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, cons
 
   // Initialize running cost and total cost
   float* running_cost;
-  int control_index = 0;
   int sample_time_offset = 0;
   int j = 0;
 
