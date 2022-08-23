@@ -138,7 +138,7 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::vector<typename NETWO
 }
 
 template <typename NETWORK_T, int BLOCKSIZE_X>
-__global__ void forwardTestKernel(NETWORK_T* network, float* input, float* output, int num)
+__global__ void forwardTestKernel(NETWORK_T* network, float* input, float* output, int num, int steps)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
@@ -149,7 +149,10 @@ __global__ void forwardTestKernel(NETWORK_T* network, float* input, float* outpu
 
   if (tid < num)
   {
-    float* curr_act = network->forward(local_input, theta_s);
+    float* curr_act;
+    for(int step = 0; step < steps; step++) {
+      curr_act = network->forward(local_input, theta_s);
+    }
     for (int i = threadIdx.y; i < NETWORK_T::OUTPUT_DIM; i += blockDim.y)
     {
       local_output[i] = curr_act[i];
@@ -160,7 +163,8 @@ __global__ void forwardTestKernel(NETWORK_T* network, float* input, float* outpu
 
 template <typename NETWORK_T, int BLOCKSIZE_X>
 void launchForwardTestKernel(NETWORK_T& dynamics, std::vector<std::array<float, NETWORK_T::INPUT_DIM>>& input,
-                          std::vector<std::array<float, NETWORK_T::OUTPUT_DIM>>& output, int dim_y)
+                          std::vector<std::array<float, NETWORK_T::OUTPUT_DIM>>& output, int dim_y,
+                             int steps = 1)
 {
   if (input.size() != output.size())
   {
@@ -181,7 +185,7 @@ void launchForwardTestKernel(NETWORK_T& dynamics, std::vector<std::array<float, 
   const int gridsize_x = (count - 1) / BLOCKSIZE_X + 1;
   dim3 threadsPerBlock(BLOCKSIZE_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
-  forwardTestKernel<NETWORK_T, BLOCKSIZE_X><<<numBlocks, threadsPerBlock>>>(dynamics.network_d_, input_d, output_d, count);
+  forwardTestKernel<NETWORK_T, BLOCKSIZE_X><<<numBlocks, threadsPerBlock>>>(dynamics.network_d_, input_d, output_d, count, steps);
   CudaCheckError();
 
   // Copy the memory back to the host

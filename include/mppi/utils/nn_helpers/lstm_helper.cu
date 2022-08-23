@@ -2,7 +2,7 @@
 // Created by jason on 8/20/22.
 //
 
-#include "lstm_lstm_helper.cuh"
+#include "lstm_helper.cuh"
 
 template <class PARAMS_T, class OUTPUT_FNN_T>
 LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::LSTMHelper<PARAMS_T, OUTPUT_FNN_T>(cudaStream_t stream) : Managed(stream)
@@ -115,11 +115,7 @@ template <class PARAMS_T, class OUTPUT_T>
 void LSTMHelper<PARAMS_T, OUTPUT_T>::updateLSTM(PARAMS_T& params)
 {
   params_ = params;
-  for (int i = 0; i < HIDDEN_DIM; i++)
-  {
-    hidden_state_[i] = params.initial_hidden[i];
-    cell_state_[i] = params.initial_cell[i];
-  }
+  resetInitialStateCPU();
   paramsToDevice();
 }
 
@@ -272,4 +268,31 @@ __device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* t
   __syncthreads();
 
   return output_nn_->forward(nullptr, output_act, params, 0);
+}
+template <class PARAMS_T, class OUTPUT_T>
+void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenState()
+{
+  for (int i = 0; i < HIDDEN_DIM; i++)
+  {
+    hidden_state_[i] = params_.initial_hidden[i];
+  }
+}
+
+template <class PARAMS_T, class OUTPUT_T>
+void LSTMHelper<PARAMS_T, OUTPUT_T>::resetCellState()
+{
+  for (int i = 0; i < HIDDEN_DIM; i++)
+  {
+    cell_state_[i] = params_.initial_cell[i];
+  }
+}
+
+template <class PARAMS_T, class OUTPUT_T>
+void LSTMHelper<PARAMS_T, OUTPUT_T>::resetInitialStateCPU()
+{
+  for (int i = 0; i < HIDDEN_DIM; i++)
+  {
+    hidden_state_[i] = params_.initial_hidden[i];
+    cell_state_[i] = params_.initial_cell[i];
+  }
 }

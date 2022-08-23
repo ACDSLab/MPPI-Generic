@@ -327,5 +327,5 @@ __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
   int tdx = threadIdx.x;
   int tdz = threadIdx.z;
   PARAMS_T* params = (PARAMS_T*)theta_s;
-  forward(input, theta_s, params, SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
+  return forward(input, theta_s, params, SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
 }

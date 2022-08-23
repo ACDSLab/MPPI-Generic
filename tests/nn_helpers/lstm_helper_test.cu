@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <math.h>
 
-#include <mppi/utils/nn_helpers/lstm_lstm_helper.cuh>
+#include <mppi/utils/nn_helpers/lstm_helper.cuh>
 // Auto-generated header file
 #include <autorally_test_network.h>
 #include <mppi/utils/network_helper_kernel_test.cuh>
@@ -420,12 +420,32 @@ TEST_F(LSTMHelperTest, forwardCPU)
   EXPECT_FLOAT_EQ(output[0], 28.28055);
   EXPECT_FLOAT_EQ(output[1], 28.28055);
   EXPECT_FLOAT_EQ(output[2], 28.28055);
+
+  model.forward(input, output);
+  EXPECT_FLOAT_EQ(output[0], 28.901096);
+  EXPECT_FLOAT_EQ(output[1], 28.901096);
+  EXPECT_FLOAT_EQ(output[2], 28.901096);
+
+  model.forward(input, output);
+  EXPECT_FLOAT_EQ(output[0], 28.986588);
+  EXPECT_FLOAT_EQ(output[1], 28.986588);
+  EXPECT_FLOAT_EQ(output[2], 28.986588);
+
+  model.forward(input, output);
+  EXPECT_FLOAT_EQ(output[0], 28.998184);
+  EXPECT_FLOAT_EQ(output[1], 28.998184);
+  EXPECT_FLOAT_EQ(output[2], 28.998184);
+
+  model.forward(input, output);
+  EXPECT_FLOAT_EQ(output[0], 28.999756);
+  EXPECT_FLOAT_EQ(output[1], 28.999756);
+  EXPECT_FLOAT_EQ(output[2], 28.999756);
 }
 
 using LSTM2 = LSTMHelper<LSTMParams<8, 20, 0>, FNNHelper<FNNParams<28, 3>>>;
 TEST_F(LSTMHelperTest, forwardGPU)
 {
-  const int num_rollouts = 1000;
+  const int num_rollouts = 1;
 
   LSTM2 model;
   model.GPUSetup();
@@ -464,6 +484,8 @@ TEST_F(LSTMHelperTest, forwardGPU)
   inputs = Eigen::Matrix<float, LSTM2::INPUT_DIM, num_rollouts>::Ones();
   LSTM2::output_array output;
 
+  std::array<float, 5> true_vals = { 28.28055, 28.901096, 28.986588, 28.998184, 28.999756 };
+
   std::vector<std::array<float, LSTM2::INPUT_DIM>> input_arr(num_rollouts);
   std::vector<std::array<float, 3>> output_arr(num_rollouts);
 
@@ -477,23 +499,29 @@ TEST_F(LSTMHelperTest, forwardGPU)
       }
     }
 
-    launchForwardTestKernel<LSTM2, 32>(model, input_arr, output_arr, y_dim);
-    for (int point = 0; point < num_rollouts; point++)
+    for (int step = 1; step < 6; step++)
     {
-      model.updateLSTM(params);
-      LSTM2::input_array input = inputs.col(point);
-      LSTM2::output_array output;
+      launchForwardTestKernel<LSTM2, 32>(model, input_arr, output_arr, y_dim, step);
+      for (int point = 0; point < num_rollouts; point++)
+      {
+        model.resetInitialStateCPU();
+        LSTM2::input_array input = inputs.col(point);
+        LSTM2::output_array output;
 
-      model.forward(input, output);
-      for (int dim = 0; dim < LSTM2::INPUT_DIM; dim++)
-      {
-        EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-      }
-      for (int dim = 0; dim < LSTM2::OUTPUT_DIM; dim++)
-      {
-        EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-        EXPECT_TRUE(isfinite(output_arr[point][dim]));
-        EXPECT_FLOAT_EQ(output(dim), 28.28055) << "at index " << dim;
+        for (int cpu_step = 0; cpu_step < step; cpu_step++)
+        {
+          model.forward(input, output);
+        }
+        for (int dim = 0; dim < LSTM2::INPUT_DIM; dim++)
+        {
+          EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        }
+        for (int dim = 0; dim < LSTM2::OUTPUT_DIM; dim++)
+        {
+          EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+          EXPECT_TRUE(isfinite(output_arr[point][dim]));
+          EXPECT_FLOAT_EQ(output(dim), true_vals[step - 1]) << "at dim " << dim << " step " << step;
+        }
       }
     }
   }
@@ -552,23 +580,28 @@ TEST_F(LSTMHelperTest, forwardGPUCompare)
         input_arr[state_index][dim] = inputs.col(state_index)(dim);
       }
     }
-
-    launchForwardTestKernel<LSTM2, 32>(model, input_arr, output_arr, y_dim);
-    for (int point = 0; point < num_rollouts; point++)
+    for (int step = 1; step < 6; step++)
     {
-      model.updateLSTM(params);
-      LSTM2::input_array input = inputs.col(point);
-      LSTM2::output_array output;
+      launchForwardTestKernel<LSTM2, 32>(model, input_arr, output_arr, y_dim, step);
+      for (int point = 0; point < num_rollouts; point++)
+      {
+        model.resetInitialStateCPU();
+        LSTM2::input_array input = inputs.col(point);
+        LSTM2::output_array output;
 
-      model.forward(input, output);
-      for (int dim = 0; dim < LSTM2::INPUT_DIM; dim++)
-      {
-        EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-      }
-      for (int dim = 0; dim < LSTM2::OUTPUT_DIM; dim++)
-      {
-        EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-        EXPECT_TRUE(isfinite(output_arr[point][dim]));
+        for (int cpu_step = 0; cpu_step < step; cpu_step++)
+        {
+          model.forward(input, output);
+        }
+        for (int dim = 0; dim < LSTM2::INPUT_DIM; dim++)
+        {
+          EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        }
+        for (int dim = 0; dim < LSTM2::OUTPUT_DIM; dim++)
+        {
+          EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+          EXPECT_TRUE(isfinite(output_arr[point][dim]));
+        }
       }
     }
   }

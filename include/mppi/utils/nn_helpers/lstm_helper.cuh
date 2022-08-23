@@ -1,5 +1,5 @@
-#ifndef MPPIGENERIC_LSTM_LSTM_HELPER_CUH
-#define MPPIGENERIC_LSTM_LSTM_HELPER_CUH
+#ifndef MPPIGENERIC_LSTM_HELPER_CUH
+#define MPPIGENERIC_LSTM_HELPER_CUH
 
 #include "fnn_helper.cuh"
 
@@ -88,6 +88,10 @@ public:
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
   __device__ float* forward(float* input, float* theta_s);
 
+  void resetHiddenState();
+  void resetCellState();
+  void resetInitialStateCPU();
+
   hidden_state getHiddenState() {
     return hidden_state_;
   }
@@ -114,7 +118,7 @@ private:
 };
 
 #if __CUDACC__
-#include "lstm_lstm_helper.cu"
+#include "lstm_helper.cu"
 #endif
 
-#endif  // MPPIGENERIC_LSTM_LSTM_HELPER_CUH
+#endif  // MPPIGENERIC_LSTM_HELPER_CUH
