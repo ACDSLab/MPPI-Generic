@@ -115,13 +115,12 @@ template <class PARAMS_T, class OUTPUT_T>
 void LSTMHelper<PARAMS_T, OUTPUT_T>::updateLSTM(PARAMS_T& params)
 {
   params_ = params;
-  resetInitialStateCPU();
+  resetHiddenCellCPU();
   paramsToDevice();
 }
 
 template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::forward(const Eigen::Ref<const input_array>& input,
-                                             Eigen::Ref<output_array> output)
+void LSTMHelper<PARAMS_T, OUTPUT_T>::forward(const Eigen::Ref<const input_array>& input)
 {
   // Create eigen matrices for all the weights and biases
   Eigen::Map<const W_hh> W_im_mat(this->params_.W_im);
@@ -153,9 +152,15 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::forward(const Eigen::Ref<const input_array>
 
   hidden_state_ = h_next;
   cell_state_ = c_next;
+}
 
+template <class PARAMS_T, class OUTPUT_T>
+void LSTMHelper<PARAMS_T, OUTPUT_T>::forward(const Eigen::Ref<const input_array>& input,
+                                             Eigen::Ref<output_array> output)
+{
+  forward(input);
   typename OUTPUT_T::input_array nn_input;
-  nn_input.head(HIDDEN_DIM) = h_next;
+  nn_input.head(HIDDEN_DIM) = hidden_state_;
   nn_input.tail(INPUT_DIM) = input;
 
   output_nn_->forward(nn_input, output);
@@ -270,7 +275,7 @@ __device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* t
   return output_nn_->forward(nullptr, output_act, params, 0);
 }
 template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenState()
+void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
@@ -279,7 +284,7 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenState()
 }
 
 template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::resetCellState()
+void LSTMHelper<PARAMS_T, OUTPUT_T>::resetCellCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
@@ -288,11 +293,31 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::resetCellState()
 }
 
 template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::resetInitialStateCPU()
+void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenCellCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
     hidden_state_[i] = params_.initial_hidden[i];
     cell_state_[i] = params_.initial_cell[i];
+  }
+}
+
+template <class PARAMS_T, class OUTPUT_T>
+void LSTMHelper<PARAMS_T, OUTPUT_T>::setHiddenState(const Eigen::Ref<const hidden_state> hidden_state)
+{
+  for (int i = 0; i < HIDDEN_DIM; i++)
+  {
+    params_.initial_hidden[i] = hidden_state[i];
+    hidden_state_[i] = hidden_state[i];
+  }
+}
+
+template <class PARAMS_T, class OUTPUT_T>
+void LSTMHelper<PARAMS_T, OUTPUT_T>::setCellState(const Eigen::Ref<const hidden_state> cell_state)
+{
+  for (int i = 0; i < HIDDEN_DIM; i++)
+  {
+    params_.initial_cell[i] = cell_state[i];
+    cell_state_[i] = cell_state[i];
   }
 }

@@ -198,11 +198,8 @@ TEST_F(LSTMHelperTest, GPUSetupAndParamsCheck)
       EXPECT_FLOAT_EQ(shared_lstm_params[grid].b_c[i], 0.0f);
       EXPECT_FLOAT_EQ(lstm_params[grid].initial_hidden[i], 0.0f) << "at index " << i;
       EXPECT_FLOAT_EQ(lstm_params[grid].initial_cell[i], 0.0f) << "at index " << i;
-      ;
       EXPECT_FLOAT_EQ(shared_lstm_params[grid].initial_hidden[i], 0.0f) << "at index " << i;
-      ;
       EXPECT_FLOAT_EQ(shared_lstm_params[grid].initial_cell[i], 0.0f) << "at index " << i;
-      ;
     }
   }
 }
@@ -329,11 +326,8 @@ TEST_F(LSTMHelperTest, UpdateModel)
     {
       EXPECT_FLOAT_EQ(lstm_params[grid].initial_hidden[i], params.initial_hidden[i]) << "at index " << i;
       EXPECT_FLOAT_EQ(lstm_params[grid].initial_cell[i], params.initial_cell[i]) << "at index " << i;
-      ;
       EXPECT_FLOAT_EQ(shared_lstm_params[grid].initial_hidden[i], params.initial_hidden[i]) << "at index " << i;
-      ;
       EXPECT_FLOAT_EQ(shared_lstm_params[grid].initial_cell[i], params.initial_cell[i]) << "at index " << i;
-      ;
     }
   }
 }
@@ -388,29 +382,7 @@ TEST_F(LSTMHelperTest, forwardCPU)
   model.updateOutputModel({ 28, 3 }, theta_vec);
 
   auto params = model.getLSTMParams();
-  for (int i = 0; i < 20 * 20; i++)
-  {
-    params.W_im[i] = 1.0;
-    params.W_fm[i] = 1.0;
-    params.W_om[i] = 1.0;
-    params.W_cm[i] = 1.0;
-  }
-  for (int i = 0; i < 8 * 20; i++)
-  {
-    params.W_ii[i] = 1.0;
-    params.W_fi[i] = 1.0;
-    params.W_oi[i] = 1.0;
-    params.W_ci[i] = 1.0;
-  }
-  for (int i = 0; i < 20; i++)
-  {
-    params.b_i[i] = 1.0;
-    params.b_f[i] = 1.0;
-    params.b_o[i] = 1.0;
-    params.b_c[i] = 1.0;
-    params.initial_hidden[i] = 1.0;
-    params.initial_cell[i] = 1.0;
-  }
+  params.setAllValues(1.0f);
   model.updateLSTM(params);
 
   LSTM::input_array input = LSTM::input_array::Ones();
@@ -504,7 +476,7 @@ TEST_F(LSTMHelperTest, forwardGPU)
       launchForwardTestKernel<LSTM2, 32>(model, input_arr, output_arr, y_dim, step);
       for (int point = 0; point < num_rollouts; point++)
       {
-        model.resetInitialStateCPU();
+        model.resetHiddenCellCPU();
         LSTM2::input_array input = inputs.col(point);
         LSTM2::output_array output;
 
@@ -585,7 +557,7 @@ TEST_F(LSTMHelperTest, forwardGPUCompare)
       launchForwardTestKernel<LSTM2, 32>(model, input_arr, output_arr, y_dim, step);
       for (int point = 0; point < num_rollouts; point++)
       {
-        model.resetInitialStateCPU();
+        model.resetHiddenCellCPU();
         LSTM2::input_array input = inputs.col(point);
         LSTM2::output_array output;
 

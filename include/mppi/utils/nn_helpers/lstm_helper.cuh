@@ -34,6 +34,29 @@ struct LSTMParams {
 
   float initial_hidden[HIDDEN_DIM] = { 0.0f };
   float initial_cell[HIDDEN_DIM] = { 0.0f };
+
+  void setAllValues(float input) {
+    for(int i = 0; i < HIDDEN_HIDDEN_SIZE; i++) {
+      W_im[i] = input;
+      W_fm[i] = input;
+      W_om[i] = input;
+      W_cm[i] = input;
+    }
+    for(int i = 0; i < INPUT_HIDDEN_SIZE; i++) {
+      W_ii[i] = input;
+      W_fi[i] = input;
+      W_oi[i] = input;
+      W_ci[i] = input;
+    }
+    for(int i = 0; i < HIDDEN_DIM; i++) {
+      b_i[i] = input;
+      b_f[i] = input;
+      b_o[i] = input;
+      b_c[i] = input;
+      initial_hidden[i] = input;
+      initial_cell[i] = input;
+    }
+  }
 };
 
 template<class PARAMS_T, class OUTPUT_T>
@@ -86,11 +109,12 @@ public:
                    Eigen::Ref<dfdx> A);
 
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
+  void forward(const Eigen::Ref<const input_array>& input);
   __device__ float* forward(float* input, float* theta_s);
 
-  void resetHiddenState();
-  void resetCellState();
-  void resetInitialStateCPU();
+  void resetHiddenCPU();
+  void resetCellCPU();
+  void resetHiddenCellCPU();
 
   hidden_state getHiddenState() {
     return hidden_state_;
@@ -99,12 +123,8 @@ public:
     return cell_state_;
   }
 
-  void setInitialHiddenState(const Eigen::Ref<const hidden_state> hidden_state) {
-    hidden_state_ = hidden_state;
-  }
-  void setInitialCellState(const Eigen::Ref<const hidden_state> hidden_state) {
-    cell_state_ = hidden_state;
-  }
+  void setHiddenState(const Eigen::Ref<const hidden_state> hidden_state);
+  void setCellState(const Eigen::Ref<const hidden_state> hidden_state);
 
   // device pointer, null on the device
   OUTPUT_FNN_T* output_nn_ = nullptr;
