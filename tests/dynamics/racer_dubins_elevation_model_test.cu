@@ -598,6 +598,306 @@ TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPU)
   dynamics.freeCudaMem();
 }
 
+TEST_F(RacerDubinsElevationTest, TestStepReverse)
+{
+  CudaCheckError();
+  using DYN = RacerDubinsElevation;
+  const float tol = 1e-6;
+  DYN dynamics = DYN();
+  auto params = dynamics.getParams();
+  params.c_0 = 0;
+  params.c_b[0] = 1;
+  params.c_b[1] = 10;
+  params.c_b[2] = 100;
+  params.c_v[0] = 0.25;
+  params.c_v[1] = 0.5;
+  params.c_v[2] = 0.75;
+  params.c_t[0] = 2;
+  params.c_t[1] = 20;
+  params.c_t[2] = 200;
+  params.low_min_throttle = 0.2;
+  params.steer_command_angle_scale = 0.5;
+  params.steering_constant = 0.5;
+  params.wheel_base = 0.5;
+  params.max_steer_rate = 5;
+  params.gear_sign = -1;
+  dynamics.setParams(params);
+  DYN::state_array state;
+  DYN::state_array next_state;
+  DYN::state_array state_der = DYN::state_array::Zero();
+  DYN::control_array control;
+  DYN::output_array output;
+  float dt = 0.1;
+  // TODO add in the elevation map
+
+  // Basic initial state and no movement should stay still
+  state << 0, 0, 0, 0, 0, -0.0, 0.0, 0, 0;
+  control << 0, 0;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_TRUE(state_der == DYN::state_array::Zero());
+  EXPECT_NEAR(next_state(0), 0.0, tol);
+  EXPECT_NEAR(next_state(1), 0.0, tol);
+  EXPECT_NEAR(next_state(2), 0.0, tol);
+  EXPECT_NEAR(next_state(3), 0.0, tol);
+  EXPECT_NEAR(next_state(4), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), 0.0, tol);
+
+  // Apply full throttle from zero state
+  state << 0, 0, 0, 0, 0, -0.0, 0.0, 0, 0;
+  control << 1, 0;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(state_der(0), -1.6, tol);
+  EXPECT_NEAR(next_state(0), -0.16, tol);
+  EXPECT_NEAR(next_state(1), 0.0, tol);
+  EXPECT_NEAR(next_state(2), 0.0, tol);
+  EXPECT_NEAR(next_state(3), 0.0, tol);
+  EXPECT_NEAR(next_state(4), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), -1.6, tol);
+
+  // Apply throttle to a state with positive velocity
+  state << 1, 0, 0, 0, 0, -0.0, 0.0, 0, 0;
+  control << 1, 0;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(state_der(0), -20.5, tol);
+  EXPECT_NEAR(next_state(0), -1.05, tol);
+  EXPECT_NEAR(next_state(1), 0.0, tol);
+  EXPECT_NEAR(next_state(2), 0.1, tol);
+  EXPECT_NEAR(next_state(3), 0.0, tol);
+  EXPECT_NEAR(next_state(4), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), -20.5, tol);
+
+  // Apply full throttle and half left turn to origin state
+  state << 0, 0, 0, 0, 0, -0.0, 0.0, 0, 0;
+  control << 1, 0.5;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(state_der(0), -1.6, tol);
+  EXPECT_NEAR(next_state(0), -0.16, tol);
+  EXPECT_NEAR(next_state(1), 0.0, tol);
+  EXPECT_NEAR(next_state(2), 0.0, tol);
+  EXPECT_NEAR(next_state(3), 0.0, tol);
+  EXPECT_NEAR(next_state(4), powf(0.5, 3) * dt, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), powf(0.5, 3), tol);
+  EXPECT_NEAR(next_state(8), -1.6, tol);
+
+  // Apply full throttle and half left turn to a moving state oriented 30 degrees to the left
+  float yaw = M_PI / 6;
+  state << 1.0, yaw, 0, 0, 0, -0.0, 0.0, 0, 0;
+  control << 1, 0.5;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(state_der(0), -20.5, tol);
+  EXPECT_NEAR(next_state(0), -1.05, tol);
+  EXPECT_NEAR(next_state(1), yaw, tol);
+  EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(4), powf(0.5, 3) * dt, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), powf(0.5, 3), tol);
+  EXPECT_NEAR(next_state(8), -20.5, tol);
+
+  // Apply full throttle and half left turn to a moving state oriented 30 degrees to the left which is already turning
+  float steer_angle = M_PI / 8;
+  state << 1.0, yaw, 0, 0, steer_angle, -0.0, 0.0, 0, 0;
+  control << 1, 0.5;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(state_der(0), -20.5, tol);
+  EXPECT_NEAR(next_state(0), -1.05, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(8), -20.5, tol);
+
+  // Apply full brake and half left turn to a moving state oriented 30 degrees to the left which is already turning
+  state << 1.0, yaw, 0, 0, steer_angle, -0.0, 0.0, 0, 0;
+  control << -1, 0.5;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(state_der(0), -10 - 0.5, tol);
+  EXPECT_NEAR(next_state(0), 1 - 10.5 * dt, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(8), -10.5, tol);
+
+  /**
+   * Apply full brake and half left turn to a moving state oriented 30 degrees to the left which is already turning
+   * and on a downward facing hill
+   */
+  float pitch = 20 * M_PI / 180;
+  state << 1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  control << -1, 0.5;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(next_state(0), 1 + (-10.5 + 9.81 * sinf(pitch)) * dt, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(8), (-10.5 + 9.81 * sinf(pitch)), tol);
+
+  /**
+   * Apply full brake and half left turn to a backwards moving state oriented 30 degrees to the left which is already
+   * turning and on a downward facing hill
+   */
+  state << -1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  control << -1, 0.5;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(next_state(0), -1 + (10.5 + 9.81 * sinf(pitch)) * dt, tol);
+  EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(8), (10.5 + 9.81 * sinf(pitch)), tol);
+
+  /**
+   * Apply full brake and half right turn to a backwards moving state oriented 30 degrees to the left which is already
+   * turning and on a downward facing hill
+   */
+  state << -1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  control << -1, -0.5;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(next_state(0), -1 + (10.5 + 9.81 * sinf(pitch)) * dt, tol);
+  EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + (-0.25 - steer_angle) * 0.5 * dt, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), (-0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(8), (10.5 + 9.81 * sinf(pitch)), tol);
+
+  /**
+   * Apply full brake and half right turn to a backwards moving state with a huge steering angle to test max steer
+   * angle and steering rate. We are also on a downward facing hill and are already oriented 30 degrees to the left
+   */
+  steer_angle *= 100;
+  state << -1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  control << -1, -0.5;
+  dynamics.step(state, next_state, state_der, control, output, 0, dt);
+  EXPECT_NEAR(next_state(0), -1 + (10.5 + 9.81 * sinf(pitch)) * dt, tol);
+  EXPECT_NEAR(next_state(1), yaw + tan(steer_angle / -10.2) * dt * -2, tol);
+  EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
+  EXPECT_NEAR(next_state(4), params.max_steer_angle, tol);
+  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(6), 0.0, tol);
+  EXPECT_NEAR(next_state(7), -params.max_steer_rate, tol);
+  EXPECT_NEAR(next_state(8), (10.5 + 9.81 * sinf(pitch)), tol);
+}
+
+TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPUReverse)
+{
+  const int num_rollouts = 75;
+  const float dt = 0.1f;
+  CudaCheckError();
+  RacerDubinsElevation dynamics = RacerDubinsElevation();
+  auto params = dynamics.getParams();
+  params.gear_sign = -1;
+  dynamics.setParams(params);
+
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
+  TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
+  helper->setExtent(0, extent);
+
+  std::vector<float> data_vec;
+  data_vec.resize(10 * 20);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = i * 1.0f;
+  }
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(0, 1, 0);
+  new_rot_mat[1] = make_float3(1, 0, 0);
+  new_rot_mat[2] = make_float3(0, 0, 1);
+  helper->updateRotation(0, new_rot_mat);
+  helper->updateOrigin(0, make_float3(1, 2, 3));
+
+  helper->updateTexture(0, data_vec);
+  helper->updateResolution(0, 10);
+  helper->enableTexture(0);
+  helper->copyToDevice(true);
+
+  CudaCheckError();
+  dynamics.GPUSetup();
+  CudaCheckError();
+
+  Eigen::Matrix<float, RacerDubinsElevation::CONTROL_DIM, num_rollouts> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, RacerDubinsElevation::CONTROL_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, num_rollouts> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, num_rollouts>::Random();
+
+  std::vector<std::array<float, RacerDubinsElevation::STATE_DIM>> s(num_rollouts);
+  std::vector<std::array<float, RacerDubinsElevation::STATE_DIM>> s_next(num_rollouts);
+  std::vector<std::array<float, RacerDubinsElevation::STATE_DIM>> s_der(num_rollouts);
+  // steering, throttle
+  std::vector<std::array<float, RacerDubinsElevation::CONTROL_DIM>> u(num_rollouts);
+
+  RacerDubinsElevation::state_array state;
+  RacerDubinsElevation::state_array next_state_cpu;
+  RacerDubinsElevation::control_array control;
+  RacerDubinsElevation::output_array output;
+  RacerDubinsElevation::state_array state_der_cpu = RacerDubinsElevation::state_array::Zero();
+
+  // Run dynamics on dynamicsU
+  // Run dynamics on GPU
+  for (int y_dim = 1; y_dim <= 10; y_dim++)
+  {
+    for (int state_index = 0; state_index < num_rollouts; state_index++)
+    {
+      for (int dim = 0; dim < s[0].size(); dim++)
+      {
+        s[state_index][dim] = state_trajectory.col(state_index)(dim);
+      }
+      for (int dim = 0; dim < u[0].size(); dim++)
+      {
+        u[state_index][dim] = control_trajectory.col(state_index)(dim);
+      }
+    }
+
+    launchStepTestKernel<RacerDubinsElevation>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    for (int point = 0; point < num_rollouts; point++)
+    {
+      state = state_trajectory.col(point);
+      control = control_trajectory.col(point);
+      state_der_cpu = RacerDubinsElevation::state_array::Zero();
+
+      dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
+      for (int dim = 0; dim < RacerDubinsElevation::STATE_DIM; dim++)
+      {
+        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        // EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_NEAR(next_state_cpu(dim), s_next[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s_next[point][dim]));
+      }
+    }
+  }
+  dynamics.freeCudaMem();
+}
+
 TEST_F(RacerDubinsElevationTest, ComputeStateTrajectoryFiniteTest)
 {
   RacerDubinsElevation dynamics = RacerDubinsElevation();
