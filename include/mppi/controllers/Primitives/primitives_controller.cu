@@ -177,8 +177,16 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     copyMPPIControlToDevice(false);
 
     // Generate noise data
-    powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
-                          this->control_noise_d_, optimization_stride, this->gen_, this->stream_);
+    const int colored_num_timesteps = (this->getNumTimesteps() > optimization_stride) ?
+                                          this->getNumTimesteps() - optimization_stride :
+                                          this->getNumTimesteps();
+    const int colored_stride = (this->getNumTimesteps() > optimization_stride) ? optimization_stride : 0;
+    if (colored_stride == 0)
+    {
+      std::cout << "We tripped the fail-safe" << std::endl;
+    }
+    powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), colored_num_timesteps, NUM_ROLLOUTS, this->control_noise_d_,
+                          colored_stride, this->gen_, this->stream_);
     // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->getNumTimesteps() *
     // DYN_T::CONTROL_DIM,
     //                      0.0, 1.0);
