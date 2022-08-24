@@ -74,8 +74,16 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     this->copyNominalControlToDevice(false);
 
     // Generate noise data
-    powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps() - optimization_stride, NUM_ROLLOUTS,
-                          this->control_noise_d_, optimization_stride, this->gen_, this->stream_);
+    const int colored_num_timesteps = (this->getNumTimesteps() > optimization_stride) ?
+                                          this->getNumTimesteps() - optimization_stride :
+                                          this->getNumTimesteps();
+    const int colored_stride = (this->getNumTimesteps() > optimization_stride) ? optimization_stride : 0;
+    if (colored_stride == 0)
+    {
+      std::cout << "We tripped the fail-safe" << std::endl;
+    }
+    powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), colored_num_timesteps, NUM_ROLLOUTS, this->control_noise_d_,
+                          colored_stride, this->gen_, this->stream_);
     // Launch the rollout kernel
     mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
