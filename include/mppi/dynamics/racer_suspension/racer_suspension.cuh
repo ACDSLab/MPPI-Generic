@@ -102,6 +102,7 @@ struct RacerSuspensionParams : public DynamicsParams
   // steering model params
   float steering_constant = .6;
   float steer_command_angle_scale = -2.45;
+  int gear_sign = 1;
   RacerSuspensionParams()
   {
     recalcParams();

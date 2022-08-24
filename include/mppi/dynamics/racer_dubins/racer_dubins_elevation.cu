@@ -83,8 +83,8 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
     brake = linear_brake_slope * control(0) * state(0);
   }
 
-  state_der(0) =
-      (!enable_brake) * throttle + (enable_brake)*brake - this->params_.c_v[index] * state(0) + this->params_.c_0;
+  state_der(0) = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
+                 this->params_.c_v[index] * state(0) + this->params_.c_0;
   if (abs(state[6]) < M_PI_2)
   {
     state_der[0] -= this->params_.gravity * sinf(state[6]);
@@ -227,8 +227,8 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
     brake = linear_brake_slope * control[0] * state[S_INDEX(VEL_X)];
   }
 
-  state_der[S_INDEX(VEL_X)] =
-      (!enable_brake) * throttle + (enable_brake)*brake - params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
+  state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
+                              params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
   if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
   {
     state_der[S_INDEX(VEL_X)] -= params_p->gravity * sinf(state[S_INDEX(PITCH)]);

@@ -66,6 +66,7 @@ struct RacerDubinsParams : public DynamicsParams
   float gravity = -9.81;
   float max_steer_angle = 0.5;
   float max_steer_rate = 5;
+  int gear_sign = 1;
 };
 
 using namespace MPPI_internal;
