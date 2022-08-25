@@ -321,3 +321,51 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::setCellState(const Eigen::Ref<const hidden_
     cell_state_[i] = cell_state[i];
   }
 }
+
+template <class PARAMS_T, class OUTPUT_T>
+void LSTMHelper<PARAMS_T, OUTPUT_T>::loadParams(const std::string& model_path)
+{
+  if (!fileExists(model_path))
+  {
+    std::cerr << "Could not load neural net model at path: " << model_path.c_str();
+    exit(-1);
+  }
+  cnpy::npz_t param_dict = cnpy::npz_load(model_path);
+
+  // assumes it has been unonioned
+  output_nn_->loadParams(param_dict);
+
+  cnpy::NpyArray weight_hh_raw = param_dict.at("weight_hh_l0");
+  cnpy::NpyArray bias_hh_raw = param_dict.at("bias_hh_l0");
+  cnpy::NpyArray weight_ih_raw = param_dict.at("weight_ih_l0");
+  cnpy::NpyArray bias_ih_raw = param_dict.at("bias_ih_l0");
+  double* weight_hh = weight_hh_raw.data<double>();
+  double* bias_hh = bias_hh_raw.data<double>();
+  double* weight_ih = weight_ih_raw.data<double>();
+  double* bias_ih = bias_ih_raw.data<double>();
+
+  for (int i = 0; i < PARAMS_T::HIDDEN_HIDDEN_SIZE; i++)
+  {
+    params_.W_im[i] = weight_hh[i];
+    params_.W_fm[i] = weight_hh[i + PARAMS_T::HIDDEN_HIDDEN_SIZE];
+    params_.W_cm[i] = weight_hh[i + 2 * PARAMS_T::HIDDEN_HIDDEN_SIZE];
+    params_.W_om[i] = weight_hh[i + 3 * PARAMS_T::HIDDEN_HIDDEN_SIZE];
+  }
+  for (int i = 0; i < PARAMS_T::INPUT_HIDDEN_SIZE; i++)
+  {
+    params_.W_ii[i] = weight_ih[i];
+    params_.W_fi[i] = weight_ih[i + PARAMS_T::INPUT_HIDDEN_SIZE];
+    params_.W_ci[i] = weight_ih[i + 2 * PARAMS_T::INPUT_HIDDEN_SIZE];
+    params_.W_oi[i] = weight_ih[i + 3 * PARAMS_T::INPUT_HIDDEN_SIZE];
+  }
+  for (int i = 0; i < HIDDEN_DIM; i++)
+  {
+    params_.b_i[i] = bias_hh[i] + bias_ih[i];
+    params_.b_f[i] = bias_hh[i + HIDDEN_DIM] + bias_ih[i + HIDDEN_DIM];
+    params_.b_c[i] = bias_hh[i + 2 * HIDDEN_DIM] + bias_ih[i + 2 * HIDDEN_DIM];
+    params_.b_o[i] = bias_hh[i + 3 * HIDDEN_DIM] + bias_ih[i + 3 * HIDDEN_DIM];
+  }
+
+  // Save parameters to GPU memory
+  paramsToDevice();
+}

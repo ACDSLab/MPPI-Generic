@@ -90,16 +90,18 @@ TEST_F(LSTMHelperTest, ParamsConstructor1)
   }
 }
 
-// TEST_F(LSTMHelperTest, ParamsConstructor2)
-// {
-//   int total_amount = 0;
-//   total_amount += LSTMHelper<LSTMParams<8, 20>, FNNHelper<FNNParams<20, 3>>>::SHARED_MEM_REQUEST_GRD;
-//   total_amount += LSTMHelper<LSTMParams<8, 20>, FNNHelper<FNNParams<20, 3>>>::SHARED_MEM_REQUEST_BLK * 8;
-//   total_amount += LSTMHelper<LSTMParams<3, 10>, FNNHelper<FNNParams<10, 1>>>::SHARED_MEM_REQUEST_GRD;
-//   total_amount += LSTMHelper<LSTMParams<3, 10>, FNNHelper<FNNParams<10, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
-//
-//   EXPECT_LT(total_amount * 4, 49152);
-// }
+TEST_F(LSTMHelperTest, ParamsConstructor2)
+{
+  int total_amount = 0;
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNHelper<FNNParams<18, 10, 2>>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNHelper<FNNParams<18, 10, 2>>>::SHARED_MEM_REQUEST_BLK * 8;
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 10, 1>>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 10, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
+  // total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 10, 1>>>::SHARED_MEM_REQUEST_GRD;
+  // total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 10, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
+  std::cout << "total amount: " << total_amount << std::endl;
+  EXPECT_LT(total_amount * 4, 49152);
+}
 
 TEST_F(LSTMHelperTest, BindStream)
 {
@@ -158,9 +160,7 @@ TEST_F(LSTMHelperTest, GPUSetupAndParamsCheck)
     EXPECT_EQ(fnn_params[grid].net_structure[0], 28);
     EXPECT_EQ(fnn_params[grid].net_structure[1], 3);
     EXPECT_EQ(shared_fnn_params[grid].net_structure[0], 28) << "at grid " << grid;
-    ;
     EXPECT_EQ(shared_fnn_params[grid].net_structure[1], 3) << "at grid " << grid;
-    ;
 
     for (int i = 0; i < 20 * 20; i++)
     {
@@ -282,9 +282,7 @@ TEST_F(LSTMHelperTest, UpdateModel)
     EXPECT_EQ(fnn_params[grid].net_structure[0], 28);
     EXPECT_EQ(fnn_params[grid].net_structure[1], 3);
     EXPECT_EQ(shared_fnn_params[grid].net_structure[0], 28) << "at grid " << grid;
-    ;
     EXPECT_EQ(shared_fnn_params[grid].net_structure[1], 3) << "at grid " << grid;
-    ;
 
     for (int i = 0; i < 20 * 20; i++)
     {
@@ -332,43 +330,53 @@ TEST_F(LSTMHelperTest, UpdateModel)
   }
 }
 
-// TEST_F(LSTMHelperTest, LoadModelNPZTest)
-// {
-//   LSTMHelper<LSTMParams<6, 32, 32, 4>> model;
-//   model.GPUSetup();
-//
-//   std::string path = mppi::tests::test_load_nn_file;
-//   if (!fileExists(path))
-//   {
-//     std::cerr << "Could not load neural net model at path: " << path.c_str();
-//     exit(-1);
-//   }
-//   cnpy::npz_t param_dict = cnpy::npz_load(path);
-//   model.loadParams(param_dict);
-//
-//   // check CPU
-//   for (int i = 0; i < 1412; i++)
-//   {
-//     EXPECT_FLOAT_EQ(model.getTheta()[i], i) << "failed at index " << i;
-//   }
-//
-//   std::array<float, 1412> theta_result = {};
-//   std::array<int, 6> stride_result = {};
-//   std::array<int, 4> net_structure_result = {};
-//   std::array<float, 1412> shared_theta_result = {};
-//   std::array<int, 6> shared_stride_result = {};
-//   std::array<int, 4> shared_net_structure_result = {};
-//
-//   // launch kernel
-//   launchParameterCheckTestKernel<LSTMHelper<LSTMParams<6, 32, 32, 4>>, 1412, 6, 4>(
-//       model, theta_result, stride_result, net_structure_result, shared_theta_result, shared_stride_result,
-//       shared_net_structure_result);
-//
-//   for (int i = 0; i < 1412; i++)
-//   {
-//     EXPECT_FLOAT_EQ(shared_theta_result[i], i) << "failed at index " << i;
-//   }
-// }
+TEST_F(LSTMHelperTest, LoadModelNPZTest)
+{
+  using LSTM = LSTMHelper<LSTMParams<3, 25>, FNNHelper<FNNParams<28, 30, 30, 2>>>;
+  LSTM model;
+  model.GPUSetup();
+
+  std::string path = mppi::tests::test_lstm_network;
+  if (!fileExists(path))
+  {
+    std::cerr << "Could not load neural net model at path: " << path.c_str();
+    exit(-1);
+  }
+  model.loadParams(path);
+
+  path = mppi::tests::test_lstm_input_output;
+
+  cnpy::npz_t input_outputs = cnpy::npz_load(path);
+  double* inputs = input_outputs.at("input").data<double>();
+  double* outputs = input_outputs.at("output").data<double>();
+  double* hidden = input_outputs.at("hidden").data<double>();
+  double* cell = input_outputs.at("cell").data<double>();
+
+  double tol = 1e-5;
+
+  LSTM::input_array input;
+  LSTM::output_array output;
+
+  for (int point = 0; point < 1000; point++)
+  {
+    for (int i = 0; i < 3; i++)
+    {
+      input(i) = inputs[i + 3 * point];
+    }
+    model.resetHiddenCellCPU();
+    model.forward(input, output);
+
+    for (int i = 0; i < 2; i++)
+    {
+      EXPECT_NEAR(output[i], outputs[i + 2 * point], tol) << "point " << point << " at dim " << i;
+    }
+    for (int i = 0; i < 25; i++)
+    {
+      EXPECT_NEAR(model.getHiddenState()[i], hidden[i + 25 * point], tol) << "point " << point << " at dim " << i;
+      EXPECT_NEAR(model.getCellState()[i], cell[i + 25 * point], tol) << "point " << point << " at dim " << i;
+    }
+  }
+}
 
 TEST_F(LSTMHelperTest, forwardCPU)
 {
