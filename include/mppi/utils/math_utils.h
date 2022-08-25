@@ -23,10 +23,10 @@
 #ifndef __UNROLL
 #define __xstr__(s) __str__(s)
 #define __str__(s) #s
-#ifdef __GNUG__  // GCC is the compiler
-#define __UNROLL(a) _Pragma(__xstr__(GCC unroll a))
-#else
+#ifdef __CUDACC__
 #define __UNROLL(a) _Pragma("unroll")
+#else  // GCC is the compiler and uses different unroll syntax
+#define __UNROLL(a) _Pragma(__xstr__(GCC unroll a))
 #endif
 #endif
 

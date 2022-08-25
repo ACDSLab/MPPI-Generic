@@ -165,18 +165,9 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
   output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
   output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
   output[O_INDEX(BASELINK_POS_I_Z)] = 0;
-  output[O_INDEX(OMEGA_B_X)] = 0;
-  output[O_INDEX(OMEGA_B_Y)] = 0;
-  output[O_INDEX(OMEGA_B_Z)] = 0;
   output[O_INDEX(YAW)] = yaw;
   output[O_INDEX(PITCH)] = pitch;
   output[O_INDEX(ROLL)] = roll;
-  Eigen::Quaternionf q;
-  mppi::math::Euler2QuatNWU(roll, pitch, yaw, q);
-  output[O_INDEX(ATTITUDE_QW)] = q.w();
-  output[O_INDEX(ATTITUDE_QX)] = q.x();
-  output[O_INDEX(ATTITUDE_QY)] = q.y();
-  output[O_INDEX(ATTITUDE_QZ)] = q.z();
   output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
   output[O_INDEX(STEER_ANGLE_RATE)] = 0;
   output[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
@@ -187,21 +178,13 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
   output[O_INDEX(WHEEL_POS_I_RL_Y)] = rear_left.y;
   output[O_INDEX(WHEEL_POS_I_RR_X)] = rear_right.x;
   output[O_INDEX(WHEEL_POS_I_RR_Y)] = rear_right.y;
-  output[O_INDEX(WHEEL_FORCE_B_FL_X)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_FL_Y)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_FL_Z)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_FR_X)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_FR_Y)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_FR_Z)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_RL_X)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_RL_Y)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_RL_Z)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_RR_X)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_RR_Y)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_RR_Z)] = 10000;
-  output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
-  output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
-  output[O_INDEX(CENTER_POS_I_Z)] = 0;
+  output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000;
+  output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000;
+  output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000;
+  output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000;
+  // output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
+  // output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
+  // output[O_INDEX(CENTER_POS_I_Z)] = 0;
   output[O_INDEX(ACCEL_X)] = next_state[S_INDEX(ACCEL_X)];
 }
 
@@ -260,9 +243,6 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
       max(min(state_der[S_INDEX(STEER_ANGLE)], params_p->max_steer_rate), -params_p->max_steer_rate);
 
   // Calculate the next state
-  float pitch = 0;
-  float roll = 0;
-
   float3 front_left = make_float3(2.981, 0.737, 0);
   float3 front_right = make_float3(2.981, -0.737, 0);
   float3 rear_left = make_float3(0, 0.737, 0);
@@ -348,25 +328,15 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
   __syncthreads();
 
   // Fill in output
-  float yaw = next_state[S_INDEX(YAW)];
-  float q[4];
-  mppi::math::Euler2QuatNWU(roll, pitch, yaw, q);
   output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
   output[O_INDEX(BASELINK_VEL_B_Y)] = 0;
   output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
   output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
   output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
   output[O_INDEX(BASELINK_POS_I_Z)] = 0;
-  output[O_INDEX(OMEGA_B_X)] = 0;
-  output[O_INDEX(OMEGA_B_Y)] = 0;
-  output[O_INDEX(OMEGA_B_Z)] = 0;
   output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
   output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
   output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
-  output[O_INDEX(ATTITUDE_QW)] = q[0];
-  output[O_INDEX(ATTITUDE_QX)] = q[1];
-  output[O_INDEX(ATTITUDE_QY)] = q[2];
-  output[O_INDEX(ATTITUDE_QZ)] = q[3];
   output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
   output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
   output[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
@@ -377,20 +347,12 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
   output[O_INDEX(WHEEL_POS_I_RL_Y)] = rear_left.y;
   output[O_INDEX(WHEEL_POS_I_RR_X)] = rear_right.x;
   output[O_INDEX(WHEEL_POS_I_RR_Y)] = rear_right.y;
-  output[O_INDEX(WHEEL_FORCE_B_FL_X)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_FL_Y)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_FL_Z)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_FR_X)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_FR_Y)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_FR_Z)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_RL_X)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_RL_Y)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_RL_Z)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_RR_X)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_RR_Y)] = 0;
-  output[O_INDEX(WHEEL_FORCE_B_RR_Z)] = 10000;
-  output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
-  output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
-  output[O_INDEX(CENTER_POS_I_Z)] = 0;
+  output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000;
+  output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000;
+  output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000;
+  output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000;
+  // output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
+  // output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
+  // output[O_INDEX(CENTER_POS_I_Z)] = 0;
   output[O_INDEX(ACCEL_X)] = next_state[S_INDEX(ACCEL_X)];
 }
