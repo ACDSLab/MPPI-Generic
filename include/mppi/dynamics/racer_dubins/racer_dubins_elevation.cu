@@ -287,6 +287,7 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
         front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
         rear_left_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_left);
         rear_right_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_right);
+        output[O_INDEX(BASELINK_POS_I_Z)] = (rear_right_height + rear_left_height) / 2.0f;
 
         // max magnitude
         if (i == S_INDEX(ROLL))
@@ -333,7 +334,6 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
   output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
   output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
   output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
-  output[O_INDEX(BASELINK_POS_I_Z)] = 0;
   output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
   output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
   output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
