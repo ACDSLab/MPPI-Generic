@@ -3,7 +3,7 @@
 
 #include "fnn_helper.cuh"
 
-// TODO need copies of past hidden/cell and initial hidden/cell
+// TODO need copies of past hidden/cell and initial hidden/cell for networks that have multiple histories
 template<int INPUT_SIZE, int H_SIZE, int USE_SHARED=1>
 struct LSTMParams {
   static const int HIDDEN_DIM = H_SIZE;
@@ -78,7 +78,7 @@ public:
   typedef Eigen::Matrix<float, OUTPUT_T::OUTPUT_DIM, PARAMS_T::INPUT_DIM> dfdx;
   typedef PARAMS_T LSTM_PARAMS_T;
   typedef OUTPUT_T OUTPUT_FNN_T;
-  typedef typename OUTPUT_T::NN_PARAMS_T OUTPUT_PARAMS;
+  typedef typename OUTPUT_T::NN_PARAMS_T OUTPUT_PARAMS_T;
 
   using W_hh = Eigen::Matrix<float, HIDDEN_DIM, HIDDEN_DIM, Eigen::RowMajor>;
   using W_hi = Eigen::Matrix<float, HIDDEN_DIM, INPUT_DIM, Eigen::RowMajor>;
@@ -101,7 +101,7 @@ public:
   void paramsToDevice();
 
   void updateOutputModel(const std::vector<int>& description, const std::vector<float>& data);
-  void updateLSTM(PARAMS_T& params);
+  void setLSTMParams(PARAMS_T& params);
   void updateLSTMInitialStates(const Eigen::Ref<const hidden_state> hidden, const Eigen::Ref<const hidden_state> cell);
 
   bool computeGrad(Eigen::Ref<dfdx> A);
@@ -111,6 +111,7 @@ public:
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
   void forward(const Eigen::Ref<const input_array>& input);
   __device__ float* forward(float* input, float* theta_s);
+  __device__ float* forward(float* input, float* theta_s, LSTM_PARAMS_T* params, int shift);
 
   void resetHiddenCPU();
   void resetCellCPU();
@@ -123,15 +124,19 @@ public:
     return cell_state_;
   }
 
+  __host__ __device__ OUTPUT_FNN_T* getOutputModel() {
+    return output_nn_;
+  }
+
   void setHiddenState(const Eigen::Ref<const hidden_state> hidden_state);
   void setCellState(const Eigen::Ref<const hidden_state> hidden_state);
 
   // device pointer, null on the device
-  OUTPUT_FNN_T* output_nn_ = nullptr;
   LSTMHelper<PARAMS_T, OUTPUT_FNN_T>* network_d_ = nullptr;
 private:
   // params
   PARAMS_T params_;
+  OUTPUT_FNN_T* output_nn_ = nullptr;
 
   hidden_state hidden_state_;
   hidden_state cell_state_;

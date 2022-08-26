@@ -112,7 +112,7 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::updateOutputModel(const std::vector<int>& d
 }
 
 template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::updateLSTM(PARAMS_T& params)
+void LSTMHelper<PARAMS_T, OUTPUT_T>::setLSTMParams(PARAMS_T& params)
 {
   params_ = params;
   resetHiddenCellCPU();
@@ -169,26 +169,39 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::forward(const Eigen::Ref<const input_array>
 template <class PARAMS_T, class OUTPUT_T>
 __device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* theta_s)
 {
+  PARAMS_T* params = &this->params_;
+  if (PARAMS_T::SHARED_MEM_REQUEST_GRD != 0)
+  {
+    params = (PARAMS_T*)theta_s;
+  }
+
+  const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * (SHARED_MEM_REQUEST_BLK) + SHARED_MEM_REQUEST_GRD;
+  return forward(input, theta_s, params, block_idx);
+}
+
+template <class PARAMS_T, class OUTPUT_T>
+__device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* theta_s, LSTM_PARAMS_T* params,
+                                                          int block_idx)
+{
   // Weights
-  float* W_ii = (float*)&(this->params_.W_ii);
-  float* W_im = (float*)&(this->params_.W_im);
-  float* W_fi = (float*)&(this->params_.W_fi);
-  float* W_fm = (float*)&(this->params_.W_fm);
-  float* W_oi = (float*)&(this->params_.W_oi);
-  float* W_om = (float*)&(this->params_.W_om);
-  float* W_ci = (float*)&(this->params_.W_ci);
-  float* W_cm = (float*)&(this->params_.W_cm);
+  float* W_ii = &params->W_ii[0];
+  float* W_im = &params->W_im[0];
+  float* W_fi = &params->W_fi[0];
+  float* W_fm = &params->W_fm[0];
+  float* W_oi = &params->W_oi[0];
+  float* W_om = &params->W_om[0];
+  float* W_ci = &params->W_ci[0];
+  float* W_cm = &params->W_cm[0];
 
   // Biases
-  float* b_i = (float*)&(this->params_.b_i);  // hidden_size
-  float* b_f = (float*)&(this->params_.b_f);  // hidden_size
-  float* b_o = (float*)&(this->params_.b_o);  // hidden_size
-  float* b_c = (float*)&(this->params_.b_c);  // hidden_size
+  float* b_i = &params->b_i[0];  // hidden_size
+  float* b_f = &params->b_f[0];  // hidden_size
+  float* b_o = &params->b_o[0];  // hidden_size
+  float* b_c = &params->b_c[0];  // hidden_size
 
-  int i, j;
+  uint i, j;
 
   // Intermediate outputs
-  int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * (SHARED_MEM_REQUEST_BLK) + SHARED_MEM_REQUEST_GRD;
   float* c = &theta_s[block_idx];
   float* h = &theta_s[block_idx + HIDDEN_DIM];
   // float* next_cell_state = &theta_s[block_idx + 2 * HIDDEN_DIM];
@@ -199,7 +212,7 @@ __device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* t
   float* cell_update = &theta_s[block_idx + 7 * HIDDEN_DIM];
   float* x = &theta_s[block_idx + 8 * HIDDEN_DIM];
 
-  int tdy = threadIdx.y;
+  uint tdy = threadIdx.y;
 
   // load input into theta_s
   for (i = tdy; i < INPUT_DIM; i += blockDim.y)
@@ -244,36 +257,26 @@ __device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* t
   }
   __syncthreads();
 
+  float* output_act = &theta_s[block_idx + 8 * HIDDEN_DIM + INPUT_DIM];
+
   // copy computed hidden/cell state to theta_s
   for (i = tdy; i < HIDDEN_DIM; i += blockDim.y)
   {
     c[i] = g_i[i] * cell_update[i] + g_f[i] * c[i];
     h[i] = TANH(c[i]) * g_o[i];
-  }
-  __syncthreads();
-  // TODO make sure to shift by entire thing
-  // TODO compute the output network
-
-  int slide = PARAMS_T::SHARED_MEM_REQUEST_GRD;
-  if (PARAMS_T::SHARED_MEM_REQUEST_GRD == 0)
-  {
-    slide = 0;
-  }
-  OUTPUT_PARAMS* params = (OUTPUT_PARAMS*)(theta_s + slide);
-
-  float* output_act = &theta_s[block_idx + 8 * HIDDEN_DIM + INPUT_DIM];
-  for (i = tdy; i < HIDDEN_DIM; i += blockDim.y)
-  {
     output_act[i] = h[i];
   }
+
   for (i = tdy; i < INPUT_DIM; i += blockDim.y)
   {
     output_act[i + HIDDEN_DIM] = input[i];
   }
   __syncthreads();
 
-  return output_nn_->forward(nullptr, output_act, params, 0);
+  OUTPUT_PARAMS_T* output_params = (OUTPUT_PARAMS_T*)(theta_s + PARAMS_T::SHARED_MEM_REQUEST_GRD);
+  return output_nn_->forward(nullptr, output_act, output_params, 0);
 }
+
 template <class PARAMS_T, class OUTPUT_T>
 void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenCPU()
 {
@@ -331,7 +334,12 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::loadParams(const std::string& model_path)
     exit(-1);
   }
   cnpy::npz_t param_dict = cnpy::npz_load(model_path);
+  loadParams(param_dict);
+}
 
+template <class PARAMS_T, class OUTPUT_T>
+void LSTMHelper<PARAMS_T, OUTPUT_T>::loadParams(const cnpy::npz_t& param_dict)
+{
   // assumes it has been unonioned
   output_nn_->loadParams(param_dict);
 

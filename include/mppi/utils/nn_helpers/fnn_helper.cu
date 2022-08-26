@@ -272,10 +272,10 @@ __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s, PAR
   float tmp;
   float* W;
   float* b;
-  int tdx = threadIdx.x;
-  int tdy = threadIdx.y;
-  int tdz = threadIdx.z;
-  int i, j, k;
+  uint tdx = threadIdx.x;
+  uint tdy = threadIdx.y;
+  uint tdz = threadIdx.z;
+  uint i, j, k;
   curr_act = &theta_s[shift];
   next_act = &theta_s[shift + LARGEST_LAYER];
   // iterate through the part of the state that should be an input to the NN
@@ -324,8 +324,8 @@ __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s, PAR
 template <class PARAMS_T>
 __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
 {
-  int tdx = threadIdx.x;
-  int tdz = threadIdx.z;
+  uint tdx = threadIdx.x;
+  uint tdz = threadIdx.z;
   PARAMS_T* params = (PARAMS_T*)theta_s;
   return forward(input, theta_s, params, SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
 }
