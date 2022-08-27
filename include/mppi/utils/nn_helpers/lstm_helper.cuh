@@ -12,6 +12,7 @@ struct LSTMParams {
   static const int SHARED_MEM_REQUEST_BLK =
           8 * HIDDEN_DIM + INPUT_DIM;  ///< Amount of shared memory we need per ROLLOUT.
   static const int SHARED_MEM_REQUEST_GRD = sizeof(LSTMParams<INPUT_SIZE, H_SIZE>) * USE_SHARED;  ///< Amount of shared memory we need per BLOCK.
+  static const int NUM_PARAMS = 1;
 
   static const int HIDDEN_HIDDEN_SIZE = HIDDEN_DIM * HIDDEN_DIM;
   static const int INPUT_HIDDEN_SIZE = HIDDEN_DIM * (INPUT_DIM);
@@ -133,9 +134,9 @@ public:
 
   // device pointer, null on the device
   LSTMHelper<PARAMS_T, OUTPUT_FNN_T>* network_d_ = nullptr;
+  PARAMS_T params_;
 private:
   // params
-  PARAMS_T params_;
   OUTPUT_FNN_T* output_nn_ = nullptr;
 
   hidden_state hidden_state_;

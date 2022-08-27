@@ -8,11 +8,9 @@
 #include "lstm_helper.cuh"
 
 template<class INIT_T, class LSTM_T, int INITIAL_LEN>
-class LSTMLSTMHelper : public Managed
+class LSTMLSTMHelper
 {
 public:
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  static_assert(true);
   static const int NUM_PARAMS = INIT_T::NUM_PARAMS + LSTM_T::NUM_PARAMS;   ///< Total number of model parameters;
   static const int SHARED_MEM_REQUEST_GRD = LSTM_T::SHARED_MEM_REQUEST_GRD; ///< Amount of shared memory we need per BLOCK.
   static const int SHARED_MEM_REQUEST_BLK = LSTM_T::SHARED_MEM_REQUEST_BLK;  ///< Amount of shared memory we need per ROLLOUT.
@@ -48,8 +46,6 @@ public:
   void updateOutputModelInit(const std::vector<int>& description, const std::vector<float>& data);
   void updateOutputModel(const std::vector<int>& description, const std::vector<float>& data);
 
-  __device__ void initialize(float* theta_s);
-
   void GPUSetup();
   void freeCudaMem();
   void paramsToDevice();
@@ -57,23 +53,27 @@ public:
   void initializeLSTM(const Eigen::Ref<const init_buffer>& buffer);
 
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
-  __device__ float* forward(float* input, float* theta_s);
 
   std::shared_ptr<INIT_T> getInitModel();
-  LSTM_T* getLSTMModel();
+  std::shared_ptr<LSTM_T> getLSTMModel();
 
-  INIT_PARAMS_T getInitParams();
   void setInitParams(INIT_PARAMS_T& params);
-
-  __host__ __device__ LSTM_PARAMS_T getLSTMParams();
   void setLSTMParams(LSTM_PARAMS_T& params);
 
-  __host__ __device__ OUTPUT_FNN_T* getOutputModel();
+  INIT_PARAMS_T getInitLSTMParams() {
+    // TODO why using the getter method causes memory issues with compilation
+    return init_model_->params_;
+  }
+  LSTM_PARAMS_T getLSTMParams() {
+    return lstm_->params_;
+  }
+  OUTPUT_FNN_T* getOutputModel() {
+    return lstm_->getOutputModel();
+  }
 
-  LSTMLSTMHelper<INIT_T, LSTM_T, INIT_LEN>* network_d_ = nullptr;
 private:
   std::shared_ptr<INIT_T> init_model_ = nullptr;
-  LSTM_T* lstm_ = nullptr;
+  std::shared_ptr<LSTM_T> lstm_ = nullptr;
 };
 
 #if __CUDACC__

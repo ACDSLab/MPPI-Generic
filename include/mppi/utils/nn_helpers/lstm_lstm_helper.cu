@@ -2,22 +2,18 @@
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(cudaStream_t stream)
-  : Managed(stream)
 {
-  init_model_ = std::make_shared<INIT_T>(stream);
-  lstm_ = new LSTM_T(stream);
+  init_model_ = std::make_shared<INIT_T>();
+  lstm_ = std::make_shared<LSTM_T>(stream);
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string init_path,
                                                                                          std::string lstm_path,
                                                                                          cudaStream_t stream)
-  : Managed(stream)
 {
-  init_model_ = std::make_shared<INIT_T>(stream);
-  lstm_ = new LSTM_T(stream);
-  loadParamsInit(init_path);
-  loadParamsLSTM(lstm_path);
+  init_model_ = std::make_shared<INIT_T>(init_path);
+  lstm_ = std::make_shared<LSTM_T>(lstm_path, stream);
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
@@ -69,16 +65,6 @@ template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::GPUSetup()
 {
   lstm_->GPUSetup();
-  if (!this->GPUMemStatus_)
-  {
-    network_d_ = Managed::GPUSetup<LSTMLSTMHelper<INIT_T, LSTM_T, INIT_LEN>>(this);
-    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->lstm_), &(this->lstm_->network_d_), sizeof(LSTM_T*),
-                                 cudaMemcpyHostToDevice, this->stream_));
-  }
-  else
-  {
-    std::cout << "GPU Memory already set" << std::endl;
-  }
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
@@ -101,18 +87,6 @@ void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::forward(const Eigen::Ref<const
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-__device__ void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::initialize(float* theta_s)
-{
-  lstm_->initialize(theta_s);
-}
-
-template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-__device__ float* LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::forward(float* input, float* theta_s)
-{
-  return lstm_->forward(input, theta_s);
-}
-
-template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::updateOutputModel(const std::vector<int>& description,
                                                                     const std::vector<float>& data)
 {
@@ -132,15 +106,9 @@ std::shared_ptr<INIT_T> LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::getInitMode
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-LSTM_T* LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::getLSTMModel()
+std::shared_ptr<LSTM_T> LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::getLSTMModel()
 {
   return lstm_;
-}
-
-template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-typename INIT_T::LSTM_PARAMS_T LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::getInitParams()
-{
-  return init_model_->getLSTMParams();
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
@@ -150,19 +118,7 @@ void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::setInitParams(INIT_PARAMS_T& p
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-typename LSTM_T::LSTM_PARAMS_T LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::getLSTMParams()
-{
-  return lstm_->getLSTMParams();
-}
-
-template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::setLSTMParams(LSTM_PARAMS_T& params)
 {
   lstm_->setLSTMParams(params);
-}
-
-template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-typename LSTM_T::OUTPUT_FNN_T* LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::getOutputModel()
-{
-  return lstm_->getOutputModel();
 }

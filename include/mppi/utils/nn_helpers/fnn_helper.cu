@@ -127,8 +127,7 @@ void FNNHelper<PARAMS_T>::updateModel(const std::vector<int>& description, const
   {
     if (description[i] != this->params_.net_structure[i])
     {
-      std::cerr << "Invalid model trying to to be set for NN" << std::endl;
-      exit(0);
+      throw std::invalid_argument("Invalid model trying to to be set for NN");
     }
   }
   for (int i = 0; i < NUM_LAYERS - 1; i++)
