@@ -11,6 +11,7 @@ template<class INIT_T, class LSTM_T, int INITIAL_LEN>
 class LSTMLSTMHelper : public Managed
 {
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static_assert(true);
   static const int NUM_PARAMS = INIT_T::NUM_PARAMS + LSTM_T::NUM_PARAMS;   ///< Total number of model parameters;
   static const int SHARED_MEM_REQUEST_GRD = LSTM_T::SHARED_MEM_REQUEST_GRD; ///< Amount of shared memory we need per BLOCK.
@@ -27,17 +28,25 @@ public:
   typedef Eigen::Matrix<float, INIT_T::INPUT_DIM, INIT_LEN> init_buffer;
   typedef Eigen::Matrix<float, LSTM_T::INPUT_DIM, 1> input_array;
   typedef Eigen::Matrix<float, LSTM_T::OUTPUT_DIM, 1> output_array;
-  //typedef Eigen::Matrix<float, LSTM_T::OUTPUT_DIM, PARAMS_T::INPUT_DIM> dfdx;
 
-  // using W_hh = Eigen::Matrix<float, HIDDEN_DIM, HIDDEN_DIM, Eigen::RowMajor>;
-  // using W_hi = Eigen::Matrix<float, HIDDEN_DIM, INPUT_DIM, Eigen::RowMajor>;
-  using hidden_state = Eigen::Matrix<float, HIDDEN_DIM, 1>;
+  typedef typename LSTM_T::OUTPUT_FNN_T OUTPUT_FNN_T;
+  typedef typename LSTM_T::LSTM_PARAMS_T LSTM_PARAMS_T;
+  typedef typename INIT_T::LSTM_PARAMS_T INIT_PARAMS_T;
+  typedef typename LSTM_T::OUTPUT_PARAMS_T OUTPUT_PARAMS_T;
+  typedef typename INIT_T::OUTPUT_PARAMS_T INIT_OUTPUT_PARAMS_T;
+  // typedef Eigen::Matrix<float, LSTM_T::OUTPUT_DIM, PARAMS_T::INPUT_DIM> dfdx;
 
   LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(cudaStream_t = 0);
-  LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string, cudaStream_t = 0);
+  LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string init_path, std::string lstm_path, cudaStream_t = 0);
 
-  void loadParams(const std::string& model_path);
-  void loadParams(const cnpy::npz_t& npz);
+  void loadParamsInit(const std::string& model_path);
+  void loadParamsInit(const cnpy::npz_t& npz);
+
+  void loadParamsLSTM(const std::string& model_path);
+  void loadParamsLSTM(const cnpy::npz_t& npz);
+
+  void updateOutputModelInit(const std::vector<int>& description, const std::vector<float>& data);
+  void updateOutputModel(const std::vector<int>& description, const std::vector<float>& data);
 
   __device__ void initialize(float* theta_s);
 
@@ -50,25 +59,21 @@ public:
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
   __device__ float* forward(float* input, float* theta_s);
 
-  std::shared_ptr<INIT_T> getInitModel() {
-    return init_model_;
-  }
-  LSTM_T* getLSTMModel() {
-    return lstm_;
-  }
+  std::shared_ptr<INIT_T> getInitModel();
+  LSTM_T* getLSTMModel();
 
+  INIT_PARAMS_T getInitParams();
+  void setInitParams(INIT_PARAMS_T& params);
 
-  typename INIT_T::LSTM_PARAMS_T getInitParams() {
-    return init_model_->getLSTMParams();
-  }
-  void setInitParams(typename INIT_T::LSTM_PARAMS_T& params) {
-    init_model_->updateLSTM(params);
-  }
+  __host__ __device__ LSTM_PARAMS_T getLSTMParams();
+  void setLSTMParams(LSTM_PARAMS_T& params);
+
+  __host__ __device__ OUTPUT_FNN_T* getOutputModel();
 
   LSTMLSTMHelper<INIT_T, LSTM_T, INIT_LEN>* network_d_ = nullptr;
-  LSTM_T* lstm_ = nullptr;
 private:
   std::shared_ptr<INIT_T> init_model_ = nullptr;
+  LSTM_T* lstm_ = nullptr;
 };
 
 #if __CUDACC__

@@ -106,6 +106,7 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::vector<typename NETWO
                                     std::vector<typename NETWORK_T::OUTPUT_PARAMS_T>& fnn_params,
                                     std::vector<typename NETWORK_T::OUTPUT_PARAMS_T>& shared_fnn_params)
 {
+  static_assert(NETWORK_T::LSTM_PARAMS_T::SHARED_MEM_REQUEST_GRD != 0);
 
   typename NETWORK_T::LSTM_PARAMS_T* lstm_params_d = nullptr;
   typename NETWORK_T::LSTM_PARAMS_T* shared_lstm_params_d = nullptr;

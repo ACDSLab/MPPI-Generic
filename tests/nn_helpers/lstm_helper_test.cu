@@ -94,13 +94,20 @@ TEST_F(LSTMHelperTest, ParamsConstructor1)
 TEST_F(LSTMHelperTest, ParamsConstructor2)
 {
   int total_amount = 0;
-  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNHelper<FNNParams<18, 10, 2>>>::SHARED_MEM_REQUEST_GRD;
-  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNHelper<FNNParams<18, 10, 2>>>::SHARED_MEM_REQUEST_BLK * 8;
-  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 10, 1>>>::SHARED_MEM_REQUEST_GRD;
-  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 10, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
-  // total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 10, 1>>>::SHARED_MEM_REQUEST_GRD;
-  // total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 10, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
-  std::cout << "total amount: " << total_amount << std::endl;
+  // delay model
+  total_amount += LSTMHelper<LSTMParams<1, 3>, FNNHelper<FNNParams<4, 10, 1>>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<1, 3>, FNNHelper<FNNParams<4, 10, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
+  // terra model
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNHelper<FNNParams<18, 20, 3>>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNHelper<FNNParams<18, 20, 3>>>::SHARED_MEM_REQUEST_BLK * 8;
+  // engine model
+  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNHelper<FNNParams<9, 1>>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNHelper<FNNParams<9, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
+  // steering model
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 20, 1>>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 20, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
+
+  std::cout << "total amount: " << total_amount * 4 << std::endl;
   EXPECT_LT(total_amount * 4, 49152);
 }
 
@@ -331,7 +338,7 @@ TEST_F(LSTMHelperTest, UpdateModel)
   }
 }
 
-TEST_F(LSTMHelperTest, LoadModelpathTest)
+TEST_F(LSTMHelperTest, LoadModelPathTest)
 {
   using LSTM = LSTMHelper<LSTMParams<3, 25>, FNNHelper<FNNParams<28, 30, 30, 2>>>;
   LSTM model;
@@ -475,7 +482,7 @@ TEST_F(LSTMHelperTest, forwardCPU)
 using LSTM2 = LSTMHelper<LSTMParams<8, 20, 0>, FNNHelper<FNNParams<28, 3>>>;
 TEST_F(LSTMHelperTest, forwardGPU)
 {
-  const int num_rollouts = 1;
+  const int num_rollouts = 1000;
 
   LSTM2 model;
   model.GPUSetup();

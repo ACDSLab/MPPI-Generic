@@ -62,11 +62,7 @@ __device__ void LSTMHelper<PARAMS_T, OUTPUT_T>::initialize(float* theta_s)
 {
   static_assert(std::is_trivially_copyable<PARAMS_T>::value);
   int slide = PARAMS_T::SHARED_MEM_REQUEST_GRD;
-  if (PARAMS_T::SHARED_MEM_REQUEST_GRD == 0)
-  {
-    slide = 0;
-  }
-  else
+  if (PARAMS_T::SHARED_MEM_REQUEST_GRD != 0)
   {
     PARAMS_T* shared_params = (PARAMS_T*)theta_s;
     *shared_params = this->params_;
