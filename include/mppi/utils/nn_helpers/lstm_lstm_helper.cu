@@ -20,7 +20,7 @@ template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::initializeLSTM(const Eigen::Ref<const init_buffer>& buffer)
 {
   // reset hidden/cell state
-  init_model_->resetHiddenCPU();
+  init_model_->resetHiddenCellCPU();
 
   int t = 0;
   for (t = 0; t < INITIAL_LEN - 1; t++)

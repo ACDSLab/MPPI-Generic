@@ -50,6 +50,13 @@ public:
   void freeCudaMem();
   void paramsToDevice();
 
+  void resetInitHiddenCPU() {
+    init_model_->resetHiddenCellCPU();
+  }
+  void resetLSTMHiddenCellCPU() {
+    lstm_->resetHiddenCellCPU();
+  }
+
   void initializeLSTM(const Eigen::Ref<const init_buffer>& buffer);
 
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);

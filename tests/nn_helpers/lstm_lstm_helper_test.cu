@@ -233,7 +233,7 @@ TEST_F(LSTMLSTMHelperTest, forwardCPU)
   theta_vec.resize(T::INIT_OUTPUT_PARAMS_T::NUM_PARAMS);
   for (int i = 0; i < theta_vec.size(); i++)
   {
-    theta_vec[i] = 1.0;
+    theta_vec[i] = 0.01;
   }
   model.updateOutputModelInit({ 68, 100, 20 }, theta_vec);
 
@@ -242,13 +242,13 @@ TEST_F(LSTMLSTMHelperTest, forwardCPU)
   model.setLSTMParams(lstm_params);
 
   auto init_params = model.getInitLSTMParams();
-  init_params.setAllValues(0.2f);
+  init_params.setAllValues(0.1f);
   model.setInitParams(init_params);
 
   for (int i = 0; i < T::HIDDEN_DIM; i++)
   {
-    EXPECT_FLOAT_EQ(model.getInitModel()->getHiddenState()[i], 0.2);
-    EXPECT_FLOAT_EQ(model.getInitModel()->getCellState()[i], 0.2);
+    EXPECT_FLOAT_EQ(model.getInitModel()->getHiddenState()[i], 0.1);
+    EXPECT_FLOAT_EQ(model.getInitModel()->getCellState()[i], 0.1);
     EXPECT_FLOAT_EQ(model.getLSTMModel()->getHiddenState()[i], 1.0);
     EXPECT_FLOAT_EQ(model.getLSTMModel()->getCellState()[i], 1.0);
   }
@@ -257,70 +257,72 @@ TEST_F(LSTMLSTMHelperTest, forwardCPU)
   LSTM::output_array output;
 
   model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 28.28055);
-  EXPECT_FLOAT_EQ(output[1], 28.28055);
-  EXPECT_FLOAT_EQ(output[2], 28.28055);
+  EXPECT_FLOAT_EQ(output[0], 18.640274);
+  EXPECT_FLOAT_EQ(output[1], 18.640274);
+  EXPECT_FLOAT_EQ(output[2], 18.640274);
 
   model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 28.901096);
-  EXPECT_FLOAT_EQ(output[1], 28.901096);
-  EXPECT_FLOAT_EQ(output[2], 28.901096);
+  EXPECT_FLOAT_EQ(output[0], 18.950548);
+  EXPECT_FLOAT_EQ(output[1], 18.950548);
+  EXPECT_FLOAT_EQ(output[2], 18.950548);
 
   model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 28.986588);
-  EXPECT_FLOAT_EQ(output[1], 28.986588);
-  EXPECT_FLOAT_EQ(output[2], 28.986588);
+  EXPECT_FLOAT_EQ(output[0], 18.993294);
+  EXPECT_FLOAT_EQ(output[1], 18.993294);
+  EXPECT_FLOAT_EQ(output[2], 18.993294);
 
   model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 28.998184);
-  EXPECT_FLOAT_EQ(output[1], 28.998184);
-  EXPECT_FLOAT_EQ(output[2], 28.998184);
+  EXPECT_FLOAT_EQ(output[0], 18.999092);
+  EXPECT_FLOAT_EQ(output[1], 18.999092);
+  EXPECT_FLOAT_EQ(output[2], 18.999092);
 
   model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 28.999764);
-  EXPECT_FLOAT_EQ(output[1], 28.999764);
-  EXPECT_FLOAT_EQ(output[2], 28.999764);
+  EXPECT_FLOAT_EQ(output[0], 18.999878);
+  EXPECT_FLOAT_EQ(output[1], 18.999878);
+  EXPECT_FLOAT_EQ(output[2], 18.999878);
 
-  T::init_buffer buffer = T::init_buffer::Ones() * 0.3;
+  T::init_buffer buffer = T::init_buffer::Ones() * 0.1;
   model.initializeLSTM(buffer);
 
   for (int i = 0; i < T::HIDDEN_DIM; i++)
   {
-    EXPECT_FLOAT_EQ(model.getInitModel()->getHiddenState()[i], 1.0);
-    EXPECT_FLOAT_EQ(model.getInitModel()->getCellState()[i], 11.0);
-    EXPECT_FLOAT_EQ(model.getLSTMModel()->getHiddenState()[i], 101.0);
-    EXPECT_FLOAT_EQ(model.getLSTMModel()->getCellState()[i], 101.0);
+    EXPECT_FLOAT_EQ(model.getInitModel()->getHiddenState()[i], 0.99790788);
+    EXPECT_FLOAT_EQ(model.getInitModel()->getCellState()[i], 9.2190571);
+    EXPECT_FLOAT_EQ(model.getLSTMModel()->getHiddenState()[i], 0.558857381);
+    EXPECT_FLOAT_EQ(model.getLSTMModel()->getCellState()[i], 0.558857381);
   }
 
-  model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 29);
-  EXPECT_FLOAT_EQ(output[1], 29);
-  EXPECT_FLOAT_EQ(output[2], 29);
+  input *= 0.1;
 
   model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 29);
-  EXPECT_FLOAT_EQ(output[1], 29);
-  EXPECT_FLOAT_EQ(output[2], 29);
+  EXPECT_FLOAT_EQ(output[0], 10.945133);
+  EXPECT_FLOAT_EQ(output[1], 10.945133);
+  EXPECT_FLOAT_EQ(output[2], 10.945133);
 
   model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 29);
-  EXPECT_FLOAT_EQ(output[1], 29);
-  EXPECT_FLOAT_EQ(output[2], 29);
+  EXPECT_FLOAT_EQ(output[0], 11.680509);
+  EXPECT_FLOAT_EQ(output[1], 11.680509);
+  EXPECT_FLOAT_EQ(output[2], 11.680509);
 
   model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 29);
-  EXPECT_FLOAT_EQ(output[1], 29);
-  EXPECT_FLOAT_EQ(output[2], 29);
+  EXPECT_FLOAT_EQ(output[0], 11.783686);
+  EXPECT_FLOAT_EQ(output[1], 11.783686);
+  EXPECT_FLOAT_EQ(output[2], 11.783686);
 
   model.forward(input, output);
-  EXPECT_FLOAT_EQ(output[0], 29);
-  EXPECT_FLOAT_EQ(output[1], 29);
-  EXPECT_FLOAT_EQ(output[2], 29);
+  EXPECT_FLOAT_EQ(output[0], 11.797728);
+  EXPECT_FLOAT_EQ(output[1], 11.797728);
+  EXPECT_FLOAT_EQ(output[2], 11.797728);
+
+  model.forward(input, output);
+  EXPECT_FLOAT_EQ(output[0], 11.79963);
+  EXPECT_FLOAT_EQ(output[1], 11.79963);
+  EXPECT_FLOAT_EQ(output[2], 11.79963);
 }
 
 TEST_F(LSTMLSTMHelperTest, forwardGPU)
 {
-  const int num_rollouts = 1;
+  const int num_rollouts = 1000;
 
   T model;
 
@@ -334,7 +336,7 @@ TEST_F(LSTMLSTMHelperTest, forwardGPU)
   theta_vec.resize(T::INIT_OUTPUT_PARAMS_T::NUM_PARAMS);
   for (int i = 0; i < theta_vec.size(); i++)
   {
-    theta_vec[i] = 1.0;
+    theta_vec[i] = 0.01;
   }
   model.updateOutputModelInit({ 68, 100, 20 }, theta_vec);
 
@@ -343,7 +345,7 @@ TEST_F(LSTMLSTMHelperTest, forwardGPU)
   model.setLSTMParams(lstm_params);
 
   auto init_params = model.getInitLSTMParams();
-  init_params.setAllValues(0.2f);
+  init_params.setAllValues(0.1f);
   model.setInitParams(init_params);
 
   model.GPUSetup();
@@ -352,60 +354,46 @@ TEST_F(LSTMLSTMHelperTest, forwardGPU)
   std::fill(theta.begin(), theta.end(), 1);
   model.updateOutputModel({ 18, 3 }, theta);
 
-  auto params = model.getLSTMParams();
-  for (int i = 0; i < 10 * 10; i++)
-  {
-    params.W_im[i] = 1.0;
-    params.W_fm[i] = 1.0;
-    params.W_om[i] = 1.0;
-    params.W_cm[i] = 1.0;
-  }
-  for (int i = 0; i < 8 * 10; i++)
-  {
-    params.W_ii[i] = 1.0;
-    params.W_fi[i] = 1.0;
-    params.W_oi[i] = 1.0;
-    params.W_ci[i] = 1.0;
-  }
-  for (int i = 0; i < 10; i++)
-  {
-    params.b_i[i] = 1.0;
-    params.b_f[i] = 1.0;
-    params.b_o[i] = 1.0;
-    params.b_c[i] = 1.0;
-    params.initial_hidden[i] = 1.0;
-    params.initial_cell[i] = 1.0;
-  }
-  model.setLSTMParams(params);
-
   Eigen::Matrix<float, T::INPUT_DIM, num_rollouts> inputs;
-  inputs = Eigen::Matrix<float, T::INPUT_DIM, num_rollouts>::Ones();
+  inputs = Eigen::Matrix<float, T::INPUT_DIM, num_rollouts>::Ones() * 0.1;
   T::output_array output;
 
-  std::array<float, 5> true_vals = { 29, 29, 29, 29, 29 };
+  std::array<float, 5> true_vals = { 10.945133, 11.680509, 11.783686, 11.797728, 11.79963 };
 
   std::vector<std::array<float, T::INPUT_DIM>> input_arr(num_rollouts);
   std::vector<std::array<float, T::OUTPUT_DIM>> output_arr(num_rollouts);
 
-  T::init_buffer buffer = T::init_buffer::Ones();
-  model.initializeLSTM(buffer);
+  T::init_buffer buffer = T::init_buffer::Ones() * 0.1;
+
+  for (int state_index = 0; state_index < num_rollouts; state_index++)
+  {
+    for (int dim = 0; dim < input_arr[0].size(); dim++)
+    {
+      input_arr[state_index][dim] = inputs.col(state_index)(dim);
+    }
+  }
 
   for (int y_dim = 1; y_dim < 16; y_dim++)
   {
-    for (int state_index = 0; state_index < num_rollouts; state_index++)
-    {
-      for (int dim = 0; dim < input_arr[0].size(); dim++)
-      {
-        input_arr[state_index][dim] = inputs.col(state_index)(dim);
-      }
-    }
-
     for (int step = 1; step < 6; step++)
     {
+      model.initializeLSTM(buffer);
+      model.paramsToDevice();
+
+      for (int i = 0; i < T::HIDDEN_DIM; i++)
+      {
+        EXPECT_FLOAT_EQ(model.getInitModel()->getHiddenState()[i], 0.99790788);
+        EXPECT_FLOAT_EQ(model.getInitModel()->getCellState()[i], 9.2190571);
+        EXPECT_FLOAT_EQ(model.getLSTMModel()->getHiddenState()[i], 0.558857381);
+        EXPECT_FLOAT_EQ(model.getLSTMModel()->getCellState()[i], 0.558857381);
+        EXPECT_FLOAT_EQ(model.getLSTMParams().initial_hidden[i], 0.558857381);
+        EXPECT_FLOAT_EQ(model.getLSTMParams().initial_cell[i], 0.558857381);
+      }
       launchForwardTestKernel<LSTM, 32>(*model.getLSTMModel(), input_arr, output_arr, y_dim, step);
       for (int point = 0; point < num_rollouts; point++)
       {
-        model.initializeLSTM(buffer);
+        // model.resetInitHiddenCPU();
+        model.resetLSTMHiddenCellCPU();
         T::input_array input = inputs.col(point);
         T::output_array output;
 
@@ -419,7 +407,8 @@ TEST_F(LSTMLSTMHelperTest, forwardGPU)
         }
         for (int dim = 0; dim < T::OUTPUT_DIM; dim++)
         {
-          EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+          EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4)
+              << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
           EXPECT_TRUE(isfinite(output_arr[point][dim]));
           EXPECT_FLOAT_EQ(output(dim), true_vals[step - 1]) << "at dim " << dim << " step " << step;
         }
@@ -428,170 +417,252 @@ TEST_F(LSTMLSTMHelperTest, forwardGPU)
   }
 }
 
-// using LSTM2 = LSTMLSTMHelper<LSTMParams<8, 20, 0>, FNNHelper<FNNParams<28, 3>>>;
-// TEST_F(LSTMLSTMHelperTest, forwardGPU)
-// {
-//   const int num_rollouts = 1;
-//
-//   LSTM2 model;
-//   model.GPUSetup();
-//
-//   std::vector<float> theta(87);
-//   std::fill(theta.begin(), theta.end(), 1);
-//   model.updateOutputModel({ 28, 3 }, theta);
-//
-//   auto params = model.getLSTMParams();
-//   for (int i = 0; i < 20 * 20; i++)
-//   {
-//     params.W_im[i] = 1.0;
-//     params.W_fm[i] = 1.0;
-//     params.W_om[i] = 1.0;
-//     params.W_cm[i] = 1.0;
-//   }
-//   for (int i = 0; i < 8 * 20; i++)
-//   {
-//     params.W_ii[i] = 1.0;
-//     params.W_fi[i] = 1.0;
-//     params.W_oi[i] = 1.0;
-//     params.W_ci[i] = 1.0;
-//   }
-//   for (int i = 0; i < 20; i++)
-//   {
-//     params.b_i[i] = 1.0;
-//     params.b_f[i] = 1.0;
-//     params.b_o[i] = 1.0;
-//     params.b_c[i] = 1.0;
-//     params.initial_hidden[i] = 1.0;
-//     params.initial_cell[i] = 1.0;
-//   }
-//   model.updateLSTM(params);
-//
-//   Eigen::Matrix<float, LSTM2::INPUT_DIM, num_rollouts> inputs;
-//   inputs = Eigen::Matrix<float, LSTM2::INPUT_DIM, num_rollouts>::Ones();
-//   LSTM2::output_array output;
-//
-//   std::array<float, 5> true_vals = { 28.28055, 28.901096, 28.986588, 28.998184, 28.999756 };
-//
-//   std::vector<std::array<float, LSTM2::INPUT_DIM>> input_arr(num_rollouts);
-//   std::vector<std::array<float, 3>> output_arr(num_rollouts);
-//
-//   for (int y_dim = 1; y_dim < 16; y_dim++)
-//   {
-//     for (int state_index = 0; state_index < num_rollouts; state_index++)
-//     {
-//       for (int dim = 0; dim < input_arr[0].size(); dim++)
-//       {
-//         input_arr[state_index][dim] = inputs.col(state_index)(dim);
-//       }
-//     }
-//
-//     for (int step = 1; step < 6; step++)
-//     {
-//       launchForwardTestKernel<LSTM2, 32>(model, input_arr, output_arr, y_dim, step);
-//       for (int point = 0; point < num_rollouts; point++)
-//       {
-//         model.resetInitialStateCPU();
-//         LSTM2::input_array input = inputs.col(point);
-//         LSTM2::output_array output;
-//
-//         for (int cpu_step = 0; cpu_step < step; cpu_step++)
-//         {
-//           model.forward(input, output);
-//         }
-//         for (int dim = 0; dim < LSTM2::INPUT_DIM; dim++)
-//         {
-//           EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-//         }
-//         for (int dim = 0; dim < LSTM2::OUTPUT_DIM; dim++)
-//         {
-//           EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-//           EXPECT_TRUE(isfinite(output_arr[point][dim]));
-//           EXPECT_FLOAT_EQ(output(dim), true_vals[step - 1]) << "at dim " << dim << " step " << step;
-//         }
-//       }
-//     }
-//   }
-// }
-//
-// TEST_F(LSTMLSTMHelperTest, forwardGPUCompare)
-// {
-//   const int num_rollouts = 1000;
-//
-//   LSTM2 model;
-//   model.GPUSetup();
-//
-//   std::vector<float> theta(87);
-//   std::fill(theta.begin(), theta.end(), 1);
-//   model.updateOutputModel({ 28, 3 }, theta);
-//
-//   auto params = model.getLSTMParams();
-//   for (int i = 0; i < 20 * 20; i++)
-//   {
-//     params.W_im[i] = 1.0;
-//     params.W_fm[i] = 1.0;
-//     params.W_om[i] = 1.0;
-//     params.W_cm[i] = 1.0;
-//   }
-//   for (int i = 0; i < 8 * 20; i++)
-//   {
-//     params.W_ii[i] = 1.0;
-//     params.W_fi[i] = 1.0;
-//     params.W_oi[i] = 1.0;
-//     params.W_ci[i] = 1.0;
-//   }
-//   for (int i = 0; i < 20; i++)
-//   {
-//     params.b_i[i] = 1.0;
-//     params.b_f[i] = 1.0;
-//     params.b_o[i] = 1.0;
-//     params.b_c[i] = 1.0;
-//     params.initial_hidden[i] = 1.0;
-//     params.initial_cell[i] = 1.0;
-//   }
-//   model.updateLSTM(params);
-//
-//   Eigen::Matrix<float, LSTM2::INPUT_DIM, num_rollouts> inputs;
-//   inputs = Eigen::Matrix<float, LSTM2::INPUT_DIM, num_rollouts>::Random();
-//   LSTM2::output_array output;
-//
-//   std::vector<std::array<float, LSTM2::INPUT_DIM>> input_arr(num_rollouts);
-//   std::vector<std::array<float, 3>> output_arr(num_rollouts);
-//
-//   for (int y_dim = 1; y_dim < 16; y_dim++)
-//   {
-//     for (int state_index = 0; state_index < num_rollouts; state_index++)
-//     {
-//       for (int dim = 0; dim < input_arr[0].size(); dim++)
-//       {
-//         input_arr[state_index][dim] = inputs.col(state_index)(dim);
-//       }
-//     }
-//     for (int step = 1; step < 6; step++)
-//     {
-//       launchForwardTestKernel<LSTM2, 32>(model, input_arr, output_arr, y_dim, step);
-//       for (int point = 0; point < num_rollouts; point++)
-//       {
-//         model.resetInitialStateCPU();
-//         LSTM2::input_array input = inputs.col(point);
-//         LSTM2::output_array output;
-//
-//         for (int cpu_step = 0; cpu_step < step; cpu_step++)
-//         {
-//           model.forward(input, output);
-//         }
-//         for (int dim = 0; dim < LSTM2::INPUT_DIM; dim++)
-//         {
-//           EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-//         }
-//         for (int dim = 0; dim < LSTM2::OUTPUT_DIM; dim++)
-//         {
-//           EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-//           EXPECT_TRUE(isfinite(output_arr[point][dim]));
-//         }
-//       }
-//     }
-//   }
-// }
+TEST_F(LSTMLSTMHelperTest, forwardGPUCompareShared)
+{
+  const int num_rollouts = 1000;
+
+  T model;
+  model.GPUSetup();
+
+  std::vector<float> theta_vec(LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  for (int i = 0; i < theta_vec.size(); i++)
+  {
+    theta_vec[i] = distribution(generator);
+  }
+  model.updateOutputModel({ 18, 3 }, theta_vec);
+
+  theta_vec.resize(T::INIT_OUTPUT_PARAMS_T::NUM_PARAMS);
+  for (int i = 0; i < theta_vec.size(); i++)
+  {
+    theta_vec[i] = distribution(generator);
+  }
+  model.updateOutputModelInit({ 68, 100, 20 }, theta_vec);
+
+  auto params = model.getLSTMParams();
+  for (int i = 0; i < 10 * 10; i++)
+  {
+    params.W_im[i] = distribution(generator);
+    params.W_fm[i] = distribution(generator);
+    params.W_om[i] = distribution(generator);
+    params.W_cm[i] = distribution(generator);
+  }
+  for (int i = 0; i < 8 * 10; i++)
+  {
+    params.W_ii[i] = distribution(generator);
+    params.W_fi[i] = distribution(generator);
+    params.W_oi[i] = distribution(generator);
+    params.W_ci[i] = distribution(generator);
+  }
+  for (int i = 0; i < 10; i++)
+  {
+    params.b_i[i] = distribution(generator);
+    params.b_f[i] = distribution(generator);
+    params.b_o[i] = distribution(generator);
+    params.b_c[i] = distribution(generator);
+    params.initial_hidden[i] = distribution(generator);
+    params.initial_cell[i] = distribution(generator);
+  }
+  model.setLSTMParams(params);
+
+  auto init_params = model.getInitLSTMParams();
+  for (int i = 0; i < 60 * 60; i++)
+  {
+    params.W_im[i] = distribution(generator);
+    params.W_fm[i] = distribution(generator);
+    params.W_om[i] = distribution(generator);
+    params.W_cm[i] = distribution(generator);
+  }
+  for (int i = 0; i < 8 * 60; i++)
+  {
+    params.W_ii[i] = distribution(generator);
+    params.W_fi[i] = distribution(generator);
+    params.W_oi[i] = distribution(generator);
+    params.W_ci[i] = distribution(generator);
+  }
+  for (int i = 0; i < 60; i++)
+  {
+    params.b_i[i] = distribution(generator);
+    params.b_f[i] = distribution(generator);
+    params.b_o[i] = distribution(generator);
+    params.b_c[i] = distribution(generator);
+  }
+  model.setInitParams(init_params);
+
+  Eigen::Matrix<float, LSTM::INPUT_DIM, num_rollouts> inputs;
+  inputs = Eigen::Matrix<float, LSTM::INPUT_DIM, num_rollouts>::Random();
+  LSTM::output_array output;
+
+  std::vector<std::array<float, LSTM::INPUT_DIM>> input_arr(num_rollouts);
+  std::vector<std::array<float, 3>> output_arr(num_rollouts);
+
+  T::init_buffer buffer = T::init_buffer::Random();
+
+  for (int state_index = 0; state_index < num_rollouts; state_index++)
+  {
+    for (int dim = 0; dim < input_arr[0].size(); dim++)
+    {
+      input_arr[state_index][dim] = inputs.col(state_index)(dim);
+    }
+  }
+
+  for (int y_dim = 1; y_dim < 2; y_dim++)
+  {
+    for (int step = 1; step < 6; step++)
+    {
+      model.initializeLSTM(buffer);
+      model.paramsToDevice();
+
+      launchForwardTestKernel<LSTM, 32>(*model.getLSTMModel(), input_arr, output_arr, y_dim, step);
+      for (int point = 0; point < num_rollouts; point++)
+      {
+        // model.resetInitHiddenCPU();
+        model.resetLSTMHiddenCellCPU();
+        T::input_array input = inputs.col(point);
+        T::output_array output;
+
+        for (int cpu_step = 0; cpu_step < step; cpu_step++)
+        {
+          model.forward(input, output);
+        }
+        for (int dim = 0; dim < T::INPUT_DIM; dim++)
+        {
+          EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        }
+        for (int dim = 0; dim < T::OUTPUT_DIM; dim++)
+        {
+          EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4)
+              << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
+          EXPECT_TRUE(isfinite(output_arr[point][dim]));
+        }
+      }
+    }
+  }
+}
+
+typedef LSTMHelper<LSTMParams<8, 10, 0>, FNN> LSTM2;
+typedef LSTMHelper<LSTMParams<8, 60, 0>, FNN_INIT> INIT_LSTM2;
+typedef LSTMLSTMHelper<INIT_LSTM2, LSTM2, 10> T2;
+TEST_F(LSTMLSTMHelperTest, forwardGPUCompareNoShared)
+{
+  const int num_rollouts = 1000;
+
+  T2 model;
+  model.GPUSetup();
+
+  std::vector<float> theta_vec(LSTM2::OUTPUT_PARAMS_T::NUM_PARAMS);
+  for (int i = 0; i < theta_vec.size(); i++)
+  {
+    theta_vec[i] = distribution(generator);
+  }
+  model.updateOutputModel({ 18, 3 }, theta_vec);
+
+  theta_vec.resize(T2::INIT_OUTPUT_PARAMS_T::NUM_PARAMS);
+  for (int i = 0; i < theta_vec.size(); i++)
+  {
+    theta_vec[i] = distribution(generator);
+  }
+  model.updateOutputModelInit({ 68, 100, 20 }, theta_vec);
+
+  auto params = model.getLSTMParams();
+  for (int i = 0; i < 10 * 10; i++)
+  {
+    params.W_im[i] = distribution(generator);
+    params.W_fm[i] = distribution(generator);
+    params.W_om[i] = distribution(generator);
+    params.W_cm[i] = distribution(generator);
+  }
+  for (int i = 0; i < 8 * 10; i++)
+  {
+    params.W_ii[i] = distribution(generator);
+    params.W_fi[i] = distribution(generator);
+    params.W_oi[i] = distribution(generator);
+    params.W_ci[i] = distribution(generator);
+  }
+  for (int i = 0; i < 10; i++)
+  {
+    params.b_i[i] = distribution(generator);
+    params.b_f[i] = distribution(generator);
+    params.b_o[i] = distribution(generator);
+    params.b_c[i] = distribution(generator);
+    params.initial_hidden[i] = distribution(generator);
+    params.initial_cell[i] = distribution(generator);
+  }
+  model.setLSTMParams(params);
+
+  auto init_params = model.getInitLSTMParams();
+  for (int i = 0; i < 60 * 60; i++)
+  {
+    params.W_im[i] = distribution(generator);
+    params.W_fm[i] = distribution(generator);
+    params.W_om[i] = distribution(generator);
+    params.W_cm[i] = distribution(generator);
+  }
+  for (int i = 0; i < 8 * 60; i++)
+  {
+    params.W_ii[i] = distribution(generator);
+    params.W_fi[i] = distribution(generator);
+    params.W_oi[i] = distribution(generator);
+    params.W_ci[i] = distribution(generator);
+  }
+  for (int i = 0; i < 60; i++)
+  {
+    params.b_i[i] = distribution(generator);
+    params.b_f[i] = distribution(generator);
+    params.b_o[i] = distribution(generator);
+    params.b_c[i] = distribution(generator);
+  }
+  model.setInitParams(init_params);
+
+  Eigen::Matrix<float, LSTM2::INPUT_DIM, num_rollouts> inputs;
+  inputs = Eigen::Matrix<float, LSTM2::INPUT_DIM, num_rollouts>::Random();
+  LSTM2::output_array output;
+
+  std::vector<std::array<float, LSTM2::INPUT_DIM>> input_arr(num_rollouts);
+  std::vector<std::array<float, 3>> output_arr(num_rollouts);
+
+  T::init_buffer buffer = T2::init_buffer::Random();
+
+  for (int state_index = 0; state_index < num_rollouts; state_index++)
+  {
+    for (int dim = 0; dim < input_arr[0].size(); dim++)
+    {
+      input_arr[state_index][dim] = inputs.col(state_index)(dim);
+    }
+  }
+
+  for (int y_dim = 1; y_dim < 2; y_dim++)
+  {
+    for (int step = 1; step < 6; step++)
+    {
+      model.initializeLSTM(buffer);
+      model.paramsToDevice();
+
+      launchForwardTestKernel<LSTM2, 32>(*model.getLSTMModel(), input_arr, output_arr, y_dim, step);
+      for (int point = 0; point < num_rollouts; point++)
+      {
+        // model.resetInitHiddenCPU();
+        model.resetLSTMHiddenCellCPU();
+        T2::input_array input = inputs.col(point);
+        T2::output_array output;
+
+        for (int cpu_step = 0; cpu_step < step; cpu_step++)
+        {
+          model.forward(input, output);
+        }
+        for (int dim = 0; dim < T2::INPUT_DIM; dim++)
+        {
+          EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        }
+        for (int dim = 0; dim < T2::OUTPUT_DIM; dim++)
+        {
+          EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4)
+              << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
+          EXPECT_TRUE(isfinite(output_arr[point][dim]));
+        }
+      }
+    }
+  }
+}
 
 // TEST_F(LSTMLSTMHelperTest, TestComputeGradComputationFinite)
 // {
