@@ -42,6 +42,8 @@ public:
   // Feedback related aliases
   using FB_STATE_T = typename CONTROLLER_T::TEMPLATED_FEEDBACK::TEMPLATED_FEEDBACK_STATE;
 
+  typedef std::map<std::string, Eigen::VectorXf> buffer_trajectory;
+
 protected:
   std::mutex access_guard_;
 
@@ -87,8 +89,8 @@ protected:
    * Wall Clock: always real time per the computer
    */
   // Robot Time: can scale with a simulation
-  std::atomic<double> last_used_pose_update_time_{ -1.0 };  // time of the last pose update that was used for
-                                                            // optimization
+  std::atomic<double> last_used_state_update_time_{ -1.0 };  // time of the last state update that was used for
+                                                             // optimization
 
   std::atomic<bool> use_real_time_timing_{ false };
   // Wall Clock: always real time
@@ -162,6 +164,15 @@ public:
    */
   virtual double getPoseTime() = 0;
 
+  /**
+   * gets the correct time for the state message
+   * @return
+   */
+  virtual double getStateTime()
+  {
+    return getPoseTime();
+  }
+
   void setUseRealTimeTiming(bool use_real_time)
   {
     use_real_time_timing_ = use_real_time;
@@ -205,9 +216,9 @@ public:
     debug_mode_ = mode;
   }
 
-  void resetPoseTime()
+  void resetStateTime()
   {
-    last_used_pose_update_time_ = -1;
+    last_used_state_update_time_ = -1;
   };
 
   double getAvgOptimizationTime() const
@@ -248,10 +259,15 @@ public:
     visualization_hz_ = hz;
   }
 
+  buffer_trajectory getSmoothedBuffer()
+  {
+    throw std::logic_error("Invalid dynamics with current plant, it requires the buffered plant");
+  }
+
   virtual void setSolution(const s_traj& state_seq, const c_traj& control_seq, const FB_STATE_T& fb_state,
                            double timestamp)
   {
-    last_used_pose_update_time_ = timestamp;
+    last_used_state_update_time_ = timestamp;
     std::lock_guard<std::mutex> guard(access_guard_);
     state_traj_ = state_seq;
     control_traj_ = control_seq;
@@ -266,16 +282,16 @@ public:
   virtual void updateState(s_array& state, double time)
   {
     // calculate and update all timing variables
-    double temp_last_pose_update_time = last_used_pose_update_time_;
+    double temp_last_state_update_time = last_used_state_update_time_;
 
-    double time_since_last_opt = time - temp_last_pose_update_time;
+    double time_since_last_opt = time - temp_last_state_update_time;
 
     state_ = state;
 
     // check if the requested time is in the calculated trajectory
     bool t_within_trajectory =
-        time >= temp_last_pose_update_time &&
-        time < temp_last_pose_update_time + controller_->getDt() * controller_->getNumTimesteps();
+        time >= temp_last_state_update_time &&
+        time < temp_last_state_update_time + controller_->getDt() * controller_->getNumTimesteps();
 
     // TODO check that we haven't been waiting too long
     if (time_since_last_opt > 0 && t_within_trajectory)
@@ -391,28 +407,33 @@ public:
       return;
     }
 
-    double temp_last_pose_time = getPoseTime();
-    double temp_last_used_pose_update_time = last_used_pose_update_time_;
+    double temp_last_state_time = getStateTime();
+    double temp_last_used_state_update_time = last_used_state_update_time_;
 
-    // wait for a new pose to compute control sequence from
+    // wait for a new state to compute control sequence from
     int counter = 0;
-    while (temp_last_used_pose_update_time == temp_last_pose_time && is_alive->load())
+    while (temp_last_used_state_update_time == temp_last_state_time && is_alive->load())
     {
       usleep(50);
-      temp_last_pose_time = getPoseTime();
+      temp_last_state_time = getStateTime();
       counter++;
+    }
+    s_array state = getState();
+
+    if (this->controller_->model_->checkRequiresBuffer())
+    {
+      this->controller_->model_->updateFromBuffer(this->getSmoothedBuffer());
     }
 
     // Check the robots status for this optimization
     int temp_status = checkStatus();
 
-    s_array state = getState();
     num_iter_++;
     updateParameters();
 
     // calculate how much we should slide the control sequence
-    double dt = temp_last_pose_time - temp_last_used_pose_update_time;
-    if (temp_last_used_pose_update_time == -1)
+    double dt = temp_last_state_time - temp_last_used_state_update_time;
+    if (temp_last_used_state_update_time == -1)
     {  //
       // should only happen on the first iteration
       dt = 0;
@@ -422,7 +443,7 @@ public:
     {
       last_optimization_stride_ = std::max(int(round(dt / this->controller_->getDt())), optimization_stride_);
     }
-    // printf("calc optimization stride %f %f %f %d\n", dt, temp_last_used_pose_update_time, temp_last_pose_time,
+    // printf("calc optimization stride %f %f %f %d\n", dt, temp_last_used_state_update_time, temp_last_state_time,
     // last_optimization_stride_);
     // determine how long we should stride based off of robot time
 
@@ -465,7 +486,7 @@ public:
     feedback_duration_ = mppi::math::timeDiffms(std::chrono::steady_clock::now(), feedback_start);
 
     // Set the updated solution for execution
-    setSolution(state_traj, control_traj, feedback_state, temp_last_pose_time);
+    setSolution(state_traj, control_traj, feedback_state, temp_last_state_time);
     status_ = temp_status;
     pubFreeEnergyStatistics(fe_stats);
 
@@ -498,12 +519,12 @@ public:
       double wait_until_real_time = getCurrentTime() + (1.0 / hz_) * optimization_stride_;
       runControlIteration(is_alive);
 
-      double wait_until_pose_time = last_used_pose_update_time_ + (1.0 / hz_) * optimization_stride_;
-      // printf("last used pose update time %f last_stride = %d\n", last_used_pose_update_time_,
+      double wait_until_state_time = last_used_state_update_time_ + (1.0 / hz_) * optimization_stride_;
+      // printf("last used state update time %f last_stride = %d\n", last_used_state_update_time_,
       // last_optimization_stride_); printf("wait until time %f current time %f\n", wait_until_time, getCurrentTime());
 
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
-      while (is_alive->load() && (wait_until_pose_time > getPoseTime() ||
+      while (is_alive->load() && (wait_until_state_time > getStateTime() ||
                                   (wait_until_real_time > getCurrentTime() && use_real_time_timing_)))
       {
         updateParameters();

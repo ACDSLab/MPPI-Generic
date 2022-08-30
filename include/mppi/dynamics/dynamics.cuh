@@ -17,6 +17,8 @@ Header file for dynamics
 #include <cfloat>
 #include <type_traits>
 #include <vector>
+#include <map>
+#include <string>
 
 // helpful macros to use the enum setup
 #ifndef E_INDEX
@@ -89,6 +91,8 @@ public:
   typedef Eigen::Matrix<float, STATE_DIM, CONTROL_DIM> dfdu;                  // Jacobian wrt u
   typedef Eigen::Matrix<float, CONTROL_DIM, STATE_DIM> feedback_matrix;       // Feedback matrix
   typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM + CONTROL_DIM> Jacobian;  // Jacobian of x and u
+
+  typedef std::map<std::string, Eigen::VectorXf> buffer_trajectory;
 
   // protected constructor prevent anyone from trying to construct a Dynamics
 protected:
@@ -434,6 +438,12 @@ public:
     }
   }
 
+  virtual bool checkRequiresBuffer() {
+    return requires_buffer_;
+  }
+
+  void updateFromBuffer(const buffer_trajectory& buffer) {}
+
   // control ranges [.x, .y]
   float2 control_rngs_[CONTROL_DIM];
 
@@ -443,6 +453,8 @@ public:
 protected:
   // generic parameter structure
   PARAMS_T params_;
+
+  bool requires_buffer_ = false;
 };
 
 #ifdef __CUDACC__

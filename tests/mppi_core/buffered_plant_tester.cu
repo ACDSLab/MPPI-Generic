@@ -1,249 +1,508 @@
-//
-// Created by jgibson37 on 2/24/20.
-//
+#include <gtest/gtest.h>
+#include <gmock/gmock.h>
+#include <mppi/utils/test_helper.h>
+#include <random>
+#include <algorithm>
+#include <numeric>
 
-// #include <gtest/gtest.h>
-// #include <gmock/gmock.h>
-// #include <mppi/utils/test_helper.h>
-// #include <random>
-// #include <algorithm>
-// #include <numeric>
-//
-// #include <mppi/core/buffered_plant.hpp>
-// #include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
-// #include <mppi_test/mock_classes/mock_dynamics.h>
-// #include <mppi_test/mock_classes/mock_controller.h>
-// #include <mppi_test/mock_classes/mock_costs.h>
-//
-// template <class CONTROLLER_T, int BUFFER_LENGTH>
-// class TestPlant : public BufferedPlant<CONTROLLER_T, BUFFER_LENGTH>
-// {
-// public:
-//   double time_ = 0.0;
-//
-//   double avgDurationMs_ = 0;
-//   double avgTickDuration_ = 0;
-//   double avgSleepTime_ = 0;
-//
-//   using c_array = typename CONTROLLER_T::control_array;
-//   using c_traj = typename CONTROLLER_T::control_trajectory;
-//
-//   using s_array = typename CONTROLLER_T::state_array;
-//   using s_traj = typename CONTROLLER_T::state_trajectory;
-//
-//   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
-//   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
-//   using COST_T = typename CONTROLLER_T::TEMPLATED_COSTS;
-//   using COST_PARAMS_T = typename COST_T::COST_PARAMS_T;
-//   double timestamp_;
-//   double loop_speed_;
-//
-//   TestPlant(std::shared_ptr<MockController> controller, double buffer_time_horizon = 0.2, int hz = 20,
-//             int opt_stride = 1)
-//     : BufferedPlant<CONTROLLER_T, BUFFER_LENGTH>(controller, hz, opt_stride)
-//   {
-//     this->buffer_time_horizon_ = buffer_time_horizon;
-//     this->buffer_tau_ = 0.2;
-//     this->buffer_dt_ = 0.02;
-//     controller->setDt(this->buffer_dt_);
-//   }
-//
-//   void pubControl(const c_array& u) override
-//   {
-//   }
-//
-//   void pubNominalState(const s_array& s) override
-//   {
-//   }
-//
-//   void pubStateDivergence(const s_array& s) override
-//   {
-//   }
-//
-//   void pubFreeEnergyStatistics(MPPIFreeEnergyStatistics& fe_stats) override
-//   {
-//   }
-//
-//   void incrementTime()
-//   {
-//     time_ += 0.05;
-//   }
-//
-//   void setTimingInfo(double avg_duration_ms, double avg_tick_duration, double avg_sleep_time) override
-//   {
-//     avgDurationMs_ = avg_duration_ms;
-//     avgTickDuration_ = avg_tick_duration;
-//     avgSleepTime_ = avg_sleep_time;
-//   }
-//
-//   int checkStatus() override
-//   {
-//     return 1;
-//   }
-//
-//   double getCurrentTime()
-//   {
-//     return time_;
-//   }
-//
-//   // accessors for protected members
-//   double getBufferTimeHorizon()
-//   {
-//     return this->buffer_time_horizon_;
-//   }
-//   double getBufferTau()
-//   {
-//     return this->buffer_time_horizon_;
-//   }
-//   double getBufferDt()
-//   {
-//     return this->buffer_time_horizon_;
-//   }
-//   std::list<std::pair<typename BufferedPlant<CONTROLLER_T, BUFFER_LENGTH>::StateArray, double>> getBuffer()
-//   {
-//     return this->prev_states_;
-//   }
-//   void setLastTime(double time)
-//   {
-//     time_ = time;
-//     this->last_used_pose_update_time_ = time;
-//   }
-// };
-//
-// typedef TestPlant<MockController, 10> MockTestPlant;
-//
-// class BufferedPlantTest : public ::testing::Test
-// {
-// protected:
-//   void SetUp() override
-//   {
-//     mockController = std::make_shared<MockController>();
-//     mockFeedback = new FEEDBACK_T(&mockDynamics, mockController->getDt());
-//     mockController->cost_ = &mockCost;
-//     mockController->model_ = &mockDynamics;
-//     mockController->fb_controller_ = mockFeedback;
-//
-//     EXPECT_CALL(*mockController->cost_, getParams()).Times(1);
-//     EXPECT_CALL(*mockController->model_, getParams()).Times(1);
-//
-//     plant = std::make_shared<MockTestPlant>(mockController);
-//   }
-//
-//   void TearDown() override
-//   {
-//     plant = nullptr;
-//     mockController = nullptr;
-//     delete mockFeedback;
-//   }
-//   MockDynamics mockDynamics;
-//   MockCost mockCost;
-//   FEEDBACK_T* mockFeedback;
-//   std::shared_ptr<MockController> mockController;
-//   std::shared_ptr<MockTestPlant> plant;
-// };
-//
-// TEST_F(BufferedPlantTest, EmptyCheck)
-// {
-//   EXPECT_EQ(plant->getLatestTimeInBuffer(), -1);
-//   EXPECT_EQ(plant->getEarliestTimeInBuffer(), -1);
-// }
-//
-// TEST_F(BufferedPlantTest, UpdateStateCheck)
-// {
-//   EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_,
-//   testing::_)).Times(5);
-//
-//   plant->setLastTime(8.0);
-//
-//   MockDynamics::state_array state = MockDynamics::state_array::Zero();
-//   EXPECT_EQ(plant->getBufferSize(), 0);
-//   plant->updateState(state, 8.0);
-//   EXPECT_EQ(plant->getBufferSize(), 1);
-//   EXPECT_EQ(plant->getEarliestTimeInBuffer(), 8.0);
-//   EXPECT_EQ(plant->getLatestTimeInBuffer(), 8.0);
-//
-//   plant->updateState(state, 8.15);
-//   EXPECT_EQ(plant->getBufferSize(), 2);
-//   EXPECT_EQ(plant->getEarliestTimeInBuffer(), 8.0);
-//   EXPECT_EQ(plant->getLatestTimeInBuffer(), 8.15);
-//
-//   plant->updateState(state, 8.25);
-//   EXPECT_EQ(plant->getBufferSize(), 2);
-//   EXPECT_EQ(plant->getEarliestTimeInBuffer(), 8.15);
-//   EXPECT_EQ(plant->getLatestTimeInBuffer(), 8.25);
-// }
-//
-// TEST_F(BufferedPlantTest, getBufferTestZeros)
-// {
-//   plant->setLastTime(10.0);
-//
-//   EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_,
-//   testing::_)).Times(41);
-//
-//   MockDynamics::state_array state = MockDynamics::state_array::Zero();
-//   for (double i = 10; i < 10.2; i += 0.01)
-//   {
-//     plant->updateState(state, i);
-//   }
-//   auto buffer = plant->getSmoothedBuffer();
-//   for (int row = 0; row < buffer.rows(); row++)
-//   {
-//     for (int col = 0; col < buffer.cols(); col++)
-//     {
-//       EXPECT_NEAR(buffer(row, col), 0, 1e-10) << "row " << row << " col " << col;
-//     }
-//   }
-// }
-//
-// TEST_F(BufferedPlantTest, getBufferTestValues)
-// {
-//   plant->setLastTime(10.0);
-//   EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_,
-//   testing::_)).Times(39);
-//
-//   std::array<double, 20> old_times = { 10.0,
-//                                        10.010526315789473,
-//                                        10.021052631578947,
-//                                        10.031578947368422,
-//                                        10.042105263157895,
-//                                        10.052631578947368,
-//                                        10.063157894736841,
-//                                        10.073684210526315,
-//                                        10.08421052631579,
-//                                        10.094736842105263,
-//                                        10.105263157894736,
-//                                        10.11578947368421,
-//                                        10.126315789473685,
-//                                        10.136842105263158,
-//                                        10.147368421052631,
-//                                        10.157894736842104,
-//                                        10.168421052631578,
-//                                        10.178947368421053,
-//                                        10.189473684210526,
-//                                        10.2 };
-//   std::array<float, 20> y = { 0.9167042154371116, 0.3776076510955664,  0.08226566905023869, 0.9551211742263026,
-//                               0.7253182130148879, 0.4865343940849741,  0.818409147529944,   0.24277620212257367,
-//                               0.8347730401736206, 0.6951747693420071,  0.20670429250120048, 0.20936316003591626,
-//                               0.3272321712567512, 0.20917661559581946, 0.25748266945151754, 0.11603616519900317,
-//                               0.5984983071353864, 0.22721356931144365, 0.46368822631629447, 0.020616505178830402 };
-//   std::array<double, 11> T_new = {
-//     10.0, 10.02, 10.04, 10.06, 10.08, 10.1, 10.12, 10.139999999999999, 10.16, 10.18, 10.2
-//   };
-//   std::array<float, 11> result = { 0.879620914876778,   0.3461727105285413, 0.6632283112147902,  0.7316952972942005,
-//                                    0.5677906449134396,  0.4130980048084355, 0.29535833028409375, 0.2144932071325534,
-//                                    0.27298944852590057, 0.4386378568779821, 0.03787996418981846 };
-//
-//   for (int i = 0; i < 20; i++)
-//   {
-//     MockDynamics::state_array state = MockDynamics::state_array::Zero();
-//     state(0, 0) = y[i];
-//     plant->updateState(state, old_times[i]);
-//   }
-//   EXPECT_EQ(plant->getBufferSize(), 20);
-//   auto buffer = plant->getSmoothedBuffer();
-//
-//   for (int col = 0; col < buffer.cols(); col++)
-//   {
-//     EXPECT_FLOAT_EQ(buffer(0, col), result[col]);
-//   }
-// }
+#include <mppi/core/buffered_plant.hpp>
+#include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
+#include <mppi_test/mock_classes/mock_dynamics.h>
+#include <mppi_test/mock_classes/mock_controller.h>
+#include <mppi_test/mock_classes/mock_costs.h>
+
+const double precision = 1e-6;
+
+template <class CONTROLLER_T>
+class TestPlant : public BufferedPlant<CONTROLLER_T>
+{
+public:
+  double time_ = 0.0;
+
+  double avgDurationMs_ = 0;
+  double avgTickDuration_ = 0;
+  double avgSleepTime_ = 0;
+
+  using c_array = typename CONTROLLER_T::control_array;
+  using c_traj = typename CONTROLLER_T::control_trajectory;
+
+  using s_array = typename CONTROLLER_T::state_array;
+  using s_traj = typename CONTROLLER_T::state_trajectory;
+
+  using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
+  using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
+  using COST_T = typename CONTROLLER_T::TEMPLATED_COSTS;
+  using COST_PARAMS_T = typename COST_T::COST_PARAMS_T;
+  double timestamp_;
+  double loop_speed_;
+
+  using buffer_trajectory = typename BufferedPlant<CONTROLLER_T>::buffer_trajectory;
+
+  TestPlant(std::shared_ptr<MockController> controller, double buffer_time_horizon = 2.0, int hz = 20,
+            int opt_stride = 1)
+    : BufferedPlant<CONTROLLER_T>(controller, hz, opt_stride)
+  {
+    this->buffer_time_horizon_ = 2.0;
+    this->buffer_tau_ = 0.2;
+    this->buffer_dt_ = 0.02;
+    controller->setDt(this->buffer_dt_);
+  }
+
+  void pubControl(const c_array& u) override
+  {
+  }
+
+  void pubNominalState(const s_array& s) override
+  {
+  }
+
+  void pubFreeEnergyStatistics(MPPIFreeEnergyStatistics& fe_stats) override
+  {
+  }
+
+  void incrementTime()
+  {
+    time_ += 0.05;
+  }
+
+  int checkStatus() override
+  {
+    return 1;
+  }
+
+  double getCurrentTime() override
+  {
+    auto current_time = std::chrono::system_clock::now();
+    auto duration_in_seconds = std::chrono::duration<double>(current_time.time_since_epoch());
+    return duration_in_seconds.count();
+  }
+
+  double getPoseTime() override
+  {
+    return time_;
+  }
+
+  // accessors for protected members
+  auto getPrevPositionList()
+  {
+    return this->prev_position_;
+  }
+  auto getPrevQuaternionList()
+  {
+    return this->prev_quaternion_;
+  }
+  auto getPrevVelocityList()
+  {
+    return this->prev_velocity_;
+  }
+  auto getPrevOmegaList()
+  {
+    return this->prev_omega_;
+  }
+  auto getPrevControlList()
+  {
+    return this->prev_controls_;
+  }
+  auto getPrevExtraList()
+  {
+    return this->prev_extra_;
+  }
+  double getBufferTimeHorizon()
+  {
+    return this->buffer_time_horizon_;
+  }
+  double getBufferTau()
+  {
+    return this->buffer_tau_;
+  }
+  double getBufferDt()
+  {
+    return this->buffer_dt_;
+  }
+};
+
+typedef TestPlant<MockController> MockTestPlant;
+
+class BufferedPlantTest : public ::testing::Test
+{
+protected:
+  void SetUp() override
+  {
+    mockController = std::make_shared<MockController>();
+    EXPECT_CALL(*mockController, getDt()).Times(1);
+    mockFeedback = new FEEDBACK_T(&mockDynamics, mockController->getDt());
+    mockController->cost_ = &mockCost;
+    mockController->model_ = &mockDynamics;
+    mockController->fb_controller_ = mockFeedback;
+
+    EXPECT_CALL(*mockController->cost_, getParams()).Times(1);
+    EXPECT_CALL(*mockController->model_, getParams()).Times(1);
+
+    plant = std::make_shared<MockTestPlant>(mockController);
+
+    generator = std::default_random_engine(7.0);
+    distribution = std::normal_distribution<float>(0.0, 1.0);
+  }
+
+  void TearDown() override
+  {
+    plant = nullptr;
+    mockController = nullptr;
+    delete mockFeedback;
+  }
+  MockDynamics mockDynamics;
+  MockCost mockCost;
+  FEEDBACK_T* mockFeedback;
+  std::shared_ptr<MockController> mockController;
+  std::shared_ptr<MockTestPlant> plant;
+
+  std::default_random_engine generator;
+  std::normal_distribution<float> distribution;
+};
+
+TEST_F(BufferedPlantTest, Constructor)
+{
+  auto prev_pos = plant->getPrevPositionList();
+  EXPECT_EQ(prev_pos.size(), 0);
+  auto prev_quat = plant->getPrevQuaternionList();
+  EXPECT_EQ(prev_quat.size(), 0);
+  auto prev_vel = plant->getPrevVelocityList();
+  EXPECT_EQ(prev_vel.size(), 0);
+  auto prev_omega = plant->getPrevOmegaList();
+  EXPECT_EQ(prev_omega.size(), 0);
+  auto prev_control = plant->getPrevControlList();
+  EXPECT_EQ(prev_control.size(), 0);
+  auto prev_extra = plant->getPrevExtraList();
+  EXPECT_EQ(prev_control.size(), 0);
+
+  EXPECT_FLOAT_EQ(plant->getBufferTimeHorizon(), 2.0);
+  EXPECT_FLOAT_EQ(plant->getBufferTau(), 0.2);
+  EXPECT_FLOAT_EQ(plant->getBufferDt(), 0.02);
+}
+
+TEST_F(BufferedPlantTest, updateControls)
+{
+  MockDynamics::control_array u = MockDynamics::control_array::Zero();
+  auto prev_control = plant->getPrevControlList();
+
+  for (int i = 0; i < 20; i++)
+  {
+    u = MockDynamics::control_array::Ones() * 0.2 * i;
+    plant->updateControls(u, 0.2 * i);
+    prev_control = plant->getPrevControlList();
+    EXPECT_EQ(prev_control.size(), i + 1);
+  }
+  for (int i = 0; i < 20; i++)
+  {
+    u = MockDynamics::control_array::Ones() * (0.2 * i + 0.1);
+    plant->updateControls(u, 0.2 * i + 0.1);
+    prev_control = plant->getPrevControlList();
+    EXPECT_EQ(prev_control.size(), i + 21);
+  }
+  prev_control = plant->getPrevControlList();
+  EXPECT_EQ(prev_control.size(), 40);
+
+  double time = 0;
+  for (auto it = prev_control.begin(); it != prev_control.end(); it++, time += 0.1)
+  {
+    EXPECT_FLOAT_EQ(it->time, time);
+    for (int i = 0; i < MockDynamics::CONTROL_DIM; i++)
+    {
+      EXPECT_FLOAT_EQ(it->data(i), time);
+    }
+  }
+
+  plant->cleanBuffers(4.0);
+  prev_control = plant->getPrevControlList();
+  EXPECT_EQ(prev_control.size(), 20);
+}
+
+TEST_F(BufferedPlantTest, updateControlsRandom)
+{
+  MockDynamics::control_array u = MockDynamics::control_array::Random();
+  auto prev_control = plant->getPrevControlList();
+
+  for (int i = 0; i < 1000; i++)
+  {
+    plant->updateControls(u, distribution(generator));
+  }
+  prev_control = plant->getPrevControlList();
+  EXPECT_EQ(prev_control.size(), 1000);
+
+  std::vector<double> times(1000);
+
+  int index = 0;
+  for (auto it = prev_control.begin(); it != prev_control.end(); it++, index++)
+  {
+    times[index] = it->time;
+  }
+
+  EXPECT_TRUE(std::is_sorted(times.begin(), times.end()));
+}
+
+TEST_F(BufferedPlantTest, updateControlsInterp)
+{
+  MockDynamics::control_array u = MockDynamics::control_array::Zero();
+  std::list<BufferMessage<MockDynamics::control_array>> prev_control = plant->getPrevControlList();
+
+  for (int i = 0; i < 21; i++)
+  {
+    u = MockDynamics::control_array::Ones() * 0.2 * i;
+    plant->updateControls(u, 0.2 * i);
+    prev_control = plant->getPrevControlList();
+    EXPECT_EQ(prev_control.size(), i + 1);
+  }
+  prev_control = plant->getPrevControlList();
+  EXPECT_EQ(prev_control.size(), 21);
+
+  for (double t = -2.0; t < 6.0; t += 0.01)
+  {
+    MockDynamics::control_array u_interp = MockTestPlant::interp<MockDynamics::control_array>(prev_control, t);
+    if (t < 0)
+    {
+      for (int i = 0; i < MockDynamics::CONTROL_DIM; i++)
+      {
+        EXPECT_NEAR(u_interp(i), 0, precision) << "at time " << t;
+      }
+    }
+    else if (t > 4.0)
+    {
+      for (int i = 0; i < MockDynamics::CONTROL_DIM; i++)
+      {
+        EXPECT_NEAR(u_interp(i), 4.0, precision) << "at time " << t;
+      }
+    }
+    else
+    {
+      for (int i = 0; i < MockDynamics::CONTROL_DIM; i++)
+      {
+        EXPECT_NEAR(u_interp(i), t, precision) << "at time " << t;
+      }
+    }
+  }
+}
+
+TEST_F(BufferedPlantTest, extraValues)
+{
+  auto extra_info = plant->getPrevExtraList();
+  for (int i = 0; i < 20; i++)
+  {
+    plant->updateExtraValue("steering_angle", 0.2 * i, 0.2 * i);
+    plant->updateExtraValue("steering_vel", 0.2 * i, 0.2 * i);
+    extra_info = plant->getPrevExtraList();
+    EXPECT_EQ(extra_info.size(), 2);
+    EXPECT_EQ(extra_info["steering_angle"].size(), i + 1);
+    EXPECT_EQ(extra_info["steering_vel"].size(), i + 1);
+  }
+  for (int i = 0; i < 20; i++)
+  {
+    plant->updateExtraValue("steering_angle", 0.2 * i + 0.1, 0.2 * i + 0.1);
+    plant->updateExtraValue("steering_vel", 0.2 * i + 0.1, 0.2 * i + 0.1);
+    extra_info = plant->getPrevExtraList();
+    EXPECT_EQ(extra_info.size(), 2);
+    EXPECT_EQ(extra_info["steering_angle"].size(), i + 21);
+    EXPECT_EQ(extra_info["steering_vel"].size(), i + 21);
+  }
+  extra_info = plant->getPrevExtraList();
+  EXPECT_EQ(extra_info.size(), 2);
+  EXPECT_EQ(extra_info["steering_angle"].size(), 40);
+  EXPECT_EQ(extra_info["steering_vel"].size(), 40);
+
+  for (auto list_it = extra_info.begin(); list_it != extra_info.end(); list_it++)
+  {
+    double time = 0;
+    for (auto it = list_it->second.begin(); it != list_it->second.end(); it++, time += 0.1)
+    {
+      EXPECT_FLOAT_EQ(it->time, time);
+      for (int i = 0; i < MockDynamics::CONTROL_DIM; i++)
+      {
+        EXPECT_FLOAT_EQ(it->data, time);
+      }
+    }
+  }
+
+  plant->cleanBuffers(4.0);
+  extra_info = plant->getPrevExtraList();
+  EXPECT_EQ(extra_info.size(), 2);
+  EXPECT_EQ(extra_info["steering_angle"].size(), 20);
+  EXPECT_EQ(extra_info["steering_vel"].size(), 20);
+}
+
+TEST_F(BufferedPlantTest, updateOdometry)
+{
+  Eigen::Vector3f pos = Eigen::Vector3f::Ones();
+  Eigen::Quaternionf quat = Eigen::Quaternionf::Identity();
+  Eigen::Vector3f vel = Eigen::Vector3f::Ones();
+  Eigen::Vector3f omega = Eigen::Vector3f::Ones();
+
+  MockDynamics::state_array state = MockDynamics::state_array::Random();
+
+  EXPECT_CALL(mockDynamics, stateFromMap(testing::_)).Times(2).WillRepeatedly(testing::Return(state));
+  EXPECT_CALL(*mockController, getDt()).Times(2);
+
+  plant->updateOdometry(pos, quat, vel, omega, 0.0);
+
+  auto prev_pos = plant->getPrevPositionList();
+  auto prev_quat = plant->getPrevQuaternionList();
+  auto prev_vel = plant->getPrevVelocityList();
+  auto prev_omega = plant->getPrevOmegaList();
+
+  EXPECT_EQ(prev_pos.size(), 1);
+  EXPECT_EQ(prev_quat.size(), 1);
+  EXPECT_EQ(prev_vel.size(), 1);
+  EXPECT_EQ(prev_omega.size(), 1);
+  MockDynamics::state_array result_state = plant->getState();
+  EXPECT_LT((state - result_state).norm(), 1e-8);
+
+  pos = Eigen::Vector3f::Ones() * 3;
+  vel = Eigen::Vector3f::Ones() * 4;
+  omega = Eigen::Vector3f::Ones() * 5;
+  quat = Eigen::AngleAxisf(M_PI_2, Eigen::Vector3f::UnitZ());
+
+  plant->updateOdometry(pos, quat, vel, omega, 1.0);
+
+  prev_pos = plant->getPrevPositionList();
+  prev_quat = plant->getPrevQuaternionList();
+  prev_vel = plant->getPrevVelocityList();
+  prev_omega = plant->getPrevOmegaList();
+
+  EXPECT_EQ(prev_pos.size(), 2);
+  EXPECT_EQ(prev_quat.size(), 2);
+  EXPECT_EQ(prev_vel.size(), 2);
+  EXPECT_EQ(prev_omega.size(), 2);
+  result_state = plant->getState();
+  EXPECT_LT((state - result_state).norm(), 1e-8);
+
+  Eigen::Vector3f pos_interp = MockTestPlant::interp<Eigen::Vector3f>(prev_pos, 0.5);
+  Eigen::Quaternionf quat_interp = MockTestPlant::interp(prev_quat, 0.5);
+  Eigen::Vector3f vel_interp = MockTestPlant::interp<Eigen::Vector3f>(prev_vel, 0.5);
+  Eigen::Vector3f omega_interp = MockTestPlant::interp<Eigen::Vector3f>(prev_omega, 0.5);
+
+  EXPECT_FLOAT_EQ(pos_interp(0), 2);
+  EXPECT_FLOAT_EQ(pos_interp(1), 2);
+  EXPECT_FLOAT_EQ(pos_interp(2), 2);
+
+  EXPECT_FLOAT_EQ(quat_interp.w(), 0.92387962);
+  EXPECT_FLOAT_EQ(quat_interp.x(), 0.0);
+  EXPECT_FLOAT_EQ(quat_interp.y(), 0.0);
+  EXPECT_FLOAT_EQ(quat_interp.z(), 0.3826834);
+
+  EXPECT_FLOAT_EQ(vel_interp(0), 2.5);
+  EXPECT_FLOAT_EQ(vel_interp(1), 2.5);
+  EXPECT_FLOAT_EQ(vel_interp(2), 2.5);
+
+  EXPECT_FLOAT_EQ(omega_interp(0), 3);
+  EXPECT_FLOAT_EQ(omega_interp(1), 3);
+  EXPECT_FLOAT_EQ(omega_interp(2), 3);
+}
+
+TEST_F(BufferedPlantTest, getInterpState)
+{
+  Eigen::Vector3f pos = Eigen::Vector3f::Ones();
+  Eigen::Quaternionf quat = Eigen::Quaternionf::Identity();
+  Eigen::Vector3f vel = Eigen::Vector3f::Ones();
+  Eigen::Vector3f omega = Eigen::Vector3f::Ones();
+  MockDynamics::control_array u = MockDynamics::control_array::Ones();
+
+  MockDynamics::state_array state = MockDynamics::state_array::Random();
+
+  EXPECT_CALL(mockDynamics, stateFromMap(testing::_)).Times(2).WillRepeatedly(testing::Return(state));
+  EXPECT_CALL(*mockController, getDt()).Times(2);
+
+  plant->updateOdometry(pos, quat, vel, omega, 0.0);
+  plant->updateControls(u, 0.0);
+  plant->updateExtraValue("steering_angle", 1, 0);
+  plant->updateExtraValue("steering_vel", 1, 0);
+
+  pos = Eigen::Vector3f::Ones() * 2;
+  vel = Eigen::Vector3f::Ones() * 2;
+  omega = Eigen::Vector3f::Ones() * 2;
+  quat = Eigen::AngleAxisf(M_PI_2, Eigen::Vector3f::UnitZ());
+  u = MockDynamics::control_array::Ones() * 2;
+
+  plant->updateOdometry(pos, quat, vel, omega, 1.0);
+  plant->updateControls(u, 1.0);
+  plant->updateExtraValue("steering_angle", 2, 1.0);
+  plant->updateExtraValue("steering_vel", 2, 1.0);
+
+  std::map<std::string, float> map = plant->getInterpState(0.5);
+
+  EXPECT_EQ(map.size(), 16);
+
+  EXPECT_FLOAT_EQ(map.at("POS_X"), 1.5);
+  EXPECT_FLOAT_EQ(map.at("POS_Y"), 1.5);
+  EXPECT_FLOAT_EQ(map.at("POS_Z"), 1.5);
+
+  EXPECT_FLOAT_EQ(map.at("Q_W"), 0.92387962);
+  EXPECT_FLOAT_EQ(map.at("Q_X"), 0.0);
+  EXPECT_FLOAT_EQ(map.at("Q_Y"), 0.0);
+  EXPECT_FLOAT_EQ(map.at("Q_Z"), 0.3826834);
+
+  EXPECT_FLOAT_EQ(map.at("VEL_X"), 1.5);
+  EXPECT_FLOAT_EQ(map.at("VEL_Y"), 1.5);
+  EXPECT_FLOAT_EQ(map.at("VEL_Z"), 1.5);
+
+  EXPECT_FLOAT_EQ(map.at("OMEGA_X"), 1.5);
+  EXPECT_FLOAT_EQ(map.at("OMEGA_Y"), 1.5);
+  EXPECT_FLOAT_EQ(map.at("OMEGA_Z"), 1.5);
+
+  EXPECT_FLOAT_EQ(map.at("CONTROL_0"), 1.5);
+
+  EXPECT_FLOAT_EQ(map.at("steering_angle"), 1.5);
+  EXPECT_FLOAT_EQ(map.at("steering_vel"), 1.5);
+}
+
+TEST_F(BufferedPlantTest, getInterpBuffer)
+{
+  Eigen::Vector3f pos = Eigen::Vector3f::Zero();
+  Eigen::Quaternionf quat = Eigen::Quaternionf::Identity();
+  Eigen::Vector3f vel = Eigen::Vector3f::Zero();
+  Eigen::Vector3f omega = Eigen::Vector3f::Zero();
+  MockDynamics::control_array u = MockDynamics::control_array::Zero();
+
+  MockDynamics::state_array state = MockDynamics::state_array::Random();
+
+  EXPECT_CALL(mockDynamics, stateFromMap(testing::_)).Times(2).WillRepeatedly(testing::Return(state));
+  EXPECT_CALL(*mockController, getDt()).Times(2);
+
+  plant->updateOdometry(pos, quat, vel, omega, 0.0);
+  plant->updateControls(u, 0.0);
+  plant->updateExtraValue("steering_angle", 0, 0);
+  plant->updateExtraValue("steering_vel", 0, 0);
+
+  pos = Eigen::Vector3f::Ones();
+  vel = Eigen::Vector3f::Ones();
+  omega = Eigen::Vector3f::Ones();
+  quat = Eigen::AngleAxisf(M_PI_2, Eigen::Vector3f::UnitZ());
+  u = MockDynamics::control_array::Ones();
+
+  plant->updateOdometry(pos, quat, vel, omega, 1.0);
+  plant->updateControls(u, 1.0);
+  plant->updateExtraValue("steering_angle", 1, 1.0);
+  plant->updateExtraValue("steering_vel", 1, 1.0);
+
+  MockTestPlant::buffer_trajectory buffer = plant->getSmoothedBuffer();
+
+  EXPECT_EQ(buffer.size(), 16);
+  EXPECT_EQ(buffer.at("POS_X").size(), 11);
+
+  for (int t = 0; t < 11; t++)
+  {
+    double time = 0.8 + t * 0.02;
+    EXPECT_FLOAT_EQ(buffer.at("POS_X")(t), time) << "at time " << t << " " << time;
+    EXPECT_FLOAT_EQ(buffer.at("POS_Y")(t), time) << "at time " << t << " " << time;
+    EXPECT_FLOAT_EQ(buffer.at("POS_Z")(t), time) << "at time " << t << " " << time;
+
+    EXPECT_FLOAT_EQ(buffer.at("VEL_X")(t), time) << "at time " << t << " " << time;
+    EXPECT_FLOAT_EQ(buffer.at("VEL_Y")(t), time) << "at time " << t << " " << time;
+    EXPECT_FLOAT_EQ(buffer.at("VEL_Z")(t), time) << "at time " << t << " " << time;
+
+    EXPECT_FLOAT_EQ(buffer.at("OMEGA_X")(t), time) << "at time " << t << " " << time;
+    EXPECT_FLOAT_EQ(buffer.at("OMEGA_Y")(t), time) << "at time " << t << " " << time;
+    EXPECT_FLOAT_EQ(buffer.at("OMEGA_Z")(t), time) << "at time " << t << " " << time;
+
+    EXPECT_FLOAT_EQ(buffer.at("CONTROL_0")(t), time) << "at time " << t << " " << time;
+    EXPECT_NEAR(buffer.at("steering_angle")(t), time, precision) << "at time " << t << " " << time;
+    EXPECT_NEAR(buffer.at("steering_vel")(t), time, precision) << "at time " << t << " " << time;
+  }
+}
