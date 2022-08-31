@@ -61,6 +61,7 @@ protected:
   std::atomic<bool> has_new_dynamics_params_{ false };
   std::atomic<bool> has_new_cost_params_{ false };
   std::atomic<bool> has_new_controller_params_{ false };
+  std::atomic<bool> enabled_{ false };
 
   // Values needed
   s_array init_state_ = s_array::Zero();

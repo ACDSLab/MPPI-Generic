@@ -83,8 +83,8 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
     brake = linear_brake_slope * control(0) * state(0);
   }
 
-  state_der(0) =
-      (!enable_brake) * throttle + (enable_brake)*brake - this->params_.c_v[index] * state(0) + this->params_.c_0;
+  state_der(0) = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
+                 this->params_.c_v[index] * state(0) + this->params_.c_0;
   if (abs(state[6]) < M_PI_2)
   {
     state_der[0] -= this->params_.gravity * sinf(state[6]);
@@ -227,8 +227,8 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
     brake = linear_brake_slope * control[0] * state[S_INDEX(VEL_X)];
   }
 
-  state_der[S_INDEX(VEL_X)] =
-      (!enable_brake) * throttle + (enable_brake)*brake - params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
+  state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
+                              params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
   if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
   {
     state_der[S_INDEX(VEL_X)] -= params_p->gravity * sinf(state[S_INDEX(PITCH)]);
@@ -287,6 +287,7 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
         front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
         rear_left_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_left);
         rear_right_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_right);
+        output[O_INDEX(BASELINK_POS_I_Z)] = (rear_right_height + rear_left_height) / 2.0f;
 
         // max magnitude
         if (i == S_INDEX(ROLL))
@@ -333,7 +334,6 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
   output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
   output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
   output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
-  output[O_INDEX(BASELINK_POS_I_Z)] = 0;
   output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
   output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
   output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];

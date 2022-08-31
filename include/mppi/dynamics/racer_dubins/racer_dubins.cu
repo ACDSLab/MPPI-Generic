@@ -9,7 +9,7 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::Ref<const 
   bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0;
   // applying position throttle
   state_der(S_INDEX(VEL_X)) =
-      (!enable_brake) * this->params_.c_t[0] * control(C_INDEX(THROTTLE_BRAKE)) +
+      (!enable_brake) * this->params_.c_t[0] * control(C_INDEX(THROTTLE_BRAKE)) * this->params_.gear_sign +
       (enable_brake) * this->params_.c_b[0] * control(C_INDEX(THROTTLE_BRAKE)) * (state(S_INDEX(VEL_X)) >= 0 ? 1 : -1) -
       this->params_.c_v[0] * state(S_INDEX(VEL_X)) + this->params_.c_0;
   state_der(S_INDEX(YAW)) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
@@ -131,7 +131,7 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(float* state
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
   // applying position throttle
   state_der[S_INDEX(VEL_X)] =
-      (!enable_brake) * this->params_.c_t[0] * control[0] +
+      (!enable_brake) * this->params_.c_t[0] * control[0] * this->params_.gear_sign +
       (enable_brake) * this->params_.c_b[0] * control[0] * (state[S_INDEX(VEL_X)] >= 0 ? 1 : -1) -
       this->params_.c_v[0] * state[S_INDEX(VEL_X)] + this->params_.c_0;
   state_der[S_INDEX(YAW)] = (state[S_INDEX(VEL_X)] / this->params_.wheel_base) *
