@@ -220,10 +220,8 @@ public:
     cleanBuffers();
   }
 
-  buffer_trajectory getSmoothedBuffer()
+  buffer_trajectory getSmoothedBuffer(double latest_time)
   {
-    double latest_time = getStateTime();
-
     std::lock_guard<std::mutex> lck(this->access_guard_);
 
     int steps = buffer_tau_ / buffer_dt_ + 1;

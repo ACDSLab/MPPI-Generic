@@ -259,7 +259,7 @@ public:
     visualization_hz_ = hz;
   }
 
-  buffer_trajectory getSmoothedBuffer()
+  buffer_trajectory getSmoothedBuffer(double time)
   {
     throw std::logic_error("Invalid dynamics with current plant, it requires the buffered plant");
   }
@@ -422,7 +422,7 @@ public:
 
     if (this->controller_->model_->checkRequiresBuffer())
     {
-      this->controller_->model_->updateFromBuffer(this->getSmoothedBuffer());
+      this->controller_->model_->updateFromBuffer(this->getSmoothedBuffer(temp_last_state_time));
     }
 
     // Check the robots status for this optimization

@@ -481,7 +481,7 @@ TEST_F(BufferedPlantTest, getInterpBuffer)
   plant->updateExtraValue("steering_angle", 1, 1.0);
   plant->updateExtraValue("steering_vel", 1, 1.0);
 
-  MockTestPlant::buffer_trajectory buffer = plant->getSmoothedBuffer();
+  MockTestPlant::buffer_trajectory buffer = plant->getSmoothedBuffer(1.0);
 
   EXPECT_EQ(buffer.size(), 16);
   EXPECT_EQ(buffer.at("POS_X").size(), 11);
