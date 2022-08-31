@@ -417,7 +417,7 @@ TEST_F(BufferedPlantTest, getInterpState)
   pos = Eigen::Vector3f::Ones() * 2;
   vel = Eigen::Vector3f::Ones() * 2;
   omega = Eigen::Vector3f::Ones() * 2;
-  quat = Eigen::AngleAxisf(M_PI_2, Eigen::Vector3f::UnitZ());
+  quat = Eigen::AngleAxisf(M_PI_2f32, Eigen::Vector3f::UnitZ());
   u = MockDynamics::control_array::Ones() * 2;
 
   plant->updateOdometry(pos, quat, vel, omega, 1.0);
@@ -427,7 +427,7 @@ TEST_F(BufferedPlantTest, getInterpState)
 
   std::map<std::string, float> map = plant->getInterpState(0.5);
 
-  EXPECT_EQ(map.size(), 16);
+  EXPECT_EQ(map.size(), 19);
 
   EXPECT_FLOAT_EQ(map.at("POS_X"), 1.5);
   EXPECT_FLOAT_EQ(map.at("POS_Y"), 1.5);
@@ -437,6 +437,10 @@ TEST_F(BufferedPlantTest, getInterpState)
   EXPECT_FLOAT_EQ(map.at("Q_X"), 0.0);
   EXPECT_FLOAT_EQ(map.at("Q_Y"), 0.0);
   EXPECT_FLOAT_EQ(map.at("Q_Z"), 0.3826834);
+
+  EXPECT_FLOAT_EQ(map.at("ROLL"), 0);
+  EXPECT_FLOAT_EQ(map.at("PITCH"), 0);
+  EXPECT_FLOAT_EQ(map.at("YAW"), M_PI_4f32);
 
   EXPECT_FLOAT_EQ(map.at("VEL_X"), 1.5);
   EXPECT_FLOAT_EQ(map.at("VEL_Y"), 1.5);
@@ -483,7 +487,7 @@ TEST_F(BufferedPlantTest, getInterpBuffer)
 
   MockTestPlant::buffer_trajectory buffer = plant->getSmoothedBuffer(1.0);
 
-  EXPECT_EQ(buffer.size(), 16);
+  EXPECT_EQ(buffer.size(), 19);
   EXPECT_EQ(buffer.at("POS_X").size(), 11);
 
   for (int t = 0; t < 11; t++)
@@ -500,6 +504,9 @@ TEST_F(BufferedPlantTest, getInterpBuffer)
     EXPECT_FLOAT_EQ(buffer.at("OMEGA_X")(t), time) << "at time " << t << " " << time;
     EXPECT_FLOAT_EQ(buffer.at("OMEGA_Y")(t), time) << "at time " << t << " " << time;
     EXPECT_FLOAT_EQ(buffer.at("OMEGA_Z")(t), time) << "at time " << t << " " << time;
+
+    EXPECT_FLOAT_EQ(buffer.at("ROLL")(t), 0);
+    EXPECT_FLOAT_EQ(buffer.at("PITCH")(t), 0);
 
     EXPECT_FLOAT_EQ(buffer.at("CONTROL_0")(t), time) << "at time " << t << " " << time;
     EXPECT_NEAR(buffer.at("steering_angle")(t), time, precision) << "at time " << t << " " << time;

@@ -151,10 +151,11 @@ public:
     insertionSort(prev_velocity_, time, vel);
     insertionSort(prev_omega_, time, omega);
 
-    // grab the latest position update and pass to update state
-    // gets the latest time for all information
-
-    // TODO this interpolates using most recent if there are issues
+    /**
+     * Uses the most recent odometry information
+     * If any other sources are more delayed it uses the most recent value
+     * If other sources are more recent it gets interpolated to odom time
+     */
     std::map<std::string, float> smoothed = getInterpState(time);
     s_array state = this->controller_->model_->stateFromMap(smoothed);
     BasePlant<CONTROLLER_T>::updateState(state, time);
@@ -190,6 +191,11 @@ public:
     result["Q_X"] = interp_quat.x();
     result["Q_Y"] = interp_quat.y();
     result["Q_Z"] = interp_quat.z();
+    float roll, pitch, yaw;
+    mppi::math::Quat2EulerNWU(interp_quat, roll, pitch, yaw);
+    result["ROLL"] = roll;
+    result["PITCH"] = pitch;
+    result["YAW"] = yaw;
     Eigen::Vector3f interp_vel = interp(prev_velocity_, time);
     result["VEL_X"] = interp_vel.x();
     result["VEL_Y"] = interp_vel.y();
