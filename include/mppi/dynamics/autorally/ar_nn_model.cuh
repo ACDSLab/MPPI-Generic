@@ -162,6 +162,8 @@ public:
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
 
+  state_array stateFromMap(const std::map<std::string, float>& map) override;
+
 private:
   FNNHelper<FNNParams<layer_args...>>* helper_ = nullptr;
 };

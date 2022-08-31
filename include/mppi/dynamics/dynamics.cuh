@@ -444,6 +444,8 @@ public:
 
   void updateFromBuffer(const buffer_trajectory& buffer) {}
 
+  virtual state_array stateFromMap(const std::map<std::string, float>& map) = 0;
+
   // control ranges [.x, .y]
   float2 control_rngs_[CONTROL_DIM];
 

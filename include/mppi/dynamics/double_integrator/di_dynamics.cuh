@@ -59,6 +59,8 @@ public:
 
   dfdu B(const Eigen::Ref<const state_array>& state);
 
+  state_array stateFromMap(const std::map<std::string, float>& map);
+
 private:
   // Random number generator for system noise
   std::mt19937 gen;  // Standard mersenne_twister_engine which will be seeded

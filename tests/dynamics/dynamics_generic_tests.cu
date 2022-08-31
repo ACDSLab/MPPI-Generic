@@ -67,6 +67,10 @@ public:
   {
     state_der[0] = state[0] + state[1];
   }
+
+  state_array stateFromMap(const std::map<std::string, float>& map)
+  {
+  }
 };
 
 TEST(Dynamics, BindStream)

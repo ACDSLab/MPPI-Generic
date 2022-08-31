@@ -63,3 +63,13 @@ __device__ void DubinsDynamics::computeDynamics(float* state, float* control, fl
   state_der[S_INDEX(POS_Y)] = control[C_INDEX(VEL)] * sin(state[S_INDEX(YAW)]);
   state_der[S_INDEX(YAW)] = control[C_INDEX(YAW_RATE)];
 }
+
+Dynamics<DubinsDynamics, DubinsParams>::state_array
+DubinsDynamics::stateFromMap(const std::map<std::string, float>& map)
+{
+  state_array s;
+  s(S_INDEX(POS_X)) = map.at("POS_X");
+  s(S_INDEX(POS_Y)) = map.at("POS_Y");
+  s(S_INDEX(YAW)) = map.at("YAW");
+  return s;
+}

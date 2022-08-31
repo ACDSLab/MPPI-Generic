@@ -169,3 +169,18 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::initializeDy
   PARENT_CLASS::initializeDynamics(state, control, output, theta_s, t_0, dt);
   helper_->initialize(theta_s);
 }
+
+template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
+NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::state_array
+NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::stateFromMap(const std::map<std::string, float>& map)
+{
+  state_array s;
+  s(S_INDEX(POS_X)) = map.at("POS_X");
+  s(S_INDEX(POS_Y)) = map.at("POS_Y");
+  s(S_INDEX(YAW)) = map.at("YAW");
+  s(S_INDEX(ROLL)) = map.at("ROLL");
+  s(S_INDEX(BODY_VEL_X)) = map.at("VEL_X");
+  s(S_INDEX(BODY_VEL_Y)) = map.at("VEL_Y");
+  s(S_INDEX(YAW_RATE)) = map.at("OMEGA_Z");
+  return s;
+}

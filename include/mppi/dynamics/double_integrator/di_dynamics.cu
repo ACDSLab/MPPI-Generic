@@ -67,3 +67,14 @@ DoubleIntegratorDynamics::dfdu DoubleIntegratorDynamics::B(const Eigen::Ref<cons
   B(3, 1) = 1;
   return B;
 }
+
+Dynamics<DoubleIntegratorDynamics, DoubleIntegratorParams>::state_array
+DoubleIntegratorDynamics::stateFromMap(const std::map<std::string, float>& map)
+{
+  state_array s;
+  s(0) = map.at("POS_X");
+  s(1) = map.at("POS_Y");
+  s(2) = map.at("VEL_X");
+  s(3) = map.at("VEL_Y");
+  return s;
+}

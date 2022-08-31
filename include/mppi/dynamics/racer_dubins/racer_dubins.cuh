@@ -123,6 +123,8 @@ public:
 
   void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal,
                     const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output);
+
+  state_array stateFromMap(const std::map<std::string, float>& map) override;
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins>

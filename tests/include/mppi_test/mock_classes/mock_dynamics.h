@@ -47,7 +47,7 @@ public:
   MOCK_METHOD4(computeGrad, bool(const Eigen::Ref<const state_array>&, const Eigen::Ref<const control_array>,
                                  Eigen::Ref<dfdx>, Eigen::Ref<dfdu>));
   MOCK_METHOD1(updateFromBuffer, void(const buffer_trajectory& buffer));
-  MOCK_METHOD1(stateFromMap, state_array(std::map<std::string, float>));
+  MOCK_METHOD1(stateFromMap, state_array(const std::map<std::string, float>&));
 };
 
 #endif  // MPPIGENERIC_MOCK_DYNAMICS_H

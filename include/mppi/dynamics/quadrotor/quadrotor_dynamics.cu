@@ -186,3 +186,25 @@ __device__ void QuadrotorDynamics::updateState(float* state, float* next_state, 
   }
   // __syncthreads();
 }
+
+QuadrotorDynamics::state_array QuadrotorDynamics::stateFromMap(const std::map<std::string, float>& map)
+{
+  state_array s;
+  s(S_INDEX(POS_X)) = map.at("POS_X");
+  s(S_INDEX(POS_Y)) = map.at("POS_Y");
+  s(S_INDEX(POS_Z)) = map.at("POS_Z");
+
+  s(S_INDEX(VEL_X)) = map.at("VEL_X");
+  s(S_INDEX(VEL_Y)) = map.at("VEL_Y");
+  s(S_INDEX(VEL_Z)) = map.at("VEL_Z");
+
+  s(S_INDEX(QUAT_X)) = map.at("Q_X");
+  s(S_INDEX(QUAT_Y)) = map.at("Q_Y");
+  s(S_INDEX(QUAT_Z)) = map.at("Q_Z");
+  s(S_INDEX(QUAT_W)) = map.at("Q_W");
+
+  s(S_INDEX(ANG_VEL_X)) = map.at("OMEGA_X");
+  s(S_INDEX(ANG_VEL_Y)) = map.at("OMEGA_Y");
+  s(S_INDEX(ANG_VEL_Z)) = map.at("OMEGA_Z");
+  return QuadrotorDynamics::state_array();
+}
