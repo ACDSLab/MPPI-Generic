@@ -260,7 +260,7 @@ public:
     visualization_hz_ = hz;
   }
 
-  buffer_trajectory getSmoothedBuffer(double time)
+  virtual buffer_trajectory getSmoothedBuffer(double time)
   {
     throw std::logic_error("Invalid dynamics with current plant, it requires the buffered plant");
   }
@@ -361,7 +361,7 @@ public:
    * @param state
    * @return
    */
-  bool updateParameters()
+  virtual bool updateParameters()
   {
     bool changed = false;
     // Update cost parameters

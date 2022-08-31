@@ -38,7 +38,7 @@ public:
   {
   }
 
-  void updateExtraValue(std::string name, float value, double time)
+  void updateExtraValue(const std::string& name, float value, double time)
   {
     if (prev_extra_.find(name) == prev_extra_.end())
     {
@@ -142,7 +142,7 @@ public:
     return (1 - alpha) * it->data + alpha * it_new->data;
   }
 
-  void updateOdometry(Eigen::Vector3f pos, Eigen::Quaternionf quat, Eigen::Vector3f vel, Eigen::Vector3f omega,
+  void updateOdometry(Eigen::Vector3f& pos, Eigen::Quaternionf& quat, Eigen::Vector3f& vel, Eigen::Vector3f& omega,
                       double time)
   {
     // inserts odometry into buffers using insertion sort
@@ -161,23 +161,23 @@ public:
     BasePlant<CONTROLLER_T>::updateState(state, time);
   }
 
-  double getStateTime()
-  {
-    if (prev_position_.empty())
-    {
-      return -1;
-    }
-    double time = prev_position_.back().time;
-    time = std::min(prev_controls_.back().time, time);
-    for (const auto& it : prev_extra_)
-    {
-      if (it.second.back().required)
-      {
-        time = std::min(it.second.back().time, time);
-      }
-    }
-    return time;
-  }
+  // double getStateTime()
+  // {
+  //   if (prev_position_.empty())
+  //   {
+  //     return 0;
+  //   }
+  //   double time = prev_position_.back().time;
+  //   time = std::min(prev_controls_.back().time, time);
+  //   for (const auto& it : prev_extra_)
+  //   {
+  //     if (it.second.back().required)
+  //     {
+  //       time = std::min(it.second.back().time, time);
+  //     }
+  //   }
+  //   return time;
+  // }
 
   std::map<std::string, float> getInterpState(double time)
   {
@@ -221,9 +221,8 @@ public:
   bool updateParameters()
   {
     // removes extra values from the buffer
-    BasePlant<CONTROLLER_T>::updateParameters();
-    std::lock_guard<std::mutex> guard(this->access_guard_);
     cleanBuffers();
+    return BasePlant<CONTROLLER_T>::updateParameters();
   }
 
   buffer_trajectory getSmoothedBuffer(double latest_time)
@@ -262,20 +261,13 @@ public:
 
   void cleanBuffers()
   {
-    double time = getStateTime();
-    cleanList(prev_position_, time);
-    cleanList(prev_quaternion_, time);
-    cleanList(prev_velocity_, time);
-    cleanList(prev_omega_, time);
-    cleanList(prev_controls_, time);
-    for (auto& it : prev_extra_)
-    {
-      cleanList(it.second, time);
-    }
+    double time = this->getStateTime();
+    cleanBuffers(time);
   }
 
   void cleanBuffers(double time)
   {
+    std::lock_guard<std::mutex> guard(this->access_guard_);
     cleanList(prev_position_, time);
     cleanList(prev_quaternion_, time);
     cleanList(prev_velocity_, time);

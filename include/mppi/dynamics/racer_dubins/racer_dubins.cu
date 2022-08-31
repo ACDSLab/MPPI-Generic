@@ -215,13 +215,21 @@ template <class CLASS_T, class PARAMS_T>
 RacerDubinsImpl<CLASS_T, PARAMS_T>::state_array
 RacerDubinsImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::string, float>& map)
 {
-  state_array s;
+  state_array s = state_array::Zero();
   s(S_INDEX(POS_X)) = map.at("POS_X");
-  s(S_INDEX(POS_Y)) = map.at("POS_X");
+  s(S_INDEX(POS_Y)) = map.at("POS_Y");
   s(S_INDEX(VEL_X)) = map.at("VEL_X");
   s(S_INDEX(YAW)) = map.at("YAW");
-  s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
-  s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
+  if (map.find("STEER_ANGLE") != map.end())
+  {
+    s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
+    s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
+  }
+  else
+  {
+    s(S_INDEX(STEER_ANGLE)) = 0;
+    s(S_INDEX(STEER_ANGLE_RATE)) = 0;
+  }
 
   return s;
 }
