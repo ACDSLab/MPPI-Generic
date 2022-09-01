@@ -48,7 +48,6 @@ public:
 
   void GPUSetup();
   void freeCudaMem();
-  void paramsToDevice();
 
   void resetInitHiddenCPU() {
     init_model_->resetHiddenCellCPU();

@@ -112,6 +112,7 @@ public:
   void forward(const Eigen::Ref<const input_array>& input);
   __device__ float* forward(float* input, float* theta_s);
   __device__ float* forward(float* input, float* theta_s, LSTM_PARAMS_T* params, int shift);
+  __device__ float* getInputLocation(float* theta_s);
 
   void resetHiddenCPU();
   void resetCellCPU();
@@ -137,7 +138,6 @@ public:
 private:
   // params
   OUTPUT_FNN_T* output_nn_ = nullptr;
-
 
   hidden_state hidden_state_;
   hidden_state cell_state_;

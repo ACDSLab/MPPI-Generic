@@ -549,6 +549,106 @@ TEST_F(FNNHelperTest, forwardGPUCompareNoShared)
   }
 }
 
+TEST_F(FNNHelperTest, forwardGPUComparePreload)
+{
+  const int num_rollouts = 1000;
+
+  FNNHelper<FNNParams<6, 32, 32, 4>> model;
+  model.GPUSetup();
+
+  std::vector<float> theta(1412);
+  for (int i = 0; i < 1412; i++)
+  {
+    theta[i] = distribution(generator);
+  }
+  model.updateModel({ 6, 32, 32, 4 }, theta);
+
+  Eigen::Matrix<float, 6, num_rollouts> inputs;
+  inputs = Eigen::Matrix<float, 6, num_rollouts>::Random();
+
+  std::vector<std::array<float, FNNHelper<FNNParams<6, 32, 32, 4>>::INPUT_DIM>> input_arr(num_rollouts);
+  std::vector<std::array<float, FNNHelper<FNNParams<6, 32, 32, 4>>::OUTPUT_DIM>> output_arr(num_rollouts);
+
+  for (int y_dim = 1; y_dim < 16; y_dim++)
+  {
+    for (int state_index = 0; state_index < num_rollouts; state_index++)
+    {
+      for (int dim = 0; dim < input_arr[0].size(); dim++)
+      {
+        input_arr[state_index][dim] = inputs.col(state_index)(dim);
+      }
+    }
+
+    launchForwardTestKernelPreload<FNNHelper<FNNParams<6, 32, 32, 4>>, 32>(model, input_arr, output_arr, y_dim);
+    for (int point = 0; point < num_rollouts; point++)
+    {
+      FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input = inputs.col(point);
+      FNNHelper<FNNParams<6, 32, 32, 4>>::output_array output;
+
+      model.forward(input, output);
+      for (int dim = 0; dim < 6; dim++)
+      {
+        EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+      }
+      for (int dim = 0; dim < 4; dim++)
+      {
+        EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(output_arr[point][dim]));
+      }
+    }
+  }
+}
+
+TEST_F(FNNHelperTest, forwardGPUComparePreloadNoShared)
+{
+  const int num_rollouts = 1000;
+
+  FNNHelper<FNNParams<6, 32, 32, 4>, false> model;
+  model.GPUSetup();
+
+  std::vector<float> theta(1412);
+  for (int i = 0; i < 1412; i++)
+  {
+    theta[i] = distribution(generator);
+  }
+  model.updateModel({ 6, 32, 32, 4 }, theta);
+
+  Eigen::Matrix<float, 6, num_rollouts> inputs;
+  inputs = Eigen::Matrix<float, 6, num_rollouts>::Random();
+
+  std::vector<std::array<float, FNNHelper<FNNParams<6, 32, 32, 4>, false>::INPUT_DIM>> input_arr(num_rollouts);
+  std::vector<std::array<float, FNNHelper<FNNParams<6, 32, 32, 4>, false>::OUTPUT_DIM>> output_arr(num_rollouts);
+
+  for (int y_dim = 1; y_dim < 16; y_dim++)
+  {
+    for (int state_index = 0; state_index < num_rollouts; state_index++)
+    {
+      for (int dim = 0; dim < input_arr[0].size(); dim++)
+      {
+        input_arr[state_index][dim] = inputs.col(state_index)(dim);
+      }
+    }
+
+    launchForwardTestKernelPreload<FNNHelper<FNNParams<6, 32, 32, 4>, false>, 32>(model, input_arr, output_arr, y_dim);
+    for (int point = 0; point < num_rollouts; point++)
+    {
+      FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input = inputs.col(point);
+      FNNHelper<FNNParams<6, 32, 32, 4>>::output_array output;
+
+      model.forward(input, output);
+      for (int dim = 0; dim < 6; dim++)
+      {
+        EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+      }
+      for (int dim = 0; dim < 4; dim++)
+      {
+        EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(output_arr[point][dim]));
+      }
+    }
+  }
+}
+
 TEST_F(FNNHelperTest, TestComputeGradComputationFinite)
 {
   FNNHelper<FNNParams<6, 32, 32, 4>> model;

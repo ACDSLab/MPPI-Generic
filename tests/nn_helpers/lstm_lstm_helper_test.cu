@@ -378,7 +378,6 @@ TEST_F(LSTMLSTMHelperTest, forwardGPU)
     for (int step = 1; step < 6; step++)
     {
       model.initializeLSTM(buffer);
-      model.paramsToDevice();
 
       for (int i = 0; i < T::HIDDEN_DIM; i++)
       {
@@ -510,7 +509,6 @@ TEST_F(LSTMLSTMHelperTest, forwardGPUCompareShared)
     for (int step = 1; step < 6; step++)
     {
       model.initializeLSTM(buffer);
-      model.paramsToDevice();
 
       launchForwardTestKernel<LSTM, 32>(*model.getLSTMModel(), input_arr, output_arr, y_dim, step);
       for (int point = 0; point < num_rollouts; point++)
@@ -635,7 +633,6 @@ TEST_F(LSTMLSTMHelperTest, forwardGPUCompareNoShared)
     for (int step = 1; step < 6; step++)
     {
       model.initializeLSTM(buffer);
-      model.paramsToDevice();
 
       launchForwardTestKernel<LSTM2, 32>(*model.getLSTMModel(), input_arr, output_arr, y_dim, step);
       for (int point = 0; point < num_rollouts; point++)

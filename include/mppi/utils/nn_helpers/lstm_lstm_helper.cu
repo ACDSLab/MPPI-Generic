@@ -35,6 +35,7 @@ void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::initializeLSTM(const Eigen::Re
   // set the lstm initial hidden/cell to output
   lstm_->setHiddenState(output.head(HIDDEN_DIM));
   lstm_->setCellState(output.tail(HIDDEN_DIM));
+  lstm_->paramsToDevice();
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
@@ -71,12 +72,6 @@ template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::freeCudaMem()
 {
   lstm_->freeCudaMem();
-}
-
-template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::paramsToDevice()
-{
-  lstm_->paramsToDevice();
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>

@@ -144,6 +144,8 @@ public:
     return &params_;
   }
 
+  __device__ float* getInputLocation(float* theta_s);
+
   // device pointer, null on the device
   FNNHelper<PARAMS_T, USE_SHARED>* network_d_ = nullptr;
 

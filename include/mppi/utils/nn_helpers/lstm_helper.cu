@@ -107,7 +107,6 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::updateOutputModel(const std
                                                                        const std::vector<float>& data)
 {
   output_nn_->updateModel(description, data);
-  output_nn_->paramsToDevice();
 }
 
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
@@ -215,9 +214,12 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
   uint tdy = threadIdx.y;
 
   // load input into theta_s
-  for (i = tdy; i < INPUT_DIM; i += blockDim.y)
+  if (input != nullptr)
   {
-    x[i] = input[i];
+    for (i = tdy; i < INPUT_DIM; i += blockDim.y)
+    {
+      x[i] = input[i];
+    }
   }
   __syncthreads();
 
@@ -267,9 +269,10 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
     output_act[i] = h[i];
   }
 
+  // copy input to activation
   for (i = tdy; i < INPUT_DIM; i += blockDim.y)
   {
-    output_act[i + HIDDEN_DIM] = input[i];
+    output_act[i + HIDDEN_DIM] = x[i];
   }
   __syncthreads();
 
@@ -385,4 +388,13 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(const cnpy::npz_
 
   // Save parameters to GPU memory
   paramsToDevice();
+}
+
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+__device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::getInputLocation(float* theta_s)
+{
+  const int block_idx =
+      (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK + SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
+  float* x = theta_s + block_idx + 8 * HIDDEN_DIM;
+  return x;
 }

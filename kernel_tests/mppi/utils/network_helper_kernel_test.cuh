@@ -200,4 +200,72 @@ void launchForwardTestKernel(NETWORK_T& dynamics, std::vector<std::array<float, 
   cudaFree(output_d);
 }
 
+template <typename NETWORK_T, int BLOCKSIZE_X>
+__global__ void forwardTestKernelPreload(NETWORK_T* network, float* input, float* output, int num, int steps)
+{
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD/sizeof(float)+1 + NETWORK_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
+  float* local_input = input + (tid * NETWORK_T::INPUT_DIM);
+  float* local_output = output + (tid * NETWORK_T::OUTPUT_DIM);
+
+  network->initialize(theta_s);
+
+  if (tid < num)
+  {
+    float* input_loc = network->getInputLocation(theta_s);
+    for (int i = threadIdx.y; i < NETWORK_T::INPUT_DIM; i += blockDim.y)
+    {
+      input_loc[i] = local_input[i];
+    }
+
+    float* curr_act = nullptr;
+    for(uint step = 0; step < steps; step++) {
+      curr_act = network->forward(nullptr, theta_s);
+    }
+    for (uint i = threadIdx.y; i < NETWORK_T::OUTPUT_DIM; i += blockDim.y)
+    {
+      local_output[i] = curr_act[i];
+    }
+    __syncthreads();
+  }
+}
+
+template <typename NETWORK_T, int BLOCKSIZE_X>
+void launchForwardTestKernelPreload(NETWORK_T& dynamics, std::vector<std::array<float, NETWORK_T::INPUT_DIM>>& input,
+                             std::vector<std::array<float, NETWORK_T::OUTPUT_DIM>>& output, int dim_y,
+                             int steps = 1)
+{
+  if (input.size() != output.size())
+  {
+    std::cerr << "Num States doesn't match num controls" << std::endl;
+    return;
+  }
+  int count = input.size();
+  float* input_d;
+  float* output_d;
+  HANDLE_ERROR(cudaMalloc((void**)&input_d, sizeof(float) * NETWORK_T::INPUT_DIM * count));
+  HANDLE_ERROR(cudaMalloc((void**)&output_d, sizeof(float) * NETWORK_T::OUTPUT_DIM * count));
+
+  HANDLE_ERROR(
+          cudaMemcpy(input_d, input.data(), sizeof(float) * NETWORK_T::INPUT_DIM * count, cudaMemcpyHostToDevice));
+  HANDLE_ERROR(
+          cudaMemcpy(output_d, input.data(), sizeof(float) * NETWORK_T::OUTPUT_DIM * count, cudaMemcpyHostToDevice));
+
+  const int gridsize_x = (count - 1) / BLOCKSIZE_X + 1;
+  dim3 threadsPerBlock(BLOCKSIZE_X, dim_y);
+  dim3 numBlocks(gridsize_x, 1);
+  forwardTestKernelPreload<NETWORK_T, BLOCKSIZE_X><<<numBlocks, threadsPerBlock>>>(dynamics.network_d_, input_d, output_d, count, steps);
+  CudaCheckError();
+
+  // Copy the memory back to the host
+  HANDLE_ERROR(
+          cudaMemcpy(input.data(), input_d, sizeof(float) * NETWORK_T::INPUT_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(
+          cudaMemcpy(output.data(), output_d, sizeof(float) * NETWORK_T::OUTPUT_DIM * count, cudaMemcpyDeviceToHost));
+  cudaDeviceSynchronize();
+
+  cudaFree(input_d);
+  cudaFree(output_d);
+}
+
 #endif  // MPPIGENERIC_NETWORK_HELPER_KERNEL_TEST_CUH
