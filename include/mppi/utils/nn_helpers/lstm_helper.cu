@@ -4,16 +4,18 @@
 
 #include "lstm_helper.cuh"
 
-template <class PARAMS_T, class OUTPUT_FNN_T>
-LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::LSTMHelper<PARAMS_T, OUTPUT_FNN_T>(cudaStream_t stream) : Managed(stream)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>(cudaStream_t stream)
+  : Managed(stream)
 {
   output_nn_ = new OUTPUT_FNN_T(stream);
   hidden_state_ = hidden_state::Zero();
   cell_state_ = hidden_state::Zero();
 }
 
-template <class PARAMS_T, class OUTPUT_FNN_T>
-LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::LSTMHelper<PARAMS_T, OUTPUT_FNN_T>(std::string path, cudaStream_t stream)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>(std::string path,
+                                                                                               cudaStream_t stream)
   : Managed(stream)
 {
   output_nn_ = new OUTPUT_FNN_T(stream);
@@ -21,13 +23,13 @@ LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::LSTMHelper<PARAMS_T, OUTPUT_FNN_T>(std::stri
   cell_state_ = hidden_state::Zero();
   loadParams(path);
 }
-template <class PARAMS_T, class OUTPUT_FNN_T>
-void LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::GPUSetup()
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::GPUSetup()
 {
   output_nn_->GPUSetup();
   if (!this->GPUMemStatus_)
   {
-    network_d_ = Managed::GPUSetup<LSTMHelper<PARAMS_T, OUTPUT_FNN_T>>(this);
+    network_d_ = Managed::GPUSetup<LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>>(this);
     HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->output_nn_), &(this->output_nn_->network_d_),
                                  sizeof(OUTPUT_FNN_T*), cudaMemcpyHostToDevice, this->stream_));
   }
@@ -36,8 +38,8 @@ void LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::GPUSetup()
     std::cout << "GPU Memory already set" << std::endl;
   }
 }
-template <class PARAMS_T, class OUTPUT_FNN_T>
-void LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::freeCudaMem()
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::freeCudaMem()
 {
   output_nn_->freeCudaMem();
   if (this->GPUMemStatus_)
@@ -46,8 +48,8 @@ void LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::freeCudaMem()
   }
 }
 
-template <class PARAMS_T, class OUTPUT_FNN_T>
-void LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::paramsToDevice()
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::paramsToDevice()
 {
   if (this->GPUMemStatus_)
   {
@@ -57,12 +59,13 @@ void LSTMHelper<PARAMS_T, OUTPUT_FNN_T>::paramsToDevice()
   }
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-__device__ void LSTMHelper<PARAMS_T, OUTPUT_T>::initialize(float* theta_s)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+__device__ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::initialize(float* theta_s)
 {
   static_assert(std::is_trivially_copyable<PARAMS_T>::value);
-  int slide = PARAMS_T::SHARED_MEM_REQUEST_GRD;
-  if (PARAMS_T::SHARED_MEM_REQUEST_GRD != 0)
+  // TODO am I sliding by the right amount, GRD is not in float
+  int slide = LSTM_SHARED_MEM_GRD;
+  if (SHARED_MEM_REQUEST_GRD != 0)
   {
     PARAMS_T* shared_params = (PARAMS_T*)theta_s;
     *shared_params = this->params_;
@@ -73,7 +76,7 @@ __device__ void LSTMHelper<PARAMS_T, OUTPUT_T>::initialize(float* theta_s)
   float* c = &theta_s[block_idx];
   float* h = &theta_s[block_idx + HIDDEN_DIM];
 
-  if (PARAMS_T::SHARED_MEM_REQUEST_GRD == 0)
+  if (SHARED_MEM_REQUEST_GRD == 0)
   {
     for (int i = threadIdx.y; i < HIDDEN_DIM; i += blockDim.y)
     {
@@ -92,31 +95,31 @@ __device__ void LSTMHelper<PARAMS_T, OUTPUT_T>::initialize(float* theta_s)
   }
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::updateLSTMInitialStates(const Eigen::Ref<const hidden_state> hidden,
-                                                             const Eigen::Ref<const hidden_state> cell)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::updateLSTMInitialStates(
+    const Eigen::Ref<const hidden_state> hidden, const Eigen::Ref<const hidden_state> cell)
 {
   // TODO copy the LSTM values correctly
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::updateOutputModel(const std::vector<int>& description,
-                                                       const std::vector<float>& data)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::updateOutputModel(const std::vector<int>& description,
+                                                                       const std::vector<float>& data)
 {
   output_nn_->updateModel(description, data);
   output_nn_->paramsToDevice();
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::setLSTMParams(PARAMS_T& params)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::setLSTMParams(PARAMS_T& params)
 {
   params_ = params;
   resetHiddenCellCPU();
   paramsToDevice();
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::forward(const Eigen::Ref<const input_array>& input)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(const Eigen::Ref<const input_array>& input)
 {
   // Create eigen matrices for all the weights and biases
   Eigen::Map<const W_hh> W_im_mat(this->params_.W_im);
@@ -150,23 +153,23 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::forward(const Eigen::Ref<const input_array>
   cell_state_ = c_next;
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::forward(const Eigen::Ref<const input_array>& input,
-                                             Eigen::Ref<output_array> output)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(const Eigen::Ref<const input_array>& input,
+                                                             Eigen::Ref<output_array> output)
 {
   forward(input);
-  typename OUTPUT_T::input_array nn_input;
+  typename OUTPUT_FNN_T::input_array nn_input;
   nn_input.head(HIDDEN_DIM) = hidden_state_;
   nn_input.tail(INPUT_DIM) = input;
 
   output_nn_->forward(nn_input, output);
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-__device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* theta_s)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+__device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s)
 {
   PARAMS_T* params = &this->params_;
-  if (PARAMS_T::SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD != 0)
   {
     params = (PARAMS_T*)theta_s;
   }
@@ -175,9 +178,9 @@ __device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* t
   return forward(input, theta_s, params, block_idx);
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-__device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* theta_s, LSTM_PARAMS_T* params,
-                                                          int block_idx)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+__device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s,
+                                                                          LSTM_PARAMS_T* params, int block_idx)
 {
   // Weights
   float* W_ii = &params->W_ii[0];
@@ -269,12 +272,20 @@ __device__ float* LSTMHelper<PARAMS_T, OUTPUT_T>::forward(float* input, float* t
   }
   __syncthreads();
 
-  OUTPUT_PARAMS_T* output_params = (OUTPUT_PARAMS_T*)(theta_s + PARAMS_T::SHARED_MEM_REQUEST_GRD);
-  return output_nn_->forward(nullptr, output_act, output_params, 0);
+  if (SHARED_MEM_REQUEST_GRD != 0)
+  {
+    FNN_PARAMS_T* output_params = (FNN_PARAMS_T*)(theta_s + LSTM_SHARED_MEM_GRD);
+    return output_nn_->forward(nullptr, output_act, output_params, 0);
+  }
+  else
+  {
+    FNN_PARAMS_T* output_params = output_nn_->getParamsPtr();
+    return output_nn_->forward(nullptr, output_act, output_params, 0);
+  }
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenCPU()
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::resetHiddenCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
@@ -282,8 +293,8 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenCPU()
   }
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::resetCellCPU()
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::resetCellCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
@@ -291,8 +302,8 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::resetCellCPU()
   }
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenCellCPU()
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::resetHiddenCellCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
@@ -301,8 +312,8 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::resetHiddenCellCPU()
   }
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::setHiddenState(const Eigen::Ref<const hidden_state> hidden_state)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::setHiddenState(const Eigen::Ref<const hidden_state> hidden_state)
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
@@ -311,8 +322,8 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::setHiddenState(const Eigen::Ref<const hidde
   }
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::setCellState(const Eigen::Ref<const hidden_state> cell_state)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::setCellState(const Eigen::Ref<const hidden_state> cell_state)
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
@@ -321,8 +332,8 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::setCellState(const Eigen::Ref<const hidden_
   }
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::loadParams(const std::string& model_path)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(const std::string& model_path)
 {
   if (!fileExists(model_path))
   {
@@ -333,8 +344,8 @@ void LSTMHelper<PARAMS_T, OUTPUT_T>::loadParams(const std::string& model_path)
   loadParams(param_dict);
 }
 
-template <class PARAMS_T, class OUTPUT_T>
-void LSTMHelper<PARAMS_T, OUTPUT_T>::loadParams(const cnpy::npz_t& param_dict)
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(const cnpy::npz_t& param_dict)
 {
   // assumes it has been unonioned
   output_nn_->loadParams(param_dict);

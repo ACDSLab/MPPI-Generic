@@ -91,7 +91,7 @@ __global__ void parameterCheckTestKernel(NETWORK_T* model, typename NETWORK_T::L
 
   model->initialize(theta_s);
 
-  const int slide = NETWORK_T::LSTM_PARAMS_T::SHARED_MEM_REQUEST_GRD;
+  const int slide = NETWORK_T::LSTM_SHARED_MEM_GRD;
   auto* fnn_params_shared =
           (typename NETWORK_T::OUTPUT_PARAMS_T*) (theta_s + slide);
   *(shared_fnn_params + tid) = *fnn_params_shared;
@@ -106,7 +106,7 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::vector<typename NETWO
                                     std::vector<typename NETWORK_T::OUTPUT_PARAMS_T>& fnn_params,
                                     std::vector<typename NETWORK_T::OUTPUT_PARAMS_T>& shared_fnn_params)
 {
-  static_assert(NETWORK_T::LSTM_PARAMS_T::SHARED_MEM_REQUEST_GRD != 0);
+  static_assert(NETWORK_T::SHARED_MEM_REQUEST_GRD != 0);
 
   typename NETWORK_T::LSTM_PARAMS_T* lstm_params_d = nullptr;
   typename NETWORK_T::LSTM_PARAMS_T* shared_lstm_params_d = nullptr;

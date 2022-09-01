@@ -140,6 +140,10 @@ public:
     return params_;
   }
 
+  __device__ __host__ PARAMS_T* getParamsPtr() {
+    return &params_;
+  }
+
   // device pointer, null on the device
   FNNHelper<PARAMS_T, USE_SHARED>* network_d_ = nullptr;
 

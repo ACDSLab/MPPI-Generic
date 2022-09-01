@@ -63,6 +63,9 @@ public:
 
   std::shared_ptr<INIT_T> getInitModel();
   std::shared_ptr<LSTM_T> getLSTMModel();
+  LSTM_T* getLSTMDevicePtr() {
+    return lstm_->network_d_;
+  }
 
   void setInitParams(INIT_PARAMS_T& params);
   void setLSTMParams(LSTM_PARAMS_T& params);

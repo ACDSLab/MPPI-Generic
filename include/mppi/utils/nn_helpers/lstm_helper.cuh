@@ -4,14 +4,11 @@
 #include "fnn_helper.cuh"
 
 // TODO need copies of past hidden/cell and initial hidden/cell for networks that have multiple histories
-template<int INPUT_SIZE, int H_SIZE, int USE_SHARED=1>
+template<int INPUT_SIZE, int H_SIZE>
 struct LSTMParams {
   static const int HIDDEN_DIM = H_SIZE;
   static const int INPUT_DIM = INPUT_SIZE;
 
-  static const int SHARED_MEM_REQUEST_BLK =
-          8 * HIDDEN_DIM + INPUT_DIM;  ///< Amount of shared memory we need per ROLLOUT.
-  static const int SHARED_MEM_REQUEST_GRD = sizeof(LSTMParams<INPUT_SIZE, H_SIZE>) * USE_SHARED;  ///< Amount of shared memory we need per BLOCK.
   static const int NUM_PARAMS = 1;
 
   static const int HIDDEN_HIDDEN_SIZE = HIDDEN_DIM * HIDDEN_DIM;
@@ -60,33 +57,35 @@ struct LSTMParams {
   }
 };
 
-template<class PARAMS_T, class OUTPUT_T>
+template<class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED=true>
 class LSTMHelper : public Managed
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  static const int NUM_PARAMS = PARAMS_T::NUM_PARAMS;   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = PARAMS_T::SHARED_MEM_REQUEST_GRD + OUTPUT_T::SHARED_MEM_REQUEST_GRD; ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = PARAMS_T::SHARED_MEM_REQUEST_BLK + OUTPUT_T::SHARED_MEM_REQUEST_BLK;  ///< Amount of shared memory we need per ROLLOUT.
+  typedef FNNHelper<FNN_PARAMS_T, USE_SHARED> OUTPUT_FNN_T;
+  typedef FNN_PARAMS_T OUTPUT_PARAMS_T;
 
   static const int INPUT_DIM = PARAMS_T::INPUT_DIM;
   static const int HIDDEN_DIM = PARAMS_T::HIDDEN_DIM;
-  static const int OUTPUT_DIM = OUTPUT_T::OUTPUT_DIM;
+  static const int OUTPUT_DIM = OUTPUT_FNN_T::OUTPUT_DIM;
+
+  static const int NUM_PARAMS = PARAMS_T::NUM_PARAMS;   ///< Total number of model parameters;
+  static const int SHARED_MEM_REQUEST_BLK = 8 * HIDDEN_DIM + INPUT_DIM + OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK; ///< Amount of shared memory we need per BLOCK.;
+  static const int LSTM_SHARED_MEM_GRD = sizeof(PARAMS_T) * USE_SHARED;
+  static const int SHARED_MEM_REQUEST_GRD = sizeof(PARAMS_T) * USE_SHARED + OUTPUT_FNN_T::SHARED_MEM_REQUEST_GRD;  ///< Amount of shared memory we need per ROLLOUT.;
 
   typedef Eigen::Matrix<float, PARAMS_T::INPUT_DIM, 1> input_array;
-  typedef Eigen::Matrix<float, OUTPUT_T::OUTPUT_DIM, 1> output_array;
-  typedef Eigen::Matrix<float, OUTPUT_T::OUTPUT_DIM, PARAMS_T::INPUT_DIM> dfdx;
+  typedef Eigen::Matrix<float, OUTPUT_FNN_T::OUTPUT_DIM, 1> output_array;
+  typedef Eigen::Matrix<float, OUTPUT_FNN_T::OUTPUT_DIM, PARAMS_T::INPUT_DIM> dfdx;
   typedef PARAMS_T LSTM_PARAMS_T;
-  typedef OUTPUT_T OUTPUT_FNN_T;
-  typedef typename OUTPUT_T::NN_PARAMS_T OUTPUT_PARAMS_T;
 
   using W_hh = Eigen::Matrix<float, HIDDEN_DIM, HIDDEN_DIM, Eigen::RowMajor>;
   using W_hi = Eigen::Matrix<float, HIDDEN_DIM, INPUT_DIM, Eigen::RowMajor>;
   using hidden_state = Eigen::Matrix<float, HIDDEN_DIM, 1>;
 
-  LSTMHelper<PARAMS_T, OUTPUT_FNN_T>(cudaStream_t stream=0);
-  LSTMHelper<PARAMS_T, OUTPUT_FNN_T>(std::string, cudaStream_t stream=0);
+  LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>(cudaStream_t stream=0);
+  LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>(std::string, cudaStream_t stream=0);
 
   void loadParams(const std::string& model_path);
   void loadParams(const cnpy::npz_t& npz);
@@ -133,11 +132,12 @@ public:
   void setCellState(const Eigen::Ref<const hidden_state> hidden_state);
 
   // device pointer, null on the device
-  LSTMHelper<PARAMS_T, OUTPUT_FNN_T>* network_d_ = nullptr;
+  LSTMHelper<PARAMS_T, OUTPUT_PARAMS_T, USE_SHARED>* network_d_ = nullptr;
   PARAMS_T params_;
 private:
   // params
   OUTPUT_FNN_T* output_nn_ = nullptr;
+
 
   hidden_state hidden_state_;
   hidden_state cell_state_;

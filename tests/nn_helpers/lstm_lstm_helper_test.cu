@@ -32,10 +32,10 @@ template class FNNParams<18, 3>;
 template class FNNParams<68, 100, 20>;
 template class LSTMParams<8, 10>;
 template class LSTMParams<8, 60>;
-typedef FNNHelper<FNNParams<18, 3>> FNN;
-typedef FNNHelper<FNNParams<68, 100, 20>> FNN_INIT;
-typedef LSTMHelper<LSTMParams<8, 10>, FNN> LSTM;
-typedef LSTMHelper<LSTMParams<8, 60>, FNN_INIT> INIT_LSTM;
+typedef FNNParams<18, 3> FNN_PARAMS;
+typedef FNNParams<68, 100, 20> FNN_INIT_PARAMS;
+typedef LSTMHelper<LSTMParams<8, 10>, FNN_PARAMS> LSTM;
+typedef LSTMHelper<LSTMParams<8, 60>, FNN_INIT_PARAMS> INIT_LSTM;
 
 template class LSTMLSTMHelper<INIT_LSTM, LSTM, 10>;
 
@@ -73,7 +73,7 @@ TEST_F(LSTMLSTMHelperTest, initializeLSTMLSTMTest)
   init_params.setAllValues(1.0);
   helper.setInitParams(init_params);
 
-  std::vector<float> theta_vec(FNN_INIT::NUM_PARAMS);
+  std::vector<float> theta_vec(FNN_INIT_PARAMS::NUM_PARAMS);
   for (int i = 0; i < theta_vec.size(); i++)
   {
     theta_vec[i] = 1.0;
@@ -539,8 +539,8 @@ TEST_F(LSTMLSTMHelperTest, forwardGPUCompareShared)
   }
 }
 
-typedef LSTMHelper<LSTMParams<8, 10, 0>, FNN> LSTM2;
-typedef LSTMHelper<LSTMParams<8, 60, 0>, FNN_INIT> INIT_LSTM2;
+typedef LSTMHelper<LSTMParams<8, 10>, FNN_PARAMS, false> LSTM2;
+typedef LSTMHelper<LSTMParams<8, 60>, FNN_INIT_PARAMS, false> INIT_LSTM2;
 typedef LSTMLSTMHelper<INIT_LSTM2, LSTM2, 10> T2;
 TEST_F(LSTMLSTMHelperTest, forwardGPUCompareNoShared)
 {

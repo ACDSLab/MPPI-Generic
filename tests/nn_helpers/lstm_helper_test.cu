@@ -33,13 +33,13 @@ protected:
 TEST_F(LSTMHelperTest, ParamsConstructor1)
 {
   const int hidden_dim = LSTMParams<5, 25>::HIDDEN_DIM;
-  const int shared_mem_grd = LSTMParams<5, 25>::SHARED_MEM_REQUEST_GRD;
-  const int shared_mem_blk = LSTMParams<5, 25>::SHARED_MEM_REQUEST_BLK;
+  const int shared_mem_grd = LSTMHelper<LSTMParams<5, 25>, FNNParams<28, 3>>::SHARED_MEM_REQUEST_GRD;
+  const int shared_mem_blk = LSTMHelper<LSTMParams<5, 25>, FNNParams<28, 3>>::SHARED_MEM_REQUEST_BLK;
   const int input_dim = LSTMParams<5, 25>::INPUT_DIM;
   const int hidden_hidden_dim = LSTMParams<5, 25>::HIDDEN_HIDDEN_SIZE;
   const int input_hidden_dim = LSTMParams<5, 25>::INPUT_HIDDEN_SIZE;
-  EXPECT_EQ(shared_mem_grd, sizeof(LSTMParams<5, 25>));
-  EXPECT_EQ(shared_mem_blk, 25 * 8 + 5);
+  EXPECT_EQ(shared_mem_grd, sizeof(LSTMParams<5, 25>) + sizeof(FNNParams<28, 3>));
+  EXPECT_EQ(shared_mem_blk, 25 * 8 + 5 + 29 * 2);
   EXPECT_EQ(input_dim, 5);
   EXPECT_EQ(hidden_hidden_dim, 25 * 25);
   EXPECT_EQ(input_hidden_dim, 5 * 25);
@@ -95,17 +95,17 @@ TEST_F(LSTMHelperTest, ParamsConstructor2)
 {
   int total_amount = 0;
   // delay model
-  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNHelper<FNNParams<2, 10, 1>>>::SHARED_MEM_REQUEST_GRD;
-  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNHelper<FNNParams<2, 10, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
+  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_BLK * 8;
   // terra model
-  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNHelper<FNNParams<18, 10, 3>>>::SHARED_MEM_REQUEST_GRD;
-  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNHelper<FNNParams<18, 10, 3>>>::SHARED_MEM_REQUEST_BLK * 8;
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_BLK * 8;
   // engine model
-  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNHelper<FNNParams<9, 10, 1>>>::SHARED_MEM_REQUEST_GRD;
-  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNHelper<FNNParams<9, 10, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
+  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_BLK * 8;
   // steering model
-  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 20, 1>>>::SHARED_MEM_REQUEST_GRD;
-  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNHelper<FNNParams<12, 20, 1>>>::SHARED_MEM_REQUEST_BLK * 8;
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_BLK * 8;
 
   std::cout << "total amount: " << total_amount * 4 << std::endl;
   EXPECT_LT(total_amount * 4, 49152);
@@ -116,12 +116,12 @@ TEST_F(LSTMHelperTest, BindStream)
   cudaStream_t stream;
   HANDLE_ERROR(cudaStreamCreate(&stream));
 
-  LSTMHelper<LSTMParams<5, 25>, FNNHelper<FNNParams<25, 30, 3>>> helper(stream);
+  LSTMHelper<LSTMParams<5, 25>, FNNParams<25, 30, 3>> helper(stream);
 
   EXPECT_EQ(helper.stream_, stream);
 }
 
-using LSTM = LSTMHelper<LSTMParams<8, 20>, FNNHelper<FNNParams<28, 3>>>;
+using LSTM = LSTMHelper<LSTMParams<8, 20>, FNNParams<28, 3>>;
 TEST_F(LSTMHelperTest, GPUSetupAndParamsCheck)
 {
   LSTM model;
@@ -340,7 +340,7 @@ TEST_F(LSTMHelperTest, UpdateModel)
 
 TEST_F(LSTMHelperTest, LoadModelPathTest)
 {
-  using LSTM = LSTMHelper<LSTMParams<3, 25>, FNNHelper<FNNParams<28, 30, 30, 2>>>;
+  using LSTM = LSTMHelper<LSTMParams<3, 25>, FNNParams<28, 30, 30, 2>>;
   LSTM model;
   model.GPUSetup();
 
@@ -388,7 +388,7 @@ TEST_F(LSTMHelperTest, LoadModelPathTest)
 
 TEST_F(LSTMHelperTest, LoadModelNPZTest)
 {
-  using LSTM = LSTMHelper<LSTMParams<3, 25>, FNNHelper<FNNParams<28, 30, 30, 2>>>;
+  using LSTM = LSTMHelper<LSTMParams<3, 25>, FNNParams<28, 30, 30, 2>>;
   LSTM model;
   model.GPUSetup();
 
@@ -479,7 +479,7 @@ TEST_F(LSTMHelperTest, forwardCPU)
   EXPECT_FLOAT_EQ(output[2], 28.999756);
 }
 
-using LSTM2 = LSTMHelper<LSTMParams<8, 20, 0>, FNNHelper<FNNParams<28, 3>>>;
+using LSTM2 = LSTMHelper<LSTMParams<8, 20>, FNNParams<28, 3>, false>;
 TEST_F(LSTMHelperTest, forwardGPU)
 {
   const int num_rollouts = 1000;
@@ -644,7 +644,7 @@ TEST_F(LSTMHelperTest, forwardGPUCompareNoShared)
   }
 }
 
-using LSTM3 = LSTMHelper<LSTMParams<8, 10>, FNNHelper<FNNParams<18, 10, 3>>>;
+using LSTM3 = LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>;
 TEST_F(LSTMHelperTest, forwardGPUCompareShared)
 {
   const int num_rollouts = 1000;
@@ -725,7 +725,7 @@ TEST_F(LSTMHelperTest, forwardGPUCompareShared)
   }
 }
 
-using LSTM3Global = LSTMHelper<LSTMParams<8, 10, 0>, FNNHelper<FNNParams<18, 10, 3>>>;
+using LSTM3Global = LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>, false>;
 TEST_F(LSTMHelperTest, forwardGPUSpeedTest)
 {
   const int num_rollouts = 3000;
