@@ -1,76 +1,53 @@
-#include <mppi/dynamics/racer_dubins/racer_dubins_elevation.cuh>
-#include <mppi/utils/math_utils.h>
+//
+// Created by jason on 8/31/22.
+//
 
-template <class CLASS_T>
-void RacerDubinsElevationImpl<CLASS_T>::GPUSetup()
+#include "racer_dubins_elevation_lstm_steering.cuh"
+
+RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(cudaStream_t stream)
+  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>(stream)
 {
+  this->requires_buffer_ = true;
+  lstm_lstm_helper_ = std::make_shared<NN>(stream);
+}
+
+RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(RacerDubinsElevationParams& params,
+                                                                   cudaStream_t stream)
+  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>(params, stream)
+{
+  this->requires_buffer_ = true;
+  lstm_lstm_helper_ = std::make_shared<NN>(stream);
+}
+
+RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string init_path, std::string lstm_path,
+                                                                   cudaStream_t stream)
+  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>(stream)
+{
+  this->requires_buffer_ = true;
+  lstm_lstm_helper_ = std::make_shared<NN>(init_path, lstm_path, stream);
+}
+
+void RacerDubinsElevationLSTMSteering::GPUSetup()
+{
+  lstm_lstm_helper_->GPUSetup();
+  // makes sure that the device ptr sees the correct lstm model
+  this->network_d_ = lstm_lstm_helper_->getLSTMDevicePtr();
   PARENT_CLASS::GPUSetup();
-  tex_helper_->GPUSetup();
-  // makes sure that the device ptr sees the correct texture object
-  HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->tex_helper_), &(tex_helper_->ptr_d_),
-                               sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
+  // HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->network_d_), &(*lstm_lstm_helper_->getLSTMModel()->network_d_),
+  //                              sizeof(LSTM*), cudaMemcpyHostToDevice, this->stream_));
 }
 
-template <class CLASS_T>
-void RacerDubinsElevationImpl<CLASS_T>::freeCudaMem()
+void RacerDubinsElevationLSTMSteering::freeCudaMem()
 {
-  tex_helper_->freeCudaMem();
   PARENT_CLASS::freeCudaMem();
+  lstm_lstm_helper_->freeCudaMem();
 }
 
-template <class CLASS_T>
-void RacerDubinsElevationImpl<CLASS_T>::paramsToDevice()
+void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                                            Eigen::Ref<state_array> state_der,
+                                            const Eigen::Ref<const control_array>& control,
+                                            Eigen::Ref<output_array> output, const float t, const float dt)
 {
-  // does all the internal texture updates
-  tex_helper_->copyToDevice();
-  PARENT_CLASS::paramsToDevice();
-}
-
-template <class CLASS_T>
-void RacerDubinsElevationImpl<CLASS_T>::updateState(const Eigen::Ref<const state_array> state,
-                                                    Eigen::Ref<state_array> next_state,
-                                                    Eigen::Ref<state_array> state_der, const float dt)
-{
-  next_state = state + state_der * dt;
-  next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
-  next_state(S_INDEX(STEER_ANGLE)) =
-      max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
-  next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
-}
-
-// __device__ void RacerDubinsElevation::updateState(float* state, float* next_state, float* state_der, const float dt)
-// {
-//   int i;
-//   int tdy = threadIdx.y;
-//   // Add the state derivative time dt to the current state.
-//   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-//   for (i = tdy; i < 5; i += blockDim.y)
-//   {
-//     next_state[i] = state[i] + state_der[i] * dt;
-//     if (i == S_INDEX(VEL_X))
-//     {
-//       next_state[S_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
-//     }
-//     if (i == S_INDEX(YAW))
-//     {
-//       next_state[i] = angle_utils::normalizeAngle(next_state[i]);
-//     }
-//     if (i == S_INDEX(STEER_ANGLE))
-//     {
-//       next_state[S_INDEX(STEER_ANGLE)] =
-//           max(min(next_state[S_INDEX(STEER_ANGLE)], this->params_.max_steer_angle), -this->params_.max_steer_angle);
-//       next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
-//     }
-//   }
-// }
-
-template <class CLASS_T>
-void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
-                                             Eigen::Ref<state_array> state_der,
-                                             const Eigen::Ref<const control_array>& control,
-                                             Eigen::Ref<output_array> output, const float t, const float dt)
-{
-  // computeStateDeriv(state, control, state_der);
   bool enable_brake = control(0) < 0;
   int index = (abs(state(0)) > 0.2 && abs(state(0)) <= 3.0) + (abs(state(0)) > 3.0) * 2;
   // applying position throttle
@@ -85,7 +62,7 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
 
   state_der(0) = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
                  this->params_.c_v[index] * state(0) + this->params_.c_0;
-  if (abs(state[6]) < M_PI_2)
+  if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
   {
     state_der[0] -= this->params_.gravity * sinf(state[6]);
   }
@@ -94,7 +71,17 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
   state_der(3) = state(0) * sinf(state(1));
   state_der(4) = (control(1) * this->params_.steer_command_angle_scale - state(4)) * this->params_.steering_constant;
   state_der(4) = max(min(state_der(4), this->params_.max_steer_rate), -this->params_.max_steer_rate);
-  // state(8) = state_der(0);
+
+  LSTM::input_array input;
+  input(0) = state(S_INDEX(VEL_X));
+  input(1) = 0.0f;  // stand in for y velocity
+  input(2) = state(S_INDEX(STEER_ANGLE));
+  input(3) = state(S_INDEX(STEER_ANGLE_RATE));
+  input(4) = control(C_INDEX(STEER_CMD));
+  input(5) = state_der(S_INDEX(STEER_ANGLE));  // this is the parametric part as input
+  LSTM::output_array nn_output = LSTM::output_array::Zero();
+  lstm_lstm_helper_->forward(input, nn_output);
+  state_der(S_INDEX(STEER_ANGLE)) += nn_output(0) * 10;
 
   // Integrate using racer_dubins updateState
   updateState(state, next_state, state_der, dt);
@@ -188,25 +175,25 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
 }
 
-template <class CLASS_T>
-__device__ void RacerDubinsElevationImpl<CLASS_T>::initializeDynamics(float* state, float* control, float* output,
-                                                                      float* theta_s, float t_0, float dt)
+__device__ void RacerDubinsElevationLSTMSteering::initializeDynamics(float* state, float* control, float* output,
+                                                                     float* theta_s, float t_0, float dt)
 {
   PARENT_CLASS::initializeDynamics(state, control, output, theta_s, t_0, dt);
-  if (SHARED_MEM_REQUEST_GRD != 1)
+  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
+  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
   {  // Allows us to turn on or off global or shared memory version of params
     DYN_PARAMS_T* shared_params = (DYN_PARAMS_T*)theta_s;
     *shared_params = this->params_;
   }
+  network_d_->initialize(theta_s + shift);
 }
 
-template <class CLASS_T>
-__device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, float* next_state, float* state_der,
-                                                               float* control, float* output, float* theta_s,
-                                                               const float t, const float dt)
+__device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, float* next_state, float* state_der,
+                                                              float* control, float* output, float* theta_s,
+                                                              const float t, const float dt)
 {
   DYN_PARAMS_T* params_p;
-  if (SHARED_MEM_REQUEST_GRD != 1)
+  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
   {  // Allows us to turn on or off global or shared memory version of params
     params_p = (DYN_PARAMS_T*)theta_s;
   }
@@ -244,6 +231,28 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
       (control[1] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) * params_p->steering_constant;
   state_der[S_INDEX(STEER_ANGLE)] =
       max(min(state_der[S_INDEX(STEER_ANGLE)], params_p->max_steer_rate), -params_p->max_steer_rate);
+
+  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
+  // loads in the input to the network
+  float* input_loc = network_d_->getInputLocation(theta_s + shift);
+  if (threadIdx.y == 0)
+  {
+    input_loc[0] = state[S_INDEX(VEL_X)];
+    input_loc[1] = 0.0f;  // filler for VEL_Y
+    input_loc[2] = state[S_INDEX(STEER_ANGLE)];
+    input_loc[3] = state[S_INDEX(STEER_ANGLE_RATE)];
+    input_loc[4] = control[C_INDEX(STEER_CMD)];
+    input_loc[5] = state_der[S_INDEX(STEER_ANGLE)];  // this is the parametric part as input
+  }
+  __syncthreads();
+  // runs the network
+  float* nn_output = network_d_->forward(nullptr, theta_s + shift);
+  // copies the results of the network to state derivative
+  if (threadIdx.y == 0)
+  {
+    state_der[S_INDEX(STEER_ANGLE)] += nn_output[0] * 10;
+  }
+  __syncthreads();
 
   // Calculate the next state
   float3 front_left = make_float3(2.981, 0.737, 0);
@@ -309,10 +318,6 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
           float left_pitch = asinf((left_diff) / 2.981);
           float right_pitch = asinf((right_diff) / 2.981);
           next_state[6] = (left_pitch + right_pitch) / 2;
-          if (isnan(next_state[6]) || isinf(next_state[6]) || fabsf(next_state[6]) > M_PIf32)
-          {
-            next_state[6] = 4.0;
-          }
         }
         if (isnan(next_state[i]) || isinf(next_state[i]) || fabsf(next_state[i]) > M_PIf32)
         {
@@ -357,26 +362,23 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
 }
 
-template <class CLASS_T>
-RacerDubinsElevationImpl<CLASS_T>::state_array
-RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, float>& map)
+void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory& buffer)
 {
-  state_array s = state_array::Zero();
-  s(S_INDEX(POS_X)) = map.at("POS_X");
-  s(S_INDEX(POS_Y)) = map.at("POS_Y");
-  s(S_INDEX(VEL_X)) = map.at("VEL_X");
-  s(S_INDEX(YAW)) = map.at("YAW");
-  if (map.find("STEER_ANGLE") != map.end())
-  {
-    s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
-    s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
-  }
-  else
-  {
-    s(S_INDEX(STEER_ANGLE)) = 0;
-    s(S_INDEX(STEER_ANGLE_RATE)) = 0;
-  }
-  s(S_INDEX(ROLL)) = map.at("ROLL");
-  s(S_INDEX(PITCH)) = map.at("PITCH");
-  return s;
+  NN::init_buffer init_buffer;
+
+  init_buffer.row(0) = buffer.at("VEL_X");
+  init_buffer.row(1) = buffer.at("VEL_Y");
+  init_buffer.row(2) = buffer.at("STEER_ANGLE");
+  init_buffer.row(3) = buffer.at("STEER_ANGLE_RATE");
+  init_buffer.row(4) = buffer.at("CONTROL_" + C_INDEX(STEER_CMD));
+
+  lstm_lstm_helper_->initializeLSTM(init_buffer);
+}
+
+void RacerDubinsElevationLSTMSteering::initializeDynamics(const Eigen::Ref<const state_array>& state,
+                                                          const Eigen::Ref<const control_array>& control,
+                                                          Eigen::Ref<output_array> output, float t_0, float dt)
+{
+  this->lstm_lstm_helper_->resetLSTMHiddenCellCPU();
+  PARENT_CLASS::initializeDynamics(state, control, output, t_0, dt);
 }

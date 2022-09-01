@@ -513,7 +513,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
 
 TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPU)
 {
-  const int num_rollouts = 75;
+  const int num_rollouts = 1000;
   const float dt = 0.1f;
   CudaCheckError();
   RacerDubinsElevation dynamics = RacerDubinsElevation();
@@ -564,7 +564,7 @@ TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPU)
 
   // Run dynamics on dynamicsU
   // Run dynamics on GPU
-  for (int y_dim = 1; y_dim <= 10; y_dim++)
+  for (int y_dim = 1; y_dim <= 16; y_dim++)
   {
     for (int state_index = 0; state_index < num_rollouts; state_index++)
     {
@@ -810,7 +810,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
 
 TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPUReverse)
 {
-  const int num_rollouts = 75;
+  const int num_rollouts = 1000;
   const float dt = 0.1f;
   CudaCheckError();
   RacerDubinsElevation dynamics = RacerDubinsElevation();
@@ -864,7 +864,7 @@ TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPUReverse)
 
   // Run dynamics on dynamicsU
   // Run dynamics on GPU
-  for (int y_dim = 1; y_dim <= 10; y_dim++)
+  for (int y_dim = 1; y_dim <= 16; y_dim++)
   {
     for (int state_index = 0; state_index < num_rollouts; state_index++)
     {
