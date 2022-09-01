@@ -230,11 +230,14 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
     brake = linear_brake_slope * control[0] * state[S_INDEX(VEL_X)];
   }
 
-  state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
-                              params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
-  if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32 && threadIdx.y == 0)
+  if (threadIdx.y == 0)
   {
-    state_der[S_INDEX(VEL_X)] -= params_p->gravity * sinf(state[S_INDEX(PITCH)]);
+    state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
+                                params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
+    if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
+    {
+      state_der[S_INDEX(VEL_X)] -= params_p->gravity * sinf(state[S_INDEX(PITCH)]);
+    }
   }
   state_der[S_INDEX(YAW)] = (state[S_INDEX(VEL_X)] / params_p->wheel_base) *
                             tan(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale[index]);
