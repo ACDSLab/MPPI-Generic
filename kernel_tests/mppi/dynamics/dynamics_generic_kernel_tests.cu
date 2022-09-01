@@ -174,7 +174,8 @@ void launchComputeKinematicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
 template <class DYNAMICS_T, int S_DIM, int C_DIM, int BLOCKDIM_X>
 __global__ void computeDynamicsTestKernel(DYNAMICS_T* model, float* state, float* control, float* state_der, int count)
 {
-  __shared__ float theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD + DYNAMICS_T::SHARED_MEM_REQUEST_BLK * BLOCKDIM_X];
+  __shared__ float
+      theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + DYNAMICS_T::SHARED_MEM_REQUEST_BLK * BLOCKDIM_X];
   __shared__ float output[S_DIM * BLOCKDIM_X];
 
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -227,7 +228,8 @@ template <typename DYNAMICS_T, int S_DIM, int C_DIM, int BLOCKDIM_X>
 __global__ void computeStateDerivTestKernel(DYNAMICS_T* dynamics, float* state, float* control, float* state_der,
                                             int num)
 {
-  __shared__ float theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD + DYNAMICS_T::SHARED_MEM_REQUEST_BLK * BLOCKDIM_X];
+  __shared__ float
+      theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + DYNAMICS_T::SHARED_MEM_REQUEST_BLK * BLOCKDIM_X];
   __shared__ float output[S_DIM * BLOCKDIM_X];
 
   dynamics->initializeDynamics(state, control, output, theta, 0.0f, 0.0f);
@@ -281,7 +283,8 @@ __global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* contro
                                float* output, int t, float dt, int num)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ float theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD + DYNAMICS_T::SHARED_MEM_REQUEST_BLK * BLOCKDIM_X];
+  __shared__ float
+      theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + DYNAMICS_T::SHARED_MEM_REQUEST_BLK * BLOCKDIM_X];
   float* x = state + (tid * DYNAMICS_T::STATE_DIM);
   float* x_dot = state_der + (tid * DYNAMICS_T::STATE_DIM);
   float* x_next = next_state + (tid * DYNAMICS_T::STATE_DIM);

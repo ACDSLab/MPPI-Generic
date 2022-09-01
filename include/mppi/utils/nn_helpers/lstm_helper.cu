@@ -63,8 +63,7 @@ template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
 __device__ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::initialize(float* theta_s)
 {
   static_assert(std::is_trivially_copyable<PARAMS_T>::value);
-  // TODO am I sliding by the right amount, GRD is not in float
-  int slide = LSTM_SHARED_MEM_GRD;
+  const int slide = LSTM_SHARED_MEM_GRD / sizeof(float) + 1;
   if (SHARED_MEM_REQUEST_GRD != 0)
   {
     PARAMS_T* shared_params = (PARAMS_T*)theta_s;
@@ -72,7 +71,8 @@ __device__ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::initialize(float
   }
   output_nn_->initialize(theta_s + slide);
 
-  int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * (SHARED_MEM_REQUEST_BLK) + SHARED_MEM_REQUEST_GRD;
+  const int block_idx =
+      (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK + SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
   float* c = &theta_s[block_idx];
   float* h = &theta_s[block_idx + HIDDEN_DIM];
 
@@ -174,7 +174,8 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
     params = (PARAMS_T*)theta_s;
   }
 
-  const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * (SHARED_MEM_REQUEST_BLK) + SHARED_MEM_REQUEST_GRD;
+  const int block_idx =
+      (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK + SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
   return forward(input, theta_s, params, block_idx);
 }
 
@@ -274,7 +275,8 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
 
   if (SHARED_MEM_REQUEST_GRD != 0)
   {
-    FNN_PARAMS_T* output_params = (FNN_PARAMS_T*)(theta_s + LSTM_SHARED_MEM_GRD);
+    const int slide = LSTM_SHARED_MEM_GRD / sizeof(float) + 1;
+    FNN_PARAMS_T* output_params = (FNN_PARAMS_T*)(theta_s + slide);
     return output_nn_->forward(nullptr, output_act, output_params, 0);
   }
   else

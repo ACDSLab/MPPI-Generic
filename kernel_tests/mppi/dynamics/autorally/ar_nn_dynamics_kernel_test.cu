@@ -51,8 +51,8 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::array<float, THETA_SI
 template <class NETWORK_T, int S_DIM, int C_DIM, int BLOCKDIM_X, int BLOCKDIM_Z>
 __global__ void fullARNNTestKernel(NETWORK_T* model, float* state, float* control, float* state_der, float dt)
 {
-  __shared__ float
-      theta[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK * BLOCKDIM_X * BLOCKDIM_Z];
+  __shared__ float theta[NETWORK_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 +
+                         NETWORK_T::SHARED_MEM_REQUEST_BLK * BLOCKDIM_X * BLOCKDIM_Z];
   __shared__ float output[S_DIM * BLOCKDIM_X * BLOCKDIM_Z];
   __shared__ float s_der[S_DIM * BLOCKDIM_X * BLOCKDIM_Z];
 

@@ -73,7 +73,7 @@ public:
   static const int NUM_PARAMS = PARAMS_T::NUM_PARAMS;   ///< Total number of model parameters;
   static const int SHARED_MEM_REQUEST_BLK = 8 * HIDDEN_DIM + INPUT_DIM + OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK; ///< Amount of shared memory we need per BLOCK.;
   static const int LSTM_SHARED_MEM_GRD = sizeof(PARAMS_T) * USE_SHARED;
-  static const int SHARED_MEM_REQUEST_GRD = sizeof(PARAMS_T) * USE_SHARED + OUTPUT_FNN_T::SHARED_MEM_REQUEST_GRD;  ///< Amount of shared memory we need per ROLLOUT.;
+  static const int SHARED_MEM_REQUEST_GRD = sizeof(PARAMS_T) * USE_SHARED + OUTPUT_FNN_T::SHARED_MEM_REQUEST_GRD + sizeof(float) * USE_SHARED;  ///< Amount of shared memory we need per ROLLOUT.;
 
   typedef Eigen::Matrix<float, PARAMS_T::INPUT_DIM, 1> input_array;
   typedef Eigen::Matrix<float, OUTPUT_FNN_T::OUTPUT_DIM, 1> output_array;

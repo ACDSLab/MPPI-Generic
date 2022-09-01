@@ -11,7 +11,7 @@ template <class NETWORK_T, int THETA_SIZE, int STRIDE_SIZE, int NUM_LAYERS>
 __global__ void parameterCheckTestKernel(NETWORK_T* model, float* theta, int* stride, int* net_structure,
                                          float* shared_theta, int* shared_stride, int* shared_net_structure)
 {
-  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK];
+  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD/sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK];
   model->initialize(theta_s);
   typename NETWORK_T::NN_PARAMS_T* params_shared = (typename NETWORK_T::NN_PARAMS_T*) theta_s;
   for (int i = 0; i < THETA_SIZE; i++)
@@ -83,7 +83,7 @@ __global__ void parameterCheckTestKernel(NETWORK_T* model, typename NETWORK_T::L
                                          typename NETWORK_T::OUTPUT_PARAMS_T* fnn_params,
                                          typename NETWORK_T::OUTPUT_PARAMS_T* shared_fnn_params)
 {
-  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK];
+  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD/sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK];
   uint tid = blockIdx.x;
 
   *(lstm_params + tid) = model->getLSTMParams();
@@ -91,7 +91,7 @@ __global__ void parameterCheckTestKernel(NETWORK_T* model, typename NETWORK_T::L
 
   model->initialize(theta_s);
 
-  const int slide = NETWORK_T::LSTM_SHARED_MEM_GRD;
+  const int slide = NETWORK_T::LSTM_SHARED_MEM_GRD/sizeof(float) + 1;
   auto* fnn_params_shared =
           (typename NETWORK_T::OUTPUT_PARAMS_T*) (theta_s + slide);
   *(shared_fnn_params + tid) = *fnn_params_shared;
@@ -142,7 +142,7 @@ template <typename NETWORK_T, int BLOCKSIZE_X>
 __global__ void forwardTestKernel(NETWORK_T* network, float* input, float* output, int num, int steps)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD + NETWORK_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
+  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD/sizeof(float)+1 + NETWORK_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
   float* local_input = input + (tid * NETWORK_T::INPUT_DIM);
   float* local_output = output + (tid * NETWORK_T::OUTPUT_DIM);
 

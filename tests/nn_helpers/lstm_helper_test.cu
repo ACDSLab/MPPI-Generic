@@ -38,7 +38,7 @@ TEST_F(LSTMHelperTest, ParamsConstructor1)
   const int input_dim = LSTMParams<5, 25>::INPUT_DIM;
   const int hidden_hidden_dim = LSTMParams<5, 25>::HIDDEN_HIDDEN_SIZE;
   const int input_hidden_dim = LSTMParams<5, 25>::INPUT_HIDDEN_SIZE;
-  EXPECT_EQ(shared_mem_grd, sizeof(LSTMParams<5, 25>) + sizeof(FNNParams<28, 3>));
+  EXPECT_EQ(shared_mem_grd, sizeof(LSTMParams<5, 25>) + sizeof(FNNParams<28, 3>) + sizeof(float));
   EXPECT_EQ(shared_mem_blk, 25 * 8 + 5 + 29 * 2);
   EXPECT_EQ(input_dim, 5);
   EXPECT_EQ(hidden_hidden_dim, 25 * 25);
@@ -95,20 +95,20 @@ TEST_F(LSTMHelperTest, ParamsConstructor2)
 {
   int total_amount = 0;
   // delay model
-  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
   total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_BLK * 8;
   // terra model
-  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
   total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_BLK * 8;
   // engine model
-  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
   total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_BLK * 8;
   // steering model
-  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_GRD;
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
   total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_BLK * 8;
 
-  std::cout << "total amount: " << total_amount * 4 << std::endl;
-  EXPECT_LT(total_amount * 4, 49152);
+  std::cout << "total amount: " << total_amount << std::endl;
+  EXPECT_LT(total_amount, 49152);
 }
 
 TEST_F(LSTMHelperTest, BindStream)
@@ -802,11 +802,11 @@ TEST_F(LSTMHelperTest, forwardGPUSpeedTest)
   for (int y_dim = 1; y_dim < 16; y_dim++)
   {
     auto shared_start = std::chrono::steady_clock::now();
-    launchForwardTestKernel<LSTM3, 32>(shared_model, input_arr, output_arr, y_dim, 2000);
+    launchForwardTestKernel<LSTM3, 32>(shared_model, input_arr, output_arr, y_dim, 500);
     auto shared_stop = std::chrono::steady_clock::now();
 
     auto global_start = std::chrono::steady_clock::now();
-    launchForwardTestKernel<LSTM3Global, 32>(global_model, input_arr, output_arr, y_dim, 2000);
+    launchForwardTestKernel<LSTM3Global, 32>(global_model, input_arr, output_arr, y_dim, 500);
     auto global_stop = std::chrono::steady_clock::now();
 
     float shared_time_ms = mppi::math::timeDiffms(shared_stop, shared_start);

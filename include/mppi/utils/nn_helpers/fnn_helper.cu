@@ -333,11 +333,12 @@ __device__ float* FNNHelper<PARAMS_T, USE_SHARED>::forward(float* input, float* 
   if (SHARED_MEM_REQUEST_GRD != 0)
   {
     PARAMS_T* params = (PARAMS_T*)theta_s;
-    return forward(input, theta_s, params, SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
+    return forward(input, theta_s, params,
+                   SHARED_MEM_REQUEST_GRD / 4 + 1 + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
   }
   else
   {
     return forward(input, theta_s, &this->params_,
-                   SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
+                   SHARED_MEM_REQUEST_GRD / 4 + 1 + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
   }
 }
