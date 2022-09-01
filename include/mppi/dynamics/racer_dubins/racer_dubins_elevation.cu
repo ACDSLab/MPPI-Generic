@@ -1,43 +1,41 @@
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation.cuh>
 #include <mppi/utils/math_utils.h>
 
-void RacerDubinsElevation::GPUSetup()
+template <class CLASS_T>
+void RacerDubinsElevationImpl<CLASS_T>::GPUSetup()
 {
-  PARENT_CLASS* derived = static_cast<PARENT_CLASS*>(this);
-  CudaCheckError();
+  PARENT_CLASS::GPUSetup();
   tex_helper_->GPUSetup();
-  CudaCheckError();
-  derived->GPUSetup();
-  CudaCheckError();
+  // makes sure that the device ptr sees the correct texture object
+  HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->tex_helper_), &(tex_helper_->ptr_d_),
+                               sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
 }
 
-void RacerDubinsElevation::freeCudaMem()
+template <class CLASS_T>
+void RacerDubinsElevationImpl<CLASS_T>::freeCudaMem()
 {
   tex_helper_->freeCudaMem();
+  PARENT_CLASS::freeCudaMem();
 }
 
-void RacerDubinsElevation::paramsToDevice()
+template <class CLASS_T>
+void RacerDubinsElevationImpl<CLASS_T>::paramsToDevice()
 {
-  if (this->GPUMemStatus_)
-  {
-    // does all the internal texture updates
-    tex_helper_->copyToDevice();
-    // makes sure that the device ptr sees the correct texture object
-    HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->tex_helper_), &(tex_helper_->ptr_d_),
-                                 sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
-  }
+  // does all the internal texture updates
+  tex_helper_->copyToDevice();
   PARENT_CLASS::paramsToDevice();
 }
 
-void RacerDubinsElevation::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
-                                       Eigen::Ref<state_array> state_der, const float dt)
+template <class CLASS_T>
+void RacerDubinsElevationImpl<CLASS_T>::updateState(const Eigen::Ref<const state_array> state,
+                                                    Eigen::Ref<state_array> next_state,
+                                                    Eigen::Ref<state_array> state_der, const float dt)
 {
   next_state = state + state_der * dt;
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
   next_state(S_INDEX(STEER_ANGLE)) =
       max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
-  next_state(S_INDEX(ACCEL_X)) = state_der(S_INDEX(VEL_X));
 }
 
 // __device__ void RacerDubinsElevation::updateState(float* state, float* next_state, float* state_der, const float dt)
@@ -66,9 +64,11 @@ void RacerDubinsElevation::updateState(const Eigen::Ref<const state_array> state
 //   }
 // }
 
-void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
-                                Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
-                                Eigen::Ref<output_array> output, const float t, const float dt)
+template <class CLASS_T>
+void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                                             Eigen::Ref<state_array> state_der,
+                                             const Eigen::Ref<const control_array>& control,
+                                             Eigen::Ref<output_array> output, const float t, const float dt)
 {
   // computeStateDeriv(state, control, state_der);
   bool enable_brake = control(0) < 0;
@@ -96,7 +96,7 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
   state_der(4) = max(min(state_der(4), this->params_.max_steer_rate), -this->params_.max_steer_rate);
   // state(8) = state_der(0);
 
-  // Integrate using racer_dubins upddateState
+  // Integrate using racer_dubins updateState
   updateState(state, next_state, state_der, dt);
 
   float pitch = 0;
@@ -185,11 +185,12 @@ void RacerDubinsElevation::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
   // output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
   // output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
   // output[O_INDEX(CENTER_POS_I_Z)] = 0;
-  output[O_INDEX(ACCEL_X)] = next_state[S_INDEX(ACCEL_X)];
+  output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
 }
 
-__device__ void RacerDubinsElevation::initializeDynamics(float* state, float* control, float* output, float* theta_s,
-                                                         float t_0, float dt)
+template <class CLASS_T>
+__device__ void RacerDubinsElevationImpl<CLASS_T>::initializeDynamics(float* state, float* control, float* output,
+                                                                      float* theta_s, float t_0, float dt)
 {
   PARENT_CLASS::initializeDynamics(state, control, output, theta_s, t_0, dt);
   if (SHARED_MEM_REQUEST_GRD != 1)
@@ -199,8 +200,10 @@ __device__ void RacerDubinsElevation::initializeDynamics(float* state, float* co
   }
 }
 
-__device__ inline void RacerDubinsElevation::step(float* state, float* next_state, float* state_der, float* control,
-                                                  float* output, float* theta_s, const float t, const float dt)
+template <class CLASS_T>
+__device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, float* next_state, float* state_der,
+                                                               float* control, float* output, float* theta_s,
+                                                               const float t, const float dt)
 {
   DYN_PARAMS_T* params_p;
   if (SHARED_MEM_REQUEST_GRD != 1)
@@ -267,9 +270,6 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
     next_state[i] = state[i] + state_der[i] * dt;
     switch (i)
     {
-      case S_INDEX(VEL_X):
-        next_state[S_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
-        break;
       case S_INDEX(YAW):
         next_state[i] = angle_utils::normalizeAngle(next_state[i]);
         break;
@@ -354,5 +354,29 @@ __device__ inline void RacerDubinsElevation::step(float* state, float* next_stat
   // output[O_INDEX(CENTER_POS_I_X)] = output[O_INDEX(BASELINK_POS_I_X)];  // TODO
   // output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
   // output[O_INDEX(CENTER_POS_I_Z)] = 0;
-  output[O_INDEX(ACCEL_X)] = next_state[S_INDEX(ACCEL_X)];
+  output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
+}
+
+template <class CLASS_T>
+RacerDubinsElevationImpl<CLASS_T>::state_array
+RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, float>& map)
+{
+  state_array s = state_array::Zero();
+  s(S_INDEX(POS_X)) = map.at("POS_X");
+  s(S_INDEX(POS_Y)) = map.at("POS_Y");
+  s(S_INDEX(VEL_X)) = map.at("VEL_X");
+  s(S_INDEX(YAW)) = map.at("YAW");
+  if (map.find("STEER_ANGLE") != map.end())
+  {
+    s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
+    s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
+  }
+  else
+  {
+    s(S_INDEX(STEER_ANGLE)) = 0;
+    s(S_INDEX(STEER_ANGLE_RATE)) = 0;
+  }
+  s(S_INDEX(ROLL)) = map.at("ROLL");
+  s(S_INDEX(PITCH)) = map.at("PITCH");
+  return s;
 }

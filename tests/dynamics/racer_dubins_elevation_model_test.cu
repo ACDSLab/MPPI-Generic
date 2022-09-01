@@ -26,7 +26,7 @@ public:
 TEST_F(RacerDubinsElevationTest, Template)
 {
   auto dynamics = RacerDubinsElevation();
-  EXPECT_EQ(9, RacerDubinsElevation::STATE_DIM);
+  EXPECT_EQ(8, RacerDubinsElevation::STATE_DIM);
   EXPECT_EQ(2, RacerDubinsElevation::CONTROL_DIM);
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
 }
