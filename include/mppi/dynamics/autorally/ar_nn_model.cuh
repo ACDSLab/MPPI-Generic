@@ -78,23 +78,24 @@ public:
                                 NNDynamicsParams>;
 
   // Define Eigen fixed size matrices
+  typedef FNNHelper<FNNParams<layer_args...>> NN;
   using state_array = typename PARENT_CLASS::state_array;
   using control_array = typename PARENT_CLASS::control_array;
   using output_array = typename PARENT_CLASS::output_array;
   using dfdx = typename PARENT_CLASS::dfdx;
   using dfdu = typename PARENT_CLASS::dfdu;
-  using nn_input_array = typename FNNHelper<FNNParams<layer_args...>>::input_array;
-  using nn_output_array = typename FNNHelper<FNNParams<layer_args...>>::output_array;
-  using nn_dfdx = typename FNNHelper<FNNParams<layer_args...>>::dfdx ;
+  using nn_input_array = typename NN::input_array;
+  using nn_output_array = typename NN::output_array;
+  using nn_dfdx = typename NN::dfdx ;
+
 
   static const int DYNAMICS_DIM = S_DIM - K_DIM;               ///< number of inputs from state
-  static const int NUM_LAYERS = layer_counter(layer_args...);  ///< Total number of layers (including in/out layer)
+  static const int NUM_LAYERS = NN::NUM_LAYERS;  ///< Total number of layers (including in/out layer)
   static const int PRIME_PADDING = 1;  ///< Extra padding to largest layer to avoid shared mem bank conflicts
-  static const int LARGEST_LAYER = neuron_counter(layer_args...) +
-                                   PRIME_PADDING;  ///< Number of neurons in the largest layer(including in/out neurons)
-  static const int NUM_PARAMS = param_counter(layer_args...);   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = FNNParams<layer_args...>::SHARED_MEM_REQUEST_GRD;  ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = FNNParams<layer_args...>::SHARED_MEM_REQUEST_BLK;  ///< Amount of shared memory we need per ROLLOUT.
+  static const int LARGEST_LAYER = NN::LARGEST_LAYER; ///< Number of neurons in the largest layer(including in/out neurons)
+  static const int NUM_PARAMS = NN::NUM_PARAMS;   ///< Total number of model parameters;
+  static const int SHARED_MEM_REQUEST_GRD = NN::SHARED_MEM_REQUEST_GRD;  ///< Amount of shared memory we need per BLOCK.
+  static const int SHARED_MEM_REQUEST_BLK = NN::SHARED_MEM_REQUEST_BLK;  ///< Amount of shared memory we need per ROLLOUT.
 
   NeuralNetModel(cudaStream_t stream = 0);
   NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream = 0);
@@ -126,7 +127,7 @@ public:
     return helper_->getThetaPtr();
   }
 
-  FNNHelper<FNNParams<layer_args...>>* getHelperPtr() {
+  NN* getHelperPtr() {
     return helper_;
   }
 
@@ -165,7 +166,7 @@ public:
   state_array stateFromMap(const std::map<std::string, float>& map) override;
 
 private:
-  FNNHelper<FNNParams<layer_args...>>* helper_ = nullptr;
+  NN* helper_ = nullptr;
 };
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>

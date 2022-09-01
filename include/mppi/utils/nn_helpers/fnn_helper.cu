@@ -4,20 +4,21 @@
 
 #include "fnn_helper.cuh"
 
-template <class PARAMS_T>
-FNNHelper<PARAMS_T>::FNNHelper<PARAMS_T>(cudaStream_t stream) : Managed(stream)
+template <class PARAMS_T, bool USE_SHARED>
+FNNHelper<PARAMS_T, USE_SHARED>::FNNHelper<PARAMS_T, USE_SHARED>(cudaStream_t stream) : Managed(stream)
 {
   CPUSetup();
 }
 
-template <class PARAMS_T>
-FNNHelper<PARAMS_T>::FNNHelper<PARAMS_T>(std::string model_path, cudaStream_t stream) : FNNHelper<PARAMS_T>(stream)
+template <class PARAMS_T, bool USE_SHARED>
+FNNHelper<PARAMS_T, USE_SHARED>::FNNHelper<PARAMS_T, USE_SHARED>(std::string model_path, cudaStream_t stream)
+  : FNNHelper<PARAMS_T, USE_SHARED>(stream)
 {
   loadParams(model_path);
 }
 
-template <class PARAMS_T>
-FNNHelper<PARAMS_T>::~FNNHelper()
+template <class PARAMS_T, bool USE_SHARED>
+FNNHelper<PARAMS_T, USE_SHARED>::~FNNHelper()
 {
   if (this->GPUMemStatus_)
   {
@@ -25,8 +26,8 @@ FNNHelper<PARAMS_T>::~FNNHelper()
   }
 }
 
-template <class PARAMS_T>
-void FNNHelper<PARAMS_T>::loadParams(const std::string& model_path)
+template <class PARAMS_T, bool USE_SHARED>
+void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(const std::string& model_path)
 {
   int i, j, k;
   std::string bias_name = "";
@@ -70,8 +71,8 @@ void FNNHelper<PARAMS_T>::loadParams(const std::string& model_path)
   paramsToDevice();
 }
 
-template <class PARAMS_T>
-void FNNHelper<PARAMS_T>::loadParams(const cnpy::npz_t& param_dict)
+template <class PARAMS_T, bool USE_SHARED>
+void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(const cnpy::npz_t& param_dict)
 {
   int i, j, k;
   std::string bias_name = "";
@@ -108,8 +109,8 @@ void FNNHelper<PARAMS_T>::loadParams(const cnpy::npz_t& param_dict)
   paramsToDevice();
 }
 
-template <class PARAMS_T>
-void FNNHelper<PARAMS_T>::CPUSetup()
+template <class PARAMS_T, bool USE_SHARED>
+void FNNHelper<PARAMS_T, USE_SHARED>::CPUSetup()
 {
   // zeros out every matrix
   for (int i = 1; i < PARAMS_T::NUM_LAYERS; i++)
@@ -120,8 +121,8 @@ void FNNHelper<PARAMS_T>::CPUSetup()
   }
 }
 
-template <class PARAMS_T>
-void FNNHelper<PARAMS_T>::updateModel(const std::vector<int>& description, const std::vector<float>& data)
+template <class PARAMS_T, bool USE_SHARED>
+void FNNHelper<PARAMS_T, USE_SHARED>::updateModel(const std::vector<int>& description, const std::vector<float>& data)
 {
   for (int i = 0; i < description.size(); i++)
   {
@@ -156,8 +157,8 @@ void FNNHelper<PARAMS_T>::updateModel(const std::vector<int>& description, const
   }
 }
 
-template <class PARAMS_T>
-void FNNHelper<PARAMS_T>::freeCudaMem()
+template <class PARAMS_T, bool USE_SHARED>
+void FNNHelper<PARAMS_T, USE_SHARED>::freeCudaMem()
 {
   if (this->GPUMemStatus_)
   {
@@ -165,12 +166,12 @@ void FNNHelper<PARAMS_T>::freeCudaMem()
   }
 }
 
-template <class PARAMS_T>
-void FNNHelper<PARAMS_T>::GPUSetup()
+template <class PARAMS_T, bool USE_SHARED>
+void FNNHelper<PARAMS_T, USE_SHARED>::GPUSetup()
 {
   if (!this->GPUMemStatus_)
   {
-    network_d_ = Managed::GPUSetup<FNNHelper<PARAMS_T>>(this);
+    network_d_ = Managed::GPUSetup<FNNHelper<PARAMS_T, USE_SHARED>>(this);
   }
   else
   {
@@ -178,8 +179,8 @@ void FNNHelper<PARAMS_T>::GPUSetup()
   }
 }
 
-template <class PARAMS_T>
-void FNNHelper<PARAMS_T>::paramsToDevice()
+template <class PARAMS_T, bool USE_SHARED>
+void FNNHelper<PARAMS_T, USE_SHARED>::paramsToDevice()
 {
   if (this->GPUMemStatus_)
   {
@@ -189,8 +190,8 @@ void FNNHelper<PARAMS_T>::paramsToDevice()
   }
 }
 
-template <class PARAMS_T>
-bool FNNHelper<PARAMS_T>::computeGrad(const Eigen::Ref<const input_array>& input, Eigen::Ref<dfdx> A)
+template <class PARAMS_T, bool USE_SHARED>
+bool FNNHelper<PARAMS_T, USE_SHARED>::computeGrad(const Eigen::Ref<const input_array>& input, Eigen::Ref<dfdx> A)
 {
   // compute forward to see gradient values
   output_array output;
@@ -198,8 +199,8 @@ bool FNNHelper<PARAMS_T>::computeGrad(const Eigen::Ref<const input_array>& input
   return computeGrad(A);
 }
 
-template <class PARAMS_T>
-bool FNNHelper<PARAMS_T>::computeGrad(Eigen::Ref<dfdx> A)
+template <class PARAMS_T, bool USE_SHARED>
+bool FNNHelper<PARAMS_T, USE_SHARED>::computeGrad(Eigen::Ref<dfdx> A)
 {
   // Start backprop
   Eigen::MatrixXf ip_delta = Eigen::MatrixXf::Identity(OUTPUT_DIM, OUTPUT_DIM);
@@ -227,8 +228,9 @@ bool FNNHelper<PARAMS_T>::computeGrad(Eigen::Ref<dfdx> A)
   return true;
 }
 
-template <class PARAMS_T>
-void FNNHelper<PARAMS_T>::forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output)
+template <class PARAMS_T, bool USE_SHARED>
+void FNNHelper<PARAMS_T, USE_SHARED>::forward(const Eigen::Ref<const input_array>& input,
+                                              Eigen::Ref<output_array> output)
 {
   int i, j;
   Eigen::MatrixXf acts = input;
@@ -254,16 +256,19 @@ void FNNHelper<PARAMS_T>::forward(const Eigen::Ref<const input_array>& input, Ei
   output = acts;
 }
 
-template <class PARAMS_T>
-__device__ void FNNHelper<PARAMS_T>::initialize(float* theta_s)
+template <class PARAMS_T, bool USE_SHARED>
+__device__ void FNNHelper<PARAMS_T, USE_SHARED>::initialize(float* theta_s)
 {
-  static_assert(std::is_trivially_copyable<PARAMS_T>::value);
-  PARAMS_T* shared_params = (PARAMS_T*)theta_s;
-  *shared_params = this->params_;
+  if (SHARED_MEM_REQUEST_GRD != 0)
+  {
+    static_assert(std::is_trivially_copyable<PARAMS_T>::value);
+    PARAMS_T* shared_params = (PARAMS_T*)theta_s;
+    *shared_params = this->params_;
+  }
 }
 
-template <class PARAMS_T>
-__device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s, PARAMS_T* params, int shift)
+template <class PARAMS_T, bool USE_SHARED>
+__device__ float* FNNHelper<PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s, PARAMS_T* params, int shift)
 {
   float* curr_act;
   float* next_act;
@@ -320,11 +325,19 @@ __device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s, PAR
   return curr_act;
 }
 
-template <class PARAMS_T>
-__device__ float* FNNHelper<PARAMS_T>::forward(float* input, float* theta_s)
+template <class PARAMS_T, bool USE_SHARED>
+__device__ float* FNNHelper<PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s)
 {
   uint tdx = threadIdx.x;
   uint tdz = threadIdx.z;
-  PARAMS_T* params = (PARAMS_T*)theta_s;
-  return forward(input, theta_s, params, SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
+  if (SHARED_MEM_REQUEST_GRD != 0)
+  {
+    PARAMS_T* params = (PARAMS_T*)theta_s;
+    return forward(input, theta_s, params, SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
+  }
+  else
+  {
+    return forward(input, theta_s, &this->params_,
+                   SHARED_MEM_REQUEST_GRD + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
+  }
 }

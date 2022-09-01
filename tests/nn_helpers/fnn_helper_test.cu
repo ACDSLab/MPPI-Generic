@@ -34,8 +34,8 @@ TEST_F(FNNHelperTest, ParamsConstructor1)
   const int layers = FNNParams<5, 10, 3>::NUM_LAYERS;
   const int padding = FNNParams<5, 10, 3>::PRIME_PADDING;
   const int largest_layer = FNNParams<5, 10, 3>::LARGEST_LAYER;
-  const int shared_mem_grd = FNNParams<5, 10, 3>::SHARED_MEM_REQUEST_GRD;
-  const int shared_mem_blk = FNNParams<5, 10, 3>::SHARED_MEM_REQUEST_BLK;
+  const int shared_mem_grd = FNNHelper<FNNParams<5, 10, 3>>::SHARED_MEM_REQUEST_GRD;
+  const int shared_mem_blk = FNNHelper<FNNParams<5, 10, 3>>::SHARED_MEM_REQUEST_BLK;
   const int input_dim = FNNParams<5, 10, 3>::INPUT_DIM;
   const int output_dim = FNNParams<5, 10, 3>::OUTPUT_DIM;
   EXPECT_EQ(layers, 3);
@@ -79,10 +79,10 @@ TEST_F(FNNHelperTest, ParamsConstructor2)
   const int layers = FNNParams<5, 10, 20, 3, 3>::NUM_LAYERS;
   const int padding = FNNParams<5, 10, 20, 3, 3>::PRIME_PADDING;
   const int largest_layer = FNNParams<5, 10, 20, 3, 3>::LARGEST_LAYER;
-  const int shared_mem_grd = FNNParams<5, 10, 20, 3, 3>::SHARED_MEM_REQUEST_GRD;
-  const int shared_mem_blk = FNNParams<5, 10, 20, 3, 3>::SHARED_MEM_REQUEST_BLK;
-  const int input_dim = FNNParams<5, 10, 3>::INPUT_DIM;
-  const int output_dim = FNNParams<5, 10, 3>::OUTPUT_DIM;
+  const int shared_mem_grd = FNNHelper<FNNParams<5, 10, 20, 3, 3>>::SHARED_MEM_REQUEST_GRD;
+  const int shared_mem_blk = FNNHelper<FNNParams<5, 10, 20, 3, 3>>::SHARED_MEM_REQUEST_BLK;
+  const int input_dim = FNNParams<5, 10, 20, 3, 3>::INPUT_DIM;
+  const int output_dim = FNNParams<5, 10, 20, 3, 3>::OUTPUT_DIM;
   EXPECT_EQ(layers, 5);
   EXPECT_EQ(padding, 1);
   EXPECT_EQ(largest_layer, 21);
@@ -130,10 +130,10 @@ TEST_F(FNNHelperTest, ParamsConstructor3)
   const int layers = FNNParams<5, 3>::NUM_LAYERS;
   const int padding = FNNParams<5, 3>::PRIME_PADDING;
   const int largest_layer = FNNParams<5, 3>::LARGEST_LAYER;
-  const int shared_mem_grd = FNNParams<5, 3>::SHARED_MEM_REQUEST_GRD;
-  const int shared_mem_blk = FNNParams<5, 3>::SHARED_MEM_REQUEST_BLK;
-  const int input_dim = FNNParams<5, 10, 3>::INPUT_DIM;
-  const int output_dim = FNNParams<5, 10, 3>::OUTPUT_DIM;
+  const int shared_mem_grd = FNNHelper<FNNParams<5, 3>>::SHARED_MEM_REQUEST_GRD;
+  const int shared_mem_blk = FNNHelper<FNNParams<5, 3>>::SHARED_MEM_REQUEST_BLK;
+  const int input_dim = FNNParams<5, 3>::INPUT_DIM;
+  const int output_dim = FNNParams<5, 3>::OUTPUT_DIM;
   EXPECT_EQ(layers, 2);
   EXPECT_EQ(padding, 1);
   EXPECT_EQ(largest_layer, 6);
@@ -165,6 +165,14 @@ TEST_F(FNNHelperTest, ParamsConstructor3)
   {
     EXPECT_FLOAT_EQ(theta[i], 0.0f);
   }
+}
+
+TEST_F(FNNHelperTest, ParamsConstructor4)
+{
+  const int shared_mem_grd = FNNHelper<FNNParams<5, 3>, false>::SHARED_MEM_REQUEST_GRD;
+  const int shared_mem_blk = FNNHelper<FNNParams<5, 3>, false>::SHARED_MEM_REQUEST_BLK;
+  EXPECT_EQ(shared_mem_grd, 0);
+  EXPECT_EQ(shared_mem_blk, 12);
 }
 
 TEST_F(FNNHelperTest, BindStream)
@@ -472,6 +480,56 @@ TEST_F(FNNHelperTest, forwardGPUCompare)
     }
 
     launchForwardTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>>, 32>(model, input_arr, output_arr, y_dim);
+    for (int point = 0; point < num_rollouts; point++)
+    {
+      FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input = inputs.col(point);
+      FNNHelper<FNNParams<6, 32, 32, 4>>::output_array output;
+
+      model.forward(input, output);
+      for (int dim = 0; dim < 6; dim++)
+      {
+        EXPECT_NEAR(input(dim), input_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+      }
+      for (int dim = 0; dim < 4; dim++)
+      {
+        EXPECT_NEAR(output(dim), output_arr[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(output_arr[point][dim]));
+      }
+    }
+  }
+}
+
+TEST_F(FNNHelperTest, forwardGPUCompareNoShared)
+{
+  const int num_rollouts = 1000;
+
+  FNNHelper<FNNParams<6, 32, 32, 4>, false> model;
+  model.GPUSetup();
+
+  std::vector<float> theta(1412);
+  for (int i = 0; i < 1412; i++)
+  {
+    theta[i] = distribution(generator);
+  }
+  model.updateModel({ 6, 32, 32, 4 }, theta);
+
+  Eigen::Matrix<float, 6, num_rollouts> inputs;
+  inputs = Eigen::Matrix<float, 6, num_rollouts>::Random();
+
+  std::vector<std::array<float, FNNHelper<FNNParams<6, 32, 32, 4>, false>::INPUT_DIM>> input_arr(num_rollouts);
+  std::vector<std::array<float, FNNHelper<FNNParams<6, 32, 32, 4>, false>::OUTPUT_DIM>> output_arr(num_rollouts);
+
+  for (int y_dim = 1; y_dim < 16; y_dim++)
+  {
+    for (int state_index = 0; state_index < num_rollouts; state_index++)
+    {
+      for (int dim = 0; dim < input_arr[0].size(); dim++)
+      {
+        input_arr[state_index][dim] = inputs.col(state_index)(dim);
+      }
+    }
+
+    launchForwardTestKernel<FNNHelper<FNNParams<6, 32, 32, 4>, false>, 32>(model, input_arr, output_arr, y_dim);
     for (int point = 0; point < num_rollouts; point++)
     {
       FNNHelper<FNNParams<6, 32, 32, 4>>::input_array input = inputs.col(point);

@@ -6,13 +6,13 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(std::array<fl
                                                                    cudaStream_t stream)
   : PARENT_CLASS(control_rngs, stream)
 {
-  helper_ = new FNNHelper<FNNParams<layer_args...>>(stream);
+  helper_ = new NN(stream);
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t stream) : PARENT_CLASS(stream)
 {
-  helper_ = new FNNHelper<FNNParams<layer_args...>>(stream);
+  helper_ = new NN(stream);
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
@@ -157,8 +157,8 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::GPUSetup()
   helper_->GPUSetup();
   derived->GPUSetup();
 
-  HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->helper_), &(this->helper_->network_d_),
-                               sizeof(FNNHelper<FNNParams<layer_args...>>*), cudaMemcpyHostToDevice, this->stream_));
+  HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->helper_), &(this->helper_->network_d_), sizeof(NN*),
+                               cudaMemcpyHostToDevice, this->stream_));
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>

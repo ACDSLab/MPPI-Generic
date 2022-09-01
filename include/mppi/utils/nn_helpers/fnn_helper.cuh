@@ -13,8 +13,6 @@ struct FNNParams {
   static const int LARGEST_LAYER = neuron_counter(layer_args...) +
                                    PRIME_PADDING;  ///< Number of neurons in the largest layer(including in/out neurons)
   static const int NUM_PARAMS = param_counter(layer_args...);   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = sizeof(FNNParams<layer_args...>);  ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = 2 * LARGEST_LAYER;  ///< Amount of shared memory we need per ROLLOUT.
 
   static const int INPUT_DIM = input_dim(layer_args...);
   static const int OUTPUT_DIM = output_dim(layer_args...);
@@ -48,7 +46,7 @@ struct FNNParams {
   }
 };
 
-template<class PARAMS_T>
+template<class PARAMS_T, bool USE_SHARED=true>
 class FNNHelper : public Managed
 {
 public:
@@ -58,8 +56,8 @@ public:
   static const int PRIME_PADDING = PARAMS_T::PRIME_PADDING;  ///< Extra padding to largest layer to avoid shared mem bank conflicts
   static const int LARGEST_LAYER = PARAMS_T::LARGEST_LAYER;  ///< Number of neurons in the largest layer(including in/out neurons)
   static const int NUM_PARAMS = PARAMS_T::NUM_PARAMS;   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = PARAMS_T::SHARED_MEM_REQUEST_GRD; ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = PARAMS_T::SHARED_MEM_REQUEST_BLK;  ///< Amount of shared memory we need per ROLLOUT.
+  static const int SHARED_MEM_REQUEST_GRD = sizeof(PARAMS_T) * USE_SHARED;  ///< Amount of shared memory we need per BLOCK.
+  static const int SHARED_MEM_REQUEST_BLK = 2 * PARAMS_T::LARGEST_LAYER;  ///< Amount of shared memory we need per ROLLOUT.
 
   static const int INPUT_DIM = PARAMS_T::INPUT_DIM;
   static const int OUTPUT_DIM = PARAMS_T::OUTPUT_DIM;
@@ -69,8 +67,8 @@ public:
   typedef Eigen::Matrix<float, PARAMS_T::OUTPUT_DIM, 1> output_array;
   typedef Eigen::Matrix<float, PARAMS_T::OUTPUT_DIM, PARAMS_T::INPUT_DIM> dfdx;
 
-  explicit FNNHelper<PARAMS_T>(cudaStream_t stream = 0);
-  explicit FNNHelper<PARAMS_T>(std::string, cudaStream_t stream = 0);
+  explicit FNNHelper<PARAMS_T, USE_SHARED>(cudaStream_t stream = 0);
+  explicit FNNHelper<PARAMS_T, USE_SHARED>(std::string, cudaStream_t stream = 0);
   ~FNNHelper();
 
   void loadParams(const std::string& model_path);
@@ -143,7 +141,7 @@ public:
   }
 
   // device pointer, null on the device
-  FNNHelper<PARAMS_T>* network_d_ = nullptr;
+  FNNHelper<PARAMS_T, USE_SHARED>* network_d_ = nullptr;
 
 private:
   Eigen::MatrixXf weighted_in_[NUM_LAYERS];
