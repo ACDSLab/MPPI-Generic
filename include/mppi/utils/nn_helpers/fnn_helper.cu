@@ -38,50 +38,30 @@ void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(const std::string& model_path)
     exit(-1);
   }
   cnpy::npz_t param_dict = cnpy::npz_load(model_path);
-  for (i = 0; i < NUM_LAYERS - 1; i++)
-  {
-    // NN index from 1
-    bias_name = "dynamics_b" + std::to_string(i + 1);
-    weight_name = "dynamics_W" + std::to_string(i + 1);
-
-    cnpy::NpyArray weight_i_raw = param_dict[weight_name];
-    cnpy::NpyArray bias_i_raw = param_dict[bias_name];
-    double* weight_i = weight_i_raw.data<double>();
-    double* bias_i = bias_i_raw.data<double>();
-
-    // copy over the weights
-    for (j = 0; j < this->params_.net_structure[i + 1]; j++)
-    {
-      for (k = 0; k < this->params_.net_structure[i]; k++)
-      {
-        // TODO why i - 1?
-        this->params_.theta[this->params_.stride_idcs[2 * i] + j * this->params_.net_structure[i] + k] =
-            (float)weight_i[j * this->params_.net_structure[i] + k];
-        weights_[i](j, k) = (float)weight_i[j * this->params_.net_structure[i] + k];
-      }
-    }
-    // copy over the bias
-    for (j = 0; j < this->params_.net_structure[i + 1]; j++)
-    {
-      this->params_.theta[this->params_.stride_idcs[2 * i + 1] + j] = (float)bias_i[j];
-      biases_[i](j, 0) = (float)bias_i[j];
-    }
-  }
-  // Save parameters to GPU memory
-  paramsToDevice();
+  loadParams(param_dict);
 }
 
 template <class PARAMS_T, bool USE_SHARED>
 void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(const cnpy::npz_t& param_dict)
 {
+  loadParams("", param_dict);
+}
+
+template <class PARAMS_T, bool USE_SHARED>
+void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& param_dict)
+{
   int i, j, k;
   std::string bias_name = "";
   std::string weight_name = "";
+  if (!prefix.empty() && *prefix.rbegin() != '/')
+  {
+    prefix.append("/");
+  }
   for (i = 0; i < NUM_LAYERS - 1; i++)
   {
     // NN index from 1
-    bias_name = "dynamics_b" + std::to_string(i + 1);
-    weight_name = "dynamics_W" + std::to_string(i + 1);
+    bias_name = prefix + "dynamics_b" + std::to_string(i + 1);
+    weight_name = prefix + "dynamics_W" + std::to_string(i + 1);
 
     cnpy::NpyArray weight_i_raw = param_dict.at(weight_name);
     cnpy::NpyArray bias_i_raw = param_dict.at(bias_name);
