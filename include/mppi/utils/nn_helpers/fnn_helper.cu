@@ -234,7 +234,7 @@ void FNNHelper<PARAMS_T, USE_SHARED>::forward(const Eigen::Ref<const input_array
 {
   int i, j;
   Eigen::MatrixXf acts = input;
-  for (int i = 0; i < NUM_LAYERS - 1; i++)
+  for (i = 0; i < NUM_LAYERS - 1; i++)
   {
     weighted_in_[i] = (weights_[i] * acts + biases_[i]).eval();
     acts = Eigen::MatrixXf::Zero(this->params_.net_structure[i + 1], 1);
@@ -276,9 +276,7 @@ __device__ float* FNNHelper<PARAMS_T, USE_SHARED>::forward(float* input, float* 
   float tmp;
   float* W;
   float* b;
-  uint tdx = threadIdx.x;
   uint tdy = threadIdx.y;
-  uint tdz = threadIdx.z;
   uint i, j, k;
   curr_act = &theta_s[shift];
   next_act = &theta_s[shift + LARGEST_LAYER];

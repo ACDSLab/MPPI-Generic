@@ -365,6 +365,12 @@ RacerDubinsElevationImpl<CLASS_T>::state_array
 RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, float>& map)
 {
   state_array s = state_array::Zero();
+  if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
+      map.find("POS_Y") == map.end() || map.find("ROLL") == map.end() || map.find("PITCH") == map.end() ||
+      map.find("STEER_ANGLE") == map.end() || map.find("STEER_ANGLE_RATE") == map.end())
+  {
+    return s;
+  }
   s(S_INDEX(POS_X)) = map.at("POS_X");
   s(S_INDEX(POS_Y)) = map.at("POS_Y");
   s(S_INDEX(VEL_X)) = map.at("VEL_X");

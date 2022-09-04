@@ -182,6 +182,11 @@ public:
   std::map<std::string, float> getInterpState(double time)
   {
     std::map<std::string, float> result;
+    if (prev_position_.size() < 2)
+    {
+      return result;
+    }
+
     Eigen::Vector3f interp_pos = interp(prev_position_, time);
     result["POS_X"] = interp_pos.x();
     result["POS_Y"] = interp_pos.y();
@@ -227,14 +232,18 @@ public:
 
   buffer_trajectory getSmoothedBuffer(double latest_time)
   {
-    std::lock_guard<std::mutex> lck(this->access_guard_);
-
-    int steps = buffer_tau_ / buffer_dt_ + 1;
-
-    buffer_trajectory result;
-
     // does the latest state to make sure we have valid values
     std::map<std::string, float> start_vals = getInterpState(latest_time);
+    buffer_trajectory result;
+
+    // if not enough data return empty message
+    std::lock_guard<std::mutex> lck(this->access_guard_);
+    if (prev_position_.begin()->time - prev_position_.rbegin()->time < buffer_tau_)
+    {
+      return result;
+    }
+
+    int steps = buffer_tau_ / buffer_dt_ + 1;
 
     for (const auto& start_val : start_vals)
     {
@@ -298,7 +307,7 @@ protected:
   std::map<std::string, std::list<BufferMessage<float>>> prev_extra_;
 
   double buffer_time_horizon_ = 2.0;   // how long to store values in the buffer
-  double buffer_tau_ = 0.2;            // how in history to create well sampled positions from
+  double buffer_tau_ = 1.0;            // how in history to create well sampled positions from
   double buffer_dt_ = 0.02;            // the spacing between well sampled buffer positions
 };
 

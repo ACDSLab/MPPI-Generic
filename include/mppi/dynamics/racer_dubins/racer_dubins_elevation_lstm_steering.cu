@@ -368,12 +368,18 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
 void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory& buffer)
 {
   NN::init_buffer init_buffer;
+  if (buffer.find("VEL_X") == buffer.end() || buffer.find("VEL_Y") == buffer.end() ||
+      buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
+      buffer.find("STEER_CMD") == buffer.end())
+  {
+    return;
+  }
 
   init_buffer.row(0) = buffer.at("VEL_X");
   init_buffer.row(1) = buffer.at("VEL_Y");
   init_buffer.row(2) = buffer.at("STEER_ANGLE");
   init_buffer.row(3) = buffer.at("STEER_ANGLE_RATE");
-  init_buffer.row(4) = buffer.at("CONTROL_" + C_INDEX(STEER_CMD));
+  init_buffer.row(4) = buffer.at("STEER_CMD");
 
   lstm_lstm_helper_->initializeLSTM(init_buffer);
 }

@@ -80,7 +80,8 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     const int colored_stride = (this->getNumTimesteps() > optimization_stride) ? optimization_stride : 0;
     if (colored_stride == 0)
     {
-      std::cout << "We tripped the fail-safe" << std::endl;
+      std::cout << "We tripped the fail-safe by having optimization stride greater than timestamps: "
+                << optimization_stride << std::endl;
     }
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), colored_num_timesteps, NUM_ROLLOUTS, this->control_noise_d_,
                           colored_stride, this->gen_, this->stream_);
