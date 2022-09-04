@@ -360,35 +360,35 @@ TEST_F(FNNHelperTest, LoadModelNPZTest)
 
 TEST_F(FNNHelperTest, LoadModelNPZTestNested)
 {
-  FNNHelper<FNNParams<16, 20, 1>> model;
+  FNNHelper<FNNParams<11, 20, 1>> model;
   model.GPUSetup();
 
-  std::vector<float> theta(361);
+  std::vector<float> theta(261);
   std::fill(theta.begin(), theta.end(), 100);
-  model.updateModel({ 16, 20, 1 }, theta);
+  model.updateModel({ 11, 20, 1 }, theta);
 
-  std::string path = mppi::tests::test_lstm_lstm_nested;
+  std::string path = mppi::tests::test_lstm_lstm;
   if (!fileExists(path))
   {
     std::cerr << "Could not load neural net model at path: " << path.c_str();
     exit(-1);
   }
   cnpy::npz_t param_dict = cnpy::npz_load(path);
-  model.loadParams("model/output", param_dict);
+  model.loadParams("output", param_dict);
 
-  std::array<float, 361> theta_result = {};
+  std::array<float, 261> theta_result = {};
   std::array<int, 4> stride_result = {};
   std::array<int, 3> net_structure_result = {};
-  std::array<float, 361> shared_theta_result = {};
+  std::array<float, 261> shared_theta_result = {};
   std::array<int, 4> shared_stride_result = {};
   std::array<int, 3> shared_net_structure_result = {};
 
   // launch kernel
-  launchParameterCheckTestKernel<FNNHelper<FNNParams<16, 20, 1>>, 361, 4, 3>(
+  launchParameterCheckTestKernel<FNNHelper<FNNParams<11, 20, 1>>, 261, 4, 3>(
       model, theta_result, stride_result, net_structure_result, shared_theta_result, shared_stride_result,
       shared_net_structure_result);
 
-  for (int i = 0; i < 361; i++)
+  for (int i = 0; i < 261; i++)
   {
     EXPECT_FLOAT_EQ(shared_theta_result[i], model.getTheta()[i]) << "failed at index " << i;
     EXPECT_NE(shared_theta_result[i], 100) << "failed at index " << i;

@@ -344,7 +344,10 @@ TEST_F(LSTMHelperTest, LoadModelPathTest)
   LSTM model;
   model.GPUSetup();
 
-  std::string path = mppi::tests::test_lstm_network;
+  int num_points = 100;
+  int T = 100;
+
+  std::string path = mppi::tests::test_lstm_lstm;
   if (!fileExists(path))
   {
     std::cerr << "Could not load neural net model at path: " << path.c_str();
@@ -352,11 +355,11 @@ TEST_F(LSTMHelperTest, LoadModelPathTest)
   }
   model.loadParams(path);
 
-  path = mppi::tests::test_lstm_input_output;
-
   cnpy::npz_t input_outputs = cnpy::npz_load(path);
   double* inputs = input_outputs.at("input").data<double>();
   double* outputs = input_outputs.at("output").data<double>();
+  double* init_hidden = input_outputs.at("init_hidden").data<double>();
+  double* init_cell = input_outputs.at("init_cell").data<double>();
   double* hidden = input_outputs.at("hidden").data<double>();
   double* cell = input_outputs.at("cell").data<double>();
 
@@ -365,23 +368,42 @@ TEST_F(LSTMHelperTest, LoadModelPathTest)
   LSTM::input_array input;
   LSTM::output_array output;
 
-  for (int point = 0; point < 1000; point++)
+  // sets the inital cell and hidden states
+  auto lstm_params = model.getLSTMParams();
+  for (int i = 0; i < 25; i++)
   {
-    for (int i = 0; i < 3; i++)
-    {
-      input(i) = inputs[i + 3 * point];
-    }
-    model.resetHiddenCellCPU();
-    model.forward(input, output);
+    lstm_params.initial_hidden[i] = init_hidden[i];
+    lstm_params.initial_cell[i] = init_cell[i];
+  }
+  model.setLSTMParams(lstm_params);
 
-    for (int i = 0; i < 2; i++)
-    {
-      EXPECT_NEAR(output[i], outputs[i + 2 * point], tol) << "point " << point << " at dim " << i;
-    }
+  for (int point = 0; point < num_points; point++)
+  {
     for (int i = 0; i < 25; i++)
     {
-      EXPECT_NEAR(model.getHiddenState()[i], hidden[i + 25 * point], tol) << "point " << point << " at dim " << i;
-      EXPECT_NEAR(model.getCellState()[i], cell[i + 25 * point], tol) << "point " << point << " at dim " << i;
+      lstm_params.initial_hidden[i] = init_hidden[25 * point + i];
+      lstm_params.initial_cell[i] = init_cell[25 * point + i];
+    }
+    model.setLSTMParams(lstm_params);
+    for (int t = 0; t < T; t++)
+    {
+      for (int i = 0; i < 3; i++)
+      {
+        input(i) = inputs[point * T * 3 + t * 3 + i];
+      }
+      model.forward(input, output);
+
+      for (int i = 0; i < 2; i++)
+      {
+        EXPECT_NEAR(output[i], outputs[point * T * 2 + t * 2 + i], tol) << "point " << point << " at dim " << i;
+      }
+      for (int i = 0; i < 25; i++)
+      {
+        EXPECT_NEAR(model.getHiddenState()[i], hidden[point * T * 25 + 25 * t + i], tol)
+            << "point " << point << " at dim " << i;
+        EXPECT_NEAR(model.getCellState()[i], cell[point * T * 25 + 25 * t + i], tol)
+            << "point " << point << " at dim " << i;
+      }
     }
   }
 }
@@ -392,7 +414,10 @@ TEST_F(LSTMHelperTest, LoadModelNPZTest)
   LSTM model;
   model.GPUSetup();
 
-  std::string path = mppi::tests::test_lstm_network;
+  int num_points = 100;
+  int T = 100;
+
+  std::string path = mppi::tests::test_lstm_lstm;
   if (!fileExists(path))
   {
     std::cerr << "Could not load neural net model at path: " << path.c_str();
@@ -401,11 +426,11 @@ TEST_F(LSTMHelperTest, LoadModelNPZTest)
   cnpy::npz_t param_dict = cnpy::npz_load(path);
   model.loadParams(param_dict);
 
-  path = mppi::tests::test_lstm_input_output;
-
   cnpy::npz_t input_outputs = cnpy::npz_load(path);
   double* inputs = input_outputs.at("input").data<double>();
   double* outputs = input_outputs.at("output").data<double>();
+  double* init_hidden = input_outputs.at("init_hidden").data<double>();
+  double* init_cell = input_outputs.at("init_cell").data<double>();
   double* hidden = input_outputs.at("hidden").data<double>();
   double* cell = input_outputs.at("cell").data<double>();
 
@@ -414,23 +439,42 @@ TEST_F(LSTMHelperTest, LoadModelNPZTest)
   LSTM::input_array input;
   LSTM::output_array output;
 
-  for (int point = 0; point < 1000; point++)
+  // sets the inital cell and hidden states
+  auto lstm_params = model.getLSTMParams();
+  for (int i = 0; i < 25; i++)
   {
-    for (int i = 0; i < 3; i++)
-    {
-      input(i) = inputs[i + 3 * point];
-    }
-    model.resetHiddenCellCPU();
-    model.forward(input, output);
+    lstm_params.initial_hidden[i] = init_hidden[i];
+    lstm_params.initial_cell[i] = init_cell[i];
+  }
+  model.setLSTMParams(lstm_params);
 
-    for (int i = 0; i < 2; i++)
-    {
-      EXPECT_NEAR(output[i], outputs[i + 2 * point], tol) << "point " << point << " at dim " << i;
-    }
+  for (int point = 0; point < num_points; point++)
+  {
     for (int i = 0; i < 25; i++)
     {
-      EXPECT_NEAR(model.getHiddenState()[i], hidden[i + 25 * point], tol) << "point " << point << " at dim " << i;
-      EXPECT_NEAR(model.getCellState()[i], cell[i + 25 * point], tol) << "point " << point << " at dim " << i;
+      lstm_params.initial_hidden[i] = init_hidden[25 * point + i];
+      lstm_params.initial_cell[i] = init_cell[25 * point + i];
+    }
+    model.setLSTMParams(lstm_params);
+    for (int t = 0; t < T; t++)
+    {
+      for (int i = 0; i < 3; i++)
+      {
+        input(i) = inputs[point * T * 3 + t * 3 + i];
+      }
+      model.forward(input, output);
+
+      for (int i = 0; i < 2; i++)
+      {
+        EXPECT_NEAR(output[i], outputs[point * T * 2 + t * 2 + i], tol) << "point " << point << " at dim " << i;
+      }
+      for (int i = 0; i < 25; i++)
+      {
+        EXPECT_NEAR(model.getHiddenState()[i], hidden[point * T * 25 + 25 * t + i], tol)
+            << "point " << point << " at dim " << i;
+        EXPECT_NEAR(model.getCellState()[i], cell[point * T * 25 + 25 * t + i], tol)
+            << "point " << point << " at dim " << i;
+      }
     }
   }
 }

@@ -89,6 +89,7 @@ public:
 
   void loadParams(const std::string& model_path);
   void loadParams(const cnpy::npz_t& npz);
+  void loadParams(std::string prefix, const cnpy::npz_t& npz);
 
   __device__ __host__ PARAMS_T getLSTMParams() {
     return params_;

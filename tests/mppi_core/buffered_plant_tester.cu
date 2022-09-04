@@ -513,3 +513,5 @@ TEST_F(BufferedPlantTest, getInterpBuffer)
     EXPECT_NEAR(buffer.at("steering_vel")(t), time, precision) << "at time " << t << " " << time;
   }
 }
+
+// TODO test case where we want something that isn't there... have to check on every get form map in dynamics

@@ -352,13 +352,24 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(const std::strin
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
 void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(const cnpy::npz_t& param_dict)
 {
-  // assumes it has been unonioned
-  output_nn_->loadParams(param_dict);
+  loadParams("", param_dict);
+}
 
-  cnpy::NpyArray weight_hh_raw = param_dict.at("weight_hh_l0");
-  cnpy::NpyArray bias_hh_raw = param_dict.at("bias_hh_l0");
-  cnpy::NpyArray weight_ih_raw = param_dict.at("weight_ih_l0");
-  cnpy::NpyArray bias_ih_raw = param_dict.at("bias_ih_l0");
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& param_dict)
+{
+  if (!prefix.empty() && *prefix.rbegin() != '/')
+  {
+    prefix.append("/");
+  }
+
+  // assumes it has been unonioned
+  output_nn_->loadParams(prefix + "output/", param_dict);
+
+  cnpy::NpyArray weight_hh_raw = param_dict.at(prefix + "lstm/weight_hh_l0");
+  cnpy::NpyArray bias_hh_raw = param_dict.at(prefix + "lstm/bias_hh_l0");
+  cnpy::NpyArray weight_ih_raw = param_dict.at(prefix + "lstm/weight_ih_l0");
+  cnpy::NpyArray bias_ih_raw = param_dict.at(prefix + "lstm/bias_ih_l0");
   double* weight_hh = weight_hh_raw.data<double>();
   double* bias_hh = bias_hh_raw.data<double>();
   double* weight_ih = weight_ih_raw.data<double>();
