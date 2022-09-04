@@ -48,12 +48,12 @@ void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(const cnpy::npz_t& param_dict)
 }
 
 template <class PARAMS_T, bool USE_SHARED>
-void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& param_dict)
+void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& param_dict, bool add_slash)
 {
   int i, j, k;
   std::string bias_name = "";
   std::string weight_name = "";
-  if (!prefix.empty() && *prefix.rbegin() != '/')
+  if (add_slash && !prefix.empty() && *prefix.rbegin() != '/')
   {
     prefix.append("/");
   }

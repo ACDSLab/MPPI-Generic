@@ -356,9 +356,10 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(const cnpy::npz_
 }
 
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& param_dict)
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& param_dict,
+                                                                bool add_slash)
 {
-  if (!prefix.empty() && *prefix.rbegin() != '/')
+  if (add_slash && !prefix.empty() && *prefix.rbegin() != '/')
   {
     prefix.append("/");
   }

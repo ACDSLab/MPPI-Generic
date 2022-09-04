@@ -73,7 +73,7 @@ public:
 
   void loadParams(const std::string& model_path);
   void loadParams(const cnpy::npz_t& npz);
-  void loadParams(std::string prefix, const cnpy::npz_t& npz);
+  void loadParams(std::string prefix, const cnpy::npz_t& npz, bool add_slash = true);
 
   void CPUSetup();
 

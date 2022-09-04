@@ -408,6 +408,64 @@ TEST_F(LSTMHelperTest, LoadModelPathTest)
   }
 }
 
+TEST_F(LSTMHelperTest, LoadModelPathInitTest)
+{
+  using LSTM = LSTMHelper<LSTMParams<3, 60>, FNNParams<63, 15, 15, 50>>;
+  LSTM model;
+  model.GPUSetup();
+
+  int num_points = 1;
+  int T = 6;
+
+  std::string path = mppi::tests::test_lstm_lstm;
+  if (!fileExists(path))
+  {
+    std::cerr << "Could not load neural net model at path: " << path.c_str();
+    exit(-1);
+  }
+  cnpy::npz_t param_dict = cnpy::npz_load(path);
+  model.loadParams("init_", param_dict, false);
+
+  cnpy::npz_t input_outputs = cnpy::npz_load(path);
+  double* init_inputs = input_outputs.at("init_input").data<double>();
+  double* init_hidden = input_outputs.at("init_hidden").data<double>();
+  double* init_cell = input_outputs.at("init_cell").data<double>();
+  double* init_step_hidden = input_outputs.at("init_step_hidden").data<double>();
+  double* init_step_cell = input_outputs.at("init_step_cell").data<double>();
+
+  double tol = 1e-5;
+
+  LSTM::input_array input;
+  LSTM::output_array output;
+
+  for (int point = 0; point < num_points; point++)
+  {
+    // run the init network and ensure initial hidden/cell match
+    model.resetHiddenCPU();
+    for (int t = 0; t < T; t++)
+    {
+      for (int i = 0; i < 3; i++)
+      {
+        input(i) = init_inputs[point * T * 3 + t * 3 + i];
+      }
+
+      model.forward(input, output);
+      for (int i = 0; i < 60; i++)
+      {
+        EXPECT_NEAR(model.getHiddenState()(i), init_step_hidden[60 * point * T + t * 60 + i], tol)
+            << "at t " << t << " dim " << i;
+        EXPECT_NEAR(model.getCellState()(i), init_step_cell[60 * point * T + t * 60 + i], tol)
+            << "at t " << t << " dim " << i;
+      }
+    }
+    for (int i = 0; i < 25; i++)
+    {
+      EXPECT_NEAR(output(i), init_hidden[25 * point + i], tol);
+      EXPECT_NEAR(output(i + 25), init_cell[25 * point + i], tol);
+    }
+  }
+}
+
 TEST_F(LSTMHelperTest, LoadModelNPZTest)
 {
   using LSTM = LSTMHelper<LSTMParams<3, 25>, FNNParams<28, 30, 30, 2>>;

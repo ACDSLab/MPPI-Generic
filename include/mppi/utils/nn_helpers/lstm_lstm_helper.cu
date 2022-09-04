@@ -63,6 +63,25 @@ void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::loadParamsLSTM(const cnpy::npz
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
+void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::loadParams(std::string prefix, std::string model_path)
+{
+  if (!prefix.empty() && *prefix.rbegin() != '/')
+  {
+    prefix.append("/");
+  }
+
+  if (!fileExists(model_path))
+  {
+    std::cerr << "Could not load neural net model at path: " << model_path.c_str();
+    exit(-1);
+  }
+  cnpy::npz_t param_dict = cnpy::npz_load(model_path);
+
+  lstm_->loadParams(prefix, param_dict);
+  init_model_->loadParams(prefix + "init_", param_dict, false);
+}
+
+template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::GPUSetup()
 {
   lstm_->GPUSetup();
