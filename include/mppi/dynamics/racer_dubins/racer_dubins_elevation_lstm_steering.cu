@@ -24,6 +24,15 @@ RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string p
 {
   this->requires_buffer_ = true;
   lstm_lstm_helper_ = std::make_shared<NN>(path, stream);
+
+  if (!fileExists(path))
+  {
+    std::cerr << "Could not load neural net model at path: " << path.c_str();
+    exit(-1);
+  }
+  cnpy::npz_t param_dict = cnpy::npz_load(path);
+  this->params_.max_steer_rate = param_dict.at("params/max_steer_rate").data<float>()[0];
+  this->params_.steering_constant = param_dict.at("params/steering_constant").data<float>()[0];
 }
 
 void RacerDubinsElevationLSTMSteering::GPUSetup()
@@ -228,9 +237,10 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(STEER_ANGLE)] =
-      (control[1] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) * params_p->steering_constant;
-  state_der[S_INDEX(STEER_ANGLE)] =
-      max(min(state_der[S_INDEX(STEER_ANGLE)], params_p->max_steer_rate), -params_p->max_steer_rate);
+      max(min((control[1] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+                  params_p->steering_constant,
+              params_p->max_steer_rate),
+          -params_p->max_steer_rate);
 
   const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
   // loads in the input to the network

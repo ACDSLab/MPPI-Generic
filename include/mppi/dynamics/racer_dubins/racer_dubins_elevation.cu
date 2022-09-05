@@ -244,9 +244,10 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(STEER_ANGLE)] =
-      (control[1] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) * params_p->steering_constant;
-  state_der[S_INDEX(STEER_ANGLE)] =
-      max(min(state_der[S_INDEX(STEER_ANGLE)], params_p->max_steer_rate), -params_p->max_steer_rate);
+      max(min((control[1] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+                  params_p->steering_constant,
+              params_p->max_steer_rate),
+          -params_p->max_steer_rate);
 
   // Calculate the next state
   float3 front_left = make_float3(2.981, 0.737, 0);
