@@ -17,6 +17,15 @@ LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper<INIT_T, LSTM_T, INIT
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
+LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string path,
+                                                                                         cudaStream_t stream)
+{
+  init_model_ = std::make_shared<INIT_T>();
+  lstm_ = std::make_shared<LSTM_T>(stream);
+  loadParams("model", path);
+}
+
+template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::initializeLSTM(const Eigen::Ref<const init_buffer>& buffer)
 {
   // reset hidden/cell state

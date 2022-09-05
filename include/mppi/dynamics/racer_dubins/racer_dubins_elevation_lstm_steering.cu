@@ -19,12 +19,11 @@ RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(RacerDubinsEl
   lstm_lstm_helper_ = std::make_shared<NN>(stream);
 }
 
-RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string init_path, std::string lstm_path,
-                                                                   cudaStream_t stream)
+RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream)
   : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>(stream)
 {
   this->requires_buffer_ = true;
-  lstm_lstm_helper_ = std::make_shared<NN>(init_path, lstm_path, stream);
+  lstm_lstm_helper_ = std::make_shared<NN>(path, stream);
 }
 
 void RacerDubinsElevationLSTMSteering::GPUSetup()
@@ -33,8 +32,6 @@ void RacerDubinsElevationLSTMSteering::GPUSetup()
   // makes sure that the device ptr sees the correct lstm model
   this->network_d_ = lstm_lstm_helper_->getLSTMDevicePtr();
   PARENT_CLASS::GPUSetup();
-  // HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->network_d_), &(*lstm_lstm_helper_->getLSTMModel()->network_d_),
-  //                              sizeof(LSTM*), cudaMemcpyHostToDevice, this->stream_));
 }
 
 void RacerDubinsElevationLSTMSteering::freeCudaMem()

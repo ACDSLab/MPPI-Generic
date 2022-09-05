@@ -36,6 +36,7 @@ public:
 
   LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(cudaStream_t = 0);
   LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string init_path, std::string lstm_path, cudaStream_t = 0);
+  LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string path, cudaStream_t = 0);
 
   void loadParams(std::string prefix, std::string path);
 

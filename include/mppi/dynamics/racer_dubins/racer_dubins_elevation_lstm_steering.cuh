@@ -16,7 +16,7 @@ public:
   typedef FNNParams<65, 100, 10> FNN_INIT_PARAMS;
   typedef LSTMHelper<LSTMParams<6, 5>, FNN_PARAMS> LSTM;
   typedef LSTMHelper<LSTMParams<5, 60>, FNN_INIT_PARAMS> INIT_LSTM;
-  typedef LSTMLSTMHelper<INIT_LSTM, LSTM, 50> NN;
+  typedef LSTMLSTMHelper<INIT_LSTM, LSTM, 51> NN;
 
   static const int SHARED_MEM_REQUEST_GRD = RacerDubinsElevation::SHARED_MEM_REQUEST_GRD +
       NN::SHARED_MEM_REQUEST_GRD;
@@ -25,7 +25,7 @@ public:
 
   RacerDubinsElevationLSTMSteering(cudaStream_t stream = nullptr);
   RacerDubinsElevationLSTMSteering(RacerDubinsElevationParams& params, cudaStream_t stream = nullptr);
-  RacerDubinsElevationLSTMSteering(std::string init_path, std::string lstm_path, cudaStream_t stream = nullptr);
+  RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream = nullptr);
 
   void GPUSetup();
 
