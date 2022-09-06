@@ -36,33 +36,8 @@ void RacerDubinsElevationImpl<CLASS_T>::updateState(const Eigen::Ref<const state
   next_state(S_INDEX(STEER_ANGLE)) =
       max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
+  next_state(S_INDEX(BRAKE_STATE)) = min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), 1.0f);
 }
-
-// __device__ void RacerDubinsElevation::updateState(float* state, float* next_state, float* state_der, const float dt)
-// {
-//   int i;
-//   int tdy = threadIdx.y;
-//   // Add the state derivative time dt to the current state.
-//   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-//   for (i = tdy; i < 5; i += blockDim.y)
-//   {
-//     next_state[i] = state[i] + state_der[i] * dt;
-//     if (i == S_INDEX(VEL_X))
-//     {
-//       next_state[S_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
-//     }
-//     if (i == S_INDEX(YAW))
-//     {
-//       next_state[i] = angle_utils::normalizeAngle(next_state[i]);
-//     }
-//     if (i == S_INDEX(STEER_ANGLE))
-//     {
-//       next_state[S_INDEX(STEER_ANGLE)] =
-//           max(min(next_state[S_INDEX(STEER_ANGLE)], this->params_.max_steer_angle), -this->params_.max_steer_angle);
-//       next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
-//     }
-//   }
-// }
 
 template <class CLASS_T>
 void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
@@ -73,28 +48,33 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
   // computeStateDeriv(state, control, state_der);
   bool enable_brake = control(0) < 0;
   int index = (abs(state(0)) > 0.2 && abs(state(0)) <= 3.0) + (abs(state(0)) > 3.0) * 2;
+
+  state_der(S_INDEX(BRAKE_STATE)) =
+      min(max((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
+                  this->params_.brake_delay_constant,
+              -this->params_.max_brake_rate_neg),
+          this->params_.max_brake_rate_pos);
   // applying position throttle
   float throttle = this->params_.c_t[index] * control(0);
-  float brake = this->params_.c_b[index] * control(0) * (state(0) >= 0 ? 1 : -1);
+  float brake = this->params_.c_b[index] * state(S_INDEX(BRAKE_STATE)) * (state(0) >= 0 ? -1 : 1);
   float linear_brake_slope = 0.9f * (2 / dt);
   if (abs(state(0)) <= this->params_.c_b[index] / linear_brake_slope)
   {
     throttle = this->params_.c_t[index] * max(control(0) - this->params_.low_min_throttle, 0.0f);
-    brake = linear_brake_slope * control(0) * state(0);
+    brake = linear_brake_slope * state(S_INDEX(BRAKE_STATE)) * -state(0);
   }
 
-  state_der(0) = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
-                 this->params_.c_v[index] * state(0) + this->params_.c_0;
+  state_der(0) = (!enable_brake) * throttle * this->params_.gear_sign + brake - this->params_.c_v[index] * state(0) +
+                 this->params_.c_0;
   if (abs(state[6]) < M_PI_2)
   {
-    state_der[0] -= this->params_.gravity * sinf(state[6]);
+    state_der[0] -= this->params_.gravity * sinf(state[S_INDEX(PITCH)]);
   }
   state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4) / this->params_.steer_angle_scale[index]);
   state_der(2) = state(0) * cosf(state(1));
   state_der(3) = state(0) * sinf(state(1));
   state_der(4) = (control(1) * this->params_.steer_command_angle_scale - state(4)) * this->params_.steering_constant;
   state_der(4) = max(min(state_der(4), this->params_.max_steer_rate), -this->params_.max_steer_rate);
-  // state(8) = state_der(0);
 
   // Integrate using racer_dubins updateState
   updateState(state, next_state, state_der, dt);
@@ -132,7 +112,7 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
     rear_diff = max(min(rear_diff, 0.736 * 2), -0.736 * 2);
     float front_roll = asinf(front_diff / (0.737 * 2));
     float rear_roll = asinf(rear_diff / (0.737 * 2));
-    next_state(5) = (front_roll + rear_roll) / 2;
+    next_state(S_INDEX(ROLL)) = (front_roll + rear_roll) / 2;
 
     float left_diff = rear_left_height - front_left_height;
     left_diff = max(min(left_diff, 2.98), -2.98);
@@ -140,21 +120,21 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
     right_diff = max(min(right_diff, 2.98), -2.98);
     float left_pitch = asinf((left_diff) / 2.981);
     float right_pitch = asinf((right_diff) / 2.981);
-    next_state(6) = (left_pitch + right_pitch) / 2;
+    next_state(S_INDEX(PITCH)) = (left_pitch + right_pitch) / 2;
   }
   else
   {
-    next_state(5) = 0;
-    next_state(6) = 0;
+    next_state(S_INDEX(ROLL)) = 0;
+    next_state(S_INDEX(PITCH)) = 0;
   }
 
-  if (isnan(next_state(5)) || isinf(next_state(5)) || abs(next_state(5)) > M_PI)
+  if (isnan(next_state(S_INDEX(ROLL))) || isinf(next_state(S_INDEX(ROLL))) || abs(next_state(S_INDEX(ROLL))) > M_PI)
   {
-    next_state(5) = 4.0;
+    next_state(S_INDEX(ROLL)) = 4.0;
   }
-  if (isnan(next_state(6)) || isinf(next_state(6)) || abs(next_state(6)) > M_PI)
+  if (isnan(next_state(S_INDEX(PITCH))) || isinf(next_state(S_INDEX(PITCH))) || abs(next_state(S_INDEX(PITCH))) > M_PI)
   {
-    next_state(6) = 4.0;
+    next_state(S_INDEX(PITCH)) = 4.0;
   }
 
   // Setup output
@@ -220,19 +200,26 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   bool enable_brake = control[0] < 0;
   int index = (fabsf(state[S_INDEX(VEL_X)]) > 0.2 && fabsf(state[S_INDEX(VEL_X)]) <= 3.0) +
               (fabsf(state[S_INDEX(VEL_X)]) > 3.0) * 2;
+
+  state_der[S_INDEX(BRAKE_STATE)] =
+      min(max((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
+                  this->params_.brake_delay_constant,
+              -this->params_.max_brake_rate_neg),
+          this->params_.max_brake_rate_pos);
+
   // applying position throttle
   float throttle = params_p->c_t[index] * control[0];
-  float brake = params_p->c_b[index] * control[0] * (state[S_INDEX(VEL_X)] >= 0 ? 1 : -1);
+  float brake = params_p->c_b[index] * state[S_INDEX(BRAKE_STATE)] * (state[S_INDEX(VEL_X)] >= 0 ? -1 : 1);
   float linear_brake_slope = 0.9f * (2 / dt);
   if (abs(state[S_INDEX(VEL_X)]) <= params_p->c_b[index] / linear_brake_slope)
   {
     throttle = params_p->c_t[index] * max(control[0] - params_p->low_min_throttle, 0.0f);
-    brake = linear_brake_slope * control[0] * state[S_INDEX(VEL_X)];
+    brake = linear_brake_slope * state[S_INDEX(BRAKE_STATE)] * -state[S_INDEX(VEL_X)];
   }
 
   if (threadIdx.y == 0)
   {
-    state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
+    state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * this->params_.gear_sign + brake -
                                 params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
     if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
     {
@@ -268,8 +255,8 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   rear_right = make_float3(rear_right.x * cosf(state[1]) - rear_right.y * sinf(state[1]) + state[2],
                            rear_right.x * sinf(state[1]) + rear_right.y * cosf(state[1]) + state[3], 0);
 
-  // Set to 7 as the last 2 states do not do euler integration
-  for (int i = tdy; i < 7; i += blockDim.y)
+  // Set to 8 as the last 2 states do not do euler integration
+  for (int i = tdy; i < 8; i += blockDim.y)
   {
     next_state[i] = state[i] + state_der[i] * dt;
     switch (i)
@@ -282,6 +269,8 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
             max(min(next_state[S_INDEX(STEER_ANGLE)], this->params_.max_steer_angle), -this->params_.max_steer_angle);
         next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
         break;
+      case S_INDEX(BRAKE_STATE):
+        next_state[S_INDEX(BRAKE_STATE)] = min(max(next_state[S_INDEX(BRAKE_STATE)], 0.0f), 1.0f);
     }
     if (i == S_INDEX(ROLL) || i == S_INDEX(PITCH))
     {
@@ -302,7 +291,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
           rear_diff = max(min(rear_diff, 0.736 * 2), -0.736 * 2);
           float front_roll = asinf(front_diff / (0.737 * 2));
           float rear_roll = asinf(rear_diff / (0.737 * 2));
-          next_state[5] = (front_roll + rear_roll) / 2;
+          next_state[i] = (front_roll + rear_roll) / 2;
         }
         if (i == S_INDEX(PITCH))
         {
@@ -312,10 +301,10 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
           right_diff = max(min(right_diff, 2.98), -2.98);
           float left_pitch = asinf((left_diff) / 2.981);
           float right_pitch = asinf((right_diff) / 2.981);
-          next_state[6] = (left_pitch + right_pitch) / 2;
-          if (isnan(next_state[6]) || isinf(next_state[6]) || fabsf(next_state[6]) > M_PIf32)
+          next_state[i] = (left_pitch + right_pitch) / 2;
+          if (isnan(next_state[i]) || isinf(next_state[i]) || fabsf(next_state[i]) > M_PIf32)
           {
-            next_state[6] = 4.0;
+            next_state[i] = 4.0;
           }
         }
         if (isnan(next_state[i]) || isinf(next_state[i]) || fabsf(next_state[i]) > M_PIf32)
@@ -325,8 +314,8 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
       }
       else
       {
-        next_state[5] = 0;
-        next_state[6] = 0;
+        next_state[i] = 0;
+        next_state[i] = 0;
       }
     }
   }
@@ -367,8 +356,7 @@ RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, floa
 {
   state_array s = state_array::Zero();
   if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
-      map.find("POS_Y") == map.end() || map.find("ROLL") == map.end() || map.find("PITCH") == map.end() ||
-      map.find("STEER_ANGLE") == map.end() || map.find("STEER_ANGLE_RATE") == map.end())
+      map.find("POS_Y") == map.end() || map.find("ROLL") == map.end() || map.find("PITCH") == map.end())
   {
     return s;
   }
@@ -388,5 +376,17 @@ RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, floa
   }
   s(S_INDEX(ROLL)) = map.at("ROLL");
   s(S_INDEX(PITCH)) = map.at("PITCH");
+  if (map.find("BRAKE_STATE") != map.end())
+  {
+    s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");
+  }
+  else if (map.find("BRAKE_CMD") != map.end())
+  {
+    s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_CMD");
+  }
+  else
+  {
+    s(S_INDEX(BRAKE_STATE)) = 0;
+  }
   return s;
 }

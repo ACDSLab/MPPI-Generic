@@ -26,7 +26,7 @@ public:
 TEST_F(RacerDubinsElevationTest, Template)
 {
   auto dynamics = RacerDubinsElevation();
-  EXPECT_EQ(8, RacerDubinsElevation::STATE_DIM);
+  EXPECT_EQ(9, RacerDubinsElevation::STATE_DIM);
   EXPECT_EQ(2, RacerDubinsElevation::CONTROL_DIM);
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
 }
@@ -346,6 +346,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), 0.0, tol);
   EXPECT_NEAR(output(23), 0.0, tol);
 
   // Apply full throttle from zero state
@@ -361,6 +362,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), 0.0, tol);
   EXPECT_NEAR(output(23), 1.6, tol);
 
   // Apply throttle to a state with positive velocity
@@ -376,6 +378,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), 0.0, tol);
   EXPECT_NEAR(output(23), 19.5, tol);
 
   // Apply full throttle and half left turn to origin state
@@ -390,7 +393,8 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(4), powf(0.5, 3) * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), powf(0.5, 3), tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), powf(0.5, 3), tol);
   EXPECT_NEAR(output(23), 1.6, tol);
 
   // Apply full throttle and half left turn to a moving state oriented 30 degrees to the left
@@ -406,7 +410,8 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(4), powf(0.5, 3) * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), powf(0.5, 3), tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), powf(0.5, 3), tol);
   EXPECT_NEAR(output(23), 19.5, tol);
 
   // Apply full throttle and half left turn to a moving state oriented 30 degrees to the left which is already turning
@@ -422,11 +427,12 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), 19.5, tol);
 
   // Apply full brake and half left turn to a moving state oriented 30 degrees to the left which is already turning
-  state << 1.0, yaw, 0, 0, steer_angle, -0.0, 0.0, 0, 0;
+  state << 1.0, yaw, 0, 0, steer_angle, 1.0, 0.0, 0, 0;
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(state_der(0), -10 - 0.5, tol);
@@ -435,9 +441,10 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), -10.5, tol);
 
   /**
@@ -445,7 +452,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
    * and on a downward facing hill
    */
   float pitch = 20 * M_PI / 180;
-  state << 1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  state << 1.0, yaw, 0, 0, steer_angle, 1.0, 0, pitch, 0, 0;
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), 1 + (-10.5 + 9.81 * sinf(pitch)) * dt, tol);
@@ -453,16 +460,17 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), (-10.5 + 9.81 * sinf(pitch)), tol);
 
   /**
    * Apply full brake and half left turn to a backwards moving state oriented 30 degrees to the left which is already
    * turning and on a downward facing hill
    */
-  state << -1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  state << -1.0, yaw, 0, 0, steer_angle, 1.0, 0, pitch, 0, 0;
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (10.5 + 9.81 * sinf(pitch)) * dt, tol);
@@ -470,16 +478,17 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), (10.5 + 9.81 * sinf(pitch)), tol);
 
   /**
    * Apply full brake and half right turn to a backwards moving state oriented 30 degrees to the left which is already
    * turning and on a downward facing hill
    */
-  state << -1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  state << -1.0, yaw, 0, 0, steer_angle, 1.0, 0, pitch, 0, 0;
   control << -1, -0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (10.5 + 9.81 * sinf(pitch)) * dt, tol);
@@ -487,9 +496,10 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (-0.25 - steer_angle) * 0.5 * dt, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (-0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (-0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), (10.5 + 9.81 * sinf(pitch)), tol);
 
   /**
@@ -497,7 +507,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
    * angle and steering rate. We are also on a downward facing hill and are already oriented 30 degrees to the left
    */
   steer_angle *= 100;
-  state << -1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  state << -1.0, yaw, 0, 0, steer_angle, 1.0, 0, pitch, 0, 0;
   control << -1, -0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (10.5 + 9.81 * sinf(pitch)) * dt, tol);
@@ -505,9 +515,10 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), params.max_steer_angle, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), -params.max_steer_rate, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), -params.max_steer_rate, tol);
   EXPECT_NEAR(output(23), (10.5 + 9.81 * sinf(pitch)), tol);
 }
 
@@ -643,6 +654,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), 0.0, tol);
   EXPECT_NEAR(output(23), 0.0, tol);
 
   // Apply full throttle from zero state
@@ -658,6 +670,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), 0.0, tol);
   EXPECT_NEAR(output(23), -1.6, tol);
 
   // Apply throttle to a state with positive velocity
@@ -673,6 +686,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), 0.0, tol);
   EXPECT_NEAR(output(23), -20.5, tol);
 
   // Apply full throttle and half left turn to origin state
@@ -687,7 +701,8 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(4), powf(0.5, 3) * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), powf(0.5, 3), tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), powf(0.5, 3), tol);
   EXPECT_NEAR(output(23), -1.6, tol);
 
   // Apply full throttle and half left turn to a moving state oriented 30 degrees to the left
@@ -703,7 +718,8 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(4), powf(0.5, 3) * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), powf(0.5, 3), tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), powf(0.5, 3), tol);
   EXPECT_NEAR(output(23), -20.5, tol);
 
   // Apply full throttle and half left turn to a moving state oriented 30 degrees to the left which is already turning
@@ -719,11 +735,12 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), -20.5, tol);
 
   // Apply full brake and half left turn to a moving state oriented 30 degrees to the left which is already turning
-  state << 1.0, yaw, 0, 0, steer_angle, -0.0, 0.0, 0, 0;
+  state << 1.0, yaw, 0, 0, steer_angle, 1.0, 0, 0.0, 0, 0;
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(state_der(0), -10 - 0.5, tol);
@@ -732,9 +749,10 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), -10.5, tol);
 
   /**
@@ -742,7 +760,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
    * and on a downward facing hill
    */
   float pitch = 20 * M_PI / 180;
-  state << 1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  state << 1.0, yaw, 0, 0, steer_angle, 1.0, 0, pitch, 0, 0;
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), 1 + (-10.5 + 9.81 * sinf(pitch)) * dt, tol);
@@ -750,16 +768,17 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), (-10.5 + 9.81 * sinf(pitch)), tol);
 
   /**
    * Apply full brake and half left turn to a backwards moving state oriented 30 degrees to the left which is already
    * turning and on a downward facing hill
    */
-  state << -1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  state << -1.0, yaw, 0, 0, steer_angle, 1.0, 0, pitch, 0, 0;
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (10.5 + 9.81 * sinf(pitch)) * dt, tol);
@@ -767,16 +786,17 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), (10.5 + 9.81 * sinf(pitch)), tol);
 
   /**
    * Apply full brake and half right turn to a backwards moving state oriented 30 degrees to the left which is already
    * turning and on a downward facing hill
    */
-  state << -1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  state << -1.0, yaw, 0, 0, steer_angle, 1.0, 0, pitch, 0, 0;
   control << -1, -0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (10.5 + 9.81 * sinf(pitch)) * dt, tol);
@@ -784,9 +804,10 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (-0.25 - steer_angle) * 0.5 * dt, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), (-0.25 - steer_angle) * 0.5, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), (-0.25 - steer_angle) * 0.5, tol);
   EXPECT_NEAR(output(23), (10.5 + 9.81 * sinf(pitch)), tol);
 
   /**
@@ -794,7 +815,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
    * angle and steering rate. We are also on a downward facing hill and are already oriented 30 degrees to the left
    */
   steer_angle *= 100;
-  state << -1.0, yaw, 0, 0, steer_angle, -0.0, pitch, 0, 0;
+  state << -1.0, yaw, 0, 0, steer_angle, 1.0, 0, pitch, 0, 0;
   control << -1, -0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (10.5 + 9.81 * sinf(pitch)) * dt, tol);
@@ -802,9 +823,10 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), params.max_steer_angle, tol);
-  EXPECT_NEAR(next_state(5), 0.0, tol);
+  EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
-  EXPECT_NEAR(next_state(7), -params.max_steer_rate, tol);
+  EXPECT_NEAR(next_state(7), 0.0, tol);
+  EXPECT_NEAR(next_state(8), -params.max_steer_rate, tol);
   EXPECT_NEAR(output(23), (10.5 + 9.81 * sinf(pitch)), tol);
 }
 

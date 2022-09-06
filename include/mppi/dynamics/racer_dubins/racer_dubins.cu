@@ -7,10 +7,16 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::Ref<const 
                                                          Eigen::Ref<state_array> state_der)
 {
   bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0;
+
+  state_der(S_INDEX(BRAKE_STATE)) =
+      min(max((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
+                  this->params_.brake_delay_constant,
+              -this->params_.max_brake_rate_neg),
+          this->params_.max_brake_rate_pos);
   // applying position throttle
   state_der(S_INDEX(VEL_X)) =
       (!enable_brake) * this->params_.c_t[0] * control(C_INDEX(THROTTLE_BRAKE)) * this->params_.gear_sign +
-      (enable_brake) * this->params_.c_b[0] * control(C_INDEX(THROTTLE_BRAKE)) * (state(S_INDEX(VEL_X)) >= 0 ? 1 : -1) -
+      this->params_.c_b[0] * state(S_INDEX(BRAKE_STATE)) * (state(S_INDEX(VEL_X)) >= 0 ? -1 : 1) -
       this->params_.c_v[0] * state(S_INDEX(VEL_X)) + this->params_.c_0;
   state_der(S_INDEX(YAW)) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
                             tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale[0]);
@@ -37,7 +43,7 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(const Eigen::Ref<const stat
                                                      Eigen::Ref<state_array> state_der, const float dt)
 {
   // Segmented it to ensure that roll and pitch don't get overwritten
-  for (int i = 0; i < 5; i++)
+  for (int i = 0; i < 6; i++)
   {
     next_state[i] = state[i] + state_der[i] * dt;
   }
@@ -46,6 +52,7 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(const Eigen::Ref<const stat
       max(min(state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
   next_state(S_INDEX(ACCEL_X)) = state_der(S_INDEX(VEL_X));  // include accel in state
+  next_state(S_INDEX(BRAKE_STATE)) = min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), 1.0f);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -65,7 +72,7 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(float* state, fl
   int tdy = threadIdx.y;
   // Add the state derivative time dt to the current state.
   // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-  for (i = tdy; i < 5; i += blockDim.y)
+  for (i = tdy; i < 6; i += blockDim.y)
   {
     next_state[i] = state[i] + state_der[i] * dt;
     if (i == S_INDEX(VEL_X))
@@ -80,6 +87,10 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(float* state, fl
     {
       next_state[i] = max(min(next_state[i], this->params_.max_steer_angle), -this->params_.max_steer_angle);
       next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[i];
+    }
+    if (i == S_INDEX(BRAKE_STATE))
+    {
+      next_state[i] = min(max(next_state[i], 0.0f), 1.0f);
     }
   }
 }
@@ -129,20 +140,27 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(float* state
                                                                     float* theta_s)
 {
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
+
+  state_der[S_INDEX(BRAKE_STATE)] =
+      min(max((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
+                  this->params_.brake_delay_constant,
+              -this->params_.max_brake_rate_neg),
+          this->params_.max_brake_rate_pos);
+
   // applying position throttle
   state_der[S_INDEX(VEL_X)] =
       (!enable_brake) * this->params_.c_t[0] * control[0] * this->params_.gear_sign +
-      (enable_brake) * this->params_.c_b[0] * control[0] * (state[S_INDEX(VEL_X)] >= 0 ? 1 : -1) -
+      this->params_.c_b[0] * state[S_INDEX(BRAKE_STATE)] * (state[S_INDEX(VEL_X)] >= 0 ? -1 : 1) -
       this->params_.c_v[0] * state[S_INDEX(VEL_X)] + this->params_.c_0;
   state_der[S_INDEX(YAW)] = (state[S_INDEX(VEL_X)] / this->params_.wheel_base) *
                             tan(state[S_INDEX(STEER_ANGLE)] / this->params_.steer_angle_scale[0]);
   state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(STEER_ANGLE)] =
-      (control[1] * this->params_.steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
-      this->params_.steering_constant;
-  state_der[S_INDEX(STEER_ANGLE)] =
-      max(min(state_der[S_INDEX(STEER_ANGLE)], this->params_.max_steer_rate), -this->params_.max_steer_rate);
+      max(min((control[1] * this->params_.steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+                  this->params_.steering_constant,
+              this->params_.max_steer_rate),
+          -this->params_.max_steer_rate);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -216,6 +234,11 @@ RacerDubinsImpl<CLASS_T, PARAMS_T>::state_array
 RacerDubinsImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::string, float>& map)
 {
   state_array s = state_array::Zero();
+  if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
+      map.find("POS_Y") == map.end())
+  {
+    return s;
+  }
   s(S_INDEX(POS_X)) = map.at("POS_X");
   s(S_INDEX(POS_Y)) = map.at("POS_Y");
   s(S_INDEX(VEL_X)) = map.at("VEL_X");
@@ -229,6 +252,18 @@ RacerDubinsImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::string, flo
   {
     s(S_INDEX(STEER_ANGLE)) = 0;
     s(S_INDEX(STEER_ANGLE_RATE)) = 0;
+  }
+  if (map.find("BRAKE_STATE") != map.end())
+  {
+    s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");
+  }
+  else if (map.find("BRAKE_CMD") != map.end())
+  {
+    s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_CMD");
+  }
+  else
+  {
+    s(S_INDEX(BRAKE_STATE)) = 0;
   }
 
   return s;

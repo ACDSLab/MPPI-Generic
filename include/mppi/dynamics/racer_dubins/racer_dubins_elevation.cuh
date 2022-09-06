@@ -17,6 +17,7 @@ struct RacerDubinsElevationParams : public RacerDubinsParams
     POS_X,
     POS_Y,
     STEER_ANGLE,
+    BRAKE_STATE,
     ROLL,
     PITCH,
     STEER_ANGLE_RATE,

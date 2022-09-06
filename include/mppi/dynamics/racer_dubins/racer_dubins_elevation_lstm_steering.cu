@@ -56,21 +56,27 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
 {
   bool enable_brake = control(0) < 0;
   int index = (abs(state(0)) > 0.2 && abs(state(0)) <= 3.0) + (abs(state(0)) > 3.0) * 2;
+
+  state_der(S_INDEX(BRAKE_STATE)) =
+      min(max((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
+                  this->params_.brake_delay_constant,
+              -this->params_.max_brake_rate_neg),
+          this->params_.max_brake_rate_pos);
   // applying position throttle
   float throttle = this->params_.c_t[index] * control(0);
-  float brake = this->params_.c_b[index] * control(0) * (state(0) >= 0 ? 1 : -1);
+  float brake = this->params_.c_b[index] * state(S_INDEX(BRAKE_STATE)) * (state(0) >= 0 ? -1 : 1);
   float linear_brake_slope = 0.9f * (2 / dt);
   if (abs(state(0)) <= this->params_.c_b[index] / linear_brake_slope)
   {
     throttle = this->params_.c_t[index] * max(control(0) - this->params_.low_min_throttle, 0.0f);
-    brake = linear_brake_slope * control(0) * state(0);
+    brake = linear_brake_slope * state(S_INDEX(BRAKE_STATE)) * -state(0);
   }
 
-  state_der(0) = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
-                 this->params_.c_v[index] * state(0) + this->params_.c_0;
-  if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
+  state_der(0) = (!enable_brake) * throttle * this->params_.gear_sign + brake - this->params_.c_v[index] * state(0) +
+                 this->params_.c_0;
+  if (abs(state[6]) < M_PI_2)
   {
-    state_der[0] -= this->params_.gravity * sinf(state[6]);
+    state_der[0] -= this->params_.gravity * sinf(state[S_INDEX(PITCH)]);
   }
   state_der(1) = (state(0) / this->params_.wheel_base) * tan(state(4) / this->params_.steer_angle_scale[index]);
   state_der(2) = state(0) * cosf(state(1));
@@ -125,7 +131,7 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
     rear_diff = max(min(rear_diff, 0.736 * 2), -0.736 * 2);
     float front_roll = asinf(front_diff / (0.737 * 2));
     float rear_roll = asinf(rear_diff / (0.737 * 2));
-    next_state(5) = (front_roll + rear_roll) / 2;
+    next_state(S_INDEX(ROLL)) = (front_roll + rear_roll) / 2;
 
     float left_diff = rear_left_height - front_left_height;
     left_diff = max(min(left_diff, 2.98), -2.98);
@@ -133,21 +139,21 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
     right_diff = max(min(right_diff, 2.98), -2.98);
     float left_pitch = asinf((left_diff) / 2.981);
     float right_pitch = asinf((right_diff) / 2.981);
-    next_state(6) = (left_pitch + right_pitch) / 2;
+    next_state(S_INDEX(PITCH)) = (left_pitch + right_pitch) / 2;
   }
   else
   {
-    next_state(5) = 0;
-    next_state(6) = 0;
+    next_state(S_INDEX(ROLL)) = 0;
+    next_state(S_INDEX(PITCH)) = 0;
   }
 
-  if (isnan(next_state(5)) || isinf(next_state(5)) || abs(next_state(5)) > M_PI)
+  if (isnan(next_state(S_INDEX(ROLL))) || isinf(next_state(S_INDEX(ROLL))) || abs(next_state(S_INDEX(ROLL))) > M_PI)
   {
-    next_state(5) = 4.0;
+    next_state(S_INDEX(ROLL)) = 4.0;
   }
-  if (isnan(next_state(6)) || isinf(next_state(6)) || abs(next_state(6)) > M_PI)
+  if (isnan(next_state(S_INDEX(PITCH))) || isinf(next_state(S_INDEX(PITCH))) || abs(next_state(S_INDEX(PITCH))) > M_PI)
   {
-    next_state(6) = 4.0;
+    next_state(S_INDEX(PITCH)) = 4.0;
   }
 
   // Setup output
@@ -212,19 +218,26 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   bool enable_brake = control[0] < 0;
   int index = (fabsf(state[S_INDEX(VEL_X)]) > 0.2 && fabsf(state[S_INDEX(VEL_X)]) <= 3.0) +
               (fabsf(state[S_INDEX(VEL_X)]) > 3.0) * 2;
+
+  state_der[S_INDEX(BRAKE_STATE)] =
+      min(max((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
+                  this->params_.brake_delay_constant,
+              -this->params_.max_brake_rate_neg),
+          this->params_.max_brake_rate_pos);
+
   // applying position throttle
   float throttle = params_p->c_t[index] * control[0];
-  float brake = params_p->c_b[index] * control[0] * (state[S_INDEX(VEL_X)] >= 0 ? 1 : -1);
+  float brake = params_p->c_b[index] * state[S_INDEX(BRAKE_STATE)] * (state[S_INDEX(VEL_X)] >= 0 ? -1 : 1);
   float linear_brake_slope = 0.9f * (2 / dt);
   if (abs(state[S_INDEX(VEL_X)]) <= params_p->c_b[index] / linear_brake_slope)
   {
     throttle = params_p->c_t[index] * max(control[0] - params_p->low_min_throttle, 0.0f);
-    brake = linear_brake_slope * control[0] * state[S_INDEX(VEL_X)];
+    brake = linear_brake_slope * state[S_INDEX(BRAKE_STATE)] * -state[S_INDEX(VEL_X)];
   }
 
   if (threadIdx.y == 0)
   {
-    state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * this->params_.gear_sign + (enable_brake)*brake -
+    state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * this->params_.gear_sign + brake -
                                 params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
     if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
     {
@@ -282,8 +295,8 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   rear_right = make_float3(rear_right.x * cosf(state[1]) - rear_right.y * sinf(state[1]) + state[2],
                            rear_right.x * sinf(state[1]) + rear_right.y * cosf(state[1]) + state[3], 0);
 
-  // Set to 7 as the last 2 states do not do euler integration
-  for (int i = tdy; i < 7; i += blockDim.y)
+  // Set to 8 as the last 2 states do not do euler integration
+  for (int i = tdy; i < 8; i += blockDim.y)
   {
     next_state[i] = state[i] + state_der[i] * dt;
     switch (i)
@@ -296,6 +309,8 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
             max(min(next_state[S_INDEX(STEER_ANGLE)], this->params_.max_steer_angle), -this->params_.max_steer_angle);
         next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
         break;
+      case S_INDEX(BRAKE_STATE):
+        next_state[S_INDEX(BRAKE_STATE)] = min(max(next_state[S_INDEX(BRAKE_STATE)], 0.0f), 1.0f);
     }
     if (i == S_INDEX(ROLL) || i == S_INDEX(PITCH))
     {
@@ -316,7 +331,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
           rear_diff = max(min(rear_diff, 0.736 * 2), -0.736 * 2);
           float front_roll = asinf(front_diff / (0.737 * 2));
           float rear_roll = asinf(rear_diff / (0.737 * 2));
-          next_state[5] = (front_roll + rear_roll) / 2;
+          next_state[i] = (front_roll + rear_roll) / 2;
         }
         if (i == S_INDEX(PITCH))
         {
@@ -326,7 +341,11 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
           right_diff = max(min(right_diff, 2.98), -2.98);
           float left_pitch = asinf((left_diff) / 2.981);
           float right_pitch = asinf((right_diff) / 2.981);
-          next_state[6] = (left_pitch + right_pitch) / 2;
+          next_state[i] = (left_pitch + right_pitch) / 2;
+          if (isnan(next_state[i]) || isinf(next_state[i]) || fabsf(next_state[i]) > M_PIf32)
+          {
+            next_state[i] = 4.0;
+          }
         }
         if (isnan(next_state[i]) || isinf(next_state[i]) || fabsf(next_state[i]) > M_PIf32)
         {
@@ -335,8 +354,8 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
       }
       else
       {
-        next_state[5] = 0;
-        next_state[6] = 0;
+        next_state[i] = 0;
+        next_state[i] = 0;
       }
     }
   }
