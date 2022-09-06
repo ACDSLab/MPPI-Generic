@@ -29,6 +29,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, Template)
   auto dynamics = RacerDubinsElevationLSTMSteering();
   EXPECT_EQ(8, RacerDubinsElevationLSTMSteering::STATE_DIM);
   EXPECT_EQ(2, RacerDubinsElevationLSTMSteering::CONTROL_DIM);
+  EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
 }
 

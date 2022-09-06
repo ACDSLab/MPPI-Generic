@@ -238,8 +238,10 @@ public:
 
     // if not enough data return empty message
     std::lock_guard<std::mutex> lck(this->access_guard_);
-    if (prev_position_.begin()->time - prev_position_.rbegin()->time < buffer_tau_)
+    if (prev_position_.rbegin()->time - prev_position_.begin()->time < buffer_tau_)
     {
+      std::cout << "not enough time for buffer, returning early" << prev_position_.rbegin()->time << " - "
+                << prev_position_.begin()->time << " < " << buffer_tau_ << std::endl;
       return result;
     }
 

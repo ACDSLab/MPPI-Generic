@@ -184,7 +184,6 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
 __device__ void RacerDubinsElevationLSTMSteering::initializeDynamics(float* state, float* control, float* output,
                                                                      float* theta_s, float t_0, float dt)
 {
-  PARENT_CLASS::initializeDynamics(state, control, output, theta_s, t_0, dt);
   const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
   {  // Allows us to turn on or off global or shared memory version of params
