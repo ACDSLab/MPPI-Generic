@@ -560,7 +560,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
 
 TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPU)
 {
-  const int num_rollouts = 10;
+  const int num_rollouts = 2000;
   const float dt = 0.1f;
   CudaCheckError();
   using DYN = RacerDubinsElevationLSTMSteering;

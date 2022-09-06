@@ -524,7 +524,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
 
 TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPU)
 {
-  const int num_rollouts = 1000;
+  const int num_rollouts = 2000;
   const float dt = 0.1f;
   CudaCheckError();
   RacerDubinsElevation dynamics = RacerDubinsElevation();
@@ -832,7 +832,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
 
 TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPUReverse)
 {
-  const int num_rollouts = 1000;
+  const int num_rollouts = 2000;
   const float dt = 0.1f;
   CudaCheckError();
   RacerDubinsElevation dynamics = RacerDubinsElevation();

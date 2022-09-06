@@ -221,9 +221,9 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
 
   state_der[S_INDEX(BRAKE_STATE)] =
       min(max((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
-                  this->params_.brake_delay_constant,
-              -this->params_.max_brake_rate_neg),
-          this->params_.max_brake_rate_pos);
+                  params_p->brake_delay_constant,
+              -params_p->max_brake_rate_neg),
+          params_p->max_brake_rate_pos);
 
   // applying position throttle
   float throttle = params_p->c_t[index] * control[0];
@@ -237,7 +237,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
 
   if (threadIdx.y == 0)
   {
-    state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * this->params_.gear_sign + brake -
+    state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * params_p->gear_sign + brake -
                                 params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
     if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
     {
@@ -306,7 +306,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
         break;
       case S_INDEX(STEER_ANGLE):
         next_state[S_INDEX(STEER_ANGLE)] =
-            max(min(next_state[S_INDEX(STEER_ANGLE)], this->params_.max_steer_angle), -this->params_.max_steer_angle);
+            max(min(next_state[S_INDEX(STEER_ANGLE)], params_p->max_steer_angle), -params_p->max_steer_angle);
         next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
         break;
       case S_INDEX(BRAKE_STATE):
