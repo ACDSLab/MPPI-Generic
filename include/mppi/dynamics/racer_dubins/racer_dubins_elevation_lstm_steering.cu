@@ -197,6 +197,10 @@ __device__ void RacerDubinsElevationLSTMSteering::initializeDynamics(float* stat
     *shared_params = this->params_;
   }
   network_d_->initialize(theta_s + shift);
+  for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++)
+  {
+    output[i] = state[i];
+  }
 }
 
 __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, float* next_state, float* state_der,
