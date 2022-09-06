@@ -358,6 +358,11 @@ RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, floa
   if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
       map.find("POS_Y") == map.end() || map.find("ROLL") == map.end() || map.find("PITCH") == map.end())
   {
+    std::cout << "WARNING: could not find all keys for elevation dynamics" << std::endl;
+    for (const auto& it : map)
+    {
+      std::cout << "got key " << it.first << std::endl;
+    }
     return s;
   }
   s(S_INDEX(POS_X)) = map.at("POS_X");
@@ -371,6 +376,7 @@ RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, floa
   }
   else
   {
+    std::cout << "WARNING: unable to find BRAKE_STATE or STEER_ANGLE_RATE, using 0" << std::endl;
     s(S_INDEX(STEER_ANGLE)) = 0;
     s(S_INDEX(STEER_ANGLE_RATE)) = 0;
   }
@@ -382,10 +388,12 @@ RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, floa
   }
   else if (map.find("BRAKE_CMD") != map.end())
   {
+    std::cout << "WARNING: unable to find BRAKE_STATE" << std::endl;
     s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_CMD");
   }
   else
   {
+    std::cout << "WARNING: unable to find BRAKE_CMD or BRAKE_STATE" << std::endl;
     s(S_INDEX(BRAKE_STATE)) = 0;
   }
   return s;

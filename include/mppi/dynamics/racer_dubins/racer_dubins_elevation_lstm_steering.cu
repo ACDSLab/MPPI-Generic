@@ -397,6 +397,11 @@ void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory&
       buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
       buffer.find("STEER_CMD") == buffer.end())
   {
+    std::cout << "WARNING: not using init buffer" << std::endl;
+    for (const auto& it : buffer)
+    {
+      std::cout << "got key " << it.first << std::endl;
+    }
     return;
   }
 
