@@ -1,24 +1,22 @@
 #include "lstm_lstm_helper.cuh"
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(cudaStream_t stream)
+LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper(cudaStream_t stream)
 {
   init_model_ = std::make_shared<INIT_T>();
   lstm_ = std::make_shared<LSTM_T>(stream);
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string init_path,
-                                                                                         std::string lstm_path,
-                                                                                         cudaStream_t stream)
+LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper(std::string init_path, std::string lstm_path,
+                                                            cudaStream_t stream)
 {
   init_model_ = std::make_shared<INIT_T>(init_path);
   lstm_ = std::make_shared<LSTM_T>(lstm_path, stream);
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>
-LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string path,
-                                                                                         cudaStream_t stream)
+LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::LSTMLSTMHelper(std::string path, cudaStream_t stream)
 {
   init_model_ = std::make_shared<INIT_T>();
   lstm_ = std::make_shared<LSTM_T>(stream);

@@ -5,8 +5,7 @@
 #include "lstm_helper.cuh"
 
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>(cudaStream_t stream)
-  : Managed(stream)
+LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::LSTMHelper(cudaStream_t stream) : Managed(stream)
 {
   output_nn_ = new OUTPUT_FNN_T(stream);
   hidden_state_ = hidden_state::Zero();
@@ -14,9 +13,7 @@ LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::LSTMHelper<PARAMS_T, FNN_PARAMS_
 }
 
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>(std::string path,
-                                                                                               cudaStream_t stream)
-  : Managed(stream)
+LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::LSTMHelper(std::string path, cudaStream_t stream) : Managed(stream)
 {
   output_nn_ = new OUTPUT_FNN_T(stream);
   hidden_state_ = hidden_state::Zero();

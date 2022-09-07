@@ -5,13 +5,13 @@
 #include "fnn_helper.cuh"
 
 template <class PARAMS_T, bool USE_SHARED>
-FNNHelper<PARAMS_T, USE_SHARED>::FNNHelper<PARAMS_T, USE_SHARED>(cudaStream_t stream) : Managed(stream)
+FNNHelper<PARAMS_T, USE_SHARED>::FNNHelper(cudaStream_t stream) : Managed(stream)
 {
   CPUSetup();
 }
 
 template <class PARAMS_T, bool USE_SHARED>
-FNNHelper<PARAMS_T, USE_SHARED>::FNNHelper<PARAMS_T, USE_SHARED>(std::string model_path, cudaStream_t stream)
+FNNHelper<PARAMS_T, USE_SHARED>::FNNHelper(std::string model_path, cudaStream_t stream)
   : FNNHelper<PARAMS_T, USE_SHARED>(stream)
 {
   loadParams(model_path);
