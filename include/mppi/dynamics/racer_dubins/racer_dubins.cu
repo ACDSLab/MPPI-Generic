@@ -177,6 +177,8 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::enforceLeash(const Eigen::Ref<const sta
                                                       const Eigen::Ref<const state_array>& leash_values,
                                                       Eigen::Ref<state_array> state_output)
 {
+  state_output = state_true;
+
   // update state_output for leash, need to handle x and y positions specially, convert to body frame and leash in body
   // frame. transform x and y into body frame
   float dx = state_nominal[S_INDEX(POS_X)] - state_true[S_INDEX(POS_X)];
@@ -210,17 +212,21 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::enforceLeash(const Eigen::Ref<const sta
     }
     else if (i == S_INDEX(YAW))
     {
-      diff = fabsf(angle_utils::shortestAngularDistance(state_nominal[i], state_true[i]));
+      diff = angle_utils::shortestAngularDistance(state_true[i], state_nominal[i]);
     }
     else
     {
-      diff = fabsf(state_nominal[i] - state_true[i]);
+      diff = state_nominal[i] - state_true[i];
     }
 
-    if (leash_values[i] < diff)
+    if (leash_values[i] < fabsf(diff))
     {
-      float leash_dir = fminf(fmaxf(state_nominal[i] - state_true[i], -leash_values[i]), leash_values[i]);
+      float leash_dir = fminf(fmaxf(diff, -leash_values[i]), leash_values[i]);
       state_output[i] = state_true[i] + leash_dir;
+      if (i == S_INDEX(YAW))
+      {
+        state_output[i] = angle_utils::normalizeAngle(state_output[i]);
+      }
     }
     else
     {

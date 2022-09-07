@@ -161,6 +161,78 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(6), 0);
 }
 
+TEST(RacerDubins, enforceLeash)
+{
+  RacerDubins dynamics = RacerDubins();
+  RacerDubins::state_array state_true = RacerDubins::state_array::Zero();
+  RacerDubins::state_array state_nominal = RacerDubins::state_array::Zero();
+  RacerDubins::state_array leash_values = RacerDubins::state_array::Zero();
+  RacerDubins::state_array output;
+  double tol = 1e-7;
+
+  // if the two are equal it should match
+  state_true = RacerDubins::state_array::Random();
+  state_nominal = state_true;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  // std::cout << "true   : " << state_true.transpose() << std::endl;
+  // std::cout << "nominal: " << state_nominal.transpose() << std::endl;
+  // std::cout << "output : " << output.transpose() << std::endl;
+  EXPECT_LT((output - state_true).norm(), tol);
+
+  // if the two are very far apart but zero leash values
+  state_nominal << 1, 1, 1, 1, 1, 1, 1, 1;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_LT((output - state_true).norm(), tol);
+
+  // if the two are far apart but large leash values
+  state_nominal << 1, 1, 1, 1, 1, 1, 1, 1;
+  leash_values << 2, 2, 2, 2, 2, 2, 2, 2;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_LT((output - state_nominal).norm(), tol);
+
+  // check yaw discont
+  state_true << -3, -3, -3, -3, -3, -3, -3, -3;
+  state_nominal << 3, 3, 3, 3, 3, 3, 3, 3;
+  leash_values << 0, 1.0, 0, 0, 0, 0, 0, 0;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_FLOAT_EQ(output(0), -3);
+  EXPECT_FLOAT_EQ(output(1), 3);
+  EXPECT_FLOAT_EQ(output(2), -3);
+  EXPECT_FLOAT_EQ(output(3), -3);
+  EXPECT_FLOAT_EQ(output(4), -3);
+  EXPECT_FLOAT_EQ(output(5), -3);
+  EXPECT_FLOAT_EQ(output(6), -3);
+  EXPECT_FLOAT_EQ(output(7), -3);
+
+  // check yaw discont clamp
+  state_true << -3, -3, -3, -3, -3, -3, -3, -3;
+  state_nominal << 3, 3, 3, 3, 3, 3, 3, 3;
+  leash_values << 0, 0.15, 0, 0, 0, 0, 0, 0;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_FLOAT_EQ(output(0), -3);
+  EXPECT_FLOAT_EQ(output(1), angle_utils::normalizeAngle(-3 - 0.15));
+  EXPECT_FLOAT_EQ(output(2), -3);
+  EXPECT_FLOAT_EQ(output(3), -3);
+  EXPECT_FLOAT_EQ(output(4), -3);
+  EXPECT_FLOAT_EQ(output(5), -3);
+  EXPECT_FLOAT_EQ(output(6), -3);
+  EXPECT_FLOAT_EQ(output(7), -3);
+
+  // check yaw discont clamp
+  state_true << 3, 3, 3, 3, 3, 3, 3, 3;
+  state_nominal << -3, -3, -3, -3, -3, -3, -3, -3;
+  leash_values << 0, 0.15, 0, 0, 0, 0, 0, 0;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_FLOAT_EQ(output(0), 3);
+  EXPECT_FLOAT_EQ(output(1), angle_utils::normalizeAngle(3 + 0.15));
+  EXPECT_FLOAT_EQ(output(2), 3);
+  EXPECT_FLOAT_EQ(output(3), 3);
+  EXPECT_FLOAT_EQ(output(4), 3);
+  EXPECT_FLOAT_EQ(output(5), 3);
+  EXPECT_FLOAT_EQ(output(6), 3);
+  EXPECT_FLOAT_EQ(output(7), 3);
+}
+
 TEST(RacerDubins, TestModelGPU)
 {
   RacerDubins dynamics = RacerDubins();
