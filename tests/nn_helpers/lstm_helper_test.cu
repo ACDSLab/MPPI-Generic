@@ -39,7 +39,7 @@ TEST_F(LSTMHelperTest, ParamsConstructor1)
   const int hidden_hidden_dim = LSTMParams<5, 25>::HIDDEN_HIDDEN_SIZE;
   const int input_hidden_dim = LSTMParams<5, 25>::INPUT_HIDDEN_SIZE;
   EXPECT_EQ(shared_mem_grd, sizeof(LSTMParams<5, 25>) + sizeof(FNNParams<28, 3>) + sizeof(float));
-  EXPECT_EQ(shared_mem_blk, 25 * 8 + 5 + 29 * 2);
+  EXPECT_EQ(shared_mem_blk, 25 * 6 + 5 + 29 * 2);
   EXPECT_EQ(input_dim, 5);
   EXPECT_EQ(hidden_hidden_dim, 25 * 25);
   EXPECT_EQ(input_hidden_dim, 5 * 25);

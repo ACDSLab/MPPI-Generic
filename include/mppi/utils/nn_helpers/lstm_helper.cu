@@ -179,6 +179,25 @@ template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
 __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s,
                                                                           LSTM_PARAMS_T* params, int block_idx)
 {
+  FNN_PARAMS_T* output_params;
+  if (SHARED_MEM_REQUEST_GRD != 0)
+  {
+    const int slide = LSTM_SHARED_MEM_GRD / sizeof(float) + 1;
+    output_params = (FNN_PARAMS_T*)(theta_s + slide);
+  }
+  else
+  {
+    output_params = output_nn_->getParamsPtr();
+  }
+
+  return forward(input, theta_s, params, output_params, block_idx);
+}
+
+template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
+__device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s,
+                                                                          LSTM_PARAMS_T* params,
+                                                                          FNN_PARAMS_T* output_params, int block_idx)
+{
   // Weights
   float* W_ii = &params->W_ii[0];
   float* W_im = &params->W_im[0];
@@ -200,13 +219,11 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
   // Intermediate outputs
   float* c = &theta_s[block_idx];
   float* h = &theta_s[block_idx + HIDDEN_DIM];
-  // float* next_cell_state = &theta_s[block_idx + 2 * HIDDEN_DIM];
-  // float* next_hidden_state = &theta_s[block_idx + 3 * HIDDEN_DIM];
-  float* g_i = &theta_s[block_idx + 4 * HIDDEN_DIM];  // input gate
-  float* g_f = &theta_s[block_idx + 5 * HIDDEN_DIM];  // forget gate
-  float* g_o = &theta_s[block_idx + 6 * HIDDEN_DIM];  // output gate
-  float* cell_update = &theta_s[block_idx + 7 * HIDDEN_DIM];
-  float* x = &theta_s[block_idx + 8 * HIDDEN_DIM];
+  float* g_i = &theta_s[block_idx + 2 * HIDDEN_DIM];  // input gate
+  float* g_f = &theta_s[block_idx + 3 * HIDDEN_DIM];  // forget gate
+  float* g_o = &theta_s[block_idx + 4 * HIDDEN_DIM];  // output gate
+  float* cell_update = &theta_s[block_idx + 5 * HIDDEN_DIM];
+  float* x = &theta_s[block_idx + 6 * HIDDEN_DIM];
 
   uint tdy = threadIdx.y;
 
@@ -256,13 +273,13 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
   }
   __syncthreads();
 
-  float* output_act = &theta_s[block_idx + 8 * HIDDEN_DIM + INPUT_DIM];
+  float* output_act = &theta_s[block_idx + 6 * HIDDEN_DIM + INPUT_DIM];
 
   // copy computed hidden/cell state to theta_s
   for (i = tdy; i < HIDDEN_DIM; i += blockDim.y)
   {
     c[i] = g_i[i] * cell_update[i] + g_f[i] * c[i];
-    h[i] = TANH(c[i]) * g_o[i];
+    h[i] = TANH(c[i]) * g_o[i];  // actually using c_next intentionally
     output_act[i] = h[i];
   }
 
@@ -273,17 +290,7 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
   }
   __syncthreads();
 
-  if (SHARED_MEM_REQUEST_GRD != 0)
-  {
-    const int slide = LSTM_SHARED_MEM_GRD / sizeof(float) + 1;
-    FNN_PARAMS_T* output_params = (FNN_PARAMS_T*)(theta_s + slide);
-    return output_nn_->forward(nullptr, output_act, output_params, 0);
-  }
-  else
-  {
-    FNN_PARAMS_T* output_params = output_nn_->getParamsPtr();
-    return output_nn_->forward(nullptr, output_act, output_params, 0);
-  }
+  return output_nn_->forward(nullptr, output_act, output_params, 0);
 }
 
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
@@ -404,6 +411,6 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::getInputLocati
 {
   const int block_idx =
       (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK + SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  float* x = theta_s + block_idx + 8 * HIDDEN_DIM;
+  float* x = theta_s + block_idx + 6 * HIDDEN_DIM;
   return x;
 }

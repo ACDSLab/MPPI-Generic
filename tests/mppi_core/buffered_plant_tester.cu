@@ -141,7 +141,7 @@ protected:
     plant = std::make_shared<MockTestPlant>(mockController);
 
     generator = std::default_random_engine(7.0);
-    distribution = std::normal_distribution<float>(0.0, 1.0);
+    distribution = std::normal_distribution<float>(0.0, 100.0);
   }
 
   void TearDown() override

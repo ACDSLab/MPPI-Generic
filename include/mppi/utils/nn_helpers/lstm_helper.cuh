@@ -71,7 +71,7 @@ public:
   static const int OUTPUT_DIM = OUTPUT_FNN_T::OUTPUT_DIM;
 
   static const int NUM_PARAMS = PARAMS_T::NUM_PARAMS;   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_BLK = 8 * HIDDEN_DIM + INPUT_DIM + OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK; ///< Amount of shared memory we need per BLOCK.;
+  static const int SHARED_MEM_REQUEST_BLK = 6 * HIDDEN_DIM + INPUT_DIM + OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK; ///< Amount of shared memory we need per BLOCK.;
   static const int LSTM_SHARED_MEM_GRD = sizeof(PARAMS_T) * USE_SHARED;
   static const int SHARED_MEM_REQUEST_GRD = sizeof(PARAMS_T) * USE_SHARED + OUTPUT_FNN_T::SHARED_MEM_REQUEST_GRD + sizeof(float) * USE_SHARED;  ///< Amount of shared memory we need per ROLLOUT.;
 
@@ -113,6 +113,7 @@ public:
   void forward(const Eigen::Ref<const input_array>& input);
   __device__ float* forward(float* input, float* theta_s);
   __device__ float* forward(float* input, float* theta_s, LSTM_PARAMS_T* params, int shift);
+  __device__ float* forward(float* input, float* theta_s, LSTM_PARAMS_T* params, FNN_PARAMS_T* output_params, int shift);
   __device__ float* getInputLocation(float* theta_s);
 
   void resetHiddenCPU();

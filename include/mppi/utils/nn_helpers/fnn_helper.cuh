@@ -97,6 +97,11 @@ public:
   __device__ float* forward(float* input, float* theta_s);
   __device__ float* forward(float* input, float* theta_s, PARAMS_T* params, int shift);
 
+  void setParams(PARAMS_T& params)
+  {
+    this->params_ = params;
+  }
+
   std::array<int, NUM_LAYERS> getNetStructure()
   {
     std::array<int, NUM_LAYERS> array;
