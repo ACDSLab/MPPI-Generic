@@ -102,10 +102,12 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float
     *crash_status = 1;
   }
 
-  // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0
+  // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z ==
+  // 0
   //     && timestep == 1)
   // {
-  //   // if (isnan(costmap_cost) || isnan(gate_cost) || isnan(height_cost) || isnan(heading_cost) || isnan(speed_cost) ||
+  //   // if (isnan(costmap_cost) || isnan(gate_cost) || isnan(height_cost) || isnan(heading_cost) || isnan(speed_cost)
+  //   ||
   //   //     isnan(stable_cost) || isnan(waypoint_cost))
   //   // {
   //     printf(
@@ -113,7 +115,8 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float
   //         " Heading %5.2f, Speed %5.2f, Stabilization %5.2f, Waypoint %5.2f\n", timestep,
   //         costmap_cost, gate_cost, height_cost, heading_cost, speed_cost, stable_cost, waypoint_cost);
   //   // }
-  //   // printf("Costs %d: height - %5.2f, stable - %5.2f prev_height %5.2f, cur_height: %5.2f\n", timestep, height_cost,
+  //   // printf("Costs %d: height - %5.2f, stable - %5.2f prev_height %5.2f, cur_height: %5.2f\n", timestep,
+  //   height_cost,
   //   //        stable_cost, this->params_.prev_waypoint.z, this->params_.curr_waypoint.z);
   // }
 
@@ -221,7 +224,12 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeSpeedC
 {
   float cost = 0;
   float speed = sqrt(s[3] * s[3] + s[4] * s[4]);
-  cost = this->params_.speed_coeff * powf(speed - this->params_.desired_speed, 2);
+  float desired_speed = this->params_.desired_speed;
+  if (this->params_.curr_waypoint == this->params_.end_waypoint)
+  {
+    desired_speed = distToWaypoint(s, this->params_.curr_waypoint);
+  }
+  cost = this->params_.speed_coeff * powf(speed - desired_speed, 2);
   return cost;
 }
 
@@ -253,14 +261,37 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeGateSi
 
   float2 gate_vec = curr_left - curr_right;
   float2 state_vec = make_float2(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)]) - curr_right;
-  float comp_state_along_gate = dot(state_vec, gate_vec) / norm(gate_vec);
+  const float perp_dist = cross(state_vec, gate_vec);
+  const float comp_state_along_gate_right = dot(state_vec, gate_vec) / norm(gate_vec);
+  const float comp_state_along_gate_left = dot(state_vec, -gate_vec) / norm(gate_vec);
   // Find the side closest to the current state
-  float closest_side_dist =
+  const float closest_side_dist =
       fminf(dist_to_left_side, fminf(dist_to_right_side, fminf(prev_dist_to_left_side, prev_dist_to_right_side)));
-  if (closest_side_dist < this->params_.min_dist_to_gate_side && fabsf(comp_state_along_gate) > 1.0f)
-  {
-    cost += this->params_.crash_coeff;
+  if (fabsf(perp_dist) < this->params_.min_dist_to_gate_side &&
+      fmaxf(comp_state_along_gate_left, comp_state_along_gate_right) > 1.0f)
+  {  // Within perpendicular distance of min_dist and outside of gate
+    cost += this->params_.crash_coeff * fmaxf(comp_state_along_gate_left, comp_state_along_gate_right);
+    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&
+        blockIdx.z == 0)
+    {
+      printf("Hitting a gate: state_vec: (%f, %f), gate_vec: (%f, %f)\n", state_vec.x, state_vec.y, gate_vec.x,
+             gate_vec.y);
+    }
   }
+  // if (closest_side_dist < this->params_.min_dist_to_gate_side)
+  // {
+  //   cost += this->params_.crash_coeff * (this->params_.min_dist_to_gate_side - closest_side_dist);
+  //   if (fmaxf(comp_state_along_gate_left, comp_state_along_gate_right) > 1.0f)
+  //   {
+  //     cost += this->params_.crash_coeff * fmaxf(comp_state_along_gate_left, comp_state_along_gate_right);
+  //     if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&
+  //     blockIdx.z == 0
+  //         )
+  //     {
+  //       printf("Hitting a gate\n");
+  //     }
+  //   }
+  // }
   return cost;
 }
 
