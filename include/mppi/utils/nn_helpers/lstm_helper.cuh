@@ -96,6 +96,7 @@ public:
   }
 
   __device__ void initialize(float* theta_s);
+  __device__ void initialize(LSTM_PARAMS_T* lstm_params, OUTPUT_PARAMS_T* output_params, float* hidden_cell);
 
   void GPUSetup();
   void freeCudaMem();
@@ -114,6 +115,7 @@ public:
   __device__ float* forward(float* input, float* theta_s);
   __device__ float* forward(float* input, float* theta_s, LSTM_PARAMS_T* params, int shift);
   __device__ float* forward(float* input, float* theta_s, LSTM_PARAMS_T* params, FNN_PARAMS_T* output_params, int shift);
+  __device__ float* forward(float* input, float* theta_s, float* hidden_cell, LSTM_PARAMS_T* params, FNN_PARAMS_T* output_params, int shift);
   __device__ float* getInputLocation(float* theta_s);
 
   void resetHiddenCPU();

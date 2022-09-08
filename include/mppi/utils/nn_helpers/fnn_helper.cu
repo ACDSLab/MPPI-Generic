@@ -243,7 +243,16 @@ __device__ void FNNHelper<PARAMS_T, USE_SHARED>::initialize(float* theta_s)
   {
     static_assert(std::is_trivially_copyable<PARAMS_T>::value);
     PARAMS_T* shared_params = (PARAMS_T*)theta_s;
-    *shared_params = this->params_;
+    initialize(shared_params);
+  }
+}
+
+template <class PARAMS_T, bool USE_SHARED>
+__device__ void FNNHelper<PARAMS_T, USE_SHARED>::initialize(PARAMS_T* params)
+{
+  if (SHARED_MEM_REQUEST_GRD != 0)
+  {
+    *params = this->params_;
   }
 }
 

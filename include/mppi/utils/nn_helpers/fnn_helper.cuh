@@ -93,6 +93,7 @@ public:
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
 
   __device__ void initialize(float* theta_s);
+  __device__ void initialize(PARAMS_T* params);
 
   __device__ float* forward(float* input, float* theta_s);
   __device__ float* forward(float* input, float* theta_s, PARAMS_T* params, int shift);
