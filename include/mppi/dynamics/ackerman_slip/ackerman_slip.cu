@@ -313,9 +313,10 @@ __device__ void AckermanSlip::initializeDynamics(float* state, float* control, f
                                                  float dt)
 {
   const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
-  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD == 1)
+  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
   {  // Allows us to turn on or off global or shared memory version of params
-    DYN_PARAMS_T* shared_params = (DYN_PARAMS_T*)theta_s;
+    DYN_PARAMS_T* dyn_params = (DYN_PARAMS_T*)theta_s;
+    *dyn_params = this->params_;
   }
   SHARED_MEM_GRD_PARAMS* shared_params = (SHARED_MEM_GRD_PARAMS*)(theta_s + shift);
 
@@ -359,6 +360,8 @@ __device__ void AckermanSlip::updateState(float* state, float* next_state, float
 __device__ void AckermanSlip::computeDynamics(float* state, float* control, float* state_der, float* theta)
 {
   DYN_PARAMS_T* params_p = nullptr;
+
+  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
   {  // Allows us to turn on or off global or shared memory version of params
     params_p = (DYN_PARAMS_T*)theta;
@@ -370,12 +373,10 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
   const int tdy = threadIdx.y;
 
   // nullptr if not shared memory
-  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
   SHARED_MEM_GRD_PARAMS* params = (SHARED_MEM_GRD_PARAMS*)(theta + shift);
   SHARED_MEM_BLK_PARAMS* blk_params = (SHARED_MEM_BLK_PARAMS*)params;
   if (SHARED_MEM_REQUEST_GRD != 0)
   {
-    params = (SHARED_MEM_GRD_PARAMS*)theta;
     // if GRD in shared them
     blk_params = (SHARED_MEM_BLK_PARAMS*)(params + 1);
   }

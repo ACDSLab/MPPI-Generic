@@ -825,7 +825,6 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
       {
         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
-        // EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
         EXPECT_NEAR(next_state_cpu(dim), s_next[point][dim], 1e-4)
             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
         EXPECT_TRUE(isfinite(s_next[point][dim]));

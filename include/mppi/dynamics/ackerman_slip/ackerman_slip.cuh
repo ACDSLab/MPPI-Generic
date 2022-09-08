@@ -84,19 +84,19 @@ class AckermanSlip : public MPPI_internal::Dynamics<AckermanSlip, AckermanSlipPa
 {
 public:
   using PARENT_CLASS = MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>;
-  typedef LSTMHelper<LSTMParams<6, 5>, FNNParams<11,20,1>, false> STEER_LSTM;
+  typedef LSTMHelper<LSTMParams<6, 5>, FNNParams<11,20,1>> STEER_LSTM;
   typedef LSTMHelper<LSTMParams<5, 60>, FNNParams<65, 100, 10>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
 
-  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8,30,1>, false> DELAY_LSTM;
+  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8,30,1>> DELAY_LSTM;
   typedef LSTMHelper<LSTMParams<1, 60>, FNNParams<61, 100, 10>> DELAY_INIT_LSTM;
   typedef LSTMLSTMHelper<DELAY_INIT_LSTM, DELAY_LSTM, 51> DELAY_NN;
 
-  typedef LSTMHelper<LSTMParams<8, 15>, FNNParams<23,30,3>, false> TERRA_LSTM;
+  typedef LSTMHelper<LSTMParams<8, 15>, FNNParams<23,30,3>> TERRA_LSTM;
   typedef LSTMHelper<LSTMParams<7, 60>, FNNParams<67, 100, 30>> TERRA_INIT_LSTM;
   typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
 
-  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8, 20, 1>, false> ENGINE_LSTM;
+  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8, 20, 1>> ENGINE_LSTM;
   typedef LSTMHelper<LSTMParams<3, 60>, FNNParams<63, 100, 10>> ENGINE_INIT_LSTM;
   typedef LSTMLSTMHelper<ENGINE_INIT_LSTM, ENGINE_LSTM, 51> ENGINE_NN;
 
