@@ -96,16 +96,16 @@ TEST_F(LSTMHelperTest, ParamsConstructor2)
   int total_amount = 0;
   // delay model
   total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_BLK * 8;
+  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_BLK * 32;
   // terra model
   total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_BLK * 8;
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_BLK * 32;
   // engine model
   total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_BLK * 8;
+  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_BLK * 32;
   // steering model
   total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_BLK * 8;
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_BLK * 32;
 
   std::cout << "total amount: " << total_amount << std::endl;
   EXPECT_LT(total_amount, 49152);

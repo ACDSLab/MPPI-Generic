@@ -16,6 +16,7 @@ namespace tests {
   const std::string autorally_output_network_file = "@PROJECT_SOURCE_DIR@/resources/output.npz";
   const std::string test_lstm_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_test.npz";
   const std::string steering_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_steering.npz";
+  const std::string ackerman_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_ackerman.npz";
 }
 }
 #endif // TESTS_COST_FUNCTIONS_AUTORALLY_TEST_NETWORK_H_
