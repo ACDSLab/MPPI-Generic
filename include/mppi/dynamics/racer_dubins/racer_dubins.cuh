@@ -52,6 +52,8 @@ struct RacerDubinsParams : public DynamicsParams
     WHEEL_FORCE_B_RL,
     WHEEL_FORCE_B_RR,
     ACCEL_X,
+    ACCEL_Y,
+    OMEGA_Z,
     NUM_OUTPUTS
   };
 

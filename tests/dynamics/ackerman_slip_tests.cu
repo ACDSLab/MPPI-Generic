@@ -336,7 +336,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 5.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
-  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 23, 30, 3 }, terra_theta);
+  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 18, 20, 3 }, terra_theta);
 
   float delta = 0;
   // computeDynamics should not touch the roll/pitch element
@@ -725,8 +725,8 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
   EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_pos, 0.22115348);
 
   // rest params
-  EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.687011);
-  EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.370144);
+  EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.6544762);
+  EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2476206);
 
   cudaExtent extent = make_cudaExtent(10, 20, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
@@ -798,6 +798,12 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
     buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
     buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
     buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
+    buffer["BRAKE_STATE"] = Eigen::VectorXf::Random(51);
+    buffer["BRAKE_CMD"] = Eigen::VectorXf::Random(51);
+    buffer["THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
+    buffer["OMEGA_Z"] = Eigen::VectorXf::Random(51);
+    buffer["ROLL"] = Eigen::VectorXf::Random(51);
+    buffer["PITCH"] = Eigen::VectorXf::Random(51);
 
     for (int state_index = 0; state_index < num_rollouts; state_index++)
     {

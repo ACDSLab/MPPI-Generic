@@ -166,6 +166,8 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
   // output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
   // output[O_INDEX(CENTER_POS_I_Z)] = 0;
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
+  output[O_INDEX(ACCEL_Y)] = 0;
+  output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
 template <class CLASS_T>
@@ -348,6 +350,8 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   // output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
   // output[O_INDEX(CENTER_POS_I_Z)] = 0;
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
+  output[O_INDEX(ACCEL_Y)] = 0;
+  output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
 template <class CLASS_T>

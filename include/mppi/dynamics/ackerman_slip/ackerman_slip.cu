@@ -68,12 +68,94 @@ MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>::state_array
 AckermanSlip::stateFromMap(const std::map<std::string, float>& map)
 {
   state_array s = state_array::Zero();
-  // TODO
+  if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
+      map.find("POS_Y") == map.end() || map.find("ROLL") == map.end() || map.find("PITCH") == map.end())
+  {
+    std::cout << "WARNING: could not find all keys for ackerman slip dynamics" << std::endl;
+    for (const auto& it : map)
+    {
+      std::cout << "got key " << it.first << std::endl;
+    }
+    return s;
+  }
+  s(S_INDEX(POS_X)) = map.at("POS_X");
+  s(S_INDEX(POS_Y)) = map.at("POS_Y");
+  s(S_INDEX(VEL_X)) = map.at("VEL_X");
+  s(S_INDEX(VEL_Y)) = map.at("VEL_Y");
+  s(S_INDEX(OMEGA_Z)) = map.at("OMEGA_Z");
+  s(S_INDEX(YAW)) = map.at("YAW");
+  if (map.find("STEER_ANGLE") != map.end())
+  {
+    s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
+    s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
+  }
+  else
+  {
+    std::cout << "WARNING: unable to find BRAKE_STATE or STEER_ANGLE_RATE, using 0" << std::endl;
+    s(S_INDEX(STEER_ANGLE)) = 0;
+    s(S_INDEX(STEER_ANGLE_RATE)) = 0;
+  }
+  s(S_INDEX(ROLL)) = map.at("ROLL");
+  s(S_INDEX(PITCH)) = map.at("PITCH");
+  if (map.find("BRAKE_STATE") != map.end())
+  {
+    s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");
+  }
+  else if (map.find("BRAKE_CMD") != map.end())
+  {
+    std::cout << "WARNING: unable to find BRAKE_STATE" << std::endl;
+    s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_CMD");
+  }
+  else
+  {
+    std::cout << "WARNING: unable to find BRAKE_CMD or BRAKE_STATE" << std::endl;
+    s(S_INDEX(BRAKE_STATE)) = 0;
+  }
   return s;
 }
 
 void AckermanSlip::updateFromBuffer(const buffer_trajectory& buffer)
 {
+  if (buffer.find("VEL_X") == buffer.end() || buffer.find("VEL_Y") == buffer.end() ||
+      buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
+      buffer.find("STEER_CMD") == buffer.end() || buffer.find("BRAKE_STATE") == buffer.end())
+  {
+    std::cout << "WARNING: not using init buffer" << std::endl;
+    for (const auto& it : buffer)
+    {
+      std::cout << "got key " << it.first << std::endl;
+    }
+    return;
+  }
+
+  STEER_NN::init_buffer steer_init_buffer;
+  steer_init_buffer.row(0) = buffer.at("VEL_X");
+  steer_init_buffer.row(1) = buffer.at("VEL_Y");
+  steer_init_buffer.row(2) = buffer.at("STEER_ANGLE");
+  steer_init_buffer.row(3) = buffer.at("STEER_ANGLE_RATE");
+  steer_init_buffer.row(4) = buffer.at("STEER_CMD");
+  steer_lstm_lstm_helper_->initializeLSTM(steer_init_buffer);
+
+  DELAY_NN::init_buffer delay_init_buffer;
+  delay_init_buffer.row(0) = buffer.at("BRAKE_STATE");
+  delay_init_buffer.row(1) = buffer.at("BRAKE_CMD");
+  delay_lstm_lstm_helper_->initializeLSTM(delay_init_buffer);
+
+  ENGINE_NN::init_buffer engine_init_buffer;
+  engine_init_buffer.row(0) = buffer.at("VEL_X");
+  engine_init_buffer.row(1) = buffer.at("THROTTLE_CMD");
+  engine_init_buffer.row(2) = buffer.at("BRAKE_STATE");
+  engine_lstm_lstm_helper_->initializeLSTM(engine_init_buffer);
+
+  TERRA_NN::init_buffer terra_init_buffer;
+  terra_init_buffer.row(0) = buffer.at("VEL_X");
+  terra_init_buffer.row(1) = buffer.at("VEL_Y");
+  terra_init_buffer.row(2) = buffer.at("OMEGA_Z");
+  terra_init_buffer.row(3) = buffer.at("STEER_ANGLE");
+  terra_init_buffer.row(4) = buffer.at("STEER_ANGLE_RATE");
+  terra_init_buffer.row(5) = buffer.at("PITCH").unaryExpr([](float x) { return sinf(x); }) * this->params_.gravity;
+  terra_init_buffer.row(6) = buffer.at("ROLL").unaryExpr([](float x) { return sinf(x); }) * this->params_.gravity;
+  terra_lstm_lstm_helper_->initializeLSTM(terra_init_buffer);
 }
 
 void AckermanSlip::GPUSetup()
@@ -370,7 +452,6 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
   {
     params_p = &(this->params_);
   }
-  const int tdy = threadIdx.y;
 
   // nullptr if not shared memory
   SHARED_MEM_GRD_PARAMS* params = (SHARED_MEM_GRD_PARAMS*)(theta + shift);
@@ -635,4 +716,32 @@ __device__ void AckermanSlip::step(float* state, float* next_state, float* state
   output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000;
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
   output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
+}
+
+void AckermanSlip::getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)
+{
+  u[0] = -1.0;  // full brake
+  u[1] = 0.0;   // no steering
+}
+
+Eigen::Quaternionf AckermanSlip::attitudeFromState(const Eigen::Ref<const state_array>& state)
+{
+  Eigen::Quaternionf q;
+  mppi::math::Euler2QuatNWU(state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), state(S_INDEX(YAW)), q);
+  return q;
+}
+
+Eigen::Vector3f AckermanSlip::positionFromState(const Eigen::Ref<const state_array>& state)
+{
+  return Eigen::Vector3f(state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], 0);
+}
+
+Eigen::Vector3f AckermanSlip::velocityFromState(const Eigen::Ref<const state_array>& state)
+{
+  return Eigen::Vector3f(state[S_INDEX(VEL_X)], state(S_INDEX(VEL_Y)), 0);
+}
+
+Eigen::Vector3f AckermanSlip::angularRateFromState(const Eigen::Ref<const state_array>& state)
+{
+  return Eigen::Vector3f(0, 0, state[S_INDEX(OMEGA_Z)]);
 }

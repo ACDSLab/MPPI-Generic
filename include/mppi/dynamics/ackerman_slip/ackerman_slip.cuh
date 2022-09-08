@@ -7,6 +7,7 @@
 
 #include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/angle_utils.cuh>
+#include <mppi/utils/math_utils.h>
 #include <mppi/utils/nn_helpers/lstm_lstm_helper.cuh>
 #include "mppi/utils/texture_helpers/two_d_texture_helper.cuh"
 
@@ -62,6 +63,7 @@ struct AckermanSlipParams : public DynamicsParams
     WHEEL_FORCE_B_RR,
     ACCEL_X,
     ACCEL_Y,
+    OMEGA_Z,
     NUM_OUTPUTS
   };
   float wheel_angle_scale = -9.2;
@@ -89,11 +91,11 @@ public:
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
 
   typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8,30,1>> DELAY_LSTM;
-  typedef LSTMHelper<LSTMParams<1, 60>, FNNParams<61, 100, 10>> DELAY_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<2, 60>, FNNParams<62, 100, 10>> DELAY_INIT_LSTM;
   typedef LSTMLSTMHelper<DELAY_INIT_LSTM, DELAY_LSTM, 51> DELAY_NN;
 
-  typedef LSTMHelper<LSTMParams<8, 15>, FNNParams<23,30,3>> TERRA_LSTM;
-  typedef LSTMHelper<LSTMParams<7, 60>, FNNParams<67, 100, 30>> TERRA_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<8, 10>, FNNParams<18,20,3>> TERRA_LSTM;
+  typedef LSTMHelper<LSTMParams<7, 60>, FNNParams<67, 100, 20>> TERRA_INIT_LSTM;
   typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
 
   typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8, 20, 1>> ENGINE_LSTM;
@@ -107,8 +109,8 @@ public:
     LSTMParams<3, 5> delay_lstm_params;
     FNNParams<8, 30, 1> delay_output_params;
 
-    LSTMParams<8, 15> terra_lstm_params;
-    FNNParams<23, 30, 3> terra_output_params;
+    LSTMParams<8, 10> terra_lstm_params;
+    FNNParams<18, 20, 3> terra_output_params;
 
     LSTMParams<3, 5> engine_lstm_params;
     FNNParams<8, 20, 1> engine_output_params;
@@ -176,17 +178,14 @@ public:
   //                  Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B);
 
 
-  // __device__ void computeStateDeriv(float* state, float* control, float* state_der, float* theta_s, float
-  // *output=nullptr); // TODO
+  void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
 
-  // void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
-
-  // Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
-  // Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
-  // Eigen::Vector3f velocityFromState(const Eigen::Ref<const state_array>& state);
-  // Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
-  // state_array stateFromOdometry(const Eigen::Quaternionf& q, const Eigen::Vector3f& pos, const Eigen::Vector3f& vel,
-  //                               const Eigen::Vector3f& omega);
+  Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f velocityFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
+  state_array stateFromOdometry(const Eigen::Quaternionf& q, const Eigen::Vector3f& pos, const Eigen::Vector3f& vel,
+                                const Eigen::Vector3f& omega);
 
   // void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal,
   //                   const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output);

@@ -185,6 +185,8 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
   // output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
   // output[O_INDEX(CENTER_POS_I_Z)] = 0;
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
+  output[O_INDEX(ACCEL_Y)] = 0;
+  output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
 __device__ void RacerDubinsElevationLSTMSteering::initializeDynamics(float* state, float* control, float* output,
@@ -392,6 +394,8 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   // output[O_INDEX(CENTER_POS_I_Y)] = output[O_INDEX(BASELINK_POS_I_Y)];
   // output[O_INDEX(CENTER_POS_I_Z)] = 0;
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
+  output[O_INDEX(ACCEL_Y)] = 0;
+  output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
 void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory& buffer)
