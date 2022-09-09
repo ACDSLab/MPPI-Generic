@@ -977,7 +977,8 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
   // Create a shared array for the dynamics model to use
   __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 +
                            DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
-  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD + COST_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
+  __shared__ float
+      theta_c[COST_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + COST_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
   __shared__ float theta_fb[FB_T::SHARED_MEM_SIZE];
 
   // Create local state, state dot and controls

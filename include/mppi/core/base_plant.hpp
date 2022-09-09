@@ -423,7 +423,9 @@ public:
 
     if (this->controller_->model_->checkRequiresBuffer())
     {
+      std::lock_guard<std::mutex> guard(dynamics_params_guard_);
       this->controller_->model_->updateFromBuffer(this->getSmoothedBuffer(temp_last_state_time));
+      HANDLE_ERROR(cudaStreamSynchronize(this->controller_->model_->stream_));
     }
 
     // Check the robots status for this optimization

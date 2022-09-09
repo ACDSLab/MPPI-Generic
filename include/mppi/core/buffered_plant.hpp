@@ -98,6 +98,10 @@ public:
     for (; (it != list.rend() && it->time > time); it++)
     {
     }
+    if (it == list.rbegin())
+    {
+      return it->data;
+    }
     // if we search entire list then use the first index
     auto it_new = std::prev(it);
     if (it == list.rend())
@@ -125,6 +129,10 @@ public:
     // iterate until the time is greater than
     for (; (it != list.rend() && it->time > time); it++)
     {
+    }
+    if (it == list.rbegin())
+    {
+      return it->data;
     }
     // if we search entire list then use the first index
     auto it_new = std::prev(it);
@@ -182,7 +190,7 @@ public:
   std::map<std::string, float> getInterpState(double time)
   {
     std::map<std::string, float> result;
-    if (prev_position_.size() < 2)
+    if (prev_position_.empty())
     {
       return result;
     }

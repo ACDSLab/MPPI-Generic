@@ -180,6 +180,27 @@ TEST_F(BufferedPlantTest, Constructor)
   EXPECT_FLOAT_EQ(plant->getBufferDt(), 0.02);
 }
 
+TEST_F(BufferedPlantTest, interpNew)
+{
+  Eigen::Vector3f pos = Eigen::Vector3f::Ones();
+  Eigen::Quaternionf quat = Eigen::Quaternionf::Identity();
+  Eigen::Vector3f vel = Eigen::Vector3f::Random();
+  Eigen::Vector3f omega = Eigen::Vector3f::Random();
+
+  MockDynamics::state_array state = MockDynamics::state_array::Random();
+
+  EXPECT_CALL(mockDynamics, stateFromMap(testing::_)).Times(2).WillRepeatedly(testing::Return(state));
+  EXPECT_CALL(*mockController, getDt()).Times(2);
+
+  plant->updateOdometry(pos, quat, vel, omega, 0.0);
+  plant->updateOdometry(pos, quat, vel, omega, 1.0);
+
+  std::map<std::string, float> result_state = plant->getInterpState(10);
+  EXPECT_FLOAT_EQ(result_state["OMEGA_X"], omega.x());
+  EXPECT_FLOAT_EQ(result_state["OMEGA_Y"], omega.y());
+  EXPECT_FLOAT_EQ(result_state["OMEGA_Z"], omega.z());
+}
+
 TEST_F(BufferedPlantTest, updateControls)
 {
   MockDynamics::control_array u = MockDynamics::control_array::Zero();
