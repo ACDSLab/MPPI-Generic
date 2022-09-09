@@ -71,7 +71,7 @@ public:
   static const int OUTPUT_DIM = OUTPUT_FNN_T::OUTPUT_DIM;
 
   static const int NUM_PARAMS = PARAMS_T::NUM_PARAMS;   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_BLK = 6 * HIDDEN_DIM + INPUT_DIM + OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK; ///< Amount of shared memory we need per BLOCK.;
+  static const int SHARED_MEM_REQUEST_BLK = 3 * HIDDEN_DIM + INPUT_DIM + OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK; ///< Amount of shared memory we need per BLOCK.;
   static const int LSTM_SHARED_MEM_GRD = sizeof(PARAMS_T) * USE_SHARED;
   static const int SHARED_MEM_REQUEST_GRD = sizeof(PARAMS_T) * USE_SHARED + OUTPUT_FNN_T::SHARED_MEM_REQUEST_GRD + sizeof(float) * USE_SHARED;  ///< Amount of shared memory we need per ROLLOUT.;
 
@@ -101,6 +101,7 @@ public:
   void GPUSetup();
   void freeCudaMem();
   void paramsToDevice();
+  void copyHiddenCellToDevice();
 
   void updateOutputModel(const std::vector<int>& description, const std::vector<float>& data);
   void setLSTMParams(PARAMS_T& params);

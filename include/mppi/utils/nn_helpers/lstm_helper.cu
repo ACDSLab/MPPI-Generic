@@ -110,10 +110,15 @@ __device__ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::initialize(LSTM_
 }
 
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::updateLSTMInitialStates(
-    const Eigen::Ref<const hidden_state> hidden, const Eigen::Ref<const hidden_state> cell)
+void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::copyHiddenCellToDevice()
 {
-  // TODO copy the LSTM values correctly
+  if (this->GPUMemStatus_)
+  {
+    HANDLE_ERROR(cudaMemcpyAsync(&this->network_d_->params_.initial_hidden, &this->params_.initial_hidden,
+                                 HIDDEN_DIM * sizeof(float), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(&this->network_d_->params_.initial_cell, &this->params_.initial_cell,
+                                 HIDDEN_DIM * sizeof(float), cudaMemcpyHostToDevice, stream_));
+  }
 }
 
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
@@ -216,8 +221,8 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
                                                                           FNN_PARAMS_T* output_params, int block_idx)
 {
   float* c = &theta_s[block_idx];
-  float* g_i = &theta_s[block_idx + 2 * HIDDEN_DIM];  // input gate
-  return forward(input, g_i, c, params, output_params, 0);
+  float* g_o = &theta_s[block_idx + 2 * HIDDEN_DIM];  // input gate
+  return forward(input, g_o, c, params, output_params, 0);
 }
 
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
@@ -246,11 +251,9 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
   // Intermediate outputs
   float* c = &hidden_cell[block_idx];
   float* h = &hidden_cell[block_idx + HIDDEN_DIM];
-  float* g_i = &theta_s[block_idx];                   // input gate
-  float* g_f = &theta_s[block_idx + HIDDEN_DIM];      // forget gate
-  float* g_o = &theta_s[block_idx + 2 * HIDDEN_DIM];  // output gate
-  float* cell_update = &theta_s[block_idx + 3 * HIDDEN_DIM];
-  float* x = &theta_s[block_idx + 4 * HIDDEN_DIM];
+  float* g_o = &theta_s[block_idx];  // output gate
+  float* x = &theta_s[block_idx + HIDDEN_DIM];
+  float* output_act = &theta_s[block_idx + HIDDEN_DIM + INPUT_DIM];
 
   uint tdy = threadIdx.y;
 
@@ -271,8 +274,6 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
   float temp_g_f = 0;
   float temp_g_o = 0;
   float temp_cell_update = 0;
-
-  float* output_act = &theta_s[block_idx + 4 * HIDDEN_DIM + INPUT_DIM];
 
   for (i = tdy; i < HIDDEN_DIM; i += blockDim.y)
   {
@@ -323,7 +324,6 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
   {
     output_act[i + HIDDEN_DIM] = x[i];
   }
-  __syncthreads();
 
   return output_nn_->forward(nullptr, output_act, output_params, 0);
 }
@@ -446,6 +446,6 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::getInputLocati
 {
   const int block_idx =
       (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK + SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  float* x = theta_s + block_idx + 6 * HIDDEN_DIM;
+  float* x = theta_s + block_idx + 3 * HIDDEN_DIM;
   return x;
 }

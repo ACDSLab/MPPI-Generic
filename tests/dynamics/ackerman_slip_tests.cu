@@ -650,11 +650,36 @@ TEST_F(AckermanSlipTest, stepCPU)
 {
   auto dynamics = AckermanSlip();
 
+  cudaExtent extent = make_cudaExtent(10, 20, 0);
+  TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
+  helper->setExtent(0, extent);
+
+  std::vector<float> data_vec;
+  data_vec.resize(10 * 20);
+  for (int i = 1; i < data_vec.size(); i++)
+  {
+    data_vec[i] = i * 1.0f;
+  }
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(0, 1, 0);
+  new_rot_mat[1] = make_float3(1, 0, 0);
+  new_rot_mat[2] = make_float3(0, 0, 1);
+  helper->updateRotation(0, new_rot_mat);
+  helper->updateOrigin(0, make_float3(1, 2, 3));
+
+  helper->updateTexture(0, data_vec);
+  helper->updateResolution(0, 10);
+  helper->enableTexture(0);
+  helper->copyToDevice(true);
+
   AckermanSlip::state_array s = AckermanSlip::state_array::Ones();
   AckermanSlip::control_array u = AckermanSlip::control_array::Ones();
   AckermanSlip::state_array s_next = AckermanSlip::state_array::Zero();
   AckermanSlip::state_array s_der = AckermanSlip::state_array::Ones();
   AckermanSlip::output_array output = AckermanSlip::output_array::Zero();
+  s(0) = 5;
+  s(1) = 5;
 
   dynamics.step(s, s_next, s_der, u, output, 0, 0.1);
   EXPECT_FLOAT_EQ(s_der(0), -0.30116868);  // x
@@ -669,37 +694,37 @@ TEST_F(AckermanSlipTest, stepCPU)
   EXPECT_FLOAT_EQ(s_der(9), 0);            // pitch
   EXPECT_FLOAT_EQ(s_der(10), 0);           // steer angle rate
 
-  EXPECT_FLOAT_EQ(s_next(0), 0.96988314);  // x
-  EXPECT_FLOAT_EQ(s_next(1), 1.1381773);   // y
+  EXPECT_FLOAT_EQ(s_next(0), 4.96988314);  // x
+  EXPECT_FLOAT_EQ(s_next(1), 5.1381773);   // y
   EXPECT_FLOAT_EQ(s_next(2), 1.1);         // yaw
   EXPECT_FLOAT_EQ(s_next(3), 1.24);        // steer angle
   EXPECT_FLOAT_EQ(s_next(4), 0.91);        // brake state
   EXPECT_FLOAT_EQ(s_next(5), 1.0);         // vel x
   EXPECT_FLOAT_EQ(s_next(6), 1.0);         // vel y
   EXPECT_FLOAT_EQ(s_next(7), 1.0);         // omega z
-  EXPECT_FLOAT_EQ(s_next(8), 0);           // roll
-  EXPECT_FLOAT_EQ(s_next(9), 0);           // pitch
+  EXPECT_FLOAT_EQ(s_next(8), -0.33356434);  // roll
+  EXPECT_FLOAT_EQ(s_next(9), -0.1944351);   // pitch
   EXPECT_FLOAT_EQ(s_next(10), 2.4);        // steer angle rate
 
   EXPECT_FLOAT_EQ(output(0), 1);            // x vel
   EXPECT_FLOAT_EQ(output(1), 1);            // y vel
   EXPECT_FLOAT_EQ(output(2), 0);            // z vel
-  EXPECT_FLOAT_EQ(output(3), 0.96988314);   // x pos
-  EXPECT_FLOAT_EQ(output(4), 1.1381773);    // y pos
+  EXPECT_FLOAT_EQ(output(3), 4.96988314);   // x pos
+  EXPECT_FLOAT_EQ(output(4), 5.1381773);    // y pos
   EXPECT_FLOAT_EQ(output(5), 0);            // z pos
   EXPECT_FLOAT_EQ(output(6), 1.1);          // yaw
-  EXPECT_FLOAT_EQ(output(7), 0);            // roll
-  EXPECT_FLOAT_EQ(output(8), 0);            // pitch
+  EXPECT_FLOAT_EQ(output(7), -0.33356434);  // roll
+  EXPECT_FLOAT_EQ(output(8), -0.1944351);   // pitch
   EXPECT_FLOAT_EQ(output(9), 1.24);         // steer angle
   EXPECT_FLOAT_EQ(output(10), 2.4);         // steer angle rate
-  EXPECT_FLOAT_EQ(output(11), 1.6652329);   // fl wheel x
-  EXPECT_FLOAT_EQ(output(12), 4.1291666);   // fl wheel y
-  EXPECT_FLOAT_EQ(output(13), 2.9788725);   // fr wheel x
-  EXPECT_FLOAT_EQ(output(14), 3.460566);    // fr wheel y
-  EXPECT_FLOAT_EQ(output(15), 0.31306332);  // bl wheel x
-  EXPECT_FLOAT_EQ(output(16), 1.4724776);   // bl wheel y
-  EXPECT_FLOAT_EQ(output(17), 1.626703);    // br wheel x
-  EXPECT_FLOAT_EQ(output(18), 0.803877);    // br wheel y
+  EXPECT_FLOAT_EQ(output(11), 5.6652329);   // fl wheel x
+  EXPECT_FLOAT_EQ(output(12), 8.1291666);   // fl wheel y
+  EXPECT_FLOAT_EQ(output(13), 6.9788725);   // fr wheel x
+  EXPECT_FLOAT_EQ(output(14), 7.460566);    // fr wheel y
+  EXPECT_FLOAT_EQ(output(15), 4.31306332);  // bl wheel x
+  EXPECT_FLOAT_EQ(output(16), 5.4724776);   // bl wheel y
+  EXPECT_FLOAT_EQ(output(17), 5.626703);    // br wheel x
+  EXPECT_FLOAT_EQ(output(18), 4.803877);    // br wheel y
   EXPECT_FLOAT_EQ(output(19), 10000);       // wheel f fl
   EXPECT_FLOAT_EQ(output(20), 10000);       // wheel f fr
   EXPECT_FLOAT_EQ(output(21), 10000);       // wheel f bl

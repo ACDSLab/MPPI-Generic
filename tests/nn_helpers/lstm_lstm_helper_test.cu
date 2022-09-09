@@ -570,7 +570,6 @@ TEST_F(LSTMLSTMHelperTest, forwardGPUCompareShared)
   std::vector<std::array<float, LSTM::INPUT_DIM>> input_arr(num_rollouts);
   std::vector<std::array<float, 3>> output_arr(num_rollouts);
 
-  T::init_buffer buffer = T::init_buffer::Random();
 
   for (int state_index = 0; state_index < num_rollouts; state_index++)
   {
@@ -584,6 +583,7 @@ TEST_F(LSTMLSTMHelperTest, forwardGPUCompareShared)
   {
     for (int step = 1; step < 6; step++)
     {
+      T::init_buffer buffer = T::init_buffer::Random();
       model.initializeLSTM(buffer);
 
       launchForwardTestKernel<LSTM, 32>(*model.getLSTMModel(), input_arr, output_arr, y_dim, step);
@@ -694,7 +694,6 @@ TEST_F(LSTMLSTMHelperTest, forwardGPUCompareNoShared)
   std::vector<std::array<float, LSTM2::INPUT_DIM>> input_arr(num_rollouts);
   std::vector<std::array<float, 3>> output_arr(num_rollouts);
 
-  T::init_buffer buffer = T2::init_buffer::Random();
 
   for (int state_index = 0; state_index < num_rollouts; state_index++)
   {
@@ -708,6 +707,7 @@ TEST_F(LSTMLSTMHelperTest, forwardGPUCompareNoShared)
   {
     for (int step = 1; step < 6; step++)
     {
+      T::init_buffer buffer = T2::init_buffer::Random();
       model.initializeLSTM(buffer);
 
       launchForwardTestKernel<LSTM2, 32>(*model.getLSTMModel(), input_arr, output_arr, y_dim, step);

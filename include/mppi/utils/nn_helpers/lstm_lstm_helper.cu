@@ -43,8 +43,8 @@ void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::initializeLSTM(const Eigen::Re
   lstm_->setHiddenState(output.head(HIDDEN_DIM));
   lstm_->setCellState(output.tail(HIDDEN_DIM));
 
-  // TODO not copy entire thing, make method in lstm helper
-  lstm_->paramsToDevice();
+  // only copies the hidden/cell states
+  lstm_->copyHiddenCellToDevice();
 }
 
 template <class INIT_T, class LSTM_T, int INITIAL_LEN>

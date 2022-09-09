@@ -81,24 +81,32 @@ struct AckermanSlipParams : public DynamicsParams
   int gear_sign = 1;
 };
 
+// BLOCKSIZE_X = 5
+// with align 16 in structs and no shared 6*H size: 75 ms
+// without align 16 in structs and no shared mem 6*H size: 74 ms
+// without align 16 in structs and shared mem 6*H size: 80 ms
+// without align 16 in structs and shared mem 3*H size: 75 ms
+// ditto + removed some synch threads that I don't think I need: 73 ms
+// parameters not in shared memory: 66 ms
 
+// TODO implementation split here to disable shared for testing
 class AckermanSlip : public MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>
 {
 public:
   using PARENT_CLASS = MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>;
-  typedef LSTMHelper<LSTMParams<6, 5>, FNNParams<11,20,1>> STEER_LSTM;
+  typedef LSTMHelper<LSTMParams<6, 5>, FNNParams<11,20,1>, false> STEER_LSTM;
   typedef LSTMHelper<LSTMParams<5, 60>, FNNParams<65, 100, 10>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
 
-  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8,30,1>> DELAY_LSTM;
+  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8,30,1>, false> DELAY_LSTM;
   typedef LSTMHelper<LSTMParams<2, 60>, FNNParams<62, 100, 10>> DELAY_INIT_LSTM;
   typedef LSTMLSTMHelper<DELAY_INIT_LSTM, DELAY_LSTM, 51> DELAY_NN;
 
-  typedef LSTMHelper<LSTMParams<8, 10>, FNNParams<18,20,3>> TERRA_LSTM;
+  typedef LSTMHelper<LSTMParams<8, 10>, FNNParams<18,20,3>, false> TERRA_LSTM;
   typedef LSTMHelper<LSTMParams<7, 60>, FNNParams<67, 100, 20>> TERRA_INIT_LSTM;
   typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
 
-  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8, 20, 1>> ENGINE_LSTM;
+  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8, 20, 1>, false> ENGINE_LSTM;
   typedef LSTMHelper<LSTMParams<3, 60>, FNNParams<63, 100, 10>> ENGINE_INIT_LSTM;
   typedef LSTMLSTMHelper<ENGINE_INIT_LSTM, ENGINE_LSTM, 51> ENGINE_NN;
 
@@ -123,7 +131,7 @@ public:
     float engine_hidden_cell[2 * ENGINE_LSTM::HIDDEN_DIM];
 
     // terra is the largest, should be init'd smarter though
-    float theta_s[TERRA_LSTM::HIDDEN_DIM * 4 + TERRA_LSTM::INPUT_DIM + TERRA_LSTM::OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK];
+    float theta_s[TERRA_LSTM::HIDDEN_DIM + TERRA_LSTM::INPUT_DIM + DELAY_LSTM::OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK];
   };
 
   static const int SHARED_MEM_REQUEST_GRD = STEER_NN::SHARED_MEM_REQUEST_GRD
