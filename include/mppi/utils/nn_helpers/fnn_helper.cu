@@ -166,7 +166,7 @@ void FNNHelper<PARAMS_T, USE_SHARED>::paramsToDevice()
   {
     // the only thing that should change is theta
     HANDLE_ERROR(cudaMemcpyAsync(this->network_d_->params_.theta, this->params_.theta, NUM_PARAMS * sizeof(float),
-                                 cudaMemcpyHostToDevice));
+                                 cudaMemcpyHostToDevice, this->stream_));
   }
 }
 

@@ -226,20 +226,20 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
                                                                           FNN_PARAMS_T* output_params, int block_idx)
 {
   // Weights
-  float* W_ii = &params->W_ii[0];
-  float* W_im = &params->W_im[0];
-  float* W_fi = &params->W_fi[0];
-  float* W_fm = &params->W_fm[0];
-  float* W_oi = &params->W_oi[0];
-  float* W_om = &params->W_om[0];
-  float* W_ci = &params->W_ci[0];
-  float* W_cm = &params->W_cm[0];
+  const float* W_ii = &params->W_ii[0];
+  const float* W_im = &params->W_im[0];
+  const float* W_fi = &params->W_fi[0];
+  const float* W_fm = &params->W_fm[0];
+  const float* W_oi = &params->W_oi[0];
+  const float* W_om = &params->W_om[0];
+  const float* W_ci = &params->W_ci[0];
+  const float* W_cm = &params->W_cm[0];
 
   // Biases
-  float* b_i = &params->b_i[0];  // hidden_size
-  float* b_f = &params->b_f[0];  // hidden_size
-  float* b_o = &params->b_o[0];  // hidden_size
-  float* b_c = &params->b_c[0];  // hidden_size
+  const float* b_i = &params->b_i[0];  // hidden_size
+  const float* b_f = &params->b_f[0];  // hidden_size
+  const float* b_o = &params->b_o[0];  // hidden_size
+  const float* b_c = &params->b_c[0];  // hidden_size
 
   uint i, j;
 
@@ -267,45 +267,53 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
   int index = 0;
   // apply each gate in parallel
 
+  float temp_g_i = 0;
+  float temp_g_f = 0;
+  float temp_g_o = 0;
+  float temp_cell_update = 0;
+
+  float* output_act = &theta_s[block_idx + 4 * HIDDEN_DIM + INPUT_DIM];
+
   for (i = tdy; i < HIDDEN_DIM; i += blockDim.y)
   {
-    g_i[i] = 0;
-    g_f[i] = 0;
-    g_o[i] = 0;
-    cell_update[i] = 0;
+    temp_g_i = 0;
+    temp_g_f = 0;
+    temp_g_o = 0;
+    temp_cell_update = 0;
     for (j = 0; j < INPUT_DIM; j++)
     {
       index = i * INPUT_DIM + j;
-      g_i[i] += W_ii[index] * x[j];
-      g_f[i] += W_fi[index] * x[j];
-      g_o[i] += W_oi[index] * x[j];
-      cell_update[i] += W_ci[index] * x[j];
+      temp_g_i += W_ii[index] * x[j];
+      temp_g_f += W_fi[index] * x[j];
+      temp_g_o += W_oi[index] * x[j];
+      temp_cell_update += W_ci[index] * x[j];
     }
     for (j = 0; j < HIDDEN_DIM; j++)
     {
       index = i * HIDDEN_DIM + j;
-      g_i[i] += W_im[index] * h[j];
-      g_f[i] += W_fm[index] * h[j];
-      g_o[i] += W_om[index] * h[j];
-      cell_update[i] += W_cm[index] * h[j];
+      temp_g_i += W_im[index] * h[j];
+      temp_g_f += W_fm[index] * h[j];
+      temp_g_o += W_om[index] * h[j];
+      temp_cell_update += W_cm[index] * h[j];
     }
-    g_i[i] += b_i[i];
-    g_f[i] += b_f[i];
-    g_o[i] += b_o[i];
-    cell_update[i] += b_c[i];
-    g_i[i] = SIGMOID(g_i[i]);
-    g_f[i] = SIGMOID(g_f[i]);
-    g_o[i] = SIGMOID(g_o[i]);
-    cell_update[i] = TANH(cell_update[i]);
+    temp_g_i += b_i[i];
+    temp_g_f += b_f[i];
+    temp_g_o += b_o[i];
+    temp_cell_update += b_c[i];
+
+    temp_g_i = SIGMOID(temp_g_i);
+    temp_g_f = SIGMOID(temp_g_f);
+    temp_cell_update = TANH(temp_cell_update);
+
+    g_o[i] = SIGMOID(temp_g_o);
+
+    c[i] = temp_g_i * temp_cell_update + temp_g_f * c[i];
   }
   __syncthreads();
-
-  float* output_act = &theta_s[block_idx + 4 * HIDDEN_DIM + INPUT_DIM];
 
   // copy computed hidden/cell state to theta_s
   for (i = tdy; i < HIDDEN_DIM; i += blockDim.y)
   {
-    c[i] = g_i[i] * cell_update[i] + g_f[i] * c[i];
     h[i] = TANH(c[i]) * g_o[i];  // actually using c_next intentionally
     output_act[i] = h[i];
   }

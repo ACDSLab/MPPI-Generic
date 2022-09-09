@@ -42,6 +42,8 @@ void LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>::initializeLSTM(const Eigen::Re
   // set the lstm initial hidden/cell to output
   lstm_->setHiddenState(output.head(HIDDEN_DIM));
   lstm_->setCellState(output.tail(HIDDEN_DIM));
+
+  // TODO not copy entire thing, make method in lstm helper
   lstm_->paramsToDevice();
 }
 
