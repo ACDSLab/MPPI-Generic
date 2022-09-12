@@ -565,8 +565,8 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPU)
   CudaCheckError();
   using DYN = RacerDubinsElevationLSTMSteering;
   RacerDubinsElevationLSTMSteering dynamics = RacerDubinsElevationLSTMSteering(mppi::tests::steering_lstm);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.9760568141937256);
-  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.1222121715545654);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.9031379);
+  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.3959048);
 
   cudaExtent extent = make_cudaExtent(10, 20, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
@@ -673,8 +673,8 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPUReverse)
   auto params = dynamics.getParams();
   params.gear_sign = -1;
   dynamics.setParams(params);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.9760568141937256);
-  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.1222121715545654);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.9031379);
+  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.3959048);
 
   cudaExtent extent = make_cudaExtent(10, 20, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
