@@ -273,9 +273,6 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
   state_der(S_INDEX(VEL_X)) = cosf(delta) * engine_output + engine_output - terra_output[0] * 10;
   state_der(S_INDEX(VEL_Y)) = sinf(delta) * engine_output - terra_output[1] * 10;
   state_der(S_INDEX(OMEGA_Z)) = terra_output[2] * 10;
-
-  // printf("CPU delta %f, engine %f, terra %f, vel x %f\n", delta, engine_output, terra_output[0],
-  // state_der(S_INDEX(VEL_X)));
 }
 
 void AckermanSlip::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
@@ -562,8 +559,8 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
   input_loc[2] = state[S_INDEX(OMEGA_Z)];
   input_loc[3] = state[S_INDEX(STEER_ANGLE)];
   input_loc[4] = state[S_INDEX(STEER_ANGLE_RATE)];
-  input_loc[5] = sinf(state[S_INDEX(PITCH)]) * this->params_.gravity;
-  input_loc[6] = sinf(state[S_INDEX(ROLL)]) * this->params_.gravity;
+  input_loc[5] = sinf(state[S_INDEX(PITCH)]) * params_p->gravity;
+  input_loc[6] = sinf(state[S_INDEX(ROLL)]) * params_p->gravity;
   input_loc[7] = engine_output;
   if (SHARED_MEM_REQUEST_GRD != 0)
   {
@@ -577,7 +574,7 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
                                   &terra_network_d_->params_, terra_network_d_->getOutputModel()->getParamsPtr(), 0);
   }
 
-  float delta = tanf(state[S_INDEX(STEER_ANGLE)] / this->params_.wheel_angle_scale);
+  float delta = tanf(state[S_INDEX(STEER_ANGLE)] / params_p->wheel_angle_scale);
 
   // combine to compute state derivative
   state_der[S_INDEX(VEL_X)] = cosf(delta) * engine_output + engine_output - output[0] * 10;
@@ -599,7 +596,7 @@ __device__ void AckermanSlip::step(float* state, float* next_state, float* state
   {
     params_p = &(this->params_);
   }
-  const int tdy = threadIdx.y;
+  const uint tdy = threadIdx.y;
 
   float front_left_height = 0;
   float front_right_height = 0;
