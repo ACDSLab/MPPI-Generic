@@ -230,7 +230,7 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
   engine_input(2) = state(S_INDEX(BRAKE_STATE));
   ENGINE_LSTM::output_array engine_output_arr = ENGINE_LSTM::output_array::Zero();
   engine_lstm_lstm_helper_->forward(engine_input, engine_output_arr);
-  float engine_output = engine_output_arr(0) * 10;
+  const float engine_output = engine_output_arr(0) * 10;
 
   // runs the parametric part of the steering model
   state_der(S_INDEX(STEER_ANGLE)) =
@@ -250,9 +250,9 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
   steer_lstm_lstm_helper_->forward(steer_input, steer_output);
   state_der(S_INDEX(STEER_ANGLE)) += steer_output(0) * 10;
 
-  float delta = tanf(state(S_INDEX(STEER_ANGLE)) / this->params_.wheel_angle_scale);
-  float param_yaw_rate = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
-                         tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
+  const float delta = tanf(state(S_INDEX(STEER_ANGLE)) / this->params_.wheel_angle_scale);
+  const float param_yaw_rate = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
+                               tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
 
   // runs the terra dynamics model
   TERRA_LSTM::input_array terra_input;
@@ -268,16 +268,17 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
   terra_input(9) = param_yaw_rate;
   TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
   terra_lstm_lstm_helper_->forward(terra_input, terra_output);
-  terra_output *= 10;
 
   const float c_delta = cosf(delta);
   const float s_delta = sinf(delta);
+  const float drag_x = terra_output(0) * 10.0f;
+  const float drag_y = terra_output(1) * 10.0f;
+  const float drag_yaw = terra_output(2) * 10.0f;
 
   // combine to compute state derivative
-  state_der(S_INDEX(VEL_X)) =
-      c_delta * engine_output + engine_output - terra_output[0] * c_delta + terra_output[1] * s_delta - terra_output[0];
-  state_der(S_INDEX(VEL_Y)) = s_delta * engine_output - terra_output[0] * s_delta - terra_output[1] * c_delta;
-  state_der(S_INDEX(YAW)) = param_yaw_rate - terra_output[2];
+  state_der(S_INDEX(VEL_X)) = c_delta * engine_output + engine_output - drag_x * c_delta + drag_y * s_delta - drag_x;
+  state_der(S_INDEX(VEL_Y)) = s_delta * engine_output - drag_x * s_delta - drag_y * c_delta;
+  state_der(S_INDEX(YAW)) = param_yaw_rate - drag_yaw;
 }
 
 void AckermanSlip::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
@@ -464,14 +465,15 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
     // if GRD in shared them
     blk_params = (SHARED_MEM_BLK_PARAMS*)(params + 1);
   }
-  // printf("shifted params %d * %d + %d =  %d\n", blockDim.x, threadIdx.z, threadIdx.x, blockDim.x * threadIdx.z +
-  // threadIdx.x); printf("blk params %d\n", SHARED_MEM_REQUEST_BLK);
   blk_params = blk_params + blockDim.x * threadIdx.z + threadIdx.x;
   float* theta_s_shifted = &blk_params->theta_s[0];
 
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
-  float brake_cmd = -enable_brake * control[C_INDEX(THROTTLE_BRAKE)];
-  float throttle_cmd = !enable_brake * control[C_INDEX(THROTTLE_BRAKE)];
+  const float brake_cmd = -enable_brake * control[C_INDEX(THROTTLE_BRAKE)];
+  const float throttle_cmd = !enable_brake * control[C_INDEX(THROTTLE_BRAKE)];
+  const float delta = tanf(state[S_INDEX(STEER_ANGLE)] / params_p->wheel_angle_scale);
+  const float param_yaw_rate =
+      (state[S_INDEX(VEL_X)] / params_p->wheel_base) * tan(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
 
   // parametric part of the brake
   state_der[S_INDEX(BRAKE_STATE)] = min(
@@ -483,7 +485,7 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
       state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]) - state[S_INDEX(VEL_Y)] * sinf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(POS_Y)] =
       state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]) + state[S_INDEX(VEL_Y)] * cosf(state[S_INDEX(YAW)]);
-  state_der[S_INDEX(YAW)] = state[S_INDEX(OMEGA_Z)];
+  state_der[S_INDEX(OMEGA_Z)] = 0.0f;
 
   // runs the parametric part of the steering model
   state_der[S_INDEX(STEER_ANGLE)] =
@@ -519,7 +521,7 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
   input_loc = &theta_s_shifted[ENGINE_LSTM::HIDDEN_DIM];
   input_loc[0] = throttle_cmd;
   input_loc[1] = state[S_INDEX(VEL_X)];
-  input_loc[2] = brake_cmd;
+  input_loc[2] = state[S_INDEX(BRAKE_STATE)];
   if (SHARED_MEM_REQUEST_GRD != 0)
   {
     output = engine_network_d_->forward(nullptr, theta_s_shifted, &blk_params->engine_hidden_cell[0],
@@ -531,8 +533,7 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
         engine_network_d_->forward(nullptr, theta_s_shifted, &blk_params->engine_hidden_cell[0],
                                    &engine_network_d_->params_, engine_network_d_->getOutputModel()->getParamsPtr(), 0);
   }
-  float engine_output = output[0] * 10;
-
+  const float engine_output = output[0] * 10.0f;
 
   // runs the steering model
   __syncthreads();  // required since we can overwrite the output before grabbing it
@@ -555,8 +556,9 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
   }
   if (threadIdx.y == 0)
   {
-    state_der[S_INDEX(STEER_ANGLE)] += output[0] * 10;
+    state_der[S_INDEX(STEER_ANGLE)] += output[0] * 10.0f;
   }
+  __syncthreads();  // required since we can overwrite the output before grabbing it
 
   // runs the terra dynamics model
   input_loc = &theta_s_shifted[TERRA_LSTM::HIDDEN_DIM];
@@ -568,6 +570,8 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
   input_loc[5] = sinf(state[S_INDEX(PITCH)]) * params_p->gravity;
   input_loc[6] = sinf(state[S_INDEX(ROLL)]) * params_p->gravity;
   input_loc[7] = engine_output;
+  input_loc[8] = delta;
+  input_loc[9] = param_yaw_rate;
   if (SHARED_MEM_REQUEST_GRD != 0)
   {
     output = terra_network_d_->forward(nullptr, theta_s_shifted, &blk_params->terra_hidden_cell[0],
@@ -580,12 +584,16 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
                                   &terra_network_d_->params_, terra_network_d_->getOutputModel()->getParamsPtr(), 0);
   }
 
-  float delta = tanf(state[S_INDEX(STEER_ANGLE)] / params_p->wheel_angle_scale);
+  const float c_delta = cosf(delta);
+  const float s_delta = sinf(delta);
+  const float drag_x = output[0] * 10.0f;
+  const float drag_y = output[1] * 10.0f;
+  const float drag_yaw = output[2] * 10.0f;
 
   // combine to compute state derivative
-  state_der[S_INDEX(VEL_X)] = cosf(delta) * engine_output + engine_output - output[0] * 10;
-  state_der[S_INDEX(VEL_Y)] = sinf(delta) * engine_output - output[1] * 10;
-  state_der[S_INDEX(OMEGA_Z)] = output[2] * 10;
+  state_der[S_INDEX(VEL_X)] = c_delta * engine_output + engine_output - drag_x * c_delta + drag_y * s_delta - drag_x;
+  state_der[S_INDEX(VEL_Y)] = s_delta * engine_output - drag_x * s_delta - drag_y * c_delta;
+  state_der[S_INDEX(YAW)] = param_yaw_rate - drag_yaw;
 }
 
 __device__ void AckermanSlip::step(float* state, float* next_state, float* state_der, float* control, float* output,
@@ -628,7 +636,7 @@ __device__ void AckermanSlip::step(float* state, float* next_state, float* state
       rear_right.x * cosf(state[S_INDEX(YAW)]) - rear_right.y * sinf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_X)],
       rear_right.x * sinf(state[S_INDEX(YAW)]) + rear_right.y * cosf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_Y)], 0);
 
-  for (int i = tdy; i < 8; i += blockDim.y)
+  for (int i = tdy; i < 10; i += blockDim.y)
   {
     next_state[i] = state[i] + state_der[i] * dt;
     switch (i)
@@ -713,6 +721,8 @@ __device__ void AckermanSlip::step(float* state, float* next_state, float* state
   output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000;
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
   output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
+  output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+  next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
 void AckermanSlip::getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)

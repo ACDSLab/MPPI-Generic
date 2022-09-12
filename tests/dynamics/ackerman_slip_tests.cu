@@ -925,138 +925,138 @@ TEST_F(AckermanSlipTest, TestPythonComparison)
   }
 }
 
-// TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
-// {
-//   const int num_rollouts = 2000;
-//   const float dt = 0.1f;
-//   CudaCheckError();
-//   using DYN = AckermanSlip;
-//   AckermanSlip dynamics = AckermanSlip(mppi::tests::ackerman_test);
-//   // steering model params
-//   EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.9760568141937256);
-//   EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.1222121715545654);
-//
-//   // delay model params
-//   EXPECT_FLOAT_EQ(dynamics.getParams().brake_delay_constant, 6.7566104);
-//   EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_neg, 1.0109744);
-//   EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_pos, 0.22115348);
-//
-//   // rest params
-//   EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.6544762);
-//   EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2476206);
-//
-//   cudaExtent extent = make_cudaExtent(10, 20, 0);
-//   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
-//   helper->setExtent(0, extent);
-//
-//   std::vector<float> data_vec;
-//   data_vec.resize(10 * 20);
-//   for (int i = 0; i < data_vec.size(); i++)
-//   {
-//     data_vec[i] = i * 1.0f;
-//   }
-//
-//   std::array<float3, 3> new_rot_mat{};
-//   new_rot_mat[0] = make_float3(0, 1, 0);
-//   new_rot_mat[1] = make_float3(1, 0, 0);
-//   new_rot_mat[2] = make_float3(0, 0, 1);
-//   helper->updateRotation(0, new_rot_mat);
-//   helper->updateOrigin(0, make_float3(1, 2, 3));
-//
-//   helper->updateTexture(0, data_vec);
-//   helper->updateResolution(0, 10);
-//   helper->enableTexture(0);
-//   helper->copyToDevice(true);
-//
-//   CudaCheckError();
-//   dynamics.GPUSetup();
-//   CudaCheckError();
-//
-//   EXPECT_NE(dynamics.getSteerHelper()->getLSTMDevicePtr(), nullptr);
-//   EXPECT_NE(dynamics.steer_network_d_, nullptr);
-//   EXPECT_EQ(dynamics.steer_network_d_, dynamics.getSteerHelper()->getLSTMDevicePtr());
-//
-//   EXPECT_NE(dynamics.getDelayHelper()->getLSTMDevicePtr(), nullptr);
-//   EXPECT_NE(dynamics.delay_network_d_, nullptr);
-//   EXPECT_EQ(dynamics.delay_network_d_, dynamics.getDelayHelper()->getLSTMDevicePtr());
-//
-//   EXPECT_NE(dynamics.getEngineHelper()->getLSTMDevicePtr(), nullptr);
-//   EXPECT_NE(dynamics.engine_network_d_, nullptr);
-//   EXPECT_EQ(dynamics.engine_network_d_, dynamics.getEngineHelper()->getLSTMDevicePtr());
-//
-//   EXPECT_NE(dynamics.getTerraHelper()->getLSTMDevicePtr(), nullptr);
-//   EXPECT_NE(dynamics.terra_network_d_, nullptr);
-//   EXPECT_EQ(dynamics.terra_network_d_, dynamics.getTerraHelper()->getLSTMDevicePtr());
-//
-//   Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts> control_trajectory;
-//   control_trajectory = Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts>::Random();
-//   Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts> state_trajectory;
-//   state_trajectory = Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts>::Random();
-//
-//   std::vector<std::array<float, AckermanSlip::STATE_DIM>> s(num_rollouts);
-//   std::vector<std::array<float, AckermanSlip::STATE_DIM>> s_next(num_rollouts);
-//   std::vector<std::array<float, AckermanSlip::STATE_DIM>> s_der(num_rollouts);
-//   // steering, throttle
-//   std::vector<std::array<float, AckermanSlip::CONTROL_DIM>> u(num_rollouts);
-//
-//   AckermanSlip::state_array state;
-//   AckermanSlip::state_array next_state_cpu;
-//   AckermanSlip::control_array control;
-//   AckermanSlip::output_array output;
-//   AckermanSlip::state_array state_der_cpu = AckermanSlip::state_array::Zero();
-//
-//   // Run dynamics on dynamicsU
-//   // Run dynamics on GPU
-//   for (int y_dim = 1; y_dim <= 16; y_dim++)
-//   {
-//     DYN::buffer_trajectory buffer;
-//     buffer["VEL_X"] = Eigen::VectorXf::Random(51);
-//     buffer["VEL_Y"] = Eigen::VectorXf::Random(51);
-//     buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
-//     buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
-//     buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
-//     buffer["BRAKE_STATE"] = Eigen::VectorXf::Random(51);
-//     buffer["BRAKE_CMD"] = Eigen::VectorXf::Random(51);
-//     buffer["THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
-//     buffer["OMEGA_Z"] = Eigen::VectorXf::Random(51);
-//     buffer["ROLL"] = Eigen::VectorXf::Random(51);
-//     buffer["PITCH"] = Eigen::VectorXf::Random(51);
-//
-//     for (int state_index = 0; state_index < num_rollouts; state_index++)
-//     {
-//       for (int dim = 0; dim < s[0].size(); dim++)
-//       {
-//         s[state_index][dim] = state_trajectory.col(state_index)(dim);
-//       }
-//       for (int dim = 0; dim < u[0].size(); dim++)
-//       {
-//         u[state_index][dim] = control_trajectory.col(state_index)(dim);
-//       }
-//     }
-//     dynamics.updateFromBuffer(buffer);
-//     launchStepTestKernel<AckermanSlip>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
-//     for (int point = 0; point < num_rollouts; point++)
-//     {
-//       dynamics.initializeDynamics(state, control, output, 0, 0);
-//       state = state_trajectory.col(point);
-//       control = control_trajectory.col(point);
-//       state_der_cpu = AckermanSlip::state_array::Zero();
-//
-//       dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-//       // for (int dim = 0; dim < AckermanSlip::STATE_DIM; dim++)
-//       for (int dim = 0; dim < AckermanSlip::STATE_DIM; dim++)
-//       {
-//         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
-//             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
-//         EXPECT_NEAR(next_state_cpu(dim), s_next[point][dim], 1e-4)
-//             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
-//         EXPECT_TRUE(isfinite(s_next[point][dim]));
-//       }
-//     }
-//   }
-//   dynamics.freeCudaMem();
-// }
-//
+TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
+{
+  const int num_rollouts = 2000;
+  const float dt = 0.1f;
+  CudaCheckError();
+  using DYN = AckermanSlip;
+  AckermanSlip dynamics = AckermanSlip(mppi::tests::ackerman_test);
+  // steering model params
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.9031379);
+  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.3959048);
+
+  // delay model params
+  EXPECT_FLOAT_EQ(dynamics.getParams().brake_delay_constant, 6.7206092);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_neg, 1.0515741);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_pos, 0.22181047);
+
+  // rest params
+  EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);
+  EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
+  EXPECT_FLOAT_EQ(dynamics.getParams().steer_angle_scale, -12.4);
+
+  cudaExtent extent = make_cudaExtent(100, 200, 0);
+  TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
+  helper->setExtent(0, extent);
+
+  std::vector<float> data_vec;
+  data_vec.resize(100 * 200);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = i * 1.0f;
+  }
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(0, 1, 0);
+  new_rot_mat[1] = make_float3(1, 0, 0);
+  new_rot_mat[2] = make_float3(0, 0, 1);
+  helper->updateRotation(0, new_rot_mat);
+  helper->updateOrigin(0, make_float3(0, 0, 0));
+
+  helper->updateTexture(0, data_vec);
+  helper->updateResolution(0, 10);
+  helper->enableTexture(0);
+  helper->copyToDevice(true);
+
+  CudaCheckError();
+  dynamics.GPUSetup();
+  CudaCheckError();
+
+  EXPECT_NE(dynamics.getSteerHelper()->getLSTMDevicePtr(), nullptr);
+  EXPECT_NE(dynamics.steer_network_d_, nullptr);
+  EXPECT_EQ(dynamics.steer_network_d_, dynamics.getSteerHelper()->getLSTMDevicePtr());
+
+  EXPECT_NE(dynamics.getDelayHelper()->getLSTMDevicePtr(), nullptr);
+  EXPECT_NE(dynamics.delay_network_d_, nullptr);
+  EXPECT_EQ(dynamics.delay_network_d_, dynamics.getDelayHelper()->getLSTMDevicePtr());
+
+  EXPECT_NE(dynamics.getEngineHelper()->getLSTMDevicePtr(), nullptr);
+  EXPECT_NE(dynamics.engine_network_d_, nullptr);
+  EXPECT_EQ(dynamics.engine_network_d_, dynamics.getEngineHelper()->getLSTMDevicePtr());
+
+  EXPECT_NE(dynamics.getTerraHelper()->getLSTMDevicePtr(), nullptr);
+  EXPECT_NE(dynamics.terra_network_d_, nullptr);
+  EXPECT_EQ(dynamics.terra_network_d_, dynamics.getTerraHelper()->getLSTMDevicePtr());
+
+  Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts>::Random();
+
+  std::vector<std::array<float, AckermanSlip::STATE_DIM>> s(num_rollouts);
+  std::vector<std::array<float, AckermanSlip::STATE_DIM>> s_next(num_rollouts);
+  std::vector<std::array<float, AckermanSlip::STATE_DIM>> s_der(num_rollouts);
+  // steering, throttle
+  std::vector<std::array<float, AckermanSlip::CONTROL_DIM>> u(num_rollouts);
+
+  AckermanSlip::state_array state;
+  AckermanSlip::state_array next_state_cpu;
+  AckermanSlip::control_array control;
+  AckermanSlip::output_array output;
+  AckermanSlip::state_array state_der_cpu = AckermanSlip::state_array::Zero();
+
+  // Run dynamics on dynamicsU
+  // Run dynamics on GPU
+  for (int y_dim = 1; y_dim <= 16; y_dim++)
+  {
+    DYN::buffer_trajectory buffer;
+    buffer["VEL_X"] = Eigen::VectorXf::Random(51);
+    buffer["VEL_Y"] = Eigen::VectorXf::Random(51);
+    buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
+    buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
+    buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
+    buffer["BRAKE_STATE"] = Eigen::VectorXf::Random(51);
+    buffer["BRAKE_CMD"] = Eigen::VectorXf::Random(51);
+    buffer["THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
+    buffer["OMEGA_Z"] = Eigen::VectorXf::Random(51);
+    buffer["ROLL"] = Eigen::VectorXf::Random(51);
+    buffer["PITCH"] = Eigen::VectorXf::Random(51);
+
+    for (int state_index = 0; state_index < num_rollouts; state_index++)
+    {
+      for (int dim = 0; dim < s[0].size(); dim++)
+      {
+        s[state_index][dim] = state_trajectory.col(state_index)(dim);
+      }
+      for (int dim = 0; dim < u[0].size(); dim++)
+      {
+        u[state_index][dim] = control_trajectory.col(state_index)(dim);
+      }
+    }
+    dynamics.updateFromBuffer(buffer);
+    launchStepTestKernel<AckermanSlip, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    for (int point = 0; point < num_rollouts; point++)
+    {
+      dynamics.initializeDynamics(state, control, output, 0, 0);
+      state = state_trajectory.col(point);
+      control = control_trajectory.col(point);
+      state_der_cpu = AckermanSlip::state_array::Zero();
+
+      dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
+      for (int dim = 0; dim < AckermanSlip::STATE_DIM; dim++)
+      {
+        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
+            << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
+        EXPECT_NEAR(next_state_cpu(dim), s_next[point][dim], 1e-4)
+            << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
+        EXPECT_TRUE(isfinite(s_next[point][dim]));
+      }
+    }
+  }
+  dynamics.freeCudaMem();
+}
+
 // TEST_F(AckermanSlipTest, TestStepGPUvsCPUReverse)
 // {
 //   using DYN = AckermanSlip;
@@ -1165,149 +1165,6 @@ TEST_F(AckermanSlipTest, TestPythonComparison)
 //   }
 //   dynamics.freeCudaMem();
 // }
-//
-// TEST_F(AckermanSlipTest, compareToElevationWithoutSteering)
-// {
-//   // by default the network will output zeros and not effect any states
-//   using DYN = AckermanSlip;
-//
-//   const int num_rollouts = 3000;
-//   const float dt = 0.1f;
-//   CudaCheckError();
-//   AckermanSlip dynamics = AckermanSlip();
-//   RacerDubinsElevation dynamics2 = RacerDubinsElevation();
-//   auto params = dynamics.getParams();
-//   dynamics.setParams(params);
-//   dynamics2.setParams(params);
-//
-//   cudaExtent extent = make_cudaExtent(10, 20, 0);
-//   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
-//   helper->setExtent(0, extent);
-//
-//   std::vector<float> data_vec;
-//   data_vec.resize(10 * 20);
-//   for (int i = 0; i < data_vec.size(); i++)
-//   {
-//     data_vec[i] = i * 1.0f;
-//   }
-//
-//   std::array<float3, 3> new_rot_mat{};
-//   new_rot_mat[0] = make_float3(0, 1, 0);
-//   new_rot_mat[1] = make_float3(1, 0, 0);
-//   new_rot_mat[2] = make_float3(0, 0, 1);
-//   helper->updateRotation(0, new_rot_mat);
-//   helper->updateOrigin(0, make_float3(1, 2, 3));
-//
-//   helper->updateTexture(0, data_vec);
-//   helper->updateResolution(0, 10);
-//   helper->enableTexture(0);
-//   helper->copyToDevice(true);
-//
-//   TwoDTextureHelper<float>* helper2 = dynamics2.getTextureHelper();
-//   helper2->setExtent(0, extent);
-//
-//   helper2->updateRotation(0, new_rot_mat);
-//   helper2->updateOrigin(0, make_float3(1, 2, 3));
-//
-//   data_vec.resize(10 * 20);
-//   for (int i = 0; i < data_vec.size(); i++)
-//   {
-//     data_vec[i] = i * 1.0f;
-//   }
-//   helper2->updateTexture(0, data_vec);
-//   helper2->updateResolution(0, 10);
-//   helper2->enableTexture(0);
-//   helper2->copyToDevice(true);
-//
-//   CudaCheckError();
-//   dynamics.GPUSetup();
-//   dynamics2.GPUSetup();
-//   CudaCheckError();
-//
-//   Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts> control_trajectory;
-//   control_trajectory = Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts>::Random();
-//   Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts> state_trajectory;
-//   state_trajectory = Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts>::Random();
-//
-//   AckermanSlip::state_array state;
-//   AckermanSlip::state_array next_state_cpu;
-//   AckermanSlip::control_array control;
-//   AckermanSlip::output_array output;
-//   AckermanSlip::state_array state_der_cpu = AckermanSlip::state_array::Zero();
-//
-//   AckermanSlip::state_array state2;
-//   AckermanSlip::state_array next_state_cpu2;
-//   AckermanSlip::control_array control2;
-//   AckermanSlip::output_array output2;
-//   AckermanSlip::state_array state_der_cpu2 = AckermanSlip::state_array::Zero();
-//
-//   DYN::buffer_trajectory buffer;
-//   buffer["VEL_X"] = Eigen::VectorXf::Random(51);
-//   buffer["VEL_Y"] = Eigen::VectorXf::Random(51);
-//   buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
-//   buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
-//   buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
-//
-//   dynamics.updateFromBuffer(buffer);
-//   for (int point = 0; point < num_rollouts; point++)
-//   {
-//     dynamics.initializeDynamics(state, control, output, 0, 0);
-//     state = state_trajectory.col(point);
-//     control = control_trajectory.col(point);
-//     state_der_cpu = AckermanSlip::state_array::Zero();
-//
-//     dynamics2.initializeDynamics(state2, control2, output2, 0, 0);
-//     state2 = state_trajectory.col(point);
-//     control2 = control_trajectory.col(point);
-//     state_der_cpu2 = AckermanSlip::state_array::Zero();
-//
-//     dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-//     dynamics2.step(state2, next_state_cpu2, state_der_cpu2, control2, output2, 0, dt);
-//
-//     for (int dim = 0; dim < AckermanSlip::STATE_DIM; dim++)
-//     {
-//       EXPECT_NEAR(state_der_cpu(dim), state_der_cpu2(dim), 1e-4) << "at index " << point << " dim " << dim;
-//       EXPECT_NEAR(next_state_cpu(dim), next_state_cpu2(dim), 1e-4) << "at index " << point << " dim " << dim;
-//     }
-//     for (int dim = 0; dim < AckermanSlip::OUTPUT_DIM; dim++)
-//     {
-//       EXPECT_NEAR(output(dim), output2(dim), 1e-4) << "at index " << point << " dim " << dim;
-//     }
-//   }
-//
-//   params.gear_sign = -1;
-//   dynamics.setParams(params);
-//   dynamics2.setParams(params);
-//
-//   // check in reverse as well
-//   for (int point = 0; point < num_rollouts; point++)
-//   {
-//     dynamics.initializeDynamics(state, control, output, 0, 0);
-//     state = state_trajectory.col(point);
-//     control = control_trajectory.col(point);
-//     state_der_cpu = AckermanSlip::state_array::Zero();
-//
-//     dynamics2.initializeDynamics(state2, control2, output2, 0, 0);
-//     state2 = state_trajectory.col(point);
-//     control2 = control_trajectory.col(point);
-//     state_der_cpu2 = AckermanSlip::state_array::Zero();
-//
-//     dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-//     dynamics2.step(state2, next_state_cpu2, state_der_cpu2, control2, output2, 0, dt);
-//
-//     for (int dim = 0; dim < AckermanSlip::STATE_DIM; dim++)
-//     {
-//       EXPECT_NEAR(state_der_cpu(dim), state_der_cpu2(dim), 1e-4) << "at index " << point << " dim " << dim;
-//       EXPECT_NEAR(next_state_cpu(dim), next_state_cpu2(dim), 1e-4) << "at index " << point << " dim " << dim;
-//     }
-//     for (int dim = 0; dim < AckermanSlip::OUTPUT_DIM; dim++)
-//     {
-//       EXPECT_NEAR(output(dim), output2(dim), 1e-4) << "at index " << point << " dim " << dim;
-//     }
-//   }
-//   dynamics.freeCudaMem();
-// }
-//
 // /*
 // class LinearDummy : public AckermanSlip {
 // public:
