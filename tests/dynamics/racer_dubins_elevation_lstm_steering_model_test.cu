@@ -341,14 +341,14 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   {
     theta_vec[i] = 0.1f;
   }
-  model->updateOutputModel({ 11, 20, 1 }, theta_vec);
+  model->updateOutputModel({ 10, 20, 1 }, theta_vec);
 
   theta_vec.resize(DYN::NN::INIT_OUTPUT_PARAMS_T::NUM_PARAMS);
   for (int i = 0; i < theta_vec.size(); i++)
   {
     theta_vec[i] = 0.01;
   }
-  model->updateOutputModelInit({ 65, 100, 10 }, theta_vec);
+  model->updateOutputModelInit({ 64, 100, 10 }, theta_vec);
 
   auto lstm_params = model->getLSTMParams();
   lstm_params.setAllValues(0.3f);
@@ -369,11 +369,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), 0.0, tol);
   EXPECT_NEAR(next_state(2), 0.0, tol);
   EXPECT_NEAR(next_state(3), 0.0, tol);
-  EXPECT_NEAR(next_state(4), 4.1513447761535645 * dt, tol);
+  EXPECT_NEAR(next_state(4), 4.1500520706176758 * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), 4.1513447761535645, tol);
+  EXPECT_NEAR(next_state(8), 4.1500520706176758, tol);
   EXPECT_NEAR(output(23), 0.0, tol);
 
   // Apply full throttle from zero state
@@ -385,11 +385,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), 0.0, tol);
   EXPECT_NEAR(next_state(2), 0.0, tol);
   EXPECT_NEAR(next_state(3), 0.0, tol);
-  EXPECT_NEAR(next_state(4), 5.2766318321228027 * dt, tol);
+  EXPECT_NEAR(next_state(4), 5.2751355171203613 * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), 5.2766318321228027, tol);
+  EXPECT_NEAR(next_state(8), 5.2751355171203613, tol);
   EXPECT_NEAR(output(23), 1.6, tol);
 
   // Apply throttle to a state with positive velocity
@@ -402,11 +402,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), 0.0, tol);
   EXPECT_NEAR(next_state(2), 0.1, tol);
   EXPECT_NEAR(next_state(3), 0.0, tol);
-  EXPECT_NEAR(next_state(4), 7.1914091110229492 * dt, tol);
+  EXPECT_NEAR(next_state(4), 7.1901092529296875 * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), 7.1914091110229492, tol);
+  EXPECT_NEAR(next_state(8), 7.1901092529296875, tol);
   EXPECT_NEAR(output(23), 19.5, tol);
 
   // Apply full throttle and half left turn to origin state
@@ -419,11 +419,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), 0.0, tol);
   EXPECT_NEAR(next_state(2), 0.0, tol);
   EXPECT_NEAR(next_state(3), 0.0, tol);
-  EXPECT_NEAR(next_state(4), 6.1980991363525391 * dt, tol);
+  EXPECT_NEAR(next_state(4), 6.1967658996582031 * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), 6.1980991363525391, tol);
+  EXPECT_NEAR(next_state(8), 6.1967658996582031, tol);
   EXPECT_NEAR(output(23), 1.6, tol);
 
   // Apply full throttle and half left turn to a moving state oriented 30 degrees to the left
@@ -437,11 +437,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), yaw, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
-  EXPECT_NEAR(next_state(4), 9.0653514862060547 * dt, tol);
+  EXPECT_NEAR(next_state(4), 9.0641689300537109 * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), 9.0653514862060547, tol);
+  EXPECT_NEAR(next_state(8), 9.0641689300537109, tol);
   EXPECT_NEAR(output(23), 19.5, tol);
 
   // Apply full throttle and half left turn to a moving state oriented 30 degrees to the left which is already turning
@@ -455,11 +455,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
-  EXPECT_NEAR(next_state(4), steer_angle + 9.3820228576660156 * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + 9.3808889389038086 * dt, tol);
   EXPECT_NEAR(next_state(5), 0.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), 9.3820228576660156, tol);
+  EXPECT_NEAR(next_state(8), 9.3808889389038086, tol);
   EXPECT_NEAR(output(23), 19.5, tol);
 
   // Apply full brake and half left turn to a moving state oriented 30 degrees to the left which is already turning
@@ -472,11 +472,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
-  EXPECT_NEAR(next_state(4), steer_angle + 9.3820228576660156 * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + 9.3808889389038086 * dt, tol);
   EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), 9.3820228576660156, tol);
+  EXPECT_NEAR(next_state(8), 9.3808889389038086, tol);
   EXPECT_NEAR(output(23), -10.5, tol);
 
   /**
@@ -492,11 +492,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
-  EXPECT_NEAR(next_state(4), steer_angle + 9.3820228576660156 * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + 9.3808889389038086 * dt, tol);
   EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), 9.3820228576660156, tol);
+  EXPECT_NEAR(next_state(8), 9.3808889389038086, tol);
   EXPECT_NEAR(output(23), (-10.5 + 9.81 * sinf(pitch)), tol);
 
   /**
@@ -511,11 +511,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
-  EXPECT_NEAR(next_state(4), steer_angle + 3.5296125411987305 * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + 3.5283551216125488 * dt, tol);
   EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), 3.5296125411987305, tol);
+  EXPECT_NEAR(next_state(8), 3.5283551216125488, tol);
   EXPECT_NEAR(output(23), (10.5 + 9.81 * sinf(pitch)), tol);
 
   /**
@@ -530,11 +530,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
-  EXPECT_NEAR(next_state(4), steer_angle + -0.32692205905914307 * dt, tol);
+  EXPECT_NEAR(next_state(4), steer_angle + -0.32771033048629761 * dt, tol);
   EXPECT_NEAR(next_state(5), 1.0, tol);
   EXPECT_NEAR(next_state(6), 0.0, tol);
   EXPECT_NEAR(next_state(7), 0.0, tol);
-  EXPECT_NEAR(next_state(8), -0.32692205905914307, tol);
+  EXPECT_NEAR(next_state(8), -0.32771033048629761, tol);
   EXPECT_NEAR(output(23), (10.5 + 9.81 * sinf(pitch)), tol);
 
   /**
@@ -622,7 +622,6 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPU)
   {
     DYN::buffer_trajectory buffer;
     buffer["VEL_X"] = Eigen::VectorXf::Random(51);
-    buffer["VEL_Y"] = Eigen::VectorXf::Random(51);
     buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
     buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
     buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
@@ -731,7 +730,6 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPUReverse)
   {
     DYN::buffer_trajectory buffer;
     buffer["VEL_X"] = Eigen::VectorXf::Random(51);
-    buffer["VEL_Y"] = Eigen::VectorXf::Random(51);
     buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
     buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
     buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
@@ -849,7 +847,6 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, compareToElevationWithoutSteering)
 
   DYN::buffer_trajectory buffer;
   buffer["VEL_X"] = Eigen::VectorXf::Random(51);
-  buffer["VEL_Y"] = Eigen::VectorXf::Random(51);
   buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
   buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
   buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);

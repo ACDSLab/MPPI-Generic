@@ -86,11 +86,10 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
 
   LSTM::input_array input;
   input(0) = state(S_INDEX(VEL_X));
-  input(1) = 0.0f;  // stand in for y velocity
-  input(2) = state(S_INDEX(STEER_ANGLE));
-  input(3) = state(S_INDEX(STEER_ANGLE_RATE));
-  input(4) = control(C_INDEX(STEER_CMD));
-  input(5) = state_der(S_INDEX(STEER_ANGLE));  // this is the parametric part as input
+  input(1) = state(S_INDEX(STEER_ANGLE));
+  input(2) = state(S_INDEX(STEER_ANGLE_RATE));
+  input(3) = control(C_INDEX(STEER_CMD));
+  input(4) = state_der(S_INDEX(STEER_ANGLE));  // this is the parametric part as input
   LSTM::output_array nn_output = LSTM::output_array::Zero();
   lstm_lstm_helper_->forward(input, nn_output);
   state_der(S_INDEX(STEER_ANGLE)) += nn_output(0) * 10;
@@ -266,11 +265,10 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   if (threadIdx.y == 0)
   {
     input_loc[0] = state[S_INDEX(VEL_X)];
-    input_loc[1] = 0.0f;  // filler for VEL_Y
-    input_loc[2] = state[S_INDEX(STEER_ANGLE)];
-    input_loc[3] = state[S_INDEX(STEER_ANGLE_RATE)];
-    input_loc[4] = control[C_INDEX(STEER_CMD)];
-    input_loc[5] = state_der[S_INDEX(STEER_ANGLE)];  // this is the parametric part as input
+    input_loc[1] = state[S_INDEX(STEER_ANGLE)];
+    input_loc[2] = state[S_INDEX(STEER_ANGLE_RATE)];
+    input_loc[3] = control[C_INDEX(STEER_CMD)];
+    input_loc[4] = state_der[S_INDEX(STEER_ANGLE)];  // this is the parametric part as input
   }
   __syncthreads();
   // runs the network
@@ -401,9 +399,8 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
 void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory& buffer)
 {
   NN::init_buffer init_buffer;
-  if (buffer.find("VEL_X") == buffer.end() || buffer.find("VEL_Y") == buffer.end() ||
-      buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
-      buffer.find("STEER_CMD") == buffer.end())
+  if (buffer.find("VEL_X") == buffer.end() || buffer.find("STEER_ANGLE") == buffer.end() ||
+      buffer.find("STEER_ANGLE_RATE") == buffer.end() || buffer.find("STEER_CMD") == buffer.end())
   {
     std::cout << "WARNING: not using init buffer" << std::endl;
     for (const auto& it : buffer)
@@ -414,10 +411,9 @@ void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory&
   }
 
   init_buffer.row(0) = buffer.at("VEL_X");
-  init_buffer.row(1) = buffer.at("VEL_Y");
-  init_buffer.row(2) = buffer.at("STEER_ANGLE");
-  init_buffer.row(3) = buffer.at("STEER_ANGLE_RATE");
-  init_buffer.row(4) = buffer.at("STEER_CMD");
+  init_buffer.row(1) = buffer.at("STEER_ANGLE");
+  init_buffer.row(2) = buffer.at("STEER_ANGLE_RATE");
+  init_buffer.row(3) = buffer.at("STEER_CMD");
 
   lstm_lstm_helper_->initializeLSTM(init_buffer);
 }

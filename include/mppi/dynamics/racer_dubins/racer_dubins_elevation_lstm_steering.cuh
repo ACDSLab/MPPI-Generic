@@ -12,10 +12,10 @@ class RacerDubinsElevationLSTMSteering : public RacerDubinsElevationImpl<RacerDu
 {
 public:
   using PARENT_CLASS = RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>;
-  typedef FNNParams<11, 20, 1> FNN_PARAMS;
-  typedef FNNParams<65, 100, 10> FNN_INIT_PARAMS;
-  typedef LSTMHelper<LSTMParams<6, 5>, FNN_PARAMS> LSTM;
-  typedef LSTMHelper<LSTMParams<5, 60>, FNN_INIT_PARAMS> INIT_LSTM;
+  typedef FNNParams<10, 20, 1> FNN_PARAMS;
+  typedef FNNParams<64, 100, 10> FNN_INIT_PARAMS;
+  typedef LSTMHelper<LSTMParams<5, 5>, FNN_PARAMS> LSTM;
+  typedef LSTMHelper<LSTMParams<4, 60>, FNN_INIT_PARAMS> INIT_LSTM;
   typedef LSTMLSTMHelper<INIT_LSTM, LSTM, 51> NN;
 
   static const int SHARED_MEM_REQUEST_GRD = RacerDubinsElevation::SHARED_MEM_REQUEST_GRD +
