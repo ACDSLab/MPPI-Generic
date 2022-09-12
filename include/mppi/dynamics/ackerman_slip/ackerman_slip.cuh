@@ -66,6 +66,8 @@ struct AckermanSlipParams : public DynamicsParams
     OMEGA_Z,
     NUM_OUTPUTS
   };
+  float wheel_base = 2.981;
+  float steer_angle_scale = -12.4;
   float wheel_angle_scale = -9.2;
   float gravity = -9.81;
   // steering parametric
@@ -94,16 +96,16 @@ class AckermanSlip : public MPPI_internal::Dynamics<AckermanSlip, AckermanSlipPa
 {
 public:
   using PARENT_CLASS = MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>;
-  typedef LSTMHelper<LSTMParams<6, 5>, FNNParams<11,20,1>, false> STEER_LSTM;
-  typedef LSTMHelper<LSTMParams<5, 60>, FNNParams<65, 100, 10>> STEER_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<5, 5>, FNNParams<10,20,1>, false> STEER_LSTM;
+  typedef LSTMHelper<LSTMParams<4, 60>, FNNParams<64, 100, 10>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
 
-  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8,30,1>, false> DELAY_LSTM;
+  typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8,10,1>, false> DELAY_LSTM;
   typedef LSTMHelper<LSTMParams<2, 60>, FNNParams<62, 100, 10>> DELAY_INIT_LSTM;
   typedef LSTMLSTMHelper<DELAY_INIT_LSTM, DELAY_LSTM, 51> DELAY_NN;
 
-  typedef LSTMHelper<LSTMParams<8, 10>, FNNParams<18,20,3>, false> TERRA_LSTM;
-  typedef LSTMHelper<LSTMParams<7, 60>, FNNParams<67, 100, 20>> TERRA_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<10, 10>, FNNParams<20,20,3>, false> TERRA_LSTM;
+  typedef LSTMHelper<LSTMParams<8, 60>, FNNParams<68, 100, 20>> TERRA_INIT_LSTM;
   typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
 
   typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8, 20, 1>, false> ENGINE_LSTM;
@@ -111,14 +113,14 @@ public:
   typedef LSTMLSTMHelper<ENGINE_INIT_LSTM, ENGINE_LSTM, 51> ENGINE_NN;
 
   struct SHARED_MEM_GRD_PARAMS {
-    LSTMParams<6, 5> steer_lstm_params;
-    FNNParams<11, 20, 1> steer_output_params;
+    LSTMParams<5, 5> steer_lstm_params;
+    FNNParams<10, 20, 1> steer_output_params;
 
     LSTMParams<3, 5> delay_lstm_params;
-    FNNParams<8, 30, 1> delay_output_params;
+    FNNParams<8, 10, 1> delay_output_params;
 
-    LSTMParams<8, 10> terra_lstm_params;
-    FNNParams<18, 20, 3> terra_output_params;
+    LSTMParams<10, 10> terra_lstm_params;
+    FNNParams<20, 20, 3> terra_output_params;
 
     LSTMParams<3, 5> engine_lstm_params;
     FNNParams<8, 20, 1> engine_output_params;
@@ -131,7 +133,7 @@ public:
     float engine_hidden_cell[2 * ENGINE_LSTM::HIDDEN_DIM];
 
     // terra is the largest, should be init'd smarter though
-    float theta_s[TERRA_LSTM::HIDDEN_DIM + TERRA_LSTM::INPUT_DIM + DELAY_LSTM::OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK];
+    float theta_s[TERRA_LSTM::HIDDEN_DIM + TERRA_LSTM::INPUT_DIM + TERRA_LSTM::OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK];
   };
 
   static const int SHARED_MEM_REQUEST_GRD = STEER_NN::SHARED_MEM_REQUEST_GRD
@@ -149,7 +151,7 @@ public:
   typedef typename PARENT_CLASS::dfdu dfdu;
 
   explicit AckermanSlip(cudaStream_t stream = nullptr);
-  explicit AckermanSlip(std::string steering_path, std::string ackerman_path, cudaStream_t stream = nullptr);
+  explicit AckermanSlip(std::string ackerman_path, cudaStream_t stream = nullptr);
 
   void paramsToDevice();
 

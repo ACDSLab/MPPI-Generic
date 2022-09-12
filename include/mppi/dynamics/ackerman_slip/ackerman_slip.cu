@@ -14,43 +14,40 @@ AckermanSlip::AckermanSlip(cudaStream_t stream) : MPPI_internal::Dynamics<Ackerm
   terra_lstm_lstm_helper_ = std::make_shared<TERRA_NN>(stream);
 }
 
-AckermanSlip::AckermanSlip(std::string steer_path, std::string ackerman_path, cudaStream_t stream)
+AckermanSlip::AckermanSlip(std::string ackerman_path, cudaStream_t stream)
   : MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>(stream)
 {
   this->requires_buffer_ = true;
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
 
-  steer_lstm_lstm_helper_ = std::make_shared<STEER_NN>(steer_path, stream);
-  if (!fileExists(steer_path))
-  {
-    std::cerr << "Could not load neural net model at steer_path: " << steer_path.c_str();
-    exit(-1);
-  }
-  cnpy::npz_t steer_param_dict = cnpy::npz_load(steer_path);
-  this->params_.max_steer_rate = steer_param_dict.at("params/max_steer_rate").data<float>()[0];
-  this->params_.steering_constant = steer_param_dict.at("params/steering_constant").data<float>()[0];
-
   delay_lstm_lstm_helper_ = std::make_shared<DELAY_NN>(stream);
   engine_lstm_lstm_helper_ = std::make_shared<ENGINE_NN>(stream);
   terra_lstm_lstm_helper_ = std::make_shared<TERRA_NN>(stream);
+  steer_lstm_lstm_helper_ = std::make_shared<STEER_NN>(stream);
 
   if (!fileExists(ackerman_path))
   {
     std::cerr << "Could not load neural net model at ackerman_path: " << ackerman_path.c_str();
     exit(-1);
   }
-  cnpy::npz_t ackerman_param_dict = cnpy::npz_load(ackerman_path);
-  this->params_.gravity = ackerman_param_dict.at("params/gravity").data<float>()[0];
-  this->params_.wheel_angle_scale = ackerman_param_dict.at("params/wheel_angle_scale").data<float>()[0];
+  cnpy::npz_t param_dict = cnpy::npz_load(ackerman_path);
+  this->params_.gravity = param_dict.at("params/gravity").data<float>()[0];
+  this->params_.wheel_angle_scale = param_dict.at("params/wheel_angle_scale").data<float>()[0];
+  this->params_.steer_angle_scale = param_dict.at("params/steer_angle_scale").data<float>()[0];
 
   // load the delay params
-  this->params_.brake_delay_constant = ackerman_param_dict.at("delay_model/params/brake_constant").data<float>()[0];
-  this->params_.max_brake_rate_neg = ackerman_param_dict.at("delay_model/params/max_brake_rate_neg").data<float>()[0];
-  this->params_.max_brake_rate_pos = ackerman_param_dict.at("delay_model/params/max_brake_rate_pos").data<float>()[0];
+  this->params_.brake_delay_constant = param_dict.at("delay_model/params/brake_constant").data<float>()[0];
+  this->params_.max_brake_rate_neg = param_dict.at("delay_model/params/max_brake_rate_neg").data<float>()[0];
+  this->params_.max_brake_rate_pos = param_dict.at("delay_model/params/max_brake_rate_pos").data<float>()[0];
+
+  // load the steering parameters
+  this->params_.max_steer_rate = param_dict.at("steer_model/params/max_steer_rate").data<float>()[0];
+  this->params_.steering_constant = param_dict.at("steer_model/params/steering_constant").data<float>()[0];
 
   delay_lstm_lstm_helper_->loadParams("delay_model/model", ackerman_path);
   terra_lstm_lstm_helper_->loadParams("terra_model", ackerman_path);
   engine_lstm_lstm_helper_->loadParams("engine_model", ackerman_path);
+  steer_lstm_lstm_helper_->loadParams("steer_model/model", ackerman_path);
 }
 
 void AckermanSlip::initializeDynamics(const Eigen::Ref<const state_array>& state,
@@ -130,10 +127,9 @@ void AckermanSlip::updateFromBuffer(const buffer_trajectory& buffer)
 
   STEER_NN::init_buffer steer_init_buffer;
   steer_init_buffer.row(0) = buffer.at("VEL_X");
-  steer_init_buffer.row(1) = buffer.at("VEL_Y");
-  steer_init_buffer.row(2) = buffer.at("STEER_ANGLE");
-  steer_init_buffer.row(3) = buffer.at("STEER_ANGLE_RATE");
-  steer_init_buffer.row(4) = buffer.at("STEER_CMD");
+  steer_init_buffer.row(1) = buffer.at("STEER_ANGLE");
+  steer_init_buffer.row(2) = buffer.at("STEER_ANGLE_RATE");
+  steer_init_buffer.row(3) = buffer.at("STEER_CMD");
   steer_lstm_lstm_helper_->initializeLSTM(steer_init_buffer);
 
   DELAY_NN::init_buffer delay_init_buffer;
@@ -155,6 +151,8 @@ void AckermanSlip::updateFromBuffer(const buffer_trajectory& buffer)
   terra_init_buffer.row(4) = buffer.at("STEER_ANGLE_RATE");
   terra_init_buffer.row(5) = buffer.at("PITCH").unaryExpr([](float x) { return sinf(x); }) * this->params_.gravity;
   terra_init_buffer.row(6) = buffer.at("ROLL").unaryExpr([](float x) { return sinf(x); }) * this->params_.gravity;
+  terra_init_buffer.row(7) =
+      buffer.at("STEER_ANGLE").unaryExpr([this](float x) { return tanf(x / this->params_.wheel_angle_scale); });
   terra_lstm_lstm_helper_->initializeLSTM(terra_init_buffer);
 }
 
@@ -215,7 +213,6 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
       state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW))) - state(S_INDEX(VEL_Y)) * sinf(state(S_INDEX(YAW)));
   state_der(S_INDEX(POS_Y)) =
       state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW))) + state(S_INDEX(VEL_Y)) * cosf(state(S_INDEX(YAW)));
-  state_der(S_INDEX(YAW)) = state(S_INDEX(OMEGA_Z));
 
   // runs the brake model
   DELAY_LSTM::input_array brake_input;
@@ -230,7 +227,7 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
   ENGINE_LSTM::input_array engine_input;
   engine_input(0) = throttle_cmd;
   engine_input(1) = state(S_INDEX(VEL_X));
-  engine_input(2) = brake_cmd;
+  engine_input(2) = state(S_INDEX(BRAKE_STATE));
   ENGINE_LSTM::output_array engine_output_arr = ENGINE_LSTM::output_array::Zero();
   engine_lstm_lstm_helper_->forward(engine_input, engine_output_arr);
   float engine_output = engine_output_arr(0) * 10;
@@ -245,14 +242,17 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
   // runs the steering model
   STEER_LSTM::input_array steer_input;
   steer_input(0) = state(S_INDEX(VEL_X));
-  steer_input(1) = state(S_INDEX(VEL_Y));  // stand in for y velocity
-  steer_input(2) = state(S_INDEX(STEER_ANGLE));
-  steer_input(3) = state(S_INDEX(STEER_ANGLE_RATE));
-  steer_input(4) = control(C_INDEX(STEER_CMD));
-  steer_input(5) = state_der(S_INDEX(STEER_ANGLE));  // this is the parametric part as input
+  steer_input(1) = state(S_INDEX(STEER_ANGLE));
+  steer_input(2) = state(S_INDEX(STEER_ANGLE_RATE));
+  steer_input(3) = control(C_INDEX(STEER_CMD));
+  steer_input(4) = state_der(S_INDEX(STEER_ANGLE));  // this is the parametric part as input
   STEER_LSTM::output_array steer_output = STEER_LSTM::output_array::Zero();
   steer_lstm_lstm_helper_->forward(steer_input, steer_output);
   state_der(S_INDEX(STEER_ANGLE)) += steer_output(0) * 10;
+
+  float delta = tanf(state(S_INDEX(STEER_ANGLE)) / this->params_.wheel_angle_scale);
+  float param_yaw_rate = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
+                         tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
 
   // runs the terra dynamics model
   TERRA_LSTM::input_array terra_input;
@@ -264,15 +264,20 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
   terra_input(5) = sinf(state(S_INDEX(PITCH))) * this->params_.gravity;
   terra_input(6) = sinf(state(S_INDEX(ROLL))) * this->params_.gravity;
   terra_input(7) = engine_output;
+  terra_input(8) = delta;
+  terra_input(9) = param_yaw_rate;
   TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
   terra_lstm_lstm_helper_->forward(terra_input, terra_output);
+  terra_output *= 10;
 
-  float delta = tanf(state(S_INDEX(STEER_ANGLE)) / this->params_.wheel_angle_scale);
+  const float c_delta = cosf(delta);
+  const float s_delta = sinf(delta);
 
   // combine to compute state derivative
-  state_der(S_INDEX(VEL_X)) = cosf(delta) * engine_output + engine_output - terra_output[0] * 10;
-  state_der(S_INDEX(VEL_Y)) = sinf(delta) * engine_output - terra_output[1] * 10;
-  state_der(S_INDEX(OMEGA_Z)) = terra_output[2] * 10;
+  state_der(S_INDEX(VEL_X)) =
+      c_delta * engine_output + engine_output - terra_output[0] * c_delta + terra_output[1] * s_delta - terra_output[0];
+  state_der(S_INDEX(VEL_Y)) = s_delta * engine_output - terra_output[0] * s_delta - terra_output[1] * c_delta;
+  state_der(S_INDEX(YAW)) = param_yaw_rate - terra_output[2];
 }
 
 void AckermanSlip::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
@@ -283,6 +288,7 @@ void AckermanSlip::updateState(const Eigen::Ref<const state_array> state, Eigen:
   next_state(S_INDEX(STEER_ANGLE)) =
       max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
+  next_state(S_INDEX(OMEGA_Z)) = state_der(S_INDEX(YAW));
   next_state(S_INDEX(BRAKE_STATE)) = min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), 1.0f);
 }
 
@@ -385,6 +391,7 @@ void AckermanSlip::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> n
   output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000;
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
   output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
+  output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
 __device__ void AckermanSlip::initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0,
@@ -531,11 +538,10 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
   __syncthreads();  // required since we can overwrite the output before grabbing it
   input_loc = &theta_s_shifted[STEER_LSTM::HIDDEN_DIM];
   input_loc[0] = state[S_INDEX(VEL_X)];
-  input_loc[1] = state[S_INDEX(VEL_Y)];  // stand in for y velocity
-  input_loc[2] = state[S_INDEX(STEER_ANGLE)];
-  input_loc[3] = state[S_INDEX(STEER_ANGLE_RATE)];
-  input_loc[4] = control[C_INDEX(STEER_CMD)];
-  input_loc[5] = state_der[S_INDEX(STEER_ANGLE)];  // this is the parametric part as input
+  input_loc[1] = state[S_INDEX(STEER_ANGLE)];
+  input_loc[2] = state[S_INDEX(STEER_ANGLE_RATE)];
+  input_loc[3] = control[C_INDEX(STEER_CMD)];
+  input_loc[4] = state_der[S_INDEX(STEER_ANGLE)];  // this is the parametric part as input
   if (SHARED_MEM_REQUEST_GRD != 0)
   {
     output = steer_network_d_->forward(nullptr, theta_s_shifted, &blk_params->steer_hidden_cell[0],
