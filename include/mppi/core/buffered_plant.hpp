@@ -40,6 +40,7 @@ public:
 
   void updateExtraValue(const std::string& name, float value, double time)
   {
+    std::lock_guard<std::mutex> guard(this->buffer_guard_);
     if (prev_extra_.find(name) == prev_extra_.end())
     {
       prev_extra_.emplace(std::make_pair(name, std::list<BufferMessage<float>>()));
@@ -49,6 +50,7 @@ public:
 
   void updateControls(c_array& control, double time)
   {
+    std::lock_guard<std::mutex> guard(this->buffer_guard_);
     insertionSort<c_array>(prev_controls_, time, control);
   }
 
@@ -153,11 +155,13 @@ public:
   void updateOdometry(Eigen::Vector3f& pos, Eigen::Quaternionf& quat, Eigen::Vector3f& vel, Eigen::Vector3f& omega,
                       double time)
   {
+    this->buffer_guard_.lock();
     // inserts odometry into buffers using insertion sort
     insertionSort(prev_position_, time, pos);
     insertionSort(prev_quaternion_, time, quat);
     insertionSort(prev_velocity_, time, vel);
     insertionSort(prev_omega_, time, omega);
+    this->buffer_guard_.unlock();
 
     /**
      * Uses the most recent odometry information
@@ -189,6 +193,7 @@ public:
 
   std::map<std::string, float> getInterpState(double time)
   {
+    std::lock_guard<std::mutex> guard(this->buffer_guard_);
     std::map<std::string, float> result;
     if (prev_position_.empty())
     {
@@ -245,13 +250,15 @@ public:
     buffer_trajectory result;
 
     // if not enough data return empty message
-    std::lock_guard<std::mutex> lck(this->access_guard_);
+    this->buffer_guard_.lock();
     if (prev_position_.rbegin()->time - prev_position_.begin()->time < buffer_tau_)
     {
       std::cout << "not enough time for buffer, returning early" << prev_position_.rbegin()->time << " - "
                 << prev_position_.begin()->time << " < " << buffer_tau_ << std::endl;
+      this->buffer_guard_.unlock();
       return result;
     }
+    this->buffer_guard_.unlock();
 
     int steps = buffer_tau_ / buffer_dt_ + 1;
 
@@ -286,7 +293,7 @@ public:
 
   void cleanBuffers(double time)
   {
-    std::lock_guard<std::mutex> guard(this->access_guard_);
+    std::lock_guard<std::mutex> guard(this->buffer_guard_);
     cleanList(prev_position_, time);
     cleanList(prev_quaternion_, time);
     cleanList(prev_velocity_, time);
@@ -300,6 +307,7 @@ public:
 
   void clearBuffers()
   {
+    std::lock_guard<std::mutex> guard(this->buffer_guard_);
     prev_position_.clear();
     prev_quaternion_.clear();
     prev_velocity_.clear();
@@ -319,6 +327,7 @@ protected:
   double buffer_time_horizon_ = 2.0;   // how long to store values in the buffer
   double buffer_tau_ = 1.0;            // how in history to create well sampled positions from
   double buffer_dt_ = 0.02;            // the spacing between well sampled buffer positions
+  std::mutex buffer_guard_;
 };
 
 template class BufferMessage<Eigen::Vector3f>;
