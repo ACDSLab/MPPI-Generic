@@ -66,6 +66,7 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
 
   state_der(0) = (!enable_brake) * throttle * this->params_.gear_sign + brake - this->params_.c_v[index] * state(0) +
                  this->params_.c_0;
+  state_der(S_INDEX(VEL_X)) = min(max(state_der(S_INDEX(VEL_X)), -5.5), 5.5);
   if (abs(state[6]) < M_PI_2)
   {
     state_der[0] -= this->params_.gravity * sinf(state[S_INDEX(PITCH)]);
@@ -223,6 +224,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   {
     state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * params_p->gear_sign + brake -
                                 params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
+    state_der[S_INDEX(VEL_X)] = min(max(state_der[S_INDEX(VEL_X)], -5.5), 5.5);
     if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
     {
       state_der[S_INDEX(VEL_X)] -= params_p->gravity * sinf(state[S_INDEX(PITCH)]);
