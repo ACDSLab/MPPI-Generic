@@ -277,7 +277,7 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
 
   // combine to compute state derivative
   state_der(S_INDEX(VEL_X)) = c_delta * engine_output + engine_output - drag_x * c_delta + drag_y * s_delta - drag_x;
-  state_der(S_INDEX(VEL_Y)) = s_delta * engine_output - drag_x * s_delta - drag_y * c_delta;
+  state_der(S_INDEX(VEL_Y)) = s_delta * engine_output - drag_x * s_delta - drag_y * c_delta - drag_y;
   state_der(S_INDEX(YAW)) = param_yaw_rate - drag_yaw;
 }
 
@@ -592,7 +592,7 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
 
   // combine to compute state derivative
   state_der[S_INDEX(VEL_X)] = c_delta * engine_output + engine_output - drag_x * c_delta + drag_y * s_delta - drag_x;
-  state_der[S_INDEX(VEL_Y)] = s_delta * engine_output - drag_x * s_delta - drag_y * c_delta;
+  state_der[S_INDEX(VEL_Y)] = s_delta * engine_output - drag_x * s_delta - drag_y * c_delta - drag_y;
   state_der[S_INDEX(YAW)] = param_yaw_rate - drag_yaw;
 }
 
