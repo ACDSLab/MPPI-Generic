@@ -24,19 +24,12 @@ struct BufferMessage
   }
 };
 
-template <class CONTROLLER_T>
-class BufferedPlant : public BasePlant<CONTROLLER_T>
+template <class DYN_T>
+class Buffer
 {
 public:
-  using s_array = typename BasePlant<CONTROLLER_T>::s_array;
-  using c_array = typename BasePlant<CONTROLLER_T>::c_array;
-
-  using buffer_trajectory = typename BasePlant<CONTROLLER_T>::buffer_trajectory;
-
-  BufferedPlant(std::shared_ptr<CONTROLLER_T> controller, int hz, int opt_stide)
-    : BasePlant<CONTROLLER_T>(controller, hz, opt_stide)
-  {
-  }
+  using buffer_trajectory = typename DYN_T::buffer_trajectory;
+  using c_array = typename DYN_T::control_array;
 
   void updateExtraValue(const std::string& name, float value, double time)
   {
@@ -55,7 +48,7 @@ public:
   }
 
   template <class T>
-  void insertionSort(std::list<BufferMessage<T>>& list, double time, T val)
+  static void insertionSort(std::list<BufferMessage<T>>& list, double time, T val)
   {
     if (list.empty())
     {
@@ -74,7 +67,7 @@ public:
   }
 
   template <class T>
-  void cleanList(std::list<BufferMessage<T>>& list, double time)
+  static void cleanList(std::list<BufferMessage<T>>& list, double time, double buffer_time_horizon)
   {
     if (list.empty())
     {
@@ -82,7 +75,7 @@ public:
     }
     auto it = list.begin();
     // iterate until the time is greater than
-    for (; (it != list.end() && it->time < time - buffer_time_horizon_); it++)
+    for (; (it != list.end() && it->time < time - buffer_time_horizon); it++)
     {
     }
 
@@ -162,34 +155,7 @@ public:
     insertionSort(prev_velocity_, time, vel);
     insertionSort(prev_omega_, time, omega);
     this->buffer_guard_.unlock();
-
-    /**
-     * Uses the most recent odometry information
-     * If any other sources are more delayed it uses the most recent value
-     * If other sources are more recent it gets interpolated to odom time
-     */
-    std::map<std::string, float> smoothed = getInterpState(time);
-    s_array state = this->controller_->model_->stateFromMap(smoothed);
-    BasePlant<CONTROLLER_T>::updateState(state, time);
   }
-
-  // double getStateTime()
-  // {
-  //   if (prev_position_.empty())
-  //   {
-  //     return 0;
-  //   }
-  //   double time = prev_position_.back().time;
-  //   time = std::min(prev_controls_.back().time, time);
-  //   for (const auto& it : prev_extra_)
-  //   {
-  //     if (it.second.back().required)
-  //     {
-  //       time = std::min(it.second.back().time, time);
-  //     }
-  //   }
-  //   return time;
-  // }
 
   std::map<std::string, float> getInterpState(double time)
   {
@@ -236,14 +202,7 @@ public:
     return result;
   }
 
-  bool updateParameters()
-  {
-    // removes extra values from the buffer
-    cleanBuffers();
-    return BasePlant<CONTROLLER_T>::updateParameters();
-  }
-
-  buffer_trajectory getSmoothedBuffer(double latest_time)
+  buffer_trajectory getSmoothedBuffer(double latest_time, double buffer_tau, double buffer_dt)
   {
     // does the latest state to make sure we have valid values
     std::map<std::string, float> start_vals = getInterpState(latest_time);
@@ -251,16 +210,16 @@ public:
 
     // if not enough data return empty message
     this->buffer_guard_.lock();
-    if (prev_position_.rbegin()->time - prev_position_.begin()->time < buffer_tau_)
+    if (prev_position_.rbegin()->time - prev_position_.begin()->time < buffer_tau)
     {
       std::cout << "not enough time for buffer, returning early" << prev_position_.rbegin()->time << " - "
-                << prev_position_.begin()->time << " < " << buffer_tau_ << std::endl;
+                << prev_position_.begin()->time << " < " << buffer_tau << std::endl;
       this->buffer_guard_.unlock();
       return result;
     }
     this->buffer_guard_.unlock();
 
-    int steps = buffer_tau_ / buffer_dt_ + 1;
+    int steps = buffer_tau / buffer_dt + 1;
 
     for (const auto& start_val : start_vals)
     {
@@ -272,7 +231,7 @@ public:
     for (int t = 0; t <= steps - 1; t++)
     {
       // get query time
-      double query_time = latest_time - (steps - 1) * buffer_dt_ + t * buffer_dt_;
+      double query_time = latest_time - (steps - 1) * buffer_dt + t * buffer_dt;
       std::map<std::string, float> interp_vals = getInterpState(query_time);
 
       // interpolate values
@@ -285,23 +244,17 @@ public:
     return result;
   }
 
-  void cleanBuffers()
-  {
-    double time = this->getStateTime();
-    cleanBuffers(time);
-  }
-
-  void cleanBuffers(double time)
+  void cleanBuffers(double time, double horizon)
   {
     std::lock_guard<std::mutex> guard(this->buffer_guard_);
-    cleanList(prev_position_, time);
-    cleanList(prev_quaternion_, time);
-    cleanList(prev_velocity_, time);
-    cleanList(prev_omega_, time);
-    cleanList(prev_controls_, time);
+    cleanList(prev_position_, time, horizon);
+    cleanList(prev_quaternion_, time, horizon);
+    cleanList(prev_velocity_, time, horizon);
+    cleanList(prev_omega_, time, horizon);
+    cleanList(prev_controls_, time, horizon);
     for (auto& it : prev_extra_)
     {
-      cleanList(it.second, time);
+      cleanList(it.second, time, horizon);
     }
   }
 
@@ -316,18 +269,120 @@ public:
     prev_extra_.clear();
   }
 
-protected:
+  std::list<BufferMessage<Eigen::Vector3f>> getPrevPositionList()
+  {
+    return prev_position_;
+  }
+
+  std::list<BufferMessage<Eigen::Quaternionf>> getPrevQuaternionList()
+  {
+    return prev_quaternion_;
+  }
+
+  std::list<BufferMessage<Eigen::Vector3f>> getPrevVelocityList()
+  {
+    return prev_velocity_;
+  }
+
+  std::list<BufferMessage<Eigen::Vector3f>> getPrevOmegaList()
+  {
+    return prev_omega_;
+  }
+
+  std::list<BufferMessage<c_array>> getPrevControlList()
+  {
+    return prev_controls_;
+  }
+
+  std::map<std::string, std::list<BufferMessage<float>>> getPrevExtraList()
+  {
+    return prev_extra_;
+  }
+
+private:
+  std::mutex buffer_guard_;
+
   std::list<BufferMessage<Eigen::Vector3f>> prev_position_;
   std::list<BufferMessage<Eigen::Quaternionf>> prev_quaternion_;
   std::list<BufferMessage<Eigen::Vector3f>> prev_velocity_;
   std::list<BufferMessage<Eigen::Vector3f>> prev_omega_;
   std::list<BufferMessage<c_array>> prev_controls_;
   std::map<std::string, std::list<BufferMessage<float>>> prev_extra_;
+};
+
+template <class CONTROLLER_T>
+class BufferedPlant : public BasePlant<CONTROLLER_T>
+{
+public:
+  using s_array = typename BasePlant<CONTROLLER_T>::s_array;
+  using c_array = typename BasePlant<CONTROLLER_T>::c_array;
+
+  using buffer_trajectory = typename BasePlant<CONTROLLER_T>::buffer_trajectory;
+
+  BufferedPlant(std::shared_ptr<CONTROLLER_T> controller, int hz, int opt_stide)
+    : BasePlant<CONTROLLER_T>(controller, hz, opt_stide)
+  {
+  }
+
+  void updateExtraValue(const std::string& name, float value, double time)
+  {
+    buffer_.updateExtraValue(name, value, time);
+  }
+
+  void updateControls(c_array& control, double time)
+  {
+    buffer_.updateControls(control, time);
+  }
+
+  void updateOdometry(Eigen::Vector3f& pos, Eigen::Quaternionf& quat, Eigen::Vector3f& vel, Eigen::Vector3f& omega,
+                      double time)
+  {
+    buffer_.updateOdometry(pos, quat, vel, omega, time);
+
+    /**
+     * Uses the most recent odometry information
+     * If any other sources are more delayed it uses the most recent value
+     * If other sources are more recent it gets interpolated to odom time
+     */
+    std::map<std::string, float> smoothed = buffer_.getInterpState(time);
+    s_array state = this->controller_->model_->stateFromMap(smoothed);
+    BasePlant<CONTROLLER_T>::updateState(state, time);
+  }
+
+  std::map<std::string, float> getInterpState(double time)
+  {
+    return buffer_.getInterpState(time);
+  }
+
+  bool updateParameters()
+  {
+    // removes extra values from the buffer
+    double time = this->getStateTime();
+    buffer_.cleanBuffers(time, buffer_time_horizon_);
+    return BasePlant<CONTROLLER_T>::updateParameters();
+  }
+
+  buffer_trajectory getSmoothedBuffer(double latest_time)
+  {
+    return buffer_.getSmoothedBuffer(latest_time, buffer_tau_, buffer_dt_);
+  }
+
+  void cleanBuffers(double time)
+  {
+    buffer_.cleanBuffers(time, buffer_time_horizon_);
+  }
+
+  void clearBuffers()
+  {
+    buffer_.clearBuffers();
+  }
+
+protected:
+  Buffer<typename CONTROLLER_T::TEMPLATED_DYNAMICS> buffer_;
 
   double buffer_time_horizon_ = 2.0;   // how long to store values in the buffer
   double buffer_tau_ = 1.0;            // how in history to create well sampled positions from
   double buffer_dt_ = 0.02;            // the spacing between well sampled buffer positions
-  std::mutex buffer_guard_;
 };
 
 template class BufferMessage<Eigen::Vector3f>;
