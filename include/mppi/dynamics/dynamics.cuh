@@ -306,6 +306,17 @@ public:
   }
 
   /**
+   * computes a specific state error
+   * @param pred_state
+   * @param true_state
+   * @return
+   */
+  state_array computeStateError(const Eigen::Ref<state_array> pred_state, const Eigen::Ref<state_array> true_state)
+  {
+    return pred_state - true_state;
+  }
+
+  /**
    * computes the section of the state derivative that comes form the dyanmics
    * @param state
    * @param control

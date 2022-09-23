@@ -299,6 +299,15 @@ public:
     return prev_extra_;
   }
 
+  double getLatestOdomTime()
+  {
+    if (prev_position_.empty())
+    {
+      return 0;
+    }
+    return prev_position_.rbegin()->time;
+  }
+
 private:
   std::mutex buffer_guard_;
 
