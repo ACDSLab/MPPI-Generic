@@ -145,12 +145,12 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
   output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
   output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
   output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
-  output[O_INDEX(BASELINK_POS_I_Z)] = 0;
+  output[O_INDEX(BASELINK_POS_I_Z)] = (rear_left_height + rear_right_height) / 2.0;
   output[O_INDEX(YAW)] = yaw;
   output[O_INDEX(PITCH)] = pitch;
   output[O_INDEX(ROLL)] = roll;
   output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
-  output[O_INDEX(STEER_ANGLE_RATE)] = 0;
+  output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
   output[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
   output[O_INDEX(WHEEL_POS_I_FL_Y)] = front_left.y;
   output[O_INDEX(WHEEL_POS_I_FR_X)] = front_right.x;
@@ -331,6 +331,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
   output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
   output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
+  output[O_INDEX(BASELINK_POS_I_Z)] = (rear_left_height + rear_right_height) / 2.0;
   output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
   output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
   output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
@@ -362,7 +363,9 @@ RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, floa
 {
   state_array s = state_array::Zero();
   if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
-      map.find("POS_Y") == map.end() || map.find("ROLL") == map.end() || map.find("PITCH") == map.end())
+      map.find("POS_Y") == map.end() || map.find("ROLL") == map.end() || map.find("PITCH") == map.end() ||
+      map.find("STEER_ANGLE") == map.end() || map.find("STEER_ANGLE_RATE") == map.end() ||
+      map.find("BRAKE_STATE") == map.end())
   {
     std::cout << "WARNING: could not find all keys for elevation dynamics" << std::endl;
     for (const auto& it : map)
@@ -375,32 +378,10 @@ RacerDubinsElevationImpl<CLASS_T>::stateFromMap(const std::map<std::string, floa
   s(S_INDEX(POS_Y)) = map.at("POS_Y");
   s(S_INDEX(VEL_X)) = map.at("VEL_X");
   s(S_INDEX(YAW)) = map.at("YAW");
-  if (map.find("STEER_ANGLE") != map.end())
-  {
-    s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
-    s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
-  }
-  else
-  {
-    std::cout << "WARNING: unable to find BRAKE_STATE or STEER_ANGLE_RATE, using 0" << std::endl;
-    s(S_INDEX(STEER_ANGLE)) = 0;
-    s(S_INDEX(STEER_ANGLE_RATE)) = 0;
-  }
+  s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
+  s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
   s(S_INDEX(ROLL)) = map.at("ROLL");
   s(S_INDEX(PITCH)) = map.at("PITCH");
-  if (map.find("BRAKE_STATE") != map.end())
-  {
-    s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");
-  }
-  else if (map.find("BRAKE_CMD") != map.end())
-  {
-    std::cout << "WARNING: unable to find BRAKE_STATE" << std::endl;
-    s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_CMD");
-  }
-  else
-  {
-    std::cout << "WARNING: unable to find BRAKE_CMD or BRAKE_STATE" << std::endl;
-    s(S_INDEX(BRAKE_STATE)) = 0;
-  }
+  s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");
   return s;
 }

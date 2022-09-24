@@ -210,10 +210,11 @@ public:
 
     // if not enough data return empty message
     this->buffer_guard_.lock();
-    if (prev_position_.rbegin()->time - prev_position_.begin()->time < buffer_tau)
+    float time_diff = prev_position_.rbegin()->time - prev_position_.begin()->time;
+    if (time_diff < buffer_tau)
     {
       std::cout << "not enough time for buffer, returning early" << prev_position_.rbegin()->time << " - "
-                << prev_position_.begin()->time << " < " << buffer_tau << std::endl;
+                << prev_position_.begin()->time << " = " << time_diff << " < " << buffer_tau << std::endl;
       this->buffer_guard_.unlock();
       return result;
     }
@@ -306,6 +307,15 @@ public:
       return 0;
     }
     return prev_position_.rbegin()->time;
+  }
+
+  double getOldestOdomTime()
+  {
+    if (prev_position_.empty())
+    {
+      return 0;
+    }
+    return prev_position_.begin()->time;
   }
 
 private:
