@@ -78,6 +78,11 @@ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(const Eigen::Ref
 
   if (dist_to_gate < this->params_.gate_margin)
   {
+    // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&
+    //     blockIdx.z == 0)
+    // {
+    //   printf("Passing through a gate: state_vec: (%f, %f, %f)\n", s[O_IND_CLASS(DYN_T::PARAMS_T, POS_X)], s[O_IND_CLASS(typename DYN_T::PARAMS_T, POS_Y), s[O_IND_CLASS(DYN_T::PARAMS_T, POS_Z)]]);
+    // }
     cost += this->params_.gate_pass_cost;
   }
   return cost;
@@ -315,7 +320,7 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
   float height_diff = fabs(s[E_INDEX(OutputIndex, POS_Z)] - interpolated_height);
   if (height_diff < 0)
   {
-    cost += this->params_.crash_coeff;
+    cost += this->params_.crash_coeff * (1 -height_diff);
   }
   else
   {
@@ -331,7 +336,13 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeCostmapCost(flo
   float cost = 0;
   float3 query_point =
       make_float3(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)], s[E_INDEX(OutputIndex, POS_Z)]);
-  float track_cost = this->tex_helper_->queryTextureAtWorldPose(0, query_point);
+  float3 tex_coords;
+  this->tex_helper_->worldPoseToTexCoord(0, query_point, tex_coords);
+  if (tex_coords.x < 0.0f || tex_coords.x > 1.0f || tex_coords.y < 0.0f || tex_coords.y > 1.0f)
+  { // The vehicle is not in the map anymore
+    cost += this->params_.crash_coeff;
+  }
+  float track_cost = this->tex_helper_->queryTexture(0, tex_coords);
 
   // Calculate cost based on distance from centerline of the track
   if (track_cost > this->params_.track_slop)
