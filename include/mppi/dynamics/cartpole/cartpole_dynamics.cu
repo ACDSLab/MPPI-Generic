@@ -101,3 +101,14 @@ __device__ void CartpoleDynamics::computeDynamics(float* state, float* control, 
                  (-force * cosf(theta) - m_p * l_p * powf(theta_dot, 2.0) * cosf(theta) * sinf(theta) -
                   (m_c + m_p) * gravity_ * sinf(theta));
 }
+
+Dynamics<CartpoleDynamics, CartpoleDynamicsParams>::state_array
+CartpoleDynamics::stateFromMap(const std::map<std::string, float>& map)
+{
+  state_array s;
+  s(S_INDEX(POS_X)) = map.at("POS_X");
+  s(S_INDEX(VEL_X)) = map.at("VEL_X");
+  s(S_INDEX(THETA)) = map.at("THETA");
+  s(S_INDEX(THETA_DOT)) = map.at("THETA_DOT");
+  return s;
+}

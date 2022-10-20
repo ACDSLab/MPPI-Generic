@@ -156,8 +156,12 @@ DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3&
   float2 query = make_float2(point.x * param->extent.width, point.y * param->extent.height);
 
   // we subtract half a grid cell since the elevation map is the elevation at the center of the grid cell
-  query.x = query.x - 0.5, 0.0;
-  query.y = query.y - 0.5, 0.0;
+  query.x = query.x - 0.5f;
+  query.y = query.y - 0.5f;
+  // if (this->cpu_values_[index].size() < param->extent.width * param->extent.height)
+  // {
+  //   return DATA_T();
+  // }
   if (param->texDesc.addressMode[0] == cudaAddressModeClamp)
   {
     if (query.x > param->extent.width - 1)
@@ -192,9 +196,9 @@ DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3&
   if (param->texDesc.filterMode == cudaFilterModeLinear)
   {
     // the value is distributed evenly in the space starting at half a cell from 0.0
-    int x_min = std::floor(query.x);
+    int x_min = std::min((int)std::floor(query.x), w - 2);
     int x_max = x_min + 1;
-    int y_min = std::floor(query.y);
+    int y_min = std::min((int)std::floor(query.y), (int)param->extent.height - 2);
     int y_max = y_min + 1;
 
     // does bilinear interpolation https://en.wikipedia.org/wiki/Bilinear_interpolation

@@ -59,6 +59,8 @@ struct RacerSuspensionParams : public DynamicsParams
     WHEEL_FORCE_B_RL,
     WHEEL_FORCE_B_RR,
     ACCEL_X,
+    ACCEL_Y,
+    OMEGA_Z,
     NUM_OUTPUTS
   };
   // suspension model params
@@ -199,6 +201,8 @@ public:
   Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
   state_array stateFromOdometry(const Eigen::Quaternionf& q_B_to_I, const Eigen::Vector3f& pos_base_link_I,
                                 const Eigen::Vector3f& vel_base_link_B, const Eigen::Vector3f& omega_B);
+
+  state_array stateFromMap(const std::map<std::string, float>& map) override;
 
 protected:
   TwoDTextureHelper<float>* tex_helper_ = nullptr;

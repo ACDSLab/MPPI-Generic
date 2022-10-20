@@ -89,6 +89,8 @@ public:
 
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
+  state_array stateFromMap(const std::map<std::string, float>& map) override;
+
 protected:
   const float gravity_ = 9.81;
 };

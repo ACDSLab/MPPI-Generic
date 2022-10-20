@@ -551,7 +551,7 @@ __global__ void autorallyRolloutKernel(int num_timesteps, float* state_d, float*
   __shared__ float exploration_variance[BLOCKSIZE_X * CONTROL_DIM];
   __shared__ int crash_status[BLOCKSIZE_X];
   // Create a shared array for the dynamics model to use
-  __shared__ float theta[SHARED_MEM_REQUEST_GRD + SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
+  __shared__ float theta[SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
   __shared__ float theta_c[COSTS_T::SHARED_MEM_REQUEST_GRD + COSTS_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
   __shared__ float y[DYNAMICS_T::OUTPUT_DIM];
 

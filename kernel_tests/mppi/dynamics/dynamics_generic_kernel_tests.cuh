@@ -26,9 +26,9 @@ template <class DYNAMICS_T, int S_DIM>
 void launchComputeKinematicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, S_DIM>>& state,
                                        std::vector<std::array<float, S_DIM>>& state_der, int dim_y);
 
-template <class DYNAMICS_T, int S_DIM, int C_DIM>
+template <class DYNAMICS_T, int S_DIM, int C_DIM, int BLOCKDIM_X>
 __global__ void computeDynamicsTestKernel(DYNAMICS_T* model, float* state, float* control, float* state_der, int count);
-template <class DYNAMICS_T, int S_DIM, int C_DIM>
+template <class DYNAMICS_T, int S_DIM, int C_DIM, int BLOCKDIM_X=32>
 void launchComputeDynamicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, S_DIM>>& state,
                                      std::vector<std::array<float, C_DIM>>& control,
                                      std::vector<std::array<float, S_DIM>>& state_der, int dim_y);
@@ -39,10 +39,10 @@ template <typename DYNAMICS_T, int S_DIM>
 void launchUpdateStateTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, S_DIM>>& state,
                                  std::vector<std::array<float, S_DIM>>& state_der, float dt, int dim_y);
 
-template <typename DYNAMICS_T, int S_DIM, int C_DIM>
+template <typename DYNAMICS_T, int S_DIM, int C_DIM, int BLOCKDIM_X>
 __global__ void computeStateDerivTestKernel(DYNAMICS_T* dynamics, float* state, float* control, float* state_der,
                                             int num);
-template <typename DYNAMICS_T, int S_DIM, int C_DIM>
+template <typename DYNAMICS_T, int S_DIM, int C_DIM, int BLOCKDIM_X=32>
 void launchComputeStateDerivTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, S_DIM>>& state,
                                        std::vector<std::array<float, C_DIM>>& control,
                                        std::vector<std::array<float, S_DIM>>& state_der, int dim_y);

@@ -13,6 +13,7 @@ struct RacerDubinsParams : public DynamicsParams
     POS_X,
     POS_Y,
     STEER_ANGLE,
+    BRAKE_STATE,
     STEER_ANGLE_RATE,
     ACCEL_X,
     NUM_STATES
@@ -51,6 +52,8 @@ struct RacerDubinsParams : public DynamicsParams
     WHEEL_FORCE_B_RL,
     WHEEL_FORCE_B_RR,
     ACCEL_X,
+    ACCEL_Y,
+    OMEGA_Z,
     NUM_OUTPUTS
   };
 
@@ -67,6 +70,9 @@ struct RacerDubinsParams : public DynamicsParams
   float max_steer_angle = 0.5;
   float max_steer_rate = 5;
   int gear_sign = 1;
+  float brake_delay_constant = 6.6;
+  float max_brake_rate_neg = 0.9;
+  float max_brake_rate_pos = 0.33;
 };
 
 using namespace MPPI_internal;
@@ -124,6 +130,8 @@ public:
 
   void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal,
                     const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output);
+
+  state_array stateFromMap(const std::map<std::string, float>& map) override;
 };
 
 class RacerDubins : public RacerDubinsImpl<RacerDubins>

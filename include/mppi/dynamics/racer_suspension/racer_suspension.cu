@@ -445,3 +445,10 @@ void RacerSuspension::enforceLeash(const Eigen::Ref<const state_array>& state_tr
     }
   }
 }
+
+RacerSuspension::state_array RacerSuspension::stateFromMap(const std::map<std::string, float>& map)
+{
+  state_array s;
+  // TODO
+  return s;
+}

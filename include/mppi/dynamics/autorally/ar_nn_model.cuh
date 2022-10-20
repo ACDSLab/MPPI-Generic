@@ -2,8 +2,9 @@
 #define AR_NN_DYNAMICS_CUH_
 
 #include <mppi/dynamics/dynamics.cuh>
-#include "meta_math.h"
+#include <mppi/utils/nn_helpers/meta_math.h>
 #include <mppi/utils/file_utils.h>
+#include <mppi/utils/nn_helpers/fnn_helper.cuh>
 #include <vector>
 #include <eigen3/Eigen/Dense>
 #include <opencv2/core/core.hpp>
@@ -16,15 +17,8 @@
  * NeuralNetModel<7,2,3,6,32,32,4> model(dt, u_constraint);
  * DYNAMICS_DIM = 4
  */
-#define MPPI_NNET_NONLINEARITY(ans) tanh(ans)
-#define MPPI_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
 
-// Including neural net model
-#ifdef MPPI_NNET_USING_CONSTANT_MEM__
-__device__ __constant__ float NNET_PARAMS[param_counter(6, 32, 32, 4)];
-#endif
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 struct NNDynamicsParams : public DynamicsParams
 {
   enum class StateIndex : int
@@ -36,13 +30,13 @@ struct NNDynamicsParams : public DynamicsParams
     BODY_VEL_X,
     BODY_VEL_Y,
     YAW_RATE,
-    NUM_STATES = S_DIM
+    NUM_STATES
   };
   enum class ControlIndex : int
   {
     STEERING = 0,
     THROTTLE,
-    NUM_CONTROLS = C_DIM
+    NUM_CONTROLS
   };
   enum class OutputIndex : int
   {
@@ -53,44 +47,8 @@ struct NNDynamicsParams : public DynamicsParams
     BODY_VEL_X,
     BODY_VEL_Y,
     YAW_RATE,
-    NUM_OUTPUTS = S_DIM
+    NUM_OUTPUTS
   };
-  static const int DYNAMICS_DIM = S_DIM - K_DIM;               ///< number of inputs from state
-  static const int NUM_LAYERS = layer_counter(layer_args...);  ///< Total number of layers (including in/out layer)
-  static const int PRIME_PADDING = 1;  ///< Extra padding to largest layer to avoid shared mem bank conflicts
-  static const int LARGEST_LAYER = neuron_counter(layer_args...) +
-                                   PRIME_PADDING;  ///< Number of neurons in the largest layer(including in/out neurons)
-  static const int NUM_PARAMS = param_counter(layer_args...);   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = 0;                  ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = 2 * LARGEST_LAYER;  ///< Amount of shared memory we need per ROLLOUT.
-
-  typedef float ThetaArr[NUM_PARAMS];
-  typedef int NetStructureArr[NUM_LAYERS];
-  typedef int StrideIcsArr[(NUM_LAYERS - 1) * 2];
-
-  // packed by all weights that connect layer 1 to layer 2 neuron 1, bias for all connections from layer 1 to layer 2
-  // then layer 2 neuron 2, etc
-  ThetaArr theta = { 0.0 };
-  // TODO stride_idcs and net_strucutre should be write protected, so user cannot modify these values
-
-  // index into theta for weights and bias (layer 0 weights start, no bias in input layer, layer 1 weights start, layer1
-  // bias start...
-  StrideIcsArr stride_idcs = { 0 };
-
-  //[neurons in layer 1, neurons in layer 2, ...]
-  NetStructureArr net_structure = { layer_args... };
-
-  NNDynamicsParams()
-  {
-    int stride = 0;
-    for (int i = 0; i < NUM_LAYERS - 1; i++)
-    {
-      stride_idcs[2 * i] = stride;
-      stride += net_structure[i + 1] * net_structure[i];
-      stride_idcs[2 * i + 1] = stride;
-      stride += net_structure[i + 1];
-    }
-  }
 };
 
 /**
@@ -111,28 +69,33 @@ using namespace MPPI_internal;
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 class NeuralNetModel : public Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>,
-                                       NNDynamicsParams<S_DIM, C_DIM, K_DIM, layer_args...>>
+                                       NNDynamicsParams>
 {
 public:
   // TODO remove duplication of calculation of values, pull from the structure
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   using PARENT_CLASS = Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>,
-                                NNDynamicsParams<S_DIM, C_DIM, K_DIM, layer_args...>>;
+                                NNDynamicsParams>;
 
   // Define Eigen fixed size matrices
+  typedef FNNHelper<FNNParams<layer_args...>> NN;
   using state_array = typename PARENT_CLASS::state_array;
   using control_array = typename PARENT_CLASS::control_array;
+  using output_array = typename PARENT_CLASS::output_array;
   using dfdx = typename PARENT_CLASS::dfdx;
   using dfdu = typename PARENT_CLASS::dfdu;
+  using nn_input_array = typename NN::input_array;
+  using nn_output_array = typename NN::output_array;
+  using nn_dfdx = typename NN::dfdx ;
+
 
   static const int DYNAMICS_DIM = S_DIM - K_DIM;               ///< number of inputs from state
-  static const int NUM_LAYERS = layer_counter(layer_args...);  ///< Total number of layers (including in/out layer)
+  static const int NUM_LAYERS = NN::NUM_LAYERS;  ///< Total number of layers (including in/out layer)
   static const int PRIME_PADDING = 1;  ///< Extra padding to largest layer to avoid shared mem bank conflicts
-  static const int LARGEST_LAYER = neuron_counter(layer_args...) +
-                                   PRIME_PADDING;  ///< Number of neurons in the largest layer(including in/out neurons)
-  static const int NUM_PARAMS = param_counter(layer_args...);   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = 0;                  ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = 2 * LARGEST_LAYER;  ///< Amount of shared memory we need per ROLLOUT.
+  static const int LARGEST_LAYER = NN::LARGEST_LAYER; ///< Number of neurons in the largest layer(including in/out neurons)
+  static const int NUM_PARAMS = NN::NUM_PARAMS;   ///< Total number of model parameters;
+  static const int SHARED_MEM_REQUEST_GRD = NN::SHARED_MEM_REQUEST_GRD;  ///< Amount of shared memory we need per BLOCK.
+  static const int SHARED_MEM_REQUEST_BLK = NN::SHARED_MEM_REQUEST_BLK;  ///< Amount of shared memory we need per ROLLOUT.
 
   NeuralNetModel(cudaStream_t stream = 0);
   NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream = 0);
@@ -141,47 +104,44 @@ public:
 
   std::array<int, NUM_LAYERS> getNetStructure()
   {
-    std::array<int, NUM_LAYERS> array;
-    for (int i = 0; i < NUM_LAYERS; i++)
-    {
-      array[i] = this->params_.net_structure[i];
-    }
-    return array;
+    return helper_->getNetStructure();
   }
   std::array<int, (NUM_LAYERS - 1) * 2> getStideIdcs()
   {
-    std::array<int, (NUM_LAYERS - 1) * 2> array;
-    for (int i = 0; i < (NUM_LAYERS - 1) * 2; i++)
-    {
-      array[i] = this->params_.stride_idcs[i];
-    }
-    return array;
+    return helper_->getStideIdcs();
   }
   std::array<float, NUM_PARAMS> getTheta()
   {
-    std::array<float, NUM_PARAMS> array;
-    for (int i = 0; i < NUM_PARAMS; i++)
-    {
-      array[i] = this->params_.theta[i];
-    }
-    return array;
+    return helper_->getTheta();
   }
   __device__ int* getNetStructurePtr()
   {
-    return this->params_.net_structure;
+    return helper_->getNetStructurePtr();
   }
   __device__ int* getStrideIdcsPtr()
   {
-    return this->params_.stride_idcs;
+    return helper_->getStrideIdcsPtr();
   }
   __device__ float* getThetaPtr()
   {
-    return this->params_.theta;
+    return helper_->getThetaPtr();
   }
 
-  void CPUSetup();
+  NN* getHelperPtr() {
+    return helper_;
+  }
 
   void paramsToDevice();
+
+  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
+
+  void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                          Eigen::Ref<output_array> output, float t_0, float dt)
+  {
+    PARENT_CLASS::initializeDynamics(state, control, output, t_0, dt);
+  }
+
+  void GPUSetup();
 
   void freeCudaMem();
 
@@ -203,10 +163,10 @@ public:
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta_s = nullptr);
   __device__ void computeKinematics(float* state, float* state_der);
 
+  state_array stateFromMap(const std::map<std::string, float>& map) override;
+
 private:
-  Eigen::MatrixXf* weighted_in_ = nullptr;
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* weights_ = nullptr;
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>* biases_ = nullptr;
+  NN* helper_ = nullptr;
 };
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>

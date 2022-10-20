@@ -88,7 +88,7 @@ public:
   }
   double getLastUsedPoseUpdateTime()
   {
-    return this->last_used_pose_update_time_;
+    return this->last_used_state_update_time_;
   }
   int getStatus()
   {
@@ -164,7 +164,7 @@ protected:
   std::shared_ptr<MockController> mockController;
   std::shared_ptr<MockTestPlant> plant;
 
-  const float SMALL_TIME_MS = 5;
+  const float SMALL_TIME_MS = 8;
 };
 
 TEST_F(BasePlantTest, Constructor)
