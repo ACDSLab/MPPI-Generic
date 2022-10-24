@@ -231,6 +231,32 @@ TEST(RacerDubins, enforceLeash)
   EXPECT_FLOAT_EQ(output(5), 3);
   EXPECT_FLOAT_EQ(output(6), 3);
   EXPECT_FLOAT_EQ(output(7), 3);
+
+  leash_values = RacerDubins::state_array::Ones();
+  std::cout << "=========" << std::endl;
+
+  for (int i = 0; i < RacerDubins::STATE_DIM; i++)
+  {
+    state_true = RacerDubins::state_array::Zero();
+    state_nominal = RacerDubins::state_array::Zero();
+
+    state_true(i) = 1.0;
+    state_nominal(i) = 1.1;
+
+    dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+
+    for (int j = 0; j < RacerDubins::STATE_DIM; j++)
+    {
+      if (i == j)
+      {
+        EXPECT_FLOAT_EQ(output(j), 1.1);
+      }
+      else
+      {
+        EXPECT_FLOAT_EQ(output(j), 0.0);
+      }
+    }
+  }
 }
 
 TEST(RacerDubins, TestModelGPU)
