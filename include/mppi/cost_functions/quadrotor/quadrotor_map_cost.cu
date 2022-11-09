@@ -105,14 +105,17 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float
   if (gate_cost != 0)
   {
     *crash_status = 1;
+    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&
+        blockIdx.z == 0)
+    {
+      printf("hitting the gate?\n");
+    }
   }
 
-  // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z ==
-  // 0
-  //     && timestep == 1)
+  // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && timestep == 1)
   // {
   //   // if (isnan(costmap_cost) || isnan(gate_cost) || isnan(height_cost) || isnan(heading_cost) || isnan(speed_cost)
-  //   ||
+  //   //     ||
   //   //     isnan(stable_cost) || isnan(waypoint_cost))
   //   // {
   //     printf(
@@ -121,7 +124,7 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float
   //         costmap_cost, gate_cost, height_cost, heading_cost, speed_cost, stable_cost, waypoint_cost);
   //   // }
   //   // printf("Costs %d: height - %5.2f, stable - %5.2f prev_height %5.2f, cur_height: %5.2f\n", timestep,
-  //   height_cost,
+  //   //        height_cost,
   //   //        stable_cost, this->params_.prev_waypoint.z, this->params_.curr_waypoint.z);
   // }
 
@@ -219,7 +222,7 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeadin
   // Far away from the gate, we want to be pointing at the gate
   if (dist_to_gate > this->params_.gate_margin)
   {
-    cost += this->params_.heading_coeff * powf(yaw - w_heading, 2);
+    cost += this->params_.heading_coeff * powf(fabsf(angle_utils::shortestAngularDistance(w_heading, yaw)), 1.0);
   }
   return cost;
 }
@@ -265,22 +268,31 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeGateSi
                                         powf(s[E_INDEX(OutputIndex, POS_Y)] - this->params_.prev_gate_right.y, 2));
 
   float2 gate_vec = curr_left - curr_right;
-  float2 state_vec = make_float2(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)]) - curr_right;
-  const float perp_dist = cross(state_vec, gate_vec);
-  const float comp_state_along_gate_right = dot(state_vec, gate_vec) / norm(gate_vec);
-  const float comp_state_along_gate_left = dot(state_vec, -gate_vec) / norm(gate_vec);
+  float2 state_vec_right = make_float2(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)]) - curr_right;
+  float2 state_vec_left = make_float2(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)]) - curr_left;
+  const float perp_dist = cross(state_vec_right, gate_vec);
+  const float comp_state_along_gate_right = dot(state_vec_right, gate_vec) / dot(gate_vec, gate_vec);
+  const float threshold = 0.5;
+  const float comp_state_along_gate_left = dot(state_vec_left, -gate_vec) / dot(gate_vec, gate_vec);
+  const float outside_gate = fmaxf(comp_state_along_gate_left, comp_state_along_gate_right);
   // Find the side closest to the current state
-  const float closest_side_dist =
-      fminf(dist_to_left_side, fminf(dist_to_right_side, fminf(prev_dist_to_left_side, prev_dist_to_right_side)));
-  if (fabsf(perp_dist) < this->params_.min_dist_to_gate_side &&
-      fmaxf(comp_state_along_gate_left, comp_state_along_gate_right) > 1.0f)
-  {  // Within perpendicular distance of min_dist and outside of gate
-    cost += this->params_.crash_coeff * fmaxf(comp_state_along_gate_left, comp_state_along_gate_right);
+  // const float closest_side_dist =
+  //     fminf(dist_to_left_side, fminf(dist_to_right_side, fminf(prev_dist_to_left_side, prev_dist_to_right_side)));
+  // if (fabsf(perp_dist) < this->params_.min_dist_to_gate_side &&
+  //     fmaxf(comp_state_along_gate_left, comp_state_along_gate_right) > 1.0f)
+  // {  // Within perpendicular distance of min_dist and outside of gate
+  //   cost += this->params_.crash_coeff * fmaxf(comp_state_along_gate_left, comp_state_along_gate_right);
+  if (fabsf(perp_dist) < this->params_.min_dist_to_gate_side && (
+      (comp_state_along_gate_right < 0.0f && comp_state_along_gate_right >= 0.0f - threshold) ||
+      (comp_state_along_gate_right > 1.0f && comp_state_along_gate_right <= 1.0f + threshold)
+        ))
+  {
+    cost += this->params_.crash_coeff * fabsf(comp_state_along_gate_right);
     if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&
         blockIdx.z == 0)
     {
-      printf("Hitting a gate: state_vec: (%f, %f), gate_vec: (%f, %f)\n", state_vec.x, state_vec.y, gate_vec.x,
-             gate_vec.y);
+      printf("Hitting a gate: state_vec: (%f, %f), gate_vec: (%f, %f), projection onto gate: %f\n", state_vec_right.x, state_vec_right.y, gate_vec.x,
+             gate_vec.y, comp_state_along_gate_right);
     }
   }
   // if (closest_side_dist < this->params_.min_dist_to_gate_side)
@@ -317,7 +329,7 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
   float w2 = d2 / (d1 + d2 + 0.001);
   float interpolated_height = (1.0 - w1) * this->params_.prev_waypoint.z + (1.0 - w2) * this->params_.curr_waypoint.z;
 
-  float height_diff = fabs(s[E_INDEX(OutputIndex, POS_Z)] - interpolated_height);
+  float height_diff = fabsf(s[E_INDEX(OutputIndex, POS_Z)] - interpolated_height);
   if (height_diff < 0)
   {
     cost += this->params_.crash_coeff * (1 -height_diff);
@@ -327,6 +339,10 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
     cost += this->params_.height_coeff * height_diff;
   }
   // cost += this->params_.height_coeff * height_diff;
+  if (height_diff > this->params_.gate_width)
+  {
+    cost += 400;
+  }
   return cost;
 }
 
@@ -334,6 +350,10 @@ template <class CLASS_T, class PARAMS_T>
 __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeCostmapCost(float* s)
 {
   float cost = 0;
+  if (!this->tex_helper_->checkTextureUse(0))
+  {
+    return cost;
+  }
   float3 query_point =
       make_float3(s[E_INDEX(OutputIndex, POS_X)], s[E_INDEX(OutputIndex, POS_Y)], s[E_INDEX(OutputIndex, POS_Z)]);
   float3 tex_coords;
@@ -341,6 +361,11 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeCostmapCost(flo
   if (tex_coords.x < 0.0f || tex_coords.x > 1.0f || tex_coords.y < 0.0f || tex_coords.y > 1.0f)
   { // The vehicle is not in the map anymore
     cost += this->params_.crash_coeff;
+    if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0 && blockIdx.x == 0 && blockIdx.y == 0 &&
+        blockIdx.z == 0)
+    {
+      printf("left the map\n");
+    }
   }
   float track_cost = this->tex_helper_->queryTexture(0, tex_coords);
 
