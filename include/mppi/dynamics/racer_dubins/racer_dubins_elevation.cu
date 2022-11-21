@@ -345,7 +345,6 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
   output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
   output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
-  output[O_INDEX(BASELINK_POS_I_Z)] = (rear_left_height + rear_right_height) / 2.0;
   output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
   output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
   output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
