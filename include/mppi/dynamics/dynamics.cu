@@ -36,6 +36,25 @@ void Dynamics<CLASS_T, PARAMS_T>::setControlRanges(std::array<float2, CONTROL_DI
 }
 
 template <class CLASS_T, class PARAMS_T>
+void Dynamics<CLASS_T, PARAMS_T>::setControlDeadbands(std::array<float, CONTROL_DIM>& control_deadband,
+                                                      bool synchronize)
+{
+  for (int i = 0; i < CONTROL_DIM; i++)
+  {
+    control_deadband_[i] = control_deadband[i];
+  }
+  if (GPUMemStatus_)
+  {
+    HANDLE_ERROR(cudaMemcpyAsync(this->model_d_->control_deadband_, this->control_deadband_,
+                                 CONTROL_DIM * sizeof(float), cudaMemcpyHostToDevice, stream_));
+    if (synchronize)
+    {
+      HANDLE_ERROR(cudaStreamSynchronize(stream_));
+    }
+  }
+}
+
+template <class CLASS_T, class PARAMS_T>
 void Dynamics<CLASS_T, PARAMS_T>::GPUSetup()
 {
   CLASS_T* derived = static_cast<CLASS_T*>(this);
@@ -87,16 +106,15 @@ __device__ void Dynamics<CLASS_T, PARAMS_T>::enforceConstraints(float* state, fl
   // parallelize setting the constraints with y dim
   for (i = tdy; i < CONTROL_DIM; i += blockDim.y)
   {
-    // printf("thread index = %d, %d, control %f\n", threadIdx.x, tdy, control[i]);
-    if (control[i] < control_rngs_[i].x)
+    if (fabsf(control[i]) < this->control_deadband_[i])
     {
-      control[i] = control_rngs_[i].x;
+      control[i] = this->zero_control_[i];
     }
-    else if (control[i] > control_rngs_[i].y)
+    else
     {
-      control[i] = control_rngs_[i].y;
+      control[i] += this->control_deadband_[i] * -mppi::math::sign(control[i]);
     }
-    // printf("finished thread index = %d, %d, control %f\n", threadIdx.x, tdy, control[i]);
+    control[i] = fminf(fmaxf(this->control_rngs_[i].x, control[i]), this->control_rngs_[i].y);
   }
 }
 

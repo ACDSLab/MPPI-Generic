@@ -10,6 +10,7 @@ Header file for dynamics
 #include <Eigen/Dense>
 #include <mppi/utils/managed.cuh>
 #include <mppi/utils/angle_utils.cuh>
+#include <mppi/utils/math_utils.h>
 
 #include <stdio.h>
 #include <math.h>
@@ -175,6 +176,8 @@ public:
 
   void setControlRanges(std::array<float2, CONTROL_DIM>& control_rngs, bool synchronize = true);
 
+  void setControlDeadbands(std::array<float, CONTROL_DIM>& control_deadband, bool synchronize = true);
+
   void setParams(const PARAMS_T& params)
   {
     params_ = params;
@@ -248,15 +251,15 @@ public:
   {
     for (int i = 0; i < CONTROL_DIM; i++)
     {
-      // printf("enforceConstraints %f, min = %f, max = %f\n", control(i), control_rngs_[i].x, control_rngs_[i].y);
-      if (control(i) < control_rngs_[i].x)
+      if (fabsf(control[i]) < this->control_deadband_[i])
       {
-        control(i) = control_rngs_[i].x;
+        control[i] = this->zero_control_[i];
       }
-      else if (control(i) > control_rngs_[i].y)
+      else
       {
-        control(i) = control_rngs_[i].y;
+        control[i] += this->control_deadband_[i] * -mppi::math::sign(control[i]);
       }
+      control[i] = fminf(fmaxf(this->control_rngs_[i].x, control[i]), this->control_rngs_[i].y);
     }
   }
 
@@ -459,6 +462,7 @@ public:
 
   // control ranges [.x, .y]
   float2 control_rngs_[CONTROL_DIM];
+  float control_deadband_[CONTROL_DIM] = { 0.0 };
 
   // device pointer, null on the device
   CLASS_T* model_d_ = nullptr;
