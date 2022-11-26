@@ -10,6 +10,7 @@ Header file for dynamics
 #include <Eigen/Dense>
 #include <mppi/utils/managed.cuh>
 #include <mppi/utils/angle_utils.cuh>
+#include <mppi/utils/math_utils.h>
 
 #include <stdio.h>
 #include <math.h>
@@ -17,6 +18,8 @@ Header file for dynamics
 #include <cfloat>
 #include <type_traits>
 #include <vector>
+#include <map>
+#include <string>
 
 // helpful macros to use the enum setup
 #ifndef E_INDEX
@@ -89,6 +92,8 @@ public:
   typedef Eigen::Matrix<float, STATE_DIM, CONTROL_DIM> dfdu;                  // Jacobian wrt u
   typedef Eigen::Matrix<float, CONTROL_DIM, STATE_DIM> feedback_matrix;       // Feedback matrix
   typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM + CONTROL_DIM> Jacobian;  // Jacobian of x and u
+
+  typedef std::map<std::string, Eigen::VectorXf> buffer_trajectory;
 
   // protected constructor prevent anyone from trying to construct a Dynamics
 protected:
@@ -171,6 +176,8 @@ public:
 
   void setControlRanges(std::array<float2, CONTROL_DIM>& control_rngs, bool synchronize = true);
 
+  void setControlDeadbands(std::array<float, CONTROL_DIM>& control_deadband, bool synchronize = true);
+
   void setParams(const PARAMS_T& params)
   {
     params_ = params;
@@ -244,15 +251,15 @@ public:
   {
     for (int i = 0; i < CONTROL_DIM; i++)
     {
-      // printf("enforceConstraints %f, min = %f, max = %f\n", control(i), control_rngs_[i].x, control_rngs_[i].y);
-      if (control(i) < control_rngs_[i].x)
+      if (fabsf(control[i]) < this->control_deadband_[i])
       {
-        control(i) = control_rngs_[i].x;
+        control[i] = this->zero_control_[i];
       }
-      else if (control(i) > control_rngs_[i].y)
+      else
       {
-        control(i) = control_rngs_[i].y;
+        control[i] += this->control_deadband_[i] * -mppi::math::sign(control[i]);
       }
+      control[i] = fminf(fmaxf(this->control_rngs_[i].x, control[i]), this->control_rngs_[i].y);
     }
   }
 
@@ -299,6 +306,17 @@ public:
                                const float alpha)
   {
     return (1 - alpha) * state_1 + alpha * state_2;
+  }
+
+  /**
+   * computes a specific state error
+   * @param pred_state
+   * @param true_state
+   * @return
+   */
+  state_array computeStateError(const Eigen::Ref<state_array> pred_state, const Eigen::Ref<state_array> true_state)
+  {
+    return pred_state - true_state;
   }
 
   /**
@@ -434,8 +452,17 @@ public:
     }
   }
 
+  virtual bool checkRequiresBuffer() {
+    return requires_buffer_;
+  }
+
+  void updateFromBuffer(const buffer_trajectory& buffer) {}
+
+  virtual state_array stateFromMap(const std::map<std::string, float>& map) = 0;
+
   // control ranges [.x, .y]
   float2 control_rngs_[CONTROL_DIM];
+  float control_deadband_[CONTROL_DIM] = { 0.0 };
 
   // device pointer, null on the device
   CLASS_T* model_d_ = nullptr;
@@ -443,6 +470,8 @@ public:
 protected:
   // generic parameter structure
   PARAMS_T params_;
+
+  bool requires_buffer_ = false;
 };
 
 #ifdef __CUDACC__

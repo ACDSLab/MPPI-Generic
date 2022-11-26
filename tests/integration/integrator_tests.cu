@@ -22,6 +22,10 @@ public:
   {
     state_der = -2 * state;
   }
+
+  state_array stateFromMap(const std::map<std::string, float>& map)
+  {
+  }
 };
 
 TEST(Integration, RK4)

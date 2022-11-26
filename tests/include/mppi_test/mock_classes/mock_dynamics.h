@@ -24,6 +24,8 @@ struct mockDynamicsParams : public DynamicsParams
 class MockDynamics : public MPPI_internal::Dynamics<MockDynamics, mockDynamicsParams>
 {
 public:
+  typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;  // Control at a time t
+
   MOCK_METHOD1(bindToStream, void(cudaStream_t stream));
   MOCK_METHOD1(setParams, void(mockDynamicsParams params));
   MOCK_METHOD0(GPUSetup, void());
@@ -46,6 +48,8 @@ public:
   MOCK_METHOD2(enforceConstraints, void(Eigen::Ref<state_array>, Eigen::Ref<control_array>));
   MOCK_METHOD4(computeGrad, bool(const Eigen::Ref<const state_array>&, const Eigen::Ref<const control_array>,
                                  Eigen::Ref<dfdx>, Eigen::Ref<dfdu>));
+  MOCK_METHOD1(updateFromBuffer, void(const buffer_trajectory& buffer));
+  MOCK_METHOD1(stateFromMap, state_array(const std::map<std::string, float>&));
 };
 
 #endif  // MPPIGENERIC_MOCK_DYNAMICS_H

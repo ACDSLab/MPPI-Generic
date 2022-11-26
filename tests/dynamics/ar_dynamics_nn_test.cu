@@ -10,6 +10,7 @@
 
 // Auto-generated header file
 #include <autorally_test_network.h>
+#include "mppi/ddp/ddp_model_wrapper.h"
 
 /**
  * Note: the analytical solution for the test NN is outlined in the python script
@@ -39,7 +40,7 @@ TEST(ARNeuralNetDynamics, verifyTemplateParamters)
   EXPECT_EQ(num_params, (6 + 1) * 32 + (32 + 1) * 32 + (32 + 1) * 4);
 
   int shared_mem_request_grd = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::SHARED_MEM_REQUEST_GRD;
-  EXPECT_EQ(shared_mem_request_grd, 0);
+  EXPECT_EQ(shared_mem_request_grd, sizeof(FNNParams<6, 32, 32, 4>));
 
   int shared_mem_request_blk = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::SHARED_MEM_REQUEST_BLK;
   EXPECT_EQ(shared_mem_request_blk, (32 + 1) * 2);
@@ -143,6 +144,7 @@ TEST(ARNeuralNetDynamics, GPUSetupAndParamsCheck)
 
   EXPECT_EQ(model.GPUMemStatus_, false);
   EXPECT_EQ(model.model_d_, nullptr);
+  EXPECT_NE(model.getHelperPtr(), nullptr);
 
   model.GPUSetup();
 
@@ -526,10 +528,10 @@ TEST(ARNeuralNetDynamics, computeDynamicsGPU)
     EXPECT_FLOAT_EQ(s_der[0][0], 0);
     EXPECT_FLOAT_EQ(s_der[0][1], 0);
     EXPECT_FLOAT_EQ(s_der[0][2], 0);
-    EXPECT_FLOAT_EQ(s_der[0][3], 33);
-    EXPECT_FLOAT_EQ(s_der[0][4], 33);
-    EXPECT_FLOAT_EQ(s_der[0][5], 33);
-    EXPECT_FLOAT_EQ(s_der[0][6], 33);
+    EXPECT_FLOAT_EQ(s_der[0][3], 33) << "at y_dim " << y_dim;
+    EXPECT_FLOAT_EQ(s_der[0][4], 33) << "at y_dim " << y_dim;
+    EXPECT_FLOAT_EQ(s_der[0][5], 33) << "at y_dim " << y_dim;
+    EXPECT_FLOAT_EQ(s_der[0][6], 33) << "at y_dim " << y_dim;
 
     EXPECT_FLOAT_EQ(u[0][0], 1.0);
     EXPECT_FLOAT_EQ(u[0][1], -1.0);
@@ -862,4 +864,52 @@ TEST(ARNeuralNetDynamics, fullComparedToAutoRallyImpl)
       }
     }
   }
+}
+
+class DynamicsDummy : public NeuralNetModel<7, 2, 3, 6, 32, 32, 4>
+{
+public:
+  bool computeGrad(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                   Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B)
+  {
+    return false;
+  };
+};
+
+TEST(ARNeuralNetDynamics, computeGradTest)
+{
+  std::string path = mppi::tests::old_autorally_network_file;
+
+  Eigen::Matrix<float, NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::STATE_DIM,
+                NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::STATE_DIM + NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::CONTROL_DIM>
+      numeric_jac;
+  Eigen::Matrix<float, NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::STATE_DIM,
+                NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::STATE_DIM + NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::CONTROL_DIM>
+      analytic_jac;
+  NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::state_array state;
+  state << 4.264431, -30.974377, -0.955451, -0.028595, 3.346700, 0.048521, 0.315486;
+  NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::control_array control;
+  control << -0.221381, 0.089168;
+
+  auto analytic_grad_model = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>();
+  analytic_grad_model.loadParams(path);
+
+  NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::dfdx A_analytic = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::dfdx::Zero();
+  NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::dfdu B_analytic = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::dfdu::Zero();
+
+  analytic_grad_model.computeGrad(state, control, A_analytic, B_analytic);
+
+  auto numerical_grad_model = DynamicsDummy();
+  numerical_grad_model.loadParams(path);
+
+  std::shared_ptr<ModelWrapperDDP<DynamicsDummy>> ddp_model =
+      std::make_shared<ModelWrapperDDP<DynamicsDummy>>(&numerical_grad_model);
+
+  analytic_jac.leftCols<NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::STATE_DIM>() = A_analytic;
+  analytic_jac.rightCols<NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::CONTROL_DIM>() = B_analytic;
+  numeric_jac = ddp_model->df(state, control);
+
+  ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-1) << "Numeric Jacobian\n"
+                                                       << numeric_jac << "\nAnalytic Jacobian\n"
+                                                       << analytic_jac;
 }

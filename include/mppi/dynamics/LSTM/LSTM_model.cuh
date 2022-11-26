@@ -2,7 +2,7 @@
 #define LSTM_DYNAMICS_CUH_
 
 #include <mppi/dynamics/dynamics.cuh>
-#include <mppi/dynamics/autorally/meta_math.h>
+#include "mppi/utils/nn_helpers/meta_math.h"
 #include <mppi/utils/file_utils.h>
 
 #include <cnpy.h>
@@ -18,16 +18,6 @@
  * LSTMModel<7,2,3,6,32,32,4> model(dt, u_constraint);
  * DYNAMICS_DIM = 4
  */
-// #define LSTM_NNET_NONLINEARITY(ans) tanh(ans)
-// #define LSTM_NNET_NONLINEARITY_DERIV(ans) (1 - powf(tanh(ans), 2))
-
-#define RELU(ans) fmaxf(0, ans)
-#define SIGMOID(ans) (1.0f / (1 + expf(-ans)))
-
-float ReLU(float x)
-{
-  return fmaxf(0, x);
-}
 
 // Including neural net model
 // #ifdef MPPI_NNET_USING_CONSTANT_MEM__

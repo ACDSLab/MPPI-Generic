@@ -86,6 +86,15 @@ inline __host__ __device__ float linInterp(const float x, const float x_min, con
 }
 
 /**
+ * Return the sign of a variable (1 for positive, -1 for negative, 0 for 0)
+ **/
+template <class T = float>
+inline __host__ __device__ int sign(const T& a)
+{
+  return (a > 0) - (a < 0);
+}
+
+/**
  * Calculates the normalized distance from the centerline
  * @param r - current radius
  * @param r_in - the inside radius of a track

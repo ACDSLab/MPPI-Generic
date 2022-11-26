@@ -8,7 +8,7 @@
 TEST(RacerDubins, Template)
 {
   auto dynamics = RacerDubins();
-  EXPECT_EQ(7, RacerDubins::STATE_DIM);
+  EXPECT_EQ(8, RacerDubins::STATE_DIM);
   EXPECT_EQ(2, RacerDubins::CONTROL_DIM);
 }
 
@@ -40,15 +40,17 @@ TEST(RacerDubins, ComputeDynamics)
   RacerDubins::state_array x = RacerDubins::state_array::Zero();
   RacerDubins::control_array u = RacerDubins::control_array::Zero();
 
-  RacerDubins::state_array next_x;
+  RacerDubins::state_array next_x = RacerDubins::state_array::Zero();
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_FLOAT_EQ(next_x(2), 0);
   EXPECT_FLOAT_EQ(next_x(3), 0);
   EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
 
-  x << 1, M_PI_2, 0, 3, 0;
+  x << 1, M_PI_2, 0, 3, 0, 0, 0;
   u << 1, 0;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 + 1.3 - 3.7);
@@ -56,17 +58,43 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_NEAR(next_x(2), 0, 1e-7);
   EXPECT_FLOAT_EQ(next_x(3), 1);
   EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
 
-  x << 1, 0, 0, 3, 0;
+  x << 1, 0, 0, 3, 0, 0, 0;
   u << -1, 0;
   dynamics.computeDynamics(x, u, next_x);
-  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 2.5 - 3.7);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7);
   EXPECT_FLOAT_EQ(next_x(1), 0);
   EXPECT_FLOAT_EQ(next_x(2), 1);
   EXPECT_FLOAT_EQ(next_x(3), 0);
   EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0.33);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
 
-  x << -1, 0, 0, 3, 0;
+  x << 1, 0, 0, 3, 0, 0.33, 0;
+  u << -1, 0;
+  dynamics.computeDynamics(x, u, next_x);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 0.33 * 2.5 - 3.7);
+  EXPECT_FLOAT_EQ(next_x(1), 0);
+  EXPECT_FLOAT_EQ(next_x(2), 1);
+  EXPECT_FLOAT_EQ(next_x(3), 0);
+  EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0.33);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
+
+  x << 1, 0, 0, 3, 0, 1.0, 0;
+  u << 1, 0;
+  dynamics.computeDynamics(x, u, next_x);
+  EXPECT_FLOAT_EQ(next_x(0), 4.9 - 2.5 + 1.3 - 3.7);
+  EXPECT_FLOAT_EQ(next_x(1), 0);
+  EXPECT_FLOAT_EQ(next_x(2), 1);
+  EXPECT_FLOAT_EQ(next_x(3), 0);
+  EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), -0.9);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
+
+  x << -1, 0, 0, 3, 0, 0, 0;
   u << 1, 0;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 + 3.7 + 1.3);
@@ -74,8 +102,10 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_FLOAT_EQ(next_x(3), 0);
   EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
 
-  x << -1, 0, 0, 3, 0;
+  x << -1, 0, 0, 3, 0, 1.0, 0;
   u << -1, 0;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 + 2.5 + 3.7);
@@ -83,8 +113,10 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_FLOAT_EQ(next_x(3), 0);
   EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
 
-  x << -3, 0, 0, 3, 0;
+  x << -3, 0, 0, 3, 0, 1.0, 0;
   u << -1, 0;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 + 2.5 + 3.7 * 3);
@@ -92,8 +124,10 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(2), -3);
   EXPECT_FLOAT_EQ(next_x(3), 0);
   EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
 
-  x << 4, 0, 0, 3, 0;
+  x << 4, 0, 0, 3, 0, 1.0, 0;
   u << -1, 0;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 2.5 - 3.7 * 4);
@@ -101,8 +135,10 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(2), 4);
   EXPECT_FLOAT_EQ(next_x(3), 0);
   EXPECT_FLOAT_EQ(next_x(4), 0);
+  EXPECT_FLOAT_EQ(next_x(5), 0);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
 
-  x << 1, M_PI, 0, 3, 0;
+  x << 1, M_PI, 0, 3, 0, 0, 0;
   u << 0, 1;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7);
@@ -110,8 +146,10 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
   EXPECT_FLOAT_EQ(next_x(4), 1 * 5 * 0.6);
+  EXPECT_FLOAT_EQ(next_x(5), 0);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
 
-  x << 1, M_PI, 0, 0, 0.5;
+  x << 1, M_PI, 0, 0, 0.5, 0, 0;
   u << 1, -1;
   dynamics.computeDynamics(x, u, next_x);
   EXPECT_FLOAT_EQ(next_x(0), 4.9 - 3.7 + 1.3);
@@ -119,6 +157,106 @@ TEST(RacerDubins, ComputeDynamics)
   EXPECT_FLOAT_EQ(next_x(2), -1);
   EXPECT_NEAR(next_x(3), 0, 1e-7);
   EXPECT_FLOAT_EQ(next_x(4), (-1 * 5 - 0.5) * 0.6);
+  EXPECT_FLOAT_EQ(next_x(5), 0);
+  EXPECT_FLOAT_EQ(next_x(6), 0);
+}
+
+TEST(RacerDubins, enforceLeash)
+{
+  RacerDubins dynamics = RacerDubins();
+  RacerDubins::state_array state_true = RacerDubins::state_array::Zero();
+  RacerDubins::state_array state_nominal = RacerDubins::state_array::Zero();
+  RacerDubins::state_array leash_values = RacerDubins::state_array::Zero();
+  RacerDubins::state_array output;
+  double tol = 1e-7;
+
+  // if the two are equal it should match
+  state_true = RacerDubins::state_array::Random();
+  state_nominal = state_true;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  // std::cout << "true   : " << state_true.transpose() << std::endl;
+  // std::cout << "nominal: " << state_nominal.transpose() << std::endl;
+  // std::cout << "output : " << output.transpose() << std::endl;
+  EXPECT_LT((output - state_true).norm(), tol);
+
+  // if the two are very far apart but zero leash values
+  state_nominal << 1, 1, 1, 1, 1, 1, 1, 1;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_LT((output - state_true).norm(), tol);
+
+  // if the two are far apart but large leash values
+  state_nominal << 1, 1, 1, 1, 1, 1, 1, 1;
+  leash_values << 2, 2, 2, 2, 2, 2, 2, 2;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_LT((output - state_nominal).norm(), tol);
+
+  // check yaw discont
+  state_true << -3, -3, -3, -3, -3, -3, -3, -3;
+  state_nominal << 3, 3, 3, 3, 3, 3, 3, 3;
+  leash_values << 0, 1.0, 0, 0, 0, 0, 0, 0;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_FLOAT_EQ(output(0), -3);
+  EXPECT_FLOAT_EQ(output(1), 3);
+  EXPECT_FLOAT_EQ(output(2), -3);
+  EXPECT_FLOAT_EQ(output(3), -3);
+  EXPECT_FLOAT_EQ(output(4), -3);
+  EXPECT_FLOAT_EQ(output(5), -3);
+  EXPECT_FLOAT_EQ(output(6), -3);
+  EXPECT_FLOAT_EQ(output(7), -3);
+
+  // check yaw discont clamp
+  state_true << -3, -3, -3, -3, -3, -3, -3, -3;
+  state_nominal << 3, 3, 3, 3, 3, 3, 3, 3;
+  leash_values << 0, 0.15, 0, 0, 0, 0, 0, 0;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_FLOAT_EQ(output(0), -3);
+  EXPECT_FLOAT_EQ(output(1), angle_utils::normalizeAngle(-3 - 0.15));
+  EXPECT_FLOAT_EQ(output(2), -3);
+  EXPECT_FLOAT_EQ(output(3), -3);
+  EXPECT_FLOAT_EQ(output(4), -3);
+  EXPECT_FLOAT_EQ(output(5), -3);
+  EXPECT_FLOAT_EQ(output(6), -3);
+  EXPECT_FLOAT_EQ(output(7), -3);
+
+  // check yaw discont clamp
+  state_true << 3, 3, 3, 3, 3, 3, 3, 3;
+  state_nominal << -3, -3, -3, -3, -3, -3, -3, -3;
+  leash_values << 0, 0.15, 0, 0, 0, 0, 0, 0;
+  dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+  EXPECT_FLOAT_EQ(output(0), 3);
+  EXPECT_FLOAT_EQ(output(1), angle_utils::normalizeAngle(3 + 0.15));
+  EXPECT_FLOAT_EQ(output(2), 3);
+  EXPECT_FLOAT_EQ(output(3), 3);
+  EXPECT_FLOAT_EQ(output(4), 3);
+  EXPECT_FLOAT_EQ(output(5), 3);
+  EXPECT_FLOAT_EQ(output(6), 3);
+  EXPECT_FLOAT_EQ(output(7), 3);
+
+  leash_values = RacerDubins::state_array::Ones();
+  std::cout << "=========" << std::endl;
+
+  for (int i = 0; i < RacerDubins::STATE_DIM; i++)
+  {
+    state_true = RacerDubins::state_array::Zero();
+    state_nominal = RacerDubins::state_array::Zero();
+
+    state_true(i) = 1.0;
+    state_nominal(i) = 1.1;
+
+    dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
+
+    for (int j = 0; j < RacerDubins::STATE_DIM; j++)
+    {
+      if (i == j)
+      {
+        EXPECT_FLOAT_EQ(output(j), 1.1);
+      }
+      else
+      {
+        EXPECT_FLOAT_EQ(output(j), 0.0);
+      }
+    }
+  }
 }
 
 TEST(RacerDubins, TestModelGPU)
@@ -131,8 +269,8 @@ TEST(RacerDubins, TestModelGPU)
   Eigen::Matrix<float, RacerDubins::STATE_DIM, 100> state_trajectory;
   state_trajectory = Eigen::Matrix<float, RacerDubins::STATE_DIM, 100>::Random();
 
-  std::vector<std::array<float, 7>> s(100);
-  std::vector<std::array<float, 7>> s_der(100);
+  std::vector<std::array<float, 8>> s(100);
+  std::vector<std::array<float, 8>> s_der(100);
   // steering, throttle
   std::vector<std::array<float, 2>> u(100);
   for (int state_index = 0; state_index < s.size(); state_index++)
@@ -147,13 +285,10 @@ TEST(RacerDubins, TestModelGPU)
     }
   }
 
-  // These variables will be changed so initialized to the right size only
-
-  // Run dynamics on dynamicsU
   // Run dynamics on GPU
   for (int y_dim = 1; y_dim <= 4; y_dim++)
   {
-    launchComputeDynamicsTestKernel<RacerDubins, 7, 2>(dynamics, s, u, s_der, y_dim);
+    launchComputeDynamicsTestKernel<RacerDubins, 8, 2>(dynamics, s, u, s_der, y_dim);
     for (int point = 0; point < 100; point++)
     {
       RacerDubins::state_array state = state_trajectory.col(point);
@@ -161,6 +296,19 @@ TEST(RacerDubins, TestModelGPU)
       RacerDubins::state_array state_der_cpu = RacerDubins::state_array::Zero();
 
       dynamics.computeDynamics(state, control, state_der_cpu);
+
+      for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
+      {
+        EXPECT_NEAR(state(dim), s[point][dim], 1e-5)
+            << "at sample " << point << ", state dim: " << dim << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s[point][dim]));
+      }
+      for (int dim = 0; dim < RacerDubins::CONTROL_DIM; dim++)
+      {
+        EXPECT_NEAR(control(dim), u[point][dim], 1e-5)
+            << "at sample " << point << ", state dim: " << dim << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(u[point][dim]));
+      }
       for (int dim = 0; dim < RacerDubins::STATE_DIM; dim++)
       {
         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-5)
@@ -179,8 +327,8 @@ TEST(RacerDubins, TestUpdateState)
   RacerDubins::state_array state;
   RacerDubins::state_array state_der;
 
-  state << 0, 0, 0, 0, 0;
-  state_der << 1, 1, 1, 1, 1;
+  state << 0, 0, 0, 0, 0, 0, 0;
+  state_der << 1, 1, 1, 1, 1, 1, 0;
   dynamics.updateState(state, state_der, 0.1);
   EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 0.1);
@@ -188,11 +336,12 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(2), 0.1);
   EXPECT_FLOAT_EQ(state(3), 0.1);
   EXPECT_FLOAT_EQ(state(4), 0.1);
-  EXPECT_FLOAT_EQ(state(5), 1);
+  EXPECT_FLOAT_EQ(state(5), 0.1);
   EXPECT_FLOAT_EQ(state(6), 1);
+  EXPECT_FLOAT_EQ(state(7), 1);
 
-  state << 0, M_PI - 0.1, 0, 0, 0;
-  state_der << 1, 1, 1, 1, 1;
+  state << 0, M_PI - 0.1, 0, 0, 0, 0, 0;
+  state_der << 1, 1, 1, 1, 1, -1, 1;
   dynamics.updateState(state, state_der, 1.0);
   EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 1.0);
@@ -200,11 +349,25 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(2), 1.0);
   EXPECT_FLOAT_EQ(state(3), 1.0);
   EXPECT_FLOAT_EQ(state(4), 0.5);  // max steer angle is 0.5
-  EXPECT_FLOAT_EQ(state(5), 1);
+  EXPECT_FLOAT_EQ(state(5), 0);
   EXPECT_FLOAT_EQ(state(6), 1);
+  EXPECT_FLOAT_EQ(state(7), 1);
 
-  state << 0, -M_PI + 0.1, 0, 0, 0;
-  state_der << 1, -1, 1, 1, 1;
+  state << 0, M_PI - 0.1, 0, 0, 0, 0, 0;
+  state_der << 1, 1, 1, 1, 1, 2, 1;
+  dynamics.updateState(state, state_der, 1.0);
+  EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
+  EXPECT_FLOAT_EQ(state(0), 1.0);
+  EXPECT_FLOAT_EQ(state(1), 1.0 - M_PI - 0.1);
+  EXPECT_FLOAT_EQ(state(2), 1.0);
+  EXPECT_FLOAT_EQ(state(3), 1.0);
+  EXPECT_FLOAT_EQ(state(4), 0.5);  // max steer angle is 0.5
+  EXPECT_FLOAT_EQ(state(5), 1.0);
+  EXPECT_FLOAT_EQ(state(6), 1);
+  EXPECT_FLOAT_EQ(state(7), 1);
+
+  state << 0, -M_PI + 0.1, 0, 0, 0, 0, 0;
+  state_der << 1, -1, 1, 1, 1, 1, 1;
   dynamics.updateState(state, state_der, 1.0);
   EXPECT_TRUE(state_der != RacerDubins::state_array::Zero());
   EXPECT_FLOAT_EQ(state(0), 1.0);
@@ -214,6 +377,7 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(4), 0.5);  // max steer angle is 0.5
   EXPECT_FLOAT_EQ(state(5), 1);
   EXPECT_FLOAT_EQ(state(6), 1);
+  EXPECT_FLOAT_EQ(state(7), 1);
 }
 
 TEST(RacerDubins, TestUpdateStateGPU)

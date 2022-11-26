@@ -110,6 +110,8 @@ public:
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
+
+  state_array stateFromMap(const std::map<std::string, float>& map) override;
 };
 
 #if __CUDACC__
