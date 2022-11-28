@@ -206,16 +206,17 @@ void ColoredMPPI::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories = this->getTotalSampledTrajectories();
   // controls already copied in compute control
-  mppi_common::launchVisualizeCostKernel<DYN_T, COST_T, COST_B_X, COST_B_Y, 1>(
-      this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories,
-      this->getLambda(), this->getAlpha(), this->sampled_outputs_d_, this->sampled_noise_d_,
-      this->sampled_crash_status_d_, this->control_std_dev_d_, this->sampled_costs_d_, this->vis_stream_, false);
-
-  //   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
-  //       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(),
-  //       this->sampled_noise_d_, this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_,
-  //       this->sampled_crash_status_d_, num_sampled_trajectories, this->getNumTimesteps(), this->getDt(),
-  //       this->vis_stream_);
+#if true
+  mppi_common::launchVisualizeCostKernel<COST_T, 128, COST_B_Y, 1>(
+      this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(),
+      this->getAlpha(), this->sampled_outputs_d_, this->sampled_noise_d_, this->sampled_crash_status_d_,
+      this->control_std_dev_d_, this->sampled_costs_d_, this->vis_stream_, false);
+#else
+  mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
+      this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,
+      this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+      num_sampled_trajectories, this->getNumTimesteps(), this->getDt(), this->vis_stream_);
+#endif
   for (int i = 0; i < num_sampled_trajectories; i++)
   {
     // set initial state to the first location
