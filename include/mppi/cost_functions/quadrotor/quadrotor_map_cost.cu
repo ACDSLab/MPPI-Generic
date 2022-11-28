@@ -210,8 +210,17 @@ template <class CLASS_T, class PARAMS_T>
 __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeadingCost(float* s)
 {
   float cost = 0;
-  float roll, pitch, yaw;
-  mppi::math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
+  // float roll, pitch, yaw;
+  // mppi::math::Quat2EulerNWU(&s[6], roll, pitch, yaw);
+  float R[3][3];
+  mppi::math::Quat2DCM(&s[E_INDEX(OutputIndex, QUAT_W)], R);
+  const float& vx = s[E_INDEX(OutputIndex, VEL_X)];
+  const float& vy = s[E_INDEX(OutputIndex, VEL_Y)];
+  const float& vz = s[E_INDEX(OutputIndex, VEL_Z)];
+  float3 w_v = make_float3(R[0][0] * vx + R[0][1] * vy + R[0][2] * vz,
+                           R[1][0] * vx + R[1][1] * vy + R[1][2] * vz,
+                           R[2][0] * vx + R[2][1] * vy + R[2][2] * vz);
+  float yaw = atan2f(w_v.y, w_v.x);
 
   // Calculate heading to gate
   float wx = this->params_.curr_waypoint.x - s[E_INDEX(OutputIndex, POS_X)];
@@ -231,12 +240,13 @@ template <class CLASS_T, class PARAMS_T>
 __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeSpeedCost(float* s)
 {
   float cost = 0;
-  float speed = sqrt(s[3] * s[3] + s[4] * s[4]);
+  float speed = sqrt(s[E_INDEX(OutputIndex, VEL_X)] * s[E_INDEX(OutputIndex, VEL_X)]
+                + s[E_INDEX(OutputIndex, VEL_Y)] * s[E_INDEX(OutputIndex, VEL_Y)]);
   float desired_speed = this->params_.desired_speed;
-  if (this->params_.curr_waypoint == this->params_.end_waypoint)
-  {
-    desired_speed = distToWaypoint(s, this->params_.curr_waypoint);
-  }
+  // if (this->params_.curr_waypoint == this->params_.end_waypoint)
+  // {
+  //   desired_speed = distToWaypoint(s, this->params_.curr_waypoint);
+  // }
   cost = this->params_.speed_coeff * powf(speed - desired_speed, 2);
   return cost;
 }
@@ -329,7 +339,7 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeight
   float w2 = d2 / (d1 + d2 + 0.001);
   float interpolated_height = (1.0 - w1) * this->params_.prev_waypoint.z + (1.0 - w2) * this->params_.curr_waypoint.z;
 
-  float height_diff = fabsf(s[E_INDEX(OutputIndex, POS_Z)] - interpolated_height);
+  float height_diff = powf(fabsf(s[E_INDEX(OutputIndex, POS_Z)] - interpolated_height), 2);
   if (height_diff < 0)
   {
     cost += this->params_.crash_coeff * (1 -height_diff);

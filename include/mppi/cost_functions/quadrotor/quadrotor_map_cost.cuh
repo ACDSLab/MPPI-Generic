@@ -99,6 +99,7 @@ public:
   using control_array = typename PARENT_CLASS::control_array;
   using OutputIndex = typename PARENT_CLASS::OutputIndex;
   using ControlIndex = typename PARENT_CLASS::ControlIndex;
+  using DYN_P = QuadrotorDynamicsParams;
 
   QuadrotorMapCostImpl(cudaStream_t stream = 0);
 
