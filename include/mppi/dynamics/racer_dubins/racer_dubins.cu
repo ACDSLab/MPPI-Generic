@@ -19,7 +19,7 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::Ref<const 
       this->params_.c_b[0] * state(S_INDEX(BRAKE_STATE)) * (state(S_INDEX(VEL_X)) >= 0 ? -1 : 1) -
       this->params_.c_v[0] * state(S_INDEX(VEL_X)) + this->params_.c_0;
   state_der(S_INDEX(YAW)) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
-                            tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale[0]);
+                            tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
   state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW)));
   state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW)));
   state_der(S_INDEX(STEER_ANGLE)) =
@@ -49,10 +49,10 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(const Eigen::Ref<const stat
   }
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
   next_state(S_INDEX(STEER_ANGLE)) =
-      max(min(state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
+      max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
-  next_state(S_INDEX(ACCEL_X)) = state_der(S_INDEX(VEL_X));  // include accel in state
-  next_state(S_INDEX(BRAKE_STATE)) = min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), 1.0f);
+  next_state(S_INDEX(BRAKE_STATE)) =
+      min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -60,7 +60,7 @@ RacerDubinsImpl<CLASS_T, PARAMS_T>::state_array RacerDubinsImpl<CLASS_T, PARAMS_
     const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2, const float alpha)
 {
   state_array result = (1 - alpha) * state_1 + alpha * state_2;
-  result(1) = angle_utils::interpolateEulerAngleLinear(state_1(1), state_2(1), alpha);
+  result(S_INDEX(YAW)) = angle_utils::interpolateEulerAngleLinear(state_1(S_INDEX(YAW)), state_2(S_INDEX(YAW)), alpha);
   return result;
 }
 
@@ -75,10 +75,6 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(float* state, fl
   for (i = tdy; i < 6; i += blockDim.y)
   {
     next_state[i] = state[i] + state_der[i] * dt;
-    if (i == S_INDEX(VEL_X))
-    {
-      next_state[S_INDEX(ACCEL_X)] = state_der[i];  // include accel in state
-    }
     if (i == S_INDEX(YAW))
     {
       next_state[i] = angle_utils::normalizeAngle(next_state[i]);
@@ -153,7 +149,7 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(float* state
       this->params_.c_b[0] * state[S_INDEX(BRAKE_STATE)] * (state[S_INDEX(VEL_X)] >= 0 ? -1 : 1) -
       this->params_.c_v[0] * state[S_INDEX(VEL_X)] + this->params_.c_0;
   state_der[S_INDEX(YAW)] = (state[S_INDEX(VEL_X)] / this->params_.wheel_base) *
-                            tan(state[S_INDEX(STEER_ANGLE)] / this->params_.steer_angle_scale[0]);
+                            tan(state[S_INDEX(STEER_ANGLE)] / this->params_.steer_angle_scale);
   state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]);
   state_der[S_INDEX(STEER_ANGLE)] =

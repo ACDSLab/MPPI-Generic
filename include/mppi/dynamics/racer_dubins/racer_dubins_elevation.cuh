@@ -64,8 +64,21 @@ public:
 
   void paramsToDevice();
 
-  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
-                   Eigen::Ref<state_array> state_der, const float dt);
+  void computeParametricModelDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                              Eigen::Ref<state_array> state_der, const float dt);
+
+  __device__ void computeParametricModelDeriv(float* state, float* control,
+                                   float* state_der, const float dt, DYN_PARAMS_T* params_p);
+
+  __host__ __device__ void setOutputs(const float* state_der,
+                  const float* next_state,
+                  float* output);
+
+  __device__ __host__ void computeStaticSettling(const float yaw, const float x, const float y,
+                                                 float roll, float pitch, float* output);
+
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, DYN_PARAMS_T* params_p);
+
 
   void computeStateDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                          Eigen::Ref<state_array> state_der)

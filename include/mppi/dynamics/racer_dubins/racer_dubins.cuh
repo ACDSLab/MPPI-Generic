@@ -15,7 +15,6 @@ struct RacerDubinsParams : public DynamicsParams
     STEER_ANGLE,
     BRAKE_STATE,
     STEER_ANGLE_RATE,
-    ACCEL_X,
     NUM_STATES
   };
 
@@ -64,7 +63,7 @@ struct RacerDubinsParams : public DynamicsParams
   float steering_constant = .6;
   float wheel_base = 0.3;
   float steer_command_angle_scale = 5;
-  float steer_angle_scale[3] = { -9.1, -10.2, -15.1 };
+  float steer_angle_scale = -9.1;
   float low_min_throttle = 0.13;
   float gravity = -9.81;
   float max_steer_angle = 0.5;
