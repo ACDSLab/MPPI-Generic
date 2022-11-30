@@ -11,7 +11,7 @@
 #include <mppi/utils/nn_helpers/lstm_lstm_helper.cuh>
 #include "mppi/utils/texture_helpers/two_d_texture_helper.cuh"
 
-struct AckermanSlipParams : public DynamicsParams
+struct BicycleSlipEngineParams : public DynamicsParams
 {
   enum class StateIndex : int
   {
@@ -92,10 +92,10 @@ struct AckermanSlipParams : public DynamicsParams
 // parameters not in shared memory: 66 ms
 
 // TODO implementation split here to disable shared for testing
-class AckermanSlip : public MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>
+class BicycleSlipEngine : public MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>
 {
 public:
-  using PARENT_CLASS = MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>;
+  using PARENT_CLASS = MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>;
   typedef LSTMHelper<LSTMParams<5, 5>, FNNParams<10,20,1>, false> STEER_LSTM;
   typedef LSTMHelper<LSTMParams<4, 60>, FNNParams<64, 100, 10>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
@@ -150,8 +150,8 @@ public:
   typedef typename PARENT_CLASS::dfdx dfdx;
   typedef typename PARENT_CLASS::dfdu dfdu;
 
-  explicit AckermanSlip(cudaStream_t stream = nullptr);
-  explicit AckermanSlip(std::string ackerman_path, cudaStream_t stream = nullptr);
+  explicit BicycleSlipEngine(cudaStream_t stream = nullptr);
+  explicit BicycleSlipEngine(std::string ackerman_path, cudaStream_t stream = nullptr);
 
   void paramsToDevice();
 
@@ -233,7 +233,7 @@ protected:
 };
 
 #if __CUDACC__
-#include "ackerman_slip.cu"
+#include "bicycle_slip_engine.cu"
 #endif
 
 #endif  // MPPIGENERIC_ACKERMAN_SLIP_CUH

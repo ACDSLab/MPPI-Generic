@@ -2,9 +2,10 @@
 // Created by jason on 9/7/22.
 //
 
-#include "ackerman_slip.cuh"
+#include "bicycle_slip_engine.cuh"
 
-AckermanSlip::AckermanSlip(cudaStream_t stream) : MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>(stream)
+BicycleSlipEngine::BicycleSlipEngine(cudaStream_t stream)
+  : MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>(stream)
 {
   this->requires_buffer_ = true;
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -14,8 +15,8 @@ AckermanSlip::AckermanSlip(cudaStream_t stream) : MPPI_internal::Dynamics<Ackerm
   terra_lstm_lstm_helper_ = std::make_shared<TERRA_NN>(stream);
 }
 
-AckermanSlip::AckermanSlip(std::string ackerman_path, cudaStream_t stream)
-  : MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>(stream)
+BicycleSlipEngine::BicycleSlipEngine(std::string ackerman_path, cudaStream_t stream)
+  : MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>(stream)
 {
   this->requires_buffer_ = true;
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -50,9 +51,9 @@ AckermanSlip::AckermanSlip(std::string ackerman_path, cudaStream_t stream)
   steer_lstm_lstm_helper_->loadParams("steer_model/model", ackerman_path);
 }
 
-void AckermanSlip::initializeDynamics(const Eigen::Ref<const state_array>& state,
-                                      const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output,
-                                      float t_0, float dt)
+void BicycleSlipEngine::initializeDynamics(const Eigen::Ref<const state_array>& state,
+                                           const Eigen::Ref<const control_array>& control,
+                                           Eigen::Ref<output_array> output, float t_0, float dt)
 {
   this->steer_lstm_lstm_helper_->resetLSTMHiddenCellCPU();
   this->delay_lstm_lstm_helper_->resetLSTMHiddenCellCPU();
@@ -61,8 +62,8 @@ void AckermanSlip::initializeDynamics(const Eigen::Ref<const state_array>& state
   PARENT_CLASS::initializeDynamics(state, control, output, t_0, dt);
 }
 
-MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>::state_array
-AckermanSlip::stateFromMap(const std::map<std::string, float>& map)
+MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>::state_array
+BicycleSlipEngine::stateFromMap(const std::map<std::string, float>& map)
 {
   state_array s = state_array::Zero();
   if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
@@ -111,7 +112,7 @@ AckermanSlip::stateFromMap(const std::map<std::string, float>& map)
   return s;
 }
 
-void AckermanSlip::updateFromBuffer(const buffer_trajectory& buffer)
+void BicycleSlipEngine::updateFromBuffer(const buffer_trajectory& buffer)
 {
   if (buffer.find("VEL_X") == buffer.end() || buffer.find("VEL_Y") == buffer.end() ||
       buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
@@ -156,7 +157,7 @@ void AckermanSlip::updateFromBuffer(const buffer_trajectory& buffer)
   terra_lstm_lstm_helper_->initializeLSTM(terra_init_buffer);
 }
 
-void AckermanSlip::GPUSetup()
+void BicycleSlipEngine::GPUSetup()
 {
   steer_lstm_lstm_helper_->GPUSetup();
   delay_lstm_lstm_helper_->GPUSetup();
@@ -176,7 +177,7 @@ void AckermanSlip::GPUSetup()
                                sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
 }
 
-void AckermanSlip::freeCudaMem()
+void BicycleSlipEngine::freeCudaMem()
 {
   steer_lstm_lstm_helper_->freeCudaMem();
   delay_lstm_lstm_helper_->freeCudaMem();
@@ -186,15 +187,16 @@ void AckermanSlip::freeCudaMem()
   Dynamics::freeCudaMem();
 }
 
-void AckermanSlip::paramsToDevice()
+void BicycleSlipEngine::paramsToDevice()
 {
   // does all the internal texture updates
   tex_helper_->copyToDevice();
   PARENT_CLASS::paramsToDevice();
 }
 
-void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                   const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der)
+void BicycleSlipEngine::computeDynamics(const Eigen::Ref<const state_array>& state,
+                                        const Eigen::Ref<const control_array>& control,
+                                        Eigen::Ref<state_array> state_der)
 {
   state_der = state_array::Zero();
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
@@ -281,8 +283,8 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
   state_der(S_INDEX(YAW)) = param_yaw_rate - drag_yaw;
 }
 
-void AckermanSlip::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
-                               Eigen::Ref<state_array> state_der, const float dt)
+void BicycleSlipEngine::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                                    Eigen::Ref<state_array> state_der, const float dt)
 {
   next_state = state + state_der * dt;
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
@@ -293,9 +295,9 @@ void AckermanSlip::updateState(const Eigen::Ref<const state_array> state, Eigen:
   next_state(S_INDEX(BRAKE_STATE)) = min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), 1.0f);
 }
 
-void AckermanSlip::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
-                        Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
-                        Eigen::Ref<output_array> output, const float t, const float dt)
+void BicycleSlipEngine::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                             Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
+                             Eigen::Ref<output_array> output, const float t, const float dt)
 {
   computeDynamics(state, control, state_der);
   updateState(state, next_state, state_der, dt);
@@ -395,8 +397,8 @@ void AckermanSlip::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> n
   output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
-__device__ void AckermanSlip::initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0,
-                                                 float dt)
+__device__ void BicycleSlipEngine::initializeDynamics(float* state, float* control, float* output, float* theta_s,
+                                                      float t_0, float dt)
 {
   const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
@@ -439,11 +441,11 @@ __device__ void AckermanSlip::initializeDynamics(float* state, float* control, f
   }
 }
 
-__device__ void AckermanSlip::updateState(float* state, float* next_state, float* state_der, const float dt)
+__device__ void BicycleSlipEngine::updateState(float* state, float* next_state, float* state_der, const float dt)
 {
 }
 
-__device__ void AckermanSlip::computeDynamics(float* state, float* control, float* state_der, float* theta)
+__device__ void BicycleSlipEngine::computeDynamics(float* state, float* control, float* state_der, float* theta)
 {
   DYN_PARAMS_T* params_p = nullptr;
 
@@ -596,8 +598,8 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
   state_der[S_INDEX(YAW)] = param_yaw_rate - drag_yaw;
 }
 
-__device__ void AckermanSlip::step(float* state, float* next_state, float* state_der, float* control, float* output,
-                                   float* theta_s, const float t, const float dt)
+__device__ void BicycleSlipEngine::step(float* state, float* next_state, float* state_der, float* control,
+                                        float* output, float* theta_s, const float t, const float dt)
 {
   computeDynamics(state, control, state_der, theta_s);
 
@@ -725,30 +727,30 @@ __device__ void AckermanSlip::step(float* state, float* next_state, float* state
   next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
-void AckermanSlip::getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)
+void BicycleSlipEngine::getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)
 {
   u[0] = -1.0;  // full brake
   u[1] = 0.0;   // no steering
 }
 
-Eigen::Quaternionf AckermanSlip::attitudeFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Quaternionf BicycleSlipEngine::attitudeFromState(const Eigen::Ref<const state_array>& state)
 {
   Eigen::Quaternionf q;
   mppi::math::Euler2QuatNWU(state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), state(S_INDEX(YAW)), q);
   return q;
 }
 
-Eigen::Vector3f AckermanSlip::positionFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f BicycleSlipEngine::positionFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], 0);
 }
 
-Eigen::Vector3f AckermanSlip::velocityFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f BicycleSlipEngine::velocityFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(state[S_INDEX(VEL_X)], state(S_INDEX(VEL_Y)), 0);
 }
 
-Eigen::Vector3f AckermanSlip::angularRateFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f BicycleSlipEngine::angularRateFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(0, 0, state[S_INDEX(OMEGA_Z)]);
 }
