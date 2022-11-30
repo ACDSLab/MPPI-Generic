@@ -58,6 +58,11 @@ public:
     delete tex_helper_;
   }
 
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                   Eigen::Ref<state_array> state_der, const float dt) {
+    this->PARENT_CLASS::updateState(state, next_state, state_der, dt);
+  }
+
   void GPUSetup();
 
   void freeCudaMem();
