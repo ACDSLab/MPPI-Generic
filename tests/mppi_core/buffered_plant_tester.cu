@@ -83,27 +83,27 @@ public:
   }
 
   // accessors for protected members
-  auto getPrevPositionList()
+  std::list<BufferMessage<Eigen::Vector3f>> getPrevPositionList()
   {
     return this->buffer_.getPrevPositionList();
   }
-  auto getPrevQuaternionList()
+  std::list<BufferMessage<Eigen::Quaternionf>> getPrevQuaternionList()
   {
     return this->buffer_.getPrevQuaternionList();
   }
-  auto getPrevVelocityList()
+  std::list<BufferMessage<Eigen::Vector3f>> getPrevVelocityList()
   {
     return this->buffer_.getPrevVelocityList();
   }
-  auto getPrevOmegaList()
+  std::list<BufferMessage<Eigen::Vector3f>> getPrevOmegaList()
   {
     return this->buffer_.getPrevOmegaList();
   }
-  auto getPrevControlList()
+  std::list<BufferMessage<c_array>> getPrevControlList()
   {
     return this->buffer_.getPrevControlList();
   }
-  auto getPrevExtraList()
+  std::map<std::string, std::list<BufferMessage<float>>> getPrevExtraList()
   {
     return this->buffer_.getPrevExtraList();
   }

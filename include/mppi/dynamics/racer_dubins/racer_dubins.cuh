@@ -56,22 +56,26 @@ struct RacerDubinsParams : public DynamicsParams
     NUM_OUTPUTS
   };
 
+  // engine model component
   float c_t[3] = { 1.3, 2.6, 3.9 };
   float c_b[3] = { 2.5, 3.5, 4.5 };
   float c_v[3] = { 3.7, 4.7, 5.7 };
   float c_0 = 4.9;
+  // steering component
   float steering_constant = .6;
-  float wheel_base = 0.3;
   float steer_command_angle_scale = 5;
   float steer_angle_scale = -9.1;
-  float low_min_throttle = 0.13;
-  float gravity = -9.81;
   float max_steer_angle = 0.5;
   float max_steer_rate = 5;
-  int gear_sign = 1;
+  // brake parametric component
   float brake_delay_constant = 6.6;
   float max_brake_rate_neg = 0.9;
   float max_brake_rate_pos = 0.33;
+  // system parameters
+  float wheel_base = 0.3;
+  float low_min_throttle = 0.13;
+  float gravity = -9.81;
+  int gear_sign = 1;
 };
 
 using namespace MPPI_internal;

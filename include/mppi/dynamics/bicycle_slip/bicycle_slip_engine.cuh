@@ -5,13 +5,13 @@
 #ifndef MPPIGENERIC_ACKERMAN_SLIP_CUH
 #define MPPIGENERIC_ACKERMAN_SLIP_CUH
 
-#include <mppi/dynamics/dynamics.cuh>
+#include <mppi/dynamics/racer_dubins/racer_dubins.cuh>
 #include <mppi/utils/angle_utils.cuh>
 #include <mppi/utils/math_utils.h>
 #include <mppi/utils/nn_helpers/lstm_lstm_helper.cuh>
 #include "mppi/utils/texture_helpers/two_d_texture_helper.cuh"
 
-struct BicycleSlipEngineParams : public DynamicsParams
+struct BicycleSlipEngineParams : public RacerDubinsParams
 {
   enum class StateIndex : int
   {
@@ -29,58 +29,7 @@ struct BicycleSlipEngineParams : public DynamicsParams
     NUM_STATES
   };
 
-  enum class ControlIndex : int
-  {
-    THROTTLE_BRAKE = 0,
-    STEER_CMD,
-    NUM_CONTROLS
-  };
-
-  enum class OutputIndex : int
-  {
-    BASELINK_VEL_B_X = 0,
-    BASELINK_VEL_B_Y,
-    BASELINK_VEL_B_Z,
-    BASELINK_POS_I_X,
-    BASELINK_POS_I_Y,
-    BASELINK_POS_I_Z,
-    YAW,
-    ROLL,
-    PITCH,
-    STEER_ANGLE,
-    STEER_ANGLE_RATE,
-    WHEEL_POS_I_FL_X,
-    WHEEL_POS_I_FL_Y,
-    WHEEL_POS_I_FR_X,
-    WHEEL_POS_I_FR_Y,
-    WHEEL_POS_I_RL_X,
-    WHEEL_POS_I_RL_Y,
-    WHEEL_POS_I_RR_X,
-    WHEEL_POS_I_RR_Y,
-    WHEEL_FORCE_B_FL,
-    WHEEL_FORCE_B_FR,
-    WHEEL_FORCE_B_RL,
-    WHEEL_FORCE_B_RR,
-    ACCEL_X,
-    ACCEL_Y,
-    OMEGA_Z,
-    NUM_OUTPUTS
-  };
-  float wheel_base = 2.981;
-  float steer_angle_scale = -12.4;
   float wheel_angle_scale = -9.2;
-  float gravity = -9.81;
-  // steering parametric
-  float steer_command_angle_scale = 5;
-  float steering_constant = .6;
-  float max_steer_angle = 5;
-  float max_steer_rate = 5;
-  // brake parametric component
-  float brake_delay_constant = 6.6;
-  float max_brake_rate_neg = 0.9;
-  float max_brake_rate_pos = 0.33;
-  // forward reverse
-  int gear_sign = 1;
 };
 
 // BLOCKSIZE_X = 5

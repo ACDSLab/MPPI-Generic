@@ -31,6 +31,10 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, Template)
   EXPECT_EQ(2, RacerDubinsElevationLSTMSteering::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
+  const int blk = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_BLK;
+  EXPECT_EQ(blk, 62);
+  const int grd = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_GRD;
+  EXPECT_EQ(grd, 1917);
 }
 
 TEST_F(RacerDubinsElevationLSTMSteeringTest, BindStream)
@@ -618,7 +622,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPU)
 
   // Run dynamics on dynamicsU
   // Run dynamics on GPU
-  for (int y_dim = 1; y_dim <= 1; y_dim++)
+  for (int y_dim = 1; y_dim <= 16; y_dim++)
   {
     DYN::buffer_trajectory buffer;
     buffer["VEL_X"] = Eigen::VectorXf::Random(51);
@@ -638,7 +642,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPU)
       }
     }
     dynamics.updateFromBuffer(buffer);
-    launchStepTestKernel<RacerDubinsElevationLSTMSteering>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    launchStepTestKernel<RacerDubinsElevationLSTMSteering, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
     for (int point = 0; point < num_rollouts; point++)
     {
       dynamics.initializeDynamics(state, control, output, 0, 0);
@@ -746,7 +750,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPUReverse)
       }
     }
     dynamics.updateFromBuffer(buffer);
-    launchStepTestKernel<RacerDubinsElevationLSTMSteering>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    launchStepTestKernel<RacerDubinsElevationLSTMSteering, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
     for (int point = 0; point < num_rollouts; point++)
     {
       dynamics.initializeDynamics(state, control, output, 0, 0);
