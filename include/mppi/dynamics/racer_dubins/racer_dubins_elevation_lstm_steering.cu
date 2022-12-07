@@ -108,12 +108,12 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
     params_p = &(this->params_);
   }
   computeParametricModelDeriv(state, control, state_der, dt, params_p);
-  const int tdy = threadIdx.y;
+  const uint tdy = threadIdx.y;
 
   const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
   // loads in the input to the network
   float* input_loc = network_d_->getInputLocation(theta_s + shift);
-  if (threadIdx.y == 0)
+  if (tdy == 0)
   {
     input_loc[0] = state[S_INDEX(VEL_X)];
     input_loc[1] = state[S_INDEX(STEER_ANGLE)];
@@ -131,7 +131,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   }
   __syncthreads();
 
-  if (threadIdx.y == 7)
+  if (tdy == 7)
   {
     float roll = 0.0f;
     float pitch = 0.0f;
