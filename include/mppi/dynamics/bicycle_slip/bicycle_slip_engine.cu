@@ -353,6 +353,8 @@ void BicycleSlipEngine::step(Eigen::Ref<state_array> state, Eigen::Ref<state_arr
     float left_pitch = asinf((left_diff) / 2.981);
     float right_pitch = asinf((right_diff) / 2.981);
     next_state(S_INDEX(PITCH)) = (left_pitch + right_pitch) / 2;
+
+    output[O_INDEX(BASELINK_POS_I_Z)] = (rear_right_height + rear_left_height) / 2.0f;
   }
   else
   {

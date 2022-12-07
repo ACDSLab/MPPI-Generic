@@ -70,8 +70,8 @@ void RacerDubinsElevationImpl<CLASS_T>::computeParametricModelDeriv(const Eigen:
 
 template <class CLASS_T>
 __device__ __host__ void RacerDubinsElevationImpl<CLASS_T>::computeStaticSettling(const float yaw, const float x,
-                                                                                  const float y, float roll,
-                                                                                  float pitch, float* output)
+                                                                                  const float y, float& roll,
+                                                                                  float& pitch, float* output)
 {
   float height = 0.0f;
 
@@ -257,9 +257,9 @@ template <class CLASS_T>
 __device__ void RacerDubinsElevationImpl<CLASS_T>::updateState(float* state, float* next_state, float* state_der,
                                                                const float dt, DYN_PARAMS_T* params_p)
 {
-  const int tdy = threadIdx.y;
+  const uint tdy = threadIdx.y;
   // Set to 6 as the last 3 states do not do euler integration
-  for (int i = tdy; i < 6; i += blockDim.y)
+  for (uint i = tdy; i < 6; i += blockDim.y)
   {
     next_state[i] = state[i] + state_der[i] * dt;
     switch (i)
@@ -300,7 +300,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   float pitch = 0;
   float roll = 0;
 
-  if (threadIdx.y == 7)
+  if (threadIdx.y == 0)
   {
     computeStaticSettling(state[S_INDEX(YAW)], state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], roll, pitch, output);
     next_state[S_INDEX(PITCH)] = pitch;

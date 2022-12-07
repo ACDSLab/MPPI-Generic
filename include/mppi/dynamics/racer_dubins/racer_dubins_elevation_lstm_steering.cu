@@ -131,7 +131,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   }
   __syncthreads();
 
-  if (tdy == 7)
+  if (tdy == 0)
   {
     float roll = 0.0f;
     float pitch = 0.0f;

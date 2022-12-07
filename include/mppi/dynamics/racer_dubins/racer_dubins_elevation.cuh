@@ -80,7 +80,7 @@ public:
                   float* output);
 
   __device__ __host__ void computeStaticSettling(const float yaw, const float x, const float y,
-                                                 float roll, float pitch, float* output);
+                                                 float& roll, float& pitch, float* output);
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, DYN_PARAMS_T* params_p);
 
