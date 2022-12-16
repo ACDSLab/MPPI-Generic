@@ -150,6 +150,7 @@ void BicycleSlipEngine::updateFromBuffer(const buffer_trajectory& buffer)
   terra_init_buffer.row(2) = buffer.at("OMEGA_Z");
   terra_init_buffer.row(3) = buffer.at("STEER_ANGLE");
   terra_init_buffer.row(4) = buffer.at("STEER_ANGLE_RATE");
+  // TODO should be pulled from elevation map to be entirely correct
   terra_init_buffer.row(5) = buffer.at("PITCH").unaryExpr([](float x) { return sinf(x); }) * this->params_.gravity;
   terra_init_buffer.row(6) = buffer.at("ROLL").unaryExpr([](float x) { return sinf(x); }) * this->params_.gravity;
   terra_init_buffer.row(7) =
