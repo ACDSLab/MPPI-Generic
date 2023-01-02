@@ -71,7 +71,9 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
 
   float pitch = 0;
   float roll = 0;
-  computeStaticSettling(state(S_INDEX(YAW)), state(S_INDEX(POS_X)), state(S_INDEX(POS_Y)), roll, pitch, output.data());
+  RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+      this->tex_helper_, next_state(S_INDEX(YAW)), next_state(S_INDEX(POS_X)), next_state(S_INDEX(POS_Y)), roll, pitch,
+      output.data());
   next_state[S_INDEX(PITCH)] = pitch;
   next_state[S_INDEX(ROLL)] = roll;
 
@@ -131,16 +133,17 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   }
   __syncthreads();
 
+  updateState(state, next_state, state_der, dt, params_p);
   if (tdy == 0)
   {
     float roll = 0.0f;
     float pitch = 0.0f;
-    computeStaticSettling(state[S_INDEX(YAW)], state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], roll, pitch, output);
+    RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+        this->tex_helper_, next_state[S_INDEX(YAW)], next_state[S_INDEX(POS_X)], next_state[S_INDEX(POS_Y)], roll,
+        pitch, output);
     next_state[S_INDEX(PITCH)] = pitch;
     next_state[S_INDEX(ROLL)] = roll;
   }
-
-  updateState(state, next_state, state_der, dt, params_p);
   setOutputs(state_der, next_state, output);
 }
 

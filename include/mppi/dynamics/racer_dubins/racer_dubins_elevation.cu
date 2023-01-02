@@ -68,85 +68,6 @@ void RacerDubinsElevationImpl<CLASS_T>::computeParametricModelDeriv(const Eigen:
       max(min(state_der(S_INDEX(STEER_ANGLE)), this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
 
-template <class CLASS_T>
-__device__ __host__ void RacerDubinsElevationImpl<CLASS_T>::computeStaticSettling(const float yaw, const float x,
-                                                                                  const float y, float& roll,
-                                                                                  float& pitch, float* output)
-{
-  float height = 0.0f;
-
-  float3 front_left = make_float3(2.981f, 0.737f, 0.0f);
-  float3 front_right = make_float3(2.981f, -0.737f, 0.f);
-  float3 rear_left = make_float3(0.0f, 0.737f, 0.0f);
-  float3 rear_right = make_float3(0.0f, -0.737f, 0.0f);
-  front_left = make_float3(front_left.x * cosf(yaw) - front_left.y * sinf(yaw) + x,
-                           front_left.x * sinf(yaw) + front_left.y * cosf(yaw) + y, 0.0f);
-  front_right = make_float3(front_right.x * cosf(yaw) - front_right.y * sinf(yaw) + x,
-                            front_right.x * sinf(yaw) + front_right.y * cosf(yaw) + y, 0.0f);
-  rear_left = make_float3(rear_left.x * cosf(yaw) - rear_left.y * sinf(yaw) + x,
-                          rear_left.x * sinf(yaw) + rear_left.y * cosf(yaw) + y, 0.0f);
-  rear_right = make_float3(rear_right.x * cosf(yaw) - rear_right.y * sinf(yaw) + x,
-                           rear_right.x * sinf(yaw) + rear_right.y * cosf(yaw) + y, 0.0f);
-  float front_left_height = 0.0f;
-  float front_right_height = 0.0f;
-  float rear_left_height = 0.0f;
-  float rear_right_height = 0.0f;
-
-  if (this->tex_helper_->checkTextureUse(0))
-  {
-    front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
-    front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
-    rear_left_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_left);
-    rear_right_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_right);
-
-    float front_diff = front_left_height - front_right_height;
-    front_diff = max(min(front_diff, 0.736f * 2.0f), -0.736f * 2.0f);
-    float rear_diff = rear_left_height - rear_right_height;
-    rear_diff = max(min(rear_diff, 0.736f * 2.0f), -0.736f * 2.0f);
-    float front_roll = asinf(front_diff / (0.737f * 2.0f));
-    float rear_roll = asinf(rear_diff / (0.737f * 2.0f));
-    roll = (front_roll + rear_roll) / 2.0f;
-
-    float left_diff = rear_left_height - front_left_height;
-    left_diff = max(min(left_diff, 2.98f), -2.98f);
-    float right_diff = rear_right_height - front_right_height;
-    right_diff = max(min(right_diff, 2.98f), -2.98f);
-    float left_pitch = asinf((left_diff) / 2.981f);
-    float right_pitch = asinf((right_diff) / 2.981f);
-    pitch = (left_pitch + right_pitch) / 2.0f;
-
-    height = (rear_left_height + rear_right_height) / 2.0f;
-  }
-  else
-  {
-    roll = 0.0f;
-    pitch = 0.0f;
-    height = 0.0f;
-  }
-
-  if (isnan(roll) || isinf(roll) || abs(roll) > M_PIf32)
-  {
-    roll = 4.0f;
-  }
-  if (isnan(pitch) || isinf(pitch) || abs(pitch) > M_PIf32)
-  {
-    pitch = 4.0f;
-  }
-  if (isnan(height) || isinf(height))
-  {
-    height = 0.0f;
-  }
-
-  output[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
-  output[O_INDEX(WHEEL_POS_I_FL_Y)] = front_left.y;
-  output[O_INDEX(WHEEL_POS_I_FR_X)] = front_right.x;
-  output[O_INDEX(WHEEL_POS_I_FR_Y)] = front_right.y;
-  output[O_INDEX(WHEEL_POS_I_RL_X)] = rear_left.x;
-  output[O_INDEX(WHEEL_POS_I_RL_Y)] = rear_left.y;
-  output[O_INDEX(WHEEL_POS_I_RR_X)] = rear_right.x;
-  output[O_INDEX(WHEEL_POS_I_RR_Y)] = rear_right.y;
-  output[O_INDEX(BASELINK_POS_I_Z)] = height;
-}
 
 template <class CLASS_T>
 __host__ __device__ void RacerDubinsElevationImpl<CLASS_T>::setOutputs(const float* state_der, const float* next_state,
@@ -185,7 +106,9 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
 
   float pitch = 0;
   float roll = 0;
-  computeStaticSettling(state(S_INDEX(YAW)), state(S_INDEX(POS_X)), state(S_INDEX(POS_Y)), roll, pitch, output.data());
+  RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+      this->tex_helper_, next_state(S_INDEX(YAW)), next_state(S_INDEX(POS_X)), next_state(S_INDEX(POS_Y)), roll, pitch,
+      output.data());
   next_state[S_INDEX(PITCH)] = pitch;
   next_state[S_INDEX(ROLL)] = roll;
 
@@ -297,17 +220,18 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
   }
   computeParametricModelDeriv(state, control, state_der, dt, params_p);
 
-  float pitch = 0;
-  float roll = 0;
+  updateState(state, next_state, state_der, dt, params_p);
 
   if (threadIdx.y == 0)
   {
-    computeStaticSettling(state[S_INDEX(YAW)], state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], roll, pitch, output);
+    float pitch = 0;
+    float roll = 0;
+    RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+        this->tex_helper_, next_state[S_INDEX(YAW)], next_state[S_INDEX(POS_X)], next_state[S_INDEX(POS_Y)], roll,
+        pitch, output);
     next_state[S_INDEX(PITCH)] = pitch;
     next_state[S_INDEX(ROLL)] = roll;
   }
-
-  updateState(state, next_state, state_der, dt, params_p);
   setOutputs(state_der, next_state, output);
 }
 

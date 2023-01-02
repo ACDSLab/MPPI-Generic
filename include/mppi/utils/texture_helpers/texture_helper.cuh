@@ -109,7 +109,7 @@ public:
     this->textures_buffer_[index].update_params = true;
     this->textures_buffer_[index].use = false;
   }
-  __device__ __host__ bool checkTextureUse(int index)
+  __device__ __host__ bool checkTextureUse(int index) const
   {
     return this->textures_d_[index].use;
   }
