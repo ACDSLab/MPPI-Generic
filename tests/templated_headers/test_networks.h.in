@@ -5,6 +5,7 @@
 
 namespace mppi {
 namespace tests {
+  const std::string test_load_nn_file = "@TEST_NETWORK_FOLDER@/neuralNetLoadTest.npz";
   const std::string test_lstm_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_test.npz";
 }
 }

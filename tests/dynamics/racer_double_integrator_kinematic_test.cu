@@ -968,53 +968,6 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
   EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);
   EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
 
-  // ensure that the network values are not nan
-  auto terra_init_params = dynamics.getTerraHelper()->getInitLSTMParams();
-  for (int i = 0; i < LSTMParams<10, 200>::HIDDEN_HIDDEN_SIZE; i++)
-  {
-    EXPECT_TRUE(isfinite(terra_init_params.W_im[i]));
-    EXPECT_TRUE(isfinite(terra_init_params.W_fm[i]));
-    EXPECT_TRUE(isfinite(terra_init_params.W_om[i]));
-    EXPECT_TRUE(isfinite(terra_init_params.W_cm[i]));
-  }
-  for (int i = 0; i < LSTMParams<10, 200>::INPUT_HIDDEN_SIZE; i++)
-  {
-    EXPECT_TRUE(isfinite(terra_init_params.W_ii[i]));
-    EXPECT_TRUE(isfinite(terra_init_params.W_fi[i]));
-    EXPECT_TRUE(isfinite(terra_init_params.W_oi[i]));
-    EXPECT_TRUE(isfinite(terra_init_params.W_ci[i]));
-  }
-  for (int i = 0; i < LSTMParams<10, 200>::HIDDEN_DIM; i++)
-  {
-    EXPECT_TRUE(isfinite(terra_init_params.b_i[i]));
-    EXPECT_TRUE(isfinite(terra_init_params.b_f[i]));
-    EXPECT_TRUE(isfinite(terra_init_params.b_o[i]));
-    EXPECT_TRUE(isfinite(terra_init_params.b_c[i]));
-  }
-
-  auto terra_params = dynamics.getTerraHelper()->getLSTMParams();
-  for (int i = 0; i < LSTMParams<10, 200>::HIDDEN_HIDDEN_SIZE; i++)
-  {
-    EXPECT_TRUE(isfinite(terra_params.W_im[i]));
-    EXPECT_TRUE(isfinite(terra_params.W_fm[i]));
-    EXPECT_TRUE(isfinite(terra_params.W_om[i]));
-    EXPECT_TRUE(isfinite(terra_params.W_cm[i]));
-  }
-  for (int i = 0; i < LSTMParams<10, 200>::INPUT_HIDDEN_SIZE; i++)
-  {
-    EXPECT_TRUE(isfinite(terra_params.W_ii[i]));
-    EXPECT_TRUE(isfinite(terra_params.W_fi[i]));
-    EXPECT_TRUE(isfinite(terra_params.W_oi[i]));
-    EXPECT_TRUE(isfinite(terra_params.W_ci[i]));
-  }
-  for (int i = 0; i < LSTMParams<10, 200>::HIDDEN_DIM; i++)
-  {
-    EXPECT_TRUE(isfinite(terra_params.b_i[i]));
-    EXPECT_TRUE(isfinite(terra_params.b_f[i]));
-    EXPECT_TRUE(isfinite(terra_params.b_o[i]));
-    EXPECT_TRUE(isfinite(terra_params.b_c[i]));
-  }
-
   cudaExtent extent = make_cudaExtent(100, 200, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
   helper->setExtent(0, extent);

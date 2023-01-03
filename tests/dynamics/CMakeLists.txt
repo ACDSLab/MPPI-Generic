@@ -1,17 +1,3 @@
-if(BUILD_TESTS)
-  message("")
-  find_package(PythonInterp)
-
-  # Create neural network map
-  execute_process(COMMAND ${PYTHON_EXECUTABLE}
-          ${PROJECT_SOURCE_DIR}/scripts/autorally/test/generateTestNetwork.py
-          -o ${TEST_NETWORK_FOLDER}
-          OUTPUT_FILE /dev/null
-          )
-  message(STATUS "Created ${TEST_NETWORK_FOLDER}/*.npz")
-  message("")
-endif()
-
 set(GTEST_LIBRARIES gtest gmock gtest_main)
 file(GLOB TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
 

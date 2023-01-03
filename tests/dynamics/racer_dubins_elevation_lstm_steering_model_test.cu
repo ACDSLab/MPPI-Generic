@@ -3,7 +3,7 @@
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation_lstm_steering.cuh>
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
-#include <autorally_test_network.h>
+#include <racer_test_networks.h>
 #include <cuda_runtime.h>
 
 class RacerDubinsElevationLSTMSteeringTest : public ::testing::Test

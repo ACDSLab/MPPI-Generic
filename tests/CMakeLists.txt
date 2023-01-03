@@ -8,6 +8,39 @@ include_directories(include)
 # Create header file pointing to test neural network
 set(HEADER_PATH ${CMAKE_CURRENT_SOURCE_DIR}/templated_headers/)
 
+# Create header file pointing to test map
+set(TEST_MAP_FOLDER "${PROJECT_BINARY_DIR}")
+set(TEST_NETWORK_FOLDER "${PROJECT_BINARY_DIR}")
+
+if(BUILD_TESTS)
+    message("")
+    find_package(PythonInterp)
+
+    # Create neural network map
+    execute_process(COMMAND ${PYTHON_EXECUTABLE}
+            ${PROJECT_SOURCE_DIR}/scripts/autorally/test/generateTestNetwork.py
+            -o ${TEST_NETWORK_FOLDER}
+            OUTPUT_FILE /dev/null
+            )
+    message(STATUS "Created ${TEST_NETWORK_FOLDER}/*.npz")
+    message("")
+endif()
+
+if(BUILD_TESTS)
+    message("")
+    find_package(PythonInterp)
+
+    # Create test map
+    execute_process(COMMAND ${PYTHON_EXECUTABLE}
+            ${PROJECT_SOURCE_DIR}/scripts/autorally/test/generateTestMaps.py
+            -o ${TEST_MAP_FOLDER}/
+            OUTPUT_FILE /dev/null
+            )
+    message(STATUS "Created folder ${TEST_MAP_FOLDER}/*.npz")
+    message("")
+endif()
+
+
 file(GLOB HEADERS ${HEADER_PATH}*)
 foreach(T_FILE IN LISTS HEADERS)
     get_filename_component(T_NAME ${T_FILE} NAME_WE)
@@ -18,8 +51,6 @@ foreach(T_FILE IN LISTS HEADERS)
     message(STATUS "Generated ${TEST_NETWORK_HEADER_FILE}")
 endforeach()
 
-# Create header file pointing to test map
-set(TEST_MAP_FOLDER "${PROJECT_BINARY_DIR}")
 
 # Add the generated header files to list of includes
 include_directories(${PROJECT_BINARY_DIR}/include)

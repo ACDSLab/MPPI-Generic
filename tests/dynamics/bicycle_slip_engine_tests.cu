@@ -3,7 +3,7 @@
 #include <mppi/dynamics/bicycle_slip/bicycle_slip_engine.cuh>
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
-#include <autorally_test_network.h>
+#include <racer_test_networks.h>
 #include <cuda_runtime.h>
 
 class BicycleSlipEngineTest : public ::testing::Test
@@ -575,6 +575,10 @@ TEST_F(BicycleSlipEngineTest, updateState)
   params.max_steer_angle = 5.0;
   dynamics.setParams(params);
 
+  auto limits = dynamics.getControlRanges();
+  limits[0].x = -1.0;
+  dynamics.setControlRanges(limits);
+
   BicycleSlipEngine::state_array s = BicycleSlipEngine::state_array::Zero();
   BicycleSlipEngine::state_array s_next = BicycleSlipEngine::state_array::Zero();
   BicycleSlipEngine::state_array s_der = BicycleSlipEngine::state_array::Zero();
@@ -685,6 +689,10 @@ TEST_F(BicycleSlipEngineTest, updateState)
 TEST_F(BicycleSlipEngineTest, stepCPU)
 {
   auto dynamics = BicycleSlipEngine();
+
+  auto limits = dynamics.getControlRanges();
+  limits[0].x = -1.0;
+  dynamics.setControlRanges(limits);
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
@@ -809,7 +817,8 @@ TEST_F(BicycleSlipEngineTest, TestPythonComparison)
   const int output_dim = 5;
   CudaCheckError();
   using DYN = BicycleSlipEngine;
-  BicycleSlipEngine dynamics = BicycleSlipEngine(mppi::tests::ackerman_test);
+  BicycleSlipEngine dynamics =
+      BicycleSlipEngine(mppi::tests::ackerman_test, mppi::tests::steering_lstm, mppi::tests::brake_delay_lstm);
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
@@ -956,7 +965,8 @@ TEST_F(BicycleSlipEngineTest, TestStepGPUvsCPU)
   const float dt = 0.1f;
   CudaCheckError();
   using DYN = BicycleSlipEngine;
-  BicycleSlipEngine dynamics = BicycleSlipEngine(mppi::tests::ackerman_test);
+  BicycleSlipEngine dynamics =
+      BicycleSlipEngine(mppi::tests::ackerman_test, mppi::tests::steering_lstm, mppi::tests::brake_delay_lstm);
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
