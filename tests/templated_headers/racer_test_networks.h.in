@@ -1,0 +1,15 @@
+#ifndef TESTS_COST_FUNCTIONS_AUTORALLY_TEST_NETWORK_H_
+#define TESTS_COST_FUNCTIONS_AUTORALLY_TEST_NETWORK_H_
+
+#include <string>
+
+namespace mppi {
+namespace tests {
+  const std::string steering_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_steering.npz";
+  const std::string brake_delay_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_brake_delay.npz";
+  const std::string ackerman_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_ackerman.npz";
+  const std::string ackerman_test = "@PROJECT_SOURCE_DIR@/resources/ackerman_test.npz";
+  const std::string bicycle_test = "@PROJECT_SOURCE_DIR@/resources/bicycle_test.npz";
+}
+}
+#endif // TESTS_COST_FUNCTIONS_AUTORALLY_TEST_NETWORK_H_

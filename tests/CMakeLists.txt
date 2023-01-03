@@ -6,15 +6,20 @@ include_directories(${PROJECT_SOURCE_DIR}/kernel_tests/
 include_directories(include)
 
 # Create header file pointing to test neural network
-set(TEST_NETWORK_FOLDER "${PROJECT_BINARY_DIR}")
-set(TEST_NETWORK_HEADER_FILE ${PROJECT_BINARY_DIR}/include/autorally_test_network.h)
-configure_file(templated_headers/autorally_test_network.h.in ${TEST_NETWORK_HEADER_FILE})
-message(STATUS "Generated ${TEST_NETWORK_HEADER_FILE}")
+set(HEADER_PATH ${CMAKE_CURRENT_SOURCE_DIR}/templated_headers/)
+
+file(GLOB HEADERS ${HEADER_PATH}*)
+foreach(T_FILE IN LISTS HEADERS)
+    get_filename_component(T_NAME ${T_FILE} NAME_WE)
+    string(REPLACE ".in" "" STRIPPED_NAME ${T_NAME})
+    message("stripped name ${STRIPPED_NAME}")
+    set(TEST_NETWORK_HEADER_FILE ${PROJECT_BINARY_DIR}/include/${STRIPPED_NAME}.h)
+    configure_file(${T_FILE} ${TEST_NETWORK_HEADER_FILE})
+    message(STATUS "Generated ${TEST_NETWORK_HEADER_FILE}")
+endforeach()
+
 # Create header file pointing to test map
 set(TEST_MAP_FOLDER "${PROJECT_BINARY_DIR}")
-set(TEST_MAP_HEADER_FILE ${PROJECT_BINARY_DIR}/include/autorally_test_map.h)
-configure_file(templated_headers/autorally_test_map.h.in ${TEST_MAP_HEADER_FILE})
-message(STATUS "Generated ${TEST_MAP_HEADER_FILE}")
 
 # Add the generated header files to list of includes
 include_directories(${PROJECT_BINARY_DIR}/include)

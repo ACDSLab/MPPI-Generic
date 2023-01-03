@@ -14,10 +14,6 @@ namespace tests {
   const std::string autorally_hidden_network_file = "@PROJECT_SOURCE_DIR@/resources/hidden_init.npz";
   const std::string autorally_cell_network_file = "@PROJECT_SOURCE_DIR@/resources/cell_init.npz";
   const std::string autorally_output_network_file = "@PROJECT_SOURCE_DIR@/resources/output.npz";
-  const std::string test_lstm_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_test.npz";
-  const std::string steering_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_steering.npz";
-  const std::string ackerman_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_ackerman.npz";
-  const std::string ackerman_test = "@PROJECT_SOURCE_DIR@/resources/ackerman_test.npz";
 }
 }
 #endif // TESTS_COST_FUNCTIONS_AUTORALLY_TEST_NETWORK_H_
