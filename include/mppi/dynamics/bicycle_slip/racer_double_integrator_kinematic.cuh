@@ -28,33 +28,38 @@ struct RacerDoubleIntegratorKinematicParams : public RacerDubinsParams
     STEER_ANGLE_RATE,
     NUM_STATES
   };
+
+  float environment = 1.0f; // 1.0 for helendale, -1.0 for halter ranch
+  float wheel_angle_scale = -9.2f;
 };
+
+// TODO you have incorrect template on the init vs the predictor
 
 class RacerDoubleIntegratorKinematic : public MPPI_internal::Dynamics<RacerDoubleIntegratorKinematic, RacerDoubleIntegratorKinematicParams>
 {
 public:
     using PARENT_CLASS = MPPI_internal::Dynamics<RacerDoubleIntegratorKinematic, RacerDoubleIntegratorKinematicParams>;
-    typedef LSTMHelper<LSTMParams<5, 5>, FNNParams<10,20,1>, false> STEER_LSTM;
-    typedef LSTMHelper<LSTMParams<4, 60>, FNNParams<64, 100, 10>> STEER_INIT_LSTM;
+    typedef LSTMHelper<LSTMParams<5, 5>, FNNParams<10,5,1>, false> STEER_LSTM;
+    typedef LSTMHelper<LSTMParams<4, 200>, FNNParams<204, 2000, 10>> STEER_INIT_LSTM;
     typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
 
     typedef LSTMHelper<LSTMParams<3, 5>, FNNParams<8,10,1>, false> DELAY_LSTM;
-    typedef LSTMHelper<LSTMParams<2, 60>, FNNParams<62, 100, 10>> DELAY_INIT_LSTM;
+    typedef LSTMHelper<LSTMParams<2, 200>, FNNParams<202, 2000, 10>> DELAY_INIT_LSTM;
     typedef LSTMLSTMHelper<DELAY_INIT_LSTM, DELAY_LSTM, 51> DELAY_NN;
 
-    typedef LSTMHelper<LSTMParams<10, 10>, FNNParams<20,20,3>, false> TERRA_LSTM;
-    typedef LSTMHelper<LSTMParams<8, 60>, FNNParams<68, 100, 20>> TERRA_INIT_LSTM;
+    typedef LSTMHelper<LSTMParams<10, 10>, FNNParams<20,20,4>, false> TERRA_LSTM;
+    typedef LSTMHelper<LSTMParams<10, 200>, FNNParams<210, 2000, 20>> TERRA_INIT_LSTM;
     typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
 
     struct SHARED_MEM_GRD_PARAMS {
         LSTMParams<5, 5> steer_lstm_params;
-        FNNParams<10, 20, 1> steer_output_params;
+        FNNParams<10, 5, 1> steer_output_params;
 
         LSTMParams<3, 5> delay_lstm_params;
         FNNParams<8, 10, 1> delay_output_params;
 
         LSTMParams<10, 10> terra_lstm_params;
-        FNNParams<20, 20, 3> terra_output_params;
+        FNNParams<20, 20, 4> terra_output_params;
     };
 
     struct SHARED_MEM_BLK_PARAMS {
@@ -81,6 +86,54 @@ public:
 
     explicit RacerDoubleIntegratorKinematic(cudaStream_t stream = nullptr);
     explicit RacerDoubleIntegratorKinematic(std::string model_path, cudaStream_t stream = nullptr);
+
+    void paramsToDevice();
+
+    void GPUSetup();
+
+    void freeCudaMem();
+
+    void updateFromBuffer(const buffer_trajectory& buffer);
+
+    void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                            Eigen::Ref<output_array> output, float t_0, float dt);
+
+    __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
+
+    void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                         Eigen::Ref<state_array> state_der);
+
+    void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
+              const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,
+              const float dt);
+
+    void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                     Eigen::Ref<state_array> state_der, const float dt);
+
+    __device__ void updateState(float* state, float* next_state, float* state_der, const float dt) {}
+    __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, DYN_PARAMS_T* params_p);
+    __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
+    __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
+                                float* theta_s, const float t, const float dt);
+
+    // state_array interpolateState(const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2,
+    //                              const float alpha);
+
+    // bool computeGrad(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+    //                  Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B);
+
+
+    void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
+
+    Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
+    Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
+    Eigen::Vector3f velocityFromState(const Eigen::Ref<const state_array>& state);
+    Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
+    state_array stateFromOdometry(const Eigen::Quaternionf& q, const Eigen::Vector3f& pos, const Eigen::Vector3f& vel,
+                                  const Eigen::Vector3f& omega);
+
+    // void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal,
+    //                   const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output);
 
     state_array stateFromMap(const std::map<std::string, float>& map) override;
 
