@@ -2,10 +2,9 @@
 // Created by jason on 12/12/22.
 //
 
-#include "racer_double_integrator_kinematic.cuh"
+#include "bicycle_slip.cuh"
 
-RacerDoubleIntegratorKinematic::RacerDoubleIntegratorKinematic(cudaStream_t stream)
-  : MPPI_internal::Dynamics<RacerDoubleIntegratorKinematic, RacerDoubleIntegratorKinematicParams>(stream)
+BicycleSlip::BicycleSlip(cudaStream_t stream) : MPPI_internal::Dynamics<BicycleSlip, BicycleSlipParams>(stream)
 {
   this->requires_buffer_ = true;
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -14,7 +13,7 @@ RacerDoubleIntegratorKinematic::RacerDoubleIntegratorKinematic(cudaStream_t stre
   terra_lstm_lstm_helper_ = std::make_shared<TERRA_NN>(stream);
 }
 
-RacerDoubleIntegratorKinematic::RacerDoubleIntegratorKinematic(std::string model_path, cudaStream_t stream)
+BicycleSlip::BicycleSlip(std::string model_path, cudaStream_t stream)
 {
   this->requires_buffer_ = true;
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -45,8 +44,7 @@ RacerDoubleIntegratorKinematic::RacerDoubleIntegratorKinematic(std::string model
   steer_lstm_lstm_helper_->loadParams("steer_model/model", model_path);
 }
 
-RacerDoubleIntegratorKinematic::state_array
-RacerDoubleIntegratorKinematic::stateFromMap(const std::map<std::string, float>& map)
+BicycleSlip::state_array BicycleSlip::stateFromMap(const std::map<std::string, float>& map)
 {
   state_array s = state_array::Zero();
   if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
@@ -95,14 +93,14 @@ RacerDoubleIntegratorKinematic::stateFromMap(const std::map<std::string, float>&
   return s;
 }
 
-void RacerDoubleIntegratorKinematic::paramsToDevice()
+void BicycleSlip::paramsToDevice()
 {
   // does all the internal texture updates
   tex_helper_->copyToDevice();
   PARENT_CLASS::paramsToDevice();
 }
 
-void RacerDoubleIntegratorKinematic::GPUSetup()
+void BicycleSlip::GPUSetup()
 {
   steer_lstm_lstm_helper_->GPUSetup();
   delay_lstm_lstm_helper_->GPUSetup();
@@ -120,7 +118,7 @@ void RacerDoubleIntegratorKinematic::GPUSetup()
                                sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
 }
 
-void RacerDoubleIntegratorKinematic::freeCudaMem()
+void BicycleSlip::freeCudaMem()
 {
   steer_lstm_lstm_helper_->freeCudaMem();
   delay_lstm_lstm_helper_->freeCudaMem();
@@ -129,8 +127,7 @@ void RacerDoubleIntegratorKinematic::freeCudaMem()
   Dynamics::freeCudaMem();
 }
 
-void RacerDoubleIntegratorKinematic::updateFromBuffer(
-    const Dynamics<RacerDoubleIntegratorKinematic, RacerDoubleIntegratorKinematicParams>::buffer_trajectory& buffer)
+void BicycleSlip::updateFromBuffer(const Dynamics<BicycleSlip, BicycleSlipParams>::buffer_trajectory& buffer)
 {
   if (buffer.find("VEL_X") == buffer.end() || buffer.find("VEL_Y") == buffer.end() ||
       buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
@@ -172,9 +169,9 @@ void RacerDoubleIntegratorKinematic::updateFromBuffer(
   terra_lstm_lstm_helper_->initializeLSTM(terra_init_buffer);
 }
 
-void RacerDoubleIntegratorKinematic::initializeDynamics(const Eigen::Ref<const state_array>& state,
-                                                        const Eigen::Ref<const control_array>& control,
-                                                        Eigen::Ref<output_array> output, float t_0, float dt)
+void BicycleSlip::initializeDynamics(const Eigen::Ref<const state_array>& state,
+                                     const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output,
+                                     float t_0, float dt)
 {
   this->steer_lstm_lstm_helper_->resetLSTMHiddenCellCPU();
   this->delay_lstm_lstm_helper_->resetLSTMHiddenCellCPU();
@@ -182,9 +179,8 @@ void RacerDoubleIntegratorKinematic::initializeDynamics(const Eigen::Ref<const s
   PARENT_CLASS::initializeDynamics(state, control, output, t_0, dt);
 }
 
-void RacerDoubleIntegratorKinematic::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                                     const Eigen::Ref<const control_array>& control,
-                                                     Eigen::Ref<state_array> state_der)
+void BicycleSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
+                                  const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der)
 {
   state_der = state_array::Zero();
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
@@ -261,9 +257,8 @@ void RacerDoubleIntegratorKinematic::computeDynamics(const Eigen::Ref<const stat
   state_der(S_INDEX(OMEGA_Z)) = yaw_accel;
 }
 
-void RacerDoubleIntegratorKinematic::updateState(const Eigen::Ref<const state_array> state,
-                                                 Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
-                                                 const float dt)
+void BicycleSlip::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                              Eigen::Ref<state_array> state_der, const float dt)
 {
   next_state = state + state_der * dt;
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
@@ -274,10 +269,9 @@ void RacerDoubleIntegratorKinematic::updateState(const Eigen::Ref<const state_ar
       min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
 }
 
-void RacerDoubleIntegratorKinematic::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
-                                          Eigen::Ref<state_array> state_der,
-                                          const Eigen::Ref<const control_array>& control,
-                                          Eigen::Ref<output_array> output, const float t, const float dt)
+void BicycleSlip::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                       Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
+                       Eigen::Ref<output_array> output, const float t, const float dt)
 {
   computeDynamics(state, control, state_der);
   updateState(state, next_state, state_der, dt);
@@ -311,8 +305,8 @@ void RacerDoubleIntegratorKinematic::step(Eigen::Ref<state_array> state, Eigen::
   output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
-__device__ void RacerDoubleIntegratorKinematic::initializeDynamics(float* state, float* control, float* output,
-                                                                   float* theta_s, float t_0, float dt)
+__device__ void BicycleSlip::initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0,
+                                                float dt)
 {
   const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
@@ -352,8 +346,8 @@ __device__ void RacerDoubleIntegratorKinematic::initializeDynamics(float* state,
   }
 }
 
-__device__ void RacerDoubleIntegratorKinematic::updateState(float* state, float* next_state, float* state_der,
-                                                            const float dt, DYN_PARAMS_T* params_p)
+__device__ void BicycleSlip::updateState(float* state, float* next_state, float* state_der, const float dt,
+                                         DYN_PARAMS_T* params_p)
 {
   for (int i = threadIdx.y; i < 8; i += blockDim.y)
   {
@@ -377,8 +371,7 @@ __device__ void RacerDoubleIntegratorKinematic::updateState(float* state, float*
   __syncthreads();
 }
 
-__device__ void RacerDoubleIntegratorKinematic::computeDynamics(float* state, float* control, float* state_der,
-                                                                float* theta)
+__device__ void BicycleSlip::computeDynamics(float* state, float* control, float* state_der, float* theta)
 {
   DYN_PARAMS_T* params_p = nullptr;
 
@@ -512,8 +505,8 @@ __device__ void RacerDoubleIntegratorKinematic::computeDynamics(float* state, fl
   state_der[S_INDEX(OMEGA_Z)] = yaw_accel;
 }
 
-__device__ void RacerDoubleIntegratorKinematic::step(float* state, float* next_state, float* state_der, float* control,
-                                                     float* output, float* theta_s, const float t, const float dt)
+__device__ void BicycleSlip::step(float* state, float* next_state, float* state_der, float* control, float* output,
+                                  float* theta_s, const float t, const float dt)
 {
   DYN_PARAMS_T* params_p;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
@@ -558,31 +551,30 @@ __device__ void RacerDoubleIntegratorKinematic::step(float* state, float* next_s
   }
 }
 
-void RacerDoubleIntegratorKinematic::getStoppingControl(const Eigen::Ref<const state_array>& state,
-                                                        Eigen::Ref<control_array> u)
+void BicycleSlip::getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)
 {
   u[0] = -1.0;  // full brake
   u[1] = 0.0;   // no steering
 }
 
-Eigen::Quaternionf RacerDoubleIntegratorKinematic::attitudeFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Quaternionf BicycleSlip::attitudeFromState(const Eigen::Ref<const state_array>& state)
 {
   Eigen::Quaternionf q;
   mppi::math::Euler2QuatNWU(state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), state(S_INDEX(YAW)), q);
   return q;
 }
 
-Eigen::Vector3f RacerDoubleIntegratorKinematic::positionFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f BicycleSlip::positionFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], 0);
 }
 
-Eigen::Vector3f RacerDoubleIntegratorKinematic::velocityFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f BicycleSlip::velocityFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(state[S_INDEX(VEL_X)], state(S_INDEX(VEL_Y)), 0);
 }
 
-Eigen::Vector3f RacerDoubleIntegratorKinematic::angularRateFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f BicycleSlip::angularRateFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(0, 0, state[S_INDEX(OMEGA_Z)]);
 }

@@ -1,12 +1,12 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
-#include <mppi/dynamics/bicycle_slip/racer_double_integrator_kinematic.cuh>
+#include <mppi/dynamics/bicycle_slip/bicycle_slip_kinematic.cuh>
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 #include <racer_test_networks.h>
 
-class RacerDoubleIntegratorKinematicTest : public ::testing::Test
+class BicycleSlipKinematicTest : public ::testing::Test
 {
 public:
   cudaStream_t stream;
@@ -26,11 +26,11 @@ public:
 
 const double tol = 1e-5;
 
-TEST_F(RacerDoubleIntegratorKinematicTest, Template)
+TEST_F(BicycleSlipKinematicTest, Template)
 {
-  auto dynamics = RacerDoubleIntegratorKinematic();
-  EXPECT_EQ(11, RacerDoubleIntegratorKinematic::STATE_DIM);
-  EXPECT_EQ(2, RacerDoubleIntegratorKinematic::CONTROL_DIM);
+  auto dynamics = BicycleSlipKinematic();
+  EXPECT_EQ(11, BicycleSlipKinematic::STATE_DIM);
+  EXPECT_EQ(2, BicycleSlipKinematic::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
 
@@ -39,9 +39,9 @@ TEST_F(RacerDoubleIntegratorKinematicTest, Template)
   EXPECT_NE(dynamics.getTerraHelper(), nullptr);
 }
 
-TEST_F(RacerDoubleIntegratorKinematicTest, BindStream)
+TEST_F(BicycleSlipKinematicTest, BindStream)
 {
-  auto dynamics = RacerDoubleIntegratorKinematic(stream);
+  auto dynamics = BicycleSlipKinematic(stream);
 
   EXPECT_EQ(dynamics.stream_, stream) << "Stream binding failure.";
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
@@ -55,22 +55,22 @@ TEST_F(RacerDoubleIntegratorKinematicTest, BindStream)
   EXPECT_EQ(dynamics.getTerraHelper()->getLSTMModel()->stream_, stream);
 }
 
-TEST_F(RacerDoubleIntegratorKinematicTest, computeDynamicsCPUZeroNetworks)
+TEST_F(BicycleSlipKinematicTest, computeDynamicsCPUZeroNetworks)
 {
-  auto dynamics = RacerDoubleIntegratorKinematic();
+  auto dynamics = BicycleSlipKinematic();
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
   params.wheel_base = 2.981;
   dynamics.setParams(params);
 
-  RacerDoubleIntegratorKinematic::state_array x = RacerDoubleIntegratorKinematic::state_array::Zero();
-  RacerDoubleIntegratorKinematic::control_array u = RacerDoubleIntegratorKinematic::control_array::Zero();
-  RacerDoubleIntegratorKinematic::output_array output = RacerDoubleIntegratorKinematic::output_array::Zero();
+  BicycleSlipKinematic::state_array x = BicycleSlipKinematic::state_array::Zero();
+  BicycleSlipKinematic::control_array u = BicycleSlipKinematic::control_array::Zero();
+  BicycleSlipKinematic::output_array output = BicycleSlipKinematic::output_array::Zero();
   dynamics.initializeDynamics(x, u, output, 0, 0);
 
   // computeDynamics should not touch the roll/pitch element
-  RacerDoubleIntegratorKinematic::state_array state_der = RacerDoubleIntegratorKinematic::state_array::Ones() * 0.153;
+  BicycleSlipKinematic::state_array state_der = BicycleSlipKinematic::state_array::Ones() * 0.153;
   dynamics.computeDynamics(x, u, state_der);
   EXPECT_FLOAT_EQ(state_der(0), 0);   // x
   EXPECT_FLOAT_EQ(state_der(1), 0);   // y
@@ -308,262 +308,252 @@ TEST_F(RacerDoubleIntegratorKinematicTest, computeDynamicsCPUZeroNetworks)
   EXPECT_FLOAT_EQ(state_der(10), 0);                // steer angle rate
 }
 
-TEST_F(RacerDoubleIntegratorKinematicTest, computeDynamicsCPUFakeNetworks)
+TEST_F(BicycleSlipKinematicTest, computeDynamicsCPUFakeNetworks)
 {
-  auto dynamics = RacerDoubleIntegratorKinematic();
+  auto dynamics = BicycleSlipKinematic();
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
   params.wheel_base = 2.981;
   dynamics.setParams(params);
 
-  RacerDoubleIntegratorKinematic::state_array x = RacerDoubleIntegratorKinematic::state_array::Zero();
-  RacerDoubleIntegratorKinematic::control_array u = RacerDoubleIntegratorKinematic::control_array::Zero();
-  RacerDoubleIntegratorKinematic::output_array output = RacerDoubleIntegratorKinematic::output_array::Zero();
+  BicycleSlipKinematic::state_array x = BicycleSlipKinematic::state_array::Zero();
+  BicycleSlipKinematic::control_array u = BicycleSlipKinematic::control_array::Zero();
+  BicycleSlipKinematic::output_array output = BicycleSlipKinematic::output_array::Zero();
   dynamics.initializeDynamics(x, u, output, 0, 0);
 
   // force brake output
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
-  std::vector<float> brake_theta(RacerDoubleIntegratorKinematic::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> brake_theta(BicycleSlipKinematic::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
   dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
-  std::vector<float> steer_theta(RacerDoubleIntegratorKinematic::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> steer_theta(BicycleSlipKinematic::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
   dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 5, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
-  std::vector<float> terra_theta(RacerDoubleIntegratorKinematic::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> terra_theta(BicycleSlipKinematic::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
   terra_theta[terra_params.stride_idcs[3] + 3] = 0.07;
   dynamics.getTerraHelper()->getOutputModel()->updateModel({ 20, 20, 4 }, terra_theta);
 
-  float delta = 0;
   // computeDynamics should not touch the roll/pitch element
-  RacerDoubleIntegratorKinematic::state_array state_der = RacerDoubleIntegratorKinematic::state_array::Ones() * 0.153;
+  BicycleSlipKinematic::state_array state_der = BicycleSlipKinematic::state_array::Ones() * 0.153;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);      // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);      // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);      // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 20);     // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);    // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);     // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);     // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);  // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);      // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);      // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);     // steer angle rate
 
   u << 1, 0;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);      // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);      // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);      // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 20);     // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);    // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);     // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);     // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);  // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);      // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);      // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);     // steer angle rate
 
   u << -1, 0;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.33);                                                    // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);      // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);      // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);      // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 20);     // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.33);   // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);     // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);     // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);  // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);      // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);      // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);     // steer angle rate
 
   // change the initial brake state
   x << 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 0, 0;
   u << 1, 0;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), -0.9 + 1);                                                // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);         // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);         // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);         // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 20);        // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), -0.9 + 1);  // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);        // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);        // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);     // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);         // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);         // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);        // steer angle rate
 
   x << 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 0, 0;
   u << -0.9, 0;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_NEAR(state_der(4), -0.66 + 1, tol);                                              // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);           // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);           // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);           // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 20);          // steer angle
+  EXPECT_NEAR(state_der(4), -0.66 + 1, tol);  // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);          // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);          // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);       // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);           // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);           // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);          // steer angle rate
 
   x << 0, 0, 0, 0, 1.0, 0, 0, 0, 0, 0, 0;
   u << -0.9, 0;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_NEAR(state_der(4), -0.66 + 1, tol);                                              // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);           // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);           // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);           // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 20);          // steer angle
+  EXPECT_NEAR(state_der(4), -0.66 + 1, tol);  // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);          // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);          // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);       // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);           // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);           // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);          // steer angle rate
 
   x << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   u << -0.01, 0;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 0.066 + 1);                                               // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);          // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);          // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);          // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 20);         // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 0.066 + 1);  // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);         // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);         // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);      // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);          // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);          // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);         // steer angle rate
 
   x << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   u << 0, 1.0;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 3.0 + 20);                                                // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);         // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);         // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);         // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 3.0 + 20);  // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);       // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);        // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);        // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);     // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);         // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);         // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);        // steer angle rate
 
   x << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   u << 0, -1.0;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), -3 + 20);                                                 // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);        // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);        // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);        // yaw
+  EXPECT_FLOAT_EQ(state_der(3), -3 + 20);  // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);      // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);       // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);       // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);    // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);        // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);        // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);       // steer angle rate
 
   x << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   u << 0, 0.5;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 1.5 + 20);                                                // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);         // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);         // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);         // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 1.5 + 20);  // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);       // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);        // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);        // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);     // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);         // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);         // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);        // steer angle rate
 
   x << 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   u << 0, -0.1;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
-  EXPECT_FLOAT_EQ(state_der(3), -0.3 + 20);                                               // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);          // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);          // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);          // yaw
+  EXPECT_FLOAT_EQ(state_der(3), -0.3 + 20);  // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);        // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);         // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);         // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);      // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);          // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);          // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);         // steer angle rate
 
   x << 0, 0, 0, -2.5, 0, 0, 0, 0, 0, 0, 0;
   u << 0, -0.1;
-  delta = tanf(x(3) / -9.2);
-  float c_delta = cosf(delta + 0.07);
-  float s_delta = sinf(delta + 0.07);
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                 // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                 // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                 // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 1.2 + 20);                          // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                               // brake state
-  EXPECT_FLOAT_EQ(state_der(5), 40 * c_delta - 50 * s_delta + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 40 * s_delta + 50 * c_delta + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                             // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                 // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                 // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);         // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);         // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);         // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 1.2 + 20);  // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);       // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);        // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);        // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);     // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);         // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);         // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);        // steer angle rate
 
   x << 0, 0, 0, 2.5, 0, 0, 0, 0, 0, 0, 0;
   u << 0, 0.5;
-  delta = tanf(x(3) / -9.2);
-  c_delta = cosf(delta + 0.07);
-  s_delta = sinf(delta + 0.07);
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                 // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                 // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                 // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 20);                                // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                               // brake state
-  EXPECT_FLOAT_EQ(state_der(5), 40 * c_delta - 50 * s_delta + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 40 * s_delta + 50 * c_delta + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                             // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                 // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                 // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 0);      // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);      // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);      // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 20);     // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);    // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);     // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);     // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);  // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);      // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);      // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);     // steer angle rate
 
   x << 0, 0, 0, 0, 0, 1.0, 2.0, 0, 0, 0, 0;
   u << 0, 0.5;
-  delta = tanf(x(3) / -9.2);
-  c_delta = cosf(delta + 0.07);
-  s_delta = sinf(delta + 0.07);
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 1.0);                               // x
-  EXPECT_FLOAT_EQ(state_der(1), 2.0);                               // y
-  EXPECT_FLOAT_EQ(state_der(2), 0);                                 // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 21.5);                              // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                               // brake state
-  EXPECT_FLOAT_EQ(state_der(5), 40 * c_delta - 50 * s_delta + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 40 * s_delta + 50 * c_delta + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                             // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                 // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                 // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 1.0);    // x
+  EXPECT_FLOAT_EQ(state_der(1), 2.0);    // y
+  EXPECT_FLOAT_EQ(state_der(2), 0);      // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 21.5);   // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);    // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);     // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);     // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30.0f);  // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);      // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);      // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);     // steer angle rate
 }
 
-TEST_F(RacerDoubleIntegratorKinematicTest, updateState)
+TEST_F(BicycleSlipKinematicTest, updateState)
 {
-  auto dynamics = RacerDoubleIntegratorKinematic();
+  auto dynamics = BicycleSlipKinematic();
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
@@ -573,9 +563,9 @@ TEST_F(RacerDoubleIntegratorKinematicTest, updateState)
   limits[0].x = -1.0;
   dynamics.setControlRanges(limits);
 
-  RacerDoubleIntegratorKinematic::state_array s = RacerDoubleIntegratorKinematic::state_array::Zero();
-  RacerDoubleIntegratorKinematic::state_array s_next = RacerDoubleIntegratorKinematic::state_array::Zero();
-  RacerDoubleIntegratorKinematic::state_array s_der = RacerDoubleIntegratorKinematic::state_array::Zero();
+  BicycleSlipKinematic::state_array s = BicycleSlipKinematic::state_array::Zero();
+  BicycleSlipKinematic::state_array s_next = BicycleSlipKinematic::state_array::Zero();
+  BicycleSlipKinematic::state_array s_der = BicycleSlipKinematic::state_array::Zero();
 
   s << 1, 2, 3, 4, 0.55, 6, 7, 8, 9, 10, 11;
   dynamics.updateState(s, s_next, s_der, 0.1);
@@ -591,7 +581,7 @@ TEST_F(RacerDoubleIntegratorKinematicTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 10);    // pitch
   EXPECT_FLOAT_EQ(s_next(10), 0);    // steer angle rate
 
-  s = RacerDoubleIntegratorKinematic::state_array::Ones() * 10;
+  s = BicycleSlipKinematic::state_array::Ones() * 10;
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), 10);                                 // x
   EXPECT_FLOAT_EQ(s_next(1), 10);                                 // y
@@ -605,7 +595,7 @@ TEST_F(RacerDoubleIntegratorKinematicTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 10);                                 // pitch
   EXPECT_FLOAT_EQ(s_next(10), 0);                                 // steer angle rate
 
-  s = RacerDoubleIntegratorKinematic::state_array::Ones() * -10;
+  s = BicycleSlipKinematic::state_array::Ones() * -10;
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), -10);                                // x
   EXPECT_FLOAT_EQ(s_next(1), -10);                                // y
@@ -619,8 +609,8 @@ TEST_F(RacerDoubleIntegratorKinematicTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), -10);                                // pitch
   EXPECT_FLOAT_EQ(s_next(10), 0);                                 // steer angle rate
 
-  s = RacerDoubleIntegratorKinematic::state_array::Zero();
-  s_der = RacerDoubleIntegratorKinematic::state_array::Ones();
+  s = BicycleSlipKinematic::state_array::Zero();
+  s_der = BicycleSlipKinematic::state_array::Ones();
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), 0.1);   // x
   EXPECT_FLOAT_EQ(s_next(1), 0.1);   // y
@@ -634,8 +624,8 @@ TEST_F(RacerDoubleIntegratorKinematicTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 0.1);   // pitch
   EXPECT_FLOAT_EQ(s_next(10), 1.0);  // steer angle rate
 
-  s = RacerDoubleIntegratorKinematic::state_array::Zero();
-  s_der = RacerDoubleIntegratorKinematic::state_array::Ones() * -1;
+  s = BicycleSlipKinematic::state_array::Zero();
+  s_der = BicycleSlipKinematic::state_array::Ones() * -1;
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), -0.1);   // x
   EXPECT_FLOAT_EQ(s_next(1), -0.1);   // y
@@ -649,8 +639,8 @@ TEST_F(RacerDoubleIntegratorKinematicTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), -0.1);   // pitch
   EXPECT_FLOAT_EQ(s_next(10), -1.0);  // steer angle rate
 
-  s = RacerDoubleIntegratorKinematic::state_array::Zero();
-  s_der = RacerDoubleIntegratorKinematic::state_array::Ones() * 10;
+  s = BicycleSlipKinematic::state_array::Zero();
+  s_der = BicycleSlipKinematic::state_array::Ones() * 10;
   dynamics.updateState(s, s_next, s_der, 1);
   EXPECT_FLOAT_EQ(s_next(0), 10);                                   // x
   EXPECT_FLOAT_EQ(s_next(1), 10);                                   // y
@@ -664,8 +654,8 @@ TEST_F(RacerDoubleIntegratorKinematicTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 10);                                   // pitch
   EXPECT_FLOAT_EQ(s_next(10), 10.0);                                // steer angle rate
 
-  s = RacerDoubleIntegratorKinematic::state_array::Zero();
-  s_der = RacerDoubleIntegratorKinematic::state_array::Ones() * -10;
+  s = BicycleSlipKinematic::state_array::Zero();
+  s_der = BicycleSlipKinematic::state_array::Ones() * -10;
   dynamics.updateState(s, s_next, s_der, 1.0);
   EXPECT_FLOAT_EQ(s_next(0), -10.0);                                 // x
   EXPECT_FLOAT_EQ(s_next(1), -10.0);                                 // y
@@ -680,9 +670,9 @@ TEST_F(RacerDoubleIntegratorKinematicTest, updateState)
   EXPECT_FLOAT_EQ(s_next(10), -10.0);                                // steer angle rate
 }
 
-TEST_F(RacerDoubleIntegratorKinematicTest, stepCPU)
+TEST_F(BicycleSlipKinematicTest, stepCPU)
 {
-  auto dynamics = RacerDoubleIntegratorKinematic();
+  auto dynamics = BicycleSlipKinematic();
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
@@ -718,27 +708,27 @@ TEST_F(RacerDoubleIntegratorKinematicTest, stepCPU)
 
   // force brake output
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
-  std::vector<float> brake_theta(RacerDoubleIntegratorKinematic::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> brake_theta(BicycleSlipKinematic::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
   dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
-  std::vector<float> steer_theta(RacerDoubleIntegratorKinematic::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> steer_theta(BicycleSlipKinematic::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
   dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 5, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
-  std::vector<float> terra_theta(RacerDoubleIntegratorKinematic::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> terra_theta(BicycleSlipKinematic::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
   dynamics.getTerraHelper()->getOutputModel()->updateModel({ 20, 20, 4 }, terra_theta);
 
-  RacerDoubleIntegratorKinematic::state_array s = RacerDoubleIntegratorKinematic::state_array::Ones();
-  RacerDoubleIntegratorKinematic::control_array u = RacerDoubleIntegratorKinematic::control_array::Ones();
-  RacerDoubleIntegratorKinematic::state_array s_next = RacerDoubleIntegratorKinematic::state_array::Zero();
-  RacerDoubleIntegratorKinematic::state_array s_der = RacerDoubleIntegratorKinematic::state_array::Ones();
-  RacerDoubleIntegratorKinematic::output_array output = RacerDoubleIntegratorKinematic::output_array::Zero();
+  BicycleSlipKinematic::state_array s = BicycleSlipKinematic::state_array::Ones();
+  BicycleSlipKinematic::control_array u = BicycleSlipKinematic::control_array::Ones();
+  BicycleSlipKinematic::state_array s_next = BicycleSlipKinematic::state_array::Zero();
+  BicycleSlipKinematic::state_array s_der = BicycleSlipKinematic::state_array::Ones();
+  BicycleSlipKinematic::output_array output = BicycleSlipKinematic::output_array::Zero();
   s(0) = 5;
   s(1) = 5;
 
@@ -748,8 +738,8 @@ TEST_F(RacerDoubleIntegratorKinematicTest, stepCPU)
   EXPECT_FLOAT_EQ(s_der(2), 1.0);          // yaw
   EXPECT_FLOAT_EQ(s_der(3), 22.4);         // steer angle
   EXPECT_FLOAT_EQ(s_der(4), 0.1);          // brake state
-  EXPECT_FLOAT_EQ(s_der(5), 85.207535);    // vel x
-  EXPECT_FLOAT_EQ(s_der(6), 95.346207);    // vel y
+  EXPECT_FLOAT_EQ(s_der(5), 40);           // vel x
+  EXPECT_FLOAT_EQ(s_der(6), 50);           // vel y
   EXPECT_FLOAT_EQ(s_der(7), 30);           // omega z
   EXPECT_FLOAT_EQ(s_der(8), 0);            // roll
   EXPECT_FLOAT_EQ(s_der(9), 0);            // pitch
@@ -760,15 +750,15 @@ TEST_F(RacerDoubleIntegratorKinematicTest, stepCPU)
   EXPECT_FLOAT_EQ(s_next(2), 1.1f);         // yaw
   EXPECT_FLOAT_EQ(s_next(3), 3.24);         // steer angle
   EXPECT_FLOAT_EQ(s_next(4), 1.0);          // brake state
-  EXPECT_FLOAT_EQ(s_next(5), 9.5207539);    // vel x
-  EXPECT_FLOAT_EQ(s_next(6), 10.534621);    // vel y
+  EXPECT_FLOAT_EQ(s_next(5), 5);            // vel x
+  EXPECT_FLOAT_EQ(s_next(6), 6);            // vel y
   EXPECT_FLOAT_EQ(s_next(7), 4);            // omega z
   EXPECT_FLOAT_EQ(s_next(8), -0.7060864);   // roll
   EXPECT_FLOAT_EQ(s_next(9), -0.44172257);  // pitch
   EXPECT_FLOAT_EQ(s_next(10), 22.4);        // steer angle rate
 
-  EXPECT_FLOAT_EQ(output(0), 9.5207539);    // x vel
-  EXPECT_FLOAT_EQ(output(1), 10.534621);    // y vel
+  EXPECT_FLOAT_EQ(output(0), 5);            // x vel
+  EXPECT_FLOAT_EQ(output(1), 6);            // y vel
   EXPECT_FLOAT_EQ(output(2), 0);            // z vel
   EXPECT_FLOAT_EQ(output(3), 4.96988314);   // x pos
   EXPECT_FLOAT_EQ(output(4), 5.1381773);    // y pos
@@ -786,16 +776,16 @@ TEST_F(RacerDoubleIntegratorKinematicTest, stepCPU)
   // EXPECT_FLOAT_EQ(output(16), 5.4724776);   // bl wheel y
   // EXPECT_FLOAT_EQ(output(17), 5.626703);    // br wheel x
   // EXPECT_FLOAT_EQ(output(18), 4.803877);    // br wheel y
-  EXPECT_FLOAT_EQ(output(19), 10000);      // wheel f fl
-  EXPECT_FLOAT_EQ(output(20), 10000);      // wheel f fr
-  EXPECT_FLOAT_EQ(output(21), 10000);      // wheel f bl
-  EXPECT_FLOAT_EQ(output(22), 10000);      // wheel f br
-  EXPECT_FLOAT_EQ(output(23), 85.207535);  // accel x
-  EXPECT_FLOAT_EQ(output(24), 95.346207);  // accel y
-  EXPECT_FLOAT_EQ(output(25), 1);          // omega z
+  EXPECT_FLOAT_EQ(output(19), 10000);  // wheel f fl
+  EXPECT_FLOAT_EQ(output(20), 10000);  // wheel f fr
+  EXPECT_FLOAT_EQ(output(21), 10000);  // wheel f bl
+  EXPECT_FLOAT_EQ(output(22), 10000);  // wheel f br
+  EXPECT_FLOAT_EQ(output(23), 40);     // accel x
+  EXPECT_FLOAT_EQ(output(24), 50);     // accel y
+  EXPECT_FLOAT_EQ(output(25), 1);      // omega z
 }
 
-TEST_F(RacerDoubleIntegratorKinematicTest, TestPythonComparison)
+TEST_F(BicycleSlipKinematicTest, TestPythonComparison)
 {
   const int num_points = 1;
   const float dt = 0.02f;
@@ -804,8 +794,8 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestPythonComparison)
   const int state_dim = 12;
   const int output_dim = 5;
   CudaCheckError();
-  using DYN = RacerDoubleIntegratorKinematic;
-  RacerDoubleIntegratorKinematic dynamics = RacerDoubleIntegratorKinematic(mppi::tests::bicycle_test);
+  using DYN = BicycleSlipKinematic;
+  BicycleSlipKinematic dynamics = BicycleSlipKinematic(mppi::tests::bicycle_slip_kinematic_test);
 
   auto limits = dynamics.getControlRanges();
   limits[0].x = -1.0;
@@ -816,7 +806,7 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestPythonComparison)
   params.wheel_base = 2.981;
   dynamics.setParams(params);
 
-  cnpy::npz_t input_outputs = cnpy::npz_load(mppi::tests::bicycle_test);
+  cnpy::npz_t input_outputs = cnpy::npz_load(mppi::tests::bicycle_slip_kinematic_test);
   double* inputs = input_outputs.at("input").data<double>();
   double* outputs = input_outputs.at("output").data<double>();
   double* init_inputs = input_outputs.at("init_input").data<double>();
@@ -838,7 +828,6 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestPythonComparison)
 
   // rest params
   EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);
-  EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
 
   std::map<std::string, Eigen::VectorXf> buffer;
   buffer["VEL_X"] = Eigen::VectorXf::Random(51);
@@ -853,11 +842,11 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestPythonComparison)
   buffer["ROLL"] = Eigen::VectorXf::Random(51);
   buffer["PITCH"] = Eigen::VectorXf::Random(51);
 
-  RacerDoubleIntegratorKinematic::state_array state;
-  RacerDoubleIntegratorKinematic::state_array next_state_cpu;
-  RacerDoubleIntegratorKinematic::control_array control;
-  RacerDoubleIntegratorKinematic::output_array output;
-  RacerDoubleIntegratorKinematic::state_array state_der = RacerDoubleIntegratorKinematic::state_array::Zero();
+  BicycleSlipKinematic::state_array state;
+  BicycleSlipKinematic::state_array next_state_cpu;
+  BicycleSlipKinematic::control_array control;
+  BicycleSlipKinematic::output_array output;
+  BicycleSlipKinematic::state_array state_der = BicycleSlipKinematic::state_array::Zero();
 
   for (int point = 0; point < num_points; point++)
   {
@@ -899,11 +888,11 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestPythonComparison)
           << "at point " << point << " index " << i;
     }
 
-    RacerDoubleIntegratorKinematic::state_array state;
+    BicycleSlipKinematic::state_array state;
     for (int t = 0; t < T; t++)
     {
-      state = RacerDoubleIntegratorKinematic::state_array::Zero();
-      state_der = RacerDoubleIntegratorKinematic::state_array::Zero();
+      state = BicycleSlipKinematic::state_array::Zero();
+      state_der = BicycleSlipKinematic::state_array::Zero();
       state(3) = inputs[point * T * state_dim + t * state_dim + 5];   // STEER_ANGLE
       state(4) = inputs[point * T * state_dim + t * state_dim + 4];   // BRAKE_STATE
       state(5) = inputs[point * T * state_dim + t * state_dim + 0];   // VX
@@ -943,13 +932,13 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestPythonComparison)
   }
 }
 
-TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
+TEST_F(BicycleSlipKinematicTest, TestStepGPUvsCPU)
 {
   const int num_rollouts = 2000;
   const float dt = 0.1f;
   CudaCheckError();
-  using DYN = RacerDoubleIntegratorKinematic;
-  RacerDoubleIntegratorKinematic dynamics = RacerDoubleIntegratorKinematic(mppi::tests::bicycle_test);
+  using DYN = BicycleSlipKinematic;
+  BicycleSlipKinematic dynamics = BicycleSlipKinematic(mppi::tests::bicycle_slip_kinematic_test);
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
@@ -966,7 +955,6 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
 
   // rest params
   EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);
-  EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
 
   cudaExtent extent = make_cudaExtent(100, 200, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
@@ -1007,22 +995,22 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
   EXPECT_NE(dynamics.terra_network_d_, nullptr);
   EXPECT_EQ(dynamics.terra_network_d_, dynamics.getTerraHelper()->getLSTMDevicePtr());
 
-  Eigen::Matrix<float, RacerDoubleIntegratorKinematic::CONTROL_DIM, num_rollouts> control_trajectory;
-  control_trajectory = Eigen::Matrix<float, RacerDoubleIntegratorKinematic::CONTROL_DIM, num_rollouts>::Random();
-  Eigen::Matrix<float, RacerDoubleIntegratorKinematic::STATE_DIM, num_rollouts> state_trajectory;
-  state_trajectory = Eigen::Matrix<float, RacerDoubleIntegratorKinematic::STATE_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, BicycleSlipKinematic::CONTROL_DIM, num_rollouts> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, BicycleSlipKinematic::CONTROL_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, BicycleSlipKinematic::STATE_DIM, num_rollouts> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, BicycleSlipKinematic::STATE_DIM, num_rollouts>::Random();
 
-  std::vector<std::array<float, RacerDoubleIntegratorKinematic::STATE_DIM>> s(num_rollouts);
-  std::vector<std::array<float, RacerDoubleIntegratorKinematic::STATE_DIM>> s_next(num_rollouts);
-  std::vector<std::array<float, RacerDoubleIntegratorKinematic::STATE_DIM>> s_der(num_rollouts);
+  std::vector<std::array<float, BicycleSlipKinematic::STATE_DIM>> s(num_rollouts);
+  std::vector<std::array<float, BicycleSlipKinematic::STATE_DIM>> s_next(num_rollouts);
+  std::vector<std::array<float, BicycleSlipKinematic::STATE_DIM>> s_der(num_rollouts);
   // steering, throttle
-  std::vector<std::array<float, RacerDoubleIntegratorKinematic::CONTROL_DIM>> u(num_rollouts);
+  std::vector<std::array<float, BicycleSlipKinematic::CONTROL_DIM>> u(num_rollouts);
 
-  RacerDoubleIntegratorKinematic::state_array state;
-  RacerDoubleIntegratorKinematic::state_array next_state_cpu;
-  RacerDoubleIntegratorKinematic::control_array control;
-  RacerDoubleIntegratorKinematic::output_array output;
-  RacerDoubleIntegratorKinematic::state_array state_der_cpu = RacerDoubleIntegratorKinematic::state_array::Zero();
+  BicycleSlipKinematic::state_array state;
+  BicycleSlipKinematic::state_array next_state_cpu;
+  BicycleSlipKinematic::control_array control;
+  BicycleSlipKinematic::output_array output;
+  BicycleSlipKinematic::state_array state_der_cpu = BicycleSlipKinematic::state_array::Zero();
 
   // Run dynamics on dynamicsU
   // Run dynamics on GPU
@@ -1053,16 +1041,16 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
       }
     }
     dynamics.updateFromBuffer(buffer);
-    launchStepTestKernel<RacerDoubleIntegratorKinematic, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    launchStepTestKernel<BicycleSlipKinematic, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
     for (int point = 0; point < num_rollouts; point++)
     {
       dynamics.initializeDynamics(state, control, output, 0, 0);
       state = state_trajectory.col(point);
       control = control_trajectory.col(point);
-      state_der_cpu = RacerDoubleIntegratorKinematic::state_array::Zero();
+      state_der_cpu = BicycleSlipKinematic::state_array::Zero();
 
       dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-      for (int dim = 0; dim < RacerDoubleIntegratorKinematic::STATE_DIM; dim++)
+      for (int dim = 0; dim < BicycleSlipKinematic::STATE_DIM; dim++)
       {
         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
@@ -1075,14 +1063,14 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
   dynamics.freeCudaMem();
 }
 
-// TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPUReverse)
+// TEST_F(BicycleSlipKinematicTest, TestStepGPUvsCPUReverse)
 // {
-//   using DYN = RacerDoubleIntegratorKinematic;
+//   using DYN = BicycleSlipKinematic;
 //
 //   const int num_rollouts = 2000;
 //   const float dt = 0.1f;
 //   CudaCheckError();
-//   RacerDoubleIntegratorKinematic dynamics = RacerDoubleIntegratorKinematic(mppi::tests::steering_lstm);
+//   BicycleSlipKinematic dynamics = BicycleSlipKinematic(mppi::tests::steering_lstm);
 //   auto params = dynamics.getParams();
 //   params.gear_sign = -1;
 //   dynamics.setParams(params);
@@ -1120,22 +1108,22 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
 //   EXPECT_NE(dynamics.network_d_, nullptr);
 //   EXPECT_EQ(dynamics.network_d_, dynamics.getHelper()->getLSTMDevicePtr());
 //
-//   Eigen::Matrix<float, RacerDoubleIntegratorKinematic::CONTROL_DIM, num_rollouts> control_trajectory;
-//   control_trajectory = Eigen::Matrix<float, RacerDoubleIntegratorKinematic::CONTROL_DIM, num_rollouts>::Random();
-//   Eigen::Matrix<float, RacerDoubleIntegratorKinematic::STATE_DIM, num_rollouts> state_trajectory;
-//   state_trajectory = Eigen::Matrix<float, RacerDoubleIntegratorKinematic::STATE_DIM, num_rollouts>::Random();
+//   Eigen::Matrix<float, BicycleSlipKinematic::CONTROL_DIM, num_rollouts> control_trajectory;
+//   control_trajectory = Eigen::Matrix<float, BicycleSlipKinematic::CONTROL_DIM, num_rollouts>::Random();
+//   Eigen::Matrix<float, BicycleSlipKinematic::STATE_DIM, num_rollouts> state_trajectory;
+//   state_trajectory = Eigen::Matrix<float, BicycleSlipKinematic::STATE_DIM, num_rollouts>::Random();
 //
-//   std::vector<std::array<float, RacerDoubleIntegratorKinematic::STATE_DIM>> s(num_rollouts);
-//   std::vector<std::array<float, RacerDoubleIntegratorKinematic::STATE_DIM>> s_next(num_rollouts);
-//   std::vector<std::array<float, RacerDoubleIntegratorKinematic::STATE_DIM>> s_der(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipKinematic::STATE_DIM>> s(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipKinematic::STATE_DIM>> s_next(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipKinematic::STATE_DIM>> s_der(num_rollouts);
 //   // steering, throttle
-//   std::vector<std::array<float, RacerDoubleIntegratorKinematic::CONTROL_DIM>> u(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipKinematic::CONTROL_DIM>> u(num_rollouts);
 //
-//   RacerDoubleIntegratorKinematic::state_array state;
-//   RacerDoubleIntegratorKinematic::state_array next_state_cpu;
-//   RacerDoubleIntegratorKinematic::control_array control;
-//   RacerDoubleIntegratorKinematic::output_array output;
-//   RacerDoubleIntegratorKinematic::state_array state_der_cpu = RacerDoubleIntegratorKinematic::state_array::Zero();
+//   BicycleSlipKinematic::state_array state;
+//   BicycleSlipKinematic::state_array next_state_cpu;
+//   BicycleSlipKinematic::control_array control;
+//   BicycleSlipKinematic::output_array output;
+//   BicycleSlipKinematic::state_array state_der_cpu = BicycleSlipKinematic::state_array::Zero();
 //
 //   // Run dynamics on dynamicsU
 //   // Run dynamics on GPU
@@ -1160,17 +1148,17 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
 //       }
 //     }
 //     dynamics.updateFromBuffer(buffer);
-//     launchStepTestKernel<RacerDoubleIntegratorKinematic>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+//     launchStepTestKernel<BicycleSlipKinematic>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
 //     for (int point = 0; point < num_rollouts; point++)
 //     {
 //       dynamics.initializeDynamics(state, control, output, 0, 0);
 //       state = state_trajectory.col(point);
 //       control = control_trajectory.col(point);
-//       state_der_cpu = RacerDoubleIntegratorKinematic::state_array::Zero();
+//       state_der_cpu = BicycleSlipKinematic::state_array::Zero();
 //
 //       dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-//       // for (int dim = 0; dim < RacerDoubleIntegratorKinematic::STATE_DIM; dim++)
-//       for (int dim = 0; dim < RacerDoubleIntegratorKinematic::STATE_DIM; dim++)
+//       // for (int dim = 0; dim < BicycleSlipKinematic::STATE_DIM; dim++)
+//       for (int dim = 0; dim < BicycleSlipKinematic::STATE_DIM; dim++)
 //       {
 //         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
 //             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
@@ -1184,7 +1172,7 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
 //   dynamics.freeCudaMem();
 // }
 // /*
-// class LinearDummy : public RacerDoubleIntegratorKinematic {
+// class LinearDummy : public BicycleSlipKinematic {
 // public:
 //   bool computeGrad(const Eigen::Ref<const state_array> & state,
 //                    const Eigen::Ref<const control_array>& control,
@@ -1194,18 +1182,18 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
 //   };
 // };
 //
-// TEST_F(RacerDoubleIntegratorKinematicTest, TestComputeGradComputation) {
-//   Eigen::Matrix<float, RacerDoubleIntegratorKinematic::STATE_DIM, RacerDoubleIntegratorKinematic::STATE_DIM +
-// RacerDoubleIntegratorKinematic::CONTROL_DIM> numeric_jac; Eigen::Matrix<float,
-// RacerDoubleIntegratorKinematic::STATE_DIM, RacerDoubleIntegratorKinematic::STATE_DIM +
-// RacerDoubleIntegratorKinematic::CONTROL_DIM> analytic_jac; RacerDoubleIntegratorKinematic::state_array state;
+// TEST_F(BicycleSlipKinematicTest, TestComputeGradComputation) {
+//   Eigen::Matrix<float, BicycleSlipKinematic::STATE_DIM, BicycleSlipKinematic::STATE_DIM +
+// BicycleSlipKinematic::CONTROL_DIM> numeric_jac; Eigen::Matrix<float,
+// BicycleSlipKinematic::STATE_DIM, BicycleSlipKinematic::STATE_DIM +
+// BicycleSlipKinematic::CONTROL_DIM> analytic_jac; BicycleSlipKinematic::state_array state;
 // state
-// << 1, 2, 3, 4; RacerDoubleIntegratorKinematic::control_array control; control << 5;
+// << 1, 2, 3, 4; BicycleSlipKinematic::control_array control; control << 5;
 //
-//   auto analytic_grad_model = RacerDoubleIntegratorKinematic();
+//   auto analytic_grad_model = BicycleSlipKinematic();
 //
-//   RacerDoubleIntegratorKinematic::dfdx A_analytic = RacerDoubleIntegratorKinematic::dfdx::Zero();
-//   RacerDoubleIntegratorKinematic::dfdu B_analytic = RacerDoubleIntegratorKinematic::dfdu::Zero();
+//   BicycleSlipKinematic::dfdx A_analytic = BicycleSlipKinematic::dfdx::Zero();
+//   BicycleSlipKinematic::dfdu B_analytic = BicycleSlipKinematic::dfdu::Zero();
 //
 //   analytic_grad_model.computeGrad(state, control, A_analytic, B_analytic);
 //
@@ -1214,8 +1202,8 @@ TEST_F(RacerDoubleIntegratorKinematicTest, TestStepGPUvsCPU)
 //   std::shared_ptr<ModelWrapperDDP<LinearDummy>> ddp_model =
 // std::make_shared<ModelWrapperDDP<LinearDummy>>(&numerical_grad_model);
 //
-//   analytic_jac.leftCols<RacerDoubleIntegratorKinematic::STATE_DIM>() = A_analytic;
-//   analytic_jac.rightCols<RacerDoubleIntegratorKinematic::CONTROL_DIM>() = B_analytic;
+//   analytic_jac.leftCols<BicycleSlipKinematic::STATE_DIM>() = A_analytic;
+//   analytic_jac.rightCols<BicycleSlipKinematic::CONTROL_DIM>() = B_analytic;
 //   numeric_jac = ddp_model->df(state, control);
 //
 //   ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n" << numeric_jac << "\nAnalytic

@@ -2,43 +2,27 @@
 // Created by jason on 12/12/22.
 //
 
-#ifndef MPPIGENERIC_DOUBLE_INTEGRATOR_KINEMATIC_CUH
-#define MPPIGENERIC_DOUBLE_INTEGRATOR_KINEMATIC_CUH
+#ifndef MPPIGENERIC_BICYCLE_SLIP_CUH
+#define MPPIGENERIC_BICYCLE_SLIP_CUH
 
 #include <mppi/dynamics/racer_dubins/racer_dubins.cuh>
 #include <mppi/utils/angle_utils.cuh>
 #include <mppi/utils/math_utils.h>
 #include <mppi/utils/nn_helpers/lstm_lstm_helper.cuh>
 #include "mppi/utils/texture_helpers/two_d_texture_helper.cuh"
+#include "bicycle_slip_kinematic.cuh"
 
-struct RacerDoubleIntegratorKinematicParams : public RacerDubinsParams
+struct BicycleSlipParams : public BicycleSlipKinematicParams
 {
-  enum class StateIndex : int
-  {
-    POS_X = 0,
-    POS_Y,
-    YAW,
-    STEER_ANGLE,
-    BRAKE_STATE,
-    VEL_X,
-    VEL_Y,
-    OMEGA_Z,
-    ROLL,
-    PITCH,
-    STEER_ANGLE_RATE,
-    NUM_STATES
-  };
-
-  float environment = 1.0f; // 1.0 for helendale, -1.0 for halter ranch
   float wheel_angle_scale = -9.2f;
 };
 
 // TODO you have incorrect template on the init vs the predictor
 
-class RacerDoubleIntegratorKinematic : public MPPI_internal::Dynamics<RacerDoubleIntegratorKinematic, RacerDoubleIntegratorKinematicParams>
+class BicycleSlip : public MPPI_internal::Dynamics<BicycleSlip, BicycleSlipParams>
 {
 public:
-    using PARENT_CLASS = MPPI_internal::Dynamics<RacerDoubleIntegratorKinematic, RacerDoubleIntegratorKinematicParams>;
+    using PARENT_CLASS = MPPI_internal::Dynamics<BicycleSlip, BicycleSlipParams>;
     typedef LSTMHelper<LSTMParams<5, 5>, FNNParams<10,5,1>, false> STEER_LSTM;
     typedef LSTMHelper<LSTMParams<4, 200>, FNNParams<204, 2000, 10>> STEER_INIT_LSTM;
     typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
@@ -84,8 +68,8 @@ public:
     typedef typename PARENT_CLASS::dfdx dfdx;
     typedef typename PARENT_CLASS::dfdu dfdu;
 
-    explicit RacerDoubleIntegratorKinematic(cudaStream_t stream = nullptr);
-    explicit RacerDoubleIntegratorKinematic(std::string model_path, cudaStream_t stream = nullptr);
+    explicit BicycleSlip(cudaStream_t stream = nullptr);
+    explicit BicycleSlip(std::string model_path, cudaStream_t stream = nullptr);
 
     void paramsToDevice();
 
@@ -165,7 +149,7 @@ protected:
 };
 
 #if __CUDACC__
-#include "racer_double_integrator_kinematic.cu"
+#include "bicycle_slip.cu"
 #endif
 
-#endif  // MPPIGENERIC_DOUBLE_INTEGRATOR_KINEMATIC_CUH
+#endif  // MPPIGENERIC_BICYCLE_SLIP_CUH
