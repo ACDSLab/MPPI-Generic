@@ -817,8 +817,7 @@ TEST_F(BicycleSlipEngineTest, TestPythonComparison)
   const int output_dim = 5;
   CudaCheckError();
   using DYN = BicycleSlipEngine;
-  BicycleSlipEngine dynamics =
-      BicycleSlipEngine(mppi::tests::ackerman_test, mppi::tests::steering_lstm, mppi::tests::brake_delay_lstm);
+  BicycleSlipEngine dynamics = BicycleSlipEngine(mppi::tests::ackerman_test);
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
@@ -965,8 +964,7 @@ TEST_F(BicycleSlipEngineTest, TestStepGPUvsCPU)
   const float dt = 0.1f;
   CudaCheckError();
   using DYN = BicycleSlipEngine;
-  BicycleSlipEngine dynamics =
-      BicycleSlipEngine(mppi::tests::ackerman_test, mppi::tests::steering_lstm, mppi::tests::brake_delay_lstm);
+  BicycleSlipEngine dynamics = BicycleSlipEngine(mppi::tests::ackerman_test);
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;

@@ -11,6 +11,7 @@ namespace tests {
   const std::string ackerman_test = "@PROJECT_SOURCE_DIR@/resources/ackerman_test.npz";
   const std::string bicycle_slip_test = "@PROJECT_SOURCE_DIR@/resources/bicycle_slip_test.npz";
   const std::string bicycle_slip_kinematic_test = "@PROJECT_SOURCE_DIR@/resources/bicycle_slip_kinematic_test.npz";
+  const std::string bicycle_slip_kinematic_true = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_bicycle_slip_kinematic.npz";
 }
 }
 #endif // TESTS_COST_FUNCTIONS_AUTORALLY_TEST_NETWORK_H_

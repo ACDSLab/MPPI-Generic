@@ -38,7 +38,7 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
 {
  public:
   using PARENT_CLASS = MPPI_internal::Dynamics<BicycleSlipKinematic, BicycleSlipKinematicParams>;
-  typedef LSTMHelper<LSTMParams<5, 5>, FNNParams<10,5,1>, false> STEER_LSTM;
+  typedef LSTMHelper<LSTMParams<5, 5>, FNNParams<10,20,1>, false> STEER_LSTM;
   typedef LSTMHelper<LSTMParams<4, 200>, FNNParams<204, 2000, 10>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
 
@@ -46,19 +46,19 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
   typedef LSTMHelper<LSTMParams<2, 200>, FNNParams<202, 2000, 10>> DELAY_INIT_LSTM;
   typedef LSTMLSTMHelper<DELAY_INIT_LSTM, DELAY_LSTM, 51> DELAY_NN;
 
-  typedef LSTMHelper<LSTMParams<10, 10>, FNNParams<20,20,4>, false> TERRA_LSTM;
-  typedef LSTMHelper<LSTMParams<10, 200>, FNNParams<210, 2000, 20>> TERRA_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<10, 12>, FNNParams<22,20,3>, false> TERRA_LSTM;
+  typedef LSTMHelper<LSTMParams<10, 200>, FNNParams<210, 2000, 24>> TERRA_INIT_LSTM;
   typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
 
   struct SHARED_MEM_GRD_PARAMS {
     LSTMParams<5, 5> steer_lstm_params;
-    FNNParams<10, 5, 1> steer_output_params;
+    FNNParams<10, 20, 1> steer_output_params;
 
     LSTMParams<3, 5> delay_lstm_params;
     FNNParams<8, 10, 1> delay_output_params;
 
-    LSTMParams<10, 10> terra_lstm_params;
-    FNNParams<20, 20, 4> terra_output_params;
+    LSTMParams<10, 12> terra_lstm_params;
+    FNNParams<22, 20, 3> terra_output_params;
   };
 
   struct SHARED_MEM_BLK_PARAMS {

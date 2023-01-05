@@ -239,8 +239,9 @@ void BicycleSlipKinematic::computeDynamics(const Eigen::Ref<const state_array>& 
   terra_input(4) = state(S_INDEX(BRAKE_STATE));
   terra_input(5) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
   terra_input(6) = state(S_INDEX(STEER_ANGLE_RATE)) / 5.0f;
-  terra_input(7) = state(S_INDEX(PITCH));
-  terra_input(8) = state(S_INDEX(ROLL));
+  // TODO if roll/pitch is invalid just set it to zero
+  terra_input(7) = state(S_INDEX(PITCH)) * (abs(state(S_INDEX(PITCH))) < M_PI_2f32);
+  terra_input(8) = state(S_INDEX(ROLL)) * (abs(state(S_INDEX(ROLL))) < M_PI_2f32);
   terra_input(9) = this->params_.environment;
   TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
   terra_lstm_lstm_helper_->forward(terra_input, terra_output);
@@ -470,8 +471,8 @@ __device__ void BicycleSlipKinematic::computeDynamics(float* state, float* contr
   input_loc[4] = state[S_INDEX(BRAKE_STATE)];
   input_loc[5] = state[S_INDEX(STEER_ANGLE)] / 5.0f;
   input_loc[6] = state[S_INDEX(STEER_ANGLE_RATE)] / 5.0f;
-  input_loc[7] = state[S_INDEX(PITCH)];
-  input_loc[8] = state[S_INDEX(ROLL)];
+  input_loc[7] = state[S_INDEX(PITCH)] * (abs(state[S_INDEX(PITCH)]) < M_PI_2f32);
+  input_loc[8] = state[S_INDEX(ROLL)] * (abs(state[S_INDEX(ROLL)]) < M_PI_2f32);
   input_loc[9] = this->params_.environment;
 
   if (SHARED_MEM_REQUEST_GRD != 0)
