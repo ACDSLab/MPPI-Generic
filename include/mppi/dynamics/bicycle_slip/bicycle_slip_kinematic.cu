@@ -150,7 +150,7 @@ void BicycleSlipKinematic::updateFromBuffer(
   STEER_NN::init_buffer steer_init_buffer;
   steer_init_buffer.row(0) = buffer.at("VEL_X") / 20.0f;
   steer_init_buffer.row(1) = buffer.at("STEER_ANGLE") / 5.0f;
-  steer_init_buffer.row(2) = buffer.at("STEER_ANGLE_RATE") / 5.0f;
+  steer_init_buffer.row(2) = buffer.at("STEER_ANGLE_RATE") / 10.0f;
   steer_init_buffer.row(3) = buffer.at("STEER_CMD");
   steer_lstm_lstm_helper_->initializeLSTM(steer_init_buffer);
 
@@ -161,7 +161,7 @@ void BicycleSlipKinematic::updateFromBuffer(
   terra_init_buffer.row(3) = buffer.at("THROTTLE_CMD");
   terra_init_buffer.row(4) = buffer.at("BRAKE_STATE");
   terra_init_buffer.row(5) = buffer.at("STEER_ANGLE") / 5.0f;
-  terra_init_buffer.row(6) = buffer.at("STEER_ANGLE_RATE") / 5.0f;
+  terra_init_buffer.row(6) = buffer.at("STEER_ANGLE_RATE") / 10.0f;
   // TODO should be pulled from elevation map to be entirely correct
   terra_init_buffer.row(7) = buffer.at("PITCH");
   terra_init_buffer.row(8) = buffer.at("ROLL");
@@ -223,7 +223,7 @@ void BicycleSlipKinematic::computeDynamics(const Eigen::Ref<const state_array>& 
   STEER_LSTM::input_array steer_input;
   steer_input(0) = state(S_INDEX(VEL_X)) / 20.0f;
   steer_input(1) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
-  steer_input(2) = state(S_INDEX(STEER_ANGLE_RATE)) / 5.0f;
+  steer_input(2) = state(S_INDEX(STEER_ANGLE_RATE)) / 10.0f;
   steer_input(3) = control(C_INDEX(STEER_CMD));
   steer_input(4) = state_der(S_INDEX(STEER_ANGLE));  // this is the parametric part as input
   STEER_LSTM::output_array steer_output = STEER_LSTM::output_array::Zero();
@@ -238,7 +238,7 @@ void BicycleSlipKinematic::computeDynamics(const Eigen::Ref<const state_array>& 
   terra_input(3) = throttle_cmd;
   terra_input(4) = state(S_INDEX(BRAKE_STATE));
   terra_input(5) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
-  terra_input(6) = state(S_INDEX(STEER_ANGLE_RATE)) / 5.0f;
+  terra_input(6) = state(S_INDEX(STEER_ANGLE_RATE)) / 10.0f;
   // TODO if roll/pitch is invalid just set it to zero
   terra_input(7) = state(S_INDEX(PITCH)) * (abs(state(S_INDEX(PITCH))) < M_PI_2f32);
   terra_input(8) = state(S_INDEX(ROLL)) * (abs(state(S_INDEX(ROLL))) < M_PI_2f32);
@@ -442,7 +442,7 @@ __device__ void BicycleSlipKinematic::computeDynamics(float* state, float* contr
   input_loc = &theta_s_shifted[STEER_LSTM::HIDDEN_DIM];
   input_loc[0] = state[S_INDEX(VEL_X)] / 20.0f;
   input_loc[1] = state[S_INDEX(STEER_ANGLE)] / 5.0f;
-  input_loc[2] = state[S_INDEX(STEER_ANGLE_RATE)] / 5.0f;
+  input_loc[2] = state[S_INDEX(STEER_ANGLE_RATE)] / 10.0f;
   input_loc[3] = control[C_INDEX(STEER_CMD)];
   input_loc[4] = state_der[S_INDEX(STEER_ANGLE)];  // this is the parametric part as input
   if (SHARED_MEM_REQUEST_GRD != 0)
@@ -470,7 +470,7 @@ __device__ void BicycleSlipKinematic::computeDynamics(float* state, float* contr
   input_loc[3] = throttle_cmd;
   input_loc[4] = state[S_INDEX(BRAKE_STATE)];
   input_loc[5] = state[S_INDEX(STEER_ANGLE)] / 5.0f;
-  input_loc[6] = state[S_INDEX(STEER_ANGLE_RATE)] / 5.0f;
+  input_loc[6] = state[S_INDEX(STEER_ANGLE_RATE)] / 10.0f;
   input_loc[7] = state[S_INDEX(PITCH)] * (abs(state[S_INDEX(PITCH)]) < M_PI_2f32);
   input_loc[8] = state[S_INDEX(ROLL)] * (abs(state[S_INDEX(ROLL)]) < M_PI_2f32);
   input_loc[9] = this->params_.environment;

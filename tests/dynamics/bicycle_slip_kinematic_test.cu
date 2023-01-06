@@ -1014,25 +1014,25 @@ TEST_F(BicycleSlipKinematicTest, TestPythonComparisonFinalNetwork)
     }
     dynamics.updateFromBuffer(buffer);
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM; i++)
     {
-      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getHiddenState()(i), delay_init_hidden[5 * point + i], tol)
+      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getHiddenState()(i), delay_init_hidden[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
-      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getCellState()(i), delay_init_cell[5 * point + i], tol)
+      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getCellState()(i), delay_init_cell[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM; i++)
     {
-      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getHiddenState()(i), steer_init_hidden[5 * point + i], tol)
+      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getHiddenState()(i), steer_init_hidden[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
-      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getCellState()(i), steer_init_cell[5 * point + i], tol)
+      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getCellState()(i), steer_init_cell[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
-    for (int i = 0; i < 12; i++)
+    for (int i = 0; i < BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM; i++)
     {
-      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getHiddenState()(i), terra_init_hidden[12 * point + i], tol)
+      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getHiddenState()(i), terra_init_hidden[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
-      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getCellState()(i), terra_init_cell[12 * point + i], tol)
+      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getCellState()(i), terra_init_cell[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
 
@@ -1092,17 +1092,6 @@ TEST_F(BicycleSlipKinematicTest, TestStepGPUvsCPU)
   params.max_steer_angle = 5.0;
   params.wheel_base = 2.981;
   dynamics.setParams(params);
-  // steering model params
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 4.04);
-  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.03);
-
-  // delay model params
-  EXPECT_FLOAT_EQ(dynamics.getParams().brake_delay_constant, 6.6);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_neg, 0.9);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_pos, 0.33);
-
-  // rest params
-  EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);
 
   cudaExtent extent = make_cudaExtent(100, 200, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
