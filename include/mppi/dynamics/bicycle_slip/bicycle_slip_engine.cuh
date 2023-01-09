@@ -125,7 +125,9 @@ public:
   void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
                    Eigen::Ref<state_array> state_der, const float dt);
 
-  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, DYN_PARAMS_T* params_p);
+
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt) {}
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);

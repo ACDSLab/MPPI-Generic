@@ -293,7 +293,8 @@ void BicycleSlipEngine::updateState(const Eigen::Ref<const state_array> state, E
       max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
   next_state(S_INDEX(OMEGA_Z)) = state_der(S_INDEX(YAW));
-  next_state(S_INDEX(BRAKE_STATE)) = min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), 1.0f);
+  next_state(S_INDEX(BRAKE_STATE)) =
+      min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
 }
 
 void BicycleSlipEngine::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
@@ -376,8 +377,31 @@ __device__ void BicycleSlipEngine::initializeDynamics(float* state, float* contr
   }
 }
 
-__device__ void BicycleSlipEngine::updateState(float* state, float* next_state, float* state_der, const float dt)
+__device__ void BicycleSlipEngine::updateState(float* state, float* next_state, float* state_der, const float dt,
+                                               DYN_PARAMS_T* params_p)
 {
+  for (int i = threadIdx.y; i < 7; i += blockDim.y)
+  {
+    next_state[i] = state[i] + state_der[i] * dt;
+    switch (i)
+    {
+      case S_INDEX(YAW):
+        next_state[i] = angle_utils::normalizeAngle(next_state[i]);
+        break;
+      case S_INDEX(OMEGA_Z):
+        next_state[i] = state_der[S_INDEX(YAW)];
+      case S_INDEX(STEER_ANGLE):
+        next_state[S_INDEX(STEER_ANGLE)] =
+            max(min(next_state[S_INDEX(STEER_ANGLE)], params_p->max_steer_angle), -params_p->max_steer_angle);
+        next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
+        break;
+      case S_INDEX(BRAKE_STATE):
+        next_state[S_INDEX(BRAKE_STATE)] =
+            min(max(next_state[S_INDEX(BRAKE_STATE)], 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
+    }
+  }
+
+  __syncthreads();
 }
 
 __device__ void BicycleSlipEngine::computeDynamics(float* state, float* control, float* state_der, float* theta)
@@ -536,8 +560,6 @@ __device__ void BicycleSlipEngine::computeDynamics(float* state, float* control,
 __device__ void BicycleSlipEngine::step(float* state, float* next_state, float* state_der, float* control,
                                         float* output, float* theta_s, const float t, const float dt)
 {
-  computeDynamics(state, control, state_der, theta_s);
-
   DYN_PARAMS_T* params_p;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
   {  // Allows us to turn on or off global or shared memory version of params
@@ -549,26 +571,8 @@ __device__ void BicycleSlipEngine::step(float* state, float* next_state, float* 
   }
   const uint tdy = threadIdx.y;
 
-
-  for (int i = tdy; i < 10; i += blockDim.y)
-  {
-    next_state[i] = state[i] + state_der[i] * dt;
-    switch (i)
-    {
-      case S_INDEX(YAW):
-        next_state[i] = angle_utils::normalizeAngle(next_state[i]);
-        break;
-      case S_INDEX(STEER_ANGLE):
-        next_state[S_INDEX(STEER_ANGLE)] =
-            max(min(next_state[S_INDEX(STEER_ANGLE)], params_p->max_steer_angle), -params_p->max_steer_angle);
-        next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
-        break;
-      case S_INDEX(BRAKE_STATE):
-        next_state[S_INDEX(BRAKE_STATE)] = min(max(next_state[S_INDEX(BRAKE_STATE)], 0.0f), 1.0f);
-    }
-  }
-
-  __syncthreads();
+  computeDynamics(state, control, state_der, theta_s);
+  updateState(state, next_state, state_der, dt, params_p);
 
   if (tdy == 0)
   {
