@@ -1016,23 +1016,29 @@ TEST_F(BicycleSlipKinematicTest, TestPythonComparisonFinalNetwork)
 
     for (int i = 0; i < BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM; i++)
     {
-      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getHiddenState()(i), delay_init_hidden[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
+      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getHiddenState()(i),
+                  delay_init_hidden[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
-      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getCellState()(i), delay_init_cell[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
+      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getCellState()(i),
+                  delay_init_cell[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
     for (int i = 0; i < BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM; i++)
     {
-      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getHiddenState()(i), steer_init_hidden[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
+      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getHiddenState()(i),
+                  steer_init_hidden[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
-      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getCellState()(i), steer_init_cell[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
+      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getCellState()(i),
+                  steer_init_cell[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
     for (int i = 0; i < BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM; i++)
     {
-      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getHiddenState()(i), terra_init_hidden[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
+      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getHiddenState()(i),
+                  terra_init_hidden[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
-      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getCellState()(i), terra_init_cell[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
+      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getCellState()(i),
+                  terra_init_cell[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
 
