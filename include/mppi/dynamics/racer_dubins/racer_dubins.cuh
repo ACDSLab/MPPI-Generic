@@ -60,6 +60,8 @@ struct RacerDubinsParams : public DynamicsParams
     ACCEL_X,
     ACCEL_Y,
     OMEGA_Z,
+    FILLER_1,
+    FILLER_2,
     NUM_OUTPUTS
   };
 

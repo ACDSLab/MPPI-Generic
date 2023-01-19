@@ -255,20 +255,26 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, cons
   for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
     int t = thread_idx + time_iter * blockDim.x + 1;
-    if (COALESCE)
-    {  // Fill entire shared mem sequentially using sequential threads_idx
-      mp1::loadArrayParallel<DYN_T::OUTPUT_DIM * BLOCKSIZE_X, mp1::Parallel1Dir::THREAD_X>(
-          y_shared, blockDim.x * thread_idz, y_d,
-          ((NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * DYN_T::OUTPUT_DIM);
+    if (t <= num_timesteps)
+    {  // t = num_timesteps is the terminal state for outside this for-loop
+      if (COALESCE)
+      {  // Fill entire shared mem sequentially using sequential threads_idx
+        mp1::loadArrayParallel<DYN_T::OUTPUT_DIM * BLOCKSIZE_X, mp1::Parallel1Dir::THREAD_X>(
+            y_shared, blockDim.x * thread_idz, y_d,
+            ((NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * DYN_T::OUTPUT_DIM);
+      }
+      else
+      {
+        sample_time_offset = (NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + t - 1;
+        mp1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * DYN_T::OUTPUT_DIM);
+      }
     }
-    else
-    {
-      sample_time_offset = (NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + t - 1;
-      mp1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * DYN_T::OUTPUT_DIM);
+    if (t < num_timesteps)
+    {  // load controls from t = 0 to t = num_timesteps - 1
+      // Have to do similar steps as injectControlNoise but using the already transformed cost samples
+      readControlsFromGlobal(DYN_T::CONTROL_DIM, blockDim.y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy,
+                             u_d, du_d, u, du);
     }
-    // Have to do similar steps as injectControlNoise but using the already transformed cost samples
-    readControlsFromGlobal(DYN_T::CONTROL_DIM, blockDim.y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy, u_d,
-                           du_d, u, du);
     __syncthreads();
 
     // dynamics->enforceConstraints(x, u);
@@ -1013,20 +1019,26 @@ __global__ void visualizeCostKernel(COST_T* costs, float dt, const int num_times
     int t = thread_idx + time_iter * blockDim.x + 1;
     cost_index = (thread_idz * num_rollouts + global_idx) * (num_timesteps) + t - 1;
     running_cost = &running_cost_shared[thread_idz * blockDim.x + t - 1];
-    if (COALESCE)
-    {  // Fill entire shared mem sequentially using sequential threads_idx
-      mp1::loadArrayParallel<COST_T::OUTPUT_DIM * BLOCKSIZE_X, mp1::Parallel1Dir::THREAD_X>(
-          y_shared, blockDim.x * thread_idz, y_d,
-          ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM);
+    if (t <= num_timesteps)
+    {  // t = num_timesteps is the terminal state for outside this for-loop
+      if (COALESCE)
+      {  // Fill entire shared mem sequentially using sequential threads_idx
+        mp1::loadArrayParallel<COST_T::OUTPUT_DIM * BLOCKSIZE_X, mp1::Parallel1Dir::THREAD_X>(
+            y_shared, blockDim.x * thread_idz, y_d,
+            ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM);
+      }
+      else
+      {
+        sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
+        mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
+      }
     }
-    else
-    {
-      sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
-      mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
+    if (t < num_timesteps)
+    {  // load controls from t = 0 to t = num_timesteps - 1
+      // Have to do similar steps as injectControlNoise but using the already transformed cost samples
+      readControlsFromGlobal(COST_T::CONTROL_DIM, blockDim.y, num_rollouts, num_timesteps, t, global_idx, thread_idy,
+                             u_d, du_d, u, du);
     }
-    // Have to do similar steps as injectControlNoise but using the already transformed cost samples
-    readControlsFromGlobal(COST_T::CONTROL_DIM, blockDim.y, num_rollouts, num_timesteps, t, global_idx, thread_idy, u_d,
-                           du_d, u, du);
     __syncthreads();
 
     // Compute cost

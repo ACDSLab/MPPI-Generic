@@ -133,12 +133,12 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   float* noise_in_time_d;
   cufftComplex* samples_in_freq_complex_d;
   float* freq_coeffs_d;
-  // HANDLE_ERROR(cudaMalloc((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * freq_size));
-  // HANDLE_ERROR(cudaMalloc((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * num_timesteps));
-  HANDLE_ERROR(cudaMalloc((void**)&freq_coeffs_d, sizeof(float) * freq_size * control_dim));
-  HANDLE_ERROR(cudaMalloc((void**)&samples_in_freq_complex_d, sizeof(cufftComplex) * batch * freq_size));
-  HANDLE_ERROR(cudaMalloc((void**)&noise_in_time_d, sizeof(float) * batch * num_timesteps));
-  HANDLE_ERROR(cudaMalloc((void**)&sigma_d, sizeof(float) * control_dim));
+  // HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * freq_size, stream));
+  // HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * num_timesteps, stream));
+  HANDLE_ERROR(cudaMallocAsync((void**)&freq_coeffs_d, sizeof(float) * freq_size * control_dim, stream));
+  HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_complex_d, sizeof(cufftComplex) * batch * freq_size, stream));
+  HANDLE_ERROR(cudaMallocAsync((void**)&noise_in_time_d, sizeof(float) * batch * num_timesteps, stream));
+  HANDLE_ERROR(cudaMallocAsync((void**)&sigma_d, sizeof(float) * control_dim, stream));
   // curandSetStream(gen, stream);
   HANDLE_CURAND_ERROR(curandGenerateNormal(gen, (float*)samples_in_freq_complex_d, 2 * batch * freq_size, 0.0, 1.0));
   HANDLE_ERROR(cudaMemcpyAsync(freq_coeffs_d, sample_freqs.data(), sizeof(float) * freq_size * control_dim,
@@ -171,9 +171,9 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   HANDLE_ERROR(cudaGetLastError());
   HANDLE_ERROR(cudaStreamSynchronize(stream));
   HANDLE_CUFFT_ERROR(cufftDestroy(plan));
-  // HANDLE_ERROR(cudaFree(samples_in_freq_d));
-  HANDLE_ERROR(cudaFree(freq_coeffs_d));
-  HANDLE_ERROR(cudaFree(sigma_d));
-  HANDLE_ERROR(cudaFree(samples_in_freq_complex_d));
-  HANDLE_ERROR(cudaFree(noise_in_time_d));
+  // HANDLE_ERROR(cudaFreeAsync(samples_in_freq_d, stream));
+  HANDLE_ERROR(cudaFreeAsync(freq_coeffs_d, stream));
+  HANDLE_ERROR(cudaFreeAsync(sigma_d, stream));
+  HANDLE_ERROR(cudaFreeAsync(samples_in_freq_complex_d, stream));
+  HANDLE_ERROR(cudaFreeAsync(noise_in_time_d, stream));
 }
