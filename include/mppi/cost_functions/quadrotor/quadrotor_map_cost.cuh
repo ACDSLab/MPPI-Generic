@@ -21,6 +21,7 @@ struct QuadrotorMapCostParams : public CostParams<4>
   float crash_coeff = 1000;
   float dist_to_waypoint_coeff = 0.0;
   float heading_coeff = 5;
+  float heading_power = 1.0; // power to take the difference in headings to
   float height_coeff = 5;
   float track_coeff = 10;
   float speed_coeff = 5;
@@ -33,6 +34,7 @@ struct QuadrotorMapCostParams : public CostParams<4>
   float3 curr_gate_right;
   float3 prev_gate_left;
   float3 prev_gate_right;
+  float4 end_waypoint;
 
   // if the costmap cost is above this, we are no longer on the track
   float desired_speed = 5;            // [m/s]
@@ -54,6 +56,7 @@ struct QuadrotorMapCostParams : public CostParams<4>
     curr_gate_right = make_float3(0, 0, 0);
     prev_gate_left = make_float3(0, 0, 0);
     prev_gate_right = make_float3(0, 0, 0);
+    end_waypoint = make_float4(NAN, NAN, NAN, NAN);
   }
 
   bool updateWaypoint(float x, float y, float z, float heading = 0)
@@ -97,6 +100,7 @@ public:
   using control_array = typename PARENT_CLASS::control_array;
   using OutputIndex = typename PARENT_CLASS::OutputIndex;
   using ControlIndex = typename PARENT_CLASS::ControlIndex;
+  using DYN_P = QuadrotorDynamicsParams;
 
   QuadrotorMapCostImpl(cudaStream_t stream = 0);
 

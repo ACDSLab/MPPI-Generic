@@ -220,7 +220,7 @@ inline __host__ __device__ void Quat2EulerNWU(const float q[4], float& r, float&
   y = atan2f(2 * q[2] * q[1] + 2 * q[3] * q[0], q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);
 }
 
-inline __device__ void Quat2DCM(const float q[4], float M[3][3])
+inline __host__ __device__ void Quat2DCM(const float q[4], float M[3][3])
 {
   M[0][0] = SQ(q[0]) + SQ(q[1]) - SQ(q[2]) - SQ(q[3]);
   M[0][1] = 2 * (q[1] * q[2] - q[0] * q[3]);

@@ -162,6 +162,10 @@ void CONTROLLER::copyTopControlFromDevice(bool synchronize)
   for (int i = 0; i < num_top_control_trajectories_; i++)
   {
     top_n_costs_[i] = trajectory_costs_[samples[i]] / getNormalizerCost();
+    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_outputs_d_ + (start_top_control_traj_index + i) * getNumTimesteps() * DYN_T::OUTPUT_DIM,
+                                 this->output_d_ + samples[i] * getNumTimesteps() * DYN_T::OUTPUT_DIM,
+                                 sizeof(float) * getNumTimesteps() * DYN_T::OUTPUT_DIM, cudaMemcpyDeviceToDevice,
+                                 this->vis_stream_));
     HANDLE_ERROR(cudaMemcpyAsync(
         this->sampled_noise_d_ + (start_top_control_traj_index + i) * getNumTimesteps() * DYN_T::CONTROL_DIM,
         this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
