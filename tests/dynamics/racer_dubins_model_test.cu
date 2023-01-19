@@ -8,7 +8,7 @@
 TEST(RacerDubins, Template)
 {
   auto dynamics = RacerDubins();
-  EXPECT_EQ(8, RacerDubins::STATE_DIM);
+  EXPECT_EQ(7, RacerDubins::STATE_DIM);
   EXPECT_EQ(2, RacerDubins::CONTROL_DIM);
 }
 
@@ -191,9 +191,9 @@ TEST(RacerDubins, enforceLeash)
   EXPECT_LT((output - state_nominal).norm(), tol);
 
   // check yaw discont
-  state_true << -3, -3, -3, -3, -3, -3, -3, -3;
-  state_nominal << 3, 3, 3, 3, 3, 3, 3, 3;
-  leash_values << 0, 1.0, 0, 0, 0, 0, 0, 0;
+  state_true << -3, -3, -3, -3, -3, -3, -3;
+  state_nominal << 3, 3, 3, 3, 3, 3, 3;
+  leash_values << 0, 1.0, 0, 0, 0, 0, 0;
   dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
   EXPECT_FLOAT_EQ(output(0), -3);
   EXPECT_FLOAT_EQ(output(1), 3);
@@ -202,12 +202,11 @@ TEST(RacerDubins, enforceLeash)
   EXPECT_FLOAT_EQ(output(4), -3);
   EXPECT_FLOAT_EQ(output(5), -3);
   EXPECT_FLOAT_EQ(output(6), -3);
-  EXPECT_FLOAT_EQ(output(7), -3);
 
   // check yaw discont clamp
-  state_true << -3, -3, -3, -3, -3, -3, -3, -3;
-  state_nominal << 3, 3, 3, 3, 3, 3, 3, 3;
-  leash_values << 0, 0.15, 0, 0, 0, 0, 0, 0;
+  state_true << -3, -3, -3, -3, -3, -3, -3;
+  state_nominal << 3, 3, 3, 3, 3, 3, 3;
+  leash_values << 0, 0.15, 0, 0, 0, 0, 0;
   dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
   EXPECT_FLOAT_EQ(output(0), -3);
   EXPECT_FLOAT_EQ(output(1), angle_utils::normalizeAngle(-3 - 0.15));
@@ -216,12 +215,11 @@ TEST(RacerDubins, enforceLeash)
   EXPECT_FLOAT_EQ(output(4), -3);
   EXPECT_FLOAT_EQ(output(5), -3);
   EXPECT_FLOAT_EQ(output(6), -3);
-  EXPECT_FLOAT_EQ(output(7), -3);
 
   // check yaw discont clamp
-  state_true << 3, 3, 3, 3, 3, 3, 3, 3;
-  state_nominal << -3, -3, -3, -3, -3, -3, -3, -3;
-  leash_values << 0, 0.15, 0, 0, 0, 0, 0, 0;
+  state_true << 3, 3, 3, 3, 3, 3, 3;
+  state_nominal << -3, -3, -3, -3, -3, -3, -3;
+  leash_values << 0, 0.15, 0, 0, 0, 0, 0;
   dynamics.enforceLeash(state_true, state_nominal, leash_values, output);
   EXPECT_FLOAT_EQ(output(0), 3);
   EXPECT_FLOAT_EQ(output(1), angle_utils::normalizeAngle(3 + 0.15));
@@ -230,7 +228,6 @@ TEST(RacerDubins, enforceLeash)
   EXPECT_FLOAT_EQ(output(4), 3);
   EXPECT_FLOAT_EQ(output(5), 3);
   EXPECT_FLOAT_EQ(output(6), 3);
-  EXPECT_FLOAT_EQ(output(7), 3);
 
   leash_values = RacerDubins::state_array::Ones();
   std::cout << "=========" << std::endl;
@@ -324,6 +321,12 @@ TEST(RacerDubins, TestModelGPU)
 TEST(RacerDubins, TestUpdateState)
 {
   RacerDubins dynamics = RacerDubins();
+  std::array<float2, 2> ranges{};
+  ranges[0].y = FLT_MAX;
+  ranges[0].x = -1;
+  ranges[1].y = FLT_MAX;
+  ranges[1].x = -FLT_MAX;
+  dynamics.setControlRanges(ranges);
   RacerDubins::state_array state;
   RacerDubins::state_array state_der;
 
@@ -338,7 +341,6 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(4), 0.1);
   EXPECT_FLOAT_EQ(state(5), 0.1);
   EXPECT_FLOAT_EQ(state(6), 1);
-  EXPECT_FLOAT_EQ(state(7), 1);
 
   state << 0, M_PI - 0.1, 0, 0, 0, 0, 0;
   state_der << 1, 1, 1, 1, 1, -1, 1;
@@ -351,7 +353,6 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(4), 0.5);  // max steer angle is 0.5
   EXPECT_FLOAT_EQ(state(5), 0);
   EXPECT_FLOAT_EQ(state(6), 1);
-  EXPECT_FLOAT_EQ(state(7), 1);
 
   state << 0, M_PI - 0.1, 0, 0, 0, 0, 0;
   state_der << 1, 1, 1, 1, 1, 2, 1;
@@ -364,7 +365,6 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(4), 0.5);  // max steer angle is 0.5
   EXPECT_FLOAT_EQ(state(5), 1.0);
   EXPECT_FLOAT_EQ(state(6), 1);
-  EXPECT_FLOAT_EQ(state(7), 1);
 
   state << 0, -M_PI + 0.1, 0, 0, 0, 0, 0;
   state_der << 1, -1, 1, 1, 1, 1, 1;
@@ -377,7 +377,6 @@ TEST(RacerDubins, TestUpdateState)
   EXPECT_FLOAT_EQ(state(4), 0.5);  // max steer angle is 0.5
   EXPECT_FLOAT_EQ(state(5), 1);
   EXPECT_FLOAT_EQ(state(6), 1);
-  EXPECT_FLOAT_EQ(state(7), 1);
 }
 
 TEST(RacerDubins, TestUpdateStateGPU)

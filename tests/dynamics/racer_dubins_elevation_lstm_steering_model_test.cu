@@ -3,7 +3,7 @@
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation_lstm_steering.cuh>
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
-#include <autorally_test_network.h>
+#include <racer_test_networks.h>
 #include <cuda_runtime.h>
 
 class RacerDubinsElevationLSTMSteeringTest : public ::testing::Test
@@ -31,6 +31,10 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, Template)
   EXPECT_EQ(2, RacerDubinsElevationLSTMSteering::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
+  const int blk = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_BLK;
+  EXPECT_EQ(blk, 62);
+  const int grd = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_GRD;
+  EXPECT_EQ(grd, 1917);
 }
 
 TEST_F(RacerDubinsElevationLSTMSteeringTest, BindStream)
@@ -452,7 +456,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(state_der(0), 5.5, tol);
   EXPECT_NEAR(next_state(0), 1.55, tol);
-  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + 9.3808889389038086 * dt, tol);
@@ -469,7 +473,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(state_der(0), -5.5, tol);
   EXPECT_NEAR(next_state(0), 1 - 5.5 * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + 9.3808889389038086 * dt, tol);
@@ -489,7 +493,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   model->initializeLSTM(buffer);
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), 1 + (-5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + 9.3808889389038086 * dt, tol);
@@ -508,7 +512,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   model->initializeLSTM(buffer);
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + 0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + 3.5283551216125488 * dt, tol);
@@ -527,7 +531,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   model->initializeLSTM(buffer);
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + 0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + -0.32771033048629761 * dt, tol);
@@ -547,7 +551,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   model->initializeLSTM(buffer);
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + tan(steer_angle / -10.2) * dt * -2, tol);
+  EXPECT_NEAR(next_state(1), yaw + tan(steer_angle / -9.1) * dt * -2, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), params.max_steer_angle, tol);
@@ -618,7 +622,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPU)
 
   // Run dynamics on dynamicsU
   // Run dynamics on GPU
-  for (int y_dim = 1; y_dim <= 1; y_dim++)
+  for (int y_dim = 1; y_dim <= 16; y_dim++)
   {
     DYN::buffer_trajectory buffer;
     buffer["VEL_X"] = Eigen::VectorXf::Random(51);
@@ -638,7 +642,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPU)
       }
     }
     dynamics.updateFromBuffer(buffer);
-    launchStepTestKernel<RacerDubinsElevationLSTMSteering>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    launchStepTestKernel<RacerDubinsElevationLSTMSteering, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
     for (int point = 0; point < num_rollouts; point++)
     {
       dynamics.initializeDynamics(state, control, output, 0, 0);
@@ -746,7 +750,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPUReverse)
       }
     }
     dynamics.updateFromBuffer(buffer);
-    launchStepTestKernel<RacerDubinsElevationLSTMSteering>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    launchStepTestKernel<RacerDubinsElevationLSTMSteering, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
     for (int point = 0; point < num_rollouts; point++)
     {
       dynamics.initializeDynamics(state, control, output, 0, 0);

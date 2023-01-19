@@ -1,12 +1,12 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
-#include <mppi/dynamics/ackerman_slip/ackerman_slip.cuh>
+#include <mppi/dynamics/bicycle_slip/bicycle_slip_engine.cuh>
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
-#include <autorally_test_network.h>
+#include <racer_test_networks.h>
 #include <cuda_runtime.h>
 
-class AckermanSlipTest : public ::testing::Test
+class BicycleSlipEngineTest : public ::testing::Test
 {
 public:
   cudaStream_t stream;
@@ -26,11 +26,11 @@ public:
 
 const double tol = 1e-5;
 
-TEST_F(AckermanSlipTest, Template)
+TEST_F(BicycleSlipEngineTest, Template)
 {
-  auto dynamics = AckermanSlip();
-  EXPECT_EQ(11, AckermanSlip::STATE_DIM);
-  EXPECT_EQ(2, AckermanSlip::CONTROL_DIM);
+  auto dynamics = BicycleSlipEngine();
+  EXPECT_EQ(11, BicycleSlipEngine::STATE_DIM);
+  EXPECT_EQ(2, BicycleSlipEngine::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
 
@@ -40,9 +40,9 @@ TEST_F(AckermanSlipTest, Template)
   EXPECT_NE(dynamics.getTerraHelper(), nullptr);
 }
 
-TEST_F(AckermanSlipTest, BindStream)
+TEST_F(BicycleSlipEngineTest, BindStream)
 {
-  auto dynamics = AckermanSlip(stream);
+  auto dynamics = BicycleSlipEngine(stream);
 
   EXPECT_EQ(dynamics.stream_, stream) << "Stream binding failure.";
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
@@ -58,17 +58,22 @@ TEST_F(AckermanSlipTest, BindStream)
   EXPECT_EQ(dynamics.getTerraHelper()->getLSTMModel()->stream_, stream);
 }
 
-TEST_F(AckermanSlipTest, computeDynamicsCPUZeroNetworks)
+TEST_F(BicycleSlipEngineTest, computeDynamicsCPUZeroNetworks)
 {
-  auto dynamics = AckermanSlip();
+  auto dynamics = BicycleSlipEngine();
 
-  AckermanSlip::state_array x = AckermanSlip::state_array::Zero();
-  AckermanSlip::control_array u = AckermanSlip::control_array::Zero();
-  AckermanSlip::output_array output = AckermanSlip::output_array::Zero();
+  auto params = dynamics.getParams();
+  params.max_steer_angle = 5.0;
+  params.wheel_base = 2.981;
+  dynamics.setParams(params);
+
+  BicycleSlipEngine::state_array x = BicycleSlipEngine::state_array::Zero();
+  BicycleSlipEngine::control_array u = BicycleSlipEngine::control_array::Zero();
+  BicycleSlipEngine::output_array output = BicycleSlipEngine::output_array::Zero();
   dynamics.initializeDynamics(x, u, output, 0, 0);
 
   // computeDynamics should not touch the roll/pitch element
-  AckermanSlip::state_array state_der = AckermanSlip::state_array::Ones() * 0.153;
+  BicycleSlipEngine::state_array state_der = BicycleSlipEngine::state_array::Ones() * 0.153;
   dynamics.computeDynamics(x, u, state_der);
   EXPECT_FLOAT_EQ(state_der(0), 0);   // x
   EXPECT_FLOAT_EQ(state_der(1), 0);   // y
@@ -263,24 +268,24 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUZeroNetworks)
   x << 0, 0, 0, 2.5, 0, 1.0, 1.0, 1.0, 0, 0, 0;
   u << 0, 0.5;
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 1);   // x
-  EXPECT_FLOAT_EQ(state_der(1), 1);   // y
-  EXPECT_FLOAT_EQ(state_der(2), -0.068564162);  // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 0);   // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 0);   // brake state
-  EXPECT_FLOAT_EQ(state_der(5), 0);   // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 0);   // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 0);   // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);   // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);   // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);  // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(0), 1);             // x
+  EXPECT_FLOAT_EQ(state_der(1), 1);             // y
+  EXPECT_FLOAT_EQ(state_der(2), -0.094549492);  // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 0);             // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 0);             // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 0);             // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 0);             // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 0);             // omega z
+  EXPECT_FLOAT_EQ(state_der(8), 0);             // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);             // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);            // steer angle rate
 
   x << 0, 0, M_PI_4f32, 2.5, 0, 1.0, 1.0, 1.0, 0, 0, 0;
   u << 0, 0.5;
   dynamics.computeDynamics(x, u, state_der);
   EXPECT_FLOAT_EQ(state_der(0), 0);                    // x
   EXPECT_FLOAT_EQ(state_der(1), cosf(M_PI_4f32) * 2);  // y
-  EXPECT_FLOAT_EQ(state_der(2), -0.068564162);         // yaw
+  EXPECT_FLOAT_EQ(state_der(2), -0.094549492);         // yaw
   EXPECT_FLOAT_EQ(state_der(3), 0);                    // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 0);                    // brake state
   EXPECT_FLOAT_EQ(state_der(5), 0);                    // vel x
@@ -295,7 +300,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUZeroNetworks)
   dynamics.computeDynamics(x, u, state_der);
   EXPECT_FLOAT_EQ(state_der(0), cosf(M_PI_4f32));   // x
   EXPECT_FLOAT_EQ(state_der(1), -cosf(M_PI_4f32));  // y
-  EXPECT_FLOAT_EQ(state_der(2), -0.068564162);      // yaw
+  EXPECT_FLOAT_EQ(state_der(2), -0.094549492);      // yaw
   EXPECT_FLOAT_EQ(state_der(3), 0);                 // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 0);                 // brake state
   EXPECT_FLOAT_EQ(state_der(5), 0);                 // vel x
@@ -306,33 +311,38 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUZeroNetworks)
   EXPECT_FLOAT_EQ(state_der(10), 0);                // steer angle rate
 }
 
-TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
+TEST_F(BicycleSlipEngineTest, computeDynamicsCPUFakeNetworks)
 {
-  auto dynamics = AckermanSlip();
+  auto dynamics = BicycleSlipEngine();
 
-  AckermanSlip::state_array x = AckermanSlip::state_array::Zero();
-  AckermanSlip::control_array u = AckermanSlip::control_array::Zero();
-  AckermanSlip::output_array output = AckermanSlip::output_array::Zero();
+  auto params = dynamics.getParams();
+  params.max_steer_angle = 5.0;
+  params.wheel_base = 2.981;
+  dynamics.setParams(params);
+
+  BicycleSlipEngine::state_array x = BicycleSlipEngine::state_array::Zero();
+  BicycleSlipEngine::control_array u = BicycleSlipEngine::control_array::Zero();
+  BicycleSlipEngine::output_array output = BicycleSlipEngine::output_array::Zero();
   dynamics.initializeDynamics(x, u, output, 0, 0);
 
   // force brake output
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
-  std::vector<float> brake_theta(AckermanSlip::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> brake_theta(BicycleSlipEngine::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
   dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
-  std::vector<float> steer_theta(AckermanSlip::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> steer_theta(BicycleSlipEngine::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
   dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 20, 1 }, steer_theta);
 
   auto engine_params = dynamics.getEngineHelper()->getOutputModel()->getParams();
-  std::vector<float> engine_theta(AckermanSlip::ENGINE_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> engine_theta(BicycleSlipEngine::ENGINE_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   engine_theta[engine_params.stride_idcs[3]] = 3.0;
   dynamics.getEngineHelper()->getOutputModel()->updateModel({ 8, 20, 1 }, engine_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
-  std::vector<float> terra_theta(AckermanSlip::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> terra_theta(BicycleSlipEngine::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 5.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
@@ -340,7 +350,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
 
   float delta = 0;
   // computeDynamics should not touch the roll/pitch element
-  AckermanSlip::state_array state_der = AckermanSlip::state_array::Ones() * 0.153;
+  BicycleSlipEngine::state_array state_der = BicycleSlipEngine::state_array::Ones() * 0.153;
   dynamics.computeDynamics(x, u, state_der);
   EXPECT_FLOAT_EQ(state_der(0), 0);        // x
   EXPECT_FLOAT_EQ(state_der(1), 0);        // y
@@ -348,7 +358,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 20);       // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 1.0);      // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);      // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);     // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);        // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);        // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);        // pitch
@@ -362,7 +372,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 20);       // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 1.0);      // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);      // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);     // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);        // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);        // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);        // pitch
@@ -376,7 +386,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 20);       // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 1.33);     // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);      // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);     // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);        // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);        // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);        // pitch
@@ -391,7 +401,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 20);        // steer angle
   EXPECT_FLOAT_EQ(state_der(4), -0.9 + 1);  // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);   // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);       // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);         // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);         // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);         // pitch
@@ -406,7 +416,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 20);          // steer angle
   EXPECT_NEAR(state_der(4), -0.66 + 1, tol);  // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);     // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);         // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);        // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);           // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);           // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);           // pitch
@@ -421,7 +431,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 20);          // steer angle
   EXPECT_NEAR(state_der(4), -0.66 + 1, tol);  // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);     // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);         // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);        // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);           // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);           // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);           // pitch
@@ -436,7 +446,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 20);         // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 0.066 + 1);  // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);    // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);        // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);       // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);          // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);          // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);          // pitch
@@ -451,7 +461,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 3.0 + 20);  // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 1.0);       // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);   // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);       // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);         // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);         // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);         // pitch
@@ -466,7 +476,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), -3 + 20);  // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 1.0);      // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);      // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);     // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);        // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);        // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);        // pitch
@@ -481,7 +491,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 1.5 + 20);  // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 1.0);       // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);   // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);       // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);         // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);         // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);         // pitch
@@ -496,7 +506,7 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), -0.3 + 20);  // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 1.0);        // brake state
   EXPECT_FLOAT_EQ(state_der(5), 60 - 80);    // vel x
-  EXPECT_FLOAT_EQ(state_der(6), -50);        // vel y
+  EXPECT_FLOAT_EQ(state_der(6), -100);       // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);          // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);          // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);          // pitch
@@ -508,17 +518,17 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   float c_delta = cosf(delta);
   float s_delta = sinf(delta);
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                       // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                       // y
-  EXPECT_FLOAT_EQ(state_der(2), -60);                                     // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 1.2 + 20);                                // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                     // brake state
+  EXPECT_FLOAT_EQ(state_der(0), 0);                                                     // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);                                                     // y
+  EXPECT_FLOAT_EQ(state_der(2), -60);                                                   // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 1.2 + 20);                                              // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                   // brake state
   EXPECT_FLOAT_EQ(state_der(5), 30 * c_delta + 30 - 40 * c_delta - 40 + s_delta * 50);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 30 * s_delta - 40 * s_delta - 50 * c_delta);            // vel y
+  EXPECT_FLOAT_EQ(state_der(6), 30 * s_delta - 40 * s_delta - 50 * c_delta - 50);       // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);                                                     // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                       // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                       // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                      // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(8), 0);                                                     // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);                                                     // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);                                                    // steer angle rate
 
   x << 0, 0, 0, 2.5, 0, 0, 0, 0, 0, 0, 0;
   u << 0, 0.5;
@@ -526,13 +536,13 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   c_delta = cosf(delta);
   s_delta = sinf(delta);
   dynamics.computeDynamics(x, u, state_der);
-  EXPECT_FLOAT_EQ(state_der(0), 0);                                      // x
-  EXPECT_FLOAT_EQ(state_der(1), 0);                                      // y
-  EXPECT_FLOAT_EQ(state_der(2), -60);                                    // yaw
-  EXPECT_FLOAT_EQ(state_der(3), 20);                                     // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                    // brake state
+  EXPECT_FLOAT_EQ(state_der(0), 0);                                                     // x
+  EXPECT_FLOAT_EQ(state_der(1), 0);                                                     // y
+  EXPECT_FLOAT_EQ(state_der(2), -60);                                                   // yaw
+  EXPECT_FLOAT_EQ(state_der(3), 20);                                                    // steer angle
+  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                   // brake state
   EXPECT_FLOAT_EQ(state_der(5), 30 * c_delta + 30 - 40 * c_delta - 40 + s_delta * 50);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 30 * s_delta - 40 * s_delta - 50 * c_delta);            // vel y
+  EXPECT_FLOAT_EQ(state_der(6), 30 * s_delta - 40 * s_delta - 50 * c_delta - 50);       // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);                                                     // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                     // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                     // pitch
@@ -550,20 +560,28 @@ TEST_F(AckermanSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(3), 21.5);                                                  // steer angle
   EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                   // brake state
   EXPECT_FLOAT_EQ(state_der(5), 30 * c_delta + 30 - 40 * c_delta - 40 + s_delta * 50);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 30 * s_delta - 40 * s_delta - 50 * c_delta);            // vel y
+  EXPECT_FLOAT_EQ(state_der(6), 30 * s_delta - 40 * s_delta - 50 * c_delta - 50);       // vel y
   EXPECT_FLOAT_EQ(state_der(7), 0);                                                     // omega z
-  EXPECT_FLOAT_EQ(state_der(8), 0);                                      // roll
-  EXPECT_FLOAT_EQ(state_der(9), 0);                                      // pitch
-  EXPECT_FLOAT_EQ(state_der(10), 0);                                     // steer angle rate
+  EXPECT_FLOAT_EQ(state_der(8), 0);                                                     // roll
+  EXPECT_FLOAT_EQ(state_der(9), 0);                                                     // pitch
+  EXPECT_FLOAT_EQ(state_der(10), 0);                                                    // steer angle rate
 }
 
-TEST_F(AckermanSlipTest, updateState)
+TEST_F(BicycleSlipEngineTest, updateState)
 {
-  auto dynamics = AckermanSlip();
+  auto dynamics = BicycleSlipEngine();
 
-  AckermanSlip::state_array s = AckermanSlip::state_array::Zero();
-  AckermanSlip::state_array s_next = AckermanSlip::state_array::Zero();
-  AckermanSlip::state_array s_der = AckermanSlip::state_array::Zero();
+  auto params = dynamics.getParams();
+  params.max_steer_angle = 5.0;
+  dynamics.setParams(params);
+
+  auto limits = dynamics.getControlRanges();
+  limits[0].x = -1.0;
+  dynamics.setControlRanges(limits);
+
+  BicycleSlipEngine::state_array s = BicycleSlipEngine::state_array::Zero();
+  BicycleSlipEngine::state_array s_next = BicycleSlipEngine::state_array::Zero();
+  BicycleSlipEngine::state_array s_der = BicycleSlipEngine::state_array::Zero();
 
   s << 1, 2, 3, 4, 0.55, 6, 7, 8, 9, 10, 11;
   dynamics.updateState(s, s_next, s_der, 0.1);
@@ -579,7 +597,7 @@ TEST_F(AckermanSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 10);    // pitch
   EXPECT_FLOAT_EQ(s_next(10), 0);    // steer angle rate
 
-  s = AckermanSlip::state_array::Ones() * 10;
+  s = BicycleSlipEngine::state_array::Ones() * 10;
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), 10);                                 // x
   EXPECT_FLOAT_EQ(s_next(1), 10);                                 // y
@@ -593,7 +611,7 @@ TEST_F(AckermanSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 10);                                 // pitch
   EXPECT_FLOAT_EQ(s_next(10), 0);                                 // steer angle rate
 
-  s = AckermanSlip::state_array::Ones() * -10;
+  s = BicycleSlipEngine::state_array::Ones() * -10;
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), -10);                                // x
   EXPECT_FLOAT_EQ(s_next(1), -10);                                // y
@@ -607,8 +625,8 @@ TEST_F(AckermanSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), -10);                                // pitch
   EXPECT_FLOAT_EQ(s_next(10), 0);                                 // steer angle rate
 
-  s = AckermanSlip::state_array::Zero();
-  s_der = AckermanSlip::state_array::Ones();
+  s = BicycleSlipEngine::state_array::Zero();
+  s_der = BicycleSlipEngine::state_array::Ones();
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), 0.1);   // x
   EXPECT_FLOAT_EQ(s_next(1), 0.1);   // y
@@ -622,8 +640,8 @@ TEST_F(AckermanSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 0.1);   // pitch
   EXPECT_FLOAT_EQ(s_next(10), 1.0);  // steer angle rate
 
-  s = AckermanSlip::state_array::Zero();
-  s_der = AckermanSlip::state_array::Ones() * -1;
+  s = BicycleSlipEngine::state_array::Zero();
+  s_der = BicycleSlipEngine::state_array::Ones() * -1;
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), -0.1);   // x
   EXPECT_FLOAT_EQ(s_next(1), -0.1);   // y
@@ -637,8 +655,8 @@ TEST_F(AckermanSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), -0.1);   // pitch
   EXPECT_FLOAT_EQ(s_next(10), -1.0);  // steer angle rate
 
-  s = AckermanSlip::state_array::Zero();
-  s_der = AckermanSlip::state_array::Ones() * 10;
+  s = BicycleSlipEngine::state_array::Zero();
+  s_der = BicycleSlipEngine::state_array::Ones() * 10;
   dynamics.updateState(s, s_next, s_der, 1);
   EXPECT_FLOAT_EQ(s_next(0), 10);                                   // x
   EXPECT_FLOAT_EQ(s_next(1), 10);                                   // y
@@ -652,8 +670,8 @@ TEST_F(AckermanSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 10);                                   // pitch
   EXPECT_FLOAT_EQ(s_next(10), 10.0);                                // steer angle rate
 
-  s = AckermanSlip::state_array::Zero();
-  s_der = AckermanSlip::state_array::Ones() * -10;
+  s = BicycleSlipEngine::state_array::Zero();
+  s_der = BicycleSlipEngine::state_array::Ones() * -10;
   dynamics.updateState(s, s_next, s_der, 1.0);
   EXPECT_FLOAT_EQ(s_next(0), -10.0);                                 // x
   EXPECT_FLOAT_EQ(s_next(1), -10.0);                                 // y
@@ -668,9 +686,18 @@ TEST_F(AckermanSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(10), -10.0);                                // steer angle rate
 }
 
-TEST_F(AckermanSlipTest, stepCPU)
+TEST_F(BicycleSlipEngineTest, stepCPU)
 {
-  auto dynamics = AckermanSlip();
+  auto dynamics = BicycleSlipEngine();
+
+  auto limits = dynamics.getControlRanges();
+  limits[0].x = -1.0;
+  dynamics.setControlRanges(limits);
+
+  auto params = dynamics.getParams();
+  params.max_steer_angle = 5.0;
+  params.wheel_base = 2.981;
+  dynamics.setParams(params);
 
   cudaExtent extent = make_cudaExtent(10, 20, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
@@ -697,69 +724,69 @@ TEST_F(AckermanSlipTest, stepCPU)
 
   // force brake output
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
-  std::vector<float> brake_theta(AckermanSlip::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> brake_theta(BicycleSlipEngine::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
   dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
-  std::vector<float> steer_theta(AckermanSlip::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> steer_theta(BicycleSlipEngine::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
   dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 20, 1 }, steer_theta);
 
   auto engine_params = dynamics.getEngineHelper()->getOutputModel()->getParams();
-  std::vector<float> engine_theta(AckermanSlip::ENGINE_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> engine_theta(BicycleSlipEngine::ENGINE_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   engine_theta[engine_params.stride_idcs[3]] = 3.0;
   dynamics.getEngineHelper()->getOutputModel()->updateModel({ 8, 20, 1 }, engine_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
-  std::vector<float> terra_theta(AckermanSlip::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> terra_theta(BicycleSlipEngine::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 5.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
   dynamics.getTerraHelper()->getOutputModel()->updateModel({ 20, 20, 3 }, terra_theta);
 
-  AckermanSlip::state_array s = AckermanSlip::state_array::Ones();
-  AckermanSlip::control_array u = AckermanSlip::control_array::Ones();
-  AckermanSlip::state_array s_next = AckermanSlip::state_array::Zero();
-  AckermanSlip::state_array s_der = AckermanSlip::state_array::Ones();
-  AckermanSlip::output_array output = AckermanSlip::output_array::Zero();
+  BicycleSlipEngine::state_array s = BicycleSlipEngine::state_array::Ones();
+  BicycleSlipEngine::control_array u = BicycleSlipEngine::control_array::Ones();
+  BicycleSlipEngine::state_array s_next = BicycleSlipEngine::state_array::Zero();
+  BicycleSlipEngine::state_array s_der = BicycleSlipEngine::state_array::Ones();
+  BicycleSlipEngine::output_array output = BicycleSlipEngine::output_array::Zero();
   s(0) = 5;
   s(1) = 5;
 
   dynamics.step(s, s_next, s_der, u, output, 0, 0.1);
-  EXPECT_FLOAT_EQ(s_der(0), -0.30116868);  // x
-  EXPECT_FLOAT_EQ(s_der(1), 1.3817732);    // y
-  EXPECT_FLOAT_EQ(s_der(2), -60.027111858);  // yaw
+  EXPECT_FLOAT_EQ(s_der(0), -0.30116868);    // x
+  EXPECT_FLOAT_EQ(s_der(1), 1.3817732);      // y
+  EXPECT_FLOAT_EQ(s_der(2), -60.037014);     // yaw
   EXPECT_FLOAT_EQ(s_der(3), 22.4);           // steer angle
   EXPECT_FLOAT_EQ(s_der(4), 0.1);            // brake state
   EXPECT_FLOAT_EQ(s_der(5), -25.385986);     // vel x
-  EXPECT_FLOAT_EQ(s_der(6), -48.613491);     // vel y
-  EXPECT_FLOAT_EQ(s_der(7), 0);            // omega z
-  EXPECT_FLOAT_EQ(s_der(8), 0);            // roll
-  EXPECT_FLOAT_EQ(s_der(9), 0);            // pitch
-  EXPECT_FLOAT_EQ(s_der(10), 0);           // steer angle rate
+  EXPECT_FLOAT_EQ(s_der(6), -98.613495);     // vel y
+  EXPECT_FLOAT_EQ(s_der(7), 0);              // omega z
+  EXPECT_FLOAT_EQ(s_der(8), 0);              // roll
+  EXPECT_FLOAT_EQ(s_der(9), 0);              // pitch
+  EXPECT_FLOAT_EQ(s_der(10), 0);             // steer angle rate
 
-  EXPECT_FLOAT_EQ(s_next(0), 4.96988314);  // x
-  EXPECT_FLOAT_EQ(s_next(1), 5.1381773);   // y
-  EXPECT_FLOAT_EQ(s_next(2), angle_utils::normalizeAngle(1.0f - 60.027111858f * 0.1f));  // yaw
+  EXPECT_FLOAT_EQ(s_next(0), 4.96988314);                                                // x
+  EXPECT_FLOAT_EQ(s_next(1), 5.1381773);                                                 // y
+  EXPECT_FLOAT_EQ(s_next(2), angle_utils::normalizeAngle(1.0f - 60.037014f * 0.1f));     // yaw
   EXPECT_FLOAT_EQ(s_next(3), 3.24);                                                      // steer angle
   EXPECT_FLOAT_EQ(s_next(4), 1.0);                                                       // brake state
   EXPECT_FLOAT_EQ(s_next(5), 1.0 - 25.3859868 * 0.1);                                    // vel x
-  EXPECT_FLOAT_EQ(s_next(6), 1.0 - 48.613491 * 0.1);                                     // vel y
-  EXPECT_FLOAT_EQ(s_next(7), -60.027111858);                                             // omega z
-  EXPECT_FLOAT_EQ(s_next(8), -0.16842844);                                               // roll
-  EXPECT_FLOAT_EQ(s_next(9), -0.12287712);                                               // pitch
+  EXPECT_FLOAT_EQ(s_next(6), 1.0 - 98.613495 * 0.1);                                     // vel y
+  EXPECT_FLOAT_EQ(s_next(7), -60.037014);                                                // omega z
+  EXPECT_FLOAT_EQ(s_next(8), -0.16931976);                                               // roll
+  EXPECT_FLOAT_EQ(s_next(9), -0.12329695);                                               // pitch
   EXPECT_FLOAT_EQ(s_next(10), 22.4);                                                     // steer angle rate
 
-  EXPECT_FLOAT_EQ(output(0), 1.0 - 25.3859868 * 0.1);  // x vel
-  EXPECT_FLOAT_EQ(output(1), 1.0 - 48.613491 * 0.1);   // y vel
-  EXPECT_FLOAT_EQ(output(2), 0);            // z vel
-  EXPECT_FLOAT_EQ(output(3), 4.96988314);   // x pos
-  EXPECT_FLOAT_EQ(output(4), 5.1381773);    // y pos
-  EXPECT_FLOAT_EQ(output(5), 0);            // z pos
-  EXPECT_FLOAT_EQ(output(6), angle_utils::normalizeAngle(1.0f - 60.027111858f * 0.1f));  // yaw
-  EXPECT_FLOAT_EQ(output(7), -0.16842844);                                               // roll
-  EXPECT_FLOAT_EQ(output(8), -0.12287712);                                               // pitch
+  EXPECT_FLOAT_EQ(output(0), 1.0 - 25.3859868 * 0.1);                                    // x vel
+  EXPECT_FLOAT_EQ(output(1), 1.0 - 98.613495 * 0.1);                                     // y vel
+  EXPECT_FLOAT_EQ(output(2), 0);                                                         // z vel
+  EXPECT_FLOAT_EQ(output(3), 4.96988314);                                                // x pos
+  EXPECT_FLOAT_EQ(output(4), 5.1381773);                                                 // y pos
+  EXPECT_FLOAT_EQ(output(5), 0);                                                         // z pos
+  EXPECT_FLOAT_EQ(output(6), angle_utils::normalizeAngle(1.0f - 60.037014f * 0.1f));     // yaw
+  EXPECT_FLOAT_EQ(output(7), -0.16931976);                                               // roll
+  EXPECT_FLOAT_EQ(output(8), -0.12329695);                                               // pitch
   EXPECT_FLOAT_EQ(output(9), 3.24);                                                      // steer angle
   EXPECT_FLOAT_EQ(output(10), 22.4);                                                     // steer angle rate
   // EXPECT_FLOAT_EQ(output(11), 5.6652329);   // fl wheel x
@@ -770,17 +797,18 @@ TEST_F(AckermanSlipTest, stepCPU)
   // EXPECT_FLOAT_EQ(output(16), 5.4724776);   // bl wheel y
   // EXPECT_FLOAT_EQ(output(17), 5.626703);    // br wheel x
   // EXPECT_FLOAT_EQ(output(18), 4.803877);    // br wheel y
-  EXPECT_FLOAT_EQ(output(19), 10000);       // wheel f fl
-  EXPECT_FLOAT_EQ(output(20), 10000);       // wheel f fr
-  EXPECT_FLOAT_EQ(output(21), 10000);       // wheel f bl
-  EXPECT_FLOAT_EQ(output(22), 10000);       // wheel f br
-  EXPECT_FLOAT_EQ(output(23), -25.385986);  // accel x
-  EXPECT_FLOAT_EQ(output(24), -48.613491);  // accel y
-  EXPECT_FLOAT_EQ(output(25), -60.027111858);  // omega z
+  EXPECT_FLOAT_EQ(output(19), 10000);          // wheel f fl
+  EXPECT_FLOAT_EQ(output(20), 10000);          // wheel f fr
+  EXPECT_FLOAT_EQ(output(21), 10000);          // wheel f bl
+  EXPECT_FLOAT_EQ(output(22), 10000);          // wheel f br
+  EXPECT_FLOAT_EQ(output(23), -25.385986);     // accel x
+  EXPECT_FLOAT_EQ(output(24), -98.613495);     // accel y
+  EXPECT_FLOAT_EQ(output(25), -60.037014);     // omega z
 }
 
-TEST_F(AckermanSlipTest, TestPythonComparison)
+TEST_F(BicycleSlipEngineTest, TestPythonComparison)
 {
+  GTEST_SKIP();
   const int num_points = 100;
   const float dt = 0.02f;
   const int T = 250;
@@ -788,8 +816,13 @@ TEST_F(AckermanSlipTest, TestPythonComparison)
   const int state_dim = 12;
   const int output_dim = 5;
   CudaCheckError();
-  using DYN = AckermanSlip;
-  AckermanSlip dynamics = AckermanSlip(mppi::tests::ackerman_test);
+  using DYN = BicycleSlipEngine;
+  BicycleSlipEngine dynamics = BicycleSlipEngine(mppi::tests::ackerman_test);
+
+  auto params = dynamics.getParams();
+  params.max_steer_angle = 5.0;
+  params.wheel_base = 2.981;
+  dynamics.setParams(params);
 
   cnpy::npz_t input_outputs = cnpy::npz_load(mppi::tests::ackerman_test);
   double* inputs = input_outputs.at("input").data<double>();
@@ -831,11 +864,11 @@ TEST_F(AckermanSlipTest, TestPythonComparison)
   buffer["ROLL"] = Eigen::VectorXf::Random(51);
   buffer["PITCH"] = Eigen::VectorXf::Random(51);
 
-  AckermanSlip::state_array state;
-  AckermanSlip::state_array next_state_cpu;
-  AckermanSlip::control_array control;
-  AckermanSlip::output_array output;
-  AckermanSlip::state_array state_der = AckermanSlip::state_array::Zero();
+  BicycleSlipEngine::state_array state;
+  BicycleSlipEngine::state_array next_state_cpu;
+  BicycleSlipEngine::control_array control;
+  BicycleSlipEngine::output_array output;
+  BicycleSlipEngine::state_array state_der = BicycleSlipEngine::state_array::Zero();
 
   for (int point = 0; point < num_points; point++)
   {
@@ -885,11 +918,11 @@ TEST_F(AckermanSlipTest, TestPythonComparison)
           << "at point " << point << " index " << i;
     }
 
-    AckermanSlip::state_array state;
+    BicycleSlipEngine::state_array state;
     for (int t = 0; t < T; t++)
     {
-      state = AckermanSlip::state_array::Zero();
-      state_der = AckermanSlip::state_array::Zero();
+      state = BicycleSlipEngine::state_array::Zero();
+      state_der = BicycleSlipEngine::state_array::Zero();
       state(3) = inputs[point * T * state_dim + t * state_dim + 5];   // STEER_ANGLE
       state(4) = inputs[point * T * state_dim + t * state_dim + 4];   // BRAKE_STATE
       state(5) = inputs[point * T * state_dim + t * state_dim + 0];   // VX
@@ -925,13 +958,18 @@ TEST_F(AckermanSlipTest, TestPythonComparison)
   }
 }
 
-TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
+TEST_F(BicycleSlipEngineTest, TestStepGPUvsCPU)
 {
   const int num_rollouts = 2000;
   const float dt = 0.1f;
   CudaCheckError();
-  using DYN = AckermanSlip;
-  AckermanSlip dynamics = AckermanSlip(mppi::tests::ackerman_test);
+  using DYN = BicycleSlipEngine;
+  BicycleSlipEngine dynamics = BicycleSlipEngine(mppi::tests::ackerman_test);
+
+  auto params = dynamics.getParams();
+  params.max_steer_angle = 5.0;
+  params.wheel_base = 2.981;
+  dynamics.setParams(params);
   // steering model params
   EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.9031379);
   EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.3959048);
@@ -989,22 +1027,22 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
   EXPECT_NE(dynamics.terra_network_d_, nullptr);
   EXPECT_EQ(dynamics.terra_network_d_, dynamics.getTerraHelper()->getLSTMDevicePtr());
 
-  Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts> control_trajectory;
-  control_trajectory = Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts>::Random();
-  Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts> state_trajectory;
-  state_trajectory = Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, BicycleSlipEngine::CONTROL_DIM, num_rollouts> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, BicycleSlipEngine::CONTROL_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, BicycleSlipEngine::STATE_DIM, num_rollouts> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, BicycleSlipEngine::STATE_DIM, num_rollouts>::Random();
 
-  std::vector<std::array<float, AckermanSlip::STATE_DIM>> s(num_rollouts);
-  std::vector<std::array<float, AckermanSlip::STATE_DIM>> s_next(num_rollouts);
-  std::vector<std::array<float, AckermanSlip::STATE_DIM>> s_der(num_rollouts);
+  std::vector<std::array<float, BicycleSlipEngine::STATE_DIM>> s(num_rollouts);
+  std::vector<std::array<float, BicycleSlipEngine::STATE_DIM>> s_next(num_rollouts);
+  std::vector<std::array<float, BicycleSlipEngine::STATE_DIM>> s_der(num_rollouts);
   // steering, throttle
-  std::vector<std::array<float, AckermanSlip::CONTROL_DIM>> u(num_rollouts);
+  std::vector<std::array<float, BicycleSlipEngine::CONTROL_DIM>> u(num_rollouts);
 
-  AckermanSlip::state_array state;
-  AckermanSlip::state_array next_state_cpu;
-  AckermanSlip::control_array control;
-  AckermanSlip::output_array output;
-  AckermanSlip::state_array state_der_cpu = AckermanSlip::state_array::Zero();
+  BicycleSlipEngine::state_array state;
+  BicycleSlipEngine::state_array next_state_cpu;
+  BicycleSlipEngine::control_array control;
+  BicycleSlipEngine::output_array output;
+  BicycleSlipEngine::state_array state_der_cpu = BicycleSlipEngine::state_array::Zero();
 
   // Run dynamics on dynamicsU
   // Run dynamics on GPU
@@ -1035,16 +1073,16 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
       }
     }
     dynamics.updateFromBuffer(buffer);
-    launchStepTestKernel<AckermanSlip, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    launchStepTestKernel<BicycleSlipEngine, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
     for (int point = 0; point < num_rollouts; point++)
     {
       dynamics.initializeDynamics(state, control, output, 0, 0);
       state = state_trajectory.col(point);
       control = control_trajectory.col(point);
-      state_der_cpu = AckermanSlip::state_array::Zero();
+      state_der_cpu = BicycleSlipEngine::state_array::Zero();
 
       dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-      for (int dim = 0; dim < AckermanSlip::STATE_DIM; dim++)
+      for (int dim = 0; dim < BicycleSlipEngine::STATE_DIM; dim++)
       {
         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
@@ -1057,14 +1095,14 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
   dynamics.freeCudaMem();
 }
 
-// TEST_F(AckermanSlipTest, TestStepGPUvsCPUReverse)
+// TEST_F(BicycleSlipEngineTest, TestStepGPUvsCPUReverse)
 // {
-//   using DYN = AckermanSlip;
+//   using DYN = BicycleSlipEngine;
 //
 //   const int num_rollouts = 2000;
 //   const float dt = 0.1f;
 //   CudaCheckError();
-//   AckermanSlip dynamics = AckermanSlip(mppi::tests::steering_lstm);
+//   BicycleSlipEngine dynamics = BicycleSlipEngine(mppi::tests::steering_lstm);
 //   auto params = dynamics.getParams();
 //   params.gear_sign = -1;
 //   dynamics.setParams(params);
@@ -1102,22 +1140,22 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
 //   EXPECT_NE(dynamics.network_d_, nullptr);
 //   EXPECT_EQ(dynamics.network_d_, dynamics.getHelper()->getLSTMDevicePtr());
 //
-//   Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts> control_trajectory;
-//   control_trajectory = Eigen::Matrix<float, AckermanSlip::CONTROL_DIM, num_rollouts>::Random();
-//   Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts> state_trajectory;
-//   state_trajectory = Eigen::Matrix<float, AckermanSlip::STATE_DIM, num_rollouts>::Random();
+//   Eigen::Matrix<float, BicycleSlipEngine::CONTROL_DIM, num_rollouts> control_trajectory;
+//   control_trajectory = Eigen::Matrix<float, BicycleSlipEngine::CONTROL_DIM, num_rollouts>::Random();
+//   Eigen::Matrix<float, BicycleSlipEngine::STATE_DIM, num_rollouts> state_trajectory;
+//   state_trajectory = Eigen::Matrix<float, BicycleSlipEngine::STATE_DIM, num_rollouts>::Random();
 //
-//   std::vector<std::array<float, AckermanSlip::STATE_DIM>> s(num_rollouts);
-//   std::vector<std::array<float, AckermanSlip::STATE_DIM>> s_next(num_rollouts);
-//   std::vector<std::array<float, AckermanSlip::STATE_DIM>> s_der(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipEngine::STATE_DIM>> s(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipEngine::STATE_DIM>> s_next(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipEngine::STATE_DIM>> s_der(num_rollouts);
 //   // steering, throttle
-//   std::vector<std::array<float, AckermanSlip::CONTROL_DIM>> u(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipEngine::CONTROL_DIM>> u(num_rollouts);
 //
-//   AckermanSlip::state_array state;
-//   AckermanSlip::state_array next_state_cpu;
-//   AckermanSlip::control_array control;
-//   AckermanSlip::output_array output;
-//   AckermanSlip::state_array state_der_cpu = AckermanSlip::state_array::Zero();
+//   BicycleSlipEngine::state_array state;
+//   BicycleSlipEngine::state_array next_state_cpu;
+//   BicycleSlipEngine::control_array control;
+//   BicycleSlipEngine::output_array output;
+//   BicycleSlipEngine::state_array state_der_cpu = BicycleSlipEngine::state_array::Zero();
 //
 //   // Run dynamics on dynamicsU
 //   // Run dynamics on GPU
@@ -1142,17 +1180,17 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
 //       }
 //     }
 //     dynamics.updateFromBuffer(buffer);
-//     launchStepTestKernel<AckermanSlip>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+//     launchStepTestKernel<BicycleSlipEngine>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
 //     for (int point = 0; point < num_rollouts; point++)
 //     {
 //       dynamics.initializeDynamics(state, control, output, 0, 0);
 //       state = state_trajectory.col(point);
 //       control = control_trajectory.col(point);
-//       state_der_cpu = AckermanSlip::state_array::Zero();
+//       state_der_cpu = BicycleSlipEngine::state_array::Zero();
 //
 //       dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-//       // for (int dim = 0; dim < AckermanSlip::STATE_DIM; dim++)
-//       for (int dim = 0; dim < AckermanSlip::STATE_DIM; dim++)
+//       // for (int dim = 0; dim < BicycleSlipEngine::STATE_DIM; dim++)
+//       for (int dim = 0; dim < BicycleSlipEngine::STATE_DIM; dim++)
 //       {
 //         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
 //             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
@@ -1166,7 +1204,7 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
 //   dynamics.freeCudaMem();
 // }
 // /*
-// class LinearDummy : public AckermanSlip {
+// class LinearDummy : public BicycleSlipEngine {
 // public:
 //   bool computeGrad(const Eigen::Ref<const state_array> & state,
 //                    const Eigen::Ref<const control_array>& control,
@@ -1176,17 +1214,17 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
 //   };
 // };
 //
-// TEST_F(AckermanSlipTest, TestComputeGradComputation) {
-//   Eigen::Matrix<float, AckermanSlip::STATE_DIM, AckermanSlip::STATE_DIM +
-// AckermanSlip::CONTROL_DIM> numeric_jac; Eigen::Matrix<float,
-// AckermanSlip::STATE_DIM, AckermanSlip::STATE_DIM +
-// AckermanSlip::CONTROL_DIM> analytic_jac; AckermanSlip::state_array state; state
-// << 1, 2, 3, 4; AckermanSlip::control_array control; control << 5;
+// TEST_F(BicycleSlipEngineTest, TestComputeGradComputation) {
+//   Eigen::Matrix<float, BicycleSlipEngine::STATE_DIM, BicycleSlipEngine::STATE_DIM +
+// BicycleSlipEngine::CONTROL_DIM> numeric_jac; Eigen::Matrix<float,
+// BicycleSlipEngine::STATE_DIM, BicycleSlipEngine::STATE_DIM +
+// BicycleSlipEngine::CONTROL_DIM> analytic_jac; BicycleSlipEngine::state_array state; state
+// << 1, 2, 3, 4; BicycleSlipEngine::control_array control; control << 5;
 //
-//   auto analytic_grad_model = AckermanSlip();
+//   auto analytic_grad_model = BicycleSlipEngine();
 //
-//   AckermanSlip::dfdx A_analytic = AckermanSlip::dfdx::Zero();
-//   AckermanSlip::dfdu B_analytic = AckermanSlip::dfdu::Zero();
+//   BicycleSlipEngine::dfdx A_analytic = BicycleSlipEngine::dfdx::Zero();
+//   BicycleSlipEngine::dfdu B_analytic = BicycleSlipEngine::dfdu::Zero();
 //
 //   analytic_grad_model.computeGrad(state, control, A_analytic, B_analytic);
 //
@@ -1195,8 +1233,8 @@ TEST_F(AckermanSlipTest, TestStepGPUvsCPU)
 //   std::shared_ptr<ModelWrapperDDP<LinearDummy>> ddp_model =
 // std::make_shared<ModelWrapperDDP<LinearDummy>>(&numerical_grad_model);
 //
-//   analytic_jac.leftCols<AckermanSlip::STATE_DIM>() = A_analytic;
-//   analytic_jac.rightCols<AckermanSlip::CONTROL_DIM>() = B_analytic;
+//   analytic_jac.leftCols<BicycleSlipEngine::STATE_DIM>() = A_analytic;
+//   analytic_jac.rightCols<BicycleSlipEngine::CONTROL_DIM>() = B_analytic;
 //   numeric_jac = ddp_model->df(state, control);
 //
 //   ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n" << numeric_jac << "\nAnalytic

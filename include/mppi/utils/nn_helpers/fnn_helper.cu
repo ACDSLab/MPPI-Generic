@@ -85,6 +85,10 @@ void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(std::string prefix, const cnpy:
       biases_[i](j, 0) = bias_i[j];
     }
   }
+  for (int i = 0; i < PARAMS_T::NUM_PARAMS; i++)
+  {
+    assert(isfinite(this->params_.theta[i]));
+  }
   // Save parameters to GPU memory
   paramsToDevice();
 }
@@ -130,6 +134,10 @@ void FNNHelper<PARAMS_T, USE_SHARED>::updateModel(const std::vector<int>& descri
       biases_[i](j, 0) = data[this->params_.stride_idcs[2 * i + 1] + j];
       this->params_.theta[this->params_.stride_idcs[2 * i + 1] + j] = data[this->params_.stride_idcs[2 * i + 1] + j];
     }
+  }
+  for (int i = 0; i < PARAMS_T::NUM_PARAMS; i++)
+  {
+    assert(isfinite(this->params_.theta[i]));
   }
   if (this->GPUMemStatus_)
   {

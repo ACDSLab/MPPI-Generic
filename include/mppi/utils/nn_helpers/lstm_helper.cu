@@ -421,6 +421,10 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(std::string pref
     params_.W_fm[i] = weight_hh[i + PARAMS_T::HIDDEN_HIDDEN_SIZE];
     params_.W_cm[i] = weight_hh[i + 2 * PARAMS_T::HIDDEN_HIDDEN_SIZE];
     params_.W_om[i] = weight_hh[i + 3 * PARAMS_T::HIDDEN_HIDDEN_SIZE];
+    assert(isfinite(params_.W_im[i]));
+    assert(isfinite(params_.W_fm[i]));
+    assert(isfinite(params_.W_cm[i]));
+    assert(isfinite(params_.W_om[i]));
   }
   for (int i = 0; i < PARAMS_T::INPUT_HIDDEN_SIZE; i++)
   {
@@ -428,6 +432,10 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(std::string pref
     params_.W_fi[i] = weight_ih[i + PARAMS_T::INPUT_HIDDEN_SIZE];
     params_.W_ci[i] = weight_ih[i + 2 * PARAMS_T::INPUT_HIDDEN_SIZE];
     params_.W_oi[i] = weight_ih[i + 3 * PARAMS_T::INPUT_HIDDEN_SIZE];
+    assert(isfinite(params_.W_ii[i]));
+    assert(isfinite(params_.W_fi[i]));
+    assert(isfinite(params_.W_ci[i]));
+    assert(isfinite(params_.W_oi[i]));
   }
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
@@ -435,6 +443,10 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(std::string pref
     params_.b_f[i] = bias_hh[i + HIDDEN_DIM] + bias_ih[i + HIDDEN_DIM];
     params_.b_c[i] = bias_hh[i + 2 * HIDDEN_DIM] + bias_ih[i + 2 * HIDDEN_DIM];
     params_.b_o[i] = bias_hh[i + 3 * HIDDEN_DIM] + bias_ih[i + 3 * HIDDEN_DIM];
+    assert(isfinite(params_.b_i[i]));
+    assert(isfinite(params_.b_f[i]));
+    assert(isfinite(params_.b_c[i]));
+    assert(isfinite(params_.b_o[i]));
   }
 
   // Save parameters to GPU memory

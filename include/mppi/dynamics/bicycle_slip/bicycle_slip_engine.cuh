@@ -5,13 +5,13 @@
 #ifndef MPPIGENERIC_ACKERMAN_SLIP_CUH
 #define MPPIGENERIC_ACKERMAN_SLIP_CUH
 
-#include <mppi/dynamics/dynamics.cuh>
+#include <mppi/dynamics/racer_dubins/racer_dubins.cuh>
 #include <mppi/utils/angle_utils.cuh>
 #include <mppi/utils/math_utils.h>
 #include <mppi/utils/nn_helpers/lstm_lstm_helper.cuh>
 #include "mppi/utils/texture_helpers/two_d_texture_helper.cuh"
 
-struct AckermanSlipParams : public DynamicsParams
+struct BicycleSlipEngineParams : public RacerDubinsParams
 {
   enum class StateIndex : int
   {
@@ -29,58 +29,7 @@ struct AckermanSlipParams : public DynamicsParams
     NUM_STATES
   };
 
-  enum class ControlIndex : int
-  {
-    THROTTLE_BRAKE = 0,
-    STEER_CMD,
-    NUM_CONTROLS
-  };
-
-  enum class OutputIndex : int
-  {
-    BASELINK_VEL_B_X = 0,
-    BASELINK_VEL_B_Y,
-    BASELINK_VEL_B_Z,
-    BASELINK_POS_I_X,
-    BASELINK_POS_I_Y,
-    BASELINK_POS_I_Z,
-    YAW,
-    ROLL,
-    PITCH,
-    STEER_ANGLE,
-    STEER_ANGLE_RATE,
-    WHEEL_POS_I_FL_X,
-    WHEEL_POS_I_FL_Y,
-    WHEEL_POS_I_FR_X,
-    WHEEL_POS_I_FR_Y,
-    WHEEL_POS_I_RL_X,
-    WHEEL_POS_I_RL_Y,
-    WHEEL_POS_I_RR_X,
-    WHEEL_POS_I_RR_Y,
-    WHEEL_FORCE_B_FL,
-    WHEEL_FORCE_B_FR,
-    WHEEL_FORCE_B_RL,
-    WHEEL_FORCE_B_RR,
-    ACCEL_X,
-    ACCEL_Y,
-    OMEGA_Z,
-    NUM_OUTPUTS
-  };
-  float wheel_base = 2.981;
-  float steer_angle_scale = -12.4;
   float wheel_angle_scale = -9.2;
-  float gravity = -9.81;
-  // steering parametric
-  float steer_command_angle_scale = 5;
-  float steering_constant = .6;
-  float max_steer_angle = 5;
-  float max_steer_rate = 5;
-  // brake parametric component
-  float brake_delay_constant = 6.6;
-  float max_brake_rate_neg = 0.9;
-  float max_brake_rate_pos = 0.33;
-  // forward reverse
-  int gear_sign = 1;
 };
 
 // BLOCKSIZE_X = 5
@@ -92,10 +41,10 @@ struct AckermanSlipParams : public DynamicsParams
 // parameters not in shared memory: 66 ms
 
 // TODO implementation split here to disable shared for testing
-class AckermanSlip : public MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>
+class BicycleSlipEngine : public MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>
 {
 public:
-  using PARENT_CLASS = MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>;
+  using PARENT_CLASS = MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>;
   typedef LSTMHelper<LSTMParams<5, 5>, FNNParams<10,20,1>, false> STEER_LSTM;
   typedef LSTMHelper<LSTMParams<4, 60>, FNNParams<64, 100, 10>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
@@ -150,8 +99,8 @@ public:
   typedef typename PARENT_CLASS::dfdx dfdx;
   typedef typename PARENT_CLASS::dfdu dfdu;
 
-  explicit AckermanSlip(cudaStream_t stream = nullptr);
-  explicit AckermanSlip(std::string ackerman_path, cudaStream_t stream = nullptr);
+  explicit BicycleSlipEngine(cudaStream_t stream = nullptr);
+  explicit BicycleSlipEngine(std::string ackerman_path, cudaStream_t stream = nullptr);
 
   void paramsToDevice();
 
@@ -176,7 +125,9 @@ public:
   void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
                    Eigen::Ref<state_array> state_der, const float dt);
 
-  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, DYN_PARAMS_T* params_p);
+
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt) {}
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
@@ -233,7 +184,7 @@ protected:
 };
 
 #if __CUDACC__
-#include "ackerman_slip.cu"
+#include "bicycle_slip_engine.cu"
 #endif
 
 #endif  // MPPIGENERIC_ACKERMAN_SLIP_CUH

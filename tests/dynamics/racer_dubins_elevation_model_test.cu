@@ -500,8 +500,9 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   control << 1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(state_der(0), 5.5, tol);
+  EXPECT_NEAR(state_der(1), -0.086361105, tol);
   EXPECT_NEAR(next_state(0), 1.55, tol);
-  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
@@ -517,7 +518,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(state_der(0), -5.5, tol);
   EXPECT_NEAR(next_state(0), 1 - 5.5 * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
@@ -536,7 +537,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), 1 + (-5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
@@ -554,7 +555,8 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(state_der(1), 0.086361105, tol);
+  EXPECT_NEAR(next_state(1), yaw + 0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
@@ -572,7 +574,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   control << -1, -0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + 0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (-0.25 - steer_angle) * 0.5 * dt, tol);
@@ -591,7 +593,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
   control << -1, -0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + tan(steer_angle / -10.2) * dt * -2, tol);
+  EXPECT_NEAR(next_state(1), yaw + tan(steer_angle / -9.1) * dt * -2, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), params.max_steer_angle, tol);
@@ -810,7 +812,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(state_der(0), -5.5, tol);
   EXPECT_NEAR(next_state(0), 0.45, tol);
-  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
@@ -826,7 +828,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(state_der(0), -5.5, tol);
   EXPECT_NEAR(next_state(0), 1 - 5.5 * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
@@ -845,7 +847,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), 1 + (-5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + -0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + -0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), 1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), 1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
@@ -863,7 +865,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   control << -1, 0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + 0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (0.25 - steer_angle) * 0.5 * dt, tol);
@@ -881,7 +883,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   control << -1, -0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + 0.0385189 * dt * 2, tol);
+  EXPECT_NEAR(next_state(1), yaw + 0.086361105 * dt, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), steer_angle + (-0.25 - steer_angle) * 0.5 * dt, tol);
@@ -900,7 +902,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   control << -1, -0.5;
   dynamics.step(state, next_state, state_der, control, output, 0, dt);
   EXPECT_NEAR(next_state(0), -1 + (5.5 + 9.81 * sinf(pitch)) * dt, tol);
-  EXPECT_NEAR(next_state(1), yaw + tan(steer_angle / -10.2) * dt * -2, tol);
+  EXPECT_NEAR(next_state(1), yaw + tan(steer_angle / -9.1) * dt * -2, tol);
   EXPECT_NEAR(next_state(2), -1 * cos(yaw) * dt, tol);
   EXPECT_NEAR(next_state(3), -1 * sin(yaw) * dt, tol);
   EXPECT_NEAR(next_state(4), params.max_steer_angle, tol);

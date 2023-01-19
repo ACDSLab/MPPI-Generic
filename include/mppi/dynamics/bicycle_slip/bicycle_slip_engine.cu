@@ -2,9 +2,10 @@
 // Created by jason on 9/7/22.
 //
 
-#include "ackerman_slip.cuh"
+#include "bicycle_slip_engine.cuh"
 
-AckermanSlip::AckermanSlip(cudaStream_t stream) : MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>(stream)
+BicycleSlipEngine::BicycleSlipEngine(cudaStream_t stream)
+  : MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>(stream)
 {
   this->requires_buffer_ = true;
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -14,8 +15,8 @@ AckermanSlip::AckermanSlip(cudaStream_t stream) : MPPI_internal::Dynamics<Ackerm
   terra_lstm_lstm_helper_ = std::make_shared<TERRA_NN>(stream);
 }
 
-AckermanSlip::AckermanSlip(std::string ackerman_path, cudaStream_t stream)
-  : MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>(stream)
+BicycleSlipEngine::BicycleSlipEngine(std::string ackerman_path, cudaStream_t stream)
+  : MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>(stream)
 {
   this->requires_buffer_ = true;
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -50,9 +51,9 @@ AckermanSlip::AckermanSlip(std::string ackerman_path, cudaStream_t stream)
   steer_lstm_lstm_helper_->loadParams("steer_model/model", ackerman_path);
 }
 
-void AckermanSlip::initializeDynamics(const Eigen::Ref<const state_array>& state,
-                                      const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output,
-                                      float t_0, float dt)
+void BicycleSlipEngine::initializeDynamics(const Eigen::Ref<const state_array>& state,
+                                           const Eigen::Ref<const control_array>& control,
+                                           Eigen::Ref<output_array> output, float t_0, float dt)
 {
   this->steer_lstm_lstm_helper_->resetLSTMHiddenCellCPU();
   this->delay_lstm_lstm_helper_->resetLSTMHiddenCellCPU();
@@ -61,8 +62,8 @@ void AckermanSlip::initializeDynamics(const Eigen::Ref<const state_array>& state
   PARENT_CLASS::initializeDynamics(state, control, output, t_0, dt);
 }
 
-MPPI_internal::Dynamics<AckermanSlip, AckermanSlipParams>::state_array
-AckermanSlip::stateFromMap(const std::map<std::string, float>& map)
+MPPI_internal::Dynamics<BicycleSlipEngine, BicycleSlipEngineParams>::state_array
+BicycleSlipEngine::stateFromMap(const std::map<std::string, float>& map)
 {
   state_array s = state_array::Zero();
   if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
@@ -111,7 +112,7 @@ AckermanSlip::stateFromMap(const std::map<std::string, float>& map)
   return s;
 }
 
-void AckermanSlip::updateFromBuffer(const buffer_trajectory& buffer)
+void BicycleSlipEngine::updateFromBuffer(const buffer_trajectory& buffer)
 {
   if (buffer.find("VEL_X") == buffer.end() || buffer.find("VEL_Y") == buffer.end() ||
       buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
@@ -149,6 +150,7 @@ void AckermanSlip::updateFromBuffer(const buffer_trajectory& buffer)
   terra_init_buffer.row(2) = buffer.at("OMEGA_Z");
   terra_init_buffer.row(3) = buffer.at("STEER_ANGLE");
   terra_init_buffer.row(4) = buffer.at("STEER_ANGLE_RATE");
+  // TODO should be pulled from elevation map to be entirely correct
   terra_init_buffer.row(5) = buffer.at("PITCH").unaryExpr([](float x) { return sinf(x); }) * this->params_.gravity;
   terra_init_buffer.row(6) = buffer.at("ROLL").unaryExpr([](float x) { return sinf(x); }) * this->params_.gravity;
   terra_init_buffer.row(7) =
@@ -156,7 +158,7 @@ void AckermanSlip::updateFromBuffer(const buffer_trajectory& buffer)
   terra_lstm_lstm_helper_->initializeLSTM(terra_init_buffer);
 }
 
-void AckermanSlip::GPUSetup()
+void BicycleSlipEngine::GPUSetup()
 {
   steer_lstm_lstm_helper_->GPUSetup();
   delay_lstm_lstm_helper_->GPUSetup();
@@ -176,7 +178,7 @@ void AckermanSlip::GPUSetup()
                                sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
 }
 
-void AckermanSlip::freeCudaMem()
+void BicycleSlipEngine::freeCudaMem()
 {
   steer_lstm_lstm_helper_->freeCudaMem();
   delay_lstm_lstm_helper_->freeCudaMem();
@@ -186,15 +188,16 @@ void AckermanSlip::freeCudaMem()
   Dynamics::freeCudaMem();
 }
 
-void AckermanSlip::paramsToDevice()
+void BicycleSlipEngine::paramsToDevice()
 {
   // does all the internal texture updates
   tex_helper_->copyToDevice();
   PARENT_CLASS::paramsToDevice();
 }
 
-void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                   const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der)
+void BicycleSlipEngine::computeDynamics(const Eigen::Ref<const state_array>& state,
+                                        const Eigen::Ref<const control_array>& control,
+                                        Eigen::Ref<state_array> state_der)
 {
   state_der = state_array::Zero();
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
@@ -281,8 +284,8 @@ void AckermanSlip::computeDynamics(const Eigen::Ref<const state_array>& state,
   state_der(S_INDEX(YAW)) = param_yaw_rate - drag_yaw;
 }
 
-void AckermanSlip::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
-                               Eigen::Ref<state_array> state_der, const float dt)
+void BicycleSlipEngine::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                                    Eigen::Ref<state_array> state_der, const float dt)
 {
   next_state = state + state_der * dt;
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
@@ -290,87 +293,30 @@ void AckermanSlip::updateState(const Eigen::Ref<const state_array> state, Eigen:
       max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
   next_state(S_INDEX(OMEGA_Z)) = state_der(S_INDEX(YAW));
-  next_state(S_INDEX(BRAKE_STATE)) = min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), 1.0f);
+  next_state(S_INDEX(BRAKE_STATE)) =
+      min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
 }
 
-void AckermanSlip::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
-                        Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
-                        Eigen::Ref<output_array> output, const float t, const float dt)
+void BicycleSlipEngine::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                             Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
+                             Eigen::Ref<output_array> output, const float t, const float dt)
 {
   computeDynamics(state, control, state_der);
   updateState(state, next_state, state_der, dt);
 
-  float3 front_left = make_float3(2.981, 0.737, 0);
-  float3 front_right = make_float3(2.981, -0.737, 0);
-  float3 rear_left = make_float3(0, 0.737, 0);
-  float3 rear_right = make_float3(0, -0.737, 0);
-  front_left = make_float3(front_left.x * cosf(next_state(S_INDEX(YAW))) -
-                               front_left.y * sinf(next_state(S_INDEX(YAW))) + next_state(S_INDEX(POS_X)),
-                           front_left.x * sinf(next_state(S_INDEX(YAW))) +
-                               front_left.y * cosf(next_state(S_INDEX(YAW))) + next_state(S_INDEX(POS_Y)),
-                           0);
-  front_right = make_float3(front_right.x * cosf(next_state(S_INDEX(YAW))) -
-                                front_right.y * sinf(next_state(S_INDEX(YAW))) + next_state(S_INDEX(POS_X)),
-                            front_right.x * sinf(next_state(S_INDEX(YAW))) +
-                                front_right.y * cosf(next_state(S_INDEX(YAW))) + next_state(S_INDEX(POS_Y)),
-                            0);
-  rear_left = make_float3(rear_left.x * cosf(next_state(S_INDEX(YAW))) - rear_left.y * sinf(next_state(S_INDEX(YAW))) +
-                              next_state(S_INDEX(POS_X)),
-                          rear_left.x * sinf(next_state(S_INDEX(YAW))) + rear_left.y * cosf(next_state(S_INDEX(YAW))) +
-                              next_state(S_INDEX(POS_Y)),
-                          0);
-  rear_right = make_float3(rear_right.x * cosf(next_state(S_INDEX(YAW))) -
-                               rear_right.y * sinf(next_state(S_INDEX(YAW))) + next_state(S_INDEX(POS_X)),
-                           rear_right.x * sinf(next_state(S_INDEX(YAW))) +
-                               rear_right.y * cosf(next_state(S_INDEX(YAW))) + next_state(S_INDEX(POS_Y)),
-                           0);
-  float front_left_height = 0;
-  float front_right_height = 0;
-  float rear_left_height = 0;
-  float rear_right_height = 0;
-
-  if (this->tex_helper_->checkTextureUse(0))
-  {
-    front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
-    front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
-    rear_left_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_left);
-    rear_right_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_right);
-
-    float front_diff = front_left_height - front_right_height;
-    front_diff = max(min(front_diff, 0.736 * 2), -0.736 * 2);
-    float rear_diff = rear_left_height - rear_right_height;
-    rear_diff = max(min(rear_diff, 0.736 * 2), -0.736 * 2);
-    float front_roll = asinf(front_diff / (0.737 * 2));
-    float rear_roll = asinf(rear_diff / (0.737 * 2));
-    next_state(S_INDEX(ROLL)) = (front_roll + rear_roll) / 2;
-
-    float left_diff = rear_left_height - front_left_height;
-    left_diff = max(min(left_diff, 2.98), -2.98);
-    float right_diff = rear_right_height - front_right_height;
-    right_diff = max(min(right_diff, 2.98), -2.98);
-    float left_pitch = asinf((left_diff) / 2.981);
-    float right_pitch = asinf((right_diff) / 2.981);
-    next_state(S_INDEX(PITCH)) = (left_pitch + right_pitch) / 2;
-  }
-  else
-  {
-    next_state(S_INDEX(ROLL)) = 0;
-    next_state(S_INDEX(PITCH)) = 0;
-  }
-
-  if (isnan(next_state(S_INDEX(ROLL))) || isinf(next_state(S_INDEX(ROLL))) || abs(next_state(S_INDEX(ROLL))) > M_PI)
-  {
-    next_state(S_INDEX(ROLL)) = 4.0;
-  }
-  if (isnan(next_state(S_INDEX(PITCH))) || isinf(next_state(S_INDEX(PITCH))) || abs(next_state(S_INDEX(PITCH))) > M_PI)
-  {
-    next_state(S_INDEX(PITCH)) = 4.0;
-  }
+  float pitch = 0;
+  float roll = 0;
+  RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+      this->tex_helper_, next_state(S_INDEX(YAW)), next_state(S_INDEX(POS_X)), next_state(S_INDEX(POS_Y)), roll, pitch,
+      output.data());
+  next_state[S_INDEX(PITCH)] = pitch;
+  next_state[S_INDEX(ROLL)] = roll;
 
   output = output_array::Zero();
 
   output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
   output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
+  output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
   output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
   output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
   output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
@@ -378,14 +324,6 @@ void AckermanSlip::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> n
   output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
   output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
   output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
-  output[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
-  output[O_INDEX(WHEEL_POS_I_FL_Y)] = front_left.y;
-  output[O_INDEX(WHEEL_POS_I_FR_X)] = front_right.x;
-  output[O_INDEX(WHEEL_POS_I_FR_Y)] = front_right.y;
-  output[O_INDEX(WHEEL_POS_I_RL_X)] = rear_left.x;
-  output[O_INDEX(WHEEL_POS_I_RL_Y)] = rear_left.y;
-  output[O_INDEX(WHEEL_POS_I_RR_X)] = rear_right.x;
-  output[O_INDEX(WHEEL_POS_I_RR_Y)] = rear_right.y;
   output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000;
   output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000;
   output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000;
@@ -395,8 +333,8 @@ void AckermanSlip::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> n
   output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
-__device__ void AckermanSlip::initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0,
-                                                 float dt)
+__device__ void BicycleSlipEngine::initializeDynamics(float* state, float* control, float* output, float* theta_s,
+                                                      float t_0, float dt)
 {
   const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
@@ -439,11 +377,34 @@ __device__ void AckermanSlip::initializeDynamics(float* state, float* control, f
   }
 }
 
-__device__ void AckermanSlip::updateState(float* state, float* next_state, float* state_der, const float dt)
+__device__ void BicycleSlipEngine::updateState(float* state, float* next_state, float* state_der, const float dt,
+                                               DYN_PARAMS_T* params_p)
 {
+  for (int i = threadIdx.y; i < 7; i += blockDim.y)
+  {
+    next_state[i] = state[i] + state_der[i] * dt;
+    switch (i)
+    {
+      case S_INDEX(YAW):
+        next_state[i] = angle_utils::normalizeAngle(next_state[i]);
+        break;
+      case S_INDEX(OMEGA_Z):
+        next_state[i] = state_der[S_INDEX(YAW)];
+      case S_INDEX(STEER_ANGLE):
+        next_state[S_INDEX(STEER_ANGLE)] =
+            max(min(next_state[S_INDEX(STEER_ANGLE)], params_p->max_steer_angle), -params_p->max_steer_angle);
+        next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
+        break;
+      case S_INDEX(BRAKE_STATE):
+        next_state[S_INDEX(BRAKE_STATE)] =
+            min(max(next_state[S_INDEX(BRAKE_STATE)], 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
+    }
+  }
+
+  __syncthreads();
 }
 
-__device__ void AckermanSlip::computeDynamics(float* state, float* control, float* state_der, float* theta)
+__device__ void BicycleSlipEngine::computeDynamics(float* state, float* control, float* state_der, float* theta)
 {
   DYN_PARAMS_T* params_p = nullptr;
 
@@ -596,11 +557,9 @@ __device__ void AckermanSlip::computeDynamics(float* state, float* control, floa
   state_der[S_INDEX(YAW)] = param_yaw_rate - drag_yaw;
 }
 
-__device__ void AckermanSlip::step(float* state, float* next_state, float* state_der, float* control, float* output,
-                                   float* theta_s, const float t, const float dt)
+__device__ void BicycleSlipEngine::step(float* state, float* next_state, float* state_der, float* control,
+                                        float* output, float* theta_s, const float t, const float dt)
 {
-  computeDynamics(state, control, state_der, theta_s);
-
   DYN_PARAMS_T* params_p;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
   {  // Allows us to turn on or off global or shared memory version of params
@@ -612,143 +571,63 @@ __device__ void AckermanSlip::step(float* state, float* next_state, float* state
   }
   const uint tdy = threadIdx.y;
 
-  float front_left_height = 0;
-  float front_right_height = 0;
-  float rear_left_height = 0;
-  float rear_right_height = 0;
-  // Calculate the next state
-  float3 front_left = make_float3(2.981, 0.737, 0);
-  float3 front_right = make_float3(2.981, -0.737, 0);
-  float3 rear_left = make_float3(0, 0.737, 0);
-  float3 rear_right = make_float3(0, -0.737, 0);
+  computeDynamics(state, control, state_der, theta_s);
+  updateState(state, next_state, state_der, dt, params_p);
 
-  // query the positions and set ROLL/PITCH
-  front_left = make_float3(
-      front_left.x * cosf(state[S_INDEX(YAW)]) - front_left.y * sinf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_X)],
-      front_left.x * sinf(state[S_INDEX(YAW)]) + front_left.y * cosf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_Y)], 0);
-  front_right = make_float3(
-      front_right.x * cosf(state[S_INDEX(YAW)]) - front_right.y * sinf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_X)],
-      front_right.x * sinf(state[S_INDEX(YAW)]) + front_right.y * cosf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_Y)], 0);
-  rear_left = make_float3(
-      rear_left.x * cosf(state[S_INDEX(YAW)]) - rear_left.y * sinf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_X)],
-      rear_left.x * sinf(state[S_INDEX(YAW)]) + rear_left.y * cosf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_Y)], 0);
-  rear_right = make_float3(
-      rear_right.x * cosf(state[S_INDEX(YAW)]) - rear_right.y * sinf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_X)],
-      rear_right.x * sinf(state[S_INDEX(YAW)]) + rear_right.y * cosf(state[S_INDEX(YAW)]) + state[S_INDEX(POS_Y)], 0);
-
-  for (int i = tdy; i < 10; i += blockDim.y)
+  if (tdy == 0)
   {
-    next_state[i] = state[i] + state_der[i] * dt;
-    switch (i)
-    {
-      case S_INDEX(YAW):
-        next_state[i] = angle_utils::normalizeAngle(next_state[i]);
-        break;
-      case S_INDEX(STEER_ANGLE):
-        next_state[S_INDEX(STEER_ANGLE)] =
-            max(min(next_state[S_INDEX(STEER_ANGLE)], params_p->max_steer_angle), -params_p->max_steer_angle);
-        next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
-        break;
-      case S_INDEX(BRAKE_STATE):
-        next_state[S_INDEX(BRAKE_STATE)] = min(max(next_state[S_INDEX(BRAKE_STATE)], 0.0f), 1.0f);
-    }
-    if (i == S_INDEX(ROLL) || i == S_INDEX(PITCH))
-    {
-      if (this->tex_helper_->checkTextureUse(0))
-      {
-        front_left_height = this->tex_helper_->queryTextureAtWorldPose(0, front_left);
-        front_right_height = this->tex_helper_->queryTextureAtWorldPose(0, front_right);
-        rear_left_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_left);
-        rear_right_height = this->tex_helper_->queryTextureAtWorldPose(0, rear_right);
-        output[O_INDEX(BASELINK_POS_I_Z)] = (rear_right_height + rear_left_height) / 2.0f;
+    float roll = 0.0f;
+    float pitch = 0.0f;
+    RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+        this->tex_helper_, next_state[S_INDEX(YAW)], next_state[S_INDEX(POS_X)], next_state[S_INDEX(POS_Y)], roll,
+        pitch, output);
+    next_state[S_INDEX(PITCH)] = pitch;
+    next_state[S_INDEX(ROLL)] = roll;
 
-        // max magnitude
-        if (i == S_INDEX(ROLL))
-        {
-          float front_diff = front_left_height - front_right_height;
-          front_diff = max(min(front_diff, 0.736 * 2), -0.736 * 2);
-          float rear_diff = rear_left_height - rear_right_height;
-          rear_diff = max(min(rear_diff, 0.736 * 2), -0.736 * 2);
-          float front_roll = asinf(front_diff / (0.737 * 2));
-          float rear_roll = asinf(rear_diff / (0.737 * 2));
-          next_state[i] = (front_roll + rear_roll) / 2;
-        }
-        if (i == S_INDEX(PITCH))
-        {
-          float left_diff = rear_left_height - front_left_height;
-          left_diff = max(min(left_diff, 2.98), -2.98);
-          float right_diff = rear_right_height - front_right_height;
-          right_diff = max(min(right_diff, 2.98), -2.98);
-          float left_pitch = asinf((left_diff) / 2.981);
-          float right_pitch = asinf((right_diff) / 2.981);
-          next_state[i] = (left_pitch + right_pitch) / 2;
-        }
-        if (isnan(next_state[i]) || isinf(next_state[i]) || fabsf(next_state[i]) > M_PIf32)
-        {
-          next_state[i] = 4.0;
-        }
-      }
-      else
-      {
-        next_state[i] = 0;
-        next_state[i] = 0;
-      }
-    }
+    output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
+    output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
+    output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
+    output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
+    output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
+    output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
+    output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
+    output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
+    output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
+    output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000;
+    output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000;
+    output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000;
+    output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000;
+    output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
+    output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
+    output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+    next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
   }
-
-  __syncthreads();
-
-  output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
-  output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
-  output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
-  output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
-  output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
-  output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
-  output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
-  output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
-  output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
-  output[O_INDEX(WHEEL_POS_I_FL_X)] = front_left.x;
-  output[O_INDEX(WHEEL_POS_I_FL_Y)] = front_left.y;
-  output[O_INDEX(WHEEL_POS_I_FR_X)] = front_right.x;
-  output[O_INDEX(WHEEL_POS_I_FR_Y)] = front_right.y;
-  output[O_INDEX(WHEEL_POS_I_RL_X)] = rear_left.x;
-  output[O_INDEX(WHEEL_POS_I_RL_Y)] = rear_left.y;
-  output[O_INDEX(WHEEL_POS_I_RR_X)] = rear_right.x;
-  output[O_INDEX(WHEEL_POS_I_RR_Y)] = rear_right.y;
-  output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000;
-  output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
-  output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
-  output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
-  next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
-void AckermanSlip::getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)
+void BicycleSlipEngine::getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)
 {
   u[0] = -1.0;  // full brake
   u[1] = 0.0;   // no steering
 }
 
-Eigen::Quaternionf AckermanSlip::attitudeFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Quaternionf BicycleSlipEngine::attitudeFromState(const Eigen::Ref<const state_array>& state)
 {
   Eigen::Quaternionf q;
   mppi::math::Euler2QuatNWU(state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), state(S_INDEX(YAW)), q);
   return q;
 }
 
-Eigen::Vector3f AckermanSlip::positionFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f BicycleSlipEngine::positionFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], 0);
 }
 
-Eigen::Vector3f AckermanSlip::velocityFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f BicycleSlipEngine::velocityFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(state[S_INDEX(VEL_X)], state(S_INDEX(VEL_Y)), 0);
 }
 
-Eigen::Vector3f AckermanSlip::angularRateFromState(const Eigen::Ref<const state_array>& state)
+Eigen::Vector3f BicycleSlipEngine::angularRateFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(0, 0, state[S_INDEX(OMEGA_Z)]);
 }
