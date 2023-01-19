@@ -21,6 +21,7 @@ struct QuadrotorMapCostParams : public CostParams<4>
   float crash_coeff = 1000;
   float dist_to_waypoint_coeff = 0.0;
   float heading_coeff = 5;
+  float heading_power = 1.0; // power to take the difference in headings to
   float height_coeff = 5;
   float track_coeff = 10;
   float speed_coeff = 5;

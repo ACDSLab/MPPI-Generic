@@ -231,7 +231,7 @@ __host__ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeHeadin
   // Far away from the gate, we want to be pointing at the gate
   if (dist_to_gate > this->params_.gate_margin)
   {
-    cost += this->params_.heading_coeff * powf(fabsf(angle_utils::shortestAngularDistance(w_heading, yaw)), 1.0);
+    cost += this->params_.heading_coeff * powf(fabsf(angle_utils::shortestAngularDistance(w_heading, yaw)), this->params_.heading_power);
   }
   return cost;
 }
