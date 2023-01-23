@@ -3,10 +3,11 @@
 #include <algorithm>
 #include <iostream>
 
-#define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
+#define VanillaMPPI                                                                                                    \
+  VanillaMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, COST_B_X, COST_B_Y, PARAMS_T>
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter,
                                    float lambda, float alpha, const Eigen::Ref<const control_array>& control_std_dev,
                                    int num_timesteps, const Eigen::Ref<const control_trajectory>& init_control_traj,
@@ -22,7 +23,7 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params,
                                    cudaStream_t stream)
   : PARENT_CLASS(model, cost, fb_controller, params, stream)
@@ -35,14 +36,14 @@ VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controll
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 VanillaMPPI::~VanillaMPPIController()
 {
   // all implemented in standard controller
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride)
 {
   this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost();
@@ -81,7 +82,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     //     this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
     //     this->getLambda(), this->getAlpha(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
     //     this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
-    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, 64, 2>(
+    mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->control_d_,
         this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
@@ -179,21 +180,21 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void VanillaMPPI::allocateCUDAMemory()
 {
   PARENT_CLASS::allocateCUDAMemoryHelper();
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void VanillaMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0)
 {
   this->computeStateTrajectoryHelper(this->state_, x0, this->control_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void VanillaMPPI::slideControlSequence(int steps)
 {
   // TODO does the logic of handling control history reasonable?
@@ -205,23 +206,30 @@ void VanillaMPPI::slideControlSequence(int steps)
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void VanillaMPPI::smoothControlTrajectory()
 {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T>
+          int COST_B_X, int COST_B_Y, class PARAMS_T>
 void VanillaMPPI::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories = this->getTotalSampledTrajectories();
 
   // control already copied in compute control, so run kernel
+#if true
+  mppi_common::launchVisualizeCostKernel<COST_T, 128, COST_B_Y, 1>(
+      this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(),
+      this->getAlpha(), this->sampled_outputs_d_, this->sampled_noise_d_, this->sampled_crash_status_d_,
+      this->control_std_dev_d_, this->sampled_costs_d_, this->vis_stream_, false);
+#else
   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,
       this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
       num_sampled_trajectories, this->getNumTimesteps(), this->getDt(), this->vis_stream_);
+#endif
 
   for (int i = 0; i < num_sampled_trajectories; i++)
   {

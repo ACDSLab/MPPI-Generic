@@ -77,7 +77,7 @@ TEST(TubeMPPITest, ConstructionUsingParams)
   using TUBE_CONTROLLER = TubeMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, 512, 64, 8>;
   using CONTROLLER_PARAMS = TUBE_CONTROLLER::TEMPLATED_PARAMS;
   using VANILLA_CONTROLLER =
-      VanillaMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, 512, 64, 8, CONTROLLER_PARAMS>;
+      VanillaMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, 512, 64, 8, 64, 2, CONTROLLER_PARAMS>;
 
   // Define the model and cost
   DYN model;

@@ -26,6 +26,7 @@ struct BicycleSlipKinematicParams : public RacerDubinsParams
     ROLL,
     PITCH,
     STEER_ANGLE_RATE,
+    FILLER_1,
     NUM_STATES
   };
 
