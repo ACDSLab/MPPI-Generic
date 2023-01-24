@@ -345,6 +345,14 @@ public:
   }
 
   /**
+   * Gets the output sequence of the nominal trajectory
+   */
+  virtual output_trajectory getTargetOutputSeq() const
+  {
+    return output_;
+  }
+
+  /**
    * Return all the sampled costs sequences
    */
   virtual sampled_cost_traj getSampledCostSeq() const
@@ -444,6 +452,14 @@ public:
   state_trajectory getActualStateSeq() const
   {
     return state_;
+  };
+
+  /**
+   * returns the current output sequence
+   */
+  output_trajectory getActualOutputSeq() const
+  {
+    return output_;
   };
 
   virtual void computeFeedbackHelper(const Eigen::Ref<const state_array>& state,
@@ -551,6 +567,28 @@ public:
       model_->enforceConstraints(state, u_i);
       model_->step(state, next_state, xdot, u_i, output, i, getDt());
       result.col(i + 1) = next_state;
+    }
+  }
+
+  virtual void computeOutputTrajectoryHelper(Eigen::Ref<output_trajectory> output_result,
+                                             Eigen::Ref<state_trajectory> state_result,
+                                             const Eigen::Ref<const state_array>& x0,
+                                             const Eigen::Ref<const control_trajectory>& u)
+  {
+    state_result.col(0) = x0;
+    state_array xdot;
+    state_array state, next_state;
+    output_array output;
+    model_->initializeDynamics(state_result.col(0), u.col(0), output, 0, getDt());
+    output_result.col(0) = output;
+    for (int i = 0; i < getNumTimesteps() - 1; ++i)
+    {
+      state = state_result.col(i);
+      control_array u_i = u.col(i);
+      model_->enforceConstraints(state, u_i);
+      model_->step(state, next_state, xdot, u_i, output, i, getDt());
+      state_result.col(i + 1) = next_state;
+      output_result.col(i + 1) = output;
     }
   }
 
@@ -774,6 +812,7 @@ protected:
   float2* cost_baseline_and_norm_d_;  // Array of size number of systems
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();
+  output_trajectory output_ = output_trajectory::Zero();
   sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
   std::vector<float2> cost_baseline_and_norm_ = { make_float2(0.0, 0.0) };
   bool CUDA_mem_init_ = false;

@@ -79,6 +79,9 @@ void CONTROLLER::copySampledControlFromDevice(bool synchronize)
   }
 
   // this explicitly adds the optimized control sequence
+  HANDLE_ERROR(cudaMemcpyAsync(this->sampled_outputs_d_, this->output_.data(),
+                               sizeof(float) * getNumTimesteps() * DYN_T::OUTPUT_DIM, cudaMemcpyHostToDevice,
+                               this->vis_stream_));
   HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_, this->control_d_,
                                sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
                                this->vis_stream_));
