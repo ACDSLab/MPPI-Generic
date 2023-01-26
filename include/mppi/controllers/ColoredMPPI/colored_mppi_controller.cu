@@ -178,7 +178,7 @@ template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLL
           int COST_B_X, int COST_B_Y, class PARAMS_T>
 void ColoredMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0)
 {
-  this->computeStateTrajectoryHelper(this->state_, x0, this->control_);
+  this->computeOutputTrajectoryHelper(this->output_, this->state_, x0, this->control_);
 }
 
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
