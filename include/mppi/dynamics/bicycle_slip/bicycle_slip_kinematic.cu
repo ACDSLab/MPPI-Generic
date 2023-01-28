@@ -2,10 +2,10 @@
 // Created by jason on 12/12/22.
 //
 
-#include "bicycle_slip.cuh"
+#include "bicycle_slip_kinematic.cuh"
 
-BicycleSlipKinematic::BicycleSlipKinematic(cudaStream_t stream)
-  : MPPI_internal::Dynamics<BicycleSlipKinematic, BicycleSlipKinematicParams>(stream)
+template <class CLASS_T>
+BicycleSlipKinematicImpl<CLASS_T>::BicycleSlipKinematicImpl(cudaStream_t stream) : PARENT_CLASS(stream)
 {
   this->requires_buffer_ = true;
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -14,7 +14,9 @@ BicycleSlipKinematic::BicycleSlipKinematic(cudaStream_t stream)
   terra_lstm_lstm_helper_ = std::make_shared<TERRA_NN>(stream);
 }
 
-BicycleSlipKinematic::BicycleSlipKinematic(std::string model_path, cudaStream_t stream)
+template <class CLASS_T>
+BicycleSlipKinematicImpl<CLASS_T>::BicycleSlipKinematicImpl(const std::string& model_path, cudaStream_t stream)
+  : BicycleSlipKinematicImpl<CLASS_T>::BicycleSlipKinematicImpl(stream)
 {
   this->requires_buffer_ = true;
   tex_helper_ = new TwoDTextureHelper<float>(1, stream);
@@ -44,7 +46,9 @@ BicycleSlipKinematic::BicycleSlipKinematic(std::string model_path, cudaStream_t 
   terra_lstm_lstm_helper_->loadParams("bicycle_model", model_path);
 }
 
-BicycleSlipKinematic::state_array BicycleSlipKinematic::stateFromMap(const std::map<std::string, float>& map)
+template <class CLASS_T>
+BicycleSlipKinematicImpl<CLASS_T>::state_array
+BicycleSlipKinematicImpl<CLASS_T>::stateFromMap(const std::map<std::string, float>& map)
 {
   state_array s = state_array::Zero();
   if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
@@ -93,14 +97,16 @@ BicycleSlipKinematic::state_array BicycleSlipKinematic::stateFromMap(const std::
   return s;
 }
 
-void BicycleSlipKinematic::paramsToDevice()
+template <class CLASS_T>
+void BicycleSlipKinematicImpl<CLASS_T>::paramsToDevice()
 {
   // does all the internal texture updates
   tex_helper_->copyToDevice();
   PARENT_CLASS::paramsToDevice();
 }
 
-void BicycleSlipKinematic::GPUSetup()
+template <class CLASS_T>
+void BicycleSlipKinematicImpl<CLASS_T>::GPUSetup()
 {
   steer_lstm_lstm_helper_->GPUSetup();
   delay_lstm_lstm_helper_->GPUSetup();
@@ -118,17 +124,18 @@ void BicycleSlipKinematic::GPUSetup()
                                sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
 }
 
-void BicycleSlipKinematic::freeCudaMem()
+template <class CLASS_T>
+void BicycleSlipKinematicImpl<CLASS_T>::freeCudaMem()
 {
   steer_lstm_lstm_helper_->freeCudaMem();
   delay_lstm_lstm_helper_->freeCudaMem();
   terra_lstm_lstm_helper_->freeCudaMem();
   tex_helper_->freeCudaMem();
-  Dynamics::freeCudaMem();
+  PARENT_CLASS::freeCudaMem();
 }
 
-void BicycleSlipKinematic::updateFromBuffer(
-    const Dynamics<BicycleSlipKinematic, BicycleSlipKinematicParams>::buffer_trajectory& buffer)
+template <class CLASS_T>
+void BicycleSlipKinematicImpl<CLASS_T>::updateFromBuffer(const typename PARENT_CLASS::buffer_trajectory& buffer)
 {
   if (buffer.find("VEL_X") == buffer.end() || buffer.find("VEL_Y") == buffer.end() ||
       buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
@@ -170,9 +177,10 @@ void BicycleSlipKinematic::updateFromBuffer(
   terra_lstm_lstm_helper_->initializeLSTM(terra_init_buffer);
 }
 
-void BicycleSlipKinematic::initializeDynamics(const Eigen::Ref<const state_array>& state,
-                                              const Eigen::Ref<const control_array>& control,
-                                              Eigen::Ref<output_array> output, float t_0, float dt)
+template <class CLASS_T>
+void BicycleSlipKinematicImpl<CLASS_T>::initializeDynamics(const Eigen::Ref<const state_array>& state,
+                                                           const Eigen::Ref<const control_array>& control,
+                                                           Eigen::Ref<output_array> output, float t_0, float dt)
 {
   this->steer_lstm_lstm_helper_->resetLSTMHiddenCellCPU();
   this->delay_lstm_lstm_helper_->resetLSTMHiddenCellCPU();
@@ -180,9 +188,10 @@ void BicycleSlipKinematic::initializeDynamics(const Eigen::Ref<const state_array
   PARENT_CLASS::initializeDynamics(state, control, output, t_0, dt);
 }
 
-void BicycleSlipKinematic::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                           const Eigen::Ref<const control_array>& control,
-                                           Eigen::Ref<state_array> state_der)
+template <class CLASS_T>
+void BicycleSlipKinematicImpl<CLASS_T>::computeDynamics(const Eigen::Ref<const state_array>& state,
+                                                        const Eigen::Ref<const control_array>& control,
+                                                        Eigen::Ref<state_array> state_der)
 {
   state_der = state_array::Zero();
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
@@ -252,8 +261,10 @@ void BicycleSlipKinematic::computeDynamics(const Eigen::Ref<const state_array>& 
   state_der(S_INDEX(OMEGA_Z)) = terra_output(2) * 5.0f;
 }
 
-void BicycleSlipKinematic::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
-                                       Eigen::Ref<state_array> state_der, const float dt)
+template <class CLASS_T>
+void BicycleSlipKinematicImpl<CLASS_T>::updateState(const Eigen::Ref<const state_array> state,
+                                                    Eigen::Ref<state_array> next_state,
+                                                    Eigen::Ref<state_array> state_der, const float dt)
 {
   next_state = state + state_der * dt;
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
@@ -264,9 +275,11 @@ void BicycleSlipKinematic::updateState(const Eigen::Ref<const state_array> state
       min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
 }
 
-void BicycleSlipKinematic::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
-                                Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
-                                Eigen::Ref<output_array> output, const float t, const float dt)
+template <class CLASS_T>
+void BicycleSlipKinematicImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                                             Eigen::Ref<state_array> state_der,
+                                             const Eigen::Ref<const control_array>& control,
+                                             Eigen::Ref<output_array> output, const float t, const float dt)
 {
   computeDynamics(state, control, state_der);
   updateState(state, next_state, state_der, dt);
@@ -275,7 +288,7 @@ void BicycleSlipKinematic::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
 
   float pitch = 0;
   float roll = 0;
-  RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+  RACER::computeStaticSettling<typename DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
       this->tex_helper_, next_state(S_INDEX(YAW)), next_state(S_INDEX(POS_X)), next_state(S_INDEX(POS_Y)), roll, pitch,
       output.data());
   next_state[S_INDEX(PITCH)] = pitch;
@@ -300,8 +313,9 @@ void BicycleSlipKinematic::step(Eigen::Ref<state_array> state, Eigen::Ref<state_
   output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 }
 
-__device__ void BicycleSlipKinematic::initializeDynamics(float* state, float* control, float* output, float* theta_s,
-                                                         float t_0, float dt)
+template <class CLASS_T>
+__device__ void BicycleSlipKinematicImpl<CLASS_T>::initializeDynamics(float* state, float* control, float* output,
+                                                                      float* theta_s, float t_0, float dt)
 {
   const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
@@ -335,14 +349,16 @@ __device__ void BicycleSlipKinematic::initializeDynamics(float* state, float* co
     terra_network_d_->initialize(nullptr, nullptr, &blk_params->terra_hidden_cell[0]);
     __syncthreads();
   }
-  for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++)
+  for (int i = 0; i < this->OUTPUT_DIM && i < this->STATE_DIM; i++)
   {
     output[i] = state[i];
   }
 }
 
-__device__ void BicycleSlipKinematic::updateState(float* state, float* next_state, float* state_der, const float dt,
-                                                  DYN_PARAMS_T* params_p)
+template <class CLASS_T>
+__device__ void BicycleSlipKinematicImpl<CLASS_T>::updateState(float* state, float* next_state, float* state_der,
+                                                               const float dt,
+                                                               typename PARENT_CLASS::DYN_PARAMS_T* params_p)
 {
   for (int i = threadIdx.y; i < 8; i += blockDim.y)
   {
@@ -366,7 +382,9 @@ __device__ void BicycleSlipKinematic::updateState(float* state, float* next_stat
   __syncthreads();
 }
 
-__device__ void BicycleSlipKinematic::computeDynamics(float* state, float* control, float* state_der, float* theta)
+template <class CLASS_T>
+__device__ void BicycleSlipKinematicImpl<CLASS_T>::computeDynamics(float* state, float* control, float* state_der,
+                                                                   float* theta)
 {
   DYN_PARAMS_T* params_p = nullptr;
 
@@ -493,8 +511,10 @@ __device__ void BicycleSlipKinematic::computeDynamics(float* state, float* contr
   state_der[S_INDEX(OMEGA_Z)] = output[2] * 5.0f;
 }
 
-__device__ void BicycleSlipKinematic::step(float* state, float* next_state, float* state_der, float* control,
-                                           float* output, float* theta_s, const float t, const float dt)
+template <class CLASS_T>
+__device__ void BicycleSlipKinematicImpl<CLASS_T>::step(float* state, float* next_state, float* state_der,
+                                                        float* control, float* output, float* theta_s, const float t,
+                                                        const float dt)
 {
   DYN_PARAMS_T* params_p;
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
@@ -539,30 +559,36 @@ __device__ void BicycleSlipKinematic::step(float* state, float* next_state, floa
   }
 }
 
-void BicycleSlipKinematic::getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u)
+template <class CLASS_T>
+void BicycleSlipKinematicImpl<CLASS_T>::getStoppingControl(const Eigen::Ref<const state_array>& state,
+                                                           Eigen::Ref<control_array> u)
 {
   u[0] = -1.0;  // full brake
   u[1] = 0.0;   // no steering
 }
 
-Eigen::Quaternionf BicycleSlipKinematic::attitudeFromState(const Eigen::Ref<const state_array>& state)
+template <class CLASS_T>
+Eigen::Quaternionf BicycleSlipKinematicImpl<CLASS_T>::attitudeFromState(const Eigen::Ref<const state_array>& state)
 {
   Eigen::Quaternionf q;
   mppi::math::Euler2QuatNWU(state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), state(S_INDEX(YAW)), q);
   return q;
 }
 
-Eigen::Vector3f BicycleSlipKinematic::positionFromState(const Eigen::Ref<const state_array>& state)
+template <class CLASS_T>
+Eigen::Vector3f BicycleSlipKinematicImpl<CLASS_T>::positionFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], 0);
 }
 
-Eigen::Vector3f BicycleSlipKinematic::velocityFromState(const Eigen::Ref<const state_array>& state)
+template <class CLASS_T>
+Eigen::Vector3f BicycleSlipKinematicImpl<CLASS_T>::velocityFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(state[S_INDEX(VEL_X)], state(S_INDEX(VEL_Y)), 0);
 }
 
-Eigen::Vector3f BicycleSlipKinematic::angularRateFromState(const Eigen::Ref<const state_array>& state)
+template <class CLASS_T>
+Eigen::Vector3f BicycleSlipKinematicImpl<CLASS_T>::angularRateFromState(const Eigen::Ref<const state_array>& state)
 {
   return Eigen::Vector3f(0, 0, state[S_INDEX(OMEGA_Z)]);
 }

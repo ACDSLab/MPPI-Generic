@@ -33,12 +33,11 @@ struct BicycleSlipKinematicParams : public RacerDubinsParams
   float environment = 1.0f; // 1.0 for helendale, -1.0 for halter ranch
 };
 
-// TODO you have incorrect template on the init vs the predictor
-
-class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic, BicycleSlipKinematicParams>
+template<class CLASS_T>
+class BicycleSlipKinematicImpl : public MPPI_internal::Dynamics<CLASS_T, BicycleSlipKinematicParams>
 {
  public:
-  using PARENT_CLASS = MPPI_internal::Dynamics<BicycleSlipKinematic, BicycleSlipKinematicParams>;
+  using PARENT_CLASS = MPPI_internal::Dynamics<CLASS_T, BicycleSlipKinematicParams>;
   typedef LSTMHelper<LSTMParams<5, 4>, FNNParams<9,20,1>, false> STEER_LSTM;
   typedef LSTMHelper<LSTMParams<4, 20>, FNNParams<24, 80, 8>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
@@ -50,6 +49,8 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
   typedef LSTMHelper<LSTMParams<10, 12>, FNNParams<22,20,3>, false> TERRA_LSTM;
   typedef LSTMHelper<LSTMParams<10, 40>, FNNParams<50, 200, 24>> TERRA_INIT_LSTM;
   typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
+
+  typedef typename PARENT_CLASS::DYN_PARAMS_T DYN_PARAMS_T;
 
   struct SHARED_MEM_GRD_PARAMS {
     LSTMParams<5, 4> steer_lstm_params;
@@ -84,8 +85,8 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
   typedef typename PARENT_CLASS::dfdx dfdx;
   typedef typename PARENT_CLASS::dfdu dfdu;
 
-  explicit BicycleSlipKinematic(cudaStream_t stream = nullptr);
-  explicit BicycleSlipKinematic(std::string model_path, cudaStream_t stream = nullptr);
+  BicycleSlipKinematicImpl(cudaStream_t stream = nullptr);
+  BicycleSlipKinematicImpl(const std::string& model_path, cudaStream_t stream = nullptr);
 
   void paramsToDevice();
 
@@ -93,7 +94,7 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
 
   void freeCudaMem();
 
-  void updateFromBuffer(const buffer_trajectory& buffer);
+  void updateFromBuffer(const typename PARENT_CLASS::buffer_trajectory& buffer);
 
   void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                           Eigen::Ref<output_array> output, float t_0, float dt);
@@ -111,7 +112,7 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
                    Eigen::Ref<state_array> state_der, const float dt);
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt) {}
-  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, DYN_PARAMS_T* params_p);
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, typename PARENT_CLASS::DYN_PARAMS_T* params_p);
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
@@ -162,6 +163,14 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
   std::shared_ptr<DELAY_NN> delay_lstm_lstm_helper_;
   std::shared_ptr<TERRA_NN> terra_lstm_lstm_helper_;
 
+};
+
+class BicycleSlipKinematic : public BicycleSlipKinematicImpl<BicycleSlipKinematic>
+{
+ public:
+  BicycleSlipKinematic(cudaStream_t stream = nullptr) : BicycleSlipKinematicImpl<BicycleSlipKinematic>(stream){}
+  BicycleSlipKinematic(const std::string& model_path, cudaStream_t stream = nullptr) : BicycleSlipKinematicImpl<
+      BicycleSlipKinematic>(model_path, stream){}
 };
 
 #if __CUDACC__

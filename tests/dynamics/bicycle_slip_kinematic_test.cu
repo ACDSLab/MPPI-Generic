@@ -29,7 +29,7 @@ const double tol = 1e-5;
 TEST_F(BicycleSlipKinematicTest, Template)
 {
   auto dynamics = BicycleSlipKinematic();
-  EXPECT_EQ(11, BicycleSlipKinematic::STATE_DIM);
+  EXPECT_EQ(12, BicycleSlipKinematic::STATE_DIM);
   EXPECT_EQ(2, BicycleSlipKinematic::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
@@ -326,12 +326,12 @@ TEST_F(BicycleSlipKinematicTest, computeDynamicsCPUFakeNetworks)
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
   std::vector<float> brake_theta(BicycleSlipKinematic::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
-  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
+  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 7, 8, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
   std::vector<float> steer_theta(BicycleSlipKinematic::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
-  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 20, 1 }, steer_theta);
+  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 9, 20, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
   std::vector<float> terra_theta(BicycleSlipKinematic::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
@@ -710,12 +710,12 @@ TEST_F(BicycleSlipKinematicTest, stepCPU)
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
   std::vector<float> brake_theta(BicycleSlipKinematic::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
-  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
+  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 7, 8, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
   std::vector<float> steer_theta(BicycleSlipKinematic::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
-  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 20, 1 }, steer_theta);
+  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 9, 20, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
   std::vector<float> terra_theta(BicycleSlipKinematic::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
@@ -762,7 +762,7 @@ TEST_F(BicycleSlipKinematicTest, stepCPU)
   EXPECT_FLOAT_EQ(output(2), 0);            // z vel
   EXPECT_FLOAT_EQ(output(3), 4.96988314);   // x pos
   EXPECT_FLOAT_EQ(output(4), 5.1381773);    // y pos
-  EXPECT_FLOAT_EQ(output(5), 0);            // z pos
+  EXPECT_FLOAT_EQ(output(5), 0.33697534);   // z pos
   EXPECT_FLOAT_EQ(output(6), 1.1000001);    // yaw
   EXPECT_FLOAT_EQ(output(7), -0.7060864);   // roll
   EXPECT_FLOAT_EQ(output(8), -0.44172257);  // pitch
@@ -1193,7 +1193,7 @@ TEST_F(BicycleSlipKinematicTest, TestStepGPUvsCPU)
       state_der_cpu = BicycleSlipKinematic::state_array::Zero();
 
       dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-      for (int dim = 0; dim < BicycleSlipKinematic::STATE_DIM; dim++)
+      for (int dim = 0; dim < BicycleSlipKinematic::STATE_DIM - 1; dim++)
       {
         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;

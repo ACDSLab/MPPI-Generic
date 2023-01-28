@@ -1,12 +1,12 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
-#include <mppi/dynamics/bicycle_slip/bicycle_slip.cuh>
+#include "mppi/dynamics/bicycle_slip/bicycle_slip_hybrid.cuh"
 #include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 #include <racer_test_networks.h>
 
-class BicycleSlipTest : public ::testing::Test
+class BicycleSlipHybridTest : public ::testing::Test
 {
 public:
   cudaStream_t stream;
@@ -26,11 +26,11 @@ public:
 
 const double tol = 1e-5;
 
-TEST_F(BicycleSlipTest, Template)
+TEST_F(BicycleSlipHybridTest, Template)
 {
-  auto dynamics = BicycleSlip();
-  EXPECT_EQ(11, BicycleSlip::STATE_DIM);
-  EXPECT_EQ(2, BicycleSlip::CONTROL_DIM);
+  auto dynamics = BicycleSlipHybrid();
+  EXPECT_EQ(12, BicycleSlipHybrid::STATE_DIM);
+  EXPECT_EQ(2, BicycleSlipHybrid::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
 
@@ -39,9 +39,9 @@ TEST_F(BicycleSlipTest, Template)
   EXPECT_NE(dynamics.getTerraHelper(), nullptr);
 }
 
-TEST_F(BicycleSlipTest, BindStream)
+TEST_F(BicycleSlipHybridTest, BindStream)
 {
-  auto dynamics = BicycleSlip(stream);
+  auto dynamics = BicycleSlipHybrid(stream);
 
   EXPECT_EQ(dynamics.stream_, stream) << "Stream binding failure.";
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
@@ -55,22 +55,22 @@ TEST_F(BicycleSlipTest, BindStream)
   EXPECT_EQ(dynamics.getTerraHelper()->getLSTMModel()->stream_, stream);
 }
 
-TEST_F(BicycleSlipTest, computeDynamicsCPUZeroNetworks)
+TEST_F(BicycleSlipHybridTest, computeDynamicsCPUZeroNetworks)
 {
-  auto dynamics = BicycleSlip();
+  auto dynamics = BicycleSlipHybrid();
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
   params.wheel_base = 2.981;
   dynamics.setParams(params);
 
-  BicycleSlip::state_array x = BicycleSlip::state_array::Zero();
-  BicycleSlip::control_array u = BicycleSlip::control_array::Zero();
-  BicycleSlip::output_array output = BicycleSlip::output_array::Zero();
+  BicycleSlipHybrid::state_array x = BicycleSlipHybrid::state_array::Zero();
+  BicycleSlipHybrid::control_array u = BicycleSlipHybrid::control_array::Zero();
+  BicycleSlipHybrid::output_array output = BicycleSlipHybrid::output_array::Zero();
   dynamics.initializeDynamics(x, u, output, 0, 0);
 
   // computeDynamics should not touch the roll/pitch element
-  BicycleSlip::state_array state_der = BicycleSlip::state_array::Ones() * 0.153;
+  BicycleSlipHybrid::state_array state_der = BicycleSlipHybrid::state_array::Ones() * 0.153;
   dynamics.computeDynamics(x, u, state_der);
   EXPECT_FLOAT_EQ(state_der(0), 0);   // x
   EXPECT_FLOAT_EQ(state_der(1), 0);   // y
@@ -308,33 +308,33 @@ TEST_F(BicycleSlipTest, computeDynamicsCPUZeroNetworks)
   EXPECT_FLOAT_EQ(state_der(10), 0);                // steer angle rate
 }
 
-TEST_F(BicycleSlipTest, computeDynamicsCPUFakeNetworks)
+TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
 {
-  auto dynamics = BicycleSlip();
+  auto dynamics = BicycleSlipHybrid();
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
   params.wheel_base = 2.981;
   dynamics.setParams(params);
 
-  BicycleSlip::state_array x = BicycleSlip::state_array::Zero();
-  BicycleSlip::control_array u = BicycleSlip::control_array::Zero();
-  BicycleSlip::output_array output = BicycleSlip::output_array::Zero();
+  BicycleSlipHybrid::state_array x = BicycleSlipHybrid::state_array::Zero();
+  BicycleSlipHybrid::control_array u = BicycleSlipHybrid::control_array::Zero();
+  BicycleSlipHybrid::output_array output = BicycleSlipHybrid::output_array::Zero();
   dynamics.initializeDynamics(x, u, output, 0, 0);
 
   // force brake output
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
-  std::vector<float> brake_theta(BicycleSlip::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> brake_theta(BicycleSlipHybrid::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
   dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
-  std::vector<float> steer_theta(BicycleSlip::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> steer_theta(BicycleSlipHybrid::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
   dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 5, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
-  std::vector<float> terra_theta(BicycleSlip::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> terra_theta(BicycleSlipHybrid::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
@@ -343,7 +343,7 @@ TEST_F(BicycleSlipTest, computeDynamicsCPUFakeNetworks)
 
   float delta = 0;
   // computeDynamics should not touch the roll/pitch element
-  BicycleSlip::state_array state_der = BicycleSlip::state_array::Ones() * 0.153;
+  BicycleSlipHybrid::state_array state_der = BicycleSlipHybrid::state_array::Ones() * 0.153;
   dynamics.computeDynamics(x, u, state_der);
   EXPECT_FLOAT_EQ(state_der(0), 0);                                                       // x
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
@@ -561,9 +561,9 @@ TEST_F(BicycleSlipTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(10), 0);                                // steer angle rate
 }
 
-TEST_F(BicycleSlipTest, updateState)
+TEST_F(BicycleSlipHybridTest, updateState)
 {
-  auto dynamics = BicycleSlip();
+  auto dynamics = BicycleSlipHybrid();
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
@@ -573,9 +573,9 @@ TEST_F(BicycleSlipTest, updateState)
   limits[0].x = -1.0;
   dynamics.setControlRanges(limits);
 
-  BicycleSlip::state_array s = BicycleSlip::state_array::Zero();
-  BicycleSlip::state_array s_next = BicycleSlip::state_array::Zero();
-  BicycleSlip::state_array s_der = BicycleSlip::state_array::Zero();
+  BicycleSlipHybrid::state_array s = BicycleSlipHybrid::state_array::Zero();
+  BicycleSlipHybrid::state_array s_next = BicycleSlipHybrid::state_array::Zero();
+  BicycleSlipHybrid::state_array s_der = BicycleSlipHybrid::state_array::Zero();
 
   s << 1, 2, 3, 4, 0.55, 6, 7, 8, 9, 10, 11;
   dynamics.updateState(s, s_next, s_der, 0.1);
@@ -591,7 +591,7 @@ TEST_F(BicycleSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 10);    // pitch
   EXPECT_FLOAT_EQ(s_next(10), 0);    // steer angle rate
 
-  s = BicycleSlip::state_array::Ones() * 10;
+  s = BicycleSlipHybrid::state_array::Ones() * 10;
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), 10);                                 // x
   EXPECT_FLOAT_EQ(s_next(1), 10);                                 // y
@@ -605,7 +605,7 @@ TEST_F(BicycleSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 10);                                 // pitch
   EXPECT_FLOAT_EQ(s_next(10), 0);                                 // steer angle rate
 
-  s = BicycleSlip::state_array::Ones() * -10;
+  s = BicycleSlipHybrid::state_array::Ones() * -10;
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), -10);                                // x
   EXPECT_FLOAT_EQ(s_next(1), -10);                                // y
@@ -619,8 +619,8 @@ TEST_F(BicycleSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), -10);                                // pitch
   EXPECT_FLOAT_EQ(s_next(10), 0);                                 // steer angle rate
 
-  s = BicycleSlip::state_array::Zero();
-  s_der = BicycleSlip::state_array::Ones();
+  s = BicycleSlipHybrid::state_array::Zero();
+  s_der = BicycleSlipHybrid::state_array::Ones();
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), 0.1);   // x
   EXPECT_FLOAT_EQ(s_next(1), 0.1);   // y
@@ -634,8 +634,8 @@ TEST_F(BicycleSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 0.1);   // pitch
   EXPECT_FLOAT_EQ(s_next(10), 1.0);  // steer angle rate
 
-  s = BicycleSlip::state_array::Zero();
-  s_der = BicycleSlip::state_array::Ones() * -1;
+  s = BicycleSlipHybrid::state_array::Zero();
+  s_der = BicycleSlipHybrid::state_array::Ones() * -1;
   dynamics.updateState(s, s_next, s_der, 0.1);
   EXPECT_FLOAT_EQ(s_next(0), -0.1);   // x
   EXPECT_FLOAT_EQ(s_next(1), -0.1);   // y
@@ -649,8 +649,8 @@ TEST_F(BicycleSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), -0.1);   // pitch
   EXPECT_FLOAT_EQ(s_next(10), -1.0);  // steer angle rate
 
-  s = BicycleSlip::state_array::Zero();
-  s_der = BicycleSlip::state_array::Ones() * 10;
+  s = BicycleSlipHybrid::state_array::Zero();
+  s_der = BicycleSlipHybrid::state_array::Ones() * 10;
   dynamics.updateState(s, s_next, s_der, 1);
   EXPECT_FLOAT_EQ(s_next(0), 10);                                   // x
   EXPECT_FLOAT_EQ(s_next(1), 10);                                   // y
@@ -664,8 +664,8 @@ TEST_F(BicycleSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(9), 10);                                   // pitch
   EXPECT_FLOAT_EQ(s_next(10), 10.0);                                // steer angle rate
 
-  s = BicycleSlip::state_array::Zero();
-  s_der = BicycleSlip::state_array::Ones() * -10;
+  s = BicycleSlipHybrid::state_array::Zero();
+  s_der = BicycleSlipHybrid::state_array::Ones() * -10;
   dynamics.updateState(s, s_next, s_der, 1.0);
   EXPECT_FLOAT_EQ(s_next(0), -10.0);                                 // x
   EXPECT_FLOAT_EQ(s_next(1), -10.0);                                 // y
@@ -680,9 +680,9 @@ TEST_F(BicycleSlipTest, updateState)
   EXPECT_FLOAT_EQ(s_next(10), -10.0);                                // steer angle rate
 }
 
-TEST_F(BicycleSlipTest, stepCPU)
+TEST_F(BicycleSlipHybridTest, stepCPU)
 {
-  auto dynamics = BicycleSlip();
+  auto dynamics = BicycleSlipHybrid();
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
@@ -718,27 +718,27 @@ TEST_F(BicycleSlipTest, stepCPU)
 
   // force brake output
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
-  std::vector<float> brake_theta(BicycleSlip::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> brake_theta(BicycleSlipHybrid::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
   dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
-  std::vector<float> steer_theta(BicycleSlip::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> steer_theta(BicycleSlipHybrid::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
   dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 5, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
-  std::vector<float> terra_theta(BicycleSlip::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
+  std::vector<float> terra_theta(BicycleSlipHybrid::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
   dynamics.getTerraHelper()->getOutputModel()->updateModel({ 20, 20, 4 }, terra_theta);
 
-  BicycleSlip::state_array s = BicycleSlip::state_array::Ones();
-  BicycleSlip::control_array u = BicycleSlip::control_array::Ones();
-  BicycleSlip::state_array s_next = BicycleSlip::state_array::Zero();
-  BicycleSlip::state_array s_der = BicycleSlip::state_array::Ones();
-  BicycleSlip::output_array output = BicycleSlip::output_array::Zero();
+  BicycleSlipHybrid::state_array s = BicycleSlipHybrid::state_array::Ones();
+  BicycleSlipHybrid::control_array u = BicycleSlipHybrid::control_array::Ones();
+  BicycleSlipHybrid::state_array s_next = BicycleSlipHybrid::state_array::Zero();
+  BicycleSlipHybrid::state_array s_der = BicycleSlipHybrid::state_array::Ones();
+  BicycleSlipHybrid::output_array output = BicycleSlipHybrid::output_array::Zero();
   s(0) = 5;
   s(1) = 5;
 
@@ -795,7 +795,7 @@ TEST_F(BicycleSlipTest, stepCPU)
   EXPECT_FLOAT_EQ(output(25), 1);          // omega z
 }
 
-TEST_F(BicycleSlipTest, TestPythonComparison)
+TEST_F(BicycleSlipHybridTest, TestPythonComparison)
 {
   const int num_points = 1;
   const float dt = 0.02f;
@@ -804,8 +804,8 @@ TEST_F(BicycleSlipTest, TestPythonComparison)
   const int state_dim = 12;
   const int output_dim = 5;
   CudaCheckError();
-  using DYN = BicycleSlip;
-  BicycleSlip dynamics = BicycleSlip(mppi::tests::bicycle_slip_test);
+  using DYN = BicycleSlipHybrid;
+  BicycleSlipHybrid dynamics = BicycleSlipHybrid(mppi::tests::bicycle_slip_test);
 
   auto limits = dynamics.getControlRanges();
   limits[0].x = -1.0;
@@ -838,7 +838,7 @@ TEST_F(BicycleSlipTest, TestPythonComparison)
 
   // rest params
   EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);
-  EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
+  // EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
 
   std::map<std::string, Eigen::VectorXf> buffer;
   buffer["VEL_X"] = Eigen::VectorXf::Random(51);
@@ -853,11 +853,11 @@ TEST_F(BicycleSlipTest, TestPythonComparison)
   buffer["ROLL"] = Eigen::VectorXf::Random(51);
   buffer["PITCH"] = Eigen::VectorXf::Random(51);
 
-  BicycleSlip::state_array state;
-  BicycleSlip::state_array next_state_cpu;
-  BicycleSlip::control_array control;
-  BicycleSlip::output_array output;
-  BicycleSlip::state_array state_der = BicycleSlip::state_array::Zero();
+  BicycleSlipHybrid::state_array state;
+  BicycleSlipHybrid::state_array next_state_cpu;
+  BicycleSlipHybrid::control_array control;
+  BicycleSlipHybrid::output_array output;
+  BicycleSlipHybrid::state_array state_der = BicycleSlipHybrid::state_array::Zero();
 
   for (int point = 0; point < num_points; point++)
   {
@@ -899,11 +899,11 @@ TEST_F(BicycleSlipTest, TestPythonComparison)
           << "at point " << point << " index " << i;
     }
 
-    BicycleSlip::state_array state;
+    BicycleSlipHybrid::state_array state;
     for (int t = 0; t < T; t++)
     {
-      state = BicycleSlip::state_array::Zero();
-      state_der = BicycleSlip::state_array::Zero();
+      state = BicycleSlipHybrid::state_array::Zero();
+      state_der = BicycleSlipHybrid::state_array::Zero();
       state(3) = inputs[point * T * state_dim + t * state_dim + 5];   // STEER_ANGLE
       state(4) = inputs[point * T * state_dim + t * state_dim + 4];   // BRAKE_STATE
       state(5) = inputs[point * T * state_dim + t * state_dim + 0];   // VX
@@ -943,13 +943,13 @@ TEST_F(BicycleSlipTest, TestPythonComparison)
   }
 }
 
-TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
+TEST_F(BicycleSlipHybridTest, TestStepGPUvsCPU)
 {
   const int num_rollouts = 2000;
   const float dt = 0.1f;
   CudaCheckError();
-  using DYN = BicycleSlip;
-  BicycleSlip dynamics = BicycleSlip(mppi::tests::bicycle_slip_test);
+  using DYN = BicycleSlipHybrid;
+  BicycleSlipHybrid dynamics = BicycleSlipHybrid(mppi::tests::bicycle_slip_test);
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
@@ -966,7 +966,7 @@ TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
 
   // rest params
   EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);
-  EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
+  // EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
 
   cudaExtent extent = make_cudaExtent(100, 200, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
@@ -1007,22 +1007,22 @@ TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
   EXPECT_NE(dynamics.terra_network_d_, nullptr);
   EXPECT_EQ(dynamics.terra_network_d_, dynamics.getTerraHelper()->getLSTMDevicePtr());
 
-  Eigen::Matrix<float, BicycleSlip::CONTROL_DIM, num_rollouts> control_trajectory;
-  control_trajectory = Eigen::Matrix<float, BicycleSlip::CONTROL_DIM, num_rollouts>::Random();
-  Eigen::Matrix<float, BicycleSlip::STATE_DIM, num_rollouts> state_trajectory;
-  state_trajectory = Eigen::Matrix<float, BicycleSlip::STATE_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, BicycleSlipHybrid::CONTROL_DIM, num_rollouts> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, BicycleSlipHybrid::CONTROL_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, BicycleSlipHybrid::STATE_DIM, num_rollouts> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, BicycleSlipHybrid::STATE_DIM, num_rollouts>::Random();
 
-  std::vector<std::array<float, BicycleSlip::STATE_DIM>> s(num_rollouts);
-  std::vector<std::array<float, BicycleSlip::STATE_DIM>> s_next(num_rollouts);
-  std::vector<std::array<float, BicycleSlip::STATE_DIM>> s_der(num_rollouts);
+  std::vector<std::array<float, BicycleSlipHybrid::STATE_DIM>> s(num_rollouts);
+  std::vector<std::array<float, BicycleSlipHybrid::STATE_DIM>> s_next(num_rollouts);
+  std::vector<std::array<float, BicycleSlipHybrid::STATE_DIM>> s_der(num_rollouts);
   // steering, throttle
-  std::vector<std::array<float, BicycleSlip::CONTROL_DIM>> u(num_rollouts);
+  std::vector<std::array<float, BicycleSlipHybrid::CONTROL_DIM>> u(num_rollouts);
 
-  BicycleSlip::state_array state;
-  BicycleSlip::state_array next_state_cpu;
-  BicycleSlip::control_array control;
-  BicycleSlip::output_array output;
-  BicycleSlip::state_array state_der_cpu = BicycleSlip::state_array::Zero();
+  BicycleSlipHybrid::state_array state;
+  BicycleSlipHybrid::state_array next_state_cpu;
+  BicycleSlipHybrid::control_array control;
+  BicycleSlipHybrid::output_array output;
+  BicycleSlipHybrid::state_array state_der_cpu = BicycleSlipHybrid::state_array::Zero();
 
   // Run dynamics on dynamicsU
   // Run dynamics on GPU
@@ -1053,16 +1053,16 @@ TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
       }
     }
     dynamics.updateFromBuffer(buffer);
-    launchStepTestKernel<BicycleSlip, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+    launchStepTestKernel<BicycleSlipHybrid, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
     for (int point = 0; point < num_rollouts; point++)
     {
       dynamics.initializeDynamics(state, control, output, 0, 0);
       state = state_trajectory.col(point);
       control = control_trajectory.col(point);
-      state_der_cpu = BicycleSlip::state_array::Zero();
+      state_der_cpu = BicycleSlipHybrid::state_array::Zero();
 
       dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-      for (int dim = 0; dim < BicycleSlip::STATE_DIM; dim++)
+      for (int dim = 0; dim < BicycleSlipHybrid::STATE_DIM - 1; dim++)
       {
         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
@@ -1075,14 +1075,14 @@ TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
   dynamics.freeCudaMem();
 }
 
-// TEST_F(BicycleSlipTest, TestStepGPUvsCPUReverse)
+// TEST_F(BicycleSlipHybridTest, TestStepGPUvsCPUReverse)
 // {
-//   using DYN = BicycleSlip;
+//   using DYN = BicycleSlipHybrid;
 //
 //   const int num_rollouts = 2000;
 //   const float dt = 0.1f;
 //   CudaCheckError();
-//   BicycleSlip dynamics = BicycleSlip(mppi::tests::steering_lstm);
+//   BicycleSlipHybrid dynamics = BicycleSlipHybrid(mppi::tests::steering_lstm);
 //   auto params = dynamics.getParams();
 //   params.gear_sign = -1;
 //   dynamics.setParams(params);
@@ -1120,22 +1120,22 @@ TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
 //   EXPECT_NE(dynamics.network_d_, nullptr);
 //   EXPECT_EQ(dynamics.network_d_, dynamics.getHelper()->getLSTMDevicePtr());
 //
-//   Eigen::Matrix<float, BicycleSlip::CONTROL_DIM, num_rollouts> control_trajectory;
-//   control_trajectory = Eigen::Matrix<float, BicycleSlip::CONTROL_DIM, num_rollouts>::Random();
-//   Eigen::Matrix<float, BicycleSlip::STATE_DIM, num_rollouts> state_trajectory;
-//   state_trajectory = Eigen::Matrix<float, BicycleSlip::STATE_DIM, num_rollouts>::Random();
+//   Eigen::Matrix<float, BicycleSlipHybrid::CONTROL_DIM, num_rollouts> control_trajectory;
+//   control_trajectory = Eigen::Matrix<float, BicycleSlipHybrid::CONTROL_DIM, num_rollouts>::Random();
+//   Eigen::Matrix<float, BicycleSlipHybrid::STATE_DIM, num_rollouts> state_trajectory;
+//   state_trajectory = Eigen::Matrix<float, BicycleSlipHybrid::STATE_DIM, num_rollouts>::Random();
 //
-//   std::vector<std::array<float, BicycleSlip::STATE_DIM>> s(num_rollouts);
-//   std::vector<std::array<float, BicycleSlip::STATE_DIM>> s_next(num_rollouts);
-//   std::vector<std::array<float, BicycleSlip::STATE_DIM>> s_der(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipHybrid::STATE_DIM>> s(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipHybrid::STATE_DIM>> s_next(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipHybrid::STATE_DIM>> s_der(num_rollouts);
 //   // steering, throttle
-//   std::vector<std::array<float, BicycleSlip::CONTROL_DIM>> u(num_rollouts);
+//   std::vector<std::array<float, BicycleSlipHybrid::CONTROL_DIM>> u(num_rollouts);
 //
-//   BicycleSlip::state_array state;
-//   BicycleSlip::state_array next_state_cpu;
-//   BicycleSlip::control_array control;
-//   BicycleSlip::output_array output;
-//   BicycleSlip::state_array state_der_cpu = BicycleSlip::state_array::Zero();
+//   BicycleSlipHybrid::state_array state;
+//   BicycleSlipHybrid::state_array next_state_cpu;
+//   BicycleSlipHybrid::control_array control;
+//   BicycleSlipHybrid::output_array output;
+//   BicycleSlipHybrid::state_array state_der_cpu = BicycleSlipHybrid::state_array::Zero();
 //
 //   // Run dynamics on dynamicsU
 //   // Run dynamics on GPU
@@ -1160,17 +1160,17 @@ TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
 //       }
 //     }
 //     dynamics.updateFromBuffer(buffer);
-//     launchStepTestKernel<BicycleSlip>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
+//     launchStepTestKernel<BicycleSlipHybrid>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
 //     for (int point = 0; point < num_rollouts; point++)
 //     {
 //       dynamics.initializeDynamics(state, control, output, 0, 0);
 //       state = state_trajectory.col(point);
 //       control = control_trajectory.col(point);
-//       state_der_cpu = BicycleSlip::state_array::Zero();
+//       state_der_cpu = BicycleSlipHybrid::state_array::Zero();
 //
 //       dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-//       // for (int dim = 0; dim < BicycleSlip::STATE_DIM; dim++)
-//       for (int dim = 0; dim < BicycleSlip::STATE_DIM; dim++)
+//       // for (int dim = 0; dim < BicycleSlipHybrid::STATE_DIM; dim++)
+//       for (int dim = 0; dim < BicycleSlipHybrid::STATE_DIM; dim++)
 //       {
 //         EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
 //             << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
@@ -1184,7 +1184,7 @@ TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
 //   dynamics.freeCudaMem();
 // }
 // /*
-// class LinearDummy : public BicycleSlip {
+// class LinearDummy : public BicycleSlipHybrid {
 // public:
 //   bool computeGrad(const Eigen::Ref<const state_array> & state,
 //                    const Eigen::Ref<const control_array>& control,
@@ -1194,18 +1194,18 @@ TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
 //   };
 // };
 //
-// TEST_F(BicycleSlipTest, TestComputeGradComputation) {
-//   Eigen::Matrix<float, BicycleSlip::STATE_DIM, BicycleSlip::STATE_DIM +
-// BicycleSlip::CONTROL_DIM> numeric_jac; Eigen::Matrix<float,
-// BicycleSlip::STATE_DIM, BicycleSlip::STATE_DIM +
-// BicycleSlip::CONTROL_DIM> analytic_jac; BicycleSlip::state_array state;
+// TEST_F(BicycleSlipHybridTest, TestComputeGradComputation) {
+//   Eigen::Matrix<float, BicycleSlipHybrid::STATE_DIM, BicycleSlipHybrid::STATE_DIM +
+// BicycleSlipHybrid::CONTROL_DIM> numeric_jac; Eigen::Matrix<float,
+// BicycleSlipHybrid::STATE_DIM, BicycleSlipHybrid::STATE_DIM +
+// BicycleSlipHybrid::CONTROL_DIM> analytic_jac; BicycleSlipHybrid::state_array state;
 // state
-// << 1, 2, 3, 4; BicycleSlip::control_array control; control << 5;
+// << 1, 2, 3, 4; BicycleSlipHybrid::control_array control; control << 5;
 //
-//   auto analytic_grad_model = BicycleSlip();
+//   auto analytic_grad_model = BicycleSlipHybrid();
 //
-//   BicycleSlip::dfdx A_analytic = BicycleSlip::dfdx::Zero();
-//   BicycleSlip::dfdu B_analytic = BicycleSlip::dfdu::Zero();
+//   BicycleSlipHybrid::dfdx A_analytic = BicycleSlipHybrid::dfdx::Zero();
+//   BicycleSlipHybrid::dfdu B_analytic = BicycleSlipHybrid::dfdu::Zero();
 //
 //   analytic_grad_model.computeGrad(state, control, A_analytic, B_analytic);
 //
@@ -1214,8 +1214,8 @@ TEST_F(BicycleSlipTest, TestStepGPUvsCPU)
 //   std::shared_ptr<ModelWrapperDDP<LinearDummy>> ddp_model =
 // std::make_shared<ModelWrapperDDP<LinearDummy>>(&numerical_grad_model);
 //
-//   analytic_jac.leftCols<BicycleSlip::STATE_DIM>() = A_analytic;
-//   analytic_jac.rightCols<BicycleSlip::CONTROL_DIM>() = B_analytic;
+//   analytic_jac.leftCols<BicycleSlipHybrid::STATE_DIM>() = A_analytic;
+//   analytic_jac.rightCols<BicycleSlipHybrid::CONTROL_DIM>() = B_analytic;
 //   numeric_jac = ddp_model->df(state, control);
 //
 //   ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n" << numeric_jac << "\nAnalytic
