@@ -31,13 +31,14 @@ struct BicycleSlipKinematicParams : public RacerDubinsParams
   };
 
   float environment = 1.0f; // 1.0 for helendale, -1.0 for halter ranch
+  bool enable_delay_model = true;
 };
 
-template<class CLASS_T>
-class BicycleSlipKinematicImpl : public MPPI_internal::Dynamics<CLASS_T, BicycleSlipKinematicParams>
+template<class CLASS_T, class PARAMS_T>
+class BicycleSlipKinematicImpl : public MPPI_internal::Dynamics<CLASS_T, PARAMS_T>
 {
  public:
-  using PARENT_CLASS = MPPI_internal::Dynamics<CLASS_T, BicycleSlipKinematicParams>;
+  using PARENT_CLASS = MPPI_internal::Dynamics<CLASS_T, PARAMS_T>;
   typedef LSTMHelper<LSTMParams<5, 4>, FNNParams<9,20,1>, false> STEER_LSTM;
   typedef LSTMHelper<LSTMParams<4, 20>, FNNParams<24, 80, 8>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
@@ -165,12 +166,12 @@ class BicycleSlipKinematicImpl : public MPPI_internal::Dynamics<CLASS_T, Bicycle
 
 };
 
-class BicycleSlipKinematic : public BicycleSlipKinematicImpl<BicycleSlipKinematic>
+class BicycleSlipKinematic : public BicycleSlipKinematicImpl<BicycleSlipKinematic, BicycleSlipKinematicParams>
 {
  public:
-  BicycleSlipKinematic(cudaStream_t stream = nullptr) : BicycleSlipKinematicImpl<BicycleSlipKinematic>(stream){}
+  BicycleSlipKinematic(cudaStream_t stream = nullptr) : BicycleSlipKinematicImpl<BicycleSlipKinematic, BicycleSlipKinematicParams>(stream){}
   BicycleSlipKinematic(const std::string& model_path, cudaStream_t stream = nullptr) : BicycleSlipKinematicImpl<
-      BicycleSlipKinematic>(model_path, stream){}
+      BicycleSlipKinematic, BicycleSlipKinematicParams>(model_path, stream){}
 };
 
 #if __CUDACC__
