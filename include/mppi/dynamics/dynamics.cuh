@@ -146,6 +146,11 @@ public:
     freeCudaMem();
   }
 
+  virtual std::string getDynamicsModelName() const
+  {
+    return "Dynamics model name not set";
+  }
+
   /**
    * Allocates all of the GPU memory
    */

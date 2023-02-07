@@ -102,6 +102,11 @@ public:
   explicit BicycleSlipEngine(cudaStream_t stream = nullptr);
   explicit BicycleSlipEngine(std::string ackerman_path, cudaStream_t stream = nullptr);
 
+  std::string getDynamicsModelName() const override
+  {
+    return "Bicycle Slip Engine Model";
+  }
+
   void paramsToDevice();
 
   void GPUSetup();
