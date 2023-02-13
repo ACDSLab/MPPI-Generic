@@ -104,8 +104,8 @@ void RacerDubinsElevationImpl<CLASS_T>::step(Eigen::Ref<state_array> state, Eige
   // Integrate using racer_dubins updateState
   this->PARENT_CLASS::updateState(state, next_state, state_der, dt);
 
-  float pitch = 0;
-  float roll = 0;
+  float roll = state(S_INDEX(ROLL));
+  float pitch = state(S_INDEX(PITCH));
   RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
       this->tex_helper_, next_state(S_INDEX(YAW)), next_state(S_INDEX(POS_X)), next_state(S_INDEX(POS_Y)), roll, pitch,
       output.data());
@@ -224,8 +224,8 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T>::step(float* state, flo
 
   if (threadIdx.y == 0)
   {
-    float pitch = 0;
-    float roll = 0;
+    float roll = state[S_INDEX(ROLL)];
+    float pitch = state[S_INDEX(PITCH)];
     RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
         this->tex_helper_, next_state[S_INDEX(YAW)], next_state[S_INDEX(POS_X)], next_state[S_INDEX(POS_Y)], roll,
         pitch, output);

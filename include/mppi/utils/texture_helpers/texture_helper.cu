@@ -83,6 +83,23 @@ void TextureHelper<TEX_T, DATA_T>::allocateCudaTexture(int index)
 }
 
 template <class TEX_T, class DATA_T>
+__host__ __device__ void TextureHelper<TEX_T, DATA_T>::bodyOffsetToWorldPose(const float3& offset,
+                                                                             const float3& body_pose,
+                                                                             const float3& rotation, float3& output)
+{
+  // convert RPY to quaternion
+  float q[4];
+  mppi::math::Euler2QuatNWU(rotation.x, rotation.y, rotation.z, q);
+  // rotate body vector into world frame
+  float3 rotated_offset = make_float3(offset.x, offset.y, offset.z);
+  mppi::math::RotatePointByQuat(q, rotated_offset);
+  // add offset to body pose
+  output.x = body_pose.x + rotated_offset.x;
+  output.y = body_pose.y + rotated_offset.y;
+  output.z = body_pose.z + rotated_offset.z;
+}
+
+template <class TEX_T, class DATA_T>
 __host__ __device__ void TextureHelper<TEX_T, DATA_T>::worldPoseToMapPose(const int index, const float3& input,
                                                                           float3& output)
 {
@@ -123,6 +140,16 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::worldPoseToTexCoord(const
   mapPoseToTexCoord(index, map, output);
   // printf("world to map (%f, %f, %f) -> (%f, %f, %f) -> (%f, %f, %f)\n", input.x, input.y, input.z, map.x, map.y,
   // map.z, output.x, output.y, output.z);
+}
+
+template <class TEX_T, class DATA_T>
+__host__ __device__ void TextureHelper<TEX_T, DATA_T>::bodyOffsetWorldToTexCoord(const int index, const float3& offset,
+                                                                                 const float3& body_pose,
+                                                                                 const float3& rotation, float3& output)
+{
+  float3 offset_result;
+  bodyOffsetToWorldPose(offset, body_pose, rotation, offset_result);
+  worldPoseToTexCoord(index, offset_result, output);
 }
 
 template <class TEX_T, class DATA_T>
@@ -237,6 +264,18 @@ void TextureHelper<TEX_T, DATA_T>::addNewTexture(const cudaExtent& extent)
     derived->createCudaTexture(index);
     textures_.back().allocated = true;
   }
+}
+
+template <class TEX_T, class DATA_T>
+__host__ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtWorldOffsetPose(const int index,
+                                                                                       const float3& input,
+                                                                                       const float3& offset,
+                                                                                       const float3& rotation)
+{
+  float3 tex_coords;
+  bodyOffsetWorldToTexCoord(index, offset, input, rotation, tex_coords);
+  TEX_T* derived = static_cast<TEX_T*>(this);
+  return derived->queryTexture(index, tex_coords);
 }
 
 template <class TEX_T, class DATA_T>

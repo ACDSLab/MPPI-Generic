@@ -131,16 +131,20 @@ inline __host__ __device__ float normDistFromCenter(const float r, const float r
  *  q_2 - second quaternion
  *  q_3 - output quaternion
  */
-inline __host__ __device__ void QuatMultiply(const float q_1[4], const float q_2[4], float q_3[4])
+inline __host__ __device__ void QuatMultiply(const float q_1[4], const float q_2[4], float q_3[4],
+                                             bool normalize = true)
 {
   q_3[0] = q_1[0] * q_2[0] - q_1[1] * q_2[1] - q_1[2] * q_2[2] - q_1[3] * q_2[3];
   q_3[1] = q_1[1] * q_2[0] + q_1[0] * q_2[1] - q_1[3] * q_2[2] + q_1[2] * q_2[3];
   q_3[2] = q_1[2] * q_2[0] + q_1[3] * q_2[1] + q_1[0] * q_2[2] - q_1[1] * q_2[3];
   q_3[3] = q_1[3] * q_2[0] - q_1[2] * q_2[1] + q_1[1] * q_2[2] + q_1[0] * q_2[3];
-  float norm = sqrtf(powf(q_3[0], 2) + powf(q_3[1], 2) + powf(q_3[2], 2) + powf(q_3[3], 2));
-  for (int i = 0; i < 4; i++)
+  if (normalize)
   {
-    q_3[i] /= norm;
+    float norm = sqrtf(powf(q_3[0], 2) + powf(q_3[1], 2) + powf(q_3[2], 2) + powf(q_3[3], 2));
+    for (int i = 0; i < 4; i++)
+    {
+      q_3[i] /= norm;
+    }
   }
 }
 
@@ -187,9 +191,26 @@ inline __device__ void Euler2QuatNWU(const double& r, const double& p, const dou
 }
 
 /*
+ * rotates a point by the given quaternion
+ */
+inline __host__ __device__ void RotatePointByQuat(const float q[4], float3& point)
+{
+  // converts the point into a quaternion format
+  float pq[4] = { 0.0, point.x, point.y, point.z };
+  float q_inv[4];
+  float result[4];
+  QuatInv(q, q_inv);
+  QuatMultiply(q, pq, result, false);
+  // uses q_inv as a holder for result
+  QuatMultiply(result, q_inv, pq, false);
+  // stores the result of the rotation into a value
+  point = make_float3(pq[1], pq[2], pq[3]);
+}
+
+/*
  * The Euler rotation sequence is 3-2-1 (roll, pitch, yaw) from Body to World
  */
-inline __device__ void Euler2QuatNWU(const float& r, const float& p, const float& y, float q[4])
+inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, const float& y, float q[4])
 {
   float phi_2 = r / 2.0;
   float theta_2 = p / 2.0;

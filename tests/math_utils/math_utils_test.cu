@@ -47,6 +47,25 @@ TEST(MATH_UTILS, QuatMultiply)
   array_assert_float_near<4>(q3, correct_q3, tol);
 }
 
+TEST(MATH_UTILS, RotatePointByQuat)
+{
+  for (int i = 0; i < 100; i++)
+  {
+    Eigen::Quaternionf rotation = Eigen::Quaternionf::UnitRandom();
+    Eigen::Vector3f translation = Eigen::Vector3f::Random();
+
+    float3 point = make_float3(translation.x(), translation.y(), translation.z());
+    float q[4] = { rotation.w(), rotation.x(), rotation.y(), rotation.z() };
+    mppi::math::RotatePointByQuat(q, point);
+
+    auto result = rotation * translation;
+
+    EXPECT_NEAR(point.x, result.x(), 1.0e-5);
+    EXPECT_NEAR(point.y, result.y(), 1.0e-5);
+    EXPECT_NEAR(point.z, result.z(), 1.0e-5);
+  }
+}
+
 TEST(MATH_UTILS, SkewSymmetricMatrixSameAsCrossProd)
 {
   Eigen::Vector3f a(1, 2, 3);

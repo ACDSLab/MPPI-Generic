@@ -679,6 +679,86 @@ TEST_F(TextureHelperTest, WorldPoseToMapPoseTest)
   EXPECT_FLOAT_EQ(output.z, 0.1 * 7 + 0.2 * 8 + 0.3 * 9);
 }
 
+TEST_F(TextureHelperTest, BodyOffsetToWorldPoseTest)
+{
+  int number = 5;
+  TextureHelperImpl helper = TextureHelperImpl(number);
+
+  // set it to be zero
+  std::array<float3, 3> new_rot_mat{};
+  helper.updateRotation(0, new_rot_mat);
+  helper.updateOrigin(0, make_float3(0, 0, 0));
+
+  float3 input = make_float3(0.1, 0.2, 0.3);
+  float3 offset = make_float3(1.1, 1.3, 1.5);
+  float3 rotation = make_float3(0, 0, 0);
+  float3 output;
+  helper.bodyOffsetToWorldPose(offset, input, rotation, output);
+
+  EXPECT_FLOAT_EQ(input.x, 0.1);
+  EXPECT_FLOAT_EQ(input.y, 0.2);
+  EXPECT_FLOAT_EQ(input.z, 0.3);
+  EXPECT_FLOAT_EQ(output.x, 1.2);
+  EXPECT_FLOAT_EQ(output.y, 1.5);
+  EXPECT_FLOAT_EQ(output.z, 1.8);
+
+  // rotate by positive 90 degrees yaw
+  rotation = make_float3(0, 0, M_PI_2);
+  helper.copyToDevice();
+  helper.bodyOffsetToWorldPose(offset, input, rotation, output);
+  EXPECT_FLOAT_EQ(output.x, -1.2);
+  EXPECT_FLOAT_EQ(output.y, 1.3);
+  EXPECT_FLOAT_EQ(output.z, 1.8);
+
+  // rotate by -90 degrees yaw
+  rotation = make_float3(0, 0, -M_PI_2);
+  helper.copyToDevice();
+  helper.bodyOffsetToWorldPose(offset, input, rotation, output);
+  EXPECT_FLOAT_EQ(output.x, 0.1 + 1.3);
+  EXPECT_FLOAT_EQ(output.y, 0.2 - 1.1);
+  EXPECT_FLOAT_EQ(output.z, 1.8);
+
+  // rotate by +45 degrees yaw
+  rotation = make_float3(0, 0, M_PI_4);
+  helper.copyToDevice();
+  helper.bodyOffsetToWorldPose(offset, input, rotation, output);
+  EXPECT_FLOAT_EQ(output.x, -0.041421525);
+  EXPECT_FLOAT_EQ(output.y, 1.8970563);
+  EXPECT_FLOAT_EQ(output.z, 1.8);
+
+  // rotate by +90 degrees roll
+  rotation = make_float3(M_PI_2, 0, 0);
+  helper.copyToDevice();
+  helper.bodyOffsetToWorldPose(offset, input, rotation, output);
+  EXPECT_FLOAT_EQ(output.x, 0.1 + 1.1);
+  EXPECT_FLOAT_EQ(output.y, 0.2 - 1.5);
+  EXPECT_FLOAT_EQ(output.z, 0.3 + 1.3);
+
+  // rotate by -90 degrees roll
+  rotation = make_float3(-M_PI_2, 0, 0);
+  helper.copyToDevice();
+  helper.bodyOffsetToWorldPose(offset, input, rotation, output);
+  EXPECT_FLOAT_EQ(output.x, 0.1 + 1.1);
+  EXPECT_FLOAT_EQ(output.y, 0.2 + 1.5);
+  EXPECT_FLOAT_EQ(output.z, 0.3 - 1.3);
+
+  // rotate by +90 degrees roll
+  rotation = make_float3(0, M_PI_2, 0);
+  helper.copyToDevice();
+  helper.bodyOffsetToWorldPose(offset, input, rotation, output);
+  EXPECT_FLOAT_EQ(output.x, 0.1 + 1.5);
+  EXPECT_FLOAT_EQ(output.y, 0.2 + 1.3);
+  EXPECT_FLOAT_EQ(output.z, 0.3 - 1.1);
+
+  // rotate by -90 degrees roll
+  rotation = make_float3(0, -M_PI_2, 0);
+  helper.copyToDevice();
+  helper.bodyOffsetToWorldPose(offset, input, rotation, output);
+  EXPECT_FLOAT_EQ(output.x, 0.1 - 1.5);
+  EXPECT_FLOAT_EQ(output.y, 0.2 + 1.3);
+  EXPECT_FLOAT_EQ(output.z, 0.3 + 1.1);
+}
+
 TEST_F(TextureHelperTest, MapPoseToTexCoordTest)
 {
   int number = 5;
@@ -748,6 +828,35 @@ TEST_F(TextureHelperTest, WorldPoseToTexCoordTest)
   EXPECT_FLOAT_EQ(input.x, 0.2);
   EXPECT_FLOAT_EQ(input.y, 0.4);
   EXPECT_FLOAT_EQ(input.z, 0.6);
+  EXPECT_FLOAT_EQ(output.x, ((0.1 * 1 + 0.2 * 2 + 0.3 * 3) / 10) / 4);
+  EXPECT_FLOAT_EQ(output.y, ((0.1 * 4 + 0.2 * 5 + 0.3 * 6) / 10) / 5);
+  EXPECT_FLOAT_EQ(output.z, ((0.1 * 7 + 0.2 * 8 + 0.3 * 9) / 10) / 6);
+}
+
+TEST_F(TextureHelperTest, BodyOffsetToTexCoordTest)
+{
+  int number = 5;
+  TextureHelperImpl helper = TextureHelperImpl(number);
+
+  const float3 input = make_float3(-0.9, -0.9, -0.9);
+  float3 output;
+
+  helper.updateResolution(0, 10);
+  cudaExtent extent = make_cudaExtent(4, 5, 6);
+  helper.setExtent(0, extent);
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(1, 2, 3);
+  new_rot_mat[1] = make_float3(4, 5, 6);
+  new_rot_mat[2] = make_float3(7, 8, 9);
+  helper.updateRotation(0, new_rot_mat);
+  helper.updateOrigin(0, make_float3(0.1, 0.2, 0.3));
+  helper.copyToDevice();
+
+  float3 offset = make_float3(1.1, 1.3, 1.5);
+  float3 rotation = make_float3(0, 0, 0);
+
+  helper.bodyOffsetWorldToTexCoord(0, offset, input, rotation, output);
   EXPECT_FLOAT_EQ(output.x, ((0.1 * 1 + 0.2 * 2 + 0.3 * 3) / 10) / 4);
   EXPECT_FLOAT_EQ(output.y, ((0.1 * 4 + 0.2 * 5 + 0.3 * 6) / 10) / 5);
   EXPECT_FLOAT_EQ(output.z, ((0.1 * 7 + 0.2 * 8 + 0.3 * 9) / 10) / 6);
