@@ -12,15 +12,21 @@
 #include "mppi/utils/texture_helpers/two_d_texture_helper.cuh"
 #include "bicycle_slip_kinematic.cuh"
 
+// TODO add input and output scaling into the lstm class itself
+
 struct BicycleSlipHybridParams : public BicycleSlipKinematicParams
 {
-  // TODO extra things needed for hybrid model
+  float omega_v[2] = {1.0f, 1.1f};
+  float ay_t[2] = {2.0f, 2.2f};
+  float ay_b[2] = {4.0f, 4.4f};
+  float ay_v[2] = {5.0f, 5.5f};
+  float ay_angle = 6.0f;
 };
 
-class BicycleSlipHybrid : public BicycleSlipKinematicImpl<BicycleSlipHybrid>
+class BicycleSlipHybrid : public BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams>
 {
 public:
-    using PARENT_CLASS = BicycleSlipKinematicImpl<BicycleSlipHybrid>;
+    using PARENT_CLASS = BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams>;
 
     static const int SHARED_MEM_REQUEST_GRD = PARENT_CLASS::SHARED_MEM_REQUEST_GRD;
     static const int SHARED_MEM_REQUEST_BLK = PARENT_CLASS::SHARED_MEM_REQUEST_BLK;
