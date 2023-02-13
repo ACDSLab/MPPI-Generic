@@ -298,10 +298,10 @@ __device__ __host__ void RACER::computeStaticSettling(TEX_T* tex_helper, const f
 
   if (tex_helper->checkTextureUse(0))
   {
-    front_left_height = tex_helper->queryTextureAtWorldOffsetPose(0, front_left, body_pose, rotation);
-    front_right_height = tex_helper->queryTextureAtWorldOffsetPose(0, front_right, body_pose, rotation);
-    rear_left_height = tex_helper->queryTextureAtWorldOffsetPose(0, rear_left, body_pose, rotation);
-    rear_right_height = tex_helper->queryTextureAtWorldOffsetPose(0, rear_right, body_pose, rotation);
+    front_left_height = tex_helper->queryTextureAtWorldOffsetPose(0, body_pose, front_left, rotation);
+    front_right_height = tex_helper->queryTextureAtWorldOffsetPose(0, body_pose, front_right, rotation);
+    rear_left_height = tex_helper->queryTextureAtWorldOffsetPose(0, body_pose, rear_left, rotation);
+    rear_right_height = tex_helper->queryTextureAtWorldOffsetPose(0, body_pose, rear_right, rotation);
 
     float front_diff = front_left_height - front_right_height;
     front_diff = max(min(front_diff, 0.736f * 2.0f), -0.736f * 2.0f);
