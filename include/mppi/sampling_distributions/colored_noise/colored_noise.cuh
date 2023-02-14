@@ -47,10 +47,11 @@ __global__ void rearrangeNoise(float* input, float* output, float* variance, int
   int sample_index = blockIdx.x * blockDim.x + threadIdx.x;
   int time_index = blockIdx.y * blockDim.y + threadIdx.y;
   int control_index = blockIdx.z * blockDim.z + threadIdx.z;
-  if (sample_index < num_trajectories && time_index < (num_timesteps - offset_t) && control_index < control_dim)
+  if (sample_index < num_trajectories && time_index < (num_timesteps) && control_index < control_dim)
   {  // cuFFT does not normalize inverse transforms so a division by the num_timesteps is required
-    output[(sample_index * num_timesteps + time_index + offset_t) * control_dim + control_index] =
-        input[(sample_index * control_dim + control_index) * num_timesteps + time_index] /
+    output[(sample_index * num_timesteps + time_index) * control_dim + control_index] =
+        (input[(sample_index * control_dim + control_index) * num_timesteps + time_index] -
+         input[(sample_index * control_dim + control_index) * num_timesteps + offset_t]) /
         (variance[control_index] * num_timesteps);
     // printf("ROLLOUT %d CONTROL %d TIME %d: in %f out: %f\n", sample_index, control_index, time_index,
     //     input[(sample_index * control_dim + control_index) * num_timesteps + time_index],
