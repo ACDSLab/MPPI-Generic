@@ -102,6 +102,11 @@ public:
 
   ~NeuralNetModel();
 
+  std::string getDynamicsModelName() const override
+  {
+    return "FCN Autorally Model";
+  }
+
   std::array<int, NUM_LAYERS> getNetStructure()
   {
     return helper_->getNetStructure();

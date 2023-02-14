@@ -47,6 +47,11 @@ public:
   using PARENT_CLASS = Dynamics<DubinsDynamics, DubinsParams>;
   using PARENT_CLASS::updateState;  // needed as overloading updateState here hides all parent versions of updateState
 
+  std::string getDynamicsModelName() const override
+  {
+    return "Dubins Model";
+  }
+
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                        Eigen::Ref<state_array> state_der);
 

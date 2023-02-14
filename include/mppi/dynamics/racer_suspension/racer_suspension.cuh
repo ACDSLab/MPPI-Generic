@@ -158,6 +158,11 @@ public:
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
 
+  std::string getDynamicsModelName() const override
+  {
+    return "RACER Suspension Model";
+  }
+
   ~RacerSuspension()
   {
     delete tex_helper_;

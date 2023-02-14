@@ -71,6 +71,11 @@ public:
     explicit BicycleSlip(cudaStream_t stream = nullptr);
     explicit BicycleSlip(std::string model_path, cudaStream_t stream = nullptr);
 
+    std::string getDynamicsModelName() const override
+    {
+      return "Bicycle Slip Model";
+    }
+
     void paramsToDevice();
 
     void GPUSetup();

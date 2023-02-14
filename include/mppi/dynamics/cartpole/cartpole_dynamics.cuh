@@ -42,6 +42,11 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   CartpoleDynamics(float cart_mass, float pole_mass, float pole_length, cudaStream_t stream = 0);
 
+  std::string getDynamicsModelName() const override
+  {
+    return "Cartpole Model";
+  }
+
   /**
    * runs dynamics using state and control and sets it to state
    * derivative. Everything is Eigen Matrices, not Eigen Vectors!
