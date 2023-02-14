@@ -108,6 +108,10 @@ public:
   RacerDubinsImpl(PARAMS_T& params, cudaStream_t stream = nullptr) : PARENT_CLASS(params, stream)
   {
   }
+  std::string getDynamicsModelName() const override
+  {
+    return "RACER Dubins Model";
+  }
 
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                        Eigen::Ref<state_array> state_der);

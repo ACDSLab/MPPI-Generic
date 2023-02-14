@@ -27,6 +27,11 @@ public:
   RacerDubinsElevationLSTMSteering(RacerDubinsElevationParams& params, cudaStream_t stream = nullptr);
   RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream = nullptr);
 
+  std::string getDynamicsModelName() const override
+  {
+    return "RACER Dubins LSTM Steering Model";
+  }
+
   void GPUSetup();
 
   void freeCudaMem();

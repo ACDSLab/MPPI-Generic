@@ -96,6 +96,11 @@ public:
   QuadrotorDynamics(cudaStream_t stream = 0);
   QuadrotorDynamics(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream = 0);
 
+  std::string getDynamicsModelName() const override
+  {
+    return "Quadrotor Model";
+  }
+
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                        Eigen::Ref<state_array> state_der);
 

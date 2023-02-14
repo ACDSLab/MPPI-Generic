@@ -44,6 +44,11 @@ public:
   //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   DoubleIntegratorDynamics(float system_noise = 1, cudaStream_t stream = nullptr);
 
+  std::string getDynamicsModelName() const override
+  {
+    return "2D Double Integrator Model";
+  }
+
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                        Eigen::Ref<state_array> state_der);
 

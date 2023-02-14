@@ -53,6 +53,11 @@ public:
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   }
 
+  std::string getDynamicsModelName() const override
+  {
+    return "RACER Dubins w/ Elevation Model";
+  }
+
   ~RacerDubinsElevationImpl()
   {
     delete tex_helper_;

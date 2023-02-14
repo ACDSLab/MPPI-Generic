@@ -380,6 +380,10 @@ public:
   // __device__ int* getNetStructurePtr(){return this->params_.net_structure;}
   // __device__ int* getStrideIdcsPtr(){return this->params_.stride_idcs;}
   // __device__ float* getThetaPtr(){return this->params_.theta;}
+  std::string getDynamicsModelName() const override
+  {
+    return "LSTM Autorally Model";
+  }
 
   void CPUSetup();
 
