@@ -782,7 +782,7 @@ TEST_F(BicycleSlipKinematicTest, stepCPU)
   EXPECT_FLOAT_EQ(output(22), 10000);  // wheel f br
   EXPECT_FLOAT_EQ(output(23), 40);     // accel x
   EXPECT_FLOAT_EQ(output(24), 50);     // accel y
-  EXPECT_FLOAT_EQ(output(25), 1);      // omega z
+  EXPECT_FLOAT_EQ(output(25), 4);      // omega z
 }
 
 TEST_F(BicycleSlipKinematicTest, TestPythonComparison)

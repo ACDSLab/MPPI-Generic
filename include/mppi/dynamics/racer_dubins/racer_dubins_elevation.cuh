@@ -25,15 +25,15 @@ struct RacerDubinsElevationParams : public RacerDubinsParams
   };
 };
 
-template<class CLASS_T>
-class RacerDubinsElevationImpl : public RacerDubinsImpl<CLASS_T, RacerDubinsElevationParams>
+template<class CLASS_T, class PARAMS_T>
+class RacerDubinsElevationImpl : public RacerDubinsImpl<CLASS_T, PARAMS_T>
 {
 public:
   // static const int SHARED_MEM_REQUEST_GRD = sizeof(DYN_PARAMS_T);
-  using PARENT_CLASS = RacerDubinsImpl<CLASS_T, RacerDubinsElevationParams>;
+  using PARENT_CLASS = RacerDubinsImpl<CLASS_T, PARAMS_T>;
   using PARENT_CLASS::initializeDynamics;
 
-  typedef RacerDubinsElevationParams DYN_PARAMS_T;
+  typedef PARAMS_T DYN_PARAMS_T;
 
   static const int SHARED_MEM_REQUEST_GRD = 1;  // TODO set to one to prevent array of size 0 error
   static const int SHARED_MEM_REQUEST_BLK = 0;
@@ -74,11 +74,23 @@ public:
 
   void paramsToDevice();
 
-  void computeParametricModelDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+  void computeParametricAccelDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                               Eigen::Ref<state_array> state_der, const float dt);
 
-  __device__ void computeParametricModelDeriv(float* state, float* control,
+  void computeParametricDelayDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                                   Eigen::Ref<state_array> state_der);
+
+  void computeParametricSteerDeriv(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
+                                   Eigen::Ref<state_array> state_der);
+
+  __device__ void computeParametricAccelDeriv(float* state, float* control,
                                    float* state_der, const float dt, DYN_PARAMS_T* params_p);
+
+  __device__ void computeParametricDelayDeriv(float* state, float* control,
+                                              float* state_der, DYN_PARAMS_T* params_p);
+
+  __device__ void computeParametricSteerDeriv(float* state, float* control,
+                                              float* state_der, DYN_PARAMS_T* params_p);
 
   __host__ __device__ void setOutputs(const float* state_der,
                   const float* next_state,
@@ -102,6 +114,9 @@ public:
 
   __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
 
+  Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
+  Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
+
   state_array stateFromMap(const std::map<std::string, float>& map) override;
 
   TwoDTextureHelper<float>* getTextureHelper()
@@ -113,11 +128,11 @@ protected:
   TwoDTextureHelper<float>* tex_helper_ = nullptr;
 };
 
-class RacerDubinsElevation : public RacerDubinsElevationImpl<RacerDubinsElevation>
+class RacerDubinsElevation : public RacerDubinsElevationImpl<RacerDubinsElevation, RacerDubinsElevationParams>
 {
 public:
-  RacerDubinsElevation(cudaStream_t stream=nullptr) : RacerDubinsElevationImpl<RacerDubinsElevation>(stream) {}
-  RacerDubinsElevation(RacerDubinsElevationParams& params, cudaStream_t stream=nullptr) : RacerDubinsElevationImpl<RacerDubinsElevation>(params, stream) {}
+  RacerDubinsElevation(cudaStream_t stream=nullptr) : RacerDubinsElevationImpl<RacerDubinsElevation, RacerDubinsElevationParams>(stream) {}
+  RacerDubinsElevation(RacerDubinsElevationParams& params, cudaStream_t stream=nullptr) : RacerDubinsElevationImpl<RacerDubinsElevation, RacerDubinsElevationParams>(params, stream) {}
 };
 
 #if __CUDACC__

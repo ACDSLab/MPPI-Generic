@@ -5,7 +5,7 @@
 #include "racer_dubins_elevation_lstm_steering.cuh"
 
 RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(cudaStream_t stream)
-  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>(stream)
+  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>(stream)
 {
   this->requires_buffer_ = true;
   lstm_lstm_helper_ = std::make_shared<NN>(stream);
@@ -13,18 +13,15 @@ RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(cudaStream_t 
 
 RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(RacerDubinsElevationParams& params,
                                                                    cudaStream_t stream)
-  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>(params, stream)
+  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>(params, stream)
 {
   this->requires_buffer_ = true;
   lstm_lstm_helper_ = std::make_shared<NN>(stream);
 }
 
 RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream)
-  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>(stream)
+  : RacerDubinsElevationLSTMSteering(stream)
 {
-  this->requires_buffer_ = true;
-  lstm_lstm_helper_ = std::make_shared<NN>(path, stream);
-
   if (!fileExists(path))
   {
     std::cerr << "Could not load neural net model at path: " << path.c_str();
@@ -54,7 +51,9 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
                                             const Eigen::Ref<const control_array>& control,
                                             Eigen::Ref<output_array> output, const float t, const float dt)
 {
-  this->computeParametricModelDeriv(state, control, state_der, dt);
+  this->computeParametricDelayDeriv(state, control, state_der);
+  this->computeParametricSteerDeriv(state, control, state_der);
+  this->computeParametricAccelDeriv(state, control, state_der, dt);
 
   LSTM::input_array input;
   input(0) = state(S_INDEX(VEL_X));
@@ -109,7 +108,9 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   {
     params_p = &(this->params_);
   }
-  computeParametricModelDeriv(state, control, state_der, dt, params_p);
+  computeParametricDelayDeriv(state, control, state_der, params_p);
+  computeParametricSteerDeriv(state, control, state_der, params_p);
+  computeParametricAccelDeriv(state, control, state_der, dt, params_p);
   const uint tdy = threadIdx.y;
 
   const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;

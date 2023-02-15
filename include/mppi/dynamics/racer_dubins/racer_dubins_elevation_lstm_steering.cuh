@@ -8,10 +8,10 @@
 #ifndef MPPIGENERIC_RACER_DUBINS_ELEVATION_LSTM_STEERING_CUH
 #define MPPIGENERIC_RACER_DUBINS_ELEVATION_LSTM_STEERING_CUH
 
-class RacerDubinsElevationLSTMSteering : public RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>
+class RacerDubinsElevationLSTMSteering : public RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>
 {
 public:
-  using PARENT_CLASS = RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering>;
+  using PARENT_CLASS = RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>;
   typedef FNNParams<10, 20, 1> FNN_PARAMS;
   typedef FNNParams<64, 100, 10> FNN_INIT_PARAMS;
   typedef LSTMHelper<LSTMParams<5, 5>, FNN_PARAMS> LSTM;

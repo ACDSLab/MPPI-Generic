@@ -8,7 +8,6 @@ template <class CLASS_T, class PARAMS_T>
 BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::BicycleSlipKinematicImpl(cudaStream_t stream) : PARENT_CLASS(stream)
 {
   this->requires_buffer_ = true;
-  tex_helper_ = new TwoDTextureHelper<float>(1, stream);
   steer_lstm_lstm_helper_ = std::make_shared<STEER_NN>(stream);
   delay_lstm_lstm_helper_ = std::make_shared<DELAY_NN>(stream);
   terra_lstm_lstm_helper_ = std::make_shared<TERRA_NN>(stream);
@@ -19,13 +18,6 @@ BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::BicycleSlipKinematicImpl(const std:
                                                                       cudaStream_t stream)
   : BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::BicycleSlipKinematicImpl(stream)
 {
-  this->requires_buffer_ = true;
-  tex_helper_ = new TwoDTextureHelper<float>(1, stream);
-
-  delay_lstm_lstm_helper_ = std::make_shared<DELAY_NN>(stream);
-  terra_lstm_lstm_helper_ = std::make_shared<TERRA_NN>(stream);
-  steer_lstm_lstm_helper_ = std::make_shared<STEER_NN>(stream);
-
   if (!fileExists(model_path))
   {
     std::cerr << "Could not load neural net model at model_path: " << model_path.c_str();
@@ -99,14 +91,6 @@ BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::st
 }
 
 template <class CLASS_T, class PARAMS_T>
-void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::paramsToDevice()
-{
-  // does all the internal texture updates
-  tex_helper_->copyToDevice();
-  PARENT_CLASS::paramsToDevice();
-}
-
-template <class CLASS_T, class PARAMS_T>
 void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::GPUSetup()
 {
   steer_lstm_lstm_helper_->GPUSetup();
@@ -119,10 +103,6 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::GPUSetup()
   this->terra_network_d_ = terra_lstm_lstm_helper_->getLSTMDevicePtr();
 
   PARENT_CLASS::GPUSetup();
-  tex_helper_->GPUSetup();
-  // makes sure that the device ptr sees the correct texture object
-  HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->tex_helper_), &(tex_helper_->ptr_d_),
-                               sizeof(TwoDTextureHelper<float>*), cudaMemcpyHostToDevice, this->stream_));
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -131,7 +111,6 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::freeCudaMem()
   steer_lstm_lstm_helper_->freeCudaMem();
   delay_lstm_lstm_helper_->freeCudaMem();
   terra_lstm_lstm_helper_->freeCudaMem();
-  tex_helper_->freeCudaMem();
   PARENT_CLASS::freeCudaMem();
 }
 
@@ -201,19 +180,13 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::R
   float brake_cmd = -enable_brake * control(C_INDEX(THROTTLE_BRAKE));
   float throttle_cmd = !enable_brake * control(C_INDEX(THROTTLE_BRAKE));
 
+  // runs parametric delay model
+  this->computeParametricDelayDeriv(state, control, state_der);
+
   state_der(S_INDEX(BRAKE_STATE)) =
       min(max((brake_cmd - state(S_INDEX(BRAKE_STATE))) * this->params_.brake_delay_constant,
               -this->params_.max_brake_rate_neg),
           this->params_.max_brake_rate_pos);
-  // TODO if low speed allow infinite brake, not sure if needed
-  // TODO need parametric reverse
-
-  // kinematics component
-  state_der(S_INDEX(POS_X)) =
-      state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW))) - state(S_INDEX(VEL_Y)) * sinf(state(S_INDEX(YAW)));
-  state_der(S_INDEX(POS_Y)) =
-      state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW))) + state(S_INDEX(VEL_Y)) * cosf(state(S_INDEX(YAW)));
-  state_der(S_INDEX(YAW)) = state(S_INDEX(OMEGA_Z));
 
   if (this->params_.enable_delay_model)
   {
@@ -228,11 +201,7 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::R
   }
 
   // runs the parametric part of the steering model
-  state_der(S_INDEX(STEER_ANGLE)) =
-      (control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
-      this->params_.steering_constant;
-  state_der(S_INDEX(STEER_ANGLE)) =
-      max(min(state_der(S_INDEX(STEER_ANGLE)), this->params_.max_steer_rate), -this->params_.max_steer_rate);
+  this->computeParametricSteerDeriv(state, control, state_der);
 
   // runs the steering model
   STEER_LSTM::input_array steer_input;
@@ -245,26 +214,48 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::R
   steer_lstm_lstm_helper_->forward(steer_input, steer_output);
   state_der(S_INDEX(STEER_ANGLE)) += steer_output(0) * 10;
 
-  // runs the terra dynamics model
-  TERRA_LSTM::input_array terra_input;
-  terra_input(0) = state(S_INDEX(VEL_X)) / 20.0f;
-  terra_input(1) = state(S_INDEX(VEL_Y)) / 5.0f;
-  terra_input(2) = state(S_INDEX(OMEGA_Z)) / 5.0f;
-  terra_input(3) = throttle_cmd;
-  terra_input(4) = state(S_INDEX(BRAKE_STATE));
-  terra_input(5) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
-  terra_input(6) = state(S_INDEX(STEER_ANGLE_RATE)) / 10.0f;
-  // TODO if roll/pitch is invalid just set it to zero
-  terra_input(7) = state(S_INDEX(PITCH)) * (abs(state(S_INDEX(PITCH))) < M_PI_2f32);
-  terra_input(8) = state(S_INDEX(ROLL)) * (abs(state(S_INDEX(ROLL))) < M_PI_2f32);
-  terra_input(9) = this->params_.environment;
-  TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
-  terra_lstm_lstm_helper_->forward(terra_input, terra_output);
+  // if in reverse use parametric model
+  if (this->params_.gear_sign == -1)
+  {
+    // TODO dt is not known here
+    this->computeParametricAccelDeriv(state, control, state_der, 0.02);
 
-  // combine to compute state derivative
-  state_der(S_INDEX(VEL_X)) = terra_output(0) * 10.0f;
-  state_der(S_INDEX(VEL_Y)) = terra_output(1) * 5.0f;
-  state_der(S_INDEX(OMEGA_Z)) = terra_output(2) * 5.0f;
+    // kinematic
+    state_der(S_INDEX(OMEGA_Z)) = 0.0f;
+    state_der(S_INDEX(VEL_Y)) = 0.0f;
+  }
+  else
+  {
+    // runs the terra dynamics model
+    TERRA_LSTM::input_array terra_input;
+    terra_input(0) = state(S_INDEX(VEL_X)) / 20.0f;
+    terra_input(1) = state(S_INDEX(VEL_Y)) / 5.0f;
+    terra_input(2) = state(S_INDEX(OMEGA_Z)) / 5.0f;
+    terra_input(3) = throttle_cmd;
+    terra_input(4) = state(S_INDEX(BRAKE_STATE));
+    terra_input(5) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
+    terra_input(6) = state(S_INDEX(STEER_ANGLE_RATE)) / 10.0f;
+    // if roll/pitch is invalid just set it to zero
+    terra_input(7) = state(S_INDEX(PITCH)) * (abs(state(S_INDEX(PITCH))) < M_PI_2f32);
+    terra_input(8) = state(S_INDEX(ROLL)) * (abs(state(S_INDEX(ROLL))) < M_PI_2f32);
+    terra_input(9) = this->params_.environment;
+    TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
+    terra_lstm_lstm_helper_->forward(terra_input, terra_output);
+
+    // combine to compute state derivative
+    state_der(S_INDEX(VEL_X)) = terra_output(0) * 10.0f;
+    state_der(S_INDEX(VEL_Y)) = terra_output(1) * 5.0f;
+    state_der(S_INDEX(OMEGA_Z)) = terra_output(2) * 5.0f;
+
+    // kinematic component
+    state_der(S_INDEX(YAW)) = state(S_INDEX(OMEGA_Z));
+  }
+
+  // kinematics component
+  state_der(S_INDEX(POS_X)) =
+      state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW))) - state(S_INDEX(VEL_Y)) * sinf(state(S_INDEX(YAW)));
+  state_der(S_INDEX(POS_Y)) =
+      state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW))) + state(S_INDEX(VEL_Y)) * cosf(state(S_INDEX(YAW)));
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -273,6 +264,11 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::updateState(const Eigen::Ref<c
                                                               Eigen::Ref<state_array> state_der, const float dt)
 {
   next_state = state + state_der * dt;
+  if (this->params_.gear_sign == -1)
+  {
+    next_state(S_INDEX(OMEGA_Z)) = state_der(S_INDEX(YAW));
+    next_state(S_INDEX(VEL_Y)) = 0.0f;
+  }
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
   next_state(S_INDEX(STEER_ANGLE)) =
       max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
@@ -301,23 +297,11 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> s
   next_state[S_INDEX(PITCH)] = pitch;
   next_state[S_INDEX(ROLL)] = roll;
 
-  output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
+  this->setOutputs(state_der.data(), next_state.data(), output.data());
+
   output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
-  output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
-  output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
-  output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
-  output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
-  output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
-  output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
-  output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
-  output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
-  output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000;
-  output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000;
-  output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
   output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
-  output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+  output[O_INDEX(OMEGA_Z)] = next_state[S_INDEX(OMEGA_Z)];
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -388,6 +372,12 @@ __device__ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::updateState(float* 
   }
 
   __syncthreads();
+
+  if (params_p->gear_sign == -1)
+  {
+    next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+    next_state[S_INDEX(VEL_Y)] = 0.0f;
+  }
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -422,23 +412,10 @@ __device__ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::computeDynamics(flo
   const float throttle_cmd = !enable_brake * control[C_INDEX(THROTTLE_BRAKE)];
 
   // parametric part of the brake
-  state_der[S_INDEX(BRAKE_STATE)] = min(
-      max((brake_cmd - state[S_INDEX(BRAKE_STATE)]) * params_p->brake_delay_constant, -params_p->max_brake_rate_neg),
-      params_p->max_brake_rate_pos);
-
-  // kinematics component
-  state_der[S_INDEX(POS_X)] =
-      state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]) - state[S_INDEX(VEL_Y)] * sinf(state[S_INDEX(YAW)]);
-  state_der[S_INDEX(POS_Y)] =
-      state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]) + state[S_INDEX(VEL_Y)] * cosf(state[S_INDEX(YAW)]);
-  state_der[S_INDEX(YAW)] = state[S_INDEX(OMEGA_Z)];
+  this->computeParametricDelayDeriv(state, control, state_der, params_p);
 
   // runs the parametric part of the steering model
-  state_der[S_INDEX(STEER_ANGLE)] =
-      max(min((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
-                  params_p->steering_constant,
-              params_p->max_steer_rate),
-          -params_p->max_steer_rate);
+  this->computeParametricSteerDeriv(state, control, state_der, params_p);
 
   // runs the brake model
   float* input_loc = &theta_s_shifted[DELAY_LSTM::HIDDEN_DIM];
@@ -492,35 +469,55 @@ __device__ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::computeDynamics(flo
   }
   __syncthreads();  // required since we can overwrite the output before grabbing it
 
-  // runs the terra dynamics model
-  input_loc = &theta_s_shifted[TERRA_LSTM::HIDDEN_DIM];
-  input_loc[0] = state[S_INDEX(VEL_X)] / 20.0f;
-  input_loc[1] = state[S_INDEX(VEL_Y)] / 5.0f;
-  input_loc[2] = state[S_INDEX(OMEGA_Z)] / 5.0f;
-  input_loc[3] = throttle_cmd;
-  input_loc[4] = state[S_INDEX(BRAKE_STATE)];
-  input_loc[5] = state[S_INDEX(STEER_ANGLE)] / 5.0f;
-  input_loc[6] = state[S_INDEX(STEER_ANGLE_RATE)] / 10.0f;
-  input_loc[7] = state[S_INDEX(PITCH)] * (abs(state[S_INDEX(PITCH)]) < M_PI_2f32);
-  input_loc[8] = state[S_INDEX(ROLL)] * (abs(state[S_INDEX(ROLL)]) < M_PI_2f32);
-  input_loc[9] = this->params_.environment;
-
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (params_p->gear_sign == -1)
   {
-    output = terra_network_d_->forward(nullptr, theta_s_shifted, &blk_params->terra_hidden_cell[0],
-                                       &params->terra_lstm_params, &params->terra_output_params, 0);
+    // in reverse
+    this->computeParametricAccelDeriv(state, control, state_der, 0.02, params_p);
+
+    // kinematic
+    state_der[S_INDEX(OMEGA_Z)] = 0.0f;
+    state_der[S_INDEX(VEL_Y)] = 0.0f;
   }
   else
   {
-    output =
-        terra_network_d_->forward(nullptr, theta_s_shifted, &blk_params->terra_hidden_cell[0],
-                                  &terra_network_d_->params_, terra_network_d_->getOutputModel()->getParamsPtr(), 0);
+    // runs the terra dynamics model
+    input_loc = &theta_s_shifted[TERRA_LSTM::HIDDEN_DIM];
+    input_loc[0] = state[S_INDEX(VEL_X)] / 20.0f;
+    input_loc[1] = state[S_INDEX(VEL_Y)] / 5.0f;
+    input_loc[2] = state[S_INDEX(OMEGA_Z)] / 5.0f;
+    input_loc[3] = throttle_cmd;
+    input_loc[4] = state[S_INDEX(BRAKE_STATE)];
+    input_loc[5] = state[S_INDEX(STEER_ANGLE)] / 5.0f;
+    input_loc[6] = state[S_INDEX(STEER_ANGLE_RATE)] / 10.0f;
+    input_loc[7] = state[S_INDEX(PITCH)] * (abs(state[S_INDEX(PITCH)]) < M_PI_2f32);
+    input_loc[8] = state[S_INDEX(ROLL)] * (abs(state[S_INDEX(ROLL)]) < M_PI_2f32);
+    input_loc[9] = this->params_.environment;
+
+    if (SHARED_MEM_REQUEST_GRD != 0)
+    {
+      output = terra_network_d_->forward(nullptr, theta_s_shifted, &blk_params->terra_hidden_cell[0],
+                                         &params->terra_lstm_params, &params->terra_output_params, 0);
+    }
+    else
+    {
+      output =
+          terra_network_d_->forward(nullptr, theta_s_shifted, &blk_params->terra_hidden_cell[0],
+                                    &terra_network_d_->params_, terra_network_d_->getOutputModel()->getParamsPtr(), 0);
+    }
+
+    // combine to compute state derivative
+    state_der[S_INDEX(VEL_X)] = output[0] * 10.0f;
+    state_der[S_INDEX(VEL_Y)] = output[1] * 5.0f;
+    state_der[S_INDEX(OMEGA_Z)] = output[2] * 5.0f;
+
+    state_der[S_INDEX(YAW)] = state[S_INDEX(OMEGA_Z)];
   }
 
-  // combine to compute state derivative
-  state_der[S_INDEX(VEL_X)] = output[0] * 10.0f;
-  state_der[S_INDEX(VEL_Y)] = output[1] * 5.0f;
-  state_der[S_INDEX(OMEGA_Z)] = output[2] * 5.0f;
+  // kinematics component
+  state_der[S_INDEX(POS_X)] =
+      state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]) - state[S_INDEX(VEL_Y)] * sinf(state[S_INDEX(YAW)]);
+  state_der[S_INDEX(POS_Y)] =
+      state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]) + state[S_INDEX(VEL_Y)] * cosf(state[S_INDEX(YAW)]);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -552,47 +549,12 @@ __device__ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::step(float* state, 
     next_state[S_INDEX(PITCH)] = pitch;
     next_state[S_INDEX(ROLL)] = roll;
 
-    output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
+    this->setOutputs(state_der, next_state, output);
+
     output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
-    output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
-    output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
-    output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
-    output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
-    output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
-    output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
-    output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
-    output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000;
-    output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000;
-    output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000;
-    output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000;
-    output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
     output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
-    output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+    output[O_INDEX(OMEGA_Z)] = next_state[S_INDEX(OMEGA_Z)];
   }
-}
-
-template <class CLASS_T, class PARAMS_T>
-void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::getStoppingControl(const Eigen::Ref<const state_array>& state,
-                                                                     Eigen::Ref<control_array> u)
-{
-  u[0] = -1.0;  // full brake
-  u[1] = 0.0;   // no steering
-}
-
-template <class CLASS_T, class PARAMS_T>
-Eigen::Quaternionf
-BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::attitudeFromState(const Eigen::Ref<const state_array>& state)
-{
-  Eigen::Quaternionf q;
-  mppi::math::Euler2QuatNWU(state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), state(S_INDEX(YAW)), q);
-  return q;
-}
-
-template <class CLASS_T, class PARAMS_T>
-Eigen::Vector3f
-BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::positionFromState(const Eigen::Ref<const state_array>& state)
-{
-  return Eigen::Vector3f(state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)], 0);
 }
 
 template <class CLASS_T, class PARAMS_T>
