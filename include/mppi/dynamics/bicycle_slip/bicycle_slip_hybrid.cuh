@@ -40,8 +40,14 @@ public:
     explicit BicycleSlipHybrid(cudaStream_t stream = nullptr);
     explicit BicycleSlipHybrid(std::string model_path, cudaStream_t stream = nullptr);
 
+    std::string getDynamicsModelName() const override
+    {
+      return "Bicycle Slip Hybrid Model";
+    }
+
+
     void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-                         Eigen::Ref<state_array> state_der);
+                           Eigen::Ref<state_array> state_der);
 
     __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
 protected:
