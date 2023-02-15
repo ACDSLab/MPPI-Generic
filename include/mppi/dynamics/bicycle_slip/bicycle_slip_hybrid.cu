@@ -59,86 +59,86 @@ void BicycleSlipHybrid::computeDynamics(const Eigen::Ref<const state_array>& sta
                                         const Eigen::Ref<const control_array>& control,
                                         Eigen::Ref<state_array> state_der)
 {
-  state_der = state_array::Zero();
-  bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
-  float brake_cmd = -enable_brake * control(C_INDEX(THROTTLE_BRAKE));
-  float throttle_cmd = !enable_brake * control(C_INDEX(THROTTLE_BRAKE));
-  int index = abs(state(S_IONDEX(VEL_X))) > 0.1;
+  // state_der = state_array::Zero();
+  // bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
+  // float brake_cmd = -enable_brake * control(C_INDEX(THROTTLE_BRAKE));
+  // float throttle_cmd = !enable_brake * control(C_INDEX(THROTTLE_BRAKE));
+  // int index = abs(state(S_INDEX(VEL_X))) > 0.1;
 
-  // parametric brake model
-  state_der(S_INDEX(BRAKE_STATE)) =
-      min(max((brake_cmd - state(S_INDEX(BRAKE_STATE))) * this->params_.brake_delay_constant,
-              -this->params_.max_brake_rate_neg),
-          this->params_.max_brake_rate_pos);
+  // // parametric brake model
+  // state_der(S_INDEX(BRAKE_STATE)) =
+  //     min(max((brake_cmd - state(S_INDEX(BRAKE_STATE))) * this->params_.brake_delay_constant,
+  //             -this->params_.max_brake_rate_neg),
+  //         this->params_.max_brake_rate_pos);
 
-  // runs the parametric part of the steering model
-  state_der[S_INDEX(STEER_ANGLE)] =
-      max(min((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
-                  params_p->steering_constant,
-              params_p->max_steer_rate),
-          -params_p->max_steer_rate);
+  // // runs the parametric part of the steering model
+  // state_der[S_INDEX(STEER_ANGLE)] =
+  //     max(min((control[C_INDEX(STEER_CMD)] * this->params_.steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+  //                 this->params_.steering_constant,
+  //             this->params_.max_steer_rate),
+  //         -this->params_.max_steer_rate);
 
-  // runs the parametric component of the terra dynamics model
-  float throttle = this->params_.c_t[0] * control(C_INDEX(THROTTLE_BRAKE));
-  float brake = this->params_.c_t state_der(S_INDEX(VEL_X)) =
+  // // runs the parametric component of the terra dynamics model
+  // float throttle = this->params_.c_t[0] * control(C_INDEX(THROTTLE_BRAKE));
+  // // float brake = this->params_.c_t state_der(S_INDEX(VEL_X)) =
 
-      // kinematics component
-      state_der(S_INDEX(POS_X)) =
-          state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW))) - state(S_INDEX(VEL_Y)) * sinf(state(S_INDEX(YAW)));
-  state_der(S_INDEX(POS_Y)) =
-      state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW))) + state(S_INDEX(VEL_Y)) * cosf(state(S_INDEX(YAW)));
-  state_der(S_INDEX(YAW)) = state(S_INDEX(OMEGA_Z));
+  // // kinematics component
+  // state_der(S_INDEX(POS_X)) =
+  //     state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW))) - state(S_INDEX(VEL_Y)) * sinf(state(S_INDEX(YAW)));
+  // state_der(S_INDEX(POS_Y)) =
+  //     state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW))) + state(S_INDEX(VEL_Y)) * cosf(state(S_INDEX(YAW)));
+  // state_der(S_INDEX(YAW)) = state(S_INDEX(OMEGA_Z));
 
-  // runs the brake model
-  if (this->params_.enable_delay_model)
-  {
-    DELAY_LSTM::input_array brake_input;
-    brake_input(0) = state(S_INDEX(BRAKE_STATE));
-    brake_input(1) = brake_cmd;
-    brake_input(2) = state_der(S_INDEX(BRAKE_STATE));  // stand in for y velocity
-    DELAY_LSTM::output_array brake_output = DELAY_LSTM::output_array::Zero();
-    delay_lstm_lstm_helper_->forward(brake_input, brake_output);
-    state_der(S_INDEX(BRAKE_STATE)) += brake_output(0);
-  }
+  // // runs the brake model
+  // if (this->params_.enable_delay_model)
+  // {
+  //   DELAY_LSTM::input_array brake_input;
+  //   brake_input(0) = state(S_INDEX(BRAKE_STATE));
+  //   brake_input(1) = brake_cmd;
+  //   brake_input(2) = state_der(S_INDEX(BRAKE_STATE));  // stand in for y velocity
+  //   DELAY_LSTM::output_array brake_output = DELAY_LSTM::output_array::Zero();
+  //   delay_lstm_lstm_helper_->forward(brake_input, brake_output);
+  //   state_der(S_INDEX(BRAKE_STATE)) += brake_output(0);
+  // }
 
-  // runs the steering model
-  STEER_LSTM::input_array steer_input;
-  steer_input(0) = state(S_INDEX(VEL_X)) / 20.0f;
-  steer_input(1) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
-  steer_input(2) = state(S_INDEX(STEER_ANGLE_RATE)) / 5.0f;
-  steer_input(3) = control(C_INDEX(STEER_CMD));
-  steer_input(4) = state_der(S_INDEX(STEER_ANGLE));  // this is the parametric part as input
-  STEER_LSTM::output_array steer_output = STEER_LSTM::output_array::Zero();
-  steer_lstm_lstm_helper_->forward(steer_input, steer_output);
-  state_der(S_INDEX(STEER_ANGLE)) += steer_output(0) * 10;
+  // // runs the steering model
+  // STEER_LSTM::input_array steer_input;
+  // steer_input(0) = state(S_INDEX(VEL_X)) / 20.0f;
+  // steer_input(1) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
+  // steer_input(2) = state(S_INDEX(STEER_ANGLE_RATE)) / 5.0f;
+  // steer_input(3) = control(C_INDEX(STEER_CMD));
+  // steer_input(4) = state_der(S_INDEX(STEER_ANGLE));  // this is the parametric part as input
+  // STEER_LSTM::output_array steer_output = STEER_LSTM::output_array::Zero();
+  // steer_lstm_lstm_helper_->forward(steer_input, steer_output);
+  // state_der(S_INDEX(STEER_ANGLE)) += steer_output(0) * 10;
 
-  const float delta = tanf(state(S_INDEX(STEER_ANGLE)) / this->params_.wheel_angle_scale);
+  // const float delta = tanf(state(S_INDEX(STEER_ANGLE)) / this->params_.wheel_angle_scale);
 
-  // runs the terra dynamics model
-  TERRA_LSTM::input_array terra_input;
-  terra_input(0) = state(S_INDEX(VEL_X)) / 20.0f;
-  terra_input(1) = state(S_INDEX(VEL_Y)) / 5.0f;
-  terra_input(2) = state(S_INDEX(OMEGA_Z)) / 5.0f;
-  terra_input(3) = throttle_cmd;
-  terra_input(4) = state(S_INDEX(BRAKE_STATE));
-  terra_input(5) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
-  terra_input(6) = state(S_INDEX(STEER_ANGLE_RATE)) / 5.0f;
-  terra_input(7) = state(S_INDEX(PITCH));
-  terra_input(8) = state(S_INDEX(ROLL));
-  terra_input(9) = this->params_.environment;
-  TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
-  terra_lstm_lstm_helper_->forward(terra_input, terra_output);
+  // // runs the terra dynamics model
+  // TERRA_LSTM::input_array terra_input;
+  // terra_input(0) = state(S_INDEX(VEL_X)) / 20.0f;
+  // terra_input(1) = state(S_INDEX(VEL_Y)) / 5.0f;
+  // terra_input(2) = state(S_INDEX(OMEGA_Z)) / 5.0f;
+  // terra_input(3) = throttle_cmd;
+  // terra_input(4) = state(S_INDEX(BRAKE_STATE));
+  // terra_input(5) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
+  // terra_input(6) = state(S_INDEX(STEER_ANGLE_RATE)) / 5.0f;
+  // terra_input(7) = state(S_INDEX(PITCH));
+  // terra_input(8) = state(S_INDEX(ROLL));
+  // terra_input(9) = this->params_.environment;
+  // TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
+  // terra_lstm_lstm_helper_->forward(terra_input, terra_output);
 
-  const float c_delta = cosf(delta + terra_output(3));
-  const float s_delta = sinf(delta + terra_output(3));
-  const float x_accel = terra_output(0) * 10.0f;
-  const float y_accel = terra_output(1) * 5.0f;
-  const float yaw_accel = terra_output(2) * 5.0f;
+  // const float c_delta = cosf(delta + terra_output(3));
+  // const float s_delta = sinf(delta + terra_output(3));
+  // const float x_accel = terra_output(0) * 10.0f;
+  // const float y_accel = terra_output(1) * 5.0f;
+  // const float yaw_accel = terra_output(2) * 5.0f;
 
-  // combine to compute state derivative
-  state_der(S_INDEX(VEL_X)) = x_accel * c_delta - y_accel * s_delta + x_accel;
-  state_der(S_INDEX(VEL_Y)) = x_accel * s_delta + y_accel * c_delta + y_accel;
-  state_der(S_INDEX(OMEGA_Z)) = yaw_accel;
+  // // combine to compute state derivative
+  // state_der(S_INDEX(VEL_X)) = x_accel * c_delta - y_accel * s_delta + x_accel;
+  // state_der(S_INDEX(VEL_Y)) = x_accel * s_delta + y_accel * c_delta + y_accel;
+  // state_der(S_INDEX(OMEGA_Z)) = yaw_accel;
 }
 
 __device__ void BicycleSlipHybrid::computeDynamics(float* state, float* control, float* state_der, float* theta)
