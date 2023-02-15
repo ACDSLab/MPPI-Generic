@@ -198,12 +198,11 @@ inline __host__ __device__ void RotatePointByQuat(const float q[4], float3& poin
   // converts the point into a quaternion format
   float pq[4] = { 0.0, point.x, point.y, point.z };
   float q_inv[4];
-  float result[4];
+  float temp[4];
   QuatInv(q, q_inv);
-  QuatMultiply(q, pq, result, false);
-  // uses q_inv as a holder for result
-  QuatMultiply(result, q_inv, pq, false);
-  // stores the result of the rotation into a value
+  QuatMultiply(q, pq, temp, false);
+  QuatMultiply(temp, q_inv, pq, false);
+  // converts the quaternion back into a point
   point = make_float3(pq[1], pq[2], pq[3]);
 }
 
