@@ -89,6 +89,11 @@ class BicycleSlipKinematicImpl : public MPPI_internal::Dynamics<CLASS_T, PARAMS_
   BicycleSlipKinematicImpl(cudaStream_t stream = nullptr);
   BicycleSlipKinematicImpl(const std::string& model_path, cudaStream_t stream = nullptr);
 
+  std::string getDynamicsModelName() const override
+  {
+    return "Bicycle Slip Kinematic Model";
+  }
+
   void paramsToDevice();
 
   void GPUSetup();
