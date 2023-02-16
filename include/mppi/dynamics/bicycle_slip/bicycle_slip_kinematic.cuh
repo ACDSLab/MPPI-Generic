@@ -39,29 +39,29 @@ class BicycleSlipKinematicImpl : public RacerDubinsElevationImpl<CLASS_T, PARAMS
 {
  public:
   using PARENT_CLASS = RacerDubinsElevationImpl<CLASS_T, PARAMS_T>;
-  typedef LSTMHelper<LSTMParams<5, 4>, FNNParams<9,20,1>, false> STEER_LSTM;
-  typedef LSTMHelper<LSTMParams<4, 20>, FNNParams<24, 80, 8>> STEER_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<5, 4>, FNNParams<9,5,1>, false> STEER_LSTM;
+  typedef LSTMHelper<LSTMParams<4, 20>, FNNParams<24, 100, 8>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
 
-  typedef LSTMHelper<LSTMParams<3, 4>, FNNParams<7,8,1>, false> DELAY_LSTM;
-  typedef LSTMHelper<LSTMParams<2, 20>, FNNParams<22, 80, 8>> DELAY_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<3, 4>, FNNParams<7,1>, false> DELAY_LSTM;
+  typedef LSTMHelper<LSTMParams<2, 20>, FNNParams<22, 100, 8>> DELAY_INIT_LSTM;
   typedef LSTMLSTMHelper<DELAY_INIT_LSTM, DELAY_LSTM, 51> DELAY_NN;
 
-  typedef LSTMHelper<LSTMParams<10, 12>, FNNParams<22,20,3>, false> TERRA_LSTM;
-  typedef LSTMHelper<LSTMParams<10, 40>, FNNParams<50, 200, 24>> TERRA_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<9, 20>, FNNParams<29,20,3>, false> TERRA_LSTM;
+  typedef LSTMHelper<LSTMParams<9, 40>, FNNParams<49, 400, 40>> TERRA_INIT_LSTM;
   typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
 
   typedef typename PARENT_CLASS::DYN_PARAMS_T DYN_PARAMS_T;
 
   struct SHARED_MEM_GRD_PARAMS {
     LSTMParams<5, 4> steer_lstm_params;
-    FNNParams<9, 20, 1> steer_output_params;
+    FNNParams<9, 5, 1> steer_output_params;
 
     LSTMParams<3, 4> delay_lstm_params;
-    FNNParams<7, 8, 1> delay_output_params;
+    FNNParams<7, 1> delay_output_params;
 
-    LSTMParams<10, 12> terra_lstm_params;
-    FNNParams<22, 20, 3> terra_output_params;
+    LSTMParams<9, 20> terra_lstm_params;
+    FNNParams<29, 20, 3> terra_output_params;
   };
 
   struct SHARED_MEM_BLK_PARAMS {

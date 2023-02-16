@@ -325,13 +325,13 @@ TEST_F(BicycleSlipKinematicTest, computeDynamicsCPUFakeNetworks)
   // force brake output
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
   std::vector<float> brake_theta(BicycleSlipKinematic::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
-  brake_theta[brake_params.stride_idcs[3]] = 1.0;
-  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 7, 8, 1 }, brake_theta);
+  brake_theta[brake_params.stride_idcs[1]] = 1.0;
+  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 7, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
   std::vector<float> steer_theta(BicycleSlipKinematic::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
-  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 9, 20, 1 }, steer_theta);
+  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 9, 5, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
   std::vector<float> terra_theta(BicycleSlipKinematic::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
@@ -339,7 +339,7 @@ TEST_F(BicycleSlipKinematicTest, computeDynamicsCPUFakeNetworks)
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
   terra_theta[terra_params.stride_idcs[3] + 3] = 0.07;
-  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 22, 20, 3 }, terra_theta);
+  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 29, 20, 3 }, terra_theta);
 
   // computeDynamics should not touch the roll/pitch element
   BicycleSlipKinematic::state_array state_der = BicycleSlipKinematic::state_array::Ones() * 0.153;
@@ -933,20 +933,20 @@ TEST_F(BicycleSlipKinematicTest, stepCPU)
   // force brake output
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
   std::vector<float> brake_theta(BicycleSlipKinematic::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
-  brake_theta[brake_params.stride_idcs[3]] = 1.0;
-  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 7, 8, 1 }, brake_theta);
+  brake_theta[brake_params.stride_idcs[1]] = 1.0;
+  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 7, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
   std::vector<float> steer_theta(BicycleSlipKinematic::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
-  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 9, 20, 1 }, steer_theta);
+  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 9, 5, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
   std::vector<float> terra_theta(BicycleSlipKinematic::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
-  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 22, 20, 3 }, terra_theta);
+  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 29, 20, 3 }, terra_theta);
 
   BicycleSlipKinematic::state_array s = BicycleSlipKinematic::state_array::Ones();
   BicycleSlipKinematic::control_array u = BicycleSlipKinematic::control_array::Ones();
