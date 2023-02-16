@@ -183,11 +183,6 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::R
   // runs parametric delay model
   this->computeParametricDelayDeriv(state, control, state_der);
 
-  state_der(S_INDEX(BRAKE_STATE)) =
-      min(max((brake_cmd - state(S_INDEX(BRAKE_STATE))) * this->params_.brake_delay_constant,
-              -this->params_.max_brake_rate_neg),
-          this->params_.max_brake_rate_pos);
-
   if (this->params_.enable_delay_model)
   {
     // runs the brake model
