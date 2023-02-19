@@ -67,7 +67,7 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
                                cudaMemcpyHostToDevice, this->stream_));
 
   float baseline_prev = 1e8;
-
+  control_array noise0 = this->getControlStdDev();
   for (int opt_iter = 0; opt_iter < this->getNumIters(); opt_iter++)
   {
     // Send the nominal control to the device
@@ -88,6 +88,8 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     //                              cudaMemcpyHostToDevice, this->stream_));
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
                           this->control_noise_d_, optimization_stride, this->gen_, this->stream_);
+    // scale noise down at each iteration
+    this->updateControlNoiseStdDev(noise0 * powf(0.5, opt_iter));
     // Launch the rollout kernel
     mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
@@ -148,6 +150,8 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
                                  this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
   }
+  // reset noise
+  this->updateControlNoiseStdDev(noise0);
 
   this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerCost() / NUM_ROLLOUTS;
   this->free_energy_statistics_.real_sys.increase =
