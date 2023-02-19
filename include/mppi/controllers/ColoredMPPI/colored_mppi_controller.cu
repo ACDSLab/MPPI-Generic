@@ -89,7 +89,7 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
                           this->control_noise_d_, optimization_stride, this->gen_, this->stream_);
     // scale noise down at each iteration
-    this->updateControlNoiseStdDev(noise0 * powf(0.5, opt_iter));
+    this->updateControlNoiseStdDev(noise0 * powf(control_std_dev_decay_, opt_iter));
     // Launch the rollout kernel
     mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
         this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
