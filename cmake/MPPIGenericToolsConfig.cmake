@@ -15,6 +15,10 @@ if(NOT ${CUDA_curand_LIBRARY} MATCHES "NOTFOUND")
     set(CURAND_LIBRARY ${CUDA_curand_LIBRARY})
 endif()
 
+# Generate name for MPPI header library
+set(MPPI_HEADER_LIBRARY_NAME mppi_header_only_lib)
+
+# Generate variable for all the extra cuda libraries we use
 set(MPPI_GENERIC_CUDA_EXTRA_LIBS "")
 list(APPEND MPPI_GENERIC_CUDA_EXTRA_LIBS ${CUDA_curand_LIBRARY} ${CUDA_CUFFT_LIBRARIES})
 

@@ -6,7 +6,7 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
   add_executable(${T_NAME} ${PROJECT_SOURCE_DIR}/tests/test_main.cpp ${T_FILE})
   target_link_libraries(${T_NAME}
                         ${GTEST_LIBRARIES}
-                        cnpy)
+                        ${MPPI_HEADER_LIBRARY_NAME})
 #  add_test(NAME ${T_NAME} COMMAND ${T_NAME})
   gtest_add_tests(TARGET ${T_NAME})
   set_target_properties(${T_NAME} PROPERTIES FOLDER test)

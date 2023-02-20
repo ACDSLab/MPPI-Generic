@@ -9,14 +9,8 @@ add_library(${LIBRARY_NAME} SHARED
 
 target_link_libraries( ${LIBRARY_NAME}
         ${YAML_CPP_LIBRARIES}
+        ${MPPI_HEADER_LIBRARY_NAME}
         )
-
-if(NOT ${CURAND_LIBRARY} MATCHES "NOTFOUND")
-    target_link_libraries( ${LIBRARY_NAME}
-            ${CURAND_LIBRARY}
-            ${CUDA_CUFFT_LIBRARIES}
-            )
-endif()
 
 SET (_soversion ${LIB_MAJOR}.${LIB_MINOR}.${LIB_RELEASE})
 
