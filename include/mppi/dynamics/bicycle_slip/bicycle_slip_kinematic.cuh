@@ -34,7 +34,7 @@ struct BicycleSlipKinematicParams : public RacerDubinsParams
   bool enable_delay_model = true;
 };
 
-template<class CLASS_T, class PARAMS_T>
+template<class CLASS_T, class PARAMS_T, int TERRA_INPUT_DIM = 9>
 class BicycleSlipKinematicImpl : public RacerDubinsElevationImpl<CLASS_T, PARAMS_T>
 {
  public:
@@ -47,7 +47,7 @@ class BicycleSlipKinematicImpl : public RacerDubinsElevationImpl<CLASS_T, PARAMS
   typedef LSTMHelper<LSTMParams<2, 20>, FNNParams<22, 100, 8>> DELAY_INIT_LSTM;
   typedef LSTMLSTMHelper<DELAY_INIT_LSTM, DELAY_LSTM, 51> DELAY_NN;
 
-  typedef LSTMHelper<LSTMParams<9, 20>, FNNParams<29,20,3>, false> TERRA_LSTM;
+  typedef LSTMHelper<LSTMParams<TERRA_INPUT_DIM, 20>, FNNParams<20 + TERRA_INPUT_DIM,20,3>, false> TERRA_LSTM;
   typedef LSTMHelper<LSTMParams<9, 40>, FNNParams<49, 400, 40>> TERRA_INIT_LSTM;
   typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
 
@@ -60,8 +60,8 @@ class BicycleSlipKinematicImpl : public RacerDubinsElevationImpl<CLASS_T, PARAMS
     LSTMParams<3, 4> delay_lstm_params;
     FNNParams<7, 1> delay_output_params;
 
-    LSTMParams<9, 20> terra_lstm_params;
-    FNNParams<29, 20, 3> terra_output_params;
+    LSTMParams<TERRA_INPUT_DIM, 20> terra_lstm_params;
+    FNNParams<20 + TERRA_INPUT_DIM, 20, 3> terra_output_params;
   };
 
   struct SHARED_MEM_BLK_PARAMS {

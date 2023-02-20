@@ -338,7 +338,6 @@ TEST_F(BicycleSlipKinematicTest, computeDynamicsCPUFakeNetworks)
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
-  terra_theta[terra_params.stride_idcs[3] + 3] = 0.07;
   dynamics.getTerraHelper()->getOutputModel()->updateModel({ 29, 20, 3 }, terra_theta);
 
   // computeDynamics should not touch the roll/pitch element

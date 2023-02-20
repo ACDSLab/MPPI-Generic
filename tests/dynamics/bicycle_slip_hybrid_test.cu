@@ -326,20 +326,19 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
   std::vector<float> brake_theta(BicycleSlipHybrid::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
-  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
+  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 7, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
   std::vector<float> steer_theta(BicycleSlipHybrid::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
-  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 5, 1 }, steer_theta);
+  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 9, 5, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
   std::vector<float> terra_theta(BicycleSlipHybrid::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
-  terra_theta[terra_params.stride_idcs[3] + 3] = 0.07;
-  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 20, 20, 4 }, terra_theta);
+  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 32, 20, 3 }, terra_theta);
 
   float delta = 0;
   // computeDynamics should not touch the roll/pitch element
@@ -349,10 +348,10 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
-  EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
+  EXPECT_FLOAT_EQ(state_der(4), 0.0);                                                     // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
+  EXPECT_FLOAT_EQ(state_der(7), 30);                                                      // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
   EXPECT_FLOAT_EQ(state_der(10), 0);                                                      // steer angle rate
@@ -363,9 +362,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.0);                                                     // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -377,9 +376,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.33);                                                    // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.33);                                                    // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -393,9 +392,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), -0.9 + 1);                                                // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), -0.9);                                                    // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -408,9 +407,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_NEAR(state_der(4), -0.66 + 1, tol);                                              // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_NEAR(state_der(4), -0.66, tol);                                                  // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -423,9 +422,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_NEAR(state_der(4), -0.66 + 1, tol);                                              // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_NEAR(state_der(4), -0.66, tol);                                                  // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -438,9 +437,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), 20);                                                      // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 0.066 + 1);                                               // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.066);                                                   // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -453,9 +452,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), 3.0 + 20);                                                // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.0);                                                     // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -468,9 +467,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), -3 + 20);                                                 // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.0);                                                     // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -483,9 +482,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), 1.5 + 20);                                                // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.0);                                                     // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -498,9 +497,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                                       // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                                       // yaw
   EXPECT_FLOAT_EQ(state_der(3), -0.3 + 20);                                               // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                                                     // brake state
-  EXPECT_FLOAT_EQ(state_der(5), cosf(0.0f + 0.07f) * 40 - 50 * sinf(0.0f + 0.07f) + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), sinf(0.0f + 0.07f) * 40 + 50 * cosf(0.0f + 0.07f) + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.0);                                                     // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                                      // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                                      // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                                                   // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                                       // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                                       // pitch
@@ -516,9 +515,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                 // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                 // yaw
   EXPECT_FLOAT_EQ(state_der(3), 1.2 + 20);                          // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                               // brake state
-  EXPECT_FLOAT_EQ(state_der(5), 40 * c_delta - 50 * s_delta + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 40 * s_delta + 50 * c_delta + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.0);                               // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                             // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                 // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                 // pitch
@@ -534,9 +533,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 0);                                 // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                 // yaw
   EXPECT_FLOAT_EQ(state_der(3), 20);                                // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                               // brake state
-  EXPECT_FLOAT_EQ(state_der(5), 40 * c_delta - 50 * s_delta + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 40 * s_delta + 50 * c_delta + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.0);                               // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                             // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                 // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                 // pitch
@@ -552,9 +551,9 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   EXPECT_FLOAT_EQ(state_der(1), 2.0);                               // y
   EXPECT_FLOAT_EQ(state_der(2), 0);                                 // yaw
   EXPECT_FLOAT_EQ(state_der(3), 21.5);                              // steer angle
-  EXPECT_FLOAT_EQ(state_der(4), 1.0);                               // brake state
-  EXPECT_FLOAT_EQ(state_der(5), 40 * c_delta - 50 * s_delta + 40);  // vel x
-  EXPECT_FLOAT_EQ(state_der(6), 40 * s_delta + 50 * c_delta + 50);  // vel y
+  EXPECT_FLOAT_EQ(state_der(4), 0.0);                               // brake state
+  EXPECT_FLOAT_EQ(state_der(5), 40);                                // vel x
+  EXPECT_FLOAT_EQ(state_der(6), 50);                                // vel y
   EXPECT_FLOAT_EQ(state_der(7), 30.0f);                             // omega z
   EXPECT_FLOAT_EQ(state_der(8), 0);                                 // roll
   EXPECT_FLOAT_EQ(state_der(9), 0);                                 // pitch
@@ -720,19 +719,19 @@ TEST_F(BicycleSlipHybridTest, stepCPU)
   auto brake_params = dynamics.getDelayHelper()->getOutputModel()->getParams();
   std::vector<float> brake_theta(BicycleSlipHybrid::DELAY_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   brake_theta[brake_params.stride_idcs[3]] = 1.0;
-  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 8, 10, 1 }, brake_theta);
+  dynamics.getDelayHelper()->getOutputModel()->updateModel({ 7, 1 }, brake_theta);
 
   auto steer_params = dynamics.getSteerHelper()->getOutputModel()->getParams();
   std::vector<float> steer_theta(BicycleSlipHybrid::STEER_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   steer_theta[steer_params.stride_idcs[3]] = 2.0;
-  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 10, 5, 1 }, steer_theta);
+  dynamics.getSteerHelper()->getOutputModel()->updateModel({ 9, 5, 1 }, steer_theta);
 
   auto terra_params = dynamics.getTerraHelper()->getOutputModel()->getParams();
   std::vector<float> terra_theta(BicycleSlipHybrid::TERRA_LSTM::OUTPUT_PARAMS_T::NUM_PARAMS);
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
-  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 20, 20, 4 }, terra_theta);
+  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 32, 20, 3 }, terra_theta);
 
   BicycleSlipHybrid::state_array s = BicycleSlipHybrid::state_array::Ones();
   BicycleSlipHybrid::control_array u = BicycleSlipHybrid::control_array::Ones();
@@ -747,9 +746,9 @@ TEST_F(BicycleSlipHybridTest, stepCPU)
   EXPECT_FLOAT_EQ(s_der(1), 1.3817732);    // y
   EXPECT_FLOAT_EQ(s_der(2), 1.0);          // yaw
   EXPECT_FLOAT_EQ(s_der(3), 22.4);         // steer angle
-  EXPECT_FLOAT_EQ(s_der(4), 0.1);          // brake state
-  EXPECT_FLOAT_EQ(s_der(5), 85.207535);    // vel x
-  EXPECT_FLOAT_EQ(s_der(6), 95.346207);    // vel y
+  EXPECT_FLOAT_EQ(s_der(4), -0.9);         // brake state
+  EXPECT_FLOAT_EQ(s_der(5), 40);           // vel x
+  EXPECT_FLOAT_EQ(s_der(6), 50);           // vel y
   EXPECT_FLOAT_EQ(s_der(7), 30);           // omega z
   EXPECT_FLOAT_EQ(s_der(8), 0);            // roll
   EXPECT_FLOAT_EQ(s_der(9), 0);            // pitch
@@ -759,20 +758,20 @@ TEST_F(BicycleSlipHybridTest, stepCPU)
   EXPECT_FLOAT_EQ(s_next(1), 5.1381773);    // y
   EXPECT_FLOAT_EQ(s_next(2), 1.1f);         // yaw
   EXPECT_FLOAT_EQ(s_next(3), 3.24);         // steer angle
-  EXPECT_FLOAT_EQ(s_next(4), 1.0);          // brake state
-  EXPECT_FLOAT_EQ(s_next(5), 9.5207539);    // vel x
-  EXPECT_FLOAT_EQ(s_next(6), 10.534621);    // vel y
-  EXPECT_FLOAT_EQ(s_next(7), 4);            // omega z
+  EXPECT_FLOAT_EQ(s_next(4), 0.91);         // brake state
+  EXPECT_FLOAT_EQ(s_next(5), 4 + 1);        // vel x
+  EXPECT_FLOAT_EQ(s_next(6), 5 + 1);        // vel y
+  EXPECT_FLOAT_EQ(s_next(7), 3 + 1);        // omega z
   EXPECT_FLOAT_EQ(s_next(8), -0.7060864);   // roll
   EXPECT_FLOAT_EQ(s_next(9), -0.44172257);  // pitch
   EXPECT_FLOAT_EQ(s_next(10), 22.4);        // steer angle rate
 
-  EXPECT_FLOAT_EQ(output(0), 9.5207539);    // x vel
-  EXPECT_FLOAT_EQ(output(1), 10.534621);    // y vel
+  EXPECT_FLOAT_EQ(output(0), 5);            // x vel
+  EXPECT_FLOAT_EQ(output(1), 6);            // y vel
   EXPECT_FLOAT_EQ(output(2), 0);            // z vel
   EXPECT_FLOAT_EQ(output(3), 4.96988314);   // x pos
   EXPECT_FLOAT_EQ(output(4), 5.1381773);    // y pos
-  EXPECT_FLOAT_EQ(output(5), 0);            // z pos
+  EXPECT_FLOAT_EQ(output(5), 0.33697534);   // z pos
   EXPECT_FLOAT_EQ(output(6), 1.1000001);    // yaw
   EXPECT_FLOAT_EQ(output(7), -0.7060864);   // roll
   EXPECT_FLOAT_EQ(output(8), -0.44172257);  // pitch
@@ -790,22 +789,16 @@ TEST_F(BicycleSlipHybridTest, stepCPU)
   EXPECT_FLOAT_EQ(output(20), 10000);      // wheel f fr
   EXPECT_FLOAT_EQ(output(21), 10000);      // wheel f bl
   EXPECT_FLOAT_EQ(output(22), 10000);      // wheel f br
-  EXPECT_FLOAT_EQ(output(23), 85.207535);  // accel x
-  EXPECT_FLOAT_EQ(output(24), 95.346207);  // accel y
-  EXPECT_FLOAT_EQ(output(25), 1);          // omega z
+  EXPECT_FLOAT_EQ(output(23), 40);         // accel x
+  EXPECT_FLOAT_EQ(output(24), 50);         // accel y
+  EXPECT_FLOAT_EQ(output(25), 4);          // omega z
 }
 
 TEST_F(BicycleSlipHybridTest, TestPythonComparison)
 {
-  const int num_points = 1;
-  const float dt = 0.02f;
-  const int T = 250;
-  const int init_T = 51;
-  const int state_dim = 12;
-  const int output_dim = 5;
   CudaCheckError();
   using DYN = BicycleSlipHybrid;
-  BicycleSlipHybrid dynamics = BicycleSlipHybrid(mppi::tests::bicycle_slip_test);
+  BicycleSlipHybrid dynamics = BicycleSlipHybrid(mppi::tests::bicycle_slip_hybrid_test);
 
   auto limits = dynamics.getControlRanges();
   limits[0].x = -1.0;
@@ -816,29 +809,64 @@ TEST_F(BicycleSlipHybridTest, TestPythonComparison)
   params.wheel_base = 2.981;
   dynamics.setParams(params);
 
-  cnpy::npz_t input_outputs = cnpy::npz_load(mppi::tests::bicycle_slip_test);
+  cnpy::npz_t input_outputs = cnpy::npz_load(mppi::tests::bicycle_slip_hybrid_test);
+  int num_points = input_outputs.at("num_points").data<int>()[0];
+  // num_points = 1;
+  float dt = input_outputs.at("dt").data<double>()[0];
+  double T_temp = input_outputs.at("T").data<double>()[0];
+  int T = std::round(T_temp / dt);
+  double tau = input_outputs.at("tau").data<double>()[0];
+  int init_T = std::round(tau / dt) + 1;
+  int input_dim = input_outputs.at("input_dim").data<int>()[0];
+  int output_dim = input_outputs.at("output_dim").data<int>()[0];
+  EXPECT_EQ(num_points, 100);
+  EXPECT_FLOAT_EQ(dt, 0.02);
+  EXPECT_EQ(T, 250);
+  EXPECT_EQ(init_T, 51);
+  EXPECT_EQ(input_dim, 12);
+  EXPECT_EQ(output_dim, 5);
+
   double* inputs = input_outputs.at("input").data<double>();
   double* outputs = input_outputs.at("output").data<double>();
   double* init_inputs = input_outputs.at("init_input").data<double>();
-  double* delay_init_hidden = input_outputs.at("delay_init_hidden").data<double>();
-  double* delay_init_cell = input_outputs.at("delay_init_cell").data<double>();
-  double* steer_init_hidden = input_outputs.at("steer_init_hidden").data<double>();
-  double* steer_init_cell = input_outputs.at("steer_init_cell").data<double>();
-  double* terra_init_hidden = input_outputs.at("terra_init_hidden").data<double>();
-  double* terra_init_cell = input_outputs.at("terra_init_cell").data<double>();
+  double* delay_init_hidden = input_outputs.at("init/delay/hidden").data<double>();
+  double* delay_init_cell = input_outputs.at("init/delay/cell").data<double>();
+  double* steer_init_hidden = input_outputs.at("init/steer/hidden").data<double>();
+  double* steer_init_cell = input_outputs.at("init/steer/cell").data<double>();
+  double* terra_init_hidden = input_outputs.at("init/bicycle/terra/hidden").data<double>();
+  double* terra_init_cell = input_outputs.at("init/bicycle/terra/cell").data<double>();
 
   // steering model params
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 4.04);
-  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.03);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_angle, 5);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.5885217);
+  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.550503);
 
   // delay model params
-  EXPECT_FLOAT_EQ(dynamics.getParams().brake_delay_constant, 6.6);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_neg, 0.9);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_pos, 0.33);
+  EXPECT_FLOAT_EQ(dynamics.getParams().brake_delay_constant, 1.6213325);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_neg, 0.69062573);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_pos, 0.16684119);
 
   // rest params
   EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);
-  // EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
+  EXPECT_FLOAT_EQ(dynamics.getParams().wheel_base, 2.981);
+  EXPECT_FLOAT_EQ(dynamics.getParams().steer_angle_scale, -15.966150283813477);
+
+  EXPECT_FLOAT_EQ(dynamics.getParams().c_t[0], 2.007661819458008);
+  EXPECT_FLOAT_EQ(dynamics.getParams().c_t[1], 3.480222702026367);
+  EXPECT_FLOAT_EQ(dynamics.getParams().c_b[0], 126.236328125);
+  EXPECT_FLOAT_EQ(dynamics.getParams().c_b[1], 21.20456314086914);
+  EXPECT_FLOAT_EQ(dynamics.getParams().c_v[0], 14.369324684143066);
+  EXPECT_FLOAT_EQ(dynamics.getParams().c_v[1], 0.10648054629564285);
+  EXPECT_FLOAT_EQ(dynamics.getParams().c_0, 0.0);
+
+  EXPECT_FLOAT_EQ(dynamics.getParams().ay_angle, -17.342659);
+  EXPECT_FLOAT_EQ(dynamics.getParams().ay_ax[0], 0);
+  EXPECT_FLOAT_EQ(dynamics.getParams().ay_ax[1], -0.5456691980361938);
+  EXPECT_FLOAT_EQ(dynamics.getParams().ay_v[0], -0.38541162);
+  EXPECT_FLOAT_EQ(dynamics.getParams().ay_v[1], 1.3749259);
+
+  EXPECT_FLOAT_EQ(dynamics.getParams().omega_v[0], 0.6870362758636475);
+  EXPECT_FLOAT_EQ(dynamics.getParams().omega_v[1], 0.5812708139419556);
 
   std::map<std::string, Eigen::VectorXf> buffer;
   buffer["VEL_X"] = Eigen::VectorXf::Random(51);
@@ -863,58 +891,64 @@ TEST_F(BicycleSlipHybridTest, TestPythonComparison)
   {
     for (int t = 0; t < init_T; t++)
     {
-      buffer["VEL_X"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 0];
-      buffer["VEL_Y"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 1];
-      buffer["OMEGA_Z"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 2];
-      buffer["THROTTLE_CMD"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 3];
-      buffer["BRAKE_STATE"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 4];
-      buffer["STEER_ANGLE"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 5];
-      buffer["STEER_ANGLE_RATE"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 6];
-      buffer["PITCH"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 7];
-      buffer["ROLL"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 8];
-      buffer["BRAKE_CMD"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 9];
-      buffer["STEER_CMD"](t) = init_inputs[point * init_T * state_dim + t * state_dim + 10];
+      buffer["VEL_X"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 0];
+      buffer["VEL_Y"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 1];
+      buffer["OMEGA_Z"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 2];
+      buffer["THROTTLE_CMD"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 3];
+      buffer["BRAKE_STATE"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 4];
+      buffer["STEER_ANGLE"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 5];
+      buffer["STEER_ANGLE_RATE"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 6];
+      buffer["PITCH"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 7];
+      buffer["ROLL"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 8];
+      buffer["BRAKE_CMD"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 9];
+      buffer["STEER_CMD"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 10];
     }
     dynamics.updateFromBuffer(buffer);
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM; i++)
     {
-      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getHiddenState()(i), delay_init_hidden[5 * point + i], tol)
+      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getHiddenState()(i),
+                  delay_init_hidden[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
-      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getCellState()(i), delay_init_cell[5 * point + i], tol)
+      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getCellState()(i),
+                  delay_init_cell[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM; i++)
     {
-      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getHiddenState()(i), steer_init_hidden[5 * point + i], tol)
+      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getHiddenState()(i),
+                  steer_init_hidden[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
-      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getCellState()(i), steer_init_cell[5 * point + i], tol)
+      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getCellState()(i),
+                  steer_init_cell[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM; i++)
     {
-      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getHiddenState()(i), terra_init_hidden[10 * point + i], tol)
+      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getHiddenState()(i),
+                  terra_init_hidden[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
-      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getCellState()(i), terra_init_cell[10 * point + i], tol)
+      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getCellState()(i),
+                  terra_init_cell[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
 
     BicycleSlipHybrid::state_array state;
     for (int t = 0; t < T; t++)
     {
-      state = BicycleSlipHybrid::state_array::Zero();
-      state_der = BicycleSlipHybrid::state_array::Zero();
-      state(3) = inputs[point * T * state_dim + t * state_dim + 5];   // STEER_ANGLE
-      state(4) = inputs[point * T * state_dim + t * state_dim + 4];   // BRAKE_STATE
-      state(5) = inputs[point * T * state_dim + t * state_dim + 0];   // VX
-      state(6) = inputs[point * T * state_dim + t * state_dim + 1];   // VY
-      state(7) = inputs[point * T * state_dim + t * state_dim + 2];   // OMEGA_Z
-      state(8) = inputs[point * T * state_dim + t * state_dim + 8];   // ROLL
-      state(9) = inputs[point * T * state_dim + t * state_dim + 7];   // PITCH
-      state(10) = inputs[point * T * state_dim + t * state_dim + 6];  // STEER_ANGLE_RATE
-      control(0) = inputs[point * T * state_dim + t * state_dim + 3] -
-                   inputs[point * T * state_dim + t * state_dim + 9];   // THROTTLE/BRAKE
-      control(1) = inputs[point * T * state_dim + t * state_dim + 10];  // STEER_CMD
+      state = BicycleSlipKinematic::state_array::Zero();
+      state_der = BicycleSlipKinematic::state_array::Zero();
+      state(3) = inputs[point * T * input_dim + t * input_dim + 5];   // STEER_ANGLE
+      state(4) = inputs[point * T * input_dim + t * input_dim + 4];   // BRAKE_STATE
+      state(5) = inputs[point * T * input_dim + t * input_dim + 0];   // VX
+      state(6) = inputs[point * T * input_dim + t * input_dim + 1];   // VY
+      state(7) = inputs[point * T * input_dim + t * input_dim + 2];   // OMEGA_Z
+      state(8) = inputs[point * T * input_dim + t * input_dim + 8];   // ROLL
+      state(9) = inputs[point * T * input_dim + t * input_dim + 7];   // PITCH
+      state(10) = inputs[point * T * input_dim + t * input_dim + 6];  // STEER_ANGLE_RATE
+      control(0) = inputs[point * T * input_dim + t * input_dim + 3] -
+                   inputs[point * T * input_dim + t * input_dim + 9];   // THROTTLE/BRAKE
+      control(1) = inputs[point * T * input_dim + t * input_dim + 10];  // STEER_CMD
 
       dynamics.step(state, next_state_cpu, state_der, control, output, 0, dt);
 
@@ -949,20 +983,20 @@ TEST_F(BicycleSlipHybridTest, TestStepGPUvsCPU)
   const float dt = 0.1f;
   CudaCheckError();
   using DYN = BicycleSlipHybrid;
-  BicycleSlipHybrid dynamics = BicycleSlipHybrid(mppi::tests::bicycle_slip_test);
+  BicycleSlipHybrid dynamics = BicycleSlipHybrid(mppi::tests::bicycle_slip_hybrid_test);
 
   auto params = dynamics.getParams();
   params.max_steer_angle = 5.0;
   params.wheel_base = 2.981;
   dynamics.setParams(params);
   // steering model params
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 4.04);
-  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.03);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.5885217);
+  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.550503);
 
   // delay model params
-  EXPECT_FLOAT_EQ(dynamics.getParams().brake_delay_constant, 6.6);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_neg, 0.9);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_pos, 0.33);
+  EXPECT_FLOAT_EQ(dynamics.getParams().brake_delay_constant, 1.6213325);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_neg, 0.69062573);
+  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_pos, 0.16684119);
 
   // rest params
   EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);

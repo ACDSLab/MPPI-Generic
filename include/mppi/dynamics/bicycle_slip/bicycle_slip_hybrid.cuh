@@ -13,17 +13,17 @@
 #include "bicycle_slip_kinematic.cuh"
 
 // TODO add input and output scaling into the lstm class itself
+// TODO cannot inherit directoly from bicycle slip kinematics since we have different input dim for network
 
 struct BicycleSlipHybridParams : public BicycleSlipKinematicParams
 {
   float omega_v[2] = {1.0f, 1.1f};
-  float ay_t[2] = {2.0f, 2.2f};
-  float ay_b[2] = {4.0f, 4.4f};
+  float ay_ax[2] = {2.0f, 2.2f};
   float ay_v[2] = {5.0f, 5.5f};
   float ay_angle = 6.0f;
 };
 
-class BicycleSlipHybrid : public BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams>
+class BicycleSlipHybrid : public BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams, 12>
 {
 public:
     using PARENT_CLASS = BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams>;
