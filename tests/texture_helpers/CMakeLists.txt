@@ -6,8 +6,7 @@ foreach(T_FILE IN LISTS TARGET_SRCS)
   add_executable(${T_NAME} ${PROJECT_SOURCE_DIR}/tests/test_main.cpp ${T_FILE})
   target_link_libraries(${T_NAME}
           ${GTEST_LIBRARIES}
-          cnpy
-          ${CUDA_curand_LIBRARY})
+          ${MPPI_HEADER_LIBRARY_NAME})
   gtest_discover_tests(${T_NAME})
   set_target_properties(${T_NAME} PROPERTIES FOLDER test)
 endforeach()

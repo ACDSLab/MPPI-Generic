@@ -13,8 +13,7 @@ foreach(T_FILE IN LISTS CUDA_TARGET_SRCS)
   add_executable(${T_NAME} ${T_FILE})
   target_include_directories(${T_NAME} PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
   target_link_libraries(${T_NAME}
-                        ${CUDA_LIBRARIES}
-                        ${MPPI_GENERIC_CUDA_EXTRA_LIBS}
-                        cnpy)
+                        ${MPPI_HEADER_LIBRARY_NAME}
+                        )
   # set_target_properties(${T_NAME} PROPERTIES FOLDER test)
 endforeach()

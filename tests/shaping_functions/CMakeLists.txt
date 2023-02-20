@@ -5,8 +5,7 @@ add_executable(${SHAPING_FUNCTION_TARGET_NAME} ${PROJECT_SOURCE_DIR}/tests/test_
 target_link_libraries(${SHAPING_FUNCTION_TARGET_NAME} gtest
         gmock
         gtest_main
-        curand
-        cnpy)
+        ${MPPI_HEADER_LIBRARY_NAME})
 
 gtest_discover_tests(${SHAPING_FUNCTION_TARGET_NAME})
 set_target_properties(${SHAPING_FUNCTION_TARGET_NAME} PROPERTIES FOLDER test)
@@ -18,8 +17,7 @@ add_executable(${CEM_SHAPING_FUNCTION_TARGET_NAME} ${PROJECT_SOURCE_DIR}/tests/t
 target_link_libraries(${CEM_SHAPING_FUNCTION_TARGET_NAME} gtest
         gmock
         gtest_main
-        curand
-        cnpy)
+        ${MPPI_HEADER_LIBRARY_NAME})
 
 gtest_discover_tests(${CEM_SHAPING_FUNCTION_TARGET_NAME})
 set_target_properties(${CEM_SHAPING_FUNCTION_TARGET_NAME} PROPERTIES FOLDER test)
