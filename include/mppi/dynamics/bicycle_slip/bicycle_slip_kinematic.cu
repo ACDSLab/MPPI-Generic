@@ -281,8 +281,8 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::step(
 
   output = output_array::Zero();
 
-  float pitch = 0;
-  float roll = 0;
+  float roll = state(S_INDEX(ROLL));
+  float pitch = state(S_INDEX(PITCH));
   RACER::computeStaticSettling<typename DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
       this->tex_helper_, next_state(S_INDEX(YAW)), next_state(S_INDEX(POS_X)), next_state(S_INDEX(POS_Y)), roll, pitch,
       output.data());
@@ -534,8 +534,8 @@ __device__ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::st
 
   if (tdy == 0)
   {
-    float roll = 0.0f;
-    float pitch = 0.0f;
+    float roll = state[S_INDEX(ROLL)];
+    float pitch = state[S_INDEX(PITCH)];
     RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
         this->tex_helper_, next_state[S_INDEX(YAW)], next_state[S_INDEX(POS_X)], next_state[S_INDEX(POS_Y)], roll,
         pitch, output);

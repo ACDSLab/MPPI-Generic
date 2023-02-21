@@ -31,7 +31,7 @@ endif()
 
 # Find Eigen
 find_package(Eigen3 REQUIRED)
-include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
+# include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
 
 # REQUIRED for CUDA to correctly align Eigen member variables inside structures/classes
 # https://listengine.tuxfamily.org/lists.tuxfamily.org/eigen/2016/06/msg00006.html
@@ -40,6 +40,19 @@ add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=0)
 # Find OpenCV
 find_package(OpenCV REQUIRED)
 include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
+
+# Create a Header-only MPPI Library
+add_library(${MPPI_HEADER_LIBRARY_NAME} INTERFACE)
+target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
+  "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include"
+)
+target_link_libraries(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
+  ${MPPI_GENERIC_CUDA_EXTRA_LIBS}
+  ${CUDA_LIBRARIES}
+  cnpy
+  Eigen3::Eigen
+)
 
 if (BUILD_TESTS OR BUILD_EXAMPLES)
     # find yaml-cpp
@@ -51,12 +64,11 @@ if (BUILD_TESTS OR BUILD_EXAMPLES)
     set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
     set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
     add_subdirectory(submodules/cnpy)
-    include_directories(submodules/cnpy)
+    target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE submodules/cnpy)
     # Set the no package registry back to default
     set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 endif()
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
 # Install all library header files
 install(
         DIRECTORY ${PROJECT_SOURCE_DIR}/include/mppi

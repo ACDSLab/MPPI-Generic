@@ -762,8 +762,8 @@ TEST_F(BicycleSlipHybridTest, stepCPU)
   EXPECT_FLOAT_EQ(s_next(5), 4 + 1);        // vel x
   EXPECT_FLOAT_EQ(s_next(6), 5 + 1);        // vel y
   EXPECT_FLOAT_EQ(s_next(7), 3 + 1);        // omega z
-  EXPECT_FLOAT_EQ(s_next(8), -0.7060864);   // roll
-  EXPECT_FLOAT_EQ(s_next(9), -0.44172257);  // pitch
+  EXPECT_FLOAT_EQ(s_next(8), -0.039676614);  // roll
+  EXPECT_FLOAT_EQ(s_next(9), -0.26290134);   // pitch
   EXPECT_FLOAT_EQ(s_next(10), 22.4);        // steer angle rate
 
   EXPECT_FLOAT_EQ(output(0), 5);            // x vel
@@ -771,10 +771,10 @@ TEST_F(BicycleSlipHybridTest, stepCPU)
   EXPECT_FLOAT_EQ(output(2), 0);            // z vel
   EXPECT_FLOAT_EQ(output(3), 4.96988314);   // x pos
   EXPECT_FLOAT_EQ(output(4), 5.1381773);    // y pos
-  EXPECT_FLOAT_EQ(output(5), 0.33697534);   // z pos
+  EXPECT_FLOAT_EQ(output(5), 0.083221436);  // z pos
   EXPECT_FLOAT_EQ(output(6), 1.1000001);    // yaw
-  EXPECT_FLOAT_EQ(output(7), -0.7060864);   // roll
-  EXPECT_FLOAT_EQ(output(8), -0.44172257);  // pitch
+  EXPECT_FLOAT_EQ(output(7), -0.039676614);  // roll
+  EXPECT_FLOAT_EQ(output(8), -0.26290134);   // pitch
   EXPECT_FLOAT_EQ(output(9), 3.24);         // steer angle
   EXPECT_FLOAT_EQ(output(10), 22.4);        // steer angle rate
   // EXPECT_FLOAT_EQ(output(11), 5.6652329);   // fl wheel x

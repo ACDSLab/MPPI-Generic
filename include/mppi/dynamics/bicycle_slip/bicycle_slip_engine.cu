@@ -304,8 +304,8 @@ void BicycleSlipEngine::step(Eigen::Ref<state_array> state, Eigen::Ref<state_arr
   computeDynamics(state, control, state_der);
   updateState(state, next_state, state_der, dt);
 
-  float pitch = 0;
-  float roll = 0;
+  float roll = state(S_INDEX(ROLL));
+  float pitch = state(S_INDEX(PITCH));
   RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
       this->tex_helper_, next_state(S_INDEX(YAW)), next_state(S_INDEX(POS_X)), next_state(S_INDEX(POS_Y)), roll, pitch,
       output.data());
@@ -576,8 +576,8 @@ __device__ void BicycleSlipEngine::step(float* state, float* next_state, float* 
 
   if (tdy == 0)
   {
-    float roll = 0.0f;
-    float pitch = 0.0f;
+    float roll = state[S_INDEX(ROLL)];
+    float pitch = state[S_INDEX(PITCH)];
     RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
         this->tex_helper_, next_state[S_INDEX(YAW)], next_state[S_INDEX(POS_X)], next_state[S_INDEX(POS_Y)], roll,
         pitch, output);
