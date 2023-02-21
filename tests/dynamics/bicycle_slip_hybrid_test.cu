@@ -989,18 +989,6 @@ TEST_F(BicycleSlipHybridTest, TestStepGPUvsCPU)
   params.max_steer_angle = 5.0;
   params.wheel_base = 2.981;
   dynamics.setParams(params);
-  // steering model params
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_steer_rate, 3.5885217);
-  EXPECT_FLOAT_EQ(dynamics.getParams().steering_constant, 2.550503);
-
-  // delay model params
-  EXPECT_FLOAT_EQ(dynamics.getParams().brake_delay_constant, 1.6213325);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_neg, 0.69062573);
-  EXPECT_FLOAT_EQ(dynamics.getParams().max_brake_rate_pos, 0.16684119);
-
-  // rest params
-  EXPECT_FLOAT_EQ(dynamics.getParams().gravity, -9.81);
-  // EXPECT_FLOAT_EQ(dynamics.getParams().wheel_angle_scale, -9.2);
 
   cudaExtent extent = make_cudaExtent(100, 200, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();

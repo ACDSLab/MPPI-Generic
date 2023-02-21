@@ -50,6 +50,12 @@ public:
                            Eigen::Ref<state_array> state_der);
 
     __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
+
+    void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                     Eigen::Ref<state_array> state_der, const float dt);
+
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, typename PARENT_CLASS::DYN_PARAMS_T* params_p);
+
 protected:
 };
 
