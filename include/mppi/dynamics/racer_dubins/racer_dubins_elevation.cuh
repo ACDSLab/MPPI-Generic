@@ -96,6 +96,10 @@ public:
                   const float* next_state,
                   float* output);
 
+  bool computeGrad(const Eigen::Ref<const state_array>& state = state_array(),
+                   const Eigen::Ref<const control_array>& control = control_array(), Eigen::Ref<dfdx> A = dfdx(),
+                   Eigen::Ref<dfdu> B = dfdu());
+
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, DYN_PARAMS_T* params_p);
 

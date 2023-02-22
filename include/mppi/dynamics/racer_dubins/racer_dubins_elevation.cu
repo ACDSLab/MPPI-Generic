@@ -68,7 +68,7 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricAccelDeriv(
   if (abs(state(S_INDEX(VEL_X))) <= linear_brake_slope)
   {
     throttle = this->params_.c_t[index] * max(control(C_INDEX(THROTTLE_BRAKE)) - this->params_.low_min_throttle, 0.0f);
-    brake = linear_brake_slope * state(S_INDEX(BRAKE_STATE)) * -state(S_INDEX(VEL_X));
+    brake = this->params_.c_b[index] * state(S_INDEX(BRAKE_STATE)) * -state(S_INDEX(VEL_X));
   }
 
   state_der(S_INDEX(VEL_X)) = (!enable_brake) * throttle * this->params_.gear_sign + brake -
@@ -134,6 +134,85 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> s
 }
 
 template <class CLASS_T, class PARAMS_T>
+bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeGrad(const Eigen::Ref<const state_array>& state,
+                                                              const Eigen::Ref<const control_array>& control,
+                                                              Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B)
+{
+  A = dfdx::Zero();
+  B = dfdu::Zero();
+
+  float eps = 0.01;
+  bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0;
+
+  // vx
+  float linear_brake_slope = this->params_.c_b[1] / (0.9f * (2 / 0.01));
+  int index = (abs(state(S_INDEX(VEL_X))) > linear_brake_slope && abs(state(S_INDEX(VEL_X))) <= 3.0) +
+              (abs(state(S_INDEX(VEL_X))) > 3.0) * 2;
+
+  A(0, 0) = -this->params_.c_v[index];
+  if (abs(state(S_INDEX(VEL_X))) < linear_brake_slope)
+  {
+    A(0, 5) = this->params_.c_b[index] * -state(S_INDEX(VEL_X));
+  }
+  else
+  {
+    A(0, 5) = this->params_.c_b[index] * (state(S_INDEX(VEL_X)) >= 0 ? -1 : 1);
+  }
+  // TODO zero out if we are above the threshold to match??
+
+  // yaw
+  A(1, 0) = (1.0 / this->params_.wheel_base) * tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
+  A(1, 4) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
+            (1.0 / pow(cosf(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale), 2)) /
+            this->params_.steer_angle_scale;
+  // pos x
+  A(2, 0) = cosf(state(S_INDEX(YAW)));
+  A(2, 1) = -sinf(state(S_INDEX(YAW))) * state(S_INDEX(VEL_X));
+  // pos y
+  A(3, 0) = sinf(state(S_INDEX(YAW)));
+  A(3, 1) = cosf(state(S_INDEX(YAW))) * state(S_INDEX(VEL_X));
+  // steer angle
+  float steer_dot =
+      (control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
+      this->params_.steering_constant;
+  if (steer_dot - eps < -this->params_.max_steer_rate || steer_dot + eps > this->params_.max_steer_rate)
+  {
+    A(4, 4) = 0;
+  }
+  else
+  {
+    A(4, 4) = -this->params_.steering_constant;
+  }
+  A(4, 4) = max(min(A(4, 4), this->params_.max_steer_rate), -this->params_.max_steer_rate);
+  // gravity
+  A(0, 7) = -this->params_.gravity * cosf(state(S_INDEX(PITCH)));
+
+  // brake delay
+  float brake_dot = (enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
+                    this->params_.brake_delay_constant;
+  if (brake_dot - eps < -this->params_.max_brake_rate_neg || brake_dot + eps > this->params_.max_brake_rate_pos)
+  {
+    A(5, 5) = 0;
+  }
+  else
+  {
+    A(5, 5) = -this->params_.brake_delay_constant;
+  }
+
+  // steering command
+  B(4, 1) = this->params_.steer_command_angle_scale * this->params_.steering_constant;
+  // throttle command
+  B(0, 0) = this->params_.c_t[index] * this->params_.gear_sign * (!enable_brake);
+  // brake command
+  if ((state(S_INDEX(BRAKE_STATE)) < -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x && brake_dot < 0) ||
+      (state(S_INDEX(BRAKE_STATE)) > 0 && brake_dot > 0))
+  {
+    B(5, 0) = -this->params_.brake_delay_constant * enable_brake;
+  }
+  return true;
+}
+
+template <class CLASS_T, class PARAMS_T>
 __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::initializeDynamics(float* state, float* control,
                                                                                 float* output, float* theta_s,
                                                                                 float t_0, float dt)
@@ -192,7 +271,7 @@ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricAc
   if (abs(state[S_INDEX(VEL_X)]) <= linear_brake_slope)
   {
     throttle = params_p->c_t[index] * max(control[C_INDEX(THROTTLE_BRAKE)] - params_p->low_min_throttle, 0.0f);
-    brake = linear_brake_slope * state[S_INDEX(BRAKE_STATE)] * -state[S_INDEX(VEL_X)];
+    brake = params_p->c_b[index] * state[S_INDEX(BRAKE_STATE)] * -state[S_INDEX(VEL_X)];
   }
 
   if (tdy == 0)

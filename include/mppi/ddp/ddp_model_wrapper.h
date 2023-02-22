@@ -77,6 +77,7 @@ struct ModelWrapperDDP : public DDP_structures::Dynamics<float, DYNAMICS_T::STAT
     State dx;
     State next_state;
     typename DYNAMICS_T::output_array output;
+    // TODO
     model_->step(state, next_state, dx, control, output, 0, 0.01);
     return dx;
   }

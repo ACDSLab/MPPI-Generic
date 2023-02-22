@@ -36,6 +36,7 @@ public:
 
   Scalar c(const Eigen::Ref<const State>& x, const Eigen::Ref<const Control>& u, int t)
   {
+    // TODO use method inside of dynamics to compute this
     float state_cost = ((x - traj_target_x_.col(t)).transpose() * Q_ * (x - traj_target_x_.col(t))).value();
     float control_cost = ((u - traj_target_u_.col(t)).transpose() * R_ * (u - traj_target_u_.col(t))).value();
     return state_cost + control_cost;
