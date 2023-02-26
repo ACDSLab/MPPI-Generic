@@ -595,11 +595,11 @@ __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rol
         u4_thread[i] = u4_traj_device[i];
       }
       // Generate 1% zero control trajectory
-      else if (global_idx >= 0.99 * num_rollouts)
-      {
-        du4_thread[i] = ep4_v_device[i] * sigma_u4_thread[i];
-        u4_thread[i] = du4_thread[i];
-      }
+      // else if (global_idx >= 0.99 * num_rollouts)
+      // {
+      //   du4_thread[i] = ep4_v_device[i] * sigma_u4_thread[i];
+      //   u4_thread[i] = du4_thread[i];
+      // }
       else
       {
         du4_thread[i] = ep4_v_device[i] * sigma_u4_thread[i];
@@ -624,12 +624,12 @@ __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rol
         du2_thread[i] = make_float2(0, 0);
         u2_thread[i] = u2_traj_device[i];
       }
-      // Generate 1% zero control trajectory
-      else if (global_idx >= 0.99 * num_rollouts)
-      {
-        du2_thread[i] = ep2_v_device[i] * sigma_u2_thread[i];
-        u2_thread[i] = du2_thread[i];
-      }
+      // // Generate 1% zero control trajectory
+      // else if (global_idx >= 0.99 * num_rollouts)
+      // {
+      //   du2_thread[i] = ep2_v_device[i] * sigma_u2_thread[i];
+      //   u2_thread[i] = du2_thread[i];
+      // }
       else
       {
         du2_thread[i] = ep2_v_device[i] * sigma_u2_thread[i];
@@ -649,12 +649,12 @@ __device__ void injectControlNoise(int control_dim, int blocksize_y, int num_rol
         du_thread[i] = 0;
         u_thread[i] = u_traj_device[current_timestep * control_dim + i];
       }
-      // Generate 1% zero control trajectory
-      else if (global_idx >= 0.99 * num_rollouts)
-      {
-        du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
-        u_thread[i] = du_thread[i];
-      }
+      // // Generate 1% zero control trajectory
+      // else if (global_idx >= 0.99 * num_rollouts)
+      // {
+      //   du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];
+      //   u_thread[i] = du_thread[i];
+      // }
       else
       {
         du_thread[i] = ep_v_device[control_index + i] * sigma_u_thread[i];

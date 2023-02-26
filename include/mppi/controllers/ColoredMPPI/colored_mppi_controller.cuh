@@ -129,6 +129,11 @@ public:
     return this->params_.colored_noise_exponents_;
   }
 
+  void setNoiseDecay(float new_noise_decay)
+  {
+    control_std_dev_decay_ = new_noise_decay;
+  }
+
   void setStateLeashLength(float new_state_leash, int index = 0)
   {
     this->params_.state_leash_dist_[index] = new_state_leash;
@@ -162,6 +167,7 @@ protected:
   void smoothControlTrajectory();
   int leash_jump_ = 1;
   bool leash_active_ = false;
+  float control_std_dev_decay_ = 1.0;
 
 private:
   // ======== MUST BE OVERWRITTEN =========
