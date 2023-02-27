@@ -9,7 +9,8 @@ namespace tests {
   const std::string brake_delay_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_brake_delay.npz";
   const std::string ackerman_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_ackerman.npz";
   const std::string ackerman_test = "@PROJECT_SOURCE_DIR@/resources/ackerman_test.npz";
-  const std::string bicycle_slip_test = "@PROJECT_SOURCE_DIR@/resources/bicycle_slip_test.npz";
+  const std::string bicycle_slip_hybrid_test = "@PROJECT_SOURCE_DIR@/resources/bicycle_slip_hybrid_test.npz";
+  const std::string bicycle_slip_hybrid_true = "@PROJECT_SOURCE_DIR@/resources/bicycle_slip_hybrid.npz";
   const std::string bicycle_slip_kinematic_test = "@PROJECT_SOURCE_DIR@/resources/bicycle_slip_kinematic_test.npz";
   const std::string bicycle_slip_kinematic_true = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_bicycle_slip_kinematic.npz";
 }

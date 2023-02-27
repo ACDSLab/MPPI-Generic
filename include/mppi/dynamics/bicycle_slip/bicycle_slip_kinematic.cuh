@@ -5,11 +5,11 @@
 #ifndef MPPIGENERIC_BICYCLE_SLIP_KINEMATIC_CUH
 #define MPPIGENERIC_BICYCLE_SLIP_KINEMATIC_CUH
 
-#include <mppi/dynamics/racer_dubins/racer_dubins.cuh>
 #include <mppi/utils/angle_utils.cuh>
 #include <mppi/utils/math_utils.h>
 #include <mppi/utils/nn_helpers/lstm_lstm_helper.cuh>
-#include "mppi/utils/texture_helpers/two_d_texture_helper.cuh"
+#include <mppi/utils/texture_helpers/two_d_texture_helper.cuh>
+#include <mppi/dynamics/racer_dubins/racer_dubins_elevation.cuh>
 
 struct BicycleSlipKinematicParams : public RacerDubinsParams
 {
@@ -31,35 +31,37 @@ struct BicycleSlipKinematicParams : public RacerDubinsParams
   };
 
   float environment = 1.0f; // 1.0 for helendale, -1.0 for halter ranch
+  bool enable_delay_model = true;
 };
 
-// TODO you have incorrect template on the init vs the predictor
-
-class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic, BicycleSlipKinematicParams>
+template<class CLASS_T, class PARAMS_T, int TERRA_INPUT_DIM = 9>
+class BicycleSlipKinematicImpl : public RacerDubinsElevationImpl<CLASS_T, PARAMS_T>
 {
  public:
-  using PARENT_CLASS = MPPI_internal::Dynamics<BicycleSlipKinematic, BicycleSlipKinematicParams>;
-  typedef LSTMHelper<LSTMParams<5, 4>, FNNParams<9,20,1>, false> STEER_LSTM;
-  typedef LSTMHelper<LSTMParams<4, 20>, FNNParams<24, 80, 8>> STEER_INIT_LSTM;
+  using PARENT_CLASS = RacerDubinsElevationImpl<CLASS_T, PARAMS_T>;
+  typedef LSTMHelper<LSTMParams<5, 4>, FNNParams<9,5,1>, false> STEER_LSTM;
+  typedef LSTMHelper<LSTMParams<4, 20>, FNNParams<24, 100, 8>> STEER_INIT_LSTM;
   typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 51> STEER_NN;
 
-  typedef LSTMHelper<LSTMParams<3, 4>, FNNParams<7,8,1>, false> DELAY_LSTM;
-  typedef LSTMHelper<LSTMParams<2, 20>, FNNParams<22, 80, 8>> DELAY_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<3, 4>, FNNParams<7,1>, false> DELAY_LSTM;
+  typedef LSTMHelper<LSTMParams<2, 20>, FNNParams<22, 100, 8>> DELAY_INIT_LSTM;
   typedef LSTMLSTMHelper<DELAY_INIT_LSTM, DELAY_LSTM, 51> DELAY_NN;
 
-  typedef LSTMHelper<LSTMParams<10, 12>, FNNParams<22,20,3>, false> TERRA_LSTM;
-  typedef LSTMHelper<LSTMParams<10, 40>, FNNParams<50, 200, 24>> TERRA_INIT_LSTM;
+  typedef LSTMHelper<LSTMParams<TERRA_INPUT_DIM, 20>, FNNParams<20 + TERRA_INPUT_DIM,20,3>, false> TERRA_LSTM;
+  typedef LSTMHelper<LSTMParams<9, 40>, FNNParams<49, 400, 40>> TERRA_INIT_LSTM;
   typedef LSTMLSTMHelper<TERRA_INIT_LSTM, TERRA_LSTM, 51> TERRA_NN;
+
+  typedef typename PARENT_CLASS::DYN_PARAMS_T DYN_PARAMS_T;
 
   struct SHARED_MEM_GRD_PARAMS {
     LSTMParams<5, 4> steer_lstm_params;
-    FNNParams<9, 20, 1> steer_output_params;
+    FNNParams<9, 5, 1> steer_output_params;
 
     LSTMParams<3, 4> delay_lstm_params;
-    FNNParams<7, 8, 1> delay_output_params;
+    FNNParams<7, 1> delay_output_params;
 
-    LSTMParams<10, 12> terra_lstm_params;
-    FNNParams<22, 20, 3> terra_output_params;
+    LSTMParams<TERRA_INPUT_DIM, 20> terra_lstm_params;
+    FNNParams<20 + TERRA_INPUT_DIM, 20, 3> terra_output_params;
   };
 
   struct SHARED_MEM_BLK_PARAMS {
@@ -84,21 +86,19 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
   typedef typename PARENT_CLASS::dfdx dfdx;
   typedef typename PARENT_CLASS::dfdu dfdu;
 
-  explicit BicycleSlipKinematic(cudaStream_t stream = nullptr);
-  explicit BicycleSlipKinematic(std::string model_path, cudaStream_t stream = nullptr);
+  BicycleSlipKinematicImpl(cudaStream_t stream = nullptr);
+  BicycleSlipKinematicImpl(const std::string& model_path, cudaStream_t stream = nullptr);
 
   std::string getDynamicsModelName() const override
   {
     return "Bicycle Slip Kinematic Model";
   }
 
-  void paramsToDevice();
-
   void GPUSetup();
 
   void freeCudaMem();
 
-  void updateFromBuffer(const buffer_trajectory& buffer);
+  void updateFromBuffer(const typename PARENT_CLASS::buffer_trajectory& buffer);
 
   void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                           Eigen::Ref<output_array> output, float t_0, float dt);
@@ -116,7 +116,7 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
                    Eigen::Ref<state_array> state_der, const float dt);
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt) {}
-  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, DYN_PARAMS_T* params_p);
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, typename PARENT_CLASS::DYN_PARAMS_T* params_p);
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
@@ -128,14 +128,8 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
   //                  Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B);
 
 
-  void getStoppingControl(const Eigen::Ref<const state_array>& state, Eigen::Ref<control_array> u);
-
-  Eigen::Quaternionf attitudeFromState(const Eigen::Ref<const state_array>& state);
-  Eigen::Vector3f positionFromState(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f velocityFromState(const Eigen::Ref<const state_array>& state);
   Eigen::Vector3f angularRateFromState(const Eigen::Ref<const state_array>& state);
-  state_array stateFromOdometry(const Eigen::Quaternionf& q, const Eigen::Vector3f& pos, const Eigen::Vector3f& vel,
-                                const Eigen::Vector3f& omega);
 
   // void enforceLeash(const Eigen::Ref<const state_array>& state_true, const Eigen::Ref<const state_array>& state_nominal,
   //                   const Eigen::Ref<const state_array>& leash_values, Eigen::Ref<state_array> state_output);
@@ -151,22 +145,24 @@ class BicycleSlipKinematic : public MPPI_internal::Dynamics<BicycleSlipKinematic
   std::shared_ptr<TERRA_NN> getTerraHelper() {
     return terra_lstm_lstm_helper_;
   }
-  TwoDTextureHelper<float>* getTextureHelper()
-  {
-    return tex_helper_;
-  }
 
   STEER_LSTM* steer_network_d_ = nullptr;
   DELAY_LSTM* delay_network_d_ = nullptr;
   TERRA_LSTM* terra_network_d_ = nullptr;
 
  protected:
-  TwoDTextureHelper<float>* tex_helper_ = nullptr;
-
   std::shared_ptr<STEER_NN> steer_lstm_lstm_helper_;
   std::shared_ptr<DELAY_NN> delay_lstm_lstm_helper_;
   std::shared_ptr<TERRA_NN> terra_lstm_lstm_helper_;
 
+};
+
+class BicycleSlipKinematic : public BicycleSlipKinematicImpl<BicycleSlipKinematic, BicycleSlipKinematicParams>
+{
+ public:
+  BicycleSlipKinematic(cudaStream_t stream = nullptr) : BicycleSlipKinematicImpl<BicycleSlipKinematic, BicycleSlipKinematicParams>(stream){}
+  BicycleSlipKinematic(const std::string& model_path, cudaStream_t stream = nullptr) : BicycleSlipKinematicImpl<
+      BicycleSlipKinematic, BicycleSlipKinematicParams>(model_path, stream){}
 };
 
 #if __CUDACC__

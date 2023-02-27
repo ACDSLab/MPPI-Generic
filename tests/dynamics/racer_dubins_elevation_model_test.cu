@@ -1055,7 +1055,6 @@ TEST_F(RacerDubinsElevationTest, ComputeStateTrajectoryFiniteTest)
   }
 }
 
-/*
 class LinearDummy : public RacerDubinsElevation {
 public:
   bool computeGrad(const Eigen::Ref<const state_array> & state,
@@ -1067,29 +1066,92 @@ public:
 };
 
 TEST_F(RacerDubinsElevationTest, TestComputeGradComputation) {
-  Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, RacerDubinsElevation::STATE_DIM +
-RacerDubinsElevation::CONTROL_DIM> numeric_jac; Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM,
-RacerDubinsElevation::STATE_DIM + RacerDubinsElevation::CONTROL_DIM> analytic_jac; RacerDubinsElevation::state_array
-state; state << 1, 2, 3, 4; RacerDubinsElevation::control_array control; control << 5;
+  Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM,
+                RacerDubinsElevation::STATE_DIM + RacerDubinsElevation::CONTROL_DIM>
+      numeric_jac;
+  Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM,
+                RacerDubinsElevation::STATE_DIM + RacerDubinsElevation::CONTROL_DIM>
+      analytic_jac;
+
+  const int num_rollouts = 100;
+  Eigen::Matrix<float, RacerDubinsElevation::CONTROL_DIM, num_rollouts> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, RacerDubinsElevation::CONTROL_DIM, num_rollouts>::Random();
+  Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, num_rollouts> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, RacerDubinsElevation::STATE_DIM, num_rollouts>::Random();
+
+  // TODO properly scale the random values
 
   auto analytic_grad_model = RacerDubinsElevation();
 
   RacerDubinsElevation::dfdx A_analytic = RacerDubinsElevation::dfdx::Zero();
   RacerDubinsElevation::dfdu B_analytic = RacerDubinsElevation::dfdu::Zero();
 
-  analytic_grad_model.computeGrad(state, control, A_analytic, B_analytic);
-
   auto numerical_grad_model = LinearDummy();
 
   std::shared_ptr<ModelWrapperDDP<LinearDummy>> ddp_model =
-std::make_shared<ModelWrapperDDP<LinearDummy>>(&numerical_grad_model);
+      std::make_shared<ModelWrapperDDP<LinearDummy>>(&numerical_grad_model);
 
-  analytic_jac.leftCols<RacerDubinsElevation::STATE_DIM>() = A_analytic;
-  analytic_jac.rightCols<RacerDubinsElevation::CONTROL_DIM>() = B_analytic;
-  numeric_jac = ddp_model->df(state, control);
+  auto params = analytic_grad_model.getParams();
+  // params.c_t[0] = 3.0;
+  // params.c_b[0] = 0.2;
+  // params.c_v[0] = 0.2;
+  params.c_0 = 0.0;
+  params.wheel_base = 3.0;
+  params.steering_constant = 1.1;
+  params.low_min_throttle = 0.0;
+  params.max_brake_rate_pos = 10.0;
+  analytic_grad_model.setParams(params);
+  numerical_grad_model.setParams(params);
 
-  ASSERT_LT((numeric_jac - analytic_jac).norm(), 1e-3) << "Numeric Jacobian\n" << numeric_jac << "\nAnalytic Jacobian\n"
-<< analytic_jac;
+  auto limits = analytic_grad_model.getControlRanges();
+  limits[0].x = -0.3;
+  limits[0].y = 1.0;
+  limits[1].x = -1.0;
+  limits[1].y = 1.0;
+  analytic_grad_model.setControlRanges(limits);
+  numerical_grad_model.setControlRanges(limits);
+
+  state_trajectory.col(0) << 5, M_PI_4, 1, 1, 3, 0, 0, 0, 2;
+  control_trajectory.col(0) << 0.5, 1;
+
+  state_trajectory.col(1) << 5, M_PI_4, 1, 1, 3, 0, 0, 0, 2;
+  control_trajectory.col(1) << -1.0, 1;
+
+  // state_trajectory.col(5) = state_trajectory.col(5).cwiseAbs();
+
+  for (int i = 0; i < num_rollouts; i++)
+  {
+    RacerDubinsElevation::state_array state = state_trajectory.col(i);
+    RacerDubinsElevation::control_array control = control_trajectory.col(i);
+
+    if (abs(state(0)) < 1)
+    {
+      state(0) = state(0) * 10;
+      state(1) = state(1) * M_PI;
+      state(2) = state(2) * 100;
+      state(3) = state(3) * 100;
+      state(4) = state(4) * 5;
+      state(6) = state(6) * M_PI_2;
+      state(7) = state(7) * M_PI_2;
+      state(8) = state(8) * 10;
+    }
+    state(5) = min(abs(state(5) / 0.33f), 0.3f);
+
+    // std::cout << "iteration " << i << std::endl;
+    // std::cout << "state: " << state.transpose() << std::endl;
+    // std::cout << "control: " << control.transpose() << std::endl;
+
+    bool analytic_grad = analytic_grad_model.computeGrad(state, control, A_analytic, B_analytic);
+    EXPECT_TRUE(analytic_grad);
+
+    analytic_jac.leftCols<RacerDubinsElevation::STATE_DIM>() = A_analytic;
+    analytic_jac.rightCols<RacerDubinsElevation::CONTROL_DIM>() = B_analytic;
+    numeric_jac = ddp_model->df(state, control);
+
+    EXPECT_LT((numeric_jac - analytic_jac).norm(), 5e-2)
+        << "at index " << i << "\nstate: " << state.transpose() << "\ncontrol " << control.transpose()
+        << "\nNumeric Jacobian\n"
+        << numeric_jac << "\nAnalytic Jacobian\n"
+        << analytic_jac;
+  }
 }
-
-*/
