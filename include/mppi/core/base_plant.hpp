@@ -32,6 +32,9 @@ public:
   using s_traj = typename CONTROLLER_T::state_trajectory;
   // using K_traj = typename CONTROLLER_T::feedback_gain_trajectory;
 
+  using o_array = typename CONTROLLER_T::output_array;
+  using o_traj = typename CONTROLLER_T::output_trajectory;
+
   using DYN_T = typename CONTROLLER_T::TEMPLATED_DYNAMICS;
   using DYN_PARAMS_T = typename DYN_T::DYN_PARAMS_T;
   using COST_T = typename CONTROLLER_T::TEMPLATED_COSTS;
@@ -73,6 +76,7 @@ protected:
   // solution
   s_traj state_traj_;
   c_traj control_traj_;
+  o_traj output_traj_;
 
   // values sometime updated
   // TODO init to zero?
@@ -265,12 +269,13 @@ public:
     throw std::logic_error("Invalid dynamics with current plant, it requires the buffered plant");
   }
 
-  virtual void setSolution(const s_traj& state_seq, const c_traj& control_seq, const FB_STATE_T& fb_state,
-                           double timestamp)
+  virtual void setSolution(const s_traj& state_seq, const c_traj& control_seq, const o_traj& output_seq,
+                           const FB_STATE_T& fb_state, double timestamp)
   {
     last_used_state_update_time_ = timestamp;
     std::lock_guard<std::mutex> guard(access_guard_);
     state_traj_ = state_seq;
+    output_traj_ = output_seq;
     control_traj_ = control_seq;
     feedback_state_ = fb_state;
   }
@@ -476,6 +481,13 @@ public:
       std::cerr << state_traj << std::endl;
       exit(-1);
     }
+    o_traj output_traj = controller_->getTargetOutputSeq();
+    if (!state_traj.allFinite())
+    {
+      std::cerr << "ERROR: Nan in state inside plant" << std::endl;
+      std::cerr << state_traj << std::endl;
+      exit(-1);
+    }
     optimization_duration_ = mppi::math::timeDiffms(std::chrono::steady_clock::now(), optimization_start);
 
     std::chrono::steady_clock::time_point feedback_start = std::chrono::steady_clock::now();
@@ -489,7 +501,7 @@ public:
     feedback_duration_ = mppi::math::timeDiffms(std::chrono::steady_clock::now(), feedback_start);
 
     // Set the updated solution for execution
-    setSolution(state_traj, control_traj, feedback_state, temp_last_state_time);
+    setSolution(state_traj, control_traj, output_traj, feedback_state, temp_last_state_time);
     status_ = temp_status;
     pubFreeEnergyStatistics(fe_stats);
 
