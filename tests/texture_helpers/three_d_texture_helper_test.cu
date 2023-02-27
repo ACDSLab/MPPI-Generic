@@ -263,6 +263,127 @@ TEST_F(ThreeDTextureHelperTest, CopyDataToGPUOneGo)
   EXPECT_FLOAT_EQ(results[21].x, 600.0);
 }
 
+TEST_F(ThreeDTextureHelperTest, TestCPUQuery)
+{
+  ThreeDTextureHelper<float4> helper = ThreeDTextureHelper<float4>(1);
+  helper.GPUSetup();
+  const int WIDTH = 10;
+  const int HEIGHT = 20;
+  const int DEPTH = 5;
+
+  cudaExtent extent = make_cudaExtent(WIDTH, HEIGHT, DEPTH);
+  helper.setExtent(0, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(WIDTH * HEIGHT);
+  for (int depth = 0; depth < DEPTH; depth++)
+  {
+    for (int i = 0; i < data_vec.size(); i++)
+    {
+      float val = depth * HEIGHT * WIDTH + i;
+      data_vec[i] = make_float4(val, val + 1, val + 2, val + 3);
+    }
+    helper.updateTexture(0, depth, data_vec);
+  }
+
+  helper.copyToDevice(true);
+
+  std::vector<TextureParams<float4>> textures = helper.getTextures();
+  EXPECT_TRUE(textures[0].allocated);
+  EXPECT_FALSE(textures[0].update_data);
+  EXPECT_FALSE(textures[0].update_mem);
+
+  std::vector<float4> query_points;
+  // X
+  query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.05, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.95, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(1.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.45, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.5, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.55, 0.0, 0.0, 0.0));
+
+  // Y
+  query_points.push_back(make_float4(0.0, 0.025, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.05, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.075, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.975, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 1.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.475, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.5, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.525, 0.0, 0.0));
+
+  // Z
+  query_points.push_back(make_float4(0.0, 0.0, 0.1, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.2, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.3, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 1.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.9, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.8, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.7, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 1.2, 0.0));
+
+  std::vector<float4> results;
+  for (const auto& query : query_points)
+  {
+    float3 xyz_point = make_float3(query.x, query.y, query.z);
+    int index = round(query.w);
+    results.push_back(helper.queryTexture(index, xyz_point));
+  }
+
+  EXPECT_FLOAT_EQ(results.size(), query_points.size());
+  EXPECT_FLOAT_EQ(results[0].x, 0.0);
+  EXPECT_FLOAT_EQ(results[0].y, 1.0);
+  EXPECT_FLOAT_EQ(results[0].z, 2.0);
+  EXPECT_FLOAT_EQ(results[0].w, 3.0);
+  EXPECT_FLOAT_EQ(results[1].x, 0.0);
+  EXPECT_FLOAT_EQ(results[1].y, 1.0);
+  EXPECT_FLOAT_EQ(results[1].z, 2.0);
+  EXPECT_FLOAT_EQ(results[1].w, 3.0);
+
+  EXPECT_FLOAT_EQ(results[2].x, 9.0);
+  EXPECT_FLOAT_EQ(results[2].y, 10.0);
+  EXPECT_FLOAT_EQ(results[2].z, 11.0);
+  EXPECT_FLOAT_EQ(results[2].w, 12.0);
+  EXPECT_FLOAT_EQ(results[3].x, 9.0);
+  EXPECT_FLOAT_EQ(results[3].y, 10.0);
+  EXPECT_FLOAT_EQ(results[3].z, 11.0);
+  EXPECT_FLOAT_EQ(results[3].w, 12.0);
+
+  EXPECT_FLOAT_EQ(results[4].x, 4.0);
+  EXPECT_FLOAT_EQ(results[4].y, 5.0);
+  EXPECT_FLOAT_EQ(results[4].z, 6.0);
+  EXPECT_FLOAT_EQ(results[4].w, 7.0);
+  EXPECT_FLOAT_EQ(results[5].x, 4.5);
+  EXPECT_FLOAT_EQ(results[5].y, 5.5);
+  EXPECT_FLOAT_EQ(results[5].z, 6.5);
+  EXPECT_FLOAT_EQ(results[5].w, 7.5);
+  EXPECT_FLOAT_EQ(results[6].x, 5.0);
+  EXPECT_FLOAT_EQ(results[6].y, 6.0);
+  EXPECT_FLOAT_EQ(results[6].z, 7.0);
+  EXPECT_FLOAT_EQ(results[6].w, 8.0);
+
+  EXPECT_FLOAT_EQ(results[7].x, 0.0);
+  EXPECT_FLOAT_EQ(results[8].x, 5);
+  EXPECT_FLOAT_EQ(results[9].x, 10);
+
+  EXPECT_FLOAT_EQ(results[10].x, 190);
+  EXPECT_FLOAT_EQ(results[11].x, 190);
+
+  EXPECT_FLOAT_EQ(results[12].x, 90);
+  EXPECT_FLOAT_EQ(results[13].x, 95);
+  EXPECT_FLOAT_EQ(results[14].x, 100);
+
+  EXPECT_FLOAT_EQ(results[15].x, 0.0);
+  EXPECT_FLOAT_EQ(results[16].x, 100.0);
+  EXPECT_FLOAT_EQ(results[17].x, 200.0);
+  EXPECT_FLOAT_EQ(results[18].x, 800.0);
+  EXPECT_FLOAT_EQ(results[19].x, 800.0);
+  EXPECT_FLOAT_EQ(results[20].x, 700.0);
+  EXPECT_FLOAT_EQ(results[21].x, 600.0);
+  EXPECT_FLOAT_EQ(results[22].x, 800.0);
+}
+
 TEST_F(ThreeDTextureHelperTest, CopyDataToGPUSplitMiddle)
 {
   ThreeDTextureHelper<float4> helper = ThreeDTextureHelper<float4>(1);
@@ -372,6 +493,54 @@ TEST_F(ThreeDTextureHelperTest, CheckWrapping)
   query_points.push_back(make_float4(0.0, 0.0, 1.0, 0.0));
 
   auto results = getTextureAtPointsKernel<ThreeDTextureHelper<float4>, float4>(helper, query_points);
+
+  EXPECT_FLOAT_EQ(results.size(), query_points.size());
+  EXPECT_FLOAT_EQ(results[0].x, 100.0);
+  EXPECT_FLOAT_EQ(results[1].x, 0);
+  EXPECT_FLOAT_EQ(results[2].x, 100);
+  EXPECT_FLOAT_EQ(results[3].x, 200);
+  EXPECT_FLOAT_EQ(results[4].x, 100);
+}
+
+TEST_F(ThreeDTextureHelperTest, CheckCPUWrapping)
+{
+  ThreeDTextureHelper<float4> helper = ThreeDTextureHelper<float4>(1);
+
+  cudaExtent extent = make_cudaExtent(10, 20, 2);
+  helper.setExtent(0, extent);
+
+  std::vector<float4> data_vec;
+  data_vec.resize(10 * 20);
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i, i + 1, i + 2, i + 3);
+  }
+
+  helper.updateTexture(0, 0, data_vec);
+
+  for (int i = 0; i < data_vec.size(); i++)
+  {
+    data_vec[i] = make_float4(i + 200, i + 200 + 1, i + 200 + 2, i + 200 + 3);
+  }
+  helper.updateTexture(0, 1, data_vec);
+  helper.updateAddressMode(0, 2, cudaAddressModeWrap);
+  helper.GPUSetup();
+  helper.copyToDevice(true);
+
+  std::vector<float4> query_points;
+  query_points.push_back(make_float4(0.0, 0.0, 0.0, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.25, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.5, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 0.75, 0.0));
+  query_points.push_back(make_float4(0.0, 0.0, 1.0, 0.0));
+
+  std::vector<float4> results;
+  for (const auto& query : query_points)
+  {
+    float3 xyz_point = make_float3(query.x, query.y, query.z);
+    int index = round(query.w);
+    results.push_back(helper.queryTexture(index, xyz_point));
+  }
 
   EXPECT_FLOAT_EQ(results.size(), query_points.size());
   EXPECT_FLOAT_EQ(results[0].x, 100.0);

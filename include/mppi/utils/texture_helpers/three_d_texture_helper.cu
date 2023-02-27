@@ -137,7 +137,124 @@ __host__ __device__ DATA_T ThreeDTextureHelper<DATA_T>::queryTexture(const int i
 #ifdef __CUDA_ARCH__
   return tex3D<DATA_T>(this->textures_d_[index].tex_d, point.x, point.y, point.z);
 #else
-  return 0;
+  TextureParams<DATA_T>* param = &this->textures_[index];
+  float3 query =
+      make_float3(point.x * param->extent.width, point.y * param->extent.height, point.z * param->extent.depth);
+  query.x = query.x - 0.5f;
+  query.y = query.y - 0.5f;
+  query.z = query.z - 0.5f;
+  if (param->texDesc.addressMode[0] == cudaAddressModeClamp)
+  {
+    if (query.x > param->extent.width - 1)
+    {
+      query.x = param->extent.width - 1;
+    }
+    else if (query.x <= 0.0f)
+    {
+      query.x = 0.0;
+    }
+  }
+  else
+  {
+    throw std::runtime_error(std::string("using unsupported address mode on the CPU in texture utils"));
+  }
+  if (param->texDesc.addressMode[1] == cudaAddressModeClamp)
+  {
+    if (query.y > param->extent.height - 1)
+    {
+      query.y = param->extent.height - 1;
+    }
+    else if (query.y <= 0.0f)
+    {
+      query.y = 0.0;
+    }
+  }
+  else
+  {
+    throw std::runtime_error(std::string("using unsupported address mode on the CPU in texture utils"));
+  }
+  if (param->texDesc.addressMode[2] == cudaAddressModeClamp)
+  {
+    if (query.z > param->extent.depth - 1)
+    {
+      query.z = param->extent.depth - 1;
+    }
+    else if (query.z <= 0.0f)
+    {
+      query.z = 0.0;
+    }
+  }
+  else if (param->texDesc.addressMode[2] == cudaAddressModeWrap)
+  {
+    while (query.z > param->extent.depth - 1)
+    {
+      query.z -= param->extent.depth - 1;
+    }
+    while (query.z < 0.0f)
+    {
+      query.z += param->extent.depth - 1;
+    }
+  }
+  else
+  {
+    throw std::runtime_error(std::string("using unsupported address mode on the CPU in texture utils"));
+  }
+
+  const int w = param->extent.width;
+  const int h = param->extent.height;
+  if (param->texDesc.filterMode == cudaFilterModeLinear)
+  {
+    // the value is distributed evenly in the space starting at half a cell from 0.0
+    int x_min = std::min((int)std::floor(query.x), w - 2);
+    int x_max = x_min + 1;
+    int y_min = std::min((int)std::floor(query.y), h - 2);
+    int y_max = y_min + 1;
+    int z_min = std::min((int)std::floor(query.z), (int)param->extent.depth - 2);
+    int z_max = z_min + 1;
+
+    float x_d = (query.x - x_min) / (x_max - x_min);
+    float y_d = (query.y - y_min) / (y_max - y_min);
+    float z_d = (query.z - z_min) / (z_max - z_min);
+
+    /**
+     * does trilinear interpolation https://en.wikipedia.org/wiki/Trilinear_interpolation
+     */
+
+    // Query corners of a cube
+    DATA_T c_000 = this->cpu_values_[index][(z_min * h + y_min) * w + x_min];
+    DATA_T c_100 = this->cpu_values_[index][(z_min * h + y_min) * w + x_max];
+    DATA_T c_010 = this->cpu_values_[index][(z_min * h + y_max) * w + x_min];
+    DATA_T c_001 = this->cpu_values_[index][(z_max * h + y_min) * w + x_min];
+    DATA_T c_110 = this->cpu_values_[index][(z_min * h + y_max) * w + x_max];
+    DATA_T c_101 = this->cpu_values_[index][(z_max * h + y_min) * w + x_max];
+    DATA_T c_011 = this->cpu_values_[index][(z_max * h + y_max) * w + x_min];
+    DATA_T c_111 = this->cpu_values_[index][(z_max * h + y_max) * w + x_max];
+
+    // interpolate along x to make a square
+    DATA_T c_00 = c_000 * (1 - x_d) + c_100 * x_d;
+    DATA_T c_01 = c_001 * (1 - x_d) + c_101 * x_d;
+    DATA_T c_10 = c_010 * (1 - x_d) + c_110 * x_d;
+    DATA_T c_11 = c_011 * (1 - x_d) + c_111 * x_d;
+
+    // inperpolate along y to make a line
+    DATA_T c_0 = c_00 * (1 - y_d) + c_10 * y_d;
+    DATA_T c_1 = c_01 * (1 - y_d) + c_11 * y_d;
+
+    // interpolate along z to get the point
+    DATA_T result = c_0 * (1 - z_d) + c_1 * z_d;
+
+    // does the actual interpolation
+    return result;
+  }
+  else if (param->texDesc.filterMode == cudaFilterModePoint)
+  {
+    int rowMajorIndex = (std::round(query.z) * h + std::round(query.y)) * w + std::round(query.x);
+    return this->cpu_values_[index][rowMajorIndex];
+  }
+  else
+  {
+    throw std::runtime_error(std::string("using unsupported filter mode on the CPU in texture utils"));
+  }
 #endif
 }
 
