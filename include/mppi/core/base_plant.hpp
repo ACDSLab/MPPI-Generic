@@ -96,6 +96,7 @@ protected:
   // Robot Time: can scale with a simulation
   std::atomic<double> last_used_state_update_time_{ -1.0 };  // time of the last state update that was used for
                                                              // optimization
+  std::atomic<double> state_time_{ -1.0 };
 
   std::atomic<bool> use_real_time_timing_{ false };
   // Wall Clock: always real time
@@ -278,6 +279,7 @@ public:
     output_traj_ = output_seq;
     control_traj_ = control_seq;
     feedback_state_ = fb_state;
+    num_iter_++;
   }
 
   /**
@@ -293,6 +295,7 @@ public:
     double time_since_last_opt = time - temp_last_state_update_time;
 
     state_ = state;
+    state_time_ = time;
 
     // check if the requested time is in the calculated trajectory
     bool t_within_trajectory =
@@ -424,7 +427,11 @@ public:
       temp_last_state_time = getStateTime();
       counter++;
     }
-    s_array state = getState();
+    // TODO could this cause misalignment
+    this->access_guard_.lock();
+    s_array state = state_;
+    temp_last_state_time = state_time_;
+    this->access_guard_.unlock();
 
     if (this->controller_->model_->checkRequiresBuffer())
     {
@@ -436,7 +443,6 @@ public:
     // Check the robots status for this optimization
     int temp_status = checkStatus();
 
-    num_iter_++;
     updateParameters();
 
     // calculate how much we should slide the control sequence
