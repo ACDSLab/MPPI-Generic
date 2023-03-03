@@ -150,11 +150,10 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::updateFromBuf
   terra_init_buffer.row(3) = buffer.at("THROTTLE_CMD");
   terra_init_buffer.row(4) = buffer.at("BRAKE_STATE");
   terra_init_buffer.row(5) = buffer.at("STEER_ANGLE") / 5.0f;
-  terra_init_buffer.row(6) = buffer.at("STEER_ANGLE_RATE") / 10.0f;
   // TODO should be pulled from elevation map to be entirely correct
-  terra_init_buffer.row(7) = buffer.at("PITCH");
-  terra_init_buffer.row(8) = buffer.at("ROLL");
-  terra_init_buffer.row(9) *= this->params_.environment;
+  terra_init_buffer.row(6) = buffer.at("PITCH");
+  terra_init_buffer.row(7) = buffer.at("ROLL");
+  terra_init_buffer.row(8) *= this->params_.environment;
 
   terra_lstm_lstm_helper_->initializeLSTM(terra_init_buffer);
 }
@@ -229,11 +228,10 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::computeDynami
     terra_input(3) = throttle_cmd;
     terra_input(4) = state(S_INDEX(BRAKE_STATE));
     terra_input(5) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
-    terra_input(6) = state(S_INDEX(STEER_ANGLE_RATE)) / 10.0f;
     // if roll/pitch is invalid just set it to zero
-    terra_input(7) = state(S_INDEX(PITCH)) * (abs(state(S_INDEX(PITCH))) < M_PI_2f32);
-    terra_input(8) = state(S_INDEX(ROLL)) * (abs(state(S_INDEX(ROLL))) < M_PI_2f32);
-    terra_input(9) = this->params_.environment;
+    terra_input(6) = state(S_INDEX(PITCH)) * (abs(state(S_INDEX(PITCH))) < M_PI_2f32);
+    terra_input(7) = state(S_INDEX(ROLL)) * (abs(state(S_INDEX(ROLL))) < M_PI_2f32);
+    terra_input(8) = this->params_.environment;
     typename TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
     terra_lstm_lstm_helper_->forward(terra_input, terra_output);
 
@@ -482,10 +480,9 @@ __device__ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::co
     input_loc[3] = throttle_cmd;
     input_loc[4] = state[S_INDEX(BRAKE_STATE)];
     input_loc[5] = state[S_INDEX(STEER_ANGLE)] / 5.0f;
-    input_loc[6] = state[S_INDEX(STEER_ANGLE_RATE)] / 10.0f;
-    input_loc[7] = state[S_INDEX(PITCH)] * (abs(state[S_INDEX(PITCH)]) < M_PI_2f32);
-    input_loc[8] = state[S_INDEX(ROLL)] * (abs(state[S_INDEX(ROLL)]) < M_PI_2f32);
-    input_loc[9] = this->params_.environment;
+    input_loc[6] = state[S_INDEX(PITCH)] * (abs(state[S_INDEX(PITCH)]) < M_PI_2f32);
+    input_loc[7] = state[S_INDEX(ROLL)] * (abs(state[S_INDEX(ROLL)]) < M_PI_2f32);
+    input_loc[8] = this->params_.environment;
 
     if (SHARED_MEM_REQUEST_GRD != 0)
     {
