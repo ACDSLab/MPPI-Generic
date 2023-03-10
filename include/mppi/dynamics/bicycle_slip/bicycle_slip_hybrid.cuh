@@ -26,7 +26,7 @@ struct BicycleSlipHybridParams : public BicycleSlipKinematicParams
 class BicycleSlipHybrid : public BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams, 13>
 {
 public:
-    using PARENT_CLASS = BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams>;
+    using PARENT_CLASS = BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams, 13>;
 
     static const int SHARED_MEM_REQUEST_GRD = PARENT_CLASS::SHARED_MEM_REQUEST_GRD;
     static const int SHARED_MEM_REQUEST_BLK = PARENT_CLASS::SHARED_MEM_REQUEST_BLK;

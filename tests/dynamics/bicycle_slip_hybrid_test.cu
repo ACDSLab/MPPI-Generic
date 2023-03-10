@@ -905,39 +905,39 @@ TEST_F(BicycleSlipHybridTest, TestPythonComparison)
     }
     dynamics.updateFromBuffer(buffer);
 
-    for (int i = 0; i < BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM; i++)
+    for (int i = 0; i < BicycleSlipHybrid::DELAY_LSTM::HIDDEN_DIM; i++)
     {
       EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getHiddenState()(i),
-                  delay_init_hidden[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
+                  delay_init_hidden[BicycleSlipHybrid::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
       EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getCellState()(i),
-                  delay_init_cell[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
+                  delay_init_cell[BicycleSlipHybrid::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
-    for (int i = 0; i < BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM; i++)
+    for (int i = 0; i < BicycleSlipHybrid::STEER_LSTM::HIDDEN_DIM; i++)
     {
       EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getHiddenState()(i),
-                  steer_init_hidden[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
+                  steer_init_hidden[BicycleSlipHybrid::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
       EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getCellState()(i),
-                  steer_init_cell[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
+                  steer_init_cell[BicycleSlipHybrid::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
-    for (int i = 0; i < BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM; i++)
+    for (int i = 0; i < BicycleSlipHybrid::TERRA_LSTM::HIDDEN_DIM; i++)
     {
       EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getHiddenState()(i),
-                  terra_init_hidden[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
+                  terra_init_hidden[BicycleSlipHybrid::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
       EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getCellState()(i),
-                  terra_init_cell[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
+                  terra_init_cell[BicycleSlipHybrid::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
 
     BicycleSlipHybrid::state_array state;
     for (int t = 0; t < T; t++)
     {
-      state = BicycleSlipKinematic::state_array::Zero();
-      state_der = BicycleSlipKinematic::state_array::Zero();
+      state = BicycleSlipHybrid::state_array::Zero();
+      state_der = BicycleSlipHybrid::state_array::Zero();
       state(3) = inputs[point * T * input_dim + t * input_dim + 5];   // STEER_ANGLE
       state(4) = inputs[point * T * input_dim + t * input_dim + 4];   // BRAKE_STATE
       state(5) = inputs[point * T * input_dim + t * input_dim + 0];   // VX
@@ -1056,39 +1056,39 @@ TEST_F(BicycleSlipHybridTest, TestPythonComparisonFinal)
     }
     dynamics.updateFromBuffer(buffer);
 
-    for (int i = 0; i < BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM; i++)
+    for (int i = 0; i < BicycleSlipHybrid::DELAY_LSTM::HIDDEN_DIM; i++)
     {
       EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getHiddenState()(i),
-                  delay_init_hidden[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
+                  delay_init_hidden[BicycleSlipHybrid::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
       EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getCellState()(i),
-                  delay_init_cell[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
+                  delay_init_cell[BicycleSlipHybrid::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
-    for (int i = 0; i < BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM; i++)
+    for (int i = 0; i < BicycleSlipHybrid::STEER_LSTM::HIDDEN_DIM; i++)
     {
       EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getHiddenState()(i),
-                  steer_init_hidden[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
+                  steer_init_hidden[BicycleSlipHybrid::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
       EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getCellState()(i),
-                  steer_init_cell[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
+                  steer_init_cell[BicycleSlipHybrid::STEER_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
-    for (int i = 0; i < BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM; i++)
+    for (int i = 0; i < BicycleSlipHybrid::TERRA_LSTM::HIDDEN_DIM; i++)
     {
       EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getHiddenState()(i),
-                  terra_init_hidden[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
+                  terra_init_hidden[BicycleSlipHybrid::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
       EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getCellState()(i),
-                  terra_init_cell[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
+                  terra_init_cell[BicycleSlipHybrid::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
           << "at point " << point << " index " << i;
     }
 
     BicycleSlipHybrid::state_array state;
     for (int t = 0; t < T; t++)
     {
-      state = BicycleSlipKinematic::state_array::Zero();
-      state_der = BicycleSlipKinematic::state_array::Zero();
+      state = BicycleSlipHybrid::state_array::Zero();
+      state_der = BicycleSlipHybrid::state_array::Zero();
       state(3) = inputs[point * T * input_dim + t * input_dim + 5];   // STEER_ANGLE
       state(4) = inputs[point * T * input_dim + t * input_dim + 4];   // BRAKE_STATE
       state(5) = inputs[point * T * input_dim + t * input_dim + 0];   // VX
