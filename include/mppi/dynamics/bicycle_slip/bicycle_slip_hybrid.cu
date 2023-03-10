@@ -5,7 +5,7 @@
 #include "bicycle_slip_hybrid.cuh"
 
 BicycleSlipHybrid::BicycleSlipHybrid(cudaStream_t stream)
-  : BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams, 12>(stream)
+  : BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams, 13>(stream)
 {
 }
 
@@ -67,10 +67,6 @@ void BicycleSlipHybrid::updateState(const Eigen::Ref<const state_array> state, E
   next_state(S_INDEX(BRAKE_STATE)) =
       min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
 }
-
-// TODO need carve outs for reverse gear just like in kinematic dynamics
-// TODO need to inherit from elevation dynamics like kinematic since different network architectures
-// TODO make a bicycle slip that can implement the generic functions without the network specializations
 
 void BicycleSlipHybrid::computeDynamics(const Eigen::Ref<const state_array>& state,
                                         const Eigen::Ref<const control_array>& control,
@@ -157,12 +153,13 @@ void BicycleSlipHybrid::computeDynamics(const Eigen::Ref<const state_array>& sta
     terra_input(3) = throttle_cmd;
     terra_input(4) = state(S_INDEX(BRAKE_STATE));
     terra_input(5) = state(S_INDEX(STEER_ANGLE)) / 5.0f;
-    terra_input(6) = state(S_INDEX(PITCH)) * (abs(state(S_INDEX(PITCH))) < M_PI_2f32);
-    terra_input(7) = state(S_INDEX(ROLL)) * (abs(state(S_INDEX(ROLL))) < M_PI_2f32);
-    terra_input(8) = this->params_.environment;
-    terra_input(9) = state_der(S_INDEX(VEL_X)) / 10.0f;
-    terra_input(10) = state_der(S_INDEX(VEL_Y)) / 5.0f;
-    terra_input(11) = state_der(S_INDEX(OMEGA_Z)) / 10.0f;
+    terra_input(6) = state(S_INDEX(STEER_ANGLE_RATE)) / 10.0f;
+    terra_input(7) = state(S_INDEX(PITCH)) * (abs(state(S_INDEX(PITCH))) < M_PI_2f32);
+    terra_input(8) = state(S_INDEX(ROLL)) * (abs(state(S_INDEX(ROLL))) < M_PI_2f32);
+    terra_input(9) = this->params_.environment;
+    terra_input(10) = state_der(S_INDEX(VEL_X)) / 10.0f;
+    terra_input(11) = state_der(S_INDEX(VEL_Y)) / 5.0f;
+    terra_input(12) = state_der(S_INDEX(OMEGA_Z)) / 10.0f;
     TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
     // std::cout << "terra input CPU " << terra_input.transpose() << std::endl;
     terra_lstm_lstm_helper_->forward(terra_input, terra_output);
@@ -332,12 +329,13 @@ __device__ void BicycleSlipHybrid::computeDynamics(float* state, float* control,
     input_loc[3] = throttle_cmd;
     input_loc[4] = state[S_INDEX(BRAKE_STATE)];
     input_loc[5] = state[S_INDEX(STEER_ANGLE)] / 5.0f;
-    input_loc[6] = state[S_INDEX(PITCH)] * (abs(state[S_INDEX(PITCH)]) < M_PI_2f32);
-    input_loc[7] = state[S_INDEX(ROLL)] * (abs(state[S_INDEX(ROLL)]) < M_PI_2f32);
-    input_loc[8] = this->params_.environment;
-    input_loc[9] = state_der[S_INDEX(VEL_X)] / 10.0f;
-    input_loc[10] = state_der[S_INDEX(VEL_Y)] / 5.0f;
-    input_loc[11] = state_der[S_INDEX(OMEGA_Z)] / 10.0f;
+    input_loc[6] = state[S_INDEX(STEER_ANGLE_RATE)] / 10.0f;
+    input_loc[7] = state[S_INDEX(PITCH)] * (abs(state[S_INDEX(PITCH)]) < M_PI_2f32);
+    input_loc[8] = state[S_INDEX(ROLL)] * (abs(state[S_INDEX(ROLL)]) < M_PI_2f32);
+    input_loc[9] = this->params_.environment;
+    input_loc[10] = state_der[S_INDEX(VEL_X)] / 10.0f;
+    input_loc[11] = state_der[S_INDEX(VEL_Y)] / 5.0f;
+    input_loc[12] = state_der[S_INDEX(OMEGA_Z)] / 10.0f;
     // printf("terra input GPU: %f %f %f %f %f %f %f %f %f %f %f %f\n",
     //        input_loc[0], input_loc[1], input_loc[2], input_loc[3], input_loc[4], input_loc[5],
     //        input_loc[6], input_loc[7], input_loc[8], input_loc[9], input_loc[10], input_loc[11]);

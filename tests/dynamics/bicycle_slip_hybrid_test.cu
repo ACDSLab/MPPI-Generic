@@ -338,7 +338,7 @@ TEST_F(BicycleSlipHybridTest, computeDynamicsCPUFakeNetworks)
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
-  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 32, 20, 3 }, terra_theta);
+  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 33, 20, 3 }, terra_theta);
 
   float delta = 0;
   // computeDynamics should not touch the roll/pitch element
@@ -731,7 +731,7 @@ TEST_F(BicycleSlipHybridTest, stepCPU)
   terra_theta[terra_params.stride_idcs[3]] = 4.0;
   terra_theta[terra_params.stride_idcs[3] + 1] = 10.0;
   terra_theta[terra_params.stride_idcs[3] + 2] = 6.0;
-  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 32, 20, 3 }, terra_theta);
+  dynamics.getTerraHelper()->getOutputModel()->updateModel({ 33, 20, 3 }, terra_theta);
 
   BicycleSlipHybrid::state_array s = BicycleSlipHybrid::state_array::Ones();
   BicycleSlipHybrid::control_array u = BicycleSlipHybrid::control_array::Ones();
@@ -867,6 +867,157 @@ TEST_F(BicycleSlipHybridTest, TestPythonComparison)
 
   EXPECT_FLOAT_EQ(dynamics.getParams().omega_v[0], 0.6870362758636475);
   EXPECT_FLOAT_EQ(dynamics.getParams().omega_v[1], 0.5812708139419556);
+
+  std::map<std::string, Eigen::VectorXf> buffer;
+  buffer["VEL_X"] = Eigen::VectorXf::Random(51);
+  buffer["VEL_Y"] = Eigen::VectorXf::Random(51);
+  buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
+  buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
+  buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["BRAKE_STATE"] = Eigen::VectorXf::Random(51);
+  buffer["BRAKE_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["OMEGA_Z"] = Eigen::VectorXf::Random(51);
+  buffer["ROLL"] = Eigen::VectorXf::Random(51);
+  buffer["PITCH"] = Eigen::VectorXf::Random(51);
+
+  BicycleSlipHybrid::state_array state;
+  BicycleSlipHybrid::state_array next_state_cpu;
+  BicycleSlipHybrid::control_array control;
+  BicycleSlipHybrid::output_array output;
+  BicycleSlipHybrid::state_array state_der = BicycleSlipHybrid::state_array::Zero();
+
+  for (int point = 0; point < num_points; point++)
+  {
+    for (int t = 0; t < init_T; t++)
+    {
+      buffer["VEL_X"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 0];
+      buffer["VEL_Y"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 1];
+      buffer["OMEGA_Z"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 2];
+      buffer["THROTTLE_CMD"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 3];
+      buffer["BRAKE_STATE"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 4];
+      buffer["STEER_ANGLE"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 5];
+      buffer["STEER_ANGLE_RATE"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 6];
+      buffer["PITCH"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 7];
+      buffer["ROLL"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 8];
+      buffer["BRAKE_CMD"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 9];
+      buffer["STEER_CMD"](t) = init_inputs[point * init_T * input_dim + t * input_dim + 10];
+    }
+    dynamics.updateFromBuffer(buffer);
+
+    for (int i = 0; i < BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM; i++)
+    {
+      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getHiddenState()(i),
+                  delay_init_hidden[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
+          << "at point " << point << " index " << i;
+      EXPECT_NEAR(dynamics.getDelayHelper()->getLSTMModel()->getCellState()(i),
+                  delay_init_cell[BicycleSlipKinematic::DELAY_LSTM::HIDDEN_DIM * point + i], tol)
+          << "at point " << point << " index " << i;
+    }
+    for (int i = 0; i < BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM; i++)
+    {
+      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getHiddenState()(i),
+                  steer_init_hidden[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
+          << "at point " << point << " index " << i;
+      EXPECT_NEAR(dynamics.getSteerHelper()->getLSTMModel()->getCellState()(i),
+                  steer_init_cell[BicycleSlipKinematic::STEER_LSTM::HIDDEN_DIM * point + i], tol)
+          << "at point " << point << " index " << i;
+    }
+    for (int i = 0; i < BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM; i++)
+    {
+      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getHiddenState()(i),
+                  terra_init_hidden[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
+          << "at point " << point << " index " << i;
+      EXPECT_NEAR(dynamics.getTerraHelper()->getLSTMModel()->getCellState()(i),
+                  terra_init_cell[BicycleSlipKinematic::TERRA_LSTM::HIDDEN_DIM * point + i], tol)
+          << "at point " << point << " index " << i;
+    }
+
+    BicycleSlipHybrid::state_array state;
+    for (int t = 0; t < T; t++)
+    {
+      state = BicycleSlipKinematic::state_array::Zero();
+      state_der = BicycleSlipKinematic::state_array::Zero();
+      state(3) = inputs[point * T * input_dim + t * input_dim + 5];   // STEER_ANGLE
+      state(4) = inputs[point * T * input_dim + t * input_dim + 4];   // BRAKE_STATE
+      state(5) = inputs[point * T * input_dim + t * input_dim + 0];   // VX
+      state(6) = inputs[point * T * input_dim + t * input_dim + 1];   // VY
+      state(7) = inputs[point * T * input_dim + t * input_dim + 2];   // OMEGA_Z
+      state(8) = inputs[point * T * input_dim + t * input_dim + 8];   // ROLL
+      state(9) = inputs[point * T * input_dim + t * input_dim + 7];   // PITCH
+      state(10) = inputs[point * T * input_dim + t * input_dim + 6];  // STEER_ANGLE_RATE
+      control(0) = inputs[point * T * input_dim + t * input_dim + 3] -
+                   inputs[point * T * input_dim + t * input_dim + 9];   // THROTTLE/BRAKE
+      control(1) = inputs[point * T * input_dim + t * input_dim + 10];  // STEER_CMD
+
+      dynamics.step(state, next_state_cpu, state_der, control, output, 0, dt);
+
+      EXPECT_NEAR(state_der[5], outputs[point * T * output_dim + t * output_dim + 0], tol)
+          << "point " << point << " at dim ACCEL_X at time " << t;
+      EXPECT_NEAR(state_der[6], outputs[point * T * output_dim + t * output_dim + 1], tol)
+          << "point " << point << " at dim ACCEL_Y"
+          << " at time " << t;
+      EXPECT_NEAR(state_der[7], outputs[point * T * output_dim + t * output_dim + 2], tol)
+          << "point " << point << " at dim OMEGA_Z"
+          << " at time " << t;
+      EXPECT_NEAR(state_der[4], outputs[point * T * output_dim + t * output_dim + 3], tol)
+          << "point " << point << " at dim BRAKE_STATE"
+          << " at time " << t;
+      EXPECT_NEAR(state_der[3], outputs[point * T * output_dim + t * output_dim + 4], tol)
+          << "point " << point << " at dim STEER_ANGLE"
+          << " at time " << t;
+      // for (int i = 0; i < 25; i++)
+      // {
+      //   EXPECT_NEAR(dynamics.getLSTMModel()->getHiddenState()[i], hidden[point * T * 25 + 25 * t + i], tol)
+      //                 << "point " << point << " at dim " << i;
+      //   EXPECT_NEAR(dynamics.getLSTMModel()->getCellState()[i], cell[point * T * 25 + 25 * t + i], tol)
+      //                 << "point " << point << " at dim " << i;
+      // }
+    }
+  }
+}
+
+TEST_F(BicycleSlipHybridTest, TestPythonComparisonFinal)
+{
+  CudaCheckError();
+  using DYN = BicycleSlipHybrid;
+  BicycleSlipHybrid dynamics = BicycleSlipHybrid(mppi::tests::bicycle_slip_hybrid_true);
+
+  auto limits = dynamics.getControlRanges();
+  limits[0].x = -1.0;
+  dynamics.setControlRanges(limits);
+
+  auto params = dynamics.getParams();
+  params.max_steer_angle = 5.0;
+  params.wheel_base = 2.981;
+  dynamics.setParams(params);
+
+  cnpy::npz_t input_outputs = cnpy::npz_load(mppi::tests::bicycle_slip_hybrid_true);
+  int num_points = input_outputs.at("num_points").data<int>()[0];
+  // num_points = 1;
+  float dt = input_outputs.at("dt").data<double>()[0];
+  double T_temp = input_outputs.at("T").data<double>()[0];
+  int T = std::round(T_temp / dt);
+  double tau = input_outputs.at("tau").data<double>()[0];
+  int init_T = std::round(tau / dt) + 1;
+  int input_dim = input_outputs.at("input_dim").data<int>()[0];
+  int output_dim = input_outputs.at("output_dim").data<int>()[0];
+  EXPECT_EQ(num_points, 100);
+  EXPECT_FLOAT_EQ(dt, 0.02);
+  EXPECT_EQ(T, 250);
+  EXPECT_EQ(init_T, 51);
+  EXPECT_EQ(input_dim, 12);
+  EXPECT_EQ(output_dim, 5);
+
+  double* inputs = input_outputs.at("input").data<double>();
+  double* outputs = input_outputs.at("output").data<double>();
+  double* init_inputs = input_outputs.at("init_input").data<double>();
+  double* delay_init_hidden = input_outputs.at("init/delay/hidden").data<double>();
+  double* delay_init_cell = input_outputs.at("init/delay/cell").data<double>();
+  double* steer_init_hidden = input_outputs.at("init/steer/hidden").data<double>();
+  double* steer_init_cell = input_outputs.at("init/steer/cell").data<double>();
+  double* terra_init_hidden = input_outputs.at("init/bicycle/terra/hidden").data<double>();
+  double* terra_init_cell = input_outputs.at("init/bicycle/terra/cell").data<double>();
 
   std::map<std::string, Eigen::VectorXf> buffer;
   buffer["VEL_X"] = Eigen::VectorXf::Random(51);

@@ -23,7 +23,7 @@ struct BicycleSlipHybridParams : public BicycleSlipKinematicParams
   float ay_angle = 6.0f;
 };
 
-class BicycleSlipHybrid : public BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams, 12>
+class BicycleSlipHybrid : public BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams, 13>
 {
 public:
     using PARENT_CLASS = BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams>;
