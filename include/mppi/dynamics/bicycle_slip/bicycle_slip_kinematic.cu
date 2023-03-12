@@ -63,6 +63,7 @@ BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::stateFromMap(const
   s(S_INDEX(YAW)) = map.at("YAW");
   s(S_INDEX(ROLL)) = map.at("ROLL");
   s(S_INDEX(PITCH)) = map.at("PITCH");
+  s(S_INDEX(FILLER_1)) = map.at("YAW");
   if (map.find("STEER_ANGLE") != map.end())
   {
     s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
@@ -237,6 +238,9 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::computeDynami
     typename TERRA_LSTM::output_array terra_output = TERRA_LSTM::output_array::Zero();
     terra_lstm_lstm_helper_->forward(terra_input, terra_output);
 
+    state_der(S_INDEX(FILLER_1)) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
+                                   tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
+
     // combine to compute state derivative
     state_der(S_INDEX(VEL_X)) = terra_output(0) * 10.0f;
     state_der(S_INDEX(VEL_Y)) = terra_output(1) * 5.0f;
@@ -270,6 +274,8 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::updateState(
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
   next_state(S_INDEX(BRAKE_STATE)) =
       min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
+  next_state(S_INDEX(FILLER_1)) =
+      angle_utils::normalizeAngle(state(S_INDEX(FILLER_1)) + state_der(S_INDEX(FILLER_1)) * dt);
 }
 
 template <class CLASS_T, class PARAMS_T, int TERRA_INPUT_DIM>
@@ -296,6 +302,7 @@ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::step(
   output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
   output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
   output[O_INDEX(OMEGA_Z)] = next_state[S_INDEX(OMEGA_Z)];
+  output[O_INDEX(YAW)] = next_state[S_INDEX(FILLER_1)];
 }
 
 template <class CLASS_T, class PARAMS_T, int TERRA_INPUT_DIM>
@@ -351,6 +358,8 @@ __device__ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::up
     {
       case S_INDEX(YAW):
         next_state[i] = angle_utils::normalizeAngle(next_state[i]);
+        next_state[S_INDEX(FILLER_1)] =
+            angle_utils::normalizeAngle(state[S_INDEX(FILLER_1)] + state_der[S_INDEX(FILLER_1)] * dt);
         break;
       case S_INDEX(STEER_ANGLE):
         next_state[S_INDEX(STEER_ANGLE)] =
@@ -503,6 +512,8 @@ __device__ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::co
     state_der[S_INDEX(VEL_X)] = output[0] * 10.0f;
     state_der[S_INDEX(VEL_Y)] = output[1] * 5.0f;
     state_der[S_INDEX(OMEGA_Z)] = output[2] * 5.0f;
+    state_der[S_INDEX(FILLER_1)] = (state[S_INDEX(VEL_X)] / this->params_.wheel_base) *
+                                   tan(state[S_INDEX(STEER_ANGLE)] / this->params_.steer_angle_scale);
 
     state_der[S_INDEX(YAW)] = state[S_INDEX(OMEGA_Z)];
   }
@@ -550,6 +561,7 @@ __device__ void BicycleSlipKinematicImpl<CLASS_T, PARAMS_T, TERRA_INPUT_DIM>::st
     output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
     output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
     output[O_INDEX(OMEGA_Z)] = next_state[S_INDEX(OMEGA_Z)];
+    output[O_INDEX(YAW)] = next_state[S_INDEX(FILLER_1)];
   }
 }
 
