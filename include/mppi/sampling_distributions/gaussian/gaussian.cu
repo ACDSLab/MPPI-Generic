@@ -252,6 +252,17 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
 }
 
 GAUSSIAN_TEMPLATE
+GAUSSIAN_CLASS::GaussianDistributionImpl(cudaStream_t stream) : PARENT_CLASS::SamplingDistribution(stream)
+{
+}
+
+GAUSSIAN_TEMPLATE
+GAUSSIAN_CLASS::GaussianDistributionImpl(const SAMPLING_PARAMS_T& params, cudaStream_t stream)
+  : PARENT_CLASS::SamplingDistribution(params, stream)
+{
+}
+
+GAUSSIAN_TEMPLATE
 __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
 {
   if (GPUMemStatus_)
@@ -267,12 +278,14 @@ __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
 
     if (this->params_.time_specific_std_dev)
     {
-      HANDLE_ERROR(
-          cudaMallocAsync((void**)&std_dev_d_, sizeof(float) * CONTROL_DIM * this->getNumTimesteps(), this->stream_));
+      HANDLE_ERROR(cudaMallocAsync((void**)&std_dev_d_,
+                                   sizeof(float) * CONTROL_DIM * this->getNumTimesteps() * this->getNumDistributions(),
+                                   this->stream_));
     }
     else
     {
-      HANDLE_ERROR(cudaMallocAsync((void**)std_dev_d_, sizeof(float) * CONTROL_DIM, this->stream_));
+      HANDLE_ERROR(cudaMallocAsync((void**)std_dev_d_, sizeof(float) * CONTROL_DIM * this->getNumDistributions(),
+                                   this->stream_));
     }
     HANDLE_ERROR(cudaMallocAsync((void**)&control_means_d_,
                                  sizeof(float) * params_.num_distributions * params_.num_timesteps * CONTROL_DIM,
@@ -286,21 +299,35 @@ __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
 }
 
 GAUSSIAN_TEMPLATE
+__host__ void GAUSSIAN_CLASS::freeCudaMem()
+{
+  if (this->GPUMemStatus_)
+  {
+    HANDLE_ERROR(cudaFree(control_means_d_));
+    HANDLE_ERROR(cudaFree(std_dev_d_));
+    control_means_d_ = nullptr;
+    std_dev_d_ = nullptr;
+  }
+  PARENT_CLASS::freeCudaMem();
+}
+
+GAUSSIAN_TEMPLATE
 void GAUSSIAN_CLASS::paramsToDevice(bool synchronize)
 {
   PARENT_CLASS::paramsToDevice(false);
-  if (GPUMemStatus_)
+  if (this->GPUMemStatus_)
   {
     if (this->params_.time_specific_std_dev)
     {
       HANDLE_ERROR(cudaMemcpyAsync(sampling_d_->std_dev_d_, params_.std_dev,
-                                   sizeof(float) * CONTROL_DIM * this->getNumTimesteps(), cudaMemcpyHostToDevice,
-                                   this->stream_));
+                                   sizeof(float) * CONTROL_DIM * this->getNumTimesteps() * this->getNumDistributions(),
+                                   cudaMemcpyHostToDevice, this->stream_));
     }
     else
     {
-      HANDLE_ERROR(cudaMemcpyAsync(sampling_d_->std_dev_d_, params_.std_dev, sizeof(float) * CONTROL_DIM,
-                                   cudaMemcpyHostToDevice, this->stream_));
+      HANDLE_ERROR(cudaMemcpyAsync(sampling_d_->std_dev_d_, params_.std_dev,
+                                   sizeof(float) * CONTROL_DIM * this->getNumDistributions(), cudaMemcpyHostToDevice,
+                                   this->stream_));
     }
     if (synchronize)
     {
@@ -313,9 +340,24 @@ GAUSSIAN_TEMPLATE
 __host__ void GAUSSIAN_CLASS::generateSamples(const int& optimization_stride, const int& iteration_num,
                                               curandGenerator_t& gen)
 {
-  HANDLE_CURAND_ERROR(curandGenerateNormal(
-      this->control_samples_d_,
-      this->getNumTimesteps() * this->getNumRollouts() this->getNumDistributions() * CONTROL_DIM, 0.0f, 1.0f));
+  if (this->params_.use_same_noise_for_all_distributions)
+  {
+    HANDLE_CURAND_ERROR(curandGenerateNormal(
+        this->control_samples_d_, this->getNumTimesteps() * this->getNumRollouts() * CONTROL_DIM, 0.0f, 1.0f));
+    for (int i = 1; i < this->getNumDistributions(); i++)
+    {
+      HANDLE_ERROR(cudaMemcpyAsync(
+          &this->control_samples_d_[this->getNumRollouts() * this->getNumTimesteps() * CONTROL_DIM * i],
+          this->control_samples_d_, sizeof(float) * this->getNumRollouts() * this->getNumTimesteps() * CONTROL_DIM,
+          cudaMemcpyDeviceToDevice, this->stream_));
+    }
+  }
+  else
+  {
+    HANDLE_CURAND_ERROR(curandGenerateNormal(
+        this->control_samples_d_,
+        this->getNumTimesteps() * this->getNumRollouts() * this->getNumDistributions() * CONTROL_DIM, 0.0f, 1.0f));
+  }
   const int BLOCKSIZE_X = this->params_.rewrite_controls_block_dim.x;
   const int BLOCKSIZE_Y = this->params_.rewrite_controls_block_dim.y;
   const int BLOCKSIZE_Z = this->params_.rewrite_controls_block_dim.z;
@@ -353,56 +395,64 @@ __device__ void GAUSSIAN_CLASS::getControlSample(const int& sample_idx, const in
   const int distribution_i = distribution_idx >= params_p->num_distributions ? 0 : distribution_idx;
   const int control_idx =
       ((params_p->num_rollouts * distribution_i + sample_idx) * params_p->num_timesteps + t) * CONTROL_DIM;
-  const int mean_idx = (params_p->num_timesteps * distribution_i + t) * CONTROL_DIM;
-  const int du_idx = (threadIdx.x + blockDim.x * threadIdx.z);
+  // const int mean_idx = (params_p->num_timesteps * distribution_i + t) * CONTROL_DIM;
+  // const int du_idx = (threadIdx.x + blockDim.x * threadIdx.z);
   if (CONTROL_DIM % 4 == 0)
   {
-    float4* du4 = reinterpret_cast<float4*>(&theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM * du_idx]);
+    // float4* du4 = reinterpret_cast<float4*>(&theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM *
+    // du_idx]);
     float4* u4 = reinterpret_cast<float4*>(control);
-    const float4* u4_mean_d = reinterpret_cast<const float4*>(&(this->control_means_d_[mean_idx]));
+    // const float4* u4_mean_d = reinterpret_cast<const float4*>(&(this->control_means_d_[mean_idx]));
     const float4* u4_d = reinterpret_cast<const float4*>(&(this->control_samples_d_[control_idx]));
     for (int i = thread_idx; i < CONTROL_DIM / 4; i += block_size)
     {
       u4[j] = u4_d[j];
-      du4[j] = u4[j] - u4_mean_d[j];
+      // du4[j] = u4[j] - u4_mean_d[j];
     }
   }
   else if (CONTROL_DIM % 2 == 0)
   {
-    float2* du2 = reinterpret_cast<float2*>(&theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM * du_idx]);
+    // float2* du2 = reinterpret_cast<float2*>(&theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM *
+    // du_idx]);
     float2* u2 = reinterpret_cast<float2*>(control);
-    const float2* u2_mean_d = reinterpret_cast<const float2*>(&(this->control_means_d_[mean_idx]));
+    // const float2* u2_mean_d = reinterpret_cast<const float2*>(&(this->control_means_d_[mean_idx]));
     const float2* u2_d = reinterpret_cast<const float2*>(&(this->control_samples_d_[control_idx]));
     for (int i = thread_idx; i < CONTROL_DIM / 2; i += block_size)
     {
       u2[j] = u2_d[j];
-      du2[j] = u2[j] - u2_mean_d[j];
+      // du2[j] = u2[j] - u2_mean_d[j];
     }
   }
   else
   {
-    float* du = reinterpret_cast<float*>(&theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM * du_idx]);
+    // float* du = reinterpret_cast<float*>(&theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM * du_idx]);
     float* u = reinterpret_cast<float*>(control);
-    const float* u_mean_d = reinterpret_cast<const float*>(&(this->control_means_d_[mean_idx]));
+    // const float* u_mean_d = reinterpret_cast<const float*>(&(this->control_means_d_[mean_idx]));
     const float* u_d = reinterpret_cast<const float*>(&(this->control_samples_d_[control_idx]));
     for (int i = thread_idx; i < CONTROL_DIM; i += block_size)
     {
       u[j] = u_d[j];
-      du[j] = u[j] - u_mean_d[j];
+      // du[j] = u[j] - u_mean_d[j];
     }
   }
 }
 
 GAUSSIAN_TEMPLATE
-__host__ void GAUSSIAN_CLASS::updateDistributionFromDevice(const float* trajectory_weights_d, float normalizer,
-                                                           const int& distribution_i, bool synchronize)
+__host__ void GAUSSIAN_CLASS::updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
+                                                                 const int& distribution_i, bool synchronize)
 {
+  if (distribution_i >= this->getNumDistributions())
+  {
+    std::err << "Updating distributional params for distribution " << distribution_i << " out of "
+             << this->getNumDistributions() << " total." << std::endl;
+    return;
+  }
   float* control_samples_i_d =
       &(this->control_samples_d[distribution_i * this->getNumRollouts() * this->getNumTimesteps() * CONTROL_DIM]);
   float* control_mean_i_d = &(this->control_mean_d[distribution_i * this->getNumTimesteps() * CONTROL_DIM]);
   mppi::kernels::launchWeightedReductionKernel(trajectory_weights_d, control_samples_i_d, control_mean_i_d, normalizer,
-                                               this->getNumTimesteps(), this->getNumRollouts(), 32, CONTROL_DIM,
-                                               this->stream_, synchronize);
+                                               this->getNumTimesteps(), this->getNumRollouts(),
+                                               this->params_.sum_strides, CONTROL_DIM, this->stream_, synchronize);
 }
 
 GAUSSIAN_TEMPLATE
@@ -411,8 +461,8 @@ __host__ void GAUSSIAN_CLASS::setHostOptimalControlSequence(float* optimal_contr
 {
   if (distribution_i >= this->getNumDistributions())
   {
-    std::err << "Asking for updating from distribution " << distribution_i << " out of " << this->getNumDistributions()
-             << " total." << std::endl;
+    std::err << "Asking for optimal control sequence from distribution " << distribution_i << " out of "
+             << this->getNumDistributions() << " total." << std::endl;
     return;
   }
 
@@ -432,34 +482,41 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
 {
   SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
   const int distribution_i = distribution_idx >= params_p->num_distributions ? 0 : distribution_idx;
-  const float* std_dev = &(params_p->std_dev[CONTROL_DIM * distribution_i]);
-  const float* mean = &(this->control_means_d_[(params_p->num_timesteps * distribution_i + t) * CONTROL_DIM]);
+  float* std_dev = &(params_p->std_dev[CONTROL_DIM * distribution_i]);
+  if (params_p->time_specific_std_dev)
+  {
+    std_dev = &(params_p->std_dev[(distribution_i * params_p->num_timesteps + t) * CONTROL_DIM]);
+  }
+  float* mean = &(this->control_means_d_[(params_p->num_timesteps * distribution_i + t) * CONTROL_DIM]);
+  float* control_cost_coeff = params_p->control_cost_coeff;
 
   float cost = 0;
 
   if (CONTROL_DIM % 4 == 0)
   {
     float4 cost_i = make_float4(0, 0, 0, 0);
-    float4 mean_i, std_dev_i, u_i;
+    float4 mean_i, std_dev_i, u_i, control_cost_coeff_i;
     for (int i = 0; i < CONTROL_DIM / 4; i++)
     {
       mean_i = reinterpret_cast<float4*>(mean)[i];
       std_dev_i = reinterpret_cast<float4*>(std_dev)[i];
       u_i = reinterpret_cast<float4*>(u)[i];
-      cost_i += mean_i * (mean_i + 2 * (u_i - mean_i)) / (std_dev_i * std_dev_i);
+      control_cost_coeff_i = reinterpret_cast<float4*>(control_cost_coeff)[i];
+      cost_i += control_cost_coeff_i * mean_i * (mean_i + 2 * (u_i - mean_i)) / (std_dev_i * std_dev_i);
     }
     cost += cost_i.x + cost_i.y + cost_i.z + cost_i.w;
   }
   else if (CONTROL_DIM % 2 == 0)
   {
     float2 cost_i = make_float2(0, 0);
-    float2 mean_i, std_dev_i, u_i;
+    float2 mean_i, std_dev_i, u_i, control_cost_coeff_i;
     for (int i = 0; i < CONTROL_DIM / 2; i++)
     {
       mean_i = reinterpret_cast<float2*>(mean)[i];
       std_dev_i = reinterpret_cast<float2*>(std_dev)[i];
       u_i = reinterpret_cast<float2*>(u)[i];
-      cost_i += mean_i * (mean_i + 2 * (u_i - mean_i)) / (std_dev_i * std_dev_i);
+      control_cost_coeff_i = reinterpret_cast<float2*>(control_cost_coeff)[i];
+      cost_i += control_cost_coeff_i * mean_i * (mean_i + 2 * (u_i - mean_i)) / (std_dev_i * std_dev_i);
     }
     cost += cost_i.x + cost_i.y;
   }
@@ -469,10 +526,32 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
     for (int i = 0; i < CONTROL_DIM; i++)
     {
       mean_i = mean[i];  // read mean value from global memory only once
-      cost += mean_i * (mean_i + 2 * (u[i] - mean_i)) / (std_dev[i] * std_dev[i]);
+      cost += control_cost_coeff_i * mean_i * (mean_i + 2 * (u[i] - mean_i)) / (std_dev[i] * std_dev[i]);
     }
   }
   return 0.5 * lambda * (1 - alpha) * cost;
+}
+
+GAUSSIAN_TEMPLATE
+__host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u, const float* theta_d,
+                                                          const int t, const int distribution_idx, const float lambda,
+                                                          const float alpha)
+{
+  float cost = 0.0f;
+  const int distribution_i = distribution_idx >= params_p->num_distributions ? 0 : distribution_idx;
+  const int mean_index = (distribution_idx * this->getNumTimesteps() + t) * CONTROL_DIM;
+  float* mean = &(this->means_[mean_index]);
+  float* std_dev = &(this->params_.std_dev[CONTROL_DIM * distribution_i]);
+  if (this->params_.time_specific_std_dev)
+  {
+    std_dev = &(this->params_.std_dev[(distribution_i * this->getNumTimesteps() + t) * CONTROL_DIM]);
+  }
+  for (int i i = 0; i < CONTROL_DIM; i++)
+  {
+    cost +=
+        this->params_.control_cost_coeff[i] * mean[i] * (mean[i] + 2 * (u(i) - mean[i])) / (std_dev[i] * std_dev[i]);
+  }
+  return cost;
 }
 #undef GAUSSIAN_TEMPLATE
 #undef GAUSSIAN_CLASS

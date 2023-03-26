@@ -182,3 +182,65 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   HANDLE_ERROR(cudaFreeAsync(samples_in_freq_complex_d, stream));
   HANDLE_ERROR(cudaFreeAsync(noise_in_time_d, stream));
 }
+
+namespace mppi
+{
+namespace sampling_distributions
+{
+template <int C_DIM, int MAX_DISTRIBUTIONS_T = 2>
+struct ColoredNoiseParams : public GaussianParams<C_DIM, MAX_DISTRIBUTIONS_T>
+{
+  float exponents[C_DIM * MAX_DISTRIBUTIONS] = { 0.0f };
+
+  ColoredNoiseParams(int num_rollouts = 1, int num_timesteps = 1, int num_distributions = 1)
+    : GaussianParams<C_DIM, MAX_DISTRIBUTIONS_T>(num_rollouts, num_timesteps, num_distributions)
+  {
+  }
+};
+
+template <class CLASS_T, template <int> class PARAMS_TEMPLATE = ColoredNoiseParams, class DYN_PARAMS_T = DynamicsParams>
+class ColoredNoiseDistributionImpl : public GaussianDistributionImpl<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>
+{
+public:
+  using PARENT_CLASS = typename GaussianDistributionImpl<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>;
+  using SAMPLING_PARAMS_T = typename PARENT_CLASS::SAMPLING_PARAMS_T;
+  using control_array = typename PARENT_CLASS::control_array;
+
+  ColoredNoiseDistributionImpl(cudaStream_t stream = 0);
+  ColoredNoiseDistributionImpl(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0);
+
+  __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen);
+
+  __host__ void allocateCUDAMemoryHelper();
+
+  __host__ void freeCudaMem();
+
+protected:
+  cufftHandle plan_;
+  float* frequency_sigma_d_ = nullptr;
+  float* noise_in_time_d_ = nullptr;
+  cufftComplex* samples_in_freq_complex_d_ = nullptr;
+  float* freq_coeffs_d_ = nullptr;
+};
+
+template <class DYN_PARAMS_T>
+class ColoredNoiseDistribution
+  : public ColoredNoiseDistributionImpl<ColoredNoiseDistribution, ColoredNoiseParams, DYN_PARAMS_T>
+{
+  using PARENT_CLASS = ColoredNoiseDistributionImpl<ColoredNoiseDistribution, ColoredNoiseParams, DYN_PARAMS_T>;
+  using SAMPLING_PARAMS_T = PARENT_CLASS::SAMPLING_PARAMS_T;
+
+  ColoredNoiseDistribution(cudaStream_t stream = 0) : PARENT_CLASS(stream)
+  {
+  }
+  ColoredNoiseDistribution(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0) : PARENT_CLASS(params, stream)
+  {
+  }
+};
+
+#if __CUDACC__
+#include "colored_noise.cu"
+#endif
+
+}  // namespace sampling_distributions
+}  // namespace mppi

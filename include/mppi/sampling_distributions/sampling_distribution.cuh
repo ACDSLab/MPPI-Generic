@@ -20,6 +20,11 @@ struct alignas(float4) SamplingParams
   int num_rollouts = 1;
   int num_timesteps = 1;
   int num_distributions = 1;
+  SamplingParams(int num_rollouts, int num_timesteps, int num_distributions = 1)
+    : num_rollouts{ num_rollouts }, num_timesteps{ num_timesteps }, num_distributions{ num_distributions }
+  {
+  }
+  SamplingParams() = default;
 };
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T = DynamicsParams>
@@ -45,8 +50,12 @@ public:
   static const int SHARED_MEM_REQUEST_GRD_BYTES = sizeof(SAMPLING_PARAMS_T);
   static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
 
-  SamplingDistribution(const int control_dim, const int num_samples, const int num_timesteps);
-  SamplingDistribution(const SAMPLING_PARAMS_T& params);
+  SamplingDistribution(cudaStream_t stream = 0) : stream_{ stream }
+  {
+  }
+  SamplingDistribution(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0) : params_{ params }, stream_{ stream }
+  {
+  }
 
   virtual ~SamplingDistribution()
   {
@@ -68,7 +77,7 @@ public:
   /**
    * deallocates the allocated cuda memory for an object
    */
-  void freeCudaMem();
+  __host__ void freeCudaMem();
 
   /**
    * Updates the sampling distribution parameters
@@ -148,18 +157,23 @@ public:
                                    const int& thread_index = 1);
 
   // takes in the cost of each sample generated and conducts an update of the distribution (For Gaussians, mean update)
-  __host__ void updateDistributionFromDevice(const float* trajectory_weights_d, float normalizer,
-                                             const int& distribution_i, bool synchronize = false);
+  __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
+                                                   const int& distribution_i, bool synchronize = false);
 
-  __host__ void updateDistributionFromHost(const Eigen::Ref<const Eigen::MatrixXf>& trajectory_weights,
-                                           float normalizer, const int& distribution_i, bool synchronize = false);
+  __host__ void updateDistributionParamsFromHost(const Eigen::Ref<const Eigen::MatrixXf> trajectory_weights,
+                                                 float normalizer, const int& distribution_i, bool synchronize = false);
 
   // Set a host side pointer to the optimal control sequence from the distribution
   __host__ void setHostOptimalControlSequence(float* optimal_control_trajectory, const int& distribution_idx,
                                               bool synchronize = true);
 
   __host__ __device__ float computeLikelihoodRatioCost(const float* u, const float* theta_d, const int t,
-                                                       const float lambda = 1.0, const float alpha = 0.0);
+                                                       const int distribution_idx, const float lambda = 1.0,
+                                                       const float alpha = 0.0);
+
+  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u, const float* theta_d, const int t,
+                                            const int distribution_idx, const float lambda = 1.0,
+                                            const float alpha = 0.0);
 
   CLASS_T* sampling_d_ = nullptr;
 

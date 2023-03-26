@@ -5,6 +5,8 @@
 
 #include <mppi/sampling_distributions/sampling_distribution.cuh>
 
+#include <vector>
+
 namespace mppi
 {
 namespace sampling_distributions
@@ -15,29 +17,39 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
                                     const int optimization_stride, const float pure_noise_percentage,
                                     const bool time_specific_std_dev = false);
 
-template <int C_DIM>
+// Set the default number of distributions to 2 since that is currently the most we would use
+template <int C_DIM, int MAX_DISTRIBUTIONS_T = 2>
 struct GaussianParams : public SamplingParams<C_DIM>
 {
-  float std_dev[C_DIM] = { 0.0f };
+  static const int MAX_DISTRIBUTIONS = MAX_DISTRIBUTIONS_T;
+  float std_dev[C_DIM * MAX_DISTRIBUTIONS] = { 0.0f };
+  float control_cost_coeff[C_DIM] = { 0.0f };
+  float pure_noise_trajectories_percentage = 0.01f;
+  // Kernel launching params
   dim3 rewrite_controls_block_dim(32, 32, 1);
+  int sum_strides = 32;
+  // Various flags
   bool time_specific_std_dev = false;
-  GaussianParams()
+  bool use_same_noise_for_all_distributions = true;
+  GaussianParams(int num_rollouts = 1, int num_timesteps = 1, int num_distributions = 1)
+    : SamplingParams<C_DIM>::SamplingParams(num_rollouts, num_timesteps, num_distributions)
   {
-    for (int i = 0; i < CONTROL_DIM; i++)
+    for (int i = 0; i < CONTROL_DIM * MAX_DISTRIBUTIONS; i++)
     {
       std_dev[i] = 1.0f;
     }
   }
 };
 
-template <int C_DIM, int MAX_TIMESTEPS = 2>
-struct GaussianTimeVaryingStdDevParams : public GaussianParams<C_DIM>
+template <int C_DIM, int MAX_TIMESTEPS = 2, int MAX_DISTRIBUTIONS_T = 2>
+struct GaussianTimeVaryingStdDevParams : public GaussianParams<C_DIM, MAX_DISTRIBUTIONS_T>
 {
-  float std_dev[C_DIM * MAX_TIMESTEPS] = { 0.0f };
-  GaussianTimeVaryingStdDevParams()
+  float std_dev[C_DIM * MAX_TIMESTEPS * MAX_DISTRIBUTIONS_T] = { 0.0f };
+  GaussianTimeVaryingStdDevParams(int num_rollouts = 1, int num_timesteps = 1, int num_distributions = 1)
+    : GaussianParams<C_DIM>::GaussianParams(num_rollouts, num_timesteps, num_distributions)
   {
     time_specific_std_dev = true;
-    for (int i = 0; i < CONTROL_DIM * MAX_TIMESTEPS; i++)
+    for (int i = 0; i < CONTROL_DIM * MAX_TIMESTEPS * MAX_DISTRIBUTIONS; i++)
     {
       std_dev[i] = 1.0f;
     }
@@ -50,14 +62,17 @@ class GaussianDistributionImpl : public SamplingDistribution<CLASS_T, PARAMS_TEM
 public:
   using PARENT_CLASS = typename SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>;
   using SAMPLING_PARAMS_T = typename PARENT_CLASS::SAMPLING_PARAMS_T;
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = CONTROL_DIM * sizeof(float);  // used to hold epsilon = v - mu
+  using control_array = typename PARENT_CLASS::control_array;
+  // static const int SHARED_MEM_REQUEST_BLK_BYTES = CONTROL_DIM * sizeof(float);  // used to hold epsilon = v - mu
 
-  GaussianDistributionImpl(const int control_dim, const int num_rollouts, const int num_timesteps);
-  GaussianDistributionImpl(const SAMPLING_PARAMS_T& params);
+  GaussianDistributionImpl(cudaStream_t stream = 0);
+  GaussianDistributionImpl(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0);
 
   __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen);
 
   __host__ void allocateCUDAMemoryHelper();
+
+  __host__ void freeCudaMem();
 
   __host__ void paramsToDevice(bool synchronize = true);
 
@@ -65,18 +80,41 @@ public:
                                    const float* state, float* control, float* theta_d, const int& block_size = 1,
                                    const int& thread_index = 1);
 
-  __host__ void updateDistributionFromDevice(const float* trajectory_weights_d, float normalizer,
-                                             const int& distribution_i, bool synchronize = false);
+  __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
+                                                   const int& distribution_i, bool synchronize = false);
 
   __host__ void setHostOptimalControlSequence(float* optimal_control_trajectory, const int& distribution_idx,
                                               bool synchronize = true);
 
-  __host__ __device__ float computeLikelihoodRatioCost(const float* u, const float* theta_d, const float lambda = 1.0,
+  __host__ __device__ float computeLikelihoodRatioCost(const float* u, const float* theta_d, const int t,
+                                                       const int distribution_idx, const float lambda = 1.0,
                                                        const float alpha = 0.0);
+
+  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u, const float* theta_d, const int t,
+                                            const int distribution_idx, const float lambda = 1.0,
+                                            const float alpha = 0.0);
 
 protected:
   float* std_dev_d_ = nullptr;
   float* control_means_d_ = nullptr;
+  std::vector<float> means_;
 };
+
+template <class DYN_PARAMS_T>
+class GaussianDistribution : public GaussianDistributionImpl<GaussianDistribution, GaussianParams, DYN_PARAMS_T>
+{
+  using PARENT_CLASS = GaussianDistributionImpl<GaussianDistribution, GaussianParams, DYN_PARAMS_T>;
+  using SAMPLING_PARAMS_T = PARENT_CLASS::SAMPLING_PARAMS_T;
+
+  GaussianDistribution(cudaStream_t stream = 0) : PARENT_CLASS(stream)
+  {
+  }
+  GaussianDistribution(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0) : PARENT_CLASS(params, stream)
+  {
+  }
+};
+#if __CUDACC__
+#include "gaussian.cu"
+#endif
 }  // namespace sampling_distributions
 }  // namespace mppi

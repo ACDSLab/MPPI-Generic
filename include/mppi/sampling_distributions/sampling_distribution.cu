@@ -20,17 +20,15 @@ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::GPUSetup()
 }
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
-void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::freeCudaMem()
+__host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::freeCudaMem()
 {
   if (GPUMemStatus_)
   {
     HANDLE_ERROR(cudaFree(sampling_d_));
     HANDLE_ERROR(cudaFree(control_samples_d_));
-    HANDLE_ERROR(cudaFree(control_mean_d_));
     GPUMemStatus_ = false;
     sampling_d_ = nullptr;
     control_samples_d_ = nullptr;
-    control_mean_d_ = nullptr;
   }
 }
 
@@ -59,7 +57,7 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::para
 
 // By default, call the update from device method by first putting the weights into gpu memory
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
-__host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::updateDistributionFromHost(
+__host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::updateDistributionParamsFromHost(
     const Eigen::Ref<const Eigen::MatrixXf>& trajectory_weights, float normalizer, const int& distribution_i,
     bool synchronize)
 {
@@ -67,7 +65,7 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::upda
   HANDLE_ERROR(cudaMallocAsync((void**)&trajectory_weights_d, sizeof(float) this->getNumRollouts(), this->stream_));
   HANDLE_ERROR(cudaMemcpyAsync(trajectory_weights_d, trajectory_weights.data(), NUM_ROLLOUTS * sizeof(float),
                                cudaMemcpyHostToDevice, this->stream_));
-  updateDistributionFromDevice(trajectory_weights_d, normalizer, distribution_i, false);
+  updateDistributionParamsFromDevice(trajectory_weights_d, normalizer, distribution_i, false);
   HANDLE_ERROR(cudaFreeAsync(trajectory_weights_d));
   if (synchronize)
   {
@@ -90,7 +88,7 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::upda
 //   // this->stream_)); HANDLE_ERROR(cudaMemcpyAsync(trajectory_weights_d, trajectory_weights, NUM_ROLLOUTS *
 //   // sizeof(float),
 //   //                              cudaMemcpyHostToDevice, this->stream_));
-//   // updateDistributionFromDevice(trajectory_weights_d, distribution_i);
+//   // updateDistributionParamsFromDevice(trajectory_weights_d, distribution_i);
 //   // HANDLE_ERROR(cudaFreeAsync(trajectory_weights_d));
 //   HANDLE_ERROR(cudaMemcpyAsync(
 //       optimal_control_trajectory, &this->control_mean_d_[CONTROL_DIM * this->getNumTimesteps() * distribution_i],
@@ -113,8 +111,8 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::allo
       // control_samples_d_ = nullptr;
     }
     HANDLE_ERROR(cudaMallocAsync((void**)&control_samples_d_,
-                                 sizeof(float) * params_.num_distributions * params_.num_rollouts *
-                                     params_.num_timesteps * CONTROL_DIM,
+                                 sizeof(float) * this->getNumDistributions() * this->getNumRollouts() *
+                                     this->getNumTimesteps() * CONTROL_DIM,
                                  stream_));
     HANDLE_ERROR(cudaMemcpyAsync(&sampling_d_->control_samples_d_, &control_samples_d_, sizeof(float*),
                                  cudaMemcpyHostToDevice, stream_));
