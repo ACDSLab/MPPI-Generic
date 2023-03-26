@@ -94,13 +94,13 @@ inline __host__ __device__ int sign(const T& a)
   return (a > 0) - (a < 0);
 }
 
-__host__ __device__ inline constexpr int int_ceil(const int& a, const int& b)
+__host__ __device__ inline int int_ceil(const int& a, const int& b)
 {
   return (a - 1) / b + 1;
 }
 
 // Returns the next largest multiple of 4 for a/4, Useful for calculating aligned memory sizes
-__host__ __device__ inline constexpr int nearest_quotient_4(const int& a)
+__host__ __device__ inline int nearest_quotient_4(const int& a)
 {
   return int_ceil(a, 4);
 }
