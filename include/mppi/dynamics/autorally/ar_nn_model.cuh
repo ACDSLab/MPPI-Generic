@@ -94,8 +94,8 @@ public:
   static const int PRIME_PADDING = 1;  ///< Extra padding to largest layer to avoid shared mem bank conflicts
   static const int LARGEST_LAYER = NN::LARGEST_LAYER; ///< Number of neurons in the largest layer(including in/out neurons)
   static const int NUM_PARAMS = NN::NUM_PARAMS;   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = NN::SHARED_MEM_REQUEST_GRD;  ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = NN::SHARED_MEM_REQUEST_BLK;  ///< Amount of shared memory we need per ROLLOUT.
+  static const int SHARED_MEM_REQUEST_GRD_BYTES = NN::SHARED_MEM_REQUEST_GRD_BYTES;  ///< Amount of shared memory we need per BLOCK.
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = NN::SHARED_MEM_REQUEST_BLK_BYTES;  ///< Amount of shared memory we need per ROLLOUT.
 
   NeuralNetModel(cudaStream_t stream = 0);
   NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream = 0);
@@ -187,10 +187,10 @@ template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NUM_PARAMS;
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::SHARED_MEM_REQUEST_GRD;
+const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::SHARED_MEM_REQUEST_GRD_BYTES;
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::SHARED_MEM_REQUEST_BLK;
+const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::SHARED_MEM_REQUEST_BLK_BYTES;
 
 #if __CUDACC__
 #include "ar_nn_model.cu"

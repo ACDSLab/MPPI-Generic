@@ -336,8 +336,8 @@ void BicycleSlipEngine::step(Eigen::Ref<state_array> state, Eigen::Ref<state_arr
 __device__ void BicycleSlipEngine::initializeDynamics(float* state, float* control, float* output, float* theta_s,
                                                       float t_0, float dt)
 {
-  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
-  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
+  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES / 4 + 1;
+  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     DYN_PARAMS_T* dyn_params = (DYN_PARAMS_T*)theta_s;
     *dyn_params = this->params_;
@@ -347,7 +347,7 @@ __device__ void BicycleSlipEngine::initializeDynamics(float* state, float* contr
   // setup memory for hidden/cell state memory
   //
   // if we are using shared memory load in the parameters
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     SHARED_MEM_BLK_PARAMS* blk_params = (SHARED_MEM_BLK_PARAMS*)(shared_params + 1);
     blk_params += blockDim.x * threadIdx.z + threadIdx.x;
@@ -408,8 +408,8 @@ __device__ void BicycleSlipEngine::computeDynamics(float* state, float* control,
 {
   DYN_PARAMS_T* params_p = nullptr;
 
-  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
-  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
+  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES / 4 + 1;
+  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     params_p = (DYN_PARAMS_T*)theta;
   }
@@ -421,7 +421,7 @@ __device__ void BicycleSlipEngine::computeDynamics(float* state, float* control,
   // nullptr if not shared memory
   SHARED_MEM_GRD_PARAMS* params = (SHARED_MEM_GRD_PARAMS*)(theta + shift);
   SHARED_MEM_BLK_PARAMS* blk_params = (SHARED_MEM_BLK_PARAMS*)params;
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     // if GRD in shared them
     blk_params = (SHARED_MEM_BLK_PARAMS*)(params + 1);
@@ -462,7 +462,7 @@ __device__ void BicycleSlipEngine::computeDynamics(float* state, float* control,
   input_loc[1] = brake_cmd;
   input_loc[2] = state_der[S_INDEX(BRAKE_STATE)];  // stand in for y velocity
 
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     output = delay_network_d_->forward(nullptr, theta_s_shifted, &blk_params->delay_hidden_cell[0],
                                        &params->delay_lstm_params, &params->delay_output_params, 0);
@@ -483,7 +483,7 @@ __device__ void BicycleSlipEngine::computeDynamics(float* state, float* control,
   input_loc[0] = throttle_cmd;
   input_loc[1] = state[S_INDEX(VEL_X)];
   input_loc[2] = state[S_INDEX(BRAKE_STATE)];
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     output = engine_network_d_->forward(nullptr, theta_s_shifted, &blk_params->engine_hidden_cell[0],
                                         &params->engine_lstm_params, &params->engine_output_params, 0);
@@ -504,7 +504,7 @@ __device__ void BicycleSlipEngine::computeDynamics(float* state, float* control,
   input_loc[2] = state[S_INDEX(STEER_ANGLE_RATE)];
   input_loc[3] = control[C_INDEX(STEER_CMD)];
   input_loc[4] = state_der[S_INDEX(STEER_ANGLE)];  // this is the parametric part as input
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     output = steer_network_d_->forward(nullptr, theta_s_shifted, &blk_params->steer_hidden_cell[0],
                                        &params->steer_lstm_params, &params->steer_output_params, 0);
@@ -533,7 +533,7 @@ __device__ void BicycleSlipEngine::computeDynamics(float* state, float* control,
   input_loc[7] = engine_output;
   input_loc[8] = delta;
   input_loc[9] = param_yaw_rate;
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     output = terra_network_d_->forward(nullptr, theta_s_shifted, &blk_params->terra_hidden_cell[0],
                                        &params->terra_lstm_params, &params->terra_output_params, 0);
@@ -561,7 +561,7 @@ __device__ void BicycleSlipEngine::step(float* state, float* next_state, float* 
                                         float* output, float* theta_s, const float t, const float dt)
 {
   DYN_PARAMS_T* params_p;
-  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
+  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     params_p = (DYN_PARAMS_T*)theta_s;
   }

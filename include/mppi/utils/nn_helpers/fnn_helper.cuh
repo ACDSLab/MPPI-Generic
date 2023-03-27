@@ -6,13 +6,14 @@
 #include <mppi/utils/file_utils.h>
 #include <cnpy.h>
 
-template<int... layer_args>
-struct FNNParams {
+template <int... layer_args>
+struct FNNParams
+{
   static const int NUM_LAYERS = layer_counter(layer_args...);  ///< Total number of layers (including in/out layer)
   static const int PRIME_PADDING = 1;  ///< Extra padding to largest layer to avoid shared mem bank conflicts
   static const int LARGEST_LAYER = neuron_counter(layer_args...) +
                                    PRIME_PADDING;  ///< Number of neurons in the largest layer(including in/out neurons)
-  static const int NUM_PARAMS = param_counter(layer_args...);   ///< Total number of model parameters;
+  static const int NUM_PARAMS = param_counter(layer_args...);  ///< Total number of model parameters;
 
   static const int INPUT_DIM = input_dim(layer_args...);
   static const int OUTPUT_DIM = output_dim(layer_args...);
@@ -46,18 +47,22 @@ struct FNNParams {
   }
 };
 
-template<class PARAMS_T, bool USE_SHARED=true>
+template <class PARAMS_T, bool USE_SHARED = true>
 class FNNHelper : public Managed
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   static const int NUM_LAYERS = PARAMS_T::NUM_LAYERS;  ///< Total number of layers (including in/out layer)
-  static const int PRIME_PADDING = PARAMS_T::PRIME_PADDING;  ///< Extra padding to largest layer to avoid shared mem bank conflicts
-  static const int LARGEST_LAYER = PARAMS_T::LARGEST_LAYER;  ///< Number of neurons in the largest layer(including in/out neurons)
-  static const int NUM_PARAMS = PARAMS_T::NUM_PARAMS;   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = sizeof(PARAMS_T) * USE_SHARED;  ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = 2 * PARAMS_T::LARGEST_LAYER;  ///< Amount of shared memory we need per ROLLOUT.
+  static const int PRIME_PADDING =
+      PARAMS_T::PRIME_PADDING;  ///< Extra padding to largest layer to avoid shared mem bank conflicts
+  static const int LARGEST_LAYER =
+      PARAMS_T::LARGEST_LAYER;  ///< Number of neurons in the largest layer(including in/out neurons)
+  static const int NUM_PARAMS = PARAMS_T::NUM_PARAMS;  ///< Total number of model parameters;
+  static const int SHARED_MEM_REQUEST_GRD_BYTES =
+      sizeof(PARAMS_T) * USE_SHARED;  ///< Amount of shared memory we need per BLOCK.
+  static const int SHARED_MEM_REQUEST_BLK_BYTES =
+      2 * PARAMS_T::LARGEST_LAYER * sizeof(float);  ///< Amount of shared memory we need per ROLLOUT.
 
   static const int INPUT_DIM = PARAMS_T::INPUT_DIM;
   static const int OUTPUT_DIM = PARAMS_T::OUTPUT_DIM;
@@ -87,8 +92,7 @@ public:
 
   bool computeGrad(Eigen::Ref<dfdx> A);
 
-  bool computeGrad(const Eigen::Ref<const input_array>& input,
-                   Eigen::Ref<dfdx> A);
+  bool computeGrad(const Eigen::Ref<const input_array>& input, Eigen::Ref<dfdx> A);
 
   void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
 
@@ -143,11 +147,13 @@ public:
     return this->params_.theta;
   }
 
-  __device__ __host__ PARAMS_T getParams() {
+  __device__ __host__ PARAMS_T getParams()
+  {
     return params_;
   }
 
-  __device__ __host__ PARAMS_T* getParamsPtr() {
+  __device__ __host__ PARAMS_T* getParamsPtr()
+  {
     return &params_;
   }
 

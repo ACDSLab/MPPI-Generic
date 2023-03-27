@@ -82,8 +82,8 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
 __device__ void RacerDubinsElevationLSTMSteering::initializeDynamics(float* state, float* control, float* output,
                                                                      float* theta_s, float t_0, float dt)
 {
-  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
-  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
+  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES / 4 + 1;
+  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     DYN_PARAMS_T* shared_params = (DYN_PARAMS_T*)theta_s;
     *shared_params = this->params_;
@@ -100,7 +100,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
                                                               const float t, const float dt)
 {
   DYN_PARAMS_T* params_p;
-  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD != 1)
+  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     params_p = (DYN_PARAMS_T*)theta_s;
   }
@@ -113,7 +113,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
   const uint tdy = threadIdx.y;
 
-  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD / 4 + 1;
+  const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES / 4 + 1;
   // loads in the input to the network
   float* input_loc = network_d_->getInputLocation(theta_s + shift);
   if (tdy == 0)

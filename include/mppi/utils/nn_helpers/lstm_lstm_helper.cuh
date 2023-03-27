@@ -7,13 +7,15 @@
 
 #include "lstm_helper.cuh"
 
-template<class INIT_T, class LSTM_T, int INITIAL_LEN>
+template <class INIT_T, class LSTM_T, int INITIAL_LEN>
 class LSTMLSTMHelper
 {
 public:
-  static const int NUM_PARAMS = INIT_T::NUM_PARAMS + LSTM_T::NUM_PARAMS;   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD = LSTM_T::SHARED_MEM_REQUEST_GRD; ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK = LSTM_T::SHARED_MEM_REQUEST_BLK;  ///< Amount of shared memory we need per ROLLOUT.
+  static const int NUM_PARAMS = INIT_T::NUM_PARAMS + LSTM_T::NUM_PARAMS;  ///< Total number of model parameters;
+  static const int SHARED_MEM_REQUEST_GRD_BYTES =
+      LSTM_T::SHARED_MEM_REQUEST_GRD_BYTES;  ///< Amount of shared memory we need per BLOCK.
+  static const int SHARED_MEM_REQUEST_BLK_BYTES =
+      LSTM_T::SHARED_MEM_REQUEST_BLK_BYTES;  ///< Amount of shared memory we need per ROLLOUT.
 
   static const int INPUT_DIM = LSTM_T::INPUT_DIM;
   static const int HIDDEN_DIM = LSTM_T::HIDDEN_DIM;
@@ -52,10 +54,12 @@ public:
   void GPUSetup();
   void freeCudaMem();
 
-  void resetInitHiddenCPU() {
+  void resetInitHiddenCPU()
+  {
     init_model_->resetHiddenCellCPU();
   }
-  void resetLSTMHiddenCellCPU() {
+  void resetLSTMHiddenCellCPU()
+  {
     lstm_->resetHiddenCellCPU();
   }
 
@@ -65,21 +69,25 @@ public:
 
   std::shared_ptr<INIT_T> getInitModel();
   std::shared_ptr<LSTM_T> getLSTMModel();
-  LSTM_T* getLSTMDevicePtr() {
+  LSTM_T* getLSTMDevicePtr()
+  {
     return lstm_->network_d_;
   }
 
   void setInitParams(INIT_PARAMS_T& params);
   void setLSTMParams(LSTM_PARAMS_T& params);
 
-  INIT_PARAMS_T getInitLSTMParams() {
+  INIT_PARAMS_T getInitLSTMParams()
+  {
     // TODO why using the getter method causes memory issues with compilation
     return init_model_->params_;
   }
-  LSTM_PARAMS_T getLSTMParams() {
+  LSTM_PARAMS_T getLSTMParams()
+  {
     return lstm_->params_;
   }
-  OUTPUT_FNN_T* getOutputModel() {
+  OUTPUT_FNN_T* getOutputModel()
+  {
     return lstm_->getOutputModel();
   }
 

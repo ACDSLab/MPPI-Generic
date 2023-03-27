@@ -77,8 +77,8 @@ public:
   static const int STATE_DIM = S_IND_CLASS(PARAMS_T, NUM_STATES);
   static const int CONTROL_DIM = C_IND_CLASS(PARAMS_T, NUM_CONTROLS);
   static const int OUTPUT_DIM = O_IND_CLASS(PARAMS_T, NUM_OUTPUTS);
-  static const int SHARED_MEM_REQUEST_GRD = 1;  // TODO set to one to prevent array of size 0 error
-  static const int SHARED_MEM_REQUEST_BLK = 0;
+  static const int SHARED_MEM_REQUEST_GRD_BYTES = 0;  // TODO set to one to prevent array of size 0 error
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
   typedef CLASS_T DYN_T;
   typedef PARAMS_T DYN_PARAMS_T;
 
@@ -493,9 +493,9 @@ template <class CLASS_T, class PARAMS_T>
 const int Dynamics<CLASS_T, PARAMS_T>::OUTPUT_DIM;
 
 template <class CLASS_T, class PARAMS_T>
-const int Dynamics<CLASS_T, PARAMS_T>::SHARED_MEM_REQUEST_BLK;
+const int Dynamics<CLASS_T, PARAMS_T>::SHARED_MEM_REQUEST_BLK_BYTES;
 
 template <class CLASS_T, class PARAMS_T>
-const int Dynamics<CLASS_T, PARAMS_T>::SHARED_MEM_REQUEST_GRD;
+const int Dynamics<CLASS_T, PARAMS_T>::SHARED_MEM_REQUEST_GRD_BYTES;
 }  // namespace MPPI_internal
 #endif  // DYNAMICS_CUH_

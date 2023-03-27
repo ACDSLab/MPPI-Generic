@@ -43,9 +43,10 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
   __shared__ int crash_status_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
 
   // Create a shared array for the dynamics model to use
-  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 +
-                           DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
-  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD + COST_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           DYN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           COST_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X * BLOCKSIZE_Z];
 
   // Create local state, state dot and controls
   float* x;
@@ -149,9 +150,10 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
 #endif
 
   // Create a shared array for the dynamics model to use
-  __shared__ float4 theta_s4[mppi::math::int_ceil(DYN_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 +
-                                                      DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z,
-                                                  4)];
+  __shared__ float4
+      theta_s4[mppi::math::int_ceil(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                                        DYN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X * BLOCKSIZE_Z,
+                                    4)];
 
   float* theta_s = reinterpret_cast<float*>(theta_s4);
   // Create local state, state dot and controls
@@ -1178,10 +1180,10 @@ __global__ void stateAndCostTrajectoryKernel(DYN_T* dynamics, COST_T* costs, FB_
   __shared__ int crash_status_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
 
   // Create a shared array for the dynamics model to use
-  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 +
-                           DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
-  __shared__ float
-      theta_c[COST_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + COST_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
+  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           DYN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           COST_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X];
   __shared__ float theta_fb[FB_T::SHARED_MEM_SIZE];
 
   // Create local state, state dot and controls
@@ -1467,7 +1469,8 @@ void launchVisualizeCostKernel(COST_T* costs, float dt, const int num_timesteps,
       ((COST_BLOCK_X * BLOCKSIZE_Z) * (COST_T::OUTPUT_DIM + 2 * COST_T::CONTROL_DIM) + COST_T::CONTROL_DIM) *
           sizeof(float) +
       sizeof(float) * (num_timesteps * BLOCKSIZE_Z) + (COST_BLOCK_X * BLOCKSIZE_Z) * sizeof(int) +
-      COST_T::SHARED_MEM_REQUEST_GRD + COST_T::SHARED_MEM_REQUEST_BLK * COST_BLOCK_X * BLOCKSIZE_Z * sizeof(float);
+      COST_T::SHARED_MEM_REQUEST_GRD_BYTES + sizeof(float) +
+      COST_T::SHARED_MEM_REQUEST_BLK_BYTES * COST_BLOCK_X * BLOCKSIZE_Z;
   visualizeCostKernel<COST_T, COST_BLOCK_X><<<dimCostGrid, dimCostBlock, shared_mem_size, stream>>>(
       costs, dt, num_timesteps, num_rollouts - 1, lambda, alpha, sampled_controls_d,
       sampled_controls_d + COST_T::CONTROL_DIM * num_timesteps, sigma_u_d, y_d, cost_traj_result,
@@ -1513,9 +1516,10 @@ __global__ void initEvalKernel(DYN_T* dynamics, COST_T* costs, int num_timesteps
   __shared__ int crash_status_shared[BLOCKSIZE_X];
 
   // Create a shared array for the dynamics model to use
-  __shared__ float
-      theta_s[DYN_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
-  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD + COST_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
+  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           DYN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X];
+  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           COST_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X];
 
   float running_cost = 0;  // Initialize trajectory cost
 
@@ -1635,9 +1639,10 @@ __global__ void RMPPIRolloutKernel(DYN_T* dynamics, COST_T* costs, FB_T* fb_cont
   __shared__ int crash_status_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
 
   // Create a shared array for the dynamics model to use
-  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 +
-                           DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
-  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD + COST_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           DYN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           COST_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X * BLOCKSIZE_Z];
 
   // Create a shared array for the feedback controller to use
   __shared__ float theta_fb[FB_T::SHARED_MEM_SIZE];

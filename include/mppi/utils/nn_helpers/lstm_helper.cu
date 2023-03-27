@@ -64,14 +64,14 @@ __device__ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::initialize(float
 
   PARAMS_T* lstm_params = &this->params_;
   OUTPUT_PARAMS_T* output_params = this->output_nn_->getParamsPtr();
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     lstm_params = (PARAMS_T*)theta_s;
     output_params = (OUTPUT_PARAMS_T*)(theta_s + slide);
   }
 
-  const int block_idx =
-      (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK + SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
+  const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) +
+                        SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
 
   initialize(lstm_params, output_params, theta_s + block_idx);
 }
@@ -82,7 +82,7 @@ __device__ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::initialize(LSTM_
                                                                            float* hidden_cell)
 {
   // if using shared memory, copy parameters
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     *lstm_params = this->params_;
     output_nn_->initialize(output_params);
@@ -91,7 +91,7 @@ __device__ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::initialize(LSTM_
   float* c = hidden_cell;
   float* h = hidden_cell + HIDDEN_DIM;
 
-  if (SHARED_MEM_REQUEST_GRD == 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES == 0)
   {
     for (int i = threadIdx.y; i < HIDDEN_DIM; i += blockDim.y)
     {
@@ -187,13 +187,13 @@ template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
 __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s)
 {
   PARAMS_T* params = &this->params_;
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     params = (PARAMS_T*)theta_s;
   }
 
-  const int block_idx =
-      (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK + SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
+  const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) +
+                        SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
   return forward(input, theta_s, params, block_idx);
 }
 
@@ -202,7 +202,7 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
                                                                           LSTM_PARAMS_T* params, int block_idx)
 {
   FNN_PARAMS_T* output_params;
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     const int slide = LSTM_SHARED_MEM_GRD / sizeof(float) + 1;
     output_params = (FNN_PARAMS_T*)(theta_s + slide);
@@ -456,8 +456,8 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(std::string pref
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
 __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::getInputLocation(float* theta_s)
 {
-  const int block_idx =
-      (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK + SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
+  const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) +
+                        SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
   float* x = theta_s + block_idx + 3 * HIDDEN_DIM;
   return x;
 }

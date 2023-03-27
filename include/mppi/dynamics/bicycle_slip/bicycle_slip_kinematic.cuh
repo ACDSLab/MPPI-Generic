@@ -70,15 +70,15 @@ class BicycleSlipKinematicImpl : public RacerDubinsElevationImpl<CLASS_T, PARAMS
     float terra_hidden_cell[2 * TERRA_LSTM::HIDDEN_DIM];
 
     // terra is the largest, should be init'd smarter though
-    float theta_s[TERRA_LSTM::HIDDEN_DIM + TERRA_LSTM::INPUT_DIM + TERRA_LSTM::OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK];
+    float theta_s[TERRA_LSTM::HIDDEN_DIM + TERRA_LSTM::INPUT_DIM + TERRA_LSTM::OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) + 1];
   };
 
-  static const int SHARED_MEM_REQUEST_GRD = STEER_NN::SHARED_MEM_REQUEST_GRD
-      + DELAY_NN::SHARED_MEM_REQUEST_GRD
-      + TERRA_NN::SHARED_MEM_REQUEST_GRD;
+  static const int SHARED_MEM_REQUEST_GRD_BYTES = STEER_NN::SHARED_MEM_REQUEST_GRD_BYTES
+      + DELAY_NN::SHARED_MEM_REQUEST_GRD_BYTES
+      + TERRA_NN::SHARED_MEM_REQUEST_GRD_BYTES;
 
   // TODO fix to use maximum and then assume no parallel computation
-  static const int SHARED_MEM_REQUEST_BLK = sizeof(SHARED_MEM_BLK_PARAMS) / sizeof(float) + 1;
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SHARED_MEM_BLK_PARAMS);
 
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;

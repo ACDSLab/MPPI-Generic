@@ -218,7 +218,7 @@ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::initializeDynamics(
                                                                                 float t_0, float dt)
 {
   PARENT_CLASS::initializeDynamics(state, control, output, theta_s, t_0, dt);
-  if (SHARED_MEM_REQUEST_GRD != 1)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     DYN_PARAMS_T* shared_params = (DYN_PARAMS_T*)theta_s;
     *shared_params = this->params_;
@@ -326,7 +326,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(float* 
                                                                          const float dt)
 {
   DYN_PARAMS_T* params_p;
-  if (SHARED_MEM_REQUEST_GRD != 1)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     params_p = (DYN_PARAMS_T*)theta_s;
   }

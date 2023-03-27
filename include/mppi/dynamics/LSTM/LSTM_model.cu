@@ -453,7 +453,7 @@ template <int S_DIM, int C_DIM, int K_DIM, int H_DIM, int BUFFER, int INIT_DIM>
 __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::initializeDynamics(
     float* state, float* control, float* output, float* theta_s, float t_0, float dt)
 {
-  int shared_mem_size = this->params_.SHARED_MEM_REQUEST_BLK;
+  int shared_mem_size = this->params_.SHARED_MEM_REQUEST_BLK_BYTES;
   int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * (shared_mem_size);
 
   float* c = &theta_s[block_idx];
@@ -514,7 +514,7 @@ __device__ void LSTMModel<S_DIM, C_DIM, K_DIM, H_DIM, BUFFER, INIT_DIM>::compute
   float* b_o = (float*)&(this->params_.b_o);  // hidden_size
   float* b_c = (float*)&(this->params_.b_c);  // hidden_size
   // Intermediate outputs
-  int shared_mem_size = this->params_.SHARED_MEM_REQUEST_BLK;
+  int shared_mem_size = this->params_.SHARED_MEM_REQUEST_BLK_BYTES;
   int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * (shared_mem_size);
   float* c = &theta_s[block_idx];
   float* h = &theta_s[block_idx + H_DIM];

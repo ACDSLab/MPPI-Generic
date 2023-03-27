@@ -29,14 +29,14 @@ template<class CLASS_T, class PARAMS_T>
 class RacerDubinsElevationImpl : public RacerDubinsImpl<CLASS_T, PARAMS_T>
 {
 public:
-  // static const int SHARED_MEM_REQUEST_GRD = sizeof(DYN_PARAMS_T);
+  // static const int SHARED_MEM_REQUEST_GRD_BYTES = sizeof(DYN_PARAMS_T);
   using PARENT_CLASS = RacerDubinsImpl<CLASS_T, PARAMS_T>;
   using PARENT_CLASS::initializeDynamics;
 
   typedef PARAMS_T DYN_PARAMS_T;
 
-  static const int SHARED_MEM_REQUEST_GRD = 1;  // TODO set to one to prevent array of size 0 error
-  static const int SHARED_MEM_REQUEST_BLK = 0;
+  static const int SHARED_MEM_REQUEST_GRD_BYTES = 0;  // TODO set to one to prevent array of size 0 error
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
 
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;

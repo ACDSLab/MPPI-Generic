@@ -18,10 +18,10 @@ public:
   typedef LSTMHelper<LSTMParams<4, 60>, FNN_INIT_PARAMS> INIT_LSTM;
   typedef LSTMLSTMHelper<INIT_LSTM, LSTM, 51> NN;
 
-  static const int SHARED_MEM_REQUEST_GRD = RacerDubinsElevation::SHARED_MEM_REQUEST_GRD +
-      NN::SHARED_MEM_REQUEST_GRD;
-  static const int SHARED_MEM_REQUEST_BLK = RacerDubinsElevation::SHARED_MEM_REQUEST_BLK +
-                                            NN::SHARED_MEM_REQUEST_BLK;
+  static const int SHARED_MEM_REQUEST_GRD_BYTES = RacerDubinsElevation::SHARED_MEM_REQUEST_GRD_BYTES +
+      NN::SHARED_MEM_REQUEST_GRD_BYTES;
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = RacerDubinsElevation::SHARED_MEM_REQUEST_BLK_BYTES +
+                                            NN::SHARED_MEM_REQUEST_BLK_BYTES;
 
   RacerDubinsElevationLSTMSteering(cudaStream_t stream = nullptr);
   RacerDubinsElevationLSTMSteering(RacerDubinsElevationParams& params, cudaStream_t stream = nullptr);

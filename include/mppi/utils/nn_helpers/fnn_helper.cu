@@ -247,7 +247,7 @@ void FNNHelper<PARAMS_T, USE_SHARED>::forward(const Eigen::Ref<const input_array
 template <class PARAMS_T, bool USE_SHARED>
 __device__ void FNNHelper<PARAMS_T, USE_SHARED>::initialize(float* theta_s)
 {
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     static_assert(std::is_trivially_copyable<PARAMS_T>::value);
     PARAMS_T* shared_params = (PARAMS_T*)theta_s;
@@ -258,7 +258,7 @@ __device__ void FNNHelper<PARAMS_T, USE_SHARED>::initialize(float* theta_s)
 template <class PARAMS_T, bool USE_SHARED>
 __device__ void FNNHelper<PARAMS_T, USE_SHARED>::initialize(PARAMS_T* params)
 {
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     *params = this->params_;
   }
@@ -325,16 +325,16 @@ __device__ float* FNNHelper<PARAMS_T, USE_SHARED>::forward(float* input, float* 
 {
   uint tdx = threadIdx.x;
   uint tdz = threadIdx.z;
-  if (SHARED_MEM_REQUEST_GRD != 0)
+  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {
     PARAMS_T* params = (PARAMS_T*)theta_s;
     return forward(input, theta_s, params,
-                   SHARED_MEM_REQUEST_GRD / 4 + 1 + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
+                   SHARED_MEM_REQUEST_GRD_BYTES / 4 + 1 + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
   }
   else
   {
     return forward(input, theta_s, &this->params_,
-                   SHARED_MEM_REQUEST_GRD / 4 + 1 + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
+                   SHARED_MEM_REQUEST_GRD_BYTES / 4 + 1 + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx));
   }
 }
 template <class PARAMS_T, bool USE_SHARED>
@@ -342,5 +342,5 @@ __device__ float* FNNHelper<PARAMS_T, USE_SHARED>::getInputLocation(float* theta
 {
   uint tdx = threadIdx.x;
   uint tdz = threadIdx.z;
-  return theta_s + SHARED_MEM_REQUEST_GRD / 4 + 1 + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx);
+  return theta_s + SHARED_MEM_REQUEST_GRD_BYTES / 4 + 1 + (2 * LARGEST_LAYER) * (blockDim.x * tdz + tdx);
 }

@@ -45,8 +45,8 @@ public:
   using TEMPLATED_DYN_PARAMS = DYN_PARAMS_T;
   static const int CONTROL_DIM = E_INDEX(ControlIndex, NUM_CONTROLS);
   static const int OUTPUT_DIM = E_INDEX(OutputIndex, NUM_OUTPUTS);  // TODO
-  static const int SHARED_MEM_REQUEST_GRD = 1;
-  static const int SHARED_MEM_REQUEST_BLK = 0;
+  static const int SHARED_MEM_REQUEST_GRD_BYTES = 0;
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
   typedef CLASS_T COST_T;
   typedef PARAMS_T COST_PARAMS_T;
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;             // Control at a time t

@@ -28,8 +28,8 @@ class BicycleSlipHybrid : public BicycleSlipKinematicImpl<BicycleSlipHybrid, Bic
 public:
     using PARENT_CLASS = BicycleSlipKinematicImpl<BicycleSlipHybrid, BicycleSlipHybridParams, 13>;
 
-    static const int SHARED_MEM_REQUEST_GRD = PARENT_CLASS::SHARED_MEM_REQUEST_GRD;
-    static const int SHARED_MEM_REQUEST_BLK = PARENT_CLASS::SHARED_MEM_REQUEST_BLK;
+    static const int SHARED_MEM_REQUEST_GRD_BYTES = PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES;
+    static const int SHARED_MEM_REQUEST_BLK_BYTES = PARENT_CLASS::SHARED_MEM_REQUEST_BLK_BYTES;
 
     typedef typename PARENT_CLASS::state_array state_array;
     typedef typename PARENT_CLASS::control_array control_array;

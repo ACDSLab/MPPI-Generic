@@ -145,7 +145,7 @@ public:
   using PARENT_CLASS::updateState;  // needed as overloading updateState here hides all parent versions of updateState
 
   // number of floats for computing the state derivative BLOCK_DIM_X * BLOCK_DIM_Z times
-  static const int SHARED_MEM_REQUEST_BLK = 0;
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
 
   static const int TEXTURE_ELEVATION_MAP = 0;
 
