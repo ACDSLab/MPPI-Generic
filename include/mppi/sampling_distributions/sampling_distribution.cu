@@ -125,7 +125,7 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::allo
 }
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
-__device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::getControlSample(
+__device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::readControlSample(
     const int sample_index, const int t, const int distribution_index, const float* state, float* control,
     float* theta_d, const int block_size, const int thread_index)
 {

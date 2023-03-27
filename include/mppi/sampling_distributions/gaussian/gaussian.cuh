@@ -113,10 +113,6 @@ public:
 
   __host__ void paramsToDevice(bool synchronize = true);
 
-  __device__ void getControlSample(const int& sample_index, const int& t, const int& distribution_index,
-                                   const float* state, float* control, float* theta_d, const int& block_size = 1,
-                                   const int& thread_index = 1);
-
   __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
                                                    const int& distribution_i, bool synchronize = false);
 

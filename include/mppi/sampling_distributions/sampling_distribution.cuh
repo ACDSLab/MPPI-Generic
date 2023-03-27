@@ -153,9 +153,9 @@ public:
    * @param block_size - amount of parallelization
    * @param thread_index - parallelization index
    */
-  __device__ void getControlSample(const int& sample_index, const int& t, const int& distribution_index,
-                                   const float* state, float* control, float* theta_d, const int& block_size = 1,
-                                   const int& thread_index = 1);
+  __device__ void readControlSample(const int& sample_index, const int& t, const int& distribution_index,
+                                    const float* state, float* control, float* theta_d, const int& block_size = 1,
+                                    const int& thread_index = 1);
 
   // takes in the cost of each sample generated and conducts an update of the distribution (For Gaussians, mean update)
   __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,

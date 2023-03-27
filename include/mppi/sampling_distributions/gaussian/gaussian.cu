@@ -387,57 +387,6 @@ __host__ void GAUSSIAN_CLASS::generateSamples(const int& optimization_stride, co
 }
 
 GAUSSIAN_TEMPLATE
-__device__ void GAUSSIAN_CLASS::getControlSample(const int& sample_idx, const int& t, const int& distribution_idx,
-                                                 const float* state, float* control, float* theta_d,
-                                                 const int& block_size, const int& thread_idx)
-{
-  SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
-  const int distribution_i = distribution_idx >= params_p->num_distributions ? 0 : distribution_idx;
-  const int control_idx =
-      ((params_p->num_rollouts * distribution_i + sample_idx) * params_p->num_timesteps + t) * CONTROL_DIM;
-  // const int mean_idx = (params_p->num_timesteps * distribution_i + t) * CONTROL_DIM;
-  // const int du_idx = (threadIdx.x + blockDim.x * threadIdx.z);
-  if (CONTROL_DIM % 4 == 0)
-  {
-    // float4* du4 = reinterpret_cast<float4*>(&theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM *
-    // du_idx]);
-    float4* u4 = reinterpret_cast<float4*>(control);
-    // const float4* u4_mean_d = reinterpret_cast<const float4*>(&(this->control_means_d_[mean_idx]));
-    const float4* u4_d = reinterpret_cast<const float4*>(&(this->control_samples_d_[control_idx]));
-    for (int i = thread_idx; i < CONTROL_DIM / 4; i += block_size)
-    {
-      u4[j] = u4_d[j];
-      // du4[j] = u4[j] - u4_mean_d[j];
-    }
-  }
-  else if (CONTROL_DIM % 2 == 0)
-  {
-    // float2* du2 = reinterpret_cast<float2*>(&theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM *
-    // du_idx]);
-    float2* u2 = reinterpret_cast<float2*>(control);
-    // const float2* u2_mean_d = reinterpret_cast<const float2*>(&(this->control_means_d_[mean_idx]));
-    const float2* u2_d = reinterpret_cast<const float2*>(&(this->control_samples_d_[control_idx]));
-    for (int i = thread_idx; i < CONTROL_DIM / 2; i += block_size)
-    {
-      u2[j] = u2_d[j];
-      // du2[j] = u2[j] - u2_mean_d[j];
-    }
-  }
-  else
-  {
-    // float* du = reinterpret_cast<float*>(&theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM * du_idx]);
-    float* u = reinterpret_cast<float*>(control);
-    // const float* u_mean_d = reinterpret_cast<const float*>(&(this->control_means_d_[mean_idx]));
-    const float* u_d = reinterpret_cast<const float*>(&(this->control_samples_d_[control_idx]));
-    for (int i = thread_idx; i < CONTROL_DIM; i += block_size)
-    {
-      u[j] = u_d[j];
-      // du[j] = u[j] - u_mean_d[j];
-    }
-  }
-}
-
-GAUSSIAN_TEMPLATE
 __host__ void GAUSSIAN_CLASS::updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
                                                                  const int& distribution_i, bool synchronize)
 {

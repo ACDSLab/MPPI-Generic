@@ -399,9 +399,9 @@ public:
 protected:
   Buffer<typename CONTROLLER_T::TEMPLATED_DYNAMICS> buffer_;
 
-  double buffer_time_horizon_ = 2.0;   // how long to store values in the buffer
-  double buffer_tau_ = 1.0;            // how in history to create well sampled positions from
-  double buffer_dt_ = 0.02;            // the spacing between well sampled buffer positions
+  double buffer_time_horizon_ = 2.0;  // how long to store values in the buffer
+  double buffer_tau_ = 1.0;           // how in history to create well sampled positions from
+  double buffer_dt_ = 0.02;           // the spacing between well sampled buffer positions
 };
 
 template class BufferMessage<Eigen::Vector3f>;
