@@ -31,12 +31,31 @@ struct GaussianParams : public SamplingParams<C_DIM>
   // Various flags
   bool time_specific_std_dev = false;
   bool use_same_noise_for_all_distributions = true;
+
   GaussianParams(int num_rollouts = 1, int num_timesteps = 1, int num_distributions = 1)
     : SamplingParams<C_DIM>::SamplingParams(num_rollouts, num_timesteps, num_distributions)
   {
     for (int i = 0; i < CONTROL_DIM * MAX_DISTRIBUTIONS; i++)
     {
       std_dev[i] = 1.0f;
+    }
+  }
+
+  void copyStdDevToDistribution(const int src_distribution_idx, const int dest_distribution_idx)
+  {
+    bool src_out_of_distribution = src_out_of_distribution >= MAX_DISTRIBUTIONS;
+    if (src_out_of_distribution || dest_distribution_idx >= MAX_DISTRIBUTIONS)
+    {
+      printf("%s Distribution %d is out of range. There are only %d total distributions\n",
+             src_out_of_distribution ? "Src" : "Dest",
+             src_out_of_distribution ? src_distribution_idx : dest_distribution_idx, MAX_DISTRIBUTIONS);
+      return;
+    }
+    float* std_dev_src = std_dev[CONTROL_DIM * src_distribution_idx];
+    float* std_dev_dest = std_dev[CONTROL_DIM * dest_distribution_idx];
+    for (int i = 0; i < CONTROL_DIM; i++)
+    {
+      std_dev_dest[i] = std_dev_src[i];
     }
   }
 };
@@ -52,6 +71,24 @@ struct GaussianTimeVaryingStdDevParams : public GaussianParams<C_DIM, MAX_DISTRI
     for (int i = 0; i < CONTROL_DIM * MAX_TIMESTEPS * MAX_DISTRIBUTIONS; i++)
     {
       std_dev[i] = 1.0f;
+    }
+  }
+
+  void copyStdDevToDistribution(const int src_distribution_idx, const int dest_distribution_idx)
+  {
+    bool src_out_of_distribution = src_out_of_distribution >= MAX_DISTRIBUTIONS;
+    if (src_out_of_distribution || dest_distribution_idx >= MAX_DISTRIBUTIONS)
+    {
+      printf("%s Distribution %d is out of range. There are only %d total distributions\n",
+             src_out_of_distribution ? "Src" : "Dest",
+             src_out_of_distribution ? src_distribution_idx : dest_distribution_idx, MAX_DISTRIBUTIONS);
+      return;
+    }
+    float* std_dev_src = std_dev[CONTROL_DIM * this->num_timesteps * src_distribution_idx];
+    float* std_dev_dest = std_dev[CONTROL_DIM * this->num_timesteps * dest_distribution_idx];
+    for (int i = 0; i < CONTROL_DIM * this->num_timesteps; i++)
+    {
+      std_dev_dest[i] = std_dev_src[i];
     }
   }
 };
@@ -90,7 +127,7 @@ public:
                                                        const int distribution_idx, const float lambda = 1.0,
                                                        const float alpha = 0.0);
 
-  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u, const float* theta_d, const int t,
+  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const float* theta_d, const int t,
                                             const int distribution_idx, const float lambda = 1.0,
                                             const float alpha = 0.0);
 

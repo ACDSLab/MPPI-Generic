@@ -1,12 +1,11 @@
 /**
  * Created by Bogdan Vlahov on 3/24/2023
  **/
-#include <mppi/sampling_distributions/gaussian/gaussian.cuh>
 
-#include <mppi/utils/cuda_math_utils.cuh>
-#include <regex>
-#include <mppi/utils/math_utils.h>
 #include <mppi/core/mppi_common_new.cuh>
+#include <mppi/sampling_distributions/gaussian/gaussian.cuh>
+#include <mppi/utils/cuda_math_utils.cuh>
+#include <mppi/utils/math_utils.h>
 
 #define GAUSSIAN_TEMPLATE template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 #define GAUSSIAN_CLASS GaussianDistributionImpl<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>
@@ -288,8 +287,9 @@ __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
                                    this->stream_));
     }
     HANDLE_ERROR(cudaMallocAsync((void**)&control_means_d_,
-                                 sizeof(float) * params_.num_distributions * params_.num_timesteps * CONTROL_DIM,
+                                 sizeof(float) * this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM,
                                  this->stream_));
+    means_.resize(this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM);
     // Ensure that the device side point knows where the the standard deviation memory is located
     HANDLE_ERROR(
         cudaMemcpyAsync(&sampling_d_->std_dev_d_, &std_dev_d_, sizeof(float*), cudaMemcpyHostToDevice, this->stream_));
@@ -453,6 +453,13 @@ __host__ void GAUSSIAN_CLASS::updateDistributionParamsFromDevice(const float* tr
   mppi::kernels::launchWeightedReductionKernel(trajectory_weights_d, control_samples_i_d, control_mean_i_d, normalizer,
                                                this->getNumTimesteps(), this->getNumRollouts(),
                                                this->params_.sum_strides, CONTROL_DIM, this->stream_, synchronize);
+  HANDLE_ERROR(cudaMemcpyAsync(&means_[distribution_i * this->getNumTimesteps() * CONTROL_DIM], this->control_mean_i_d,
+                               sizeof(float) * this->getNumTimesteps() * CONTROL_DIM, cudaMemcpyDeviceToHost,
+                               this->stream_));
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  }
 }
 
 GAUSSIAN_TEMPLATE
@@ -533,13 +540,13 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
 }
 
 GAUSSIAN_TEMPLATE
-__host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u, const float* theta_d,
-                                                          const int t, const int distribution_idx, const float lambda,
-                                                          const float alpha)
+__host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u,
+                                                          const float* theta_d, const int t, const int distribution_idx,
+                                                          const float lambda, const float alpha)
 {
   float cost = 0.0f;
   const int distribution_i = distribution_idx >= params_p->num_distributions ? 0 : distribution_idx;
-  const int mean_index = (distribution_idx * this->getNumTimesteps() + t) * CONTROL_DIM;
+  const int mean_index = (distribution_i * this->getNumTimesteps() + t) * CONTROL_DIM;
   float* mean = &(this->means_[mean_index]);
   float* std_dev = &(this->params_.std_dev[CONTROL_DIM * distribution_i]);
   if (this->params_.time_specific_std_dev)

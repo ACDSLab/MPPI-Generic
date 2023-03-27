@@ -3,8 +3,8 @@
 Created by Bogdan Vlahov on 3/22/2023
 */
 
-#include <mppi/utils/managed.cuh>
 #include <mppi/dynamics/dynamics.cuh>
+#include <mppi/utils/managed.cuh>
 
 #include <string>
 
@@ -126,6 +126,7 @@ public:
   }
 
   void paramsToDevice(bool synchronize = true);
+
   /**
    * @brief Host call to generate the samples needed for sampling. When this method finishes running,
    * the GPU Memory should be filled with the required control samples
@@ -135,10 +136,10 @@ public:
    * @param optimization_stride - at which point along the trajectory to start sampling from
    * @param iteration_num - which iteration of the optimization you are on
    */
-  __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, const int& num_timesteps,
-                                const int& num_rollouts, const int& num_distributions, curandGenerator_t& gen);
   __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen);
+
   __host__ void allocateCUDAMemory(bool synchronize = false);
+
   __host__ void allocateCUDAMemoryHelper();
 
   __device__ void initializeDistributions(const float* state, const float t_0, const float dt, float* theta_d);
@@ -171,7 +172,7 @@ public:
                                                        const int distribution_idx, const float lambda = 1.0,
                                                        const float alpha = 0.0);
 
-  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u, const float* theta_d, const int t,
+  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const float* theta_d, const int t,
                                             const int distribution_idx, const float lambda = 1.0,
                                             const float alpha = 0.0);
 

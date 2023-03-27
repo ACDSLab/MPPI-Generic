@@ -4,11 +4,12 @@
  * based off of https://github.com/felixpatzelt/colorednoise/blob/master/colorednoise.py
  */
 
+#include <mppi/sampling_distributions/sampling_distribution.cuh>
+#include <mppi/utils/gpu_err_chk.cuh>
+
+#include <Eigen/Dense>
 #include <cufft.h>
 #include <curand.h>
-#include <Eigen/Dense>
-
-#include <mppi/utils/gpu_err_chk.cuh>
 
 #include <algorithm>
 #include <iostream>
