@@ -33,10 +33,8 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::free
 }
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
-void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::initializeDistributions(const float* state,
-                                                                                           const float t_0,
-                                                                                           const float dt,
-                                                                                           float* theta_d)
+void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::initializeDistributions(
+    const float* __restrict__ state, const float t_0, const float dt, float* __restrict__ theta_d)
 {
   *static_cast<SAMPLING_PARAMS_T*>(theta_d) = this->params_;
 }
@@ -73,33 +71,6 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::upda
   }
 }
 
-// template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
-// __host__ bool SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::setHostOptimalControlSequence(
-//     float* optimal_control_trajectory, const int& distribution_i, bool synchronize)
-// {
-//   if (distribution_i >= this->getNumDistributions())
-//   {
-//     std::err << "Asking for updating from distribution " << distribution_i << " out of "
-//              << this->getNumDistributions() << " total." << std::endl;
-//     return false;
-//   }
-//   // float* trajectory_weights_d;
-//   // HANDLE_ERROR(cudaMallocAsync((void**)&trajectory_weights_d, sizeof(float) this->getNumRollouts(),
-//   // this->stream_)); HANDLE_ERROR(cudaMemcpyAsync(trajectory_weights_d, trajectory_weights, NUM_ROLLOUTS *
-//   // sizeof(float),
-//   //                              cudaMemcpyHostToDevice, this->stream_));
-//   // updateDistributionParamsFromDevice(trajectory_weights_d, distribution_i);
-//   // HANDLE_ERROR(cudaFreeAsync(trajectory_weights_d));
-//   HANDLE_ERROR(cudaMemcpyAsync(
-//       optimal_control_trajectory, &this->control_mean_d_[CONTROL_DIM * this->getNumTimesteps() * distribution_i],
-//       sizeof(float) * CONTROL_DIM * this->getNumTimesteps(), cudaMemcpyDeviceToHost, this->stream_));
-//   if (synchronize)
-//   {
-//     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
-//   }
-//   return true;
-// }
-
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::allocateCUDAMemory(bool synchronize)
 {
@@ -126,8 +97,8 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::allo
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 __device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::readControlSample(
-    const int sample_index, const int t, const int distribution_index, const float* state, float* control,
-    float* theta_d, const int block_size, const int thread_index)
+    const int& sample_index, const int& t, const int& distribution_index, float* __restrict__ control,
+    float* __restrict__ theta_d, const int& block_size, const int& thread_index, const float* __restrict__ state)
 {
   SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
   const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;
@@ -160,4 +131,15 @@ __device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::re
       u[j] = u_d[j];
     }
   }
+}
+
+template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
+__device__ float* SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::getControlSample(
+    const int& sample_index, const int& t, const int& distribution_index, const float* __restrict__ state)
+{
+  SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
+  const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;
+  return &this->control_samples_d_[((params_p->num_rollouts * distribution_i + sample_index) * params_p->num_timesteps +
+                                    t) *
+                                   CONTROL_DIM];
 }

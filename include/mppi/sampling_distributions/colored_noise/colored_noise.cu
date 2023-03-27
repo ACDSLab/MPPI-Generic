@@ -78,63 +78,9 @@ __host__ void COLORED_NOISE::allocateCUDAMemoryHelper()
   PARENT_CLASS::allocateCUDAMemoryHelper();
 }
 
-// COLORED_TEMPLATE
-// __device__ void COLORED_NOISE::getControlSample(const int sample_index, const int t, const int distribution_index,
-//                                                 const float* state, float* control, float* theta_d,
-//                                                 const int block_size, const int thread_index)
-// {
-//   SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
-//   const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;
-//   const int control_index =
-//       ((params_p->num_rollouts * distribution_i + sample_idx) * params_p->num_timesteps + t) * CONTROL_DIM;
-//   const int mean_index = (params_p->num_timesteps * distribution_i + t) * CONTROL_DIM;
-//   if (CONTROL_DIM % 4 == 0)
-//   {
-//     float4* du4 = reinterpret_cast<float4*>(
-//         &theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM * threadIdx.x]);  // TODO: replace with
-//         theta_d
-//     float4* u4 = reinterpret_cast<float4*>(control);
-//     const float4* u4_mean_d = reinterpret_cast<const float4*>(&(this->control_mean_d_[mean_index]));
-//     const float4* u4_d = reinterpret_cast<const float4*>(&(this->control_samples_d_[control_index]));
-//     for (int i = thread_idx; i < CONTROL_DIM / 4; i += block_size)
-//     {
-//       u4[j] = u4_d[j];
-//       du4[j] = u4[j] - u4_mean_d[j];
-//     }
-//   }
-//   else if (CONTROL_DIM % 2 == 0)
-//   {
-//     float2* du2 = reinterpret_cast<float2*>(
-//         &theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM * threadIdx.x]);  // TODO: replace with
-//         theta_d
-//     float2* u2 = reinterpret_cast<float2*>(control);
-//     const float2* u2_mean_d = reinterpret_cast<const float2*>(&(this->control_mean_d_[mean_index]));
-//     const float2* u2_d = reinterpret_cast<const float2*>(&(this->control_samples_d_[control_index]));
-//     for (int i = thread_idx; i < CONTROL_DIM / 2; i += block_size)
-//     {
-//       u2[j] = u2_d[j];
-//       du2[j] = u2[j] - u2_mean_d[j];
-//     }
-//   }
-//   else
-//   {
-//     float* du = reinterpret_cast<float*>(
-//         &theta_d[sizeof(SAMPLING_PARAMS_T) / sizeof(float) + CONTROL_DIM * threadIdx.x]);  // TODO: replace with
-//         theta_d
-//     float* u = reinterpret_cast<float*>(control);
-//     const float* u_mean_d = reinterpret_cast<const float*>(&(this->control_mean_d_[mean_index]));
-//     const float* u_d = reinterpret_cast<const float*>(&(this->control_samples_d_[control_index]));
-//     for (int i = thread_idx; i < CONTROL_DIM; i += block_size)
-//     {
-//       u[j] = u_d[j];
-//       du[j] = u[j] - u_mean_d[j];
-//     }
-//   }
-// }
-
 COLORED_TEMPLATE
 __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, const int& iteration_num,
-                                             curandGenerator_t& gen)
+                                             curandGenerator_t& gen, bool synchronize)
 {
   const int BLOCKSIZE_X = this->params_.readControlsBlockDim.x;
   const int BLOCKSIZE_Y = this->params_.readControlsBlockDim.y;
@@ -231,7 +177,10 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
       this->getNumRollouts(), this->getNumDistributions(), optimization_stride,
       this->params_.pure_noise_trajectories_percentage, this->params_.time_specific_std_dev);
   HANDLE_ERROR(cudaGetLastError());
-  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  }
 }
 #undef COLORED_TEMPLATE
 #undef COLORED_NOISE

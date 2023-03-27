@@ -4,7 +4,7 @@
  * based off of https://github.com/felixpatzelt/colorednoise/blob/master/colorednoise.py
  */
 
-#include <mppi/sampling_distributions/sampling_distribution.cuh>
+#include <mppi/sampling_distributions/gaussian/gaussian.cuh>
 #include <mppi/utils/gpu_err_chk.cuh>
 
 #include <Eigen/Dense>
@@ -197,6 +197,24 @@ struct ColoredNoiseParams : public GaussianParams<C_DIM, MAX_DISTRIBUTIONS_T>
     : GaussianParams<C_DIM, MAX_DISTRIBUTIONS_T>(num_rollouts, num_timesteps, num_distributions)
   {
   }
+
+  void copyExponentToDistribution(const int src_distribution_idx, const int dest_distribution_idx)
+  {
+    bool src_out_of_distribution = src_out_of_distribution >= MAX_DISTRIBUTIONS;
+    if (src_out_of_distribution || dest_distribution_idx >= MAX_DISTRIBUTIONS)
+    {
+      printf("%s Distribution %d is out of range. There are only %d total distributions\n",
+             src_out_of_distribution ? "Src" : "Dest",
+             src_out_of_distribution ? src_distribution_idx : dest_distribution_idx, MAX_DISTRIBUTIONS);
+      return;
+    }
+    float* exponents_src = exponents[CONTROL_DIM * src_distribution_idx];
+    float* exponents_dest = exponents[CONTROL_DIM * dest_distribution_idx];
+    for (int i = 0; i < CONTROL_DIM; i++)
+    {
+      exponents_dest[i] = exponents_src[i];
+    }
+  }
 };
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE = ColoredNoiseParams, class DYN_PARAMS_T = DynamicsParams>
@@ -210,11 +228,17 @@ public:
   ColoredNoiseDistributionImpl(cudaStream_t stream = 0);
   ColoredNoiseDistributionImpl(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0);
 
-  __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen);
+  __host__ std::string getSamplingDistributionName()
+  {
+    return "Colored Noise";
+  }
 
   __host__ void allocateCUDAMemoryHelper();
 
   __host__ void freeCudaMem();
+
+  __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen,
+                                bool synchronize = true);
 
 protected:
   cufftHandle plan_;

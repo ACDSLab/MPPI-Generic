@@ -97,22 +97,23 @@ __device__ void strideControlWeightReduction(const int num_rollouts, const int n
   }
 }
 
-template <class DYN_T, class SAMPLING_T, int BLOCKSIZE_X, int BLOCKSIZE_Y, int NUM_ROLLOUTS, int BLOCKSIZE_Z>
+template <class DYN_T, class SAMPLING_T>
 __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restrict__ sampling, float dt,
-                                      int num_timesteps, int optimization_stride, const float* __restrict__ init_x_d,
-                                      float* __restrict__ y_d)
+                                      const int num_timesteps, const int optimization_stride, const int num_rollouts,
+                                      const float* __restrict__ init_x_d, float* __restrict__ y_d)
 {
   // Get thread and block id
   const int thread_idx = threadIdx.x;
   const int thread_idy = threadIdx.y;
   const int thread_idz = threadIdx.z;
   const int block_idx = blockIdx.x;
-  const int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
+  const int global_idx = blockDim.x * block_idx + thread_idx;
   const int shared_idx = blockDim.x * thread_idz + thread_idx;
   const int distribution_idx = threadIdx.z;
   const int distribution_dim = blockDim.z;
   const int sample_dim = blockDim.x;
 
+  // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
 
   float* x_shared = entire_buffer;
@@ -121,27 +122,12 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
   float* x_dot_shared = &y_shared[mppi::math::nearest_quotient_4(sample_dim * DYN_T::OUTPUT_DIM * distribution_dim)];
   float* u_shared = &x_dot_shared[mppi::math::nearest_quotient_4(sample_dim * DYN_T::STATE_DIM * distribution_dim)];
   float* theta_s_shared = &u_shared[mppi::math::nearest_quotient_4(sample_dim * DYN_T::CONTROL_DIM * distribution_dim)];
-  // Ensure that there is enough room for the SHARED_MEM_REQUEST_GRD and SHARED_MEM_REQUEST_BLK portions to be aligned
-  // to the float4 boundary.
+  // Ensure that there is enough room for the SHARED_MEM_REQUEST_GRD_BYTES and SHARED_MEM_REQUEST_BLK_BYTES portions to
+  // be aligned to the float4 boundary.
   const int size_of_theta_s_bytes =
-      mppi::math::int_ceil(DYN_T::SHARED_MEM_REQUEST_GRD, sizeof(float4)) +
-      sample_dim * distribution_dim * mppi::math::int_ceil(DYN_T::SHARED_MEM_REQUEST_BLK, sizeof(float4));
+      mppi::math::int_ceil(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      sample_dim * distribution_dim * mppi::math::int_ceil(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
   float* theta_d_shared = &theta_s_shared[size_of_theta_s_bytes / sizeof(float)];
-
-  // Create shared state and control arrays
-  // __shared__ float4 x_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z, 4)];
-  // __shared__ float4 x_next_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z, 4)];
-  // __shared__ float4 y_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::OUTPUT_DIM * BLOCKSIZE_Z, 4)];
-  // __shared__ float4 xdot_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z, 4)];
-  // __shared__ float4 u_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z, 4)];
-  // __shared__ float4 du_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z, 4)];
-  // __shared__ float4 sigma_u[mppi::math::int_ceil(DYN_T::CONTROL_DIM, 4)];
-
-  // // Create a shared array for the dynamics model to use
-  // __shared__ float4 theta_s4[mppi::math::int_ceil(DYN_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 +
-  //                                                     DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z,
-  //                                                 4)];
-  // float* theta_s = reinterpret_cast<float*>(theta_s4);
 
   // Create local state, state dot and controls
   float* x;
@@ -149,26 +135,22 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
   float* x_temp;
   float* xdot;
   float* u;
-  // float* du;
   float* y;
 
   // Load global array to shared array
-  if (global_idx < NUM_ROLLOUTS)
+  if (global_idx < num_rollouts)
   {
     x = &(reinterpret_cast<float*>(x_shared)[shared_idx * DYN_T::STATE_DIM]);
     x_next = &(reinterpret_cast<float*>(x_next_shared)[shared_idx * DYN_T::STATE_DIM]);
     y = &(reinterpret_cast<float*>(y_shared)[shared_idx * DYN_T::OUTPUT_DIM]);
     xdot = &(reinterpret_cast<float*>(xdot_shared)[shared_idx * DYN_T::STATE_DIM]);
     u = &(reinterpret_cast<float*>(u_shared)[shared_idx * DYN_T::CONTROL_DIM]);
-    // du = &(reinterpret_cast<float*>(du_shared)[shared_idx * DYN_T::CONTROL_DIM]);
   }
-  // TODO: Replace with new loadGlobaToShared that doesn't reuire sigma or du
-  // loadGlobalToShared<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>(NUM_ROLLOUTS, BLOCKSIZE_Y, global_idx, thread_idy,
-  //                                                          thread_idz, init_x_d, sigma_u_d, x, xdot, u, du,
-  //                                                          reinterpret_cast<float*>(sigma_u));
+
+  loadGlobalToShared(num_rollouts, blockDim.y, global_idx, thread_idy, thread_idz, init_x_d, x, xdot, u);
   __syncthreads();
 
-  if (global_idx < NUM_ROLLOUTS)
+  if (global_idx < num_rollouts)
   {
     /*<----Start of simulation loop-----> */
     dynamics->initializeDynamics(x, u, y, theta_s_shared, 0.0, dt);
@@ -176,20 +158,16 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
     for (int t = 0; t < num_timesteps; t++)
     {
       // Load noise trajectories scaled by the exploration factor
-      // injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy,
+      // injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, num_rollouts, num_timesteps, t, global_idx, thread_idy,
       //                    optimization_stride, u_d, du_d, reinterpret_cast<float*>(sigma_u), u, du);
-      sampling->readControlSample(global_idx, t, distribution_idx, s, u, theta_d_shared, blockDim.y, thread_idy);
+      sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d_shared, blockDim.y, thread_idy, x);
       // du_d is now v
       __syncthreads();
 
       // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
       // usually just control clamping
       // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
-
-      // TODO: Replace with enforcing constraints method from sampling distribution
-      // dynamics->enforceConstraints(x, &du_d[(NUM_ROLLOUTS * num_timesteps * threadIdx.z +  // z part
-      //                                        global_idx * num_timesteps + t) *
-      //                                       DYN_T::CONTROL_DIM]);
+      dynamics->enforceConstraints(x, sampling->getControlSample(global_idx, t, distribution_idx, x));
       dynamics->enforceConstraints(x, u);
       __syncthreads();
 
@@ -200,7 +178,7 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
       x = x_next;
       x_next = x_temp;
       // Copy state to global memory
-      int sample_time_offset = (NUM_ROLLOUTS * thread_idz + global_idx) * num_timesteps + t;
+      int sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t;
       mp1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y_d, sample_time_offset * DYN_T::OUTPUT_DIM, y, 0);
     }
   }
@@ -319,4 +297,78 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, cons
   // Compute terminal cost and the final cost for each thread
   computeAndSaveCost(NUM_ROLLOUTS, num_timesteps, global_idx, costs, y, running_cost[0] / (num_timesteps - 1), theta_c,
                      trajectory_costs_d);
+}
+
+template <int STATE_DIM, int CONTROL_DIM>
+__device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y, const int global_idx,
+                                   const int thread_idy, const int thread_idz, const float* __restrict__ x_device,
+                                   float* __restrict__ x_thread, float* __restrict__ xdot_thread,
+                                   float* __restrict__ u_thread)
+{
+  // Transfer to shared memory
+  int i;
+  // float zero_state[STATE_DIM] = { 0 };
+  if (global_idx < num_rollouts)
+  {
+#if true
+    mp1::loadArrayParallel<STATE_DIM>(x_thread, 0, x_device, STATE_DIM * thread_idz);
+    if (STATE_DIM % 4 == 0)
+    {
+      float4* xdot4_t = reinterpret_cast<float4*>(xdot_thread);
+      for (i = thread_idy; i < STATE_DIM / 4; i += blocksize_y)
+      {
+        xdot4_t[i] = make_float4(0, 0, 0, 0);
+      }
+    }
+    else if (STATE_DIM % 2 == 0)
+    {
+      float2* xdot2_t = reinterpret_cast<float2*>(xdot_thread);
+      for (i = thread_idy; i < STATE_DIM / 2; i += blocksize_y)
+      {
+        xdot2_t[i] = make_float2(0, 0);
+      }
+    }
+    else
+    {
+      for (i = thread_idy; i < STATE_DIM; i += blocksize_y)
+      {
+        xdot_thread[i] = 0;
+      }
+    }
+
+    if (CONTROL_DIM % 4 == 0)
+    {
+      float4* u4_t = reinterpret_cast<float4*>(u_thread);
+      for (i = thread_idy; i < CONTROL_DIM / 4; i += blocksize_y)
+      {
+        u4_t[i] = make_float4(0, 0, 0, 0);
+      }
+    }
+    else if (CONTROL_DIM % 2 == 0)
+    {
+      float2* u2_t = reinterpret_cast<float2*>(u_thread);
+      for (i = thread_idy; i < CONTROL_DIM / 2; i += blocksize_y)
+      {
+        u2_t[i] = make_float2(0, 0);
+      }
+    }
+    else
+    {
+      for (i = thread_idy; i < CONTROL_DIM; i += blocksize_y)
+      {
+        u_thread[i] = 0;
+      }
+    }
+#else
+    for (i = thread_idy; i < STATE_DIM; i += blocksize_y)
+    {
+      x_thread[i] = x_device[i + STATE_DIM * thread_idz];
+      xdot_thread[i] = 0;
+    }
+    for (i = thread_idy; i < CONTROL_DIM; i += blocksize_y)
+    {
+      u_thread[i] = 0;
+    }
+#endif
+  }
 }

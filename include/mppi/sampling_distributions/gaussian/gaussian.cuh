@@ -100,32 +100,37 @@ public:
   using PARENT_CLASS = typename SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>;
   using SAMPLING_PARAMS_T = typename PARENT_CLASS::SAMPLING_PARAMS_T;
   using control_array = typename PARENT_CLASS::control_array;
-  // static const int SHARED_MEM_REQUEST_BLK_BYTES = CONTROL_DIM * sizeof(float);  // used to hold epsilon = v - mu
 
   GaussianDistributionImpl(cudaStream_t stream = 0);
   GaussianDistributionImpl(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0);
 
-  __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen);
+  __host__ std::string getSamplingDistributionName()
+  {
+    return "Gaussian";
+  }
 
   __host__ void allocateCUDAMemoryHelper();
 
+  __host__ __device__ float computeLikelihoodRatioCost(const float* __restrict__ u, const float* __restrict__ theta_d,
+                                                       const int t, const int distribution_idx,
+                                                       const float lambda = 1.0, const float alpha = 0.0);
+
+  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int t,
+                                            const int distribution_idx, const float lambda = 1.0,
+                                            const float alpha = 0.0);
+
   __host__ void freeCudaMem();
 
-  __host__ void paramsToDevice(bool synchronize = true);
+  __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen,
+                                bool synchronize = true);
 
-  __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
-                                                   const int& distribution_i, bool synchronize = false);
+  __host__ void paramsToDevice(bool synchronize = true);
 
   __host__ void setHostOptimalControlSequence(float* optimal_control_trajectory, const int& distribution_idx,
                                               bool synchronize = true);
 
-  __host__ __device__ float computeLikelihoodRatioCost(const float* u, const float* theta_d, const int t,
-                                                       const int distribution_idx, const float lambda = 1.0,
-                                                       const float alpha = 0.0);
-
-  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const float* theta_d, const int t,
-                                            const int distribution_idx, const float lambda = 1.0,
-                                            const float alpha = 0.0);
+  __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
+                                                   const int& distribution_i, bool synchronize = false);
 
 protected:
   float* std_dev_d_ = nullptr;
@@ -146,6 +151,7 @@ class GaussianDistribution : public GaussianDistributionImpl<GaussianDistributio
   {
   }
 };
+
 #if __CUDACC__
 #include "gaussian.cu"
 #endif

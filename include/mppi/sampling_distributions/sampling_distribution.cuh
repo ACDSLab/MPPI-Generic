@@ -31,9 +31,10 @@ template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_
 class SamplingDistribution : public Managed
 {
 public:
-  /**
+  /*************************************
    * Setup typedefs and aliases
-   */
+   *************************************/
+
   typedef CLASS_T SAMPLING_T;
   using ControlIndex = typename DYN_PARAMS_T::ControlIndex;
   using OutputIndex = typename DYN_PARAMS_T::OutputIndex;
@@ -50,6 +51,10 @@ public:
   static const int SHARED_MEM_REQUEST_GRD_BYTES = sizeof(SAMPLING_PARAMS_T);
   static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
 
+  /*************************************
+   * Constructors and Destructors
+   *************************************/
+
   SamplingDistribution(cudaStream_t stream = 0) : stream_{ stream }
   {
   }
@@ -62,22 +67,21 @@ public:
     freeCudaMem();
   }
 
+  /**
+   * @brief Get the Sampling Distribution Name object
+   *
+   * @return std::string - name of the sampling distribution
+   */
   __host__ std::string getSamplingDistributionName()
   {
     return "Sampling distribution name not set";
   }
 
-  void setStream(cudaStream_t stream)
-  {
-    stream_ = stream;
-  }
+  /*************************************
+   * DEFAULT CLASS METHODS THAT SHOULD NOT NEED OVERWRITING
+   *************************************/
 
   void GPUSetup();
-
-  /**
-   * deallocates the allocated cuda memory for an object
-   */
-  __host__ void freeCudaMem();
 
   /**
    * Updates the sampling distribution parameters
@@ -125,56 +129,142 @@ public:
     return this->params_.num_distributions;
   }
 
-  void paramsToDevice(bool synchronize = true);
-
-  /**
-   * @brief Host call to generate the samples needed for sampling. When this method finishes running,
-   * the GPU Memory should be filled with the required control samples
-   *
-   * @param num_timesteps - time horizon to generate samples for
-   * @param num_rollouts - number of sample trajectories to create
-   * @param optimization_stride - at which point along the trajectory to start sampling from
-   * @param iteration_num - which iteration of the optimization you are on
-   */
-  __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen);
-
   __host__ void allocateCUDAMemory(bool synchronize = false);
 
-  __host__ void allocateCUDAMemoryHelper();
-
-  __device__ void initializeDistributions(const float* state, const float t_0, const float dt, float* theta_d);
+  /**
+   * @brief deallocates the allocated cuda memory for the sampling distribution
+   */
+  __host__ void freeCudaMem();
 
   /**
-   * @brief Get the Control Sample for control sample sample_index at time t and put it into the control array
+   * @brief Get a pointer to a specific control sample. This is useful for plugging into methods like enforceConstraints
    *
-   * @param sample_index
-   * @param t
-   * @param control
-   * @param block_size - amount of parallelization
-   * @param thread_index - parallelization index
+   * @param sample_index - sample number out of num_rollouts
+   * @param t - timestep out of num_timesteps
+   * @param distribution_index - distribution index (if it is larger than num_distributions, it just defaults to first
+   * distribution for future compatibility with sampling dynamical systems)
+   * @param state - state pointer for compatibility with a state-based sampling distribution
+   * @return float* pointer to the control array that is at [distribution_index][sample_index][t]
+   */
+  __device__ float* getControlSample(const int& sample_index, const int& t, const int& distribution_index,
+                                     const float* __restrict__ state = nullptr);
+
+  /**
+   * @brief Method for starting up any potential work for distributions. By default, it just loads the params into
+   * shared memory
+   *
+   * @param state - initial state
+   * @param t_0 - starting time
+   * @param dt - step size
+   * @param theta_d - shared memory pointer to sampling distribution space
+   */
+  __device__ void initializeDistributions(const float* __restrict__ state, const float t_0, const float dt,
+                                          float* __restrict__ theta_d);
+
+  __host__ void paramsToDevice(bool synchronize = true);
+
+  /**
+   * @brief Look up a specific control sample located at [distribution_index][sample_index][t] and put it into the
+   * control array
+   *
+   * @param sample_index - sample number out of num_rollouts
+   * @param t - timestep out of num_timesteps
+   * @param distribution_index - distribution index (if it is larger than num_distributions, it just defaults to first
+   * distribution for future compatibility with sampling dynamical systems)
+   * @param control - pointer to fill with the specific control array
+   * @param theta_d - shared memory pointer for passing through params
+   * @param block_size - parallelizable step size for the gpu (normally blockDim.y)
+   * @param thread_index - parallelizable index for the gpu (normally threadIdx.y)
+   * @param state - state pointer for compatibility with a state-based sampling distribution
    */
   __device__ void readControlSample(const int& sample_index, const int& t, const int& distribution_index,
-                                    const float* state, float* control, float* theta_d, const int& block_size = 1,
-                                    const int& thread_index = 1);
+                                    float* __restrict__ control, float* __restrict__ theta_d, const int& block_size = 1,
+                                    const int& thread_index = 1, const float* __restrict__ state = nullptr);
 
-  // takes in the cost of each sample generated and conducts an update of the distribution (For Gaussians, mean update)
-  __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
-                                                   const int& distribution_i, bool synchronize = false);
-
-  __host__ void updateDistributionParamsFromHost(const Eigen::Ref<const Eigen::MatrixXf> trajectory_weights,
+  /**
+   * @brief Update the distribution according to the weights of each sample. Should only be used if weights only exist
+   * on the host side. Otherwise, use updateDistributionParamsFromDevice
+   *
+   * @param trajectory_weights - vector of size num_rollouts containing the weight of each sample
+   * @param normalizer - the sum of all trajectory weights
+   * @param distribution_i - which distribution to update
+   * @param synchronize - whether or not to run cudaStreamSynchronize
+   */
+  __host__ void updateDistributionParamsFromHost(const Eigen::Ref<const Eigen::MatrixXf>& trajectory_weights,
                                                  float normalizer, const int& distribution_i, bool synchronize = false);
 
-  // Set a host side pointer to the optimal control sequence from the distribution
+  /*************************************
+   * Methods that need to be overwritten by derived classes
+   *************************************/
+
+  /**
+   * @brief method for allocating additional CUDA memory in derived
+   */
+  __host__ void allocateCUDAMemoryHelper();
+
+  /**
+   * @brief Device method to calculate the likelihood ratio cost for a given sample u
+   *
+   * @param u - sampled control
+   * @param theta_d - shared memory for sampling distribution
+   * @param t - timestep
+   * @param distribution_idx - distribution index (if it is larger than num_distributions, it just defaults to first
+   * distribution for future compatibility with sampling dynamical systems)
+   * @param lambda - MPPI temperature parameter
+   * @param alpha - coeff to turn off the likelihood cost (set to 1 -> no likelihood cost, set to 0 -> all likelihood
+   * cost)
+   */
+  __host__ __device__ float computeLikelihoodRatioCost(const float* __restrict__ u, const float* __restrict__ theta_d,
+                                                       const int t, const int distribution_idx,
+                                                       const float lambda = 1.0, const float alpha = 0.0);
+
+  /**
+   * @brief Host-side method to calculate the likelihood ration cost for a given sample u
+   *
+   * @param u - sampled control
+   * @param t - timestep
+   * @param distribution_idx - distribution index (if it is larger than num_distributions, it just defaults to first
+   * distribution for future compatibility with sampling dynamical systems)
+   * @param lambda - MPPI temperature parameter
+   * @param alpha - coeff to turn off the likelihood cost (set to 1 -> no likelihood cost, set to 0 -> all likelihood
+   * cost)
+   */
+  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int t,
+                                            const int distribution_idx, const float lambda = 1.0,
+                                            const float alpha = 0.0);
+
+  /**
+   * @brief Generate control samples that will be on the GPU.
+   *
+   * @param optimization_stride - timestep to start control samples from
+   * @param iteration_num - which iteration of the algorithm we are on. Useful for decaying std_dev
+   * @param gen - pseudo-random noise generator
+   */
+  __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen,
+                                bool synchronize = true);
+
+  /**
+   * @brief Set the Host-side Optimal Control Trajectory
+   *
+   * @param optimal_control_trajectory - pointer to CPU memory location to store the optimal control
+   * @param distribution_idx - which distribution we are looking for the optimal control from (Useful for Tube and
+   * RMPPI)
+   * @param synchronize - whether or not to run cudaStreamSynchronize
+   */
   __host__ void setHostOptimalControlSequence(float* optimal_control_trajectory, const int& distribution_idx,
                                               bool synchronize = true);
 
-  __host__ __device__ float computeLikelihoodRatioCost(const float* u, const float* theta_d, const int t,
-                                                       const int distribution_idx, const float lambda = 1.0,
-                                                       const float alpha = 0.0);
-
-  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const float* theta_d, const int t,
-                                            const int distribution_idx, const float lambda = 1.0,
-                                            const float alpha = 0.0);
+  /**
+   * @brief takes in the cost of each sample generated and conducts an update of the distribution (For Gaussians, mean
+   * update)
+   *
+   * @param trajectory_weights_d - vector of weights of size num_rollouts located on the GPU
+   * @param normalizer - sum of all weights
+   * @param distribution_i - which distribution to update
+   * @param synchronize - whether or not to run cudaStreamSynchronize
+   */
+  __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
+                                                   const int& distribution_i, bool synchronize = false);
 
   CLASS_T* sampling_d_ = nullptr;
 

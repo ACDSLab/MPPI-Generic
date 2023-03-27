@@ -338,7 +338,7 @@ void GAUSSIAN_CLASS::paramsToDevice(bool synchronize)
 
 GAUSSIAN_TEMPLATE
 __host__ void GAUSSIAN_CLASS::generateSamples(const int& optimization_stride, const int& iteration_num,
-                                              curandGenerator_t& gen)
+                                              curandGenerator_t& gen, bool synchronize)
 {
   if (this->params_.use_same_noise_for_all_distributions)
   {
@@ -383,7 +383,10 @@ __host__ void GAUSSIAN_CLASS::generateSamples(const int& optimization_stride, co
       this->params_.pure_noise_trajectories_percentage, this->params_.time_specific_std_dev);
 
   HANDLE_ERROR(cudaGetLastError());
-  HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
+  }
 }
 
 GAUSSIAN_TEMPLATE
@@ -432,7 +435,8 @@ __host__ void GAUSSIAN_CLASS::setHostOptimalControlSequence(float* optimal_contr
 }
 
 GAUSSIAN_TEMPLATE
-__host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float* u, const float* theta_d, const int t,
+__host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float* __restrict__ u,
+                                                                     const float* __restrict__ theta_d, const int t,
                                                                      const int distribution_idx, const float lambda,
                                                                      const float alpha)
 {
