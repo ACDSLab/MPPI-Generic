@@ -102,13 +102,3 @@ inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(fl
   }
   return cost;
 }
-
-template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeRunningCost(float* s, float* u, float* noise,
-                                                                                float* std_dev, float lambda,
-                                                                                float alpha, int timestep,
-                                                                                float* theta_c, int* crash_status)
-{
-  return computeStateCost(s, timestep, theta_c, crash_status) +
-         this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
-}

@@ -127,16 +127,9 @@ public:
    * Computes the control cost on CPU. This is the normal control cost calculation
    * in MPPI and Tube-MPPI
    */
-  float computeLikelihoodRatioCost(const Eigen::Ref<const control_array> u, const Eigen::Ref<const control_array> noise,
-                                   const Eigen::Ref<const control_array> std_dev, const float lambda = 1.0,
-                                   const float alpha = 0.0)
+  float computeControlCost(const Eigen::Ref<const control_array> u, int timestep, int* crash)
   {
-    float cost = 0;
-    for (int i = 0; i < CONTROL_DIM; i++)
-    {
-      cost += params_.control_cost_coeff[i] * u(i) * (u(i) + 2 * noise(i)) / (std_dev(i) * std_dev(i));
-    }
-    return 0.5 * lambda * (1 - alpha) * cost;
+    return 0.0f;
   }
   // =================== METHODS THAT SHOULD HAVE NO DEFAULT ==========================
   /**
@@ -211,35 +204,28 @@ public:
    * the original cost:
    * 0.5 * lambda * (u - noise)^T \Sigma^{-1} (u + noise)
    */
-  __device__ float computeLikelihoodRatioCost(float* u, float* noise, float* std_dev, float lambda = 1.0,
-                                              float alpha = 0.0)
+  __device__ float computeControlCost(float* u, int timestep, float* theta_c, int* crash)
   {
-    float cost = 0;
-    for (int i = 0; i < CONTROL_DIM; i++)
-    {
-      cost += params_.control_cost_coeff[i] * (u[i] - noise[i]) * (u[i] + noise[i]) / (std_dev[i] * std_dev[i]);
-    }
-    return 0.5 * lambda * (1 - alpha) * cost;
+    return 0.0f;
   }
   // =================== END METHODS THAT SHOULD NOT BE OVERWRITTEN ============
 
   // =================== METHODS THAT CAN BE OVERWRITTEN =======================
   float computeRunningCost(const Eigen::Ref<const output_array> y, const Eigen::Ref<const control_array> u,
-                           const Eigen::Ref<const control_array> noise, const Eigen::Ref<const control_array> std_dev,
-                           float lambda, float alpha, int timestep, int* crash)
+                           int timestep, int* crash)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
 
     return derived->computeStateCost(y, timestep, crash) +
-           derived->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
+           derived->computeControlCost(u, timestep, crash);
   }
 
-  __device__ float computeRunningCost(float* y, float* u, float* du, float* std_dev, float lambda, float alpha,
+  __device__ float computeRunningCost(float* y, float* u,
                                       int timestep, float* theta_c, int* crash)
   {
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     return derived->computeStateCost(y, timestep, theta_c, crash) +
-           derived->computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
+           derived->computeControlCost(u, timestep, theta_c, crash);
   }
   // =================== END METHODS THAT CAN BE OVERWRITTEN ===================
 

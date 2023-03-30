@@ -122,16 +122,8 @@ __device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep
     sum += s_diff[i];
   }
 
-  return sum;
-}
-
-__device__ float QuadrotorQuadraticCost::computeRunningCost(float* s, float* u, float* du, float* std_dev, float lambda,
-                                                            float alpha, int timestep, float* theta_c,
-                                                            int* crash_status)
-{
-  float cost =
-      computeStateCost(s, timestep, theta_c, crash_status) + computeLikelihoodRatioCost(u, du, std_dev, lambda, alpha);
-  return cost * (1 - isnan(cost)) + isnan(cost) * MAX_COST_VALUE;
+  // do a final nan check
+  return sum * (1 - isnan(sum)) + isnan(sum) * MAX_COST_VALUE;
 }
 
 __device__ float QuadrotorQuadraticCost::terminalCost(float* s, float* theta_c)

@@ -384,13 +384,3 @@ inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::com
   }
   return cost;
 }
-
-template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
-inline __device__ float
-ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::computeRunningCost(float* s, float* u, float* noise,
-                                                                        float* std_dev, float lambda, float alpha,
-                                                                        int timestep, float* theta_c, int* crash_status)
-{
-  return computeStateCost(s, timestep, theta_c, crash_status) +
-         this->computeLikelihoodRatioCost(u, noise, std_dev, lambda, alpha);
-}

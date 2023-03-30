@@ -104,10 +104,6 @@ public:
    */
   __device__ float computeStateCost(float* s, int timestep = 0, float* theta_c = nullptr, int* crash_status = nullptr);
 
-  // Custom implementation that does a Nan check.
-  __device__ float computeRunningCost(float* s, float* u, float* noise, float* std_dev, float lambda, float alpha,
-                                      int timestep, float* theta_c, int* crash_status);
-
   __device__ float terminalCost(float* s, float* theta_c = nullptr);
 };
 
