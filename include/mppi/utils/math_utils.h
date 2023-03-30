@@ -552,6 +552,13 @@ inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::NONE>(int& p_in
 template <int N, Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y, class T = float>
 inline __device__ void loadArrayParallel(T* __restrict__ a1, const int off1, const T* __restrict__ a2, const int off2)
 {
+  loadArrayParallel<P_DIR, T>(a1, off1, a2, off2, N);
+}
+
+template <Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y, class T = float>
+inline __device__ void loadArrayParallel(T* __restrict__ a1, const int off1, const T* __restrict__ a2, const int off2,
+                                         const int N)
+{
   int p_index, p_step;
   getParallel1DIndex<P_DIR>(p_index, p_step);
   if (N % 4 == 0 && sizeof(type4<T>) <= 16 && off1 % 4 == 0 && off2 % 4 == 0)

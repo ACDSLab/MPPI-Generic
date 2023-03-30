@@ -34,7 +34,7 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::free
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::initializeDistributions(
-    const float* __restrict__ state, const float t_0, const float dt, float* __restrict__ theta_d)
+    const float* __restrict__ output, const float t_0, const float dt, float* __restrict__ theta_d)
 {
   *static_cast<SAMPLING_PARAMS_T*>(theta_d) = this->params_;
 }
@@ -98,7 +98,7 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::allo
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 __device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::readControlSample(
     const int& sample_index, const int& t, const int& distribution_index, float* __restrict__ control,
-    float* __restrict__ theta_d, const int& block_size, const int& thread_index, const float* __restrict__ state)
+    float* __restrict__ theta_d, const int& block_size, const int& thread_index, const float* __restrict__ output)
 {
   SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
   const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;
@@ -135,7 +135,7 @@ __device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::re
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 __device__ float* SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::getControlSample(
-    const int& sample_index, const int& t, const int& distribution_index, const float* __restrict__ state)
+    const int& sample_index, const int& t, const int& distribution_index, const float* __restrict__ output)
 {
   SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
   const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;

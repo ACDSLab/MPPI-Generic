@@ -146,7 +146,6 @@ __host__ __device__ inline float4& operator*=(float4& a, const float& b)
   return a;
 }
 
-
 // Vector-Vector add and set
 __host__ __device__ inline float2& operator+=(float2& a, const float2& b)
 {

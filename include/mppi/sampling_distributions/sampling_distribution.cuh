@@ -143,22 +143,22 @@ public:
    * @param t - timestep out of num_timesteps
    * @param distribution_index - distribution index (if it is larger than num_distributions, it just defaults to first
    * distribution for future compatibility with sampling dynamical systems)
-   * @param state - state pointer for compatibility with a state-based sampling distribution
+   * @param output - output pointer for compatibility with a output-based sampling distribution
    * @return float* pointer to the control array that is at [distribution_index][sample_index][t]
    */
   __device__ float* getControlSample(const int& sample_index, const int& t, const int& distribution_index,
-                                     const float* __restrict__ state = nullptr);
+                                     const float* __restrict__ output = nullptr);
 
   /**
    * @brief Method for starting up any potential work for distributions. By default, it just loads the params into
    * shared memory
    *
-   * @param state - initial state
+   * @param output - initial output
    * @param t_0 - starting time
    * @param dt - step size
    * @param theta_d - shared memory pointer to sampling distribution space
    */
-  __device__ void initializeDistributions(const float* __restrict__ state, const float t_0, const float dt,
+  __device__ void initializeDistributions(const float* __restrict__ output, const float t_0, const float dt,
                                           float* __restrict__ theta_d);
 
   __host__ void paramsToDevice(bool synchronize = true);
@@ -175,11 +175,11 @@ public:
    * @param theta_d - shared memory pointer for passing through params
    * @param block_size - parallelizable step size for the gpu (normally blockDim.y)
    * @param thread_index - parallelizable index for the gpu (normally threadIdx.y)
-   * @param state - state pointer for compatibility with a state-based sampling distribution
+   * @param output - output pointer for compatibility with a output-based sampling distribution
    */
   __device__ void readControlSample(const int& sample_index, const int& t, const int& distribution_index,
                                     float* __restrict__ control, float* __restrict__ theta_d, const int& block_size = 1,
-                                    const int& thread_index = 1, const float* __restrict__ state = nullptr);
+                                    const int& thread_index = 1, const float* __restrict__ output = nullptr);
 
   /**
    * @brief Update the distribution according to the weights of each sample. Should only be used if weights only exist
