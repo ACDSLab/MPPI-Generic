@@ -42,7 +42,6 @@ void GPUFeedbackController<CLASS_T, DYN_T, FEEDBACK_STATE_T>::GPUSetup()
     std::cout << "Feedback Controller GPU Memory already set" << std::endl;
   }
   derived->copyToDevice();
-  // derived->paramsToDevice();
 }
 
 // ===================== FeedbackController ========================

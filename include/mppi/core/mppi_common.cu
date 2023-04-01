@@ -137,23 +137,23 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
   const int global_idx = BLOCKSIZE_X * block_idx + thread_idx;
 
   // Create shared state and control arrays
-  __shared__ float4 x_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z, 4)];
-  __shared__ float4 x_next_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z, 4)];
-  __shared__ float4 y_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::OUTPUT_DIM * BLOCKSIZE_Z, 4)];
-  __shared__ float4 xdot_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z, 4)];
-  __shared__ float4 u_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z, 4)];
-  __shared__ float4 du_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z, 4)];
-  __shared__ float4 sigma_u[mppi::math::int_ceil(DYN_T::CONTROL_DIM, 4)];
+  __shared__ float4 x_shared[mppi::math::int_ceil_const(BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z, 4)];
+  __shared__ float4 x_next_shared[mppi::math::int_ceil_const(BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z, 4)];
+  __shared__ float4 y_shared[mppi::math::int_ceil_const(BLOCKSIZE_X * DYN_T::OUTPUT_DIM * BLOCKSIZE_Z, 4)];
+  __shared__ float4 xdot_shared[mppi::math::int_ceil_const(BLOCKSIZE_X * DYN_T::STATE_DIM * BLOCKSIZE_Z, 4)];
+  __shared__ float4 u_shared[mppi::math::int_ceil_const(BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z, 4)];
+  __shared__ float4 du_shared[mppi::math::int_ceil_const(BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z, 4)];
+  __shared__ float4 sigma_u[mppi::math::int_ceil_const(DYN_T::CONTROL_DIM, 4)];
 
 #ifndef USE_SYNC_THREADS
   __shared__ barrier bar_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
 #endif
 
   // Create a shared array for the dynamics model to use
-  __shared__ float4
-      theta_s4[mppi::math::int_ceil(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
-                                        DYN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * BLOCKSIZE_X * BLOCKSIZE_Z,
-                                    4)];
+  __shared__ float4 theta_s4[mppi::math::int_ceil_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                                                            DYN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) *
+                                                                BLOCKSIZE_X * BLOCKSIZE_Z,
+                                                        4)];
 
   float* theta_s = reinterpret_cast<float*>(theta_s4);
   // Create local state, state dot and controls

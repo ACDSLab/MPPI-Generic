@@ -300,6 +300,10 @@ public:
     }
   }
 
+  __device__ void stateToOutput(const float* __restrict__ state, float* __restrict__ output);
+
+  __device__ void outputToState(const float* __restrict__ output, float* __restrict__ state);
+
   /**
    * does a linear interpolation of states
    * @param state_1

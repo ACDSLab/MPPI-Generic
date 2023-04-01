@@ -142,9 +142,27 @@ __device__ inline void Dynamics<CLASS_T, PARAMS_T>::step(float* state, float* ne
   __syncthreads();
   derived->updateState(state, next_state, state_der, dt);
   __syncthreads();
+  stateToOutput(next_state, output);
+}
+
+template <class CLASS_T, class PARAMS_T>
+__device__ inline void Dynamics<CLASS_T, PARAMS_T>::stateToOutput(const float* __restrict__ state,
+                                                                  float* __restrict__ output)
+{
   // TODO this is a hack
   for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i += blockDim.y)
   {
-    output[i] = next_state[i];
+    output[i] = state[i];
+  }
+}
+
+template <class CLASS_T, class PARAMS_T>
+__device__ inline void Dynamics<CLASS_T, PARAMS_T>::outputToState(const float* __restrict__ output,
+                                                                  float* __restrict__ state)
+{
+  // TODO this is a hack
+  for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i += blockDim.y)
+  {
+    state[i] = output[i];
   }
 }

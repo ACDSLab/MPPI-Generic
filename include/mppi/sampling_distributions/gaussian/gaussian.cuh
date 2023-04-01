@@ -111,6 +111,9 @@ public:
 
   __host__ void allocateCUDAMemoryHelper();
 
+  __host__ __device__ float computeFeedbackCost(const float* __restrict__ u_fb, float* __restrict__ theta_d, const int t,
+                                                const int distribution_idx, const float lambda = 1.0, const float alpha = 0.0);
+
   __host__ __device__ float computeLikelihoodRatioCost(const float* __restrict__ u, const float* __restrict__ theta_d,
                                                        const int t, const int distribution_idx,
                                                        const float lambda = 1.0, const float alpha = 0.0);

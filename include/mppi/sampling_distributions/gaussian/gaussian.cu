@@ -493,6 +493,59 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
 }
 
 GAUSSIAN_TEMPLATE
+__host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __restrict__ u_fb,
+                                                              const float* __restrict__ theta_d, const int t,
+                                                              const int distribution_idx, const float lambda,
+                                                              const float alpha)
+{
+  SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
+  const int distribution_i = distribution_idx >= params_p->num_distributions ? 0 : distribution_idx;
+  float* std_dev = &(params_p->std_dev[CONTROL_DIM * distribution_i]);
+  if (params_p->time_specific_std_dev)
+  {
+    std_dev = &(params_p->std_dev[(distribution_i * params_p->num_timesteps + t) * CONTROL_DIM]);
+  }
+  float* control_cost_coeff = params_p->control_cost_coeff;
+
+  float cost = 0;
+
+  if (CONTROL_DIM % 4 == 0)
+  {
+    float4 cost_i = make_float4(0, 0, 0, 0);
+    float4 std_dev_i, control_cost_coeff_i, u_fb4;
+    for (int i = 0; i < CONTROL_DIM / 4; i++)
+    {
+      std_dev_i = reinterpret_cast<float4*>(std_dev)[i];
+      u_fb_i = reinterpret_cast<float4*>(u_fb)[i];
+      control_cost_coeff_i = reinterpret_cast<float4*>(control_cost_coeff)[i];
+      cost_i += control_cost_coeff_i * (u_fb_i * u_fb_i) / (std_dev_i * std_dev_i);
+    }
+    cost += cost_i.x + cost_i.y + cost_i.z + cost_i.w;
+  }
+  else if (CONTROL_DIM % 2 == 0)
+  {
+    float2 cost_i = make_float2(0, 0);
+    float2 std_dev_i, control_cost_coeff_i, u_fb_i;
+    for (int i = 0; i < CONTROL_DIM / 2; i++)
+    {
+      std_dev_i = reinterpret_cast<float2*>(std_dev)[i];
+      control_cost_coeff_i = reinterpret_cast<float2*>(control_cost_coeff)[i];
+      u_fb_i = reinterpret_cast<float2*>(u_fb)[i];
+      cost_i += control_cost_coeff_i * (u_fb_i * u_fb_i) / (std_dev_i * std_dev_i);
+    }
+    cost += cost_i.x + cost_i.y;
+  }
+  else
+  {
+    for (int i = 0; i < CONTROL_DIM; i++)
+    {
+      cost += control_cost_coeff_i * (u_fb[i] * u_fb[i]) / (std_dev[i] * std_dev[i]);
+    }
+  }
+  return 0.5 * lambda * (1 - alpha) * cost;
+}
+
+GAUSSIAN_TEMPLATE
 __host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u,
                                                           const float* theta_d, const int t, const int distribution_idx,
                                                           const float lambda, const float alpha)

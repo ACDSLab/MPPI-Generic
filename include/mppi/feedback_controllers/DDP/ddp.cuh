@@ -33,7 +33,7 @@ struct DDPFeedbackState : GPUState
   /**
    * Variables
    **/
-  float fb_gain_traj_[FEEDBACK_SIZE] = { 0.0 };
+  float fb_gain_traj_[FEEDBACK_SIZE] MPPI_ALIGN(16) = { 0.0 }; // ensure it is aligned to 16 bytes
 
   /**
    * Methods
@@ -69,6 +69,8 @@ template <class GPU_FB_T, class DYN_T, int NUM_TIMESTEPS = 1>
 class DeviceDDPImpl : public GPUFeedbackController<GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>>
 {
 public:
+  using PARAMS_T = DDPFeedbackState<DYN_T, NUM_TIMESTEPS>;
+  // static const int SHARED_MEM_REQUEST_BLK_BYTES = DYN_T::CONTROL_DIM * DYN_T::STATE_DIM;
   DeviceDDPImpl(int num_timesteps, cudaStream_t stream = 0);
   DeviceDDPImpl(cudaStream_t stream = 0)
     : GPUFeedbackController<GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>>(stream){};
@@ -76,12 +78,7 @@ public:
   void allocateCUDAMemory(){};
   void deallocateCUDAMemory(){};
 
-  __device__ void k(const float* x_act, const float* x_goal, const int t, float* theta, float* control_output);
-  // void copyToDevice();
-  // Nothing to copy back
-  void copyFromDevice()
-  {
-  }
+  __device__ void k(const float* __restrict__ x_act, const float* __restrict__  x_goal, const int t, float* __restrict__  theta, float* __restrict__  control_output);
 
 protected:
   // Needed for allocating memory for feedback gains

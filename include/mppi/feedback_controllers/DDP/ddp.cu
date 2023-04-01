@@ -8,17 +8,38 @@ DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::DeviceDDPImpl(int num_timesteps, 
 }
 
 template <class GPU_FB_T, class DYN_T, int NUM_TIMESTEPS>
-__device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(const float* x_act, const float* x_goal, const int t,
-                                                                 float* theta, float* control_output)
+__device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(const float* __restrict__ x_act,
+                                                                 const float* __restrict__ x_goal, const int t,
+                                                                 float* __restrict__ theta,
+                                                                 float* __restrict__ control_output)
 {
   float* fb_gain_t = &(this->state_.fb_gain_traj_[DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * t]);
   float e = 0;
   for (int i = 0; i < DYN_T::STATE_DIM; i++)
   {
     e = x_act[i] - x_goal[i];
-    for (int j = 0; j < DYN_T::CONTROL_DIM; j++)
+    if (DYN_T::CONTROL_DIM % 4 == 0)
+    {  // load 4 floats in at a time to save on global memory reads
+      float4* fb_gain_t4 = reinterpret_cast<float4*>(&fb_gain_t[i * DYN_T::CONTROL_DIM]);
+      for (int j = 0; j < DYN_T::CONTROL_DIM / 4; j++)
+      {
+        reinterpret_cast<float4*>(control_output)[j] = fb_gain_t4[j] * e;
+      }
+    }
+    else if (DYN_T::CONTROL_DIM % 2 == 0)
+    {  // load 2 floats in at a time to save on global memory reads
+      float2* fb_gain_t2 = reinterpret_cast<float2*>(&fb_gain_t[i * DYN_T::CONTROL_DIM]);
+      for (int j = 0; j < DYN_T::CONTROL_DIM / 2; j++)
+      {
+        reinterpret_cast<float2*>(control_output)[j] = fb_gain_t2[j] * e;
+      }
+    }
+    else
     {
-      control_output[j] += fb_gain_t[i * DYN_T::CONTROL_DIM + j] * e;
+      for (int j = 0; j < DYN_T::CONTROL_DIM; j++)
+      {
+        control_output[j] += fb_gain_t[i * DYN_T::CONTROL_DIM + j] * e;
+      }
     }
   }
 }

@@ -26,7 +26,6 @@ __global__ void weightedReductionKernel(const float* __restrict__ exp_costs_d, c
                                         float* __restrict__ new_u_d, const float normalizer, const int num_timesteps,
                                         const int num_rollouts, const int sum_stride, const int control_dim);
 
-
 /**
  * Device-only Kernel Helper Methods
  **/

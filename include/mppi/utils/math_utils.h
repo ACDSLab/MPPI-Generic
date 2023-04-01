@@ -15,6 +15,7 @@
 
 #include <cuda_runtime.h>
 #include <Eigen/Dense>
+#include <mppi/utils/risk_utils.cuh>
 
 #ifndef SQ
 #define SQ(a) a* a
@@ -25,9 +26,21 @@
 #define __str__(s) #s
 #ifdef __CUDACC__
 #define __UNROLL(a) _Pragma("unroll")
-#else  // GCC is the compiler and uses different unroll syntax
+#elif defined(__GNUC__)  // GCC is the compiler and uses different unroll syntax
 #define __UNROLL(a) _Pragma(__xstr__(GCC unroll a))
 #endif
+#endif
+
+// For aligning parameters within structs such as a float array to 16 bytes
+// Ex: float name[size] MPPI_ALIGN(16) = {0.0f};
+#if defined(__CUDACC__)  // NVCC
+#define MPPI_ALIGN(n) __align__(n)
+#elif defined(__GNUC__)  // GCC
+#define MPPI_ALIGN(n) __attribute__((aligned(n)))
+#elif defined(_MSC_VER)  // MSVC
+#define MPPI_ALIGN(n) __declspec(align(n))
+#else
+#error "Please provide a definition for MPPI_ALIGN macro for your host compiler!"
 #endif
 
 namespace mppi
@@ -94,13 +107,18 @@ inline __host__ __device__ int sign(const T& a)
   return (a > 0) - (a < 0);
 }
 
-__host__ __device__ inline int int_ceil(const int& a, const int& b)
+inline __host__ __device__ int int_ceil(const int& a, const int& b)
+{
+  return (a - 1) / b + 1;
+}
+
+inline constexpr __host__ __device__ int int_ceil_const(const int& a, const int& b)
 {
   return (a - 1) / b + 1;
 }
 
 // Returns the next largest multiple of 4 for a/4, Useful for calculating aligned memory sizes
-__host__ __device__ inline int nearest_quotient_4(const int& a)
+inline __host__ __device__ int nearest_quotient_4(const int& a)
 {
   return int_ceil(a, 4);
 }
@@ -549,12 +567,6 @@ inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::NONE>(int& p_in
   p_step = 1;
 }
 
-template <int N, Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y, class T = float>
-inline __device__ void loadArrayParallel(T* __restrict__ a1, const int off1, const T* __restrict__ a2, const int off2)
-{
-  loadArrayParallel<P_DIR, T>(a1, off1, a2, off2, N);
-}
-
 template <Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y, class T = float>
 inline __device__ void loadArrayParallel(T* __restrict__ a1, const int off1, const T* __restrict__ a2, const int off2,
                                          const int N)
@@ -582,6 +594,12 @@ inline __device__ void loadArrayParallel(T* __restrict__ a1, const int off1, con
       a1[off1 + i] = a2[off2 + i];
     }
   }
+}
+
+template <int N, Parallel1Dir P_DIR = Parallel1Dir::THREAD_Y, class T = float>
+inline __device__ void loadArrayParallel(T* __restrict__ a1, const int off1, const T* __restrict__ a2, const int off2)
+{
+  loadArrayParallel<P_DIR, T>(a1, off1, a2, off2, N);
 }
 }  // namespace p1
 

@@ -13,7 +13,8 @@
 
 struct GPUState
 {
-  static const int SHARED_MEM_SIZE = 1;  // minimum of 1 is required
+  static const int SHARED_MEM_REQUEST_GRD_BYTES = 0;
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
 };
 
 /**
@@ -37,7 +38,8 @@ template <class GPU_FB_T, class TEMPLATED_DYNAMICS, class GPU_STATE_T>
 class GPUFeedbackController : public Managed
 {
 public:
-  static const int SHARED_MEM_SIZE = GPU_STATE_T::SHARED_MEM_SIZE;
+  static const int SHARED_MEM_REQUEST_GRD_BYTES = GPU_STATE_T::SHARED_MEM_REQUEST_GRD_BYTES;
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = GPU_STATE_T::SHARED_MEM_REQUEST_BLK_BYTES;
   /**
    * Type Aliasing
    */
@@ -91,10 +93,8 @@ public:
   /**
    * ==================== NECESSARY METHODS TO OVERWRITE =====================
    */
-  __device__ void k(const float* x_act, const float* x_goal, const int t, float* theta, float* control_output)
+  __device__ void k(const float* __restrict__ x_act, const float* __restrict__  x_goal, const int t, float* __restrict__  theta, float* __restrict__  control_output)
   {
-    // CLASS_T* derived = static_cast<CLASS_T*>(this);
-    // derived->k(x_act, x_goal, t, theta, control_output);
   }
   /**
    * ===================== OPTIONAL METHODS TO OVERWRITE ======================
@@ -110,13 +110,16 @@ public:
   {
   }
 
+  __device__ void initializeFeedback(const float* __restrict__ x, const float* __restrict__ u, float* __restrict__ theta, const float t, const float dt)
+  {}
+
   // Abstract method to copy information to GPU
   // void copyToDevice() {}
 
   // Copies the params to the device at the moment
   void copyToDevice(bool synchronize = true);
   // Method to return potential diagnostic information from GPU
-  void copyFromDevice()
+  void copyFromDevice(bool synchronize = true)
   {
   }
 
@@ -162,19 +165,19 @@ public:
     freeCudaMem();
   };
 
-  virtual void GPUSetup()
+  virtual __host__ void GPUSetup()
   {
     gpu_controller_->GPUSetup();
   }
 
-  virtual void freeCudaMem()
+  virtual __host__ void freeCudaMem()
   {
     gpu_controller_->freeCudaMem();
   }
 
-  virtual void initTrackingController() = 0;
+  virtual __host__ void initTrackingController() = 0;
 
-  virtual void setParams(const PARAMS_T& params)
+  virtual __host__ void setParams(const PARAMS_T& params)
   {
     params_ = params;
   }
@@ -192,7 +195,7 @@ public:
    *  - x_goal: the state we want to be at
    *  - index: the number of timesteps from the initial time we are
    */
-  virtual control_array k(const Eigen::Ref<const state_array>& x_act, const Eigen::Ref<const state_array>& x_goal,
+  virtual __host__ control_array k(const Eigen::Ref<const state_array>& x_act, const Eigen::Ref<const state_array>& x_goal,
                           int t)
   {
     TEMPLATED_FEEDBACK_STATE* gpu_feedback_state = getFeedbackStatePointer();
@@ -201,16 +204,16 @@ public:
   /**
    * Feeback Control Method to overwrite.
    */
-  virtual control_array k_(const Eigen::Ref<const state_array>& x_act, const Eigen::Ref<const state_array>& x_goal,
+  virtual __host__ control_array k_(const Eigen::Ref<const state_array>& x_act, const Eigen::Ref<const state_array>& x_goal,
                            int t, TEMPLATED_FEEDBACK_STATE& fb_state) = 0;
 
   // might not be a needed method
-  virtual void computeFeedback(const Eigen::Ref<const state_array>& init_state,
+  virtual __host__ void computeFeedback(const Eigen::Ref<const state_array>& init_state,
                                const Eigen::Ref<const state_trajectory>& goal_traj,
                                const Eigen::Ref<const control_trajectory>& control_traj) = 0;
 
   // TODO Construct a default version of this method that uses the state_ variable automatically
-  virtual control_array interpolateFeedback_(const Eigen::Ref<const state_array>& state,
+  virtual __host__ control_array interpolateFeedback_(const Eigen::Ref<const state_array>& state,
                                              const Eigen::Ref<const state_array>& goal_state, double rel_time,
                                              TEMPLATED_FEEDBACK_STATE& fb_state)
   {
@@ -224,7 +227,7 @@ public:
     return u_fb;
   }
 
-  virtual control_array interpolateFeedback(const Eigen::Ref<const state_array>& state,
+  virtual __host__ control_array interpolateFeedback(const Eigen::Ref<const state_array>& state,
                                             const Eigen::Ref<const state_array>& goal_state, double rel_time)
   {
     TEMPLATED_FEEDBACK_STATE* fb_state = getFeedbackStatePointer();
