@@ -237,6 +237,15 @@ public:
                                             const float alpha = 0.0);
 
   /**
+   * @brief Get the latest importance sampler from time-shifting on the controller and update the device importance sampler
+   *
+   * @param importance_sampler - host pointer to a control sequence that is NUM_TIMESTEPS * CONTROL_DIM
+   * @param distribution_idx - which distribution is the importance sampler meant for
+   * @param synchronize - whether or not to run cudaStreamSynchronize
+   */
+  __host__ void copyImportanceSamplerToDevice(const float* importance_sampler, const int& distribution_idx, bool synchronize = true);
+
+  /**
    * @brief Generate control samples that will be on the GPU.
    *
    * @param optimization_stride - timestep to start control samples from

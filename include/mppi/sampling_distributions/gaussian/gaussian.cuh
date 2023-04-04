@@ -14,7 +14,7 @@ namespace sampling_distributions
 __global__ void setGaussianControls(const float* __restrict__ mean_d, const float* __restrict__ std_dev_d,
                                     float* __restrict__ control_samples_d, const int control_dim,
                                     const int num_timesteps, const int num_rollouts, const int num_distributions,
-                                    const int optimization_stride, const float pure_noise_percentage,
+                                    const int optimization_stride, const float std_dev_decay, const float pure_noise_percentage,
                                     const bool time_specific_std_dev = false);
 
 // Set the default number of distributions to 2 since that is currently the most we would use
@@ -25,6 +25,7 @@ struct GaussianParams : public SamplingParams<C_DIM>
   float std_dev[C_DIM * MAX_DISTRIBUTIONS] = { 0.0f };
   float control_cost_coeff[C_DIM] = { 0.0f };
   float pure_noise_trajectories_percentage = 0.01f;
+  float std_dev_decay = 1.0f;
   // Kernel launching params
   dim3 rewrite_controls_block_dim(32, 32, 1);
   int sum_strides = 32;
@@ -121,6 +122,8 @@ public:
   __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int t,
                                             const int distribution_idx, const float lambda = 1.0,
                                             const float alpha = 0.0);
+
+  __host__ void copyImportanceSamplerToDevice(const float* importance_sampler, const int& distribution_idx, bool synchronize = true);
 
   __host__ void freeCudaMem();
 

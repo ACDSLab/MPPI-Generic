@@ -51,13 +51,14 @@ struct ControllerParams
   int num_iters_ = 1;  // Number of optimization iterations
   unsigned seed_ = std::chrono::system_clock::now().time_since_epoch().count();
 
-  Eigen::Matrix<float, C_DIM, 1> control_std_dev_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
+  dim3 dynamics_rollout_dim_;
+  dim3 cost_rollout_dim_;
+
   Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS> init_control_traj_ = Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS>::Zero();
   Eigen::Matrix<float, C_DIM, 1> slide_control_scale_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
 };
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          class PARAMS_T = ControllerParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
+template <class DYN_T, class COST_T, class FB_T, class SAMPLING_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, class PARAMS_T = ControllerParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class Controller
 {
 public:
@@ -73,6 +74,8 @@ public:
   using TEMPLATED_FEEDBACK_STATE = typename FB_T::TEMPLATED_FEEDBACK_STATE;
   using TEMPLATED_FEEDBACK_PARAMS = typename FB_T::TEMPLATED_PARAMS;
   using TEMPLATED_FEEDBACK_GPU = typename FB_T::TEMPLATED_GPU_FEEDBACK;
+  using TEMPLATED_SAMPLING = typename SAMPLING_T;
+  using TEMPLATED_SAMPLING_PARAMS = typename SAMPLING_T::SAMPLING_PARAMS_T;
   static const int TEMPLATED_FEEDBACK_TIMESTEPS = FB_T::FB_TIMESTEPS;
 
   /**
@@ -95,8 +98,8 @@ public:
   typedef Eigen::Matrix<float, NUM_ROLLOUTS, 1> sampled_cost_traj;
   typedef Eigen::Matrix<int, MAX_TIMESTEPS, 1> crash_status_trajectory;
 
-  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda, float alpha,
-             const Eigen::Ref<const control_array>& control_std_dev, int num_timesteps = MAX_TIMESTEPS,
+  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter, float lambda, float alpha,
+             int num_timesteps = MAX_TIMESTEPS,
              const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
              cudaStream_t stream = nullptr)
   {
@@ -105,13 +108,13 @@ public:
     model_ = model;
     cost_ = cost;
     fb_controller_ = fb_controller;
+    sampler_ = sampler;
     params_.dt_ = dt;
     params_.num_iters_ = max_iter;
     params_.lambda_ = lambda;
     params_.alpha_ = alpha;
     params_.num_timesteps_ = num_timesteps;
 
-    params_.control_std_dev_ = control_std_dev;
     params_.init_control_traj_ = init_control_traj;
     control_ = init_control_traj;
     control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
@@ -121,10 +124,11 @@ public:
     // Create new stream for visualization purposes
     HANDLE_ERROR(cudaStreamCreate(&vis_stream_));
 
-    // Call the GPU setup functions of the model, cost and feedback controller
+    // Call the GPU setup functions of the model, cost, sampling distribution, and feedback controller
     model_->GPUSetup();
     cost_->GPUSetup();
     fb_controller_->GPUSetup();
+    sampler_->GPUSetup();
 
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the
@@ -133,11 +137,12 @@ public:
     // TODO pass function pointer?
   }
 
-  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params, cudaStream_t stream = nullptr)
+  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, PARAMS_T& params, cudaStream_t stream = nullptr)
   {
     model_ = model;
     cost_ = cost;
     fb_controller_ = fb_controller;
+    sampler_ = sampler;
     // Create the random number generator
     createAndSeedCUDARandomNumberGen();
     setParams(params);
@@ -149,10 +154,11 @@ public:
     // Create new stream for visualization purposes
     HANDLE_ERROR(cudaStreamCreate(&vis_stream_));
 
-    // Call the GPU setup functions of the model, cost and feedback controller
+    // Call the GPU setup functions of the model, cost, sampling distribution, and feedback controller
     model_->GPUSetup();
     cost_->GPUSetup();
     fb_controller_->GPUSetup();
+    sampler_->GPUSetup();
 
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the
@@ -174,6 +180,7 @@ public:
     model_->freeCudaMem();
     cost_->freeCudaMem();
     fb_controller_->freeCudaMem();
+    sampler_->freeCudaMem();
 
     // Free the CUDA memory of the controller
     deallocateCUDAMemory();
@@ -208,9 +215,25 @@ public:
   {
     return "name not set";
   };
+
   virtual std::string getCostFunctionName()
   {
     return cost_->getCostFunctionName();
+  }
+
+  virtual std::string getDynamicsModelName()
+  {
+    return model_->getDynamicsModelName();
+  }
+
+  virtual std::string getSamplingDistributionName()
+  {
+    return sampler_->getSamplingDistributionName();
+  }
+
+  virtual std::string getFullName()
+  {
+    return getControllerName() + "(" + getDynamicsModelName() + ", " + getCostFunctionName() + ", " + getSamplingDistributionName() + ")";
   }
 
   virtual void initFeedback()
@@ -707,6 +730,7 @@ public:
   DYN_T* model_;
   COST_T* cost_;
   FB_T* fb_controller_;
+  SAMPLING_T* sampler_;
   cudaStream_t stream_;
   cudaStream_t vis_stream_;
 
@@ -741,6 +765,21 @@ public:
   PARAMS_T getParams() const
   {
     return params_;
+  }
+
+  const TEMPLATED_SAMPLING_PARAMS getSamplingParams() const
+  {
+    return sampling_->getParams();
+  }
+
+  TEMPLATED_SAMPLING_PARAMS getSamplingParams() const
+  {
+    return sampling_->getParams();
+  }
+
+  void setSamplingParams(const TEMPLATED_SAMPLING_PARAMS& params, bool synchronize = true)
+  {
+    sampling_->setParams(params, synchronize);
   }
 
   void setParams(const PARAMS_T& p)
@@ -797,7 +836,7 @@ protected:
   std::vector<float> top_n_costs_;
 
   curandGenerator_t gen_;
-  float* control_std_dev_d_;  // Array of size DYN_T::CONTROL_DIM
+  // float* control_std_dev_d_;  // Array of size DYN_T::CONTROL_DIM
   float* initial_state_d_;    // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 
   Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_history_;
@@ -808,7 +847,7 @@ protected:
   float* control_d_;                  // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*N
   float* output_d_;                   // Array of size DYN_T::OUTPUT_DIM*NUM_ROLLOUTS*N
   float* trajectory_costs_d_;         // Array of size NUM_ROLLOUTS*N
-  float* control_noise_d_;            // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS*N
+  // float* control_noise_d_;            // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS*N
   float2* cost_baseline_and_norm_d_;  // Array of size number of systems
   control_trajectory control_ = control_trajectory::Zero();
   state_trajectory state_ = state_trajectory::Zero();

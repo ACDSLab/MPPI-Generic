@@ -175,7 +175,8 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
   setGaussianControls<<<control_writing_grid, this->params_.readControlsBlockDim, shared_mem_size, this->stream_>>>(
       this->control_mean_d_, this->std_dev_d_, this->control_samples_d_, CONTROL_DIM, this->getNumTimesteps(),
       this->getNumRollouts(), this->getNumDistributions(), optimization_stride,
-      this->params_.pure_noise_trajectories_percentage, this->params_.time_specific_std_dev);
+      powf(this->params_.std_dev_decay, iteration_num), this->params_.pure_noise_trajectories_percentage,
+      this->params_.time_specific_std_dev);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {
