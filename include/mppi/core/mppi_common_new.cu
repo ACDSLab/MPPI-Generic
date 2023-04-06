@@ -3,6 +3,10 @@
 
 namespace mp1 = mppi::p1;
 
+namespace mppi
+{
+namespace kernels
+{
 template <class COST_T, class SAMPLING_T, int BLOCKSIZE_X, bool COALESCE>
 __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
                                   const int num_timesteps, const int num_rollouts, float lambda, float alpha,
@@ -74,22 +78,6 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
       sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d, blockDim.y, thread_idy, y);
     }
     __syncthreads();
-    // if (global_idx == 10 && t == 20 && threadIdx.y == 0)
-    // {
-    //   printf("Control Cost %d at t %d: ", global_idx, t);
-    //   for (int i = 0; i < COST_T::CONTROL_DIM; i++)
-    //   {
-    //     printf("%f, ", u[i]);
-    //   }
-    //   printf("\n");
-    //   printf("Output: ");
-    //   for (int i = 0; i < COST_T::OUTPUT_DIM; i++)
-    //   {
-    //     printf("%f, ", y[i]);
-    //   }
-    //   printf("\n");
-    // }
-    __syncthreads();
 
     // Compute cost
     if (thread_idy == 0 && t < num_timesteps)
@@ -101,9 +89,9 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   }
 
   // Add all costs together
-  int prev_size = BLOCKSIZE_X;
   running_cost = &running_cost_shared[blockDim.x * thread_idz];
-#if false
+#if true
+  int prev_size = blockDim.x;
   for (int size = prev_size / 2; size > 32; size /= 2)
   {
     if (thread_idy == 0)
@@ -149,6 +137,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
     }
   }
 #else
+  int prev_size = BLOCKSIZE_X;
 #pragma unroll
   for (int size = prev_size / 2; size > 0; size /= 2)
   {
@@ -250,16 +239,6 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
     // usually just control clamping
     // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     // dynamics->enforceConstraints(x, u);
-    // __syncthreads();
-    // if (global_idx == 0 && t == 0 && threadIdx.y == 0)
-    // {
-    //   printf("Control Constrained: ");
-    //   for (int i = 0; i < DYN_T::CONTROL_DIM; i++)
-    //   {
-    //     printf("%f, ", u[i]);
-    //   }
-    //   printf("\n");
-    // }
     __syncthreads();
 
     // Increment states
@@ -876,3 +855,6 @@ __device__ void setInitialControlToZero(int control_dim, int thread_idx, float* 
     }
   }
 }
+
+}  // namespace kernels
+}  // namespace mppi

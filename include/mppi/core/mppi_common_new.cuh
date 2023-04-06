@@ -65,8 +65,9 @@ void launchWeightedReductionKernel(const float* __restrict__ exp_costs_d, const 
                                    float* __restrict__ new_u_d, const float normalizer, const int num_timesteps,
                                    const int num_rollouts, const int sum_stride, cudaStream_t stream, bool synchronize);
 
+}  // namespace kernels
+}  // namespace mppi
+
 #if __CUDACC__
 #include "mppi_common_new.cu"
 #endif
-}  // namespace kernels
-}  // namespace mppi

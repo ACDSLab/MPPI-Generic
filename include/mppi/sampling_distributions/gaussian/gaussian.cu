@@ -98,7 +98,7 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
         control_samples_shared4[i] = mean_shared4[i];
       }
     }
-    else if (valid_index && trajectory_index > (1.0f - pure_noise_percentage) * num_rollouts)
+    else if (valid_index && trajectory_index >= (1.0f - pure_noise_percentage) * num_rollouts)
     {  // doing zero mean trajectories
       for (i = 0; i < control_dim / 4; i++)
       {
@@ -163,7 +163,7 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
         control_samples_shared2[i] = mean_shared2[i];
       }
     }
-    else if (valid_index && trajectory_index > (1.0f - pure_noise_percentage) * num_rollouts)
+    else if (valid_index && trajectory_index <= (1.0f - pure_noise_percentage) * num_rollouts)
     {  // doing zero mean trajectories
       for (i = 0; i < control_dim / 2; i++)
       {
@@ -243,7 +243,7 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
         control_samples_shared[shared_noise_index + i] = mean_shared[shared_mean_index + i];
       }
     }
-    else if (valid_index && trajectory_index > (1.0f - pure_noise_percentage) * num_rollouts)
+    else if (valid_index && trajectory_index >= (1.0f - pure_noise_percentage) * num_rollouts)
     {  // doing zero mean trajectories
       for (i = 0; i < control_dim; i++)
       {

@@ -198,6 +198,8 @@ void CONTROLLER::setSeedCUDARandomNumberGen(unsigned seed)
 {
   // Seed the PseudoRandomGenerator with the CPU time.
   curandSetPseudoRandomGeneratorSeed(gen_, seed);
+  // Reset the offset so setting the seed multiple times returns the same samples
+  curandSetGeneratorOffset(gen_, 0);
 }
 
 CONTROLLER_TEMPLATE

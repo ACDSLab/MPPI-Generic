@@ -35,9 +35,9 @@ __global__ void rolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, int num_
  */
 template <int STATE_DIM, int CONTROL_DIM>
 __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y, const int global_idx,
-                                   const int thread_idy, const int thread_idz, const float* __restrict__ x_device,
-                                   float* __restrict__ x_thread, float* __restrict__ xdot_thread,
-                                   float* __restrict__ u_thread);
+                                   const int thread_idy, const int thread_idz, const float* x_device,
+                                   const float* sigma_u_device, float* x_thread, float* xdot_thread, float* u_thread,
+                                   float* du_thread, float* sigma_u_thread);
 /*
  * readControlsFromGlobal
  * Get back the control and deviation from the mean after injectControlNoise has been run

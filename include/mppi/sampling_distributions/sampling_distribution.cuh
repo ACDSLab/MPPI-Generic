@@ -335,10 +335,6 @@ protected:
   float* control_samples_d_ = nullptr;
 };
 
-#if __CUDACC__
-#include "sampling_distribution.cu"
-#endif
-
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::CONTROL_DIM;
 
@@ -352,3 +348,7 @@ const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::SHARED_M
 // const int SamplingParams<C_DIM>::CONTROL_DIM;
 }  // namespace sampling_distributions
 }  // namespace mppi
+
+#if __CUDACC__
+#include "sampling_distribution.cu"
+#endif
