@@ -21,7 +21,7 @@ struct CartpoleQuadraticCostParams : public CostParams<1>
 
   CartpoleQuadraticCostParams()
   {
-    control_cost_coeff[0] = 10.0;
+    this->control_cost_coeff[0] = 10.0;
   }
 };
 

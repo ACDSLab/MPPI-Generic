@@ -19,6 +19,19 @@ __host__ __device__ inline float4 operator*(const float4& a, const float& b)
   return make_float4(a.x * b, a.y * b, a.z * b, a.w * b);
 }
 
+__host__ __device__ inline float2 operator*(const float& b, const float2& a)
+{
+  return make_float2(a.x * b, a.y * b);
+}
+__host__ __device__ inline float3 operator*(const float& b, const float3& a)
+{
+  return make_float3(a.x * b, a.y * b, a.z * b);
+}
+__host__ __device__ inline float4 operator*(const float& b, const float4& a)
+{
+  return make_float4(a.x * b, a.y * b, a.z * b, a.w * b);
+}
+
 // Scalar-Vector Addition
 __host__ __device__ inline float2 operator+(const float2& a, const float& b)
 {

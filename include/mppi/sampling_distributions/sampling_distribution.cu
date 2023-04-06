@@ -33,10 +33,17 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::free
 }
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
-void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::initializeDistributions(
+__device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::initializeDistributions(
     const float* __restrict__ output, const float t_0, const float dt, float* __restrict__ theta_d)
 {
-  *static_cast<SAMPLING_PARAMS_T*>(theta_d) = this->params_;
+  SAMPLING_PARAMS_T* shared = reinterpret_cast<SAMPLING_PARAMS_T*>(theta_d);
+  *shared = this->params_;
+  // #ifdef __CUDA_ARCH__
+  //   if (threadIdx.x == 0 && threadIdx.y == 0 && blockIdx.x == 0 && blockIdx.y == 0)
+  //   {
+  //     printf("Num timesteps: %d %d\n", this->params_.num_timesteps, shared->num_timesteps);
+  //   }
+  // #endif
 }
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
@@ -60,11 +67,11 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::upda
     bool synchronize)
 {
   float* trajectory_weights_d;
-  HANDLE_ERROR(cudaMallocAsync((void**)&trajectory_weights_d, sizeof(float) this->getNumRollouts(), this->stream_));
-  HANDLE_ERROR(cudaMemcpyAsync(trajectory_weights_d, trajectory_weights.data(), NUM_ROLLOUTS * sizeof(float),
+  HANDLE_ERROR(cudaMallocAsync((void**)&trajectory_weights_d, sizeof(float) * this->getNumRollouts(), this->stream_));
+  HANDLE_ERROR(cudaMemcpyAsync(trajectory_weights_d, trajectory_weights.data(), sizeof(float) * this->getNumRollouts(),
                                cudaMemcpyHostToDevice, this->stream_));
   updateDistributionParamsFromDevice(trajectory_weights_d, normalizer, distribution_i, false);
-  HANDLE_ERROR(cudaFreeAsync(trajectory_weights_d));
+  HANDLE_ERROR(cudaFreeAsync(trajectory_weights_d, this->stream_));
   if (synchronize)
   {
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
@@ -88,7 +95,8 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::allo
     HANDLE_ERROR(cudaMemcpyAsync(&sampling_d_->control_samples_d_, &control_samples_d_, sizeof(float*),
                                  cudaMemcpyHostToDevice, stream_));
   }
-  allocateCUDAMemoryHelper();
+  CLASS_T* derived = static_cast<CLASS_T*>(this);
+  derived->allocateCUDAMemoryHelper();
   if (synchronize)
   {
     HANDLE_ERROR(cudaStreamSynchronize(stream_));
@@ -103,41 +111,46 @@ __device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::re
   SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
   const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;
   const int control_index =
-      ((params_p->num_rollouts * distribution_i + sample_idx) * params_p->num_timesteps + t) * CONTROL_DIM;
+      ((params_p->num_rollouts * distribution_i + sample_index) * params_p->num_timesteps + t) * CONTROL_DIM;
   if (CONTROL_DIM % 4 == 0)
   {
     float4* u4 = reinterpret_cast<float4*>(control);
     const float4* u4_d = reinterpret_cast<const float4*>(&(this->control_samples_d_[control_index]));
-    for (int i = thread_idx; i < CONTROL_DIM / 4; i += block_size)
+    for (int i = thread_index; i < CONTROL_DIM / 4; i += block_size)
     {
-      u4[j] = u4_d[j];
+      u4[i] = u4_d[i];
     }
   }
   else if (CONTROL_DIM % 2 == 0)
   {
     float2* u2 = reinterpret_cast<float2*>(control);
     const float2* u2_d = reinterpret_cast<const float2*>(&(this->control_samples_d_[control_index]));
-    for (int i = thread_idx; i < CONTROL_DIM / 2; i += block_size)
+    for (int i = thread_index; i < CONTROL_DIM / 2; i += block_size)
     {
-      u2[j] = u2_d[j];
+      u2[i] = u2_d[i];
     }
   }
   else
   {
     float* u = reinterpret_cast<float*>(control);
     const float* u_d = reinterpret_cast<const float*>(&(this->control_samples_d_[control_index]));
-    for (int i = thread_idx; i < CONTROL_DIM; i += block_size)
+    for (int i = thread_index; i < CONTROL_DIM; i += block_size)
     {
-      u[j] = u_d[j];
+      u[i] = u_d[i];
     }
   }
 }
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
-__device__ float* SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::getControlSample(
-    const int& sample_index, const int& t, const int& distribution_index, const float* __restrict__ output)
+__host__ __device__ float* SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::getControlSample(
+    const int& sample_index, const int& t, const int& distribution_index, const float* __restrict__ theta_d,
+    const float* __restrict__ output)
 {
+#ifdef __CUDA_ARCH__
   SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
+#else
+  SAMPLING_PARAMS_T* params_p = &this->params_;
+#endif
   const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;
   return &this->control_samples_d_[((params_p->num_rollouts * distribution_i + sample_index) * params_p->num_timesteps +
                                     t) *

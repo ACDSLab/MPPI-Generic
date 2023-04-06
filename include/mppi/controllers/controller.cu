@@ -1,9 +1,9 @@
 #include <mppi/controllers/controller.cuh>
 
 #define CONTROLLER_TEMPLATE                                                                                            \
-  template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,        \
+  template <class DYN_T, class COST_T, class FB_T, class SAMPLING_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,              \
             class PARAMS_T>
-#define CONTROLLER Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
+#define CONTROLLER Controller<DYN_T, COST_T, FB_T, SAMPLING_T, MAX_TIMESTEPS, NUM_ROLLOUTS, PARAMS_T>
 
 CONTROLLER_TEMPLATE
 void CONTROLLER::deallocateCUDAMemory()
@@ -11,8 +11,8 @@ void CONTROLLER::deallocateCUDAMemory()
   HANDLE_ERROR(cudaFree(control_d_));
   HANDLE_ERROR(cudaFree(output_d_));
   HANDLE_ERROR(cudaFree(trajectory_costs_d_));
-  HANDLE_ERROR(cudaFree(control_std_dev_d_));
-  HANDLE_ERROR(cudaFree(control_noise_d_));
+  // HANDLE_ERROR(cudaFree(control_std_dev_d_));
+  // HANDLE_ERROR(cudaFree(control_noise_d_));
   HANDLE_ERROR(cudaFree(cost_baseline_and_norm_d_));
   if (sampled_states_CUDA_mem_init_)
   {
@@ -24,20 +24,20 @@ void CONTROLLER::deallocateCUDAMemory()
   CUDA_mem_init_ = false;
 }
 
-CONTROLLER_TEMPLATE
-void CONTROLLER::copyControlStdDevToDevice(bool synchronize)
-{
-  if (!CUDA_mem_init_)
-  {
-    return;
-  }
-  HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, params_.control_std_dev_.data(),
-                               sizeof(float) * params_.control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
-  if (synchronize)
-  {
-    HANDLE_ERROR(cudaStreamSynchronize(stream_));
-  }
-}
+// CONTROLLER_TEMPLATE
+// void CONTROLLER::copyControlStdDevToDevice(bool synchronize)
+// {
+//   if (!CUDA_mem_init_)
+//   {
+//     return;
+//   }
+//   HANDLE_ERROR(cudaMemcpyAsync(control_std_dev_d_, params_.control_std_dev_.data(),
+//                                sizeof(float) * params_.control_std_dev_.size(), cudaMemcpyHostToDevice, stream_));
+//   if (synchronize)
+//   {
+//     HANDLE_ERROR(cudaStreamSynchronize(stream_));
+//   }
+// }
 
 CONTROLLER_TEMPLATE
 void CONTROLLER::copyNominalControlToDevice(bool synchronize)
@@ -46,12 +46,7 @@ void CONTROLLER::copyNominalControlToDevice(bool synchronize)
   {
     return;
   }
-  HANDLE_ERROR(
-      cudaMemcpyAsync(control_d_, control_.data(), sizeof(float) * control_.size(), cudaMemcpyHostToDevice, stream_));
-  if (synchronize)
-  {
-    HANDLE_ERROR(cudaStreamSynchronize(stream_));
-  }
+  this->sampler_->copyImportanceSamplerToDevice(control_.data(), 0, synchronize);
 }
 
 CONTROLLER_TEMPLATE
@@ -92,7 +87,8 @@ void CONTROLLER::copySampledControlFromDevice(bool synchronize)
                                  sizeof(float) * getNumTimesteps() * DYN_T::OUTPUT_DIM, cudaMemcpyDeviceToDevice,
                                  this->vis_stream_));
     HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * getNumTimesteps() * DYN_T::CONTROL_DIM,
-                                 this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
+                                 this->sampler_->getControlSample(samples[i], 0, 0),
+                                 //  this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
                                  sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
                                  this->vis_stream_));
   }
@@ -162,13 +158,14 @@ void CONTROLLER::copyTopControlFromDevice(bool synchronize)
   for (int i = 0; i < num_top_control_trajectories_; i++)
   {
     top_n_costs_[i] = trajectory_costs_[samples[i]] / getNormalizerCost();
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_outputs_d_ + (start_top_control_traj_index + i) * getNumTimesteps() * DYN_T::OUTPUT_DIM,
-                                 this->output_d_ + samples[i] * getNumTimesteps() * DYN_T::OUTPUT_DIM,
-                                 sizeof(float) * getNumTimesteps() * DYN_T::OUTPUT_DIM, cudaMemcpyDeviceToDevice,
-                                 this->vis_stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(
+        this->sampled_outputs_d_ + (start_top_control_traj_index + i) * getNumTimesteps() * DYN_T::OUTPUT_DIM,
+        this->output_d_ + samples[i] * getNumTimesteps() * DYN_T::OUTPUT_DIM,
+        sizeof(float) * getNumTimesteps() * DYN_T::OUTPUT_DIM, cudaMemcpyDeviceToDevice, this->vis_stream_));
     HANDLE_ERROR(cudaMemcpyAsync(
         this->sampled_noise_d_ + (start_top_control_traj_index + i) * getNumTimesteps() * DYN_T::CONTROL_DIM,
-        this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
+        this->sampler_->getControlSample(samples[i], 0, 0),
+        // this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
         sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice, this->vis_stream_));
   }
   if (synchronize)
@@ -184,7 +181,7 @@ void CONTROLLER::setCUDAStream(cudaStream_t stream)
   model_->bindToStream(stream);
   cost_->bindToStream(stream);
   fb_controller_->bindToStream(stream);
-  sampling_->bindToStream(stream);
+  sampler_->bindToStream(stream);
   curandSetStream(gen_, stream);  // requires the generator to be created!
 }
 
@@ -269,11 +266,12 @@ std::vector<float> CONTROLLER::getSampledNoise()
 {
   std::vector<float> vector = std::vector<float>(NUM_ROLLOUTS * getNumTimesteps() * DYN_T::CONTROL_DIM, FLT_MIN);
 
-  HANDLE_ERROR(cudaMemcpyAsync(vector.data(), control_noise_d_,
+  HANDLE_ERROR(cudaMemcpyAsync(vector.data(), this->sampler_->getControlSample(0, 0, 0),
                                sizeof(float) * NUM_ROLLOUTS * getNumTimesteps() * DYN_T::CONTROL_DIM,
                                cudaMemcpyDeviceToHost, stream_));
   HANDLE_ERROR(cudaStreamSynchronize(stream_));
   return vector;
 }
 
+#undef CONTROLLER_TEMPLATE
 #undef CONTROLLER

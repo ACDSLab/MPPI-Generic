@@ -27,7 +27,7 @@ struct alignas(float4) SamplingParams
   SamplingParams() = default;
 };
 
-template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T = DynamicsParams>
+template <class CLASS_T, template <int> typename PARAMS_TEMPLATE, class DYN_PARAMS_T>
 class SamplingDistribution : public Managed
 {
 public:
@@ -40,6 +40,7 @@ public:
   using OutputIndex = typename DYN_PARAMS_T::OutputIndex;
   using TEMPLATED_DYN_PARAMS = DYN_PARAMS_T;
 
+  // static const int CONTROL_DIM = C_IND_CLASS(DYN_PARAMS_T, NUM_CONTROLS);
   static const int CONTROL_DIM = E_INDEX(ControlIndex, NUM_CONTROLS);
   typedef PARAMS_TEMPLATE<CONTROL_DIM> SAMPLING_PARAMS_T;
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;
@@ -55,10 +56,10 @@ public:
    * Constructors and Destructors
    *************************************/
 
-  SamplingDistribution(cudaStream_t stream = 0) : stream_{ stream }
+  SamplingDistribution(cudaStream_t stream = 0) : Managed(stream)
   {
   }
-  SamplingDistribution(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0) : params_{ params }, stream_{ stream }
+  SamplingDistribution(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0) : params_{ params }, Managed(stream)
   {
   }
 
@@ -104,10 +105,10 @@ public:
     }
   }
 
-  __host__ __device__ SAMPLING_PARAMS_T getParams() const
-  {
-    return params_;
-  }
+  // __host__ __device__ SAMPLING_PARAMS_T getParams() const
+  // {
+  //   return params_;
+  // }
 
   __host__ __device__ const SAMPLING_PARAMS_T getParams() const
   {
@@ -129,6 +130,51 @@ public:
     return this->params_.num_distributions;
   }
 
+  __host__ __device__ void setNumTimesteps(const int num_timesteps, bool synchronize = false)
+  {
+    const bool reallocate_memory = params_.num_timesteps != num_timesteps;
+    this->params_.num_timesteps = num_timesteps;
+    if (GPUMemStatus_ && reallocate_memory)
+    {
+      if (reallocate_memory)
+      {
+        allocateCUDAMemory(false);
+      }
+      CLASS_T& derived = static_cast<CLASS_T&>(*this);
+      derived.paramsToDevice(synchronize);
+    }
+  }
+
+  __host__ __device__ void setNumRollouts(const int num_rollouts, bool synchronize = false)
+  {
+    const bool reallocate_memory = params_.num_rollouts != num_rollouts;
+    this->params_.num_rollouts = num_rollouts;
+    if (GPUMemStatus_ && reallocate_memory)
+    {
+      if (reallocate_memory)
+      {
+        allocateCUDAMemory(false);
+      }
+      CLASS_T& derived = static_cast<CLASS_T&>(*this);
+      derived.paramsToDevice(synchronize);
+    }
+  }
+
+  __host__ __device__ void setNumDistributions(const int num_distributions, bool synchronize = false)
+  {
+    const bool reallocate_memory = params_.num_distributions != num_distributions;
+    this->params_.num_distributions = num_distributions;
+    if (GPUMemStatus_ && reallocate_memory)
+    {
+      if (reallocate_memory)
+      {
+        allocateCUDAMemory(false);
+      }
+      CLASS_T& derived = static_cast<CLASS_T&>(*this);
+      derived.paramsToDevice(synchronize);
+    }
+  }
+
   __host__ void allocateCUDAMemory(bool synchronize = false);
 
   /**
@@ -146,8 +192,9 @@ public:
    * @param output - output pointer for compatibility with a output-based sampling distribution
    * @return float* pointer to the control array that is at [distribution_index][sample_index][t]
    */
-  __device__ float* getControlSample(const int& sample_index, const int& t, const int& distribution_index,
-                                     const float* __restrict__ output = nullptr);
+  __host__ __device__ float* getControlSample(const int& sample_index, const int& t, const int& distribution_index,
+                                              const float* __restrict__ theta_d = nullptr,
+                                              const float* __restrict__ output = nullptr);
 
   /**
    * @brief Method for starting up any potential work for distributions. By default, it just loads the params into
@@ -202,8 +249,9 @@ public:
    */
   __host__ void allocateCUDAMemoryHelper();
 
-  __host__ __device__ float computeFeedbackCost(const float* __restrict__ u_fb, float* __restrict__ theta_d, const int t,
-                                                const int distribution_idx, const float lambda = 1.0, const float alpha = 0.0);
+  __host__ __device__ float computeFeedbackCost(const float* __restrict__ u_fb, float* __restrict__ theta_d,
+                                                const int t, const int distribution_idx, const float lambda = 1.0,
+                                                const float alpha = 0.0);
 
   /**
    * @brief Device method to calculate the likelihood ratio cost for a given sample u
@@ -237,13 +285,15 @@ public:
                                             const float alpha = 0.0);
 
   /**
-   * @brief Get the latest importance sampler from time-shifting on the controller and update the device importance sampler
+   * @brief Get the latest importance sampler from time-shifting on the controller and update the device importance
+   * sampler
    *
    * @param importance_sampler - host pointer to a control sequence that is NUM_TIMESTEPS * CONTROL_DIM
    * @param distribution_idx - which distribution is the importance sampler meant for
    * @param synchronize - whether or not to run cudaStreamSynchronize
    */
-  __host__ void copyImportanceSamplerToDevice(const float* importance_sampler, const int& distribution_idx, bool synchronize = true);
+  __host__ void copyImportanceSamplerToDevice(const float* importance_sampler, const int& distribution_idx,
+                                              bool synchronize = true);
 
   /**
    * @brief Generate control samples that will be on the GPU.
@@ -279,14 +329,26 @@ public:
                                                    const int& distribution_i, bool synchronize = false);
 
   CLASS_T* sampling_d_ = nullptr;
+  SAMPLING_PARAMS_T params_;
 
 protected:
-  SAMPLING_PARAMS_T params_;
   float* control_samples_d_ = nullptr;
 };
 
 #if __CUDACC__
 #include "sampling_distribution.cu"
 #endif
+
+template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
+const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::CONTROL_DIM;
+
+template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
+const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::SHARED_MEM_REQUEST_GRD_BYTES;
+
+template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
+const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::SHARED_MEM_REQUEST_BLK_BYTES;
+
+// template <int C_DIM>
+// const int SamplingParams<C_DIM>::CONTROL_DIM;
 }  // namespace sampling_distributions
 }  // namespace mppi

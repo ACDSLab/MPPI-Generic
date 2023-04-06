@@ -2,10 +2,7 @@
  * Created by Bogdan Vlahov on 3/24/2023
  **/
 
-#include <mppi/core/mppi_common_new.cuh>
 #include <mppi/sampling_distributions/gaussian/gaussian.cuh>
-#include <mppi/utils/cuda_math_utils.cuh>
-#include <mppi/utils/math_utils.h>
 
 #define GAUSSIAN_TEMPLATE template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 #define GAUSSIAN_CLASS GaussianDistributionImpl<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>
@@ -14,16 +11,15 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
                                     float* __restrict__ control_samples_d, const int control_dim,
                                     const int num_timesteps, const int num_rollouts, const int num_distributions,
                                     const int optimization_stride, const float std_dev_decay,
-                                    const float pure_noise_percentage, const bool time_specific_std_dev = false)
+                                    const float pure_noise_percentage, const bool time_specific_std_dev)
 {
   const int trajectory_index = threadIdx.x + blockDim.x * blockIdx.x;
   const int distribution_index = threadIdx.z + blockDim.z * blockIdx.z;
   const int time_index = threadIdx.y + blockDim.y * blockIdx.y;
   const bool valid_index =
       trajectory_index < num_rollouts && time_index < num_timesteps && distribution_index < num_distributions;
-  const int num_distributions_block = blockDim.z;
-  const int num_timesteps_block = blockDim.y;
-  const int num_rollouts_block = blockDim.x;
+  const auto& num_timesteps_block = blockDim.y;
+  const auto& num_rollouts_block = blockDim.x;
   const int shared_noise_index = threadIdx.z * num_timesteps_block * num_rollouts_block * control_dim +
                                  threadIdx.x * num_timesteps_block * control_dim + threadIdx.y * control_dim;
   const int global_noise_index =
@@ -56,8 +52,8 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
   extern __shared__ float entire_buffer[];
   // Create memory_aligned shared memory pointers
   float* mean_shared = entire_buffer;
-  float* std_dev_shared = &mean_shared[mppi::math::nearest_quotient_4(num_timesteps * num_distributions * control_dim)];
-  float* control_samples_shared = &std_dev_shared[mppi::math::nearest_quotient_4(std_dev_size)];
+  float* std_dev_shared = &mean_shared[mppi::math::nearest_multiple_4(num_timesteps * blockDim.z * control_dim)];
+  float* control_samples_shared = &std_dev_shared[mppi::math::nearest_multiple_4(std_dev_size)];
   if (control_dim % 4 == 0)
   {
     // Step 1: copy means into shared memory
@@ -202,6 +198,17 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
         }
       }
     }
+    // __syncthreads();
+    // if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
+    // {
+    //   printf("Mean: ");
+    //   for (i = 0; i < num_timesteps; i++)
+    //   {
+    //     printf("%f, ", mean_d[i]);
+    //   }
+    //   printf("\n");
+    // }
+    // __syncthreads();
 
     // Step 2: load std_dev to shared memory
     for (i = threadIdx.x; i < control_dim; i += blockDim.x)
@@ -214,6 +221,18 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
     {
       control_samples_shared[shared_noise_index + i] = control_samples_d[global_noise_index + i];
     }
+    // __syncthreads();
+    // if (trajectory_index == 10 && time_index == 20)
+    // {
+    //   printf("Control noise %d at time %d: ", trajectory_index, time_index);
+    //   for (i = 0; i < control_dim; i++)
+    //   {
+    //     printf("%f, ", control_samples_shared[shared_noise_index + i]);
+    //   }
+    //   printf("\n std_dev_decay: %f, optimization_stride: %d\n", std_dev_decay, optimization_stride);
+    //   printf("Std Dev: %f\n", std_dev_shared[shared_std_dev_index]);
+    // }
+    // __syncthreads();
 
     __syncthreads();  // wait for all copying from global to shared memory to finish
     // Step 4: do mean + variance calculations
@@ -228,20 +247,20 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
     {  // doing zero mean trajectories
       for (i = 0; i < control_dim; i++)
       {
-        control_samples_d[shared_noise_index + i] =
-            std_dev_shared[shared_std_dev_index + i] * control_samples_d[shared_noise_index + i];
+        control_samples_shared[shared_noise_index + i] =
+            std_dev_shared[shared_std_dev_index + i] * control_samples_shared[shared_noise_index + i];
       }
     }
     else if (valid_index)
     {
       for (i = 0; i < control_dim; i++)
       {
-        control_samples_d[shared_noise_index + i] =
+        control_samples_shared[shared_noise_index + i] =
             mean_shared[shared_mean_index + i] +
-            std_dev_shared[shared_std_dev_index + i] * control_samples_d[shared_noise_index + i];
+            std_dev_shared[shared_std_dev_index + i] * control_samples_shared[shared_noise_index + i];
       }
     }
-
+    __syncthreads();
     // save back to global memory
     for (i = 0; valid_index && i < control_dim; i++)
     {
@@ -264,7 +283,7 @@ GAUSSIAN_CLASS::GaussianDistributionImpl(const SAMPLING_PARAMS_T& params, cudaSt
 GAUSSIAN_TEMPLATE
 __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
 {
-  if (GPUMemStatus_)
+  if (this->GPUMemStatus_)
   {
     if (std_dev_d_)
     {
@@ -277,23 +296,23 @@ __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
 
     if (this->params_.time_specific_std_dev)
     {
-      HANDLE_ERROR(cudaMallocAsync((void**)&std_dev_d_,
-                                   sizeof(float) * CONTROL_DIM * this->getNumTimesteps() * this->getNumDistributions(),
-                                   this->stream_));
+      HANDLE_ERROR(cudaMallocAsync(
+          (void**)&std_dev_d_,
+          sizeof(float) * this->CONTROL_DIM * this->getNumTimesteps() * this->getNumDistributions(), this->stream_));
     }
     else
     {
-      HANDLE_ERROR(cudaMallocAsync((void**)std_dev_d_, sizeof(float) * CONTROL_DIM * this->getNumDistributions(),
+      HANDLE_ERROR(cudaMallocAsync((void**)&std_dev_d_, sizeof(float) * this->CONTROL_DIM * this->getNumDistributions(),
                                    this->stream_));
     }
-    HANDLE_ERROR(cudaMallocAsync((void**)&control_means_d_,
-                                 sizeof(float) * this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM,
-                                 this->stream_));
+    HANDLE_ERROR(cudaMallocAsync(
+        (void**)&control_means_d_,
+        sizeof(float) * this->getNumDistributions() * this->getNumTimesteps() * this->CONTROL_DIM, this->stream_));
     means_.resize(this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM);
     // Ensure that the device side point knows where the the standard deviation memory is located
-    HANDLE_ERROR(
-        cudaMemcpyAsync(&sampling_d_->std_dev_d_, &std_dev_d_, sizeof(float*), cudaMemcpyHostToDevice, this->stream_));
-    HANDLE_ERROR(cudaMemcpyAsync(&sampling_d_->control_means_d_, &control_means_d_, sizeof(float*),
+    HANDLE_ERROR(cudaMemcpyAsync(&this->sampling_d_->std_dev_d_, &std_dev_d_, sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(&this->sampling_d_->control_means_d_, &control_means_d_, sizeof(float*),
                                  cudaMemcpyHostToDevice, this->stream_));
   }
 }
@@ -319,15 +338,16 @@ void GAUSSIAN_CLASS::paramsToDevice(bool synchronize)
   {
     if (this->params_.time_specific_std_dev)
     {
-      HANDLE_ERROR(cudaMemcpyAsync(sampling_d_->std_dev_d_, params_.std_dev,
-                                   sizeof(float) * CONTROL_DIM * this->getNumTimesteps() * this->getNumDistributions(),
-                                   cudaMemcpyHostToDevice, this->stream_));
+      HANDLE_ERROR(
+          cudaMemcpyAsync(this->std_dev_d_, this->params_.std_dev,
+                          sizeof(float) * this->CONTROL_DIM * this->getNumTimesteps() * this->getNumDistributions(),
+                          cudaMemcpyHostToDevice, this->stream_));
     }
     else
     {
-      HANDLE_ERROR(cudaMemcpyAsync(sampling_d_->std_dev_d_, params_.std_dev,
-                                   sizeof(float) * CONTROL_DIM * this->getNumDistributions(), cudaMemcpyHostToDevice,
-                                   this->stream_));
+      HANDLE_ERROR(cudaMemcpyAsync(this->std_dev_d_, this->params_.std_dev,
+                                   sizeof(float) * this->CONTROL_DIM * this->getNumDistributions(),
+                                   cudaMemcpyHostToDevice, this->stream_));
     }
     if (synchronize)
     {
@@ -342,21 +362,24 @@ __host__ void GAUSSIAN_CLASS::generateSamples(const int& optimization_stride, co
 {
   if (this->params_.use_same_noise_for_all_distributions)
   {
-    HANDLE_CURAND_ERROR(curandGenerateNormal(
-        this->control_samples_d_, this->getNumTimesteps() * this->getNumRollouts() * CONTROL_DIM, 0.0f, 1.0f));
+    HANDLE_CURAND_ERROR(curandGenerateNormal(gen, this->control_samples_d_,
+                                             this->getNumTimesteps() * this->getNumRollouts() * this->CONTROL_DIM, 0.0f,
+                                             1.0f));
     for (int i = 1; i < this->getNumDistributions(); i++)
     {
       HANDLE_ERROR(cudaMemcpyAsync(
-          &this->control_samples_d_[this->getNumRollouts() * this->getNumTimesteps() * CONTROL_DIM * i],
-          this->control_samples_d_, sizeof(float) * this->getNumRollouts() * this->getNumTimesteps() * CONTROL_DIM,
+          &this->control_samples_d_[this->getNumRollouts() * this->getNumTimesteps() * this->CONTROL_DIM * i],
+          this->control_samples_d_,
+          sizeof(float) * this->getNumRollouts() * this->getNumTimesteps() * this->CONTROL_DIM,
           cudaMemcpyDeviceToDevice, this->stream_));
     }
   }
   else
   {
-    HANDLE_CURAND_ERROR(curandGenerateNormal(
-        this->control_samples_d_,
-        this->getNumTimesteps() * this->getNumRollouts() * this->getNumDistributions() * CONTROL_DIM, 0.0f, 1.0f));
+    HANDLE_CURAND_ERROR(curandGenerateNormal(gen, this->control_samples_d_,
+                                             this->getNumTimesteps() * this->getNumRollouts() *
+                                                 this->getNumDistributions() * this->CONTROL_DIM,
+                                             0.0f, 1.0f));
   }
   const int BLOCKSIZE_X = this->params_.rewrite_controls_block_dim.x;
   const int BLOCKSIZE_Y = this->params_.rewrite_controls_block_dim.y;
@@ -368,17 +391,22 @@ __host__ void GAUSSIAN_CLASS::generateSamples(const int& optimization_stride, co
   control_writing_grid.x = mppi::math::int_ceil(this->getNumRollouts(), BLOCKSIZE_X);
   control_writing_grid.y = mppi::math::int_ceil(this->getNumTimesteps(), BLOCKSIZE_Y);
   control_writing_grid.z = mppi::math::int_ceil(this->getNumDistributions(), BLOCKSIZE_Z);
-  unsigned int std_dev_mem_size = this->getNumDistributions() * CONTROL_DIM;
+  unsigned int std_dev_mem_size = this->getNumDistributions() * this->CONTROL_DIM;
   // Allocate shared memory for std_deviations per timestep or constant across the trajectory
-  std_dev_mem_size = mppi::math::nearest_quotient_4(
-      this->params_.time_specific_std_dev ? std_dev_mem_size * this->params_.num_timestamps : std_dev_mem_size);
+  std_dev_mem_size = mppi::math::nearest_multiple_4(
+      this->params_.time_specific_std_dev ? std_dev_mem_size * this->getNumTimesteps() : std_dev_mem_size);
   unsigned int shared_mem_size =
       std_dev_mem_size +
-      mppi::math::nearest_quotient_4(this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM) +
-      mppi::math::nearest_quotient_4(BLOCKSIZE_X * BLOCKSIZE_Y * BLOCKSIZE_Z * CONTROL_DIM);
+      mppi::math::nearest_multiple_4(this->getNumDistributions() * this->getNumTimesteps() * this->CONTROL_DIM) +
+      mppi::math::nearest_multiple_4(BLOCKSIZE_X * BLOCKSIZE_Y * BLOCKSIZE_Z * this->CONTROL_DIM);
+  shared_mem_size *= sizeof(float);
+  // std::cout << "Shared mem size: " << shared_mem_size << " bytes. BLOCKSIZE_X: " << BLOCKSIZE_X
+  //           << ", BLOCKSIZE_Y: " << BLOCKSIZE_Y << ", BLOCKSIZE_Z: " << BLOCKSIZE_Z
+  //           << "Grid: (" << control_writing_grid.x << ", " << control_writing_grid.y
+  //           << ", " << control_writing_grid.z << ")" << std::endl;
   setGaussianControls<<<control_writing_grid, this->params_.rewrite_controls_block_dim, shared_mem_size,
                         this->stream_>>>(
-      this->control_means_d_, this->std_dev_d_, this->control_samples_d_, CONTROL_DIM, this->getNumTimesteps(),
+      this->control_means_d_, this->std_dev_d_, this->control_samples_d_, this->CONTROL_DIM, this->getNumTimesteps(),
       this->getNumRollouts(), this->getNumDistributions(), optimization_stride,
       powf(this->params_.std_dev_decay, iteration_num), this->params_.pure_noise_trajectories_percentage,
       this->params_.time_specific_std_dev);
@@ -396,18 +424,18 @@ __host__ void GAUSSIAN_CLASS::updateDistributionParamsFromDevice(const float* tr
 {
   if (distribution_i >= this->getNumDistributions())
   {
-    std::err << "Updating distributional params for distribution " << distribution_i << " out of "
-             << this->getNumDistributions() << " total." << std::endl;
+    std::cerr << "Updating distributional params for distribution " << distribution_i << " out of "
+              << this->getNumDistributions() << " total." << std::endl;
     return;
   }
-  float* control_samples_i_d =
-      &(this->control_samples_d[distribution_i * this->getNumRollouts() * this->getNumTimesteps() * CONTROL_DIM]);
-  float* control_mean_i_d = &(this->control_mean_d[distribution_i * this->getNumTimesteps() * CONTROL_DIM]);
-  mppi::kernels::launchWeightedReductionKernel(trajectory_weights_d, control_samples_i_d, control_mean_i_d, normalizer,
-                                               this->getNumTimesteps(), this->getNumRollouts(),
-                                               this->params_.sum_strides, CONTROL_DIM, this->stream_, synchronize);
-  HANDLE_ERROR(cudaMemcpyAsync(&means_[distribution_i * this->getNumTimesteps() * CONTROL_DIM], this->control_mean_i_d,
-                               sizeof(float) * this->getNumTimesteps() * CONTROL_DIM, cudaMemcpyDeviceToHost,
+  float* control_samples_i_d = &(
+      this->control_samples_d_[distribution_i * this->getNumRollouts() * this->getNumTimesteps() * this->CONTROL_DIM]);
+  float* control_mean_i_d = &(this->control_means_d_[distribution_i * this->getNumTimesteps() * this->CONTROL_DIM]);
+  mppi::kernels::launchWeightedReductionKernel<CONTROL_DIM>(trajectory_weights_d, control_samples_i_d, control_mean_i_d,
+                                                            normalizer, this->getNumTimesteps(), this->getNumRollouts(),
+                                                            this->params_.sum_strides, this->stream_, synchronize);
+  HANDLE_ERROR(cudaMemcpyAsync(&means_[distribution_i * this->getNumTimesteps() * this->CONTROL_DIM], control_mean_i_d,
+                               sizeof(float) * this->getNumTimesteps() * this->CONTROL_DIM, cudaMemcpyDeviceToHost,
                                this->stream_));
   if (synchronize)
   {
@@ -421,8 +449,8 @@ __host__ void GAUSSIAN_CLASS::setHostOptimalControlSequence(float* optimal_contr
 {
   if (distribution_i >= this->getNumDistributions())
   {
-    std::err << "Asking for optimal control sequence from distribution " << distribution_i << " out of "
-             << this->getNumDistributions() << " total." << std::endl;
+    std::cerr << "Asking for optimal control sequence from distribution " << distribution_i << " out of "
+              << this->getNumDistributions() << " total." << std::endl;
     return;
   }
 
@@ -437,7 +465,7 @@ __host__ void GAUSSIAN_CLASS::setHostOptimalControlSequence(float* optimal_contr
 
 GAUSSIAN_TEMPLATE
 __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float* __restrict__ u,
-                                                                     const float* __restrict__ theta_d, const int t,
+                                                                     float* __restrict__ theta_d, const int t,
                                                                      const int distribution_idx, const float lambda,
                                                                      const float alpha)
 {
@@ -461,7 +489,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
     {
       mean_i = reinterpret_cast<float4*>(mean)[i];
       std_dev_i = reinterpret_cast<float4*>(std_dev)[i];
-      u_i = reinterpret_cast<float4*>(u)[i];
+      u_i = reinterpret_cast<const float4*>(u)[i];
       control_cost_coeff_i = reinterpret_cast<float4*>(control_cost_coeff)[i];
       cost_i += control_cost_coeff_i * mean_i * (mean_i + 2 * (u_i - mean_i)) / (std_dev_i * std_dev_i);
     }
@@ -475,7 +503,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
     {
       mean_i = reinterpret_cast<float2*>(mean)[i];
       std_dev_i = reinterpret_cast<float2*>(std_dev)[i];
-      u_i = reinterpret_cast<float2*>(u)[i];
+      u_i = reinterpret_cast<const float2*>(u)[i];
       control_cost_coeff_i = reinterpret_cast<float2*>(control_cost_coeff)[i];
       cost_i += control_cost_coeff_i * mean_i * (mean_i + 2 * (u_i - mean_i)) / (std_dev_i * std_dev_i);
     }
@@ -487,7 +515,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
     for (int i = 0; i < CONTROL_DIM; i++)
     {
       mean_i = mean[i];  // read mean value from global memory only once
-      cost += control_cost_coeff_i * mean_i * (mean_i + 2 * (u[i] - mean_i)) / (std_dev[i] * std_dev[i]);
+      cost += control_cost_coeff[i] * mean_i * (mean_i + 2.0f * (u[i] - mean_i)) / (std_dev[i] * std_dev[i]);
     }
   }
   return 0.5 * lambda * (1 - alpha) * cost;
@@ -495,7 +523,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
 
 GAUSSIAN_TEMPLATE
 __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __restrict__ u_fb,
-                                                              const float* __restrict__ theta_d, const int t,
+                                                              float* __restrict__ theta_d, const int t,
                                                               const int distribution_idx, const float lambda,
                                                               const float alpha)
 {
@@ -513,11 +541,11 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
   if (CONTROL_DIM % 4 == 0)
   {
     float4 cost_i = make_float4(0, 0, 0, 0);
-    float4 std_dev_i, control_cost_coeff_i, u_fb4;
+    float4 std_dev_i, control_cost_coeff_i, u_fb_i;
     for (int i = 0; i < CONTROL_DIM / 4; i++)
     {
       std_dev_i = reinterpret_cast<float4*>(std_dev)[i];
-      u_fb_i = reinterpret_cast<float4*>(u_fb)[i];
+      u_fb_i = reinterpret_cast<const float4*>(u_fb)[i];
       control_cost_coeff_i = reinterpret_cast<float4*>(control_cost_coeff)[i];
       cost_i += control_cost_coeff_i * (u_fb_i * u_fb_i) / (std_dev_i * std_dev_i);
     }
@@ -531,7 +559,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
     {
       std_dev_i = reinterpret_cast<float2*>(std_dev)[i];
       control_cost_coeff_i = reinterpret_cast<float2*>(control_cost_coeff)[i];
-      u_fb_i = reinterpret_cast<float2*>(u_fb)[i];
+      u_fb_i = reinterpret_cast<const float2*>(u_fb)[i];
       cost_i += control_cost_coeff_i * (u_fb_i * u_fb_i) / (std_dev_i * std_dev_i);
     }
     cost += cost_i.x + cost_i.y;
@@ -540,19 +568,19 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
   {
     for (int i = 0; i < CONTROL_DIM; i++)
     {
-      cost += control_cost_coeff_i * (u_fb[i] * u_fb[i]) / (std_dev[i] * std_dev[i]);
+      cost += control_cost_coeff[i] * (u_fb[i] * u_fb[i]) / (std_dev[i] * std_dev[i]);
     }
   }
   return 0.5 * lambda * (1 - alpha) * cost;
 }
 
 GAUSSIAN_TEMPLATE
-__host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u,
-                                                          const float* theta_d, const int t, const int distribution_idx,
-                                                          const float lambda, const float alpha)
+__host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int t,
+                                                          const int distribution_idx, const float lambda,
+                                                          const float alpha)
 {
   float cost = 0.0f;
-  const int distribution_i = distribution_idx >= params_p->num_distributions ? 0 : distribution_idx;
+  const int distribution_i = distribution_idx >= this->params_->num_distributions ? 0 : distribution_idx;
   const int mean_index = (distribution_i * this->getNumTimesteps() + t) * CONTROL_DIM;
   float* mean = &(this->means_[mean_index]);
   float* std_dev = &(this->params_.std_dev[CONTROL_DIM * distribution_i]);
@@ -560,7 +588,7 @@ __host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const
   {
     std_dev = &(this->params_.std_dev[(distribution_i * this->getNumTimesteps() + t) * CONTROL_DIM]);
   }
-  for (int i i = 0; i < CONTROL_DIM; i++)
+  for (int i = 0; i < CONTROL_DIM; i++)
   {
     cost +=
         this->params_.control_cost_coeff[i] * mean[i] * (mean[i] + 2 * (u(i) - mean[i])) / (std_dev[i] * std_dev[i]);
@@ -569,11 +597,11 @@ __host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const
 }
 
 GAUSSIAN_TEMPLATE
-__host__ float GAUSSIAN_CLASS::copyImportanceSamplerToDevice(const float* importance_sampler,
-                                                             const int& distribution_idx, bool synchronize = true)
+__host__ void GAUSSIAN_CLASS::copyImportanceSamplerToDevice(const float* importance_sampler,
+                                                            const int& distribution_idx, bool synchronize)
 {
-  HANDLE_ERROR(cudaMemcpyAsync(&control_means_d_[this->getNumTimesteps() * CONTROL_DIM * distribution_idx],
-                               importance_sampler, sizeof(float) * this->getNumTimesteps() * CONTROL_DIM,
+  HANDLE_ERROR(cudaMemcpyAsync(&control_means_d_[this->getNumTimesteps() * this->CONTROL_DIM * distribution_idx],
+                               importance_sampler, sizeof(float) * this->getNumTimesteps() * this->CONTROL_DIM,
                                cudaMemcpyHostToDevice, this->stream_));
   if (synchronize)
   {

@@ -58,7 +58,8 @@ struct ControllerParams
   Eigen::Matrix<float, C_DIM, 1> slide_control_scale_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
 };
 
-template <class DYN_T, class COST_T, class FB_T, class SAMPLING_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, class PARAMS_T = ControllerParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
+template <class DYN_T, class COST_T, class FB_T, class SAMPLING_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+          class PARAMS_T = ControllerParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class Controller
 {
 public:
@@ -71,10 +72,10 @@ public:
   typedef COST_T TEMPLATED_COSTS;
   typedef FB_T TEMPLATED_FEEDBACK;
   typedef PARAMS_T TEMPLATED_PARAMS;
+  typedef SAMPLING_T TEMPLATED_SAMPLING;
   using TEMPLATED_FEEDBACK_STATE = typename FB_T::TEMPLATED_FEEDBACK_STATE;
   using TEMPLATED_FEEDBACK_PARAMS = typename FB_T::TEMPLATED_PARAMS;
   using TEMPLATED_FEEDBACK_GPU = typename FB_T::TEMPLATED_GPU_FEEDBACK;
-  using TEMPLATED_SAMPLING = typename SAMPLING_T;
   using TEMPLATED_SAMPLING_PARAMS = typename SAMPLING_T::SAMPLING_PARAMS_T;
   static const int TEMPLATED_FEEDBACK_TIMESTEPS = FB_T::FB_TIMESTEPS;
 
@@ -98,8 +99,8 @@ public:
   typedef Eigen::Matrix<float, NUM_ROLLOUTS, 1> sampled_cost_traj;
   typedef Eigen::Matrix<int, MAX_TIMESTEPS, 1> crash_status_trajectory;
 
-  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter, float lambda, float alpha,
-             int num_timesteps = MAX_TIMESTEPS,
+  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter, float lambda,
+             float alpha, int num_timesteps = MAX_TIMESTEPS,
              const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
              cudaStream_t stream = nullptr)
   {
@@ -109,11 +110,15 @@ public:
     cost_ = cost;
     fb_controller_ = fb_controller;
     sampler_ = sampler;
+    sampler_->setNumRollouts(NUM_ROLLOUTS);
+    sampler_->setNumDistributions(1);
     params_.dt_ = dt;
     params_.num_iters_ = max_iter;
     params_.lambda_ = lambda;
     params_.alpha_ = alpha;
-    params_.num_timesteps_ = num_timesteps;
+    setNumTimesteps(num_timesteps);
+    // sampler_->setNumTimesteps(num_timesteps);
+    // params_.num_timesteps_ = num_timesteps;
 
     params_.init_control_traj_ = init_control_traj;
     control_ = init_control_traj;
@@ -124,11 +129,7 @@ public:
     // Create new stream for visualization purposes
     HANDLE_ERROR(cudaStreamCreate(&vis_stream_));
 
-    // Call the GPU setup functions of the model, cost, sampling distribution, and feedback controller
-    model_->GPUSetup();
-    cost_->GPUSetup();
-    fb_controller_->GPUSetup();
-    sampler_->GPUSetup();
+    GPUSetup();
 
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the
@@ -137,7 +138,8 @@ public:
     // TODO pass function pointer?
   }
 
-  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, PARAMS_T& params, cudaStream_t stream = nullptr)
+  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, PARAMS_T& params,
+             cudaStream_t stream = nullptr)
   {
     model_ = model;
     cost_ = cost;
@@ -154,11 +156,7 @@ public:
     // Create new stream for visualization purposes
     HANDLE_ERROR(cudaStreamCreate(&vis_stream_));
 
-    // Call the GPU setup functions of the model, cost, sampling distribution, and feedback controller
-    model_->GPUSetup();
-    cost_->GPUSetup();
-    fb_controller_->GPUSetup();
-    sampler_->GPUSetup();
+    GPUSetup();
 
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the
@@ -233,7 +231,8 @@ public:
 
   virtual std::string getFullName()
   {
-    return getControllerName() + "(" + getDynamicsModelName() + ", " + getCostFunctionName() + ", " + getSamplingDistributionName() + ")";
+    return getControllerName() + "(" + getDynamicsModelName() + ", " + getCostFunctionName() + ", " +
+           getSamplingDistributionName() + ")";
   }
 
   virtual void initFeedback()
@@ -241,6 +240,15 @@ public:
     enable_feedback_ = true;
     fb_controller_->initTrackingController();
   };
+
+  virtual void GPUSetup()
+  {
+    // Call the GPU setup functions of the model, cost, sampling distribution, and feedback controller
+    model_->GPUSetup();
+    cost_->GPUSetup();
+    fb_controller_->GPUSetup();
+    sampler_->GPUSetup();
+  }
 
   virtual std::vector<output_trajectory> getSampledOutputTrajectories() const
   {
@@ -627,6 +635,7 @@ public:
       params_.num_timesteps_ = MAX_TIMESTEPS;
       printf("You must give a number of timesteps between [0, %d]\n", MAX_TIMESTEPS);
     }
+    sampler_->setNumTimesteps(params_.num_timesteps_);
   }
 
   void setBaseline(float baseline, int index = 0)
@@ -647,11 +656,11 @@ public:
   /**
    * updates the scaling factor of noise for sampling around the nominal trajectory
    */
-  void updateControlNoiseStdDev(const Eigen::Ref<const control_array>& sigma_u)
-  {
-    params_.control_std_dev_ = sigma_u;
-    copyControlStdDevToDevice();
-  }
+  // void updateControlNoiseStdDev(const Eigen::Ref<const control_array>& sigma_u)
+  // {
+  //   params_.control_std_dev_ = sigma_u;
+  //   copyControlStdDevToDevice();
+  // }
 
   void disableFeedbackController()
   {
@@ -769,27 +778,23 @@ public:
 
   const TEMPLATED_SAMPLING_PARAMS getSamplingParams() const
   {
-    return sampling_->getParams();
-  }
-
-  TEMPLATED_SAMPLING_PARAMS getSamplingParams() const
-  {
-    return sampling_->getParams();
+    return sampler_->getParams();
   }
 
   void setSamplingParams(const TEMPLATED_SAMPLING_PARAMS& params, bool synchronize = true)
   {
-    sampling_->setParams(params, synchronize);
+    sampler_->setParams(params, synchronize);
   }
 
   void setParams(const PARAMS_T& p)
   {
     bool change_seed = p.seed_ != params_.seed_;
-    bool change_std_dev = p.control_std_dev_ != params_.control_std_dev_;
+    bool change_num_timesteps = p.num_timesteps_ != params_.num_timesteps_;
+    // bool change_std_dev = p.control_std_dev_ != params_.control_std_dev_;
     params_ = p;
-    if (change_std_dev)
+    if (change_num_timesteps)
     {
-      copyControlStdDevToDevice();
+      setNumTimesteps(p.num_timesteps_);
     }
     if (change_seed)
     {
@@ -837,16 +842,16 @@ protected:
 
   curandGenerator_t gen_;
   // float* control_std_dev_d_;  // Array of size DYN_T::CONTROL_DIM
-  float* initial_state_d_;    // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
+  float* initial_state_d_;  // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 
   Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_history_;
 
   // one array of this size is allocated for each state we care about,
   // so it can be the size*N for N nominal states
   // [actual, nominal]
-  float* control_d_;                  // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*N
-  float* output_d_;                   // Array of size DYN_T::OUTPUT_DIM*NUM_ROLLOUTS*N
-  float* trajectory_costs_d_;         // Array of size NUM_ROLLOUTS*N
+  float* control_d_;           // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*N
+  float* output_d_;            // Array of size DYN_T::OUTPUT_DIM*NUM_ROLLOUTS*N
+  float* trajectory_costs_d_;  // Array of size NUM_ROLLOUTS*N
   // float* control_noise_d_;            // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS*N
   float2* cost_baseline_and_norm_d_;  // Array of size number of systems
   control_trajectory control_ = control_trajectory::Zero();
@@ -871,7 +876,7 @@ protected:
   // tracking controller variables
   bool enable_feedback_ = false;
 
-  void copyControlStdDevToDevice(bool synchronize = true);
+  // void copyControlStdDevToDevice(bool synchronize = true);
 
   void copyNominalControlToDevice(bool synchronize = true);
 

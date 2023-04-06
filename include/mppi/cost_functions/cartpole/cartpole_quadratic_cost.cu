@@ -1,4 +1,5 @@
 #include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
+#include <mppi/utils/angle_utils.cuh>
 
 CartpoleQuadraticCost::CartpoleQuadraticCost(cudaStream_t stream)
 {
@@ -11,8 +12,8 @@ float CartpoleQuadraticCost::computeStateCost(const Eigen::Ref<const output_arra
              params_.cart_position_coeff +
          (s[1] - params_.desired_terminal_state[1]) * (s[1] - params_.desired_terminal_state[1]) *
              params_.cart_velocity_coeff +
-         (s[2] - params_.desired_terminal_state[2]) * (s[2] - params_.desired_terminal_state[2]) *
-             params_.pole_angle_coeff +
+         angle_utils::shortestAngularDistance(s[2], params_.desired_terminal_state[2]) *
+             angle_utils::shortestAngularDistance(s[2], params_.desired_terminal_state[2]) * params_.pole_angle_coeff +
          (s[3] - params_.desired_terminal_state[3]) * (s[3] - params_.desired_terminal_state[3]) *
              params_.pole_angular_velocity_coeff;
 }

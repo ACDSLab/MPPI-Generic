@@ -244,4 +244,16 @@ protected:
 #include "cost.cu"
 #endif
 
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+const int Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::CONTROL_DIM;
+
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+const int Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::OUTPUT_DIM;
+
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+const int Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::SHARED_MEM_REQUEST_BLK_BYTES;
+
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+const int Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::SHARED_MEM_REQUEST_GRD_BYTES;
+
 #endif  // COSTS_CUH_
