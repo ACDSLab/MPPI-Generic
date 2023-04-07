@@ -20,6 +20,7 @@ struct alignas(float4) SamplingParams
   int num_rollouts = 1;
   int num_timesteps = 1;
   int num_distributions = 1;
+  int num_visualization_rollouts = 0;
   SamplingParams(int num_rollouts, int num_timesteps, int num_distributions = 1)
     : num_rollouts{ num_rollouts }, num_timesteps{ num_timesteps }, num_distributions{ num_distributions }
   {
@@ -93,12 +94,20 @@ public:
     bool reallocate_memory = params_.num_timesteps != params.num_timesteps ||
                              params_.num_rollouts != params.num_rollouts ||
                              params_.num_distributions != params.num_distributions;
+    bool reallocate_vis_memory = params_.num_timesteps != params.num_timesteps ||
+                                 params_.num_visualization_rollouts != params.num_visualization_rollouts ||
+                                 params_.num_distributions != params.num_distributions;
+
     params_ = params;
     if (GPUMemStatus_)
     {
       if (reallocate_memory)
       {
         allocateCUDAMemory(false);
+      }
+      if (reallocate_vis_memory)
+      {
+        resizeVisualizationControlTrajectories(true);
       }
       CLASS_T& derived = static_cast<CLASS_T&>(*this);
       derived.paramsToDevice(synchronize);
@@ -125,12 +134,17 @@ public:
     return this->params_.num_rollouts;
   }
 
+  __host__ __device__ int getNumVisRollouts() const
+  {
+    return this->params_.num_visualization_rollouts;
+  }
+
   __host__ __device__ int getNumDistributions() const
   {
     return this->params_.num_distributions;
   }
 
-  __host__ __device__ void setNumTimesteps(const int num_timesteps, bool synchronize = false)
+  __host__ void setNumTimesteps(const int num_timesteps, bool synchronize = false)
   {
     const bool reallocate_memory = params_.num_timesteps != num_timesteps;
     this->params_.num_timesteps = num_timesteps;
@@ -139,13 +153,29 @@ public:
       if (reallocate_memory)
       {
         allocateCUDAMemory(false);
+        resizeVisualizationControlTrajectories(true);
       }
       CLASS_T& derived = static_cast<CLASS_T&>(*this);
       derived.paramsToDevice(synchronize);
     }
   }
 
-  __host__ __device__ void setNumRollouts(const int num_rollouts, bool synchronize = false)
+  __host__ void setNumVisRollouts(const int num_visualization_rollouts, bool synchronize = false)
+  {
+    const bool reallocate_memory = params_.num_visualization_rollouts != num_visualization_rollouts;
+    this->params_.num_visualization_rollouts = num_visualization_rollouts;
+    if (GPUMemStatus_ && reallocate_memory)
+    {
+      if (reallocate_memory)
+      {
+        resizeVisualizationControlTrajectories(true);
+      }
+      CLASS_T& derived = static_cast<CLASS_T&>(*this);
+      derived.paramsToDevice(synchronize);
+    }
+  }
+
+  __host__ void setNumRollouts(const int num_rollouts, bool synchronize = false)
   {
     const bool reallocate_memory = params_.num_rollouts != num_rollouts;
     this->params_.num_rollouts = num_rollouts;
@@ -160,7 +190,7 @@ public:
     }
   }
 
-  __host__ __device__ void setNumDistributions(const int num_distributions, bool synchronize = false)
+  __host__ void setNumDistributions(const int num_distributions, bool synchronize = false)
   {
     const bool reallocate_memory = params_.num_distributions != num_distributions;
     this->params_.num_distributions = num_distributions;
@@ -169,10 +199,18 @@ public:
       if (reallocate_memory)
       {
         allocateCUDAMemory(false);
+        resizeVisualizationControlTrajectories(true);
       }
       CLASS_T& derived = static_cast<CLASS_T&>(*this);
       derived.paramsToDevice(synchronize);
     }
+  }
+
+  __host__ void resizeVisualizationControlTrajectories(bool synchronize = true);
+
+  __host__ void setVisStream(cudaStream_t stream)
+  {
+    vis_stream_ = stream;
   }
 
   __host__ void allocateCUDAMemory(bool synchronize = false);
@@ -195,6 +233,20 @@ public:
   __host__ __device__ float* getControlSample(const int& sample_index, const int& t, const int& distribution_index,
                                               const float* __restrict__ theta_d = nullptr,
                                               const float* __restrict__ output = nullptr);
+
+  /**
+   * @brief Get a pointer to a specific visualization control sample.
+   *
+   * @param sample_index - sample number out of num_visualization_rollouts
+   * @param t - timestep out of num_timesteps
+   * @param distribution_index - distribution index (if it is larger than num_distributions, it just defaults to first
+   * distribution for future compatibility with sampling dynamical systems)
+   * @param output - output pointer for compatibility with a output-based sampling distribution
+   * @return float* pointer to the control array that is at [distribution_index][sample_index][t]
+   */
+  __host__ __device__ float* getVisControlSample(const int& sample_index, const int& t, const int& distribution_index,
+                                                 const float* __restrict__ theta_d = nullptr,
+                                                 const float* __restrict__ output = nullptr);
 
   /**
    * @brief Method for starting up any potential work for distributions. By default, it just loads the params into
@@ -227,6 +279,25 @@ public:
   __device__ void readControlSample(const int& sample_index, const int& t, const int& distribution_index,
                                     float* __restrict__ control, float* __restrict__ theta_d, const int& block_size = 1,
                                     const int& thread_index = 1, const float* __restrict__ output = nullptr);
+
+  /**
+   * @brief Look up a specific visualization control sample located at [distribution_index][sample_index][t] and put it
+   * into the control array
+   *
+   * @param sample_index - sample number out of num_visualization_rollouts
+   * @param t - timestep out of num_timesteps
+   * @param distribution_index - distribution index (if it is larger than num_distributions, it just defaults to first
+   * distribution for future compatibility with sampling dynamical systems)
+   * @param control - pointer to fill with the specific control array
+   * @param theta_d - shared memory pointer for passing through params
+   * @param block_size - parallelizable step size for the gpu (normally blockDim.y)
+   * @param thread_index - parallelizable index for the gpu (normally threadIdx.y)
+   * @param output - output pointer for compatibility with a output-based sampling distribution
+   */
+  __device__ void readVisControlSample(const int& sample_index, const int& t, const int& distribution_index,
+                                       float* __restrict__ control, float* __restrict__ theta_d,
+                                       const int& block_size = 1, const int& thread_index = 1,
+                                       const float* __restrict__ output = nullptr);
 
   /**
    * @brief Update the distribution according to the weights of each sample. Should only be used if weights only exist
@@ -348,10 +419,13 @@ public:
                                      const float* __restrict__ output = nullptr);
 
   CLASS_T* sampling_d_ = nullptr;
-  SAMPLING_PARAMS_T params_;
+  cudaStream_t vis_stream_ = nullptr;
 
 protected:
   float* control_samples_d_ = nullptr;
+  float* vis_control_samples_d_ = nullptr;
+
+  SAMPLING_PARAMS_T params_;
 };
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>

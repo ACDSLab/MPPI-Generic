@@ -247,6 +247,7 @@ public:
     model_->GPUSetup();
     cost_->GPUSetup();
     fb_controller_->GPUSetup();
+    sampler_->setVisStream(vis_stream_);
     sampler_->GPUSetup();
   }
 

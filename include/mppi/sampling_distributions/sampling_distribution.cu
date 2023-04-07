@@ -15,6 +15,7 @@ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::GPUSetup()
   {
     sampling_d_ = Managed::GPUSetup<CLASS_T>(derived);
     allocateCUDAMemory();
+    resizeVisualizationControlTrajectories(true);
   }
   else
   {
@@ -30,9 +31,11 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::free
   {
     HANDLE_ERROR(cudaFree(sampling_d_));
     HANDLE_ERROR(cudaFree(control_samples_d_));
+    HANDLE_ERROR(cudaFree(vis_control_samples_d_));
     GPUMemStatus_ = false;
     sampling_d_ = nullptr;
     control_samples_d_ = nullptr;
+    vis_control_samples_d_ = nullptr;
   }
 }
 
@@ -108,6 +111,37 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::allo
 }
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
+__host__ void
+SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::resizeVisualizationControlTrajectories(bool synchronize)
+{
+  if (GPUMemStatus_)
+  {
+    if (vis_control_samples_d_)
+    {  // deallocate previous memory for control samples
+      HANDLE_ERROR(cudaFreeAsync(vis_control_samples_d_, vis_stream_));
+      // vis_control_samples_d_ = nullptr;
+    }
+    if (this->getNumVisRollouts() == 0)
+    {  // No need to allocate mmemory if it will end up being zero
+      vis_control_samples_d_ = nullptr;
+    }
+    else
+    {
+      HANDLE_ERROR(cudaMallocAsync((void**)&vis_control_samples_d_,
+                                   sizeof(float) * this->getNumDistributions() * this->getNumVisRollouts() *
+                                       this->getNumTimesteps() * CONTROL_DIM,
+                                   vis_stream_));
+    }
+    HANDLE_ERROR(cudaMemcpyAsync(&sampling_d_->vis_control_samples_d_, &vis_control_samples_d_, sizeof(float*),
+                                 cudaMemcpyHostToDevice, vis_stream_));
+  }
+  if (synchronize)
+  {
+    HANDLE_ERROR(cudaStreamSynchronize(vis_stream_));
+  }
+}
+
+template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 __device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::readControlSample(
     const int& sample_index, const int& t, const int& distribution_index, float* __restrict__ control,
     float* __restrict__ theta_d, const int& block_size, const int& thread_index, const float* __restrict__ output)
@@ -146,6 +180,45 @@ __device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::re
 }
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
+__device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::readVisControlSample(
+    const int& sample_index, const int& t, const int& distribution_index, float* __restrict__ control,
+    float* __restrict__ theta_d, const int& block_size, const int& thread_index, const float* __restrict__ output)
+{
+  SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
+  const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;
+  const int control_index =
+      ((params_p->num_visualization_rollouts * distribution_i + sample_index) * params_p->num_timesteps + t) *
+      CONTROL_DIM;
+  if (CONTROL_DIM % 4 == 0)
+  {
+    float4* u4 = reinterpret_cast<float4*>(control);
+    const float4* u4_d = reinterpret_cast<const float4*>(&(this->vis_control_samples_d_[control_index]));
+    for (int i = thread_index; i < CONTROL_DIM / 4; i += block_size)
+    {
+      u4[i] = u4_d[i];
+    }
+  }
+  else if (CONTROL_DIM % 2 == 0)
+  {
+    float2* u2 = reinterpret_cast<float2*>(control);
+    const float2* u2_d = reinterpret_cast<const float2*>(&(this->vis_control_samples_d_[control_index]));
+    for (int i = thread_index; i < CONTROL_DIM / 2; i += block_size)
+    {
+      u2[i] = u2_d[i];
+    }
+  }
+  else
+  {
+    float* u = reinterpret_cast<float*>(control);
+    const float* u_d = reinterpret_cast<const float*>(&(this->vis_control_samples_d_[control_index]));
+    for (int i = thread_index; i < CONTROL_DIM; i += block_size)
+    {
+      u[i] = u_d[i];
+    }
+  }
+}
+
+template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 __host__ __device__ float* SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::getControlSample(
     const int& sample_index, const int& t, const int& distribution_index, const float* __restrict__ theta_d,
     const float* __restrict__ output)
@@ -159,6 +232,22 @@ __host__ __device__ float* SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PA
   return &this->control_samples_d_[((params_p->num_rollouts * distribution_i + sample_index) * params_p->num_timesteps +
                                     t) *
                                    CONTROL_DIM];
+}
+
+template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
+__host__ __device__ float* SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::getVisControlSample(
+    const int& sample_index, const int& t, const int& distribution_index, const float* __restrict__ theta_d,
+    const float* __restrict__ output)
+{
+#ifdef __CUDA_ARCH__
+  SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
+#else
+  SAMPLING_PARAMS_T* params_p = &this->params_;
+#endif
+  const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;
+  return &this->vis_control_samples_d_
+              [((params_p->num_visualization_rollouts * distribution_i + sample_index) * params_p->num_timesteps + t) *
+               CONTROL_DIM];
 }
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>

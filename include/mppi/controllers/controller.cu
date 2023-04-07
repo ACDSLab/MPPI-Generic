@@ -17,7 +17,7 @@ void CONTROLLER::deallocateCUDAMemory()
   if (sampled_states_CUDA_mem_init_)
   {
     HANDLE_ERROR(cudaFree(sampled_outputs_d_));
-    HANDLE_ERROR(cudaFree(sampled_noise_d_));
+    // HANDLE_ERROR(cudaFree(sampled_noise_d_));
     HANDLE_ERROR(cudaFree(sampled_costs_d_));
     sampled_states_CUDA_mem_init_ = false;
   }
@@ -76,9 +76,10 @@ void CONTROLLER::copySampledControlFromDevice(bool synchronize)
   HANDLE_ERROR(cudaMemcpyAsync(this->sampled_outputs_d_, this->output_.data(),
                                sizeof(float) * getNumTimesteps() * DYN_T::OUTPUT_DIM, cudaMemcpyHostToDevice,
                                this->vis_stream_));
-  HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_, this->control_d_,
-                               sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
-                               this->vis_stream_));
+  HANDLE_ERROR(cudaMemcpyAsync(
+      //  this->sampled_noise_d_,
+      this->sampler_->getVisControlSample(0, 0, 0), this->control_d_,
+      sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice, this->vis_stream_));
 
   for (int i = 1; i < num_sampled_trajectories; i++)
   {
@@ -86,11 +87,11 @@ void CONTROLLER::copySampledControlFromDevice(bool synchronize)
                                  this->output_d_ + samples[i] * getNumTimesteps() * DYN_T::OUTPUT_DIM,
                                  sizeof(float) * getNumTimesteps() * DYN_T::OUTPUT_DIM, cudaMemcpyDeviceToDevice,
                                  this->vis_stream_));
-    HANDLE_ERROR(cudaMemcpyAsync(this->sampled_noise_d_ + i * getNumTimesteps() * DYN_T::CONTROL_DIM,
-                                 this->sampler_->getControlSample(samples[i], 0, 0),
-                                 //  this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
-                                 sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice,
-                                 this->vis_stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(
+        //  this->sampled_noise_d_ + i * getNumTimesteps() * DYN_T::CONTROL_DIM,
+        this->sampler_->getVisControlSample(i, 0, 0), this->sampler_->getControlSample(samples[i], 0, 0),
+        //  this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
+        sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice, this->vis_stream_));
   }
   if (synchronize)
   {
@@ -163,7 +164,8 @@ void CONTROLLER::copyTopControlFromDevice(bool synchronize)
         this->output_d_ + samples[i] * getNumTimesteps() * DYN_T::OUTPUT_DIM,
         sizeof(float) * getNumTimesteps() * DYN_T::OUTPUT_DIM, cudaMemcpyDeviceToDevice, this->vis_stream_));
     HANDLE_ERROR(cudaMemcpyAsync(
-        this->sampled_noise_d_ + (start_top_control_traj_index + i) * getNumTimesteps() * DYN_T::CONTROL_DIM,
+        // this->sampled_noise_d_ + (start_top_control_traj_index + i) * getNumTimesteps() * DYN_T::CONTROL_DIM,
+        this->sampler_->getVisControlSample(start_top_control_traj_index + i, 0, 0),
         this->sampler_->getControlSample(samples[i], 0, 0),
         // this->control_noise_d_ + samples[i] * getNumTimesteps() * DYN_T::CONTROL_DIM,
         sizeof(float) * getNumTimesteps() * DYN_T::CONTROL_DIM, cudaMemcpyDeviceToDevice, this->vis_stream_));
@@ -238,7 +240,7 @@ void CONTROLLER::resizeSampledControlTrajectories(float perc, int multiplier, in
   if (sampled_states_CUDA_mem_init_)
   {
     cudaFree(sampled_outputs_d_);
-    cudaFree(sampled_noise_d_);
+    // cudaFree(sampled_noise_d_);
     cudaFree(sampled_costs_d_);
     cudaFree(sampled_crash_status_d_);
     sampled_states_CUDA_mem_init_ = false;
@@ -246,6 +248,7 @@ void CONTROLLER::resizeSampledControlTrajectories(float perc, int multiplier, in
   sampled_trajectories_.resize(num_sampled_trajectories * multiplier, output_trajectory::Zero());
   sampled_costs_.resize(num_sampled_trajectories * multiplier, cost_trajectory::Zero());
   sampled_crash_status_.resize(num_sampled_trajectories * multiplier, crash_status_trajectory::Zero());
+  sampler_->setNumVisRollouts(num_sampled_trajectories);
   if (num_sampled_trajectories <= 0)
   {
     return;
@@ -253,8 +256,9 @@ void CONTROLLER::resizeSampledControlTrajectories(float perc, int multiplier, in
 
   HANDLE_ERROR(cudaMalloc((void**)&sampled_outputs_d_,
                           sizeof(float) * DYN_T::OUTPUT_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
-  HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_,
-                          sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS * num_sampled_trajectories * multiplier));
+  // HANDLE_ERROR(cudaMalloc((void**)&sampled_noise_d_,
+  //                         sizeof(float) * DYN_T::CONTROL_DIM * MAX_TIMESTEPS * num_sampled_trajectories *
+  //                         multiplier));
   // +1 for terminal cost
   HANDLE_ERROR(cudaMalloc((void**)&sampled_costs_d_,
                           sizeof(float) * (MAX_TIMESTEPS + 1) * num_sampled_trajectories * multiplier));

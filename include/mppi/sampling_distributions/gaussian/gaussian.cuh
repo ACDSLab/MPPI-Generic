@@ -64,7 +64,7 @@ struct GaussianParamsImpl : public SamplingParams<C_DIM>
 template <int C_DIM>
 using GaussianParams = GaussianParamsImpl<C_DIM, 2>;
 
-template <int C_DIM, int MAX_TIMESTEPS = 2, int MAX_DISTRIBUTIONS_T = 2>
+template <int C_DIM, int MAX_TIMESTEPS = 1, int MAX_DISTRIBUTIONS_T = 2>
 struct GaussianTimeVaryingStdDevParams : public GaussianParamsImpl<C_DIM, MAX_DISTRIBUTIONS_T>
 {
   float std_dev[C_DIM * MAX_TIMESTEPS * MAX_DISTRIBUTIONS_T] = { 0.0f };

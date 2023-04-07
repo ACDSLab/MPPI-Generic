@@ -25,6 +25,12 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
                                       const int num_timesteps, const int optimization_stride, const int num_rollouts,
                                       const float* __restrict__ init_x_d, float* __restrict__ y_d);
 
+template <class COST_T, class SAMPLING_T, bool COALESCE = false>
+__global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
+                                    const int num_timesteps, const int num_rollouts, const float lambda, float alpha,
+                                    const float* __restrict__ y_d, float* __restrict__ cost_traj_d,
+                                    int* __restrict__ crash_status_d);
+
 template <int CONTROL_DIM>
 __global__ void weightedReductionKernel(const float* __restrict__ exp_costs_d, const float* __restrict__ du_d,
                                         float* __restrict__ new_u_d, const float normalizer, const int num_timesteps,
@@ -54,16 +60,25 @@ __device__ void warpReduceAdd(volatile float* sdata, const int tid);
  * Launch Kernel Methods
  **/
 template <class DYN_T, class COST_T, typename SAMPLING_T>
-void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, SAMPLING_T* sampling, float dt, const int num_timesteps,
+void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
+                             SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
                              const int num_rollouts, const int optimization_stride, float lambda, float alpha,
                              float* __restrict__ init_x_d, float* __restrict__ y_d,
                              float* __restrict__ trajectory_costs, dim3 dimDynBlock, dim3 dimCostBlock,
-                             cudaStream_t stream, bool synchronize);
+                             cudaStream_t stream, bool synchronize = true);
+
+template <class COST_T, class SAMPLING_T>
+void launchVisualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
+                               const int num_timesteps, const int num_rollouts, float lambda, float alpha,
+                               float* __restrict__ y_d, int* __restrict__ sampled_crash_status_d,
+                               float* __restrict__ cost_traj_result, dim3 dimBlock, cudaStream_t stream,
+                               bool synchronize = true);
 
 template <int CONTROL_DIM>
 void launchWeightedReductionKernel(const float* __restrict__ exp_costs_d, const float* __restrict__ du_d,
                                    float* __restrict__ new_u_d, const float normalizer, const int num_timesteps,
-                                   const int num_rollouts, const int sum_stride, cudaStream_t stream, bool synchronize);
+                                   const int num_rollouts, const int sum_stride, cudaStream_t stream,
+                                   bool synchronize = true);
 
 }  // namespace kernels
 }  // namespace mppi

@@ -217,6 +217,10 @@ void VanillaMPPI::calculateSampledStateTrajectories()
   int num_sampled_trajectories = this->getTotalSampledTrajectories();
 
   // control already copied in compute control, so run kernel
+  mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
+      this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
+      num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
+      this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->stream_, false);
   // #if true
   //   mppi_common::launchVisualizeCostKernel<COST_T, 128, 4, 1>(
   //       this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(),
