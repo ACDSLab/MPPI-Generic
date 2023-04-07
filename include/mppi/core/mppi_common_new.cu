@@ -93,7 +93,11 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   running_cost = &running_cost_shared[blockDim.x * thread_idz];
 #if true
   int prev_size = blockDim.x;
-  for (int size = prev_size / 2; size > 32; size /= 2)
+  // Allow for better computation when blockDim.x is a power of 2
+  const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
+  const int stop_condition = (block_power_of_2) ? 32 : 0;
+  int size;
+  for (size = prev_size / 2; size > stop_condition; size /= 2)
   {
     if (thread_idy == 0)
     {
@@ -112,7 +116,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   }
   if (thread_idx < 32 && thread_idy == 0)
   {  // unroll the last warp
-    switch (blockDim.x)
+    switch (size * 2)
     {
       case 64:
         warpReduceAdd<64>(running_cost, thread_idx);
@@ -502,10 +506,11 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
   }
 }
 
-template <class COST_T, class SAMPLING_T, class FB_T, int BLOCKSIZE_X, bool COALESCE, int NOMINAL_STATE_IDX = 0>
-__global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, FB_T* __restrict__ fb_controller,
-                                       SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
-                                       const int num_rollouts, float lambda, float alpha,
+template <class COST_T, class DYN_T, class SAMPLING_T, class FB_T, int BLOCKSIZE_X, bool COALESCE,
+          int NOMINAL_STATE_IDX = 0>
+__global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __restrict__ dynamics,
+                                       FB_T* __restrict__ fb_controller, SAMPLING_T* __restrict__ sampling, float dt,
+                                       const int num_timesteps, const int num_rollouts, float lambda, float alpha,
                                        const float* __restrict__ init_x_d, const float* __restrict__ y_d,
                                        float* __restrict__ trajectory_costs_d)
 {
@@ -602,8 +607,8 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, FB_T* __restr
       // we do not apply feedback on the nominal state
       float x[COST_T::STATE_DIM];
       float x_nom[COST_T::STATE_DIM];
-      // dynamics->outputToState(y, x);
-      // dynamics->outputToState(y_nom, x_nom);
+      dynamics->outputToState(y, x);
+      dynamics->outputToState(y_nom, x_nom);
       __syncthreads();
       fb_controller->k(x, x_nom, t, theta_fb, fb_control);
 
@@ -621,11 +626,15 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, FB_T* __restr
   }
 
   // Add all costs together
-  int prev_size = BLOCKSIZE_X;
   running_cost = &running_cost_shared[blockDim.x * thread_idz];
   running_cost_extra = &running_cost_shared[blockDim.x * (blockDim.z + thread_idz)];
 #if true
-  for (int size = prev_size / 2; size > 32; size /= 2)
+  int prev_size = blockDim.x;
+  // Allow for better computation when blockDim.x is a power of 2
+  const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
+  const int stop_condition = (block_power_of_2) ? 32 : 0;
+  int size;
+  for (size = prev_size / 2; size > stop_condition; size /= 2)
   {
     if (thread_idy == 0)
     {
@@ -646,7 +655,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, FB_T* __restr
   }
   if (thread_idx < 32 && thread_idy == 0)
   {  // unroll the last warp
-    switch (blockDim.x)
+    switch (size * 2)
     {
       case 64:
         warpReduceAdd<64>(running_cost, thread_idx);
@@ -679,6 +688,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, FB_T* __restr
     }
   }
 #else
+  int prev_size = BLOCKSIZE_X;
 #pragma unroll
   for (int size = prev_size / 2; size > 0; size /= 2)
   {
@@ -901,6 +911,18 @@ void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ 
                              float* __restrict__ trajectory_costs, dim3 dimDynBlock, dim3 dimCostBlock,
                              cudaStream_t stream, bool synchronize)
 {
+  if (num_rollouts % dimDynBlock.x != 0)
+  {
+    std::cerr << __FILE__ << " (" << __LINE__ << "): num_rollouts (" << num_rollouts
+              << ") must be evenly divided by dynamics block size x (" << dimDynBlock.x << ")" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+  if (num_timesteps < dimCostBlock.x)
+  {
+    std::cerr << __FILE__ << " (" << __LINE__ << "): num_timesteps (" << num_timesteps
+              << ") must be greater than or equal to cost block size x (" << dimCostBlock.x << ")" << std::endl;
+    exit(EXIT_FAILURE);
+  }
   // Run Dynamics
   const int gridsize_x = math::int_ceil(num_rollouts, dimDynBlock.x);
   dim3 dimGrid(gridsize_x, 1, 1);

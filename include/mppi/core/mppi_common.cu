@@ -1323,6 +1323,13 @@ void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, const int
                              float* sigma_u_d, float* trajectory_costs, cudaStream_t stream, bool synchronize)
 {
   // Run Dynamics
+  static_assert(NUM_ROLLOUTS % DYN_BLOCK_X == 0, "NUM_ROLLOUTS must be evenly divided by DYN_BLOCK_X");
+  if (num_timesteps < COST_BLOCK_X)
+  {
+    std::cerr << __FILE__ << " (" << __LINE__ << "): num_timesteps (" << num_timesteps
+              << ") must be greater than or equal to cost block size x (" << COST_BLOCK_X << ")" << std::endl;
+    exit(EXIT_FAILURE);
+  }
   const int gridsize_x = (NUM_ROLLOUTS - 1) / DYN_BLOCK_X + 1;
   dim3 dimBlock(DYN_BLOCK_X, DYN_BLOCK_Y, BLOCKSIZE_Z);
   dim3 dimGrid(gridsize_x, 1, 1);

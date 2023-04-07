@@ -117,17 +117,26 @@ inline constexpr __host__ __device__ int int_ceil_const(const int& a, const int&
   return a == 0 ? a : (a - 1) / b + 1;
 }
 
+/**
+ * @brief gives back the next multiple of b larger than or equal to a.
+ * For example, if a = 3, b = 2, this method returns 4
+ *
+ * @param a - int to be larger than
+ * @param b - int to be multiple of
+ * @return int - the next multiple of b larger than a
+ */
 inline constexpr __host__ __device__ int int_multiple_const(const int& a, const int& b)
 {
   return a == 0 ? a : ((a - 1) / b + 1) * b;
 }
 
-// Returns the next largest multiple of 4 for a/4, Useful for calculating aligned memory sizes
+// Returns the int version of ceil(a/4)
 inline __host__ __device__ int nearest_quotient_4(const int& a)
 {
   return int_ceil(a, 4);
 }
 
+// Returns the next multiple of 4 larger than or equal to a, Useful for calculating aligned memory sizes
 inline __host__ __device__ int nearest_multiple_4(const int& a)
 {
   return int_ceil(a, 4) * 4;
