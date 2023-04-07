@@ -265,8 +265,8 @@ public:
    * @param alpha - coeff to turn off the likelihood cost (set to 1 -> no likelihood cost, set to 0 -> all likelihood
    * cost)
    */
-  __host__ __device__ float computeLikelihoodRatioCost(const float* __restrict__ u, const float* __restrict__ theta_d,
-                                                       const int t, const int distribution_idx,
+  __host__ __device__ float computeLikelihoodRatioCost(const float* __restrict__ u, float* __restrict__ theta_d,
+                                                       const int sample_index, const int t, const int distribution_idx,
                                                        const float lambda = 1.0, const float alpha = 0.0);
 
   /**
@@ -327,6 +327,25 @@ public:
    */
   __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
                                                    const int& distribution_i, bool synchronize = false);
+
+  /**
+   * @brief Write to a specific control sample located at [distribution_index][sample_index][t] from the
+   * control array
+   *
+   * @param sample_index - sample number out of num_rollouts
+   * @param t - timestep out of num_timesteps
+   * @param distribution_index - distribution index (if it is larger than num_distributions, it just defaults to first
+   * distribution for future compatibility with sampling dynamical systems)
+   * @param control - pointer to control array with the desired data
+   * @param theta_d - shared memory pointer for passing through params
+   * @param block_size - parallelizable step size for the gpu (normally blockDim.y)
+   * @param thread_index - parallelizable index for the gpu (normally threadIdx.y)
+   * @param output - output pointer for compatibility with a output-based sampling distribution
+   */
+  __device__ void writeControlSample(const int& sample_index, const int& t, const int& distribution_index,
+                                     const float* __restrict__ control, float* __restrict__ theta_d,
+                                     const int& block_size = 1, const int& thread_index = 1,
+                                     const float* __restrict__ output = nullptr);
 
   CLASS_T* sampling_d_ = nullptr;
   SAMPLING_PARAMS_T params_;

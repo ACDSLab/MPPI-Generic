@@ -82,8 +82,9 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
     // Compute cost
     if (thread_idy == 0 && t < num_timesteps)
     {
-      running_cost[0] += costs->computeRunningCost(y, u, t, theta_c, crash_status) +
-                         sampling->computeLikelihoodRatioCost(u, theta_d, t, distribution_idx, lambda, alpha);
+      running_cost[0] +=
+          costs->computeRunningCost(y, u, t, theta_c, crash_status) +
+          sampling->computeLikelihoodRatioCost(u, theta_d, t, global_idx, distribution_idx, lambda, alpha);
     }
     __syncthreads();
   }
@@ -218,8 +219,7 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
   __syncthreads();
   for (int t = 0; t < num_timesteps; t++)
   {
-    __syncthreads();
-    dynamics->enforceConstraints(x, sampling->getControlSample(global_idx, t, distribution_idx, theta_d_shared, y));
+    // __syncthreads();
     // Load noise trajectories scaled by the exploration factor
     sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d_shared, blockDim.y, thread_idy, y);
     // du_d is now v
@@ -238,8 +238,10 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
     // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
     // usually just control clamping
     // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
-    // dynamics->enforceConstraints(x, u);
+    dynamics->enforceConstraints(x, u);
     __syncthreads();
+    // Copy control constraints back to global memory
+    sampling->writeControlSample(global_idx, t, distribution_idx, u, theta_d_shared, blockDim.y, thread_idy, y);
 
     // Increment states
     dynamics->step(x, x_next, xdot, u, y, theta_s_shared, t, dt);
@@ -459,7 +461,8 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, FB_T* __restr
     if (thread_idz == NOMINAL_STATE_IDX && thread_idy == 0 && t < num_timesteps)
     {
       running_cost[0] += curr_cost;
-      running_cost_extra[0] += sampling->computeLikelihoodRatioCost(u, theta_d, t, distribution_idx, lambda, alpha);
+      running_cost_extra[0] +=
+          sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
     }
     if (thread_idz != NOMINAL_STATE_IDX && thread_idy == 0 && t < num_timesteps)
     {
@@ -472,7 +475,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, FB_T* __restr
       fb_controller->k(x, x_nom, t, theta_fb, fb_control);
 
       running_cost[0] +=
-          curr_cost + sampling->computeLikelihoodRatioCost(u, theta_d, t, distribution_idx, lambda, alpha);
+          curr_cost + sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
       running_cost_extra[0] = curr_cost + sampling->computeFeedbackCost(fb_control, lambda, alpha);
     }
 

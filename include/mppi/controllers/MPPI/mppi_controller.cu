@@ -59,7 +59,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     this->copyNominalControlToDevice(false);
 
     // Generate noise data
-    this->sampler_->generateSamples(optimization_stride, opt_iter, this->gen_);
+    this->sampler_->generateSamples(optimization_stride, opt_iter, this->gen_, false);
     // curandGenerateNormal(this->gen_, this->control_noise_d_,
     //                      NUM_ROLLOUTS * this->getNumTimesteps() * DYN_T::CONTROL_DIM, 0.0, 1.0);
     /*

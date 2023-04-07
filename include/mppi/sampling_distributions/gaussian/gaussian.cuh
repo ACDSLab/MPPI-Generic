@@ -4,9 +4,6 @@
  **/
 
 #include <mppi/sampling_distributions/sampling_distribution.cuh>
-#include <mppi/core/mppi_common_new.cuh>
-#include <mppi/utils/cuda_math_utils.cuh>
-#include <mppi/utils/math_utils.h>
 
 #include <vector>
 
@@ -125,7 +122,7 @@ public:
                                                 const float alpha = 0.0);
 
   __host__ __device__ float computeLikelihoodRatioCost(const float* __restrict__ u, float* __restrict__ theta_d,
-                                                       const int t, const int distribution_idx,
+                                                       const int sample_index, const int t, const int distribution_idx,
                                                        const float lambda = 1.0, const float alpha = 0.0);
 
   __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int t,
@@ -170,8 +167,9 @@ public:
   }
 };
 
+}  // namespace sampling_distributions
+}  // namespace mppi
+
 #if __CUDACC__
 #include "gaussian.cu"
 #endif
-}  // namespace sampling_distributions
-}  // namespace mppi

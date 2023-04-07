@@ -118,6 +118,7 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
     sampler_params.std_dev[i] = control_std_dev[i];
   }
   sampler_params.control_cost_coeff[0] = 1;
+  sampler_params.rewrite_controls_block_dim = dim3(64, 16, 1);
   auto sampler = mppi::sampling_distributions::GaussianDistribution<CartpoleDynamics::DYN_PARAMS_T>(sampler_params);
 
   auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
@@ -125,7 +126,8 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
       &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
   auto controller_params = controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 8, 1);
-  controller_params.cost_rollout_dim_ = dim3(64, 8, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
+  controller_params.seed_ = 42;
   controller.setParams(controller_params);
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
@@ -136,6 +138,11 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
 
   for (int i = 0; i < time_horizon; ++i)
   {
+    // if (i % 50 == 0 || i < 4)
+    // {
+    //   std::cout << "optimal control: " << controller.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 10)
+    //   << std::endl;
+    // }
     if (i % 50 == 0)
     {
       printf("Current Time: %f    ", i * dt);
@@ -148,10 +155,6 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
 
     CartpoleDynamics::control_array control;
     control = controller.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
-    if (i % 50 == 0)
-    {
-      std::cout << "optimal control: " << control.transpose() << std::endl;
-    }
     // Increment the state
     model.computeStateDeriv(current_state, control, xdot);
     model.updateState(current_state, xdot, dt);

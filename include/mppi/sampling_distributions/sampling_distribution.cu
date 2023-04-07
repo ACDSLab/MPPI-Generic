@@ -160,5 +160,44 @@ __host__ __device__ float* SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PA
                                     t) *
                                    CONTROL_DIM];
 }
+
+template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
+__device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::writeControlSample(
+    const int& sample_index, const int& t, const int& distribution_index, const float* __restrict__ control,
+    float* __restrict__ theta_d, const int& block_size, const int& thread_index, const float* __restrict__ output)
+{
+  SAMPLING_PARAMS_T* params_p = (SAMPLING_PARAMS_T*)theta_d;
+  const int distribution_i = distribution_index >= params_p->num_distributions ? 0 : distribution_index;
+  const int control_index =
+      ((params_p->num_rollouts * distribution_i + sample_index) * params_p->num_timesteps + t) * CONTROL_DIM;
+  if (CONTROL_DIM % 4 == 0)
+  {
+    const float4* u4 = reinterpret_cast<const float4*>(control);
+    float4* u4_d = reinterpret_cast<float4*>(&(this->control_samples_d_[control_index]));
+    for (int i = thread_index; i < CONTROL_DIM / 4; i += block_size)
+    {
+      u4_d[i] = u4[i];
+    }
+  }
+  else if (CONTROL_DIM % 2 == 0)
+  {
+    const float2* u2 = reinterpret_cast<const float2*>(control);
+    float2* u2_d = reinterpret_cast<float2*>(&(this->control_samples_d_[control_index]));
+    for (int i = thread_index; i < CONTROL_DIM / 2; i += block_size)
+    {
+      u2_d[i] = u2[i];
+    }
+  }
+  else
+  {
+    const float* u = reinterpret_cast<const float*>(control);
+    float* u_d = reinterpret_cast<float*>(&(this->control_samples_d_[control_index]));
+    for (int i = thread_index; i < CONTROL_DIM; i += block_size)
+    {
+      u_d[i] = u[i];
+    }
+  }
+}
+
 }  // namespace sampling_distributions
 }  // namespace mppi
