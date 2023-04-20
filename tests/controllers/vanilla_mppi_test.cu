@@ -229,6 +229,8 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
   // control_std_dev[3] = 2;
   auto sampler_params = sampler->getParams();
   sampler_params.std_dev[3] = 2.0f;
+  sampler_params.rewrite_controls_block_dim = dim3(64, 16, 1);
+  sampler_params.sum_strides = 32;
   sampler->setParams(sampler_params);
 
   // CONTROLLER::control_trajectory init_control = CONTROLLER::control_trajectory::Zero();
@@ -239,6 +241,10 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
 
   // auto controller = CONTROLLER(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_std_dev,
   //                              num_timesteps, init_control);
+  auto controller_params = controller->getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 4, 1);
+  controller_params.cost_rollout_dim_ = dim3(32, 1, 1);
+  controller->setParams(controller_params);
   controller->setDebug(true);
   DYN_T::state_array current_state = DYN_T::state_array::Zero();
   // current_state(6) = 1;  // set q_w to 1
@@ -253,6 +259,8 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
   int far_away_cnt = 0;
   Eigen::Vector3f goal_pos = new_params.getDesiredState().block<3, 1>(0, 0);
 
+  std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point loop_end = std::chrono::steady_clock::now();
   for (int i = 0; i < time_horizon; ++i)
   {
     if (i % 50 == 0)
@@ -262,6 +270,7 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
       printf("State Cost: %f\n", controller->cost_->computeStateCost(current_state));
       model.printState(current_state.data());
       std::cout << "Control: " << control.transpose() << std::endl;
+      std::cout << "ComputeControl took " << mppi::math::timeDiffms(loop_end, loop_start) << " ms" << std::endl;
     }
     if (std::isnan(controller->getBaselineCost()) || control.hasNaN() || current_state.hasNaN())
     {
@@ -275,7 +284,9 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
     }
 
     // Compute the control
+    loop_start = std::chrono::steady_clock::now();
     controller->computeControl(current_state, 1);
+    loop_end = std::chrono::steady_clock::now();
 
     control = controller->getControlSeq().block(0, 0, DYN_T::CONTROL_DIM, 1);
     // Increment the state

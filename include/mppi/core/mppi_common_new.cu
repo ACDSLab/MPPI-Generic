@@ -343,7 +343,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     if (thread_idy == 0 && t < num_timesteps)
     {
       float cost = costs->computeRunningCost(y, u, t, theta_c, crash_status) +
-                   sampling->computeLikelihoodRatioCost(u, theta_d, t, global_idx, distribution_idx, lambda, alpha);
+                   sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
       running_cost[0] += cost / (num_timesteps - 1);
       crash_status_d[global_idx * num_timesteps + t] = crash_status[0];
     }
@@ -1016,7 +1016,7 @@ void launchWeightedReductionKernel(const float* __restrict__ exp_costs_d, const 
 {
   dim3 dimBlock(math::int_ceil(num_rollouts, sum_stride), 1, 1);
   dim3 dimGrid(num_timesteps, 1, 1);
-  unsigned shared_mem_size = math::nearest_quotient_4(CONTROL_DIM * dimBlock.x);
+  unsigned shared_mem_size = math::nearest_multiple_4(CONTROL_DIM * dimBlock.x) * sizeof(float);
   weightedReductionKernel<CONTROL_DIM><<<dimGrid, dimBlock, shared_mem_size, stream>>>(
       exp_costs_d, du_d, new_u_d, normalizer, num_timesteps, num_rollouts, sum_stride);
   HANDLE_ERROR(cudaGetLastError());
