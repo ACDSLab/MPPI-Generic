@@ -32,7 +32,7 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
   const int global_noise_index =
       min(distribution_index, num_distributions) * num_timesteps * num_rollouts * control_dim +
       min(trajectory_index, num_rollouts) * num_timesteps * control_dim + min(time_index, num_timesteps) * control_dim;
-  const int shared_mean_index = threadIdx.z * num_timesteps * control_dim + threadIdx.y * control_dim;
+  const int shared_mean_index = threadIdx.z * num_timesteps * control_dim + time_index * control_dim;
   // Std Deviation setup
   int std_dev_size = num_distributions * control_dim;
   int shared_std_dev_index = threadIdx.z * num_timesteps * control_dim + threadIdx.y * control_dim;
@@ -491,7 +491,14 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
     float4 mean_i, std_dev_i, u_i, control_cost_coeff_i;
     for (int i = 0; i < CONTROL_DIM / 4; i++)
     {
-      mean_i = reinterpret_cast<float4*>(mean)[i];
+      if (sample_index >= (1.0f - params_p->pure_noise_trajectories_percentage) * params_p->num_rollouts)
+      {
+        mean_i = make_float4(0, 0, 0, 0);
+      }
+      else
+      {
+        mean_i = reinterpret_cast<float4*>(mean)[i];  // read mean value from global memory only once
+      }
       std_dev_i = reinterpret_cast<float4*>(std_dev)[i];
       u_i = reinterpret_cast<const float4*>(u)[i];
       control_cost_coeff_i = reinterpret_cast<float4*>(control_cost_coeff)[i];
@@ -506,7 +513,14 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
     float2 mean_i, std_dev_i, u_i, control_cost_coeff_i;
     for (int i = 0; i < CONTROL_DIM / 2; i++)
     {
-      mean_i = reinterpret_cast<float2*>(mean)[i];
+      if (sample_index >= (1.0f - params_p->pure_noise_trajectories_percentage) * params_p->num_rollouts)
+      {
+        mean_i = make_float2(0, 0);
+      }
+      else
+      {
+        mean_i = reinterpret_cast<float2*>(mean)[i];  // read mean value from global memory only once
+      }
       std_dev_i = reinterpret_cast<float2*>(std_dev)[i];
       u_i = reinterpret_cast<const float2*>(u)[i];
       control_cost_coeff_i = reinterpret_cast<float2*>(control_cost_coeff)[i];

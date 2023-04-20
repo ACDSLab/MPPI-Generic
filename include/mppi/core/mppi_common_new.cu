@@ -84,7 +84,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
     {
       running_cost[0] +=
           costs->computeRunningCost(y, u, t, theta_c, crash_status) +
-          sampling->computeLikelihoodRatioCost(u, theta_d, t, global_idx, distribution_idx, lambda, alpha);
+          sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
     }
     __syncthreads();
   }

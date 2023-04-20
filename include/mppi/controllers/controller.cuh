@@ -360,6 +360,11 @@ public:
     return fb_controller_->interpolateFeedback_(state, target_nominal_state, rel_time, fb_state);
   }
 
+  virtual curandGenerator_t getGenerator() const
+  {
+    return gen_;
+  }
+
   /**
    * returns the current control sequence
    */
@@ -462,11 +467,6 @@ public:
   state_trajectory getFeedbackPropagatedStateSeq() const
   {
     return propagated_feedback_state_trajectory_;
-  };
-
-  control_array getControlStdDev() const
-  {
-    return params_.control_std_dev_;
   };
 
   float getBaselineCost(int ind = 0) const

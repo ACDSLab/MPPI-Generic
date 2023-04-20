@@ -5,84 +5,74 @@
 class Cartpole_VanillaMPPI : public ::testing::Test
 {
 public:
-  CartpoleDynamics model = CartpoleDynamics(1.0, 1.0, 1.0);
-  CartpoleQuadraticCost cost;
+  static const int NUM_TIMESTEPS = 100;
+  static const int NUM_ROLLOUTS = 2048;
+  using DYN_T = CartpoleDynamics;
+  using COST_T = CartpoleQuadraticCost;
+  using FB_T = DDPFeedback<DYN_T, NUM_TIMESTEPS>;
+  using SAMPLING_T = mppi::sampling_distributions::GaussianDistribution<DYN_T::DYN_PARAMS_T>;
+  using CONTROLLER_T = VanillaMPPIController<DYN_T, COST_T, FB_T, NUM_TIMESTEPS, NUM_ROLLOUTS>;
+  using control_trajectory = CONTROLLER_T::control_trajectory;
+  using control_array = CONTROLLER_T::control_array;
+
+  DYN_T model = DYN_T(1.0, 1.0, 1.0);
+  COST_T cost;
+  FB_T* fb_controller;
+  SAMPLING_T* sampler;
+  CONTROLLER_T* controller;
+
   float dt = 0.01;
   int max_iter = 10;
   float gamma = 0.5;
+  float lambda = 0.25;
+  float alpha = 0.01;
+  control_trajectory init_control = control_trajectory::Constant(0);
+  control_array control_std_dev = control_array::Constant(5.0);
+  cudaStream_t stream;
+
+  void SetUp() override
+  {
+    fb_controller = new FB_T(&model, dt);
+    HANDLE_ERROR(cudaStreamCreate(&stream));
+    auto sampler_params = SAMPLING_T::SAMPLING_PARAMS_T();
+    for (int i = 0; i < DYN_T::CONTROL_DIM; i++)
+    {
+      sampler_params.std_dev[i] = control_std_dev[i];
+    }
+    sampler = new SAMPLING_T(sampler_params);
+    controller = new CONTROLLER_T(&model, &cost, fb_controller, sampler, dt, max_iter, lambda, alpha, NUM_TIMESTEPS,
+                                  init_control, stream);
+  }
+
+  void TearDown() override
+  {
+    delete controller;
+    delete fb_controller;
+    delete sampler;
+  }
 };
 
 TEST_F(Cartpole_VanillaMPPI, BindToStream)
 {
-  const int num_timesteps = 100;
-  const int num_rollouts = 256;
-  float lambda = 0.25;
-  float alpha = 0.01;
-
-  CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(2.5);
-  Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps> init_control =
-      Eigen::Matrix<float, CartpoleDynamics::CONTROL_DIM, num_timesteps>::Constant(0);
-  cudaStream_t stream;
-
-  HANDLE_ERROR(cudaStreamCreate(&stream));
-  auto fb_controller = DDPFeedback<CartpoleDynamics, num_timesteps>(&model, dt);
-
-  mppi::sampling_distributions::GaussianDistribution<CartpoleDynamics::DYN_PARAMS_T> sampler =
-      mppi::sampling_distributions::GaussianDistribution<CartpoleDynamics::DYN_PARAMS_T>();
-  auto sampler_params = sampler.getParams();
-  for (int i = 0; i < CartpoleDynamics::CONTROL_DIM; i++)
-  {
-    sampler_params.std_dev[i] = control_std_dev[i];
-  }
-  sampler.setParams(sampler_params);
-
-  auto CartpoleController =
-      new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, num_timesteps>,
-                                num_timesteps, num_rollouts>(&model, &cost, &fb_controller, &sampler, dt, max_iter,
-                                                             lambda, alpha, num_timesteps, init_control, stream);
-  auto controller_params = CartpoleController->getParams();
-  controller_params.dynamics_rollout_dim_ = dim3(64, 8, 1);
-  controller_params.cost_rollout_dim_ = dim3(64, 8, 1);
-  CartpoleController->setParams(controller_params);
-
-  EXPECT_EQ(CartpoleController->stream_, CartpoleController->model_->stream_) << "Stream bind to dynamics failure";
-  EXPECT_EQ(CartpoleController->stream_, CartpoleController->cost_->stream_) << "Stream bind to cost failure";
-  EXPECT_EQ(CartpoleController->stream_, CartpoleController->fb_controller_->getHostPointer()->stream_) << "Stream "
-                                                                                                           "bind to "
-                                                                                                           "feedback "
-                                                                                                           "failure";
+  EXPECT_EQ(controller->stream_, controller->model_->stream_) << "Stream bind to dynamics failure";
+  EXPECT_EQ(controller->stream_, controller->cost_->stream_) << "Stream bind to cost failure";
+  EXPECT_EQ(controller->stream_, controller->fb_controller_->getHostPointer()->stream_) << "Stream  bind to feedback "
+                                                                                           "failure";
+  EXPECT_EQ(controller->stream_, controller->sampler_->stream_) << "Stream bind to sampling distribution failure";
   HANDLE_ERROR(cudaStreamDestroy(stream));
-
-  delete (CartpoleController);
 }
 
-// TEST_F(Cartpole_VanillaMPPI, UpdateNoiseStdDev)
-// {
-//   const int num_timesteps = 150;
-//   const int num_rollouts = 512;
-//   float lambda = 0.25;
-//   float alpha = 0.01;
-
-//   CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(1.5);
-//   CartpoleDynamics::control_array new_control_std_dev = CartpoleDynamics::control_array::Constant(3.5);
-
-//   auto fb_controller = DDPFeedback<CartpoleDynamics, num_timesteps>(&model, dt);
-//   auto CartpoleController =
-//       new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics,
-//       num_timesteps>,
-//                                 num_timesteps, num_rollouts, 64, 8>(&model, &cost, &fb_controller, dt, max_iter,
-//                                 lambda,
-//                                                                     alpha, control_std_dev);
-//   std::cout << sizeof(*CartpoleController) << std::endl;
-
-//   std::cout << CartpoleController->getControlStdDev() << std::endl;
-
-//   CartpoleController->updateControlNoiseStdDev(new_control_std_dev);
-
-//   std::cout << CartpoleController->getControlStdDev() << std::endl;
-
-//   EXPECT_FLOAT_EQ(new_control_std_dev[0], CartpoleController->getControlStdDev()[0]);
-// }
+TEST_F(Cartpole_VanillaMPPI, UpdateNoiseStdDev)
+{
+  control_array new_control_std_dev = control_array::Constant(3.5);
+  auto sampler_params = sampler->getParams();
+  for (int i = 0; i < DYN_T::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = new_control_std_dev[i];
+  }
+  sampler->setParams(sampler_params, true);
+  EXPECT_FLOAT_EQ(new_control_std_dev[0], controller->sampler_->getParams().std_dev[0]);
+}
 
 TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
 {
@@ -100,90 +90,93 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
 
   cost.setParams(new_params);
 
-  float dt = 0.01;
-  int max_iter = 1;
-  float lambda = 0.25;
-  float alpha = 0.01;
+  // float dt = 0.01;
+  max_iter = 1;
+  // float lambda = 0.25;
+  // float alpha = 0.01;
 
-  const int NUM_TIMESTEPS = 100;
-  const int NUM_ROLLOUTS = 2048;
+  // const int NUM_TIMESTEPS = 100;
+  // const int NUM_ROLLOUTS = 2048;
 
-  CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(5.0);
+  // control_std_dev = control_array::Constant(5.0);
 
-  auto fb_controller = DDPFeedback<CartpoleDynamics, NUM_TIMESTEPS>(&model, dt);
-  auto sampler_params =
-      mppi::sampling_distributions::GaussianParams<CartpoleDynamics::CONTROL_DIM>(NUM_ROLLOUTS, NUM_TIMESTEPS);
-  for (int i = 0; i < CartpoleDynamics::CONTROL_DIM; i++)
-  {
-    sampler_params.std_dev[i] = control_std_dev[i];
-  }
-  sampler_params.control_cost_coeff[0] = 1;
+  // auto fb_controller = DDPFeedback<CartpoleDynamics, NUM_TIMESTEPS>(&model, dt);
+  auto sampler_params = sampler->getParams();
+  // for (int i = 0; i < CartpoleDynamics::CONTROL_DIM; i++)
+  // {
+  //   sampler_params.std_dev[i] = control_std_dev[i];
+  // }
+  sampler_params.control_cost_coeff[0] = 1.0;
+  sampler_params.pure_noise_trajectories_percentage = 0.01f;
   sampler_params.rewrite_controls_block_dim = dim3(64, 16, 1);
-  auto sampler = mppi::sampling_distributions::GaussianDistribution<CartpoleDynamics::DYN_PARAMS_T>(sampler_params);
+  sampler->setParams(sampler_params);
+  // auto sampler = mppi::sampling_distributions::GaussianDistribution<CartpoleDynamics::DYN_PARAMS_T>(sampler_params);
 
-  auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
-                                          DDPFeedback<CartpoleDynamics, NUM_TIMESTEPS>, NUM_TIMESTEPS, NUM_ROLLOUTS>(
-      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
-  auto controller_params = controller.getParams();
-  controller_params.dynamics_rollout_dim_ = dim3(64, 8, 1);
+  // auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
+  //                                         DDPFeedback<CartpoleDynamics, NUM_TIMESTEPS>, NUM_TIMESTEPS, NUM_ROLLOUTS>(
+  //     &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto controller_params = controller->getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 4, 1);
   controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
-  controller_params.seed_ = 42;
-  controller.setParams(controller_params);
+  controller_params.num_iters_ = max_iter;
+  controller_params.slide_control_scale_[0] = 1.0;
+  controller->setParams(controller_params);
 
-  CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
+  DYN_T::state_array current_state = DYN_T::state_array::Zero();
   int time_horizon = 1000;
 
-  // float xdot[CartpoleDynamics::STATE_DIM];
-  CartpoleDynamics::state_array xdot(4, 1);
+  // float xdot[DYN_T::STATE_DIM];
+  DYN_T::state_array xdot(4, 1);
 
   for (int i = 0; i < time_horizon; ++i)
   {
     // if (i % 50 == 0 || i < 4)
     // {
-    //   std::cout << "optimal control: " << controller.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 10)
+    //   std::cout << "optimal control: " << controller->getControlSeq().block(0, 90, DYN_T::CONTROL_DIM, 10)
     //   << std::endl;
     // }
     if (i % 50 == 0)
     {
       printf("Current Time: %f    ", i * dt);
-      printf("Current Baseline Cost: %f    ", controller.getBaselineCost());
+      printf("Current Baseline Cost: %f    ", controller->getBaselineCost());
       model.printState(current_state.data());
     }
 
     // Compute the control
-    controller.computeControl(current_state, 1);
+    controller->computeControl(current_state, 1);
 
-    CartpoleDynamics::control_array control;
-    control = controller.getControlSeq().block(0, 0, CartpoleDynamics::CONTROL_DIM, 1);
+    DYN_T::control_array control;
+    control = controller->getControlSeq().block(0, 0, DYN_T::CONTROL_DIM, 1);
     // Increment the state
     model.computeStateDeriv(current_state, control, xdot);
     model.updateState(current_state, xdot, dt);
 
-    controller.slideControlSequence(1);
+    controller->slideControlSequence(1);
   }
-  EXPECT_LT(controller.getBaselineCost(), 1.0);
+  EXPECT_LT(controller->getBaselineCost(), 1.0);
 }
 
-// TEST_F(Cartpole_VanillaMPPI, getSampledStateTrajectoriesTest)
-// {
-//   float dt = 0.01;
-//   int max_iter = 1;
-//   float lambda = 0.25;
-//   float alpha = 0.01;
+TEST_F(Cartpole_VanillaMPPI, DISABLED_getSampledStateTrajectoriesTest)
+{
+  // float dt = 0.01;
+  // float max_iter = 1;
+  // float lambda = 0.25;
+  // float alpha = 0.01;
 
-//   CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(5.0);
+  // CartpoleDynamics::control_array control_std_dev = CartpoleDynamics::control_array::Constant(5.0);
 
-//   auto fb_controller = DDPFeedback<CartpoleDynamics, 100>(&model, dt);
-//   auto controller =
-//       VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 100>, 100, 2048,
-//       64,
-//                             8>(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_std_dev);
-//   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
-//   controller.setPercentageSampledControlTrajectories(0.25);
+  // auto fb_controller = DDPFeedback<CartpoleDynamics, 100>(&model, dt);
+  // auto controller =
+  //     VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 100>, 100, 2048,
+  //     64,
+  //                           8>(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_std_dev);
+  DYN_T::state_array current_state = DYN_T::state_array::Zero();
+  controller->setPercentageSampledControlTrajectories(0.25);
 
-//   controller.calculateSampledStateTrajectories();
-//   controller.getSampledOutputTrajectories();
-// }
+  controller->calculateSampledStateTrajectories();
+  const auto outputs = controller->getSampledOutputTrajectories();
+  EXPECT_EQ(outputs.size(), 0.25 * NUM_ROLLOUTS);
+}
 
 // TEST_F(Cartpole_VanillaMPPI, ConstructWithNew)
 // {
@@ -206,6 +199,7 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
 
 //   delete (controller);
 // }
+
 // TEST_F(Cartpole_VanillaMPPI, ParamsConstructWithNew)
 // {
 //   using CONTROLLER = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics,
@@ -234,21 +228,21 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
 //   delete (controller);
 // }
 
-// class Quadrotor_VanillaMPPI : public ::testing::Test
-// {
-// public:
-//   using DYN = QuadrotorDynamics;
-//   using COST = QuadrotorQuadraticCost;
+class Quadrotor_VanillaMPPI : public ::testing::Test
+{
+public:
+  using DYN = QuadrotorDynamics;
+  using COST = QuadrotorQuadraticCost;
 
-//   static const int num_timesteps = 150;
-//   float dt = 0.01;
+  static const int num_timesteps = 150;
+  float dt = 0.01;
 
-//   using FB = DDPFeedback<QuadrotorDynamics, num_timesteps>;
-//   typedef VanillaMPPIController<DYN, COST, FB, num_timesteps, 2048, 64, 8> CONTROLLER;
-//   DYN model;
-//   QuadrotorQuadraticCost cost;
-//   FB fb_controller = FB(&model, dt);
-// };
+  using FB = DDPFeedback<DYN, num_timesteps>;
+  typedef VanillaMPPIController<DYN, COST, FB, num_timesteps, 2048> CONTROLLER;
+  DYN model;
+  COST cost;
+  FB fb_controller = FB(&model, dt);
+};
 
 // TEST_F(Quadrotor_VanillaMPPI, HoverTest)
 // {
