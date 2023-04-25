@@ -126,8 +126,8 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     baseline_prev = this->getBaselineCost();
 
     // Launch the norm exponential kernel
-    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, 64, this->trajectory_costs_d_, 1.0 / this->getLambda(),
-                                     this->getBaselineCost(), this->stream_, false);
+    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), this->trajectory_costs_d_,
+                                     1.0 / this->getLambda(), this->getBaselineCost(), this->stream_, false);
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));

@@ -22,8 +22,8 @@ template <int C_DIM, int MAX_DISTRIBUTIONS_T = 2>
 struct GaussianParamsImpl : public SamplingParams<C_DIM>
 {
   static const int MAX_DISTRIBUTIONS = MAX_DISTRIBUTIONS_T;
-  float std_dev[C_DIM * MAX_DISTRIBUTIONS] = { 0.0f };
-  float control_cost_coeff[C_DIM] = { 0.0f };
+  float std_dev[C_DIM * MAX_DISTRIBUTIONS] MPPI_ALIGN(sizeof(float4)) = { 0.0f };
+  float control_cost_coeff[C_DIM] MPPI_ALIGN(sizeof(float4)) = { 0.0f };
   float pure_noise_trajectories_percentage = 0.01f;
   float std_dev_decay = 1.0f;
   // Kernel launching params
@@ -31,7 +31,6 @@ struct GaussianParamsImpl : public SamplingParams<C_DIM>
   int sum_strides = 32;
   // Various flags
   bool time_specific_std_dev = false;
-  bool use_same_noise_for_all_distributions = true;
 
   GaussianParamsImpl(int num_rollouts = 1, int num_timesteps = 1, int num_distributions = 1)
     : SamplingParams<C_DIM>::SamplingParams(num_rollouts, num_timesteps, num_distributions)

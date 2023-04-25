@@ -6,8 +6,9 @@
 #ifndef MPPIGENERIC_TUBE_MPPI_CONTROLLER_CUH
 #define MPPIGENERIC_TUBE_MPPI_CONTROLLER_CUH
 
-#include <curand.h>
+// #include <curand.h>
 #include <mppi/controllers/controller.cuh>
+#include <mppi/sampling_distributions/gaussian/gaussian.cuh>
 #include <mppi/core/mppi_common.cuh>
 #include <chrono>
 #include <memory>
@@ -19,16 +20,17 @@ struct TubeMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
   float nominal_threshold_ = 20;  // How much worse the actual system has to be compared to the nominal
 };
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+          class SAMPLING_T = ::mppi::sampling_distributions::GaussianDistribution<typename DYN_T::DYN_PARAMS_T>,
           class PARAMS_T = TubeMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
-class TubeMPPIController : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
+class TubeMPPIController : public Controller<DYN_T, COST_T, FB_T, SAMPLING_T, MAX_TIMESTEPS, NUM_ROLLOUTS, PARAMS_T>
 {
 public:
   //    EIGEN_MAKE_ALIGNED_OPERATOR_NEW unnecessary due to EIGEN_MAX_ALIGN_BYTES=0
   /**
    * Set up useful types
    */
-  typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T> PARENT_CLASS;
+  typedef Controller<DYN_T, COST_T, FB_T, SAMPLING_T, MAX_TIMESTEPS, NUM_ROLLOUTS, PARAMS_T> PARENT_CLASS;
   using control_array = typename PARENT_CLASS::control_array;
   using control_trajectory = typename PARENT_CLASS::control_trajectory;
   using state_trajectory = typename PARENT_CLASS::state_trajectory;
@@ -38,12 +40,13 @@ public:
   using FEEDBACK_PARAMS = typename PARENT_CLASS::TEMPLATED_FEEDBACK_PARAMS;
   using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
 
-  TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda, float alpha,
-                     const Eigen::Ref<const control_array>& control_std_dev, int num_timesteps = MAX_TIMESTEPS,
+  TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter,
+                     float lambda, float alpha, int num_timesteps = MAX_TIMESTEPS,
                      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                      cudaStream_t stream = nullptr);
 
-  TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params, cudaStream_t stream = nullptr);
+  TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, PARAMS_T& params,
+                     cudaStream_t stream = nullptr);
 
   void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride = 1) override;
 
@@ -102,7 +105,7 @@ public:
   void calculateSampledStateTrajectories() override;
 
 private:
-  float nominal_threshold_ = 20;  // How much worse the actual system has to be compared to the nominal
+  // float nominal_threshold_ = 20;  // How much worse the actual system has to be compared to the nominal
 
   // Free energy variables
   float nominal_free_energy_mean_ = 0;

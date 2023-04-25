@@ -17,6 +17,7 @@ template <int C_DIM>
 struct alignas(float4) SamplingParams
 {
   static const int CONTROL_DIM = C_DIM;
+  bool use_same_noise_for_all_distributions = true;
   int num_rollouts = 1;
   int num_timesteps = 1;
   int num_distributions = 1;

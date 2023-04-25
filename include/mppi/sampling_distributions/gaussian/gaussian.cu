@@ -32,7 +32,7 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
   const int global_noise_index =
       min(distribution_index, num_distributions) * num_timesteps * num_rollouts * control_dim +
       min(trajectory_index, num_rollouts) * num_timesteps * control_dim + min(time_index, num_timesteps) * control_dim;
-  const int shared_mean_index = threadIdx.z * num_timesteps * control_dim + time_index * control_dim;
+  const int shared_mean_index = distribution_index * num_timesteps * control_dim + time_index * control_dim;
   // Std Deviation setup
   int std_dev_size = num_distributions * control_dim;
   int shared_std_dev_index = threadIdx.z * num_timesteps * control_dim + threadIdx.y * control_dim;
@@ -59,7 +59,7 @@ __global__ void setGaussianControls(const float* __restrict__ mean_d, const floa
   extern __shared__ float entire_buffer[];
   // Create memory_aligned shared memory pointers
   float* mean_shared = entire_buffer;
-  float* std_dev_shared = &mean_shared[mppi::math::nearest_multiple_4(num_timesteps * blockDim.z * control_dim)];
+  float* std_dev_shared = &mean_shared[mppi::math::nearest_multiple_4(num_timesteps * num_distributions * control_dim)];
   float* control_samples_shared = &std_dev_shared[mppi::math::nearest_multiple_4(std_dev_size)];
   if (control_dim % 4 == 0)
   {

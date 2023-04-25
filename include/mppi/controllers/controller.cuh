@@ -53,6 +53,7 @@ struct ControllerParams
 
   dim3 dynamics_rollout_dim_;
   dim3 cost_rollout_dim_;
+  int norm_exp_kernel_parallelization_ = 64;
 
   Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS> init_control_traj_ = Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS>::Zero();
   Eigen::Matrix<float, C_DIM, 1> slide_control_scale_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
@@ -652,6 +653,11 @@ public:
   int getNumTimesteps() const
   {
     return this->params_.num_timesteps_;
+  }
+
+  int getNormExpThreads() const
+  {
+    return this->params_.norm_exp_kernel_parallelization_;
   }
 
   /**
