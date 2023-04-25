@@ -8,7 +8,7 @@ DoubleIntegratorDynamics::DoubleIntegratorDynamics(float system_noise, cudaStrea
   // Seed the RNG and initialize the system noise distribution
   std::random_device rd;
   gen.seed(rd());  // Seed the RNG with a random number
-  normal_distribution = std::normal_distribution<float>(0, sqrtf(system_noise));
+  setStateVariance(system_noise);
 }
 
 void DoubleIntegratorDynamics::computeDynamics(const Eigen::Ref<const state_array>& state,
@@ -50,6 +50,11 @@ __device__ void DoubleIntegratorDynamics::computeDynamics(float* state, float* c
   state_der[1] = state[3];    // ydot;
   state_der[2] = control[0];  // x_force;
   state_der[3] = control[1];  // y_force
+}
+
+void DoubleIntegratorDynamics::setStateVariance(float system_variance)
+{
+  normal_distribution = std::normal_distribution<float>(0, sqrtf(system_variance));
 }
 
 void DoubleIntegratorDynamics::computeStateDisturbance(float dt, Eigen::Ref<state_array> state)
