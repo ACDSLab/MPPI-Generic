@@ -63,7 +63,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
       if (COALESCE)
       {  // Fill entire shared mem sequentially using sequential threads_idx
         mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_X>(
-            y_shared, blockDim.x * thread_idz, y_d,
+            y_shared, blockDim.x * thread_idz * COST_T::OUTPUT_DIM, y_d,
             ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
             COST_T::OUTPUT_DIM * blockDim.x);
       }
@@ -173,7 +173,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
 
 template <class DYN_T, class SAMPLING_T>
 __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restrict__ sampling, float dt,
-                                      const int num_timesteps, const int optimization_stride, const int num_rollouts,
+                                      const int num_timesteps, const int num_rollouts,
                                       const float* __restrict__ init_x_d, float* __restrict__ y_d)
 {
   // Get thread and block id
@@ -392,11 +392,121 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   }
 }
 
+namespace rmppi
+{
+template <class DYN_T, class SAMPLING_T, int SAMPLES_PER_CONDITION>
+__global__ void initEvalDynKernel(DYN_T* dynamics, SAMPLING_T* sampling, int num_rollouts, int num_timesteps,
+                                  int samples_per_condition, float lambda, float alpha, int ctrl_stride, float dt,
+                                  int* strides_d, float* exploration_std_dev_d, float* states_d, float* control_d,
+                                  float* control_noise_d, float* costs_d)
+{
+  // Get thread and block id
+  const int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
+  const int sample_idx = global_idx / samples_per_condition;
+  const int distribution_idx = threadIdx.z;
+  const int num_threads_per_candidate = num_rollouts / samples_per_condition;
+  const int candidate_idx = num_rollouts / num_threads_per_candidate;
+  const int candidate_sample_idx = global_idx % num_threads_per_candidate;
+  const int tdy = threadIdx.y;
+
+  // const int thread_idx = threadIdx.x;
+  // const int thread_idy = threadIdx.y;
+  // const int thread_idz = threadIdx.z;
+  // const int block_idx = blockIdx.x;
+  // const int global_idx = blockDim.x * block_idx + thread_idx;
+  // const int shared_idx = blockDim.x * thread_idz + thread_idx;
+  // const int distribution_idx = threadIdx.z;
+  // const int distribution_dim = blockDim.z;
+  // const int sample_dim = blockDim.x;
+
+  // Create shared state and control arrays
+  extern __shared__ float entire_buffer[];
+
+  float* x_shared = entire_buffer;
+  float* x_next_shared = &x_shared[math::nearest_multiple_4(sample_dim * DYN_T::STATE_DIM * distribution_dim)];
+  float* y_shared = &x_next_shared[math::nearest_multiple_4(sample_dim * DYN_T::STATE_DIM * distribution_dim)];
+  float* x_dot_shared = &y_shared[math::nearest_multiple_4(sample_dim * DYN_T::OUTPUT_DIM * distribution_dim)];
+  float* u_shared = &x_dot_shared[math::nearest_multiple_4(sample_dim * DYN_T::STATE_DIM * distribution_dim)];
+  float* theta_s_shared = &u_shared[math::nearest_multiple_4(sample_dim * DYN_T::CONTROL_DIM * distribution_dim)];
+  // Ensure that there is enough room for the SHARED_MEM_REQUEST_GRD_BYTES and SHARED_MEM_REQUEST_BLK_BYTES portions to
+  // be aligned to the float4 boundary.
+  const int size_of_theta_s_bytes =
+      math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      sample_dim * distribution_dim * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  float* theta_d_shared = &theta_s_shared[size_of_theta_s_bytes / sizeof(float)];
+
+  // Create local state, state dot and controls
+  float* x = &(reinterpret_cast<float*>(x_shared)[shared_idx * DYN_T::STATE_DIM]);
+  float* x_next = &(reinterpret_cast<float*>(x_next_shared)[shared_idx * DYN_T::STATE_DIM]);
+  float* x_temp;
+  float* xdot = &(reinterpret_cast<float*>(x_dot_shared)[shared_idx * DYN_T::STATE_DIM]);
+  float* u = &(reinterpret_cast<float*>(u_shared)[shared_idx * DYN_T::CONTROL_DIM]);
+  float* y = &(reinterpret_cast<float*>(y_shared)[shared_idx * DYN_T::OUTPUT_DIM]);
+
+  // Load global array to shared array
+  // const int blocksize_y = blockDim.y;
+  // loadGlobalToShared<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>(num_rollouts, blockDim.y, global_idx, thread_idy,
+  // thread_idz,
+  //                                                          init_x_d, x, xdot, u);
+
+  mppi::p1::loadArrayParallel<DYN_T::STATE_DIM>(x, 0, states_d, candidate_idx * DYN_T::STATE_DIM);
+  for (int i = tdy; i < DYN_T::CONTROL_DIM; i += blockDim.y)
+  {
+    u[i] = 0;
+  }
+  for (int i = tdy; i < DYN_T::OUTPUT_DIM; i += blockDim.y)
+  {
+    y[i] = 0;
+  }
+  __syncthreads();
+
+  /*<----Start of simulation loop-----> */
+  dynamics->initializeDynamics(x, u, y, theta_s_shared, 0.0, dt);
+  sampling->initializeDistributions(y, 0.0, dt, theta_d_shared);
+  __syncthreads();
+  for (int t = 0; t < num_timesteps; t++)
+  {
+    // __syncthreads();
+    // Load noise trajectories scaled by the exploration factor
+    int candidate_t = min(t + strides_d[candidate_idx], num_timesteps - 1);
+    sampling->readControlSample(candidate_sample_idx, candidate_t, distribution_idx, u, theta_d_shared, blockDim.y,
+                                thread_idy, y);
+    // du_d is now v
+    // __syncthreads();
+    // if (global_idx == 0 && t == 0 && threadIdx.y == 0)
+    // {
+    //   printf("Control before: ");
+    //   for (int i = 0; i < DYN_T::CONTROL_DIM; i++)
+    //   {
+    //     printf("%f, ", u[i]);
+    //   }
+    //   printf("\n");
+    // }
+    __syncthreads();
+
+    // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
+    // usually just control clamping
+    // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
+    dynamics->enforceConstraints(x, u);
+    __syncthreads();
+
+    // Increment states
+    dynamics->step(x, x_next, xdot, u, y, theta_s_shared, t, dt);
+    __syncthreads();
+    x_temp = x;
+    x = x_next;
+    x_next = x_temp;
+    // Copy state to global memory
+    int sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t;
+    mp1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y_d, sample_time_offset * DYN_T::OUTPUT_DIM, y, 0);
+  }
+}
+
 template <class DYN_T, class FB_T, class SAMPLING_T, int NOMINAL_STATE_IDX = 0>
 __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* __restrict__ fb_controller,
                                            SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
-                                           const int optimization_stride, const int num_rollouts,
-                                           const float* __restrict__ init_x_d, float* __restrict__ y_d)
+                                           const int num_rollouts, const float* __restrict__ init_x_d,
+                                           float* __restrict__ y_d)
 {
   // Get thread and block id
   const int thread_idx = threadIdx.x;
@@ -574,7 +684,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
       if (COALESCE)
       {  // Fill entire shared mem sequentially using sequential threads_idx
         mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_X>(
-            y_shared, blockDim.x * thread_idz, y_d,
+            y_shared, blockDim.x * thread_idz * COST_T::OUTPUT_DIM, y_d,
             ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
             COST_T::OUTPUT_DIM * blockDim.x);
       }
@@ -747,6 +857,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   // theta_c,
   //                    trajectory_costs_d);
 }
+}  // namespace rmppi
 
 template <int CONTROL_DIM>
 __global__ void weightedReductionKernel(const float* __restrict__ exp_costs_d, const float* __restrict__ du_d,
@@ -906,10 +1017,9 @@ __device__ void warpReduceAdd(volatile float* sdata, const int tid)
 template <class DYN_T, class COST_T, typename SAMPLING_T>
 void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
                              SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
-                             const int num_rollouts, const int optimization_stride, float lambda, float alpha,
-                             float* __restrict__ init_x_d, float* __restrict__ y_d,
-                             float* __restrict__ trajectory_costs, dim3 dimDynBlock, dim3 dimCostBlock,
-                             cudaStream_t stream, bool synchronize)
+                             const int num_rollouts, float lambda, float alpha, float* __restrict__ init_x_d,
+                             float* __restrict__ y_d, float* __restrict__ trajectory_costs, dim3 dimDynBlock,
+                             dim3 dimCostBlock, cudaStream_t stream, bool synchronize)
 {
   if (num_rollouts % dimDynBlock.x != 0)
   {
@@ -945,7 +1055,7 @@ void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ 
   //     SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES
   //     << std::endl;
   rolloutDynamicsKernel<DYN_T, SAMPLING_T><<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(
-      dynamics, sampling, dt, num_timesteps, optimization_stride, num_rollouts, init_x_d, y_d);
+      dynamics, sampling, dt, num_timesteps, num_rollouts, init_x_d, y_d);
   // Run Costs
   dim3 dimCostGrid(num_rollouts, 1, 1);
   const int cost_num_shared = dimCostBlock.x * dimCostBlock.z;

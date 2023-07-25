@@ -22,8 +22,6 @@ bool tubeFailure(float* s)
   }
 }
 
-const int total_time_horizon = 500;
-
 class DoubleIntegratorTubeMPPI : public ::testing::Test
 {
 public:
@@ -43,16 +41,6 @@ public:
 
 TEST_F(DoubleIntegratorTubeMPPI, Construction)
 {
-  // Create Type Aliases
-  // const int num_timesteps = 100;
-  // const int num_rollouts = 512;
-  // using DYN = DoubleIntegratorDynamics;
-  // using COST = DoubleIntegratorCircleCost;
-  // using FB_CONTROLLER = DDPFeedback<DYN, num_timesteps>;
-  // using SAMPLING = mppi::sampling_distributions::GaussianDistribution<DYN::DYN_PARAMS_T>;
-  // using VANILLA_CONTROLLER = VanillaMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, num_rollouts>;
-  // using TUBE_CONTROLLER = TubeMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, num_rollouts>;
-
   // Define the model and cost
   DYN model;
   COST cost;
@@ -62,10 +50,6 @@ TEST_F(DoubleIntegratorTubeMPPI, Construction)
   int max_iter = 10;
   float lambda = 0.5;
   float alpha = 0.0;
-
-  // control variance
-  // DoubleIntegratorDynamics::control_array control_var;
-  // control_var << 1, 1;
 
   // DDP cost parameters
   Eigen::MatrixXf Q;
@@ -81,26 +65,11 @@ TEST_F(DoubleIntegratorTubeMPPI, Construction)
   auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
 
   auto controller = TUBE_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
-
-  //  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-  //                                      512, 64, 8>(&model, &cost, dt, max_iter,
-  //                                                   gamma, num_timesteps, Q, Q, R, control_var);
-
   // This controller needs the ancillary controller running separately for base plant reasons.
 }
 
 TEST_F(DoubleIntegratorTubeMPPI, ConstructionUsingParams)
 {
-  // Create Type Aliases
-  // const int num_timesteps = 100;
-  // using DYN = DoubleIntegratorDynamics;
-  // using COST = DoubleIntegratorCircleCost;
-  // using FB_CONTROLLER = DDPFeedback<DYN, num_timesteps>;
-  // using TUBE_CONTROLLER = TubeMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, 512, 64, 8>;
-  // using CONTROLLER_PARAMS = TUBE_CONTROLLER::TEMPLATED_PARAMS;
-  // using VANILLA_CONTROLLER =
-  //     VanillaMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, 512, 64, 8, 64, 2, CONTROLLER_PARAMS>;
-
   // Define the model and cost
   DYN model;
   COST cost;
@@ -131,12 +100,7 @@ TEST_F(DoubleIntegratorTubeMPPI, ConstructionUsingParams)
   SAMPLING sampler = SAMPLING(sampler_params);
 
   auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, controller_params);
-
   auto controller = TUBE_CONTROLLER(&model, &cost, &fb_controller, &sampler, controller_params);
-
-  //  auto controller = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, num_timesteps,
-  //                                      512, 64, 8>(&model, &cost, dt, max_iter,
-  //                                                   gamma, num_timesteps, Q, Q, R, control_var);
 
   // This controller needs the ancillary controller running separately for base plant reasons.
 }
@@ -146,6 +110,7 @@ class DoubleIntegratorTracking : public ::testing::Test
 public:
   static const int num_timesteps = 50;
   static const int num_rollouts = 1024;
+  const unsigned int total_time_horizon = 500;
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
   using FB_CONTROLLER = DDPFeedback<DYN, num_timesteps>;
