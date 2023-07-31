@@ -138,6 +138,16 @@ public:
     return this->params_.r;
   }
 
+  void setOffsetDecayRate(float offset_decay_rate)
+  {
+    this->params_.offset_decay_rate = offset_decay_rate;
+  }
+
+  float getOffsetDecayRate()
+  {
+    return this->params_.offset_decay_rate;
+  }
+
   void setColoredNoiseExponents(std::vector<float>& new_exponents)
   {
     this->params_.colored_noise_exponents_ = new_exponents;

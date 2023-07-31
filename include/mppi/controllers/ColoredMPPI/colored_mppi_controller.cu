@@ -93,7 +93,8 @@ void ColoredMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     //                              sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
     //                              cudaMemcpyHostToDevice, this->stream_));
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
-                          this->control_noise_d_, optimization_stride, this->gen_, this->stream_);
+                          this->control_noise_d_, optimization_stride, this->gen_, this->getOffsetDecayRate(),
+                          this->stream_);
     // scale noise down at each iteration
     this->updateControlNoiseStdDev(noise0 * powf(control_std_dev_decay_, opt_iter));
     // Launch the rollout kernel

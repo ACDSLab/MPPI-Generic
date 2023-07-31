@@ -88,7 +88,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
   for (int opt_iter = 0; opt_iter < getNumPrimitiveIterations(); opt_iter++)
   {
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
-                          this->control_noise_d_, 0, this->gen_, this->stream_);
+                          this->control_noise_d_, 0, this->gen_, this->getOffsetDecayRate(), this->stream_);
 
     // Generate piecewise linear noise data, update control_noise_d_
     piecewise_linear_noise(this->getNumTimesteps(), NUM_ROLLOUTS, DYN_T::CONTROL_DIM, getPiecewiseSegments(),
@@ -186,7 +186,7 @@ void Primitives::computeControl(const Eigen::Ref<const state_array>& state, int 
     //   std::cout << "We tripped the fail-safe" << std::endl;
     // }
     powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
-                          this->control_noise_d_, 0, this->gen_, this->stream_);
+                          this->control_noise_d_, 0, this->gen_, this->getOffsetDecayRate(), this->stream_);
     // curandGenerateNormal(this->gen_, this->control_noise_d_, NUM_ROLLOUTS * this->getNumTimesteps() *
     // DYN_T::CONTROL_DIM,
     //                      0.0, 1.0);

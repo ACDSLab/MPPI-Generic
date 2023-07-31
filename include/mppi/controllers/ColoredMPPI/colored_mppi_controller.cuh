@@ -18,6 +18,7 @@ struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
   std::vector<float> colored_noise_exponents_;
   float r = 2.0;
   float gamma = 0;
+  float offset_decay_rate = 0.97;
   Eigen::Matrix<float, S_DIM, 1> state_leash_dist_ = Eigen::Matrix<float, S_DIM, 1>::Zero();
 
   ColoredMPPIParams() = default;
@@ -112,6 +113,16 @@ public:
   float getRExp()
   {
     return this->params_.r;
+  }
+
+  void setOffsetDecayRate(float decay_rate)
+  {
+    this->params_.offset_decay_rate = decay_rate;
+  }
+
+  float getOffsetDecayRate()
+  {
+    return this->params_.offset_decay_rate;
   }
 
   void setColoredNoiseExponents(std::vector<float>& new_exponents)
