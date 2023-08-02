@@ -292,4 +292,9 @@ protected:
 #include "feedback.cu"
 #endif
 
+template <class GPU_FB_T, class TEMPLATED_DYNAMICS, class GPU_STATE_T>
+const int GPUFeedbackController<GPU_FB_T, TEMPLATED_DYNAMICS, GPU_STATE_T>::SHARED_MEM_REQUEST_GRD_BYTES;
+
+template <class GPU_FB_T, class TEMPLATED_DYNAMICS, class GPU_STATE_T>
+const int GPUFeedbackController<GPU_FB_T, TEMPLATED_DYNAMICS, GPU_STATE_T>::SHARED_MEM_REQUEST_BLK_BYTES;
 #endif  // FEEDBACK_BASE_CUH_

@@ -37,7 +37,7 @@
 #include <curand.h>
 #include <mppi/controllers/controller.cuh>
 #include <mppi/sampling_distributions/gaussian/gaussian.cuh>
-#include <mppi/core/mppi_common.cuh>
+#include <mppi/core/rmppi_kernels.cuh>
 
 // Needed for list of candidate states
 #include <mppi/ddp/util.h>
@@ -48,6 +48,7 @@ struct RobustMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
   float value_function_threshold_ = 1000.0;
   int optimization_stride_ = 1;
   int num_candidate_nominal_states_ = 9;
+  dim3 eval_kernel_dim_;
 };
 
 // template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560, int BDIM_X = 64,
@@ -56,7 +57,7 @@ struct RobustMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
           class SAMPLING_T = ::mppi::sampling_distributions::GaussianDistribution<typename DYN_T::DYN_PARAMS_T>,
           class PARAMS_T = RobustMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>,
-          int SAMPLES_PER_CONDITION_MULTIPLAYER = 1>
+          int SAMPLES_PER_CANDIDATE_MULTIPLIER = 1>
 class RobustMPPIController : public Controller<DYN_T, COST_T, FB_T, SAMPLING_T, MAX_TIMESTEPS, NUM_ROLLOUTS, PARAMS_T>
 {
 public:
@@ -75,13 +76,16 @@ public:
   using FEEDBACK_GPU = typename PARENT_CLASS::TEMPLATED_FEEDBACK_GPU;
   using NominalCandidateVector = typename util::NamedEigenAlignedVector<state_array>;
 
-  static const int BLOCKSIZE_X = BDIM_X;
-  static const int BLOCKSIZE_Y = BDIM_Y;
   static const int STATE_DIM = DYN_T::STATE_DIM;
   static const int CONTROL_DIM = DYN_T::CONTROL_DIM;
 
   // Number of samples per condition must be a multiple of the blockDIM
-  static const int SAMPLES_PER_CONDITION = BDIM_X * SAMPLES_PER_CONDITION_MULTIPLIER;
+  static const int SAMPLES_PER_CANDIDATE = SAMPLES_PER_CANDIDATE_MULTIPLIER;
+
+  int getNumEvalSamplesPerCandidate() const
+  {
+    return this->params_.eval_kernel_dim_.x * SAMPLES_PER_CANDIDATE_MULTIPLIER;
+  }
 
   // float value_function_threshold_ = 1000.0;
 
@@ -97,14 +101,13 @@ public:
    * @param num_timesteps The number of timesteps to look ahead for.
    * TODO Finish this description
    */
-  RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda,
-                       float alpha, float value_function_threshold,
-                       const Eigen::Ref<const control_array>& control_std_dev, int num_timesteps = MAX_TIMESTEPS,
+  RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter,
+                       float lambda, float alpha, float value_function_threshold, int num_timesteps = MAX_TIMESTEPS,
                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                        int num_candidate_nominal_states = 9, int optimization_stride = 1,
                        cudaStream_t stream = nullptr);
 
-  RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params,
+  RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, PARAMS_T& params,
                        cudaStream_t stream = nullptr);
 
   /**
@@ -204,6 +207,8 @@ public:
     this->params_.num_candidate_nominal_states_ = num_candidate_nominal_states;
   }
 
+  void setParams(const PARAMS_T& p);
+
   void calculateSampledStateTrajectories() override;
 
 protected:
@@ -265,10 +270,11 @@ protected:
   virtual void computeNominalFeedbackGains(const Eigen::Ref<const state_array>& state);
 
   // CUDA Memory
-  float* importance_sampling_states_d_;
-  float* importance_sampling_costs_d_;
-  int* importance_sampling_strides_d_;
-  float* feedback_gain_array_d_;
+  float* importance_sampling_costs_d_ = nullptr;
+  float* importance_sampling_outputs_d_ = nullptr;
+  float* importance_sampling_states_d_ = nullptr;
+  int* importance_sampling_strides_d_ = nullptr;
+  float* feedback_gain_array_d_ = nullptr;
 };
 
 #if __CUDACC__

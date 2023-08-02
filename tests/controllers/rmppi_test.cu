@@ -7,27 +7,32 @@
 #include <random>  // Used to generate random noise for control trajectories
 
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
+#include <mppi/sampling_distributions/gaussian/gaussian.cuh>
 
 /******************************************************************************
  * Test class for RobustControllerPrivateMethods
  ******************************************************************************/
+const int NUM_TIMESTEPS = 100;
 using DYN = DoubleIntegratorDynamics;
 using COST = DoubleIntegratorCircleCost;
-const int NUM_TIMESTEPS = 100;
-class TestRobust : public RobustMPPIController<DYN, COST, DDPFeedback<DYN, NUM_TIMESTEPS>, NUM_TIMESTEPS, 2048, 64, 8>
+using SAMPLING = mppi::sampling_distributions::GaussianDistribution<DYN::DYN_PARAMS_T>;
+using SAMPLER_PARAMS = SAMPLING::SAMPLING_PARAMS_T;
+using FB_CONTROLLER = DDPFeedback<DYN, NUM_TIMESTEPS>;
+using CONTROLLER_T = RobustMPPIController<DYN, COST, FB_CONTROLLER, NUM_TIMESTEPS, 2048>;
+
+class TestRobust : public CONTROLLER_T
 {
 public:
-  TestRobust(DYN* model, COST* cost, DDPFeedback<DYN, NUM_TIMESTEPS>* fb_controller, float dt, int max_iter,
-             float lambda, float alpha, float value_function_threshold,
-             const Eigen::Ref<const control_array>& control_std_dev, int num_timesteps,
+  TestRobust(DYN* model, COST* cost, DDPFeedback<DYN, NUM_TIMESTEPS>* fb_controller, SAMPLING* sampler, float dt,
+             int max_iter, float lambda, float alpha, float value_function_threshold, int num_timesteps,
              const Eigen::Ref<const control_trajectory>& init_control_traj, cudaStream_t stream)
-    : RobustMPPIController(model, cost, fb_controller, dt, max_iter, lambda, alpha, value_function_threshold,
-                           control_std_dev, num_timesteps, init_control_traj, 9, 1, stream)
+    : RobustMPPIController(model, cost, fb_controller, sampler, dt, max_iter, lambda, alpha, value_function_threshold,
+                           num_timesteps, init_control_traj, 9, 1, stream)
   {
   }
-  TestRobust(DYN* model, COST* cost, DDPFeedback<DYN, NUM_TIMESTEPS>* fb_controller,
+  TestRobust(DYN* model, COST* cost, DDPFeedback<DYN, NUM_TIMESTEPS>* fb_controller, SAMPLING* sampler,
              RobustMPPIController::TEMPLATED_PARAMS& params, cudaStream_t stream)
-    : RobustMPPIController(model, cost, fb_controller, params, stream)
+    : RobustMPPIController(model, cost, fb_controller, sampler, params, stream)
   {
   }
 
@@ -111,20 +116,20 @@ public:
 class RMPPINominalStateCandidates : public ::testing::Test
 {
 public:
-  using dynamics = DoubleIntegratorDynamics;
-  using cost_function = DoubleIntegratorCircleCost;
-  using FEEDBACK_CONTROL = DDPFeedback<dynamics, NUM_TIMESTEPS>;
-
 protected:
   void SetUp() override
   {
-    model = new dynamics(10);  // Initialize the double integrator dynamics
-    cost = new cost_function;  // Initialize the cost function
-    fb_controller = new FEEDBACK_CONTROL(model, dt);
+    model = new DYN(10);  // Initialize the double integrator dynamics
+    cost = new COST();    // Initialize the cost function
+    fb_controller = new FB_CONTROLLER(model, dt);
+    SAMPLER_PARAMS sampler_params;
+    sampler_params.std_dev[0] = 0.001;
+    sampler_params.std_dev[1] = 0.001;
+    sampler = new SAMPLING(sampler_params);
     controller_params.dt_ = dt;
     controller_params.lambda_ = lambda;
     controller_params.alpha_ = alpha;
-    controller_params.control_std_dev_ << 0.0001, 0.0001;
+    // controller_params.control_std_dev_ << 0.0001, 0.0001;
     controller_params.num_iters_ = 3;
     controller_params.value_function_threshold_ = 1000.0;
     controller_params.num_timesteps_ = 100;
@@ -135,7 +140,12 @@ protected:
     fb_params.Q_f.setIdentity();
     fb_params.R.setIdentity();
     fb_controller->setParams(fb_params);
-    test_controller = new TestRobust(model, cost, fb_controller, controller_params, 0);
+    test_controller = new TestRobust(model, cost, fb_controller, sampler, controller_params, 0);
+    auto controller_params = test_controller->getParams();
+    controller_params.dynamics_rollout_dim_ = dim3(64, 8, 2);
+    controller_params.cost_rollout_dim_ = dim3(64, 8, 2);
+    controller_params.eval_kernel_dim_.x = 32;
+    test_controller->setParams(controller_params);
   }
 
   void TearDown() override
@@ -144,12 +154,14 @@ protected:
     delete model;
     delete cost;
     delete fb_controller;
+    delete sampler;
   }
 
-  dynamics* model;
-  cost_function* cost;
+  DYN* model;
+  COST* cost;
   TestRobust* test_controller;
-  FEEDBACK_CONTROL* fb_controller;
+  FB_CONTROLLER* fb_controller;
+  SAMPLING* sampler;
   TestRobust::TEMPLATED_PARAMS controller_params;
   float dt = 0.01;
   float lambda = 0.5;
@@ -182,7 +194,7 @@ TEST_F(RMPPINominalStateCandidates, UpdateNumCandidates_TooManyCandidates)
 
 TEST_F(RMPPINominalStateCandidates, CandidateVectorSizeNonzero)
 {
-  dynamics::state_array x_star_k, x_star_kp1, x_kp1;
+  DYN::state_array x_star_k, x_star_kp1, x_kp1;
   x_star_k << -4, 0, 0, 0;
   x_star_kp1 << 4, 0, 0, 0;
   x_kp1 << 4, 4, 0, 0;
@@ -256,7 +268,7 @@ TEST_F(RMPPINominalStateCandidates, InitEvalSelection_Weights)
    * This test will ensure that the line search process to select the
    * number of points for free energy evaluation is correct.
    */
-  dynamics::state_array x_star_k, x_star_kp1, x_kp1;
+  DYN::state_array x_star_k, x_star_kp1, x_kp1;
   x_star_k << -4, 0, 0, 0;
   x_star_kp1 << 0, 4, 0, 0;
   x_kp1 << 4, 4, 0, 0;
@@ -282,9 +294,6 @@ TEST_F(RMPPINominalStateCandidates, InitEvalSelection_Weights)
 class RMPPINominalStateSelection : public ::testing::Test
 {
 public:
-  using dynamics = DoubleIntegratorDynamics;
-  using cost_function = DoubleIntegratorCircleCost;
-  using FEEDBACK_CONTROL = DDPFeedback<dynamics, NUM_TIMESTEPS>;
   int num_samples = 64;
   int num_candidates = 9;
   Eigen::MatrixXf trajectory_costs;
@@ -292,10 +301,13 @@ public:
 protected:
   void SetUp() override
   {
-    model = new dynamics(10);  // Initialize the double integrator dynamics
-    cost = new cost_function;  // Initialize the cost function
-    fb_controller = new FEEDBACK_CONTROL(model, dt);
-    control_std_dev << 0.0001, 0.0001;
+    model = new DYN(10);  // Initialize the double integrator dynamics
+    cost = new COST;      // Initialize the cost function
+    fb_controller = new FB_CONTROLLER(model, dt);
+    SAMPLER_PARAMS sampler_params;
+    sampler_params.std_dev[0] = 0.001;
+    sampler_params.std_dev[1] = 0.001;
+    sampler = new SAMPLING(sampler_params);
     init_control_traj.setZero();
 
     // Q, Qf, R
@@ -305,8 +317,13 @@ protected:
     fb_params.R.setIdentity();
     fb_controller->setParams(fb_params);
 
-    test_controller = new TestRobust(model, cost, fb_controller, dt, 3, lambda, alpha, 1000.0, control_std_dev, 100,
-                                     init_control_traj, 0);
+    test_controller =
+        new TestRobust(model, cost, fb_controller, sampler, dt, 3, lambda, alpha, 1000.0, 100, init_control_traj, 0);
+    auto controller_params = test_controller->getParams();
+    controller_params.dynamics_rollout_dim_ = dim3(64, 8, 2);
+    controller_params.cost_rollout_dim_ = dim3(64, 8, 2);
+    controller_params.eval_kernel_dim_.x = num_samples;
+    test_controller->setParams(controller_params);
 
     // Set the size of the trajectory costs function
     trajectory_costs.resize(num_samples * num_candidates, 1);
@@ -321,13 +338,14 @@ protected:
     delete cost;
     delete model;
     delete fb_controller;
+    delete sampler;
   }
 
-  dynamics* model;
-  cost_function* cost;
+  DYN* model;
+  COST* cost;
   TestRobust* test_controller;
-  FEEDBACK_CONTROL* fb_controller;
-  dynamics::control_array control_std_dev;
+  FB_CONTROLLER* fb_controller;
+  SAMPLING* sampler;
   TestRobust::control_trajectory init_control_traj;
   float dt = 0.01;
   float lambda = 0.5;
@@ -410,7 +428,7 @@ TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_InitFalse)
   // is centered around the origin with radius 2. Set the 3 relevant points of
   // the system such that x_k_star (the previous nominal state) is the best
   // free energy candidate.
-  dynamics::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
+  DYN::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
   nominal_x_k << 2, 0, 0, 0;
   nominal_x_kp1 << 5, 0, 0, 0;
   real_x_kp1 << 5, 0, 0, 0;
@@ -436,7 +454,7 @@ TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_PreviousNominal)
   // is centered around the origin with radius 2. Set the 3 relevant points of
   // the system such that x_k_star (the previous nominal state) is the best
   // free energy candidate.
-  dynamics::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
+  DYN::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
   nominal_x_k << 2, 0, 0, 0;
   nominal_x_kp1 << 15, 0, 0, 0;
   real_x_kp1 << 15, 0, 0, 0;
@@ -462,7 +480,7 @@ TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_CurrentNominal)
   // is centered around the origin with radius 2. Set the 3 relevant points of
   // the system such that x_k_star (the nominal state) is the best
   // free energy candidate.
-  dynamics::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
+  DYN::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
   nominal_x_k << -100, 0, 0, 0;
   nominal_x_kp1 << 2, 0, 0, 0;
   real_x_kp1 << 100, 0, 0, 0;
@@ -488,7 +506,7 @@ TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_CurrentReal)
   // is centered around the origin with radius 2. Set the 3 relevant points of
   // the system such that x_k_star (the previous nominal state) is the best
   // free energy candidate.
-  dynamics::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
+  DYN::state_array nominal_x_k, nominal_x_kp1, real_x_kp1;
   nominal_x_k << -100, 0, 0, 0;
   nominal_x_kp1 << -100, 0, 0, 0;
   real_x_kp1 << 2, 0, 0, 0;
@@ -506,19 +524,20 @@ TEST_F(RMPPINominalStateSelection, ComputeNominalStateAndStride_CurrentReal)
 
 TEST_F(RMPPINominalStateSelection, DDPFeedbackGainInternalStorage)
 {
-  dynamics::state_array x;
+  DYN::state_array x;
   x << 2, 0, 0, 0;
   int stride = 1;
   test_controller->updateImportanceSamplingControl(x, stride);
+  std::cout << "Finished one update" << std::endl;
   test_controller->updateImportanceSamplingControl(x, stride);
-
+  std::cout << "Finished importance sampling update" << std::endl;
   auto fb_parm = test_controller->getFeedbackState();
   auto feedback_gain_eigen_aligned = test_controller->getFeedbackGainsEigen();
-
+  std::cout << "Got feedback gains: " << feedback_gain_eigen_aligned.size() << std::endl;
   for (size_t i = 0; i < feedback_gain_eigen_aligned.size(); i++)
   {
-    int i_index = i * dynamics::STATE_DIM * dynamics::CONTROL_DIM;
-    for (size_t j = 0; j < dynamics::CONTROL_DIM * dynamics::STATE_DIM; j++)
+    int i_index = i * DYN::STATE_DIM * DYN::CONTROL_DIM;
+    for (size_t j = 0; j < DYN::CONTROL_DIM * DYN::STATE_DIM; j++)
     {
       ASSERT_FLOAT_EQ(fb_parm.fb_gain_traj_[i_index + j], feedback_gain_eigen_aligned[i].data()[j]) << " at i = " << i;
     }
@@ -555,6 +574,11 @@ TEST(RMPPITest, RobustMPPILargeVariance)
   float alpha = 0.00;
   const int total_time_horizon = 5000;
   FEEDBACK_T fb_controller(&model, dt);
+  SAMPLING::SAMPLING_PARAMS_T sampler_params;
+  // control variance
+  sampler_params.std_dev[0] = 1;
+  sampler_params.std_dev[1] = 1;
+  SAMPLING sampler = SAMPLING(sampler_params);
 
   std::vector<float> actual_trajectory_save(num_timesteps * total_time_horizon * DYNAMICS::STATE_DIM);
   std::vector<float> nominal_trajectory_save(num_timesteps * total_time_horizon * DYNAMICS::STATE_DIM);
@@ -565,10 +589,6 @@ TEST(RMPPITest, RobustMPPILargeVariance)
   x << 2, 0, 0, 1;
 
   DYNAMICS::state_array xdot;
-
-  // control variance
-  DYNAMICS::control_array control_var;
-  control_var << 1, 1;
 
   // DDP cost parameters
   auto fb_params = fb_controller.getParams();
@@ -598,10 +618,13 @@ TEST(RMPPITest, RobustMPPILargeVariance)
   //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
   // Initialize the R MPPI controller
-  auto controller =
-      RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, 64, 8,
-                           RobustMPPIParams<DYNAMICS::STATE_DIM, DYNAMICS::CONTROL_DIM, num_timesteps>, 1>(
-          &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
+  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, value_function_threshold);
+
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 8, 2);
+  controller_params.cost_rollout_dim_ = dim3(num_timesteps, 8, 2);
+  controller.setParams(controller_params);
 
   int fail_count = 0;
 
@@ -703,6 +726,11 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost)
   params.velocity_desired = 2;
   params.crash_cost = 100;
   cost.setParams(params);
+  SAMPLING::SAMPLING_PARAMS_T sampler_params;
+  // control variance
+  sampler_params.std_dev[0] = 1;
+  sampler_params.std_dev[1] = 1;
+  SAMPLING sampler = SAMPLING(sampler_params);
   int max_iter = 3;    // Maximum running iterations of optimization
   float lambda = 2.0;  // Learning rate parameter
   float alpha = 0.0;
@@ -719,10 +747,6 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost)
   x << 2, 0, 0, 1;
 
   DYNAMICS::state_array xdot;
-
-  // control variance
-  DYNAMICS::control_array control_var;
-  control_var << 1, 1;
 
   // DDP cost parameters
   auto fb_params = fb_controller.getParams();
@@ -753,11 +777,12 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost)
   //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
   // Initialize the R MPPI controller
-  auto controller =
-      RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, 64, 8,
-                           RobustMPPIParams<DYNAMICS::STATE_DIM, DYNAMICS::CONTROL_DIM, num_timesteps>, 1>(
-          &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
-
+  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, value_function_threshold);
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 8, 2);
+  controller_params.cost_rollout_dim_ = dim3(num_timesteps, 8, 2);
+  controller.setParams(controller_params);
   int fail_count = 0;
 
   // Start the while loop

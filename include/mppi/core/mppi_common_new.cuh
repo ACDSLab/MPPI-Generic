@@ -62,10 +62,9 @@ __device__ void warpReduceAdd(volatile float* sdata, const int tid);
 template <class DYN_T, class COST_T, typename SAMPLING_T>
 void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
                              SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
-                             const int num_rollouts, float lambda, float alpha,
-                             float* __restrict__ init_x_d, float* __restrict__ y_d,
-                             float* __restrict__ trajectory_costs, dim3 dimDynBlock, dim3 dimCostBlock,
-                             cudaStream_t stream, bool synchronize = true);
+                             const int num_rollouts, float lambda, float alpha, float* __restrict__ init_x_d,
+                             float* __restrict__ y_d, float* __restrict__ trajectory_costs, dim3 dimDynBlock,
+                             dim3 dimCostBlock, cudaStream_t stream, bool synchronize = true);
 
 template <class COST_T, class SAMPLING_T>
 void launchVisualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
