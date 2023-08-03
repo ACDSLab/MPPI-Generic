@@ -11,7 +11,7 @@ public:
   using COST_T = CartpoleQuadraticCost;
   using FB_T = DDPFeedback<DYN_T, NUM_TIMESTEPS>;
   using SAMPLING_T = mppi::sampling_distributions::GaussianDistribution<DYN_T::DYN_PARAMS_T>;
-  using CONTROLLER_T = VanillaMPPIController<DYN_T, COST_T, FB_T, NUM_TIMESTEPS, NUM_ROLLOUTS>;
+  using CONTROLLER_T = VanillaMPPIController<DYN_T, COST_T, FB_T, NUM_TIMESTEPS, NUM_ROLLOUTS, SAMPLING_T>;
   using control_trajectory = CONTROLLER_T::control_trajectory;
   using control_array = CONTROLLER_T::control_array;
 
@@ -117,7 +117,6 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
       printf("Current Baseline Cost: %f    ", controller->getBaselineCost());
       model.printState(current_state.data());
     }
-
     // Compute the control
     controller->computeControl(current_state, 1);
 
@@ -163,7 +162,7 @@ public:
   using COST_T = QuadrotorQuadraticCost;
   using FB_T = DDPFeedback<DYN_T, NUM_TIMESTEPS>;
   using SAMPLING_T = mppi::sampling_distributions::GaussianDistribution<DYN_T::DYN_PARAMS_T>;
-  using CONTROLLER_T = VanillaMPPIController<DYN_T, COST_T, FB_T, NUM_TIMESTEPS, NUM_ROLLOUTS>;
+  using CONTROLLER_T = VanillaMPPIController<DYN_T, COST_T, FB_T, NUM_TIMESTEPS, NUM_ROLLOUTS, SAMPLING_T>;
   using control_trajectory = CONTROLLER_T::control_trajectory;
   using control_array = CONTROLLER_T::control_array;
 

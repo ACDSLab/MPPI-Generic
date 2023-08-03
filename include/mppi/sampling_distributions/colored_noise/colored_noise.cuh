@@ -43,7 +43,7 @@ __global__ void configureFrequencyNoise(cufftComplex* noise, float* variance, in
 }
 
 __global__ void rearrangeNoise(float* input, float* output, float* variance, int num_trajectories, int num_timesteps,
-                               int control_dim, int offset_t, float offset_decay_rate)
+                               int control_dim, int offset_t, float decay_rate = 1.0)
 {
   int sample_index = blockIdx.x * blockDim.x + threadIdx.x;
   int time_index = blockIdx.y * blockDim.y + threadIdx.y;
@@ -51,9 +51,9 @@ __global__ void rearrangeNoise(float* input, float* output, float* variance, int
   if (sample_index < num_trajectories && time_index < (num_timesteps) && control_index < control_dim)
   {  // cuFFT does not normalize inverse transforms so a division by the num_timesteps is required
     output[(sample_index * num_timesteps + time_index) * control_dim + control_index] =
-        (input[(sample_index * control_dim + control_index) * 2 * num_timesteps + time_index] -
-         input[(sample_index * control_dim + control_index) * 2 * num_timesteps + offset_t] *
-             powf(offset_decay_rate, time_index)) /
+        (input[(sample_index * control_dim + control_index) * num_timesteps + time_index] -
+         input[(sample_index * control_dim + control_index) * num_timesteps + offset_t] *
+             powf(decay_rate, time_index)) /
         (variance[control_index] * 2 * num_timesteps);
     // printf("ROLLOUT %d CONTROL %d TIME %d: in %f out: %f\n", sample_index, control_index, time_index,
     //     input[(sample_index * control_dim + control_index) * num_timesteps + time_index],
@@ -188,13 +188,15 @@ namespace mppi
 {
 namespace sampling_distributions
 {
-template <int C_DIM, int MAX_DISTRIBUTIONS_T = 2>
-struct ColoredNoiseParams : public GaussianParams<C_DIM, MAX_DISTRIBUTIONS_T>
+template <int C_DIM, int MAX_DISTRIBUTIONS = 2>
+struct ColoredNoiseParamsImpl : public GaussianParamsImpl<C_DIM, MAX_DISTRIBUTIONS>
 {
   float exponents[C_DIM * MAX_DISTRIBUTIONS] = { 0.0f };
+  float offset_decay_rate = 0.97;
+  float fmin = 0.0;
 
-  ColoredNoiseParams(int num_rollouts = 1, int num_timesteps = 1, int num_distributions = 1)
-    : GaussianParams<C_DIM, MAX_DISTRIBUTIONS_T>(num_rollouts, num_timesteps, num_distributions)
+  ColoredNoiseParamsImpl(int num_rollouts = 1, int num_timesteps = 1, int num_distributions = 1)
+    : GaussianParamsImpl<C_DIM, MAX_DISTRIBUTIONS>(num_rollouts, num_timesteps, num_distributions)
   {
   }
 
@@ -208,22 +210,27 @@ struct ColoredNoiseParams : public GaussianParams<C_DIM, MAX_DISTRIBUTIONS_T>
              src_out_of_distribution ? src_distribution_idx : dest_distribution_idx, MAX_DISTRIBUTIONS);
       return;
     }
-    float* exponents_src = exponents[CONTROL_DIM * src_distribution_idx];
-    float* exponents_dest = exponents[CONTROL_DIM * dest_distribution_idx];
-    for (int i = 0; i < CONTROL_DIM; i++)
+    float* exponents_src = exponents[C_DIM * src_distribution_idx];
+    float* exponents_dest = exponents[C_DIM * dest_distribution_idx];
+    for (int i = 0; i < C_DIM; i++)
     {
       exponents_dest[i] = exponents_src[i];
     }
   }
 };
 
+template <int C_DIM>
+using ColoredNoiseParams = ColoredNoiseParamsImpl<C_DIM, 2>;
+
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE = ColoredNoiseParams, class DYN_PARAMS_T = DynamicsParams>
 class ColoredNoiseDistributionImpl : public GaussianDistributionImpl<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>
 {
 public:
-  using PARENT_CLASS = typename GaussianDistributionImpl<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>;
+  using PARENT_CLASS = GaussianDistributionImpl<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>;
   using SAMPLING_PARAMS_T = typename PARENT_CLASS::SAMPLING_PARAMS_T;
   using control_array = typename PARENT_CLASS::control_array;
+
+  static const int CONTROL_DIM = PARENT_CLASS::CONTROL_DIM;
 
   ColoredNoiseDistributionImpl(cudaStream_t stream = 0);
   ColoredNoiseDistributionImpl(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0);
@@ -240,6 +247,16 @@ public:
   __host__ void generateSamples(const int& optimization_stride, const int& iteration_num, curandGenerator_t& gen,
                                 bool synchronize = true);
 
+  __host__ __device__ float getOffsetDecayRate() const
+  {
+    return this->params_.offset_decay_rate;
+  }
+
+  void setOffsetDecayRate(const float decay_rate)
+  {
+    this->params_.offset_decay_rate = decay_rate;
+  }
+
 protected:
   cufftHandle plan_;
   float* frequency_sigma_d_ = nullptr;
@@ -250,10 +267,11 @@ protected:
 
 template <class DYN_PARAMS_T>
 class ColoredNoiseDistribution
-  : public ColoredNoiseDistributionImpl<ColoredNoiseDistribution, ColoredNoiseParams, DYN_PARAMS_T>
+  : public ColoredNoiseDistributionImpl<ColoredNoiseDistribution<DYN_PARAMS_T>, ColoredNoiseParams, DYN_PARAMS_T>
 {
+public:
   using PARENT_CLASS = ColoredNoiseDistributionImpl<ColoredNoiseDistribution, ColoredNoiseParams, DYN_PARAMS_T>;
-  using SAMPLING_PARAMS_T = PARENT_CLASS::SAMPLING_PARAMS_T;
+  using SAMPLING_PARAMS_T = typename PARENT_CLASS::SAMPLING_PARAMS_T;
 
   ColoredNoiseDistribution(cudaStream_t stream = 0) : PARENT_CLASS(stream)
   {

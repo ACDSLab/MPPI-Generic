@@ -18,7 +18,7 @@ using COST = DoubleIntegratorCircleCost;
 using SAMPLING = mppi::sampling_distributions::GaussianDistribution<DYN::DYN_PARAMS_T>;
 using SAMPLER_PARAMS = SAMPLING::SAMPLING_PARAMS_T;
 using FB_CONTROLLER = DDPFeedback<DYN, NUM_TIMESTEPS>;
-using CONTROLLER_T = RobustMPPIController<DYN, COST, FB_CONTROLLER, NUM_TIMESTEPS, 2048>;
+using CONTROLLER_T = RobustMPPIController<DYN, COST, FB_CONTROLLER, NUM_TIMESTEPS, 2048, SAMPLING>;
 
 class TestRobust : public CONTROLLER_T
 {
@@ -618,7 +618,7 @@ TEST(RMPPITest, RobustMPPILargeVariance)
   //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
   // Initialize the R MPPI controller
-  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024>(
+  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, SAMPLING>(
       &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, value_function_threshold);
 
   auto controller_params = controller.getParams();
@@ -777,7 +777,7 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost)
   //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
   // Initialize the R MPPI controller
-  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024>(
+  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, SAMPLING>(
       &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, value_function_threshold);
   auto controller_params = controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 4, 2);
