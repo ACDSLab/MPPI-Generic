@@ -246,6 +246,8 @@ protected:
 
   void deallocateNominalStateCandidateMemory();
 
+  void updateCandidateMemory();
+
   void resetCandidateCudaMem();
 
   void getInitNominalStateCandidates(const Eigen::Ref<const state_array>& nominal_x_k,

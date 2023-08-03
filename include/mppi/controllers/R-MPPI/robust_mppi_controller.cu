@@ -89,11 +89,18 @@ void RobustMPPI::setParams(const PARAMS_T& p)
   bool changed_sample_size = p.eval_kernel_dim_.x != this->params_.eval_kernel_dim_.x;
   bool changed_num_candidates = p.num_candidate_nominal_states_ != this->params_.num_candidate_nominal_states_;
   PARENT_CLASS::setParams(p);
-  if (changed_sample_size || changed_num_candidates)
+  this->params_.dynamics_rollout_dim_.z = min(2, p.dynamics_rollout_dim_.z);
+  this->params_.cost_rollout_dim_.z = min(2, p.cost_rollout_dim_.z);
+  if (changed_sample_size)
   {
-    resetCandidateCudaMem();
+    updateCandidateMemory();
+  }
+  else if (changed_num_candidates)
+  {
+    updateNumCandidates(p.num_candidate_nominal_states_);
   }
 }
+
 ROBUST_MPPI_TEMPLATE
 void RobustMPPI::getInitNominalStateCandidates(const Eigen::Ref<const state_array>& nominal_x_k,
                                                const Eigen::Ref<const state_array>& nominal_x_kp1,
@@ -120,9 +127,6 @@ void RobustMPPI::resetCandidateCudaMem()
   HANDLE_ERROR(
       cudaMalloc((void**)&importance_sampling_states_d_, sizeof(float) * DYN_T::STATE_DIM * getNumCandidates()));
   HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_strides_d_, sizeof(int) * getNumCandidates()));
-  std::cout << "Num Candidates: " << getNumCandidates()
-            << ", Samples per candidate: " << getNumEvalSamplesPerCandidate()
-            << " timesteps: " << this->getNumTimesteps() << std::endl;
   // Set flag so that the we know cudamemory is allocated
   importance_sampling_cuda_mem_init_ = true;
 }
@@ -132,12 +136,14 @@ void RobustMPPI::deallocateNominalStateCandidateMemory()
 {
   if (importance_sampling_cuda_mem_init_)
   {
-    printf("cost: %p, output: %p, states: %p, strides: %p\n", importance_sampling_costs_d_,
-           importance_sampling_outputs_d_, importance_sampling_states_d_, importance_sampling_strides_d_);
     HANDLE_ERROR(cudaFree(importance_sampling_costs_d_));
     HANDLE_ERROR(cudaFree(importance_sampling_outputs_d_));
     HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
     HANDLE_ERROR(cudaFree(importance_sampling_strides_d_));
+    importance_sampling_costs_d_ = nullptr;
+    importance_sampling_outputs_d_ = nullptr;
+    importance_sampling_states_d_ = nullptr;
+    importance_sampling_strides_d_ = nullptr;
 
     // Set flag so that we know cudamemory has been freed
     importance_sampling_cuda_mem_init_ = false;
@@ -186,6 +192,15 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates)
   // Set the new value of the number of candidates
   setNumCandidates(new_num_candidates);
 
+  updateCandidateMemory();
+
+  // Recompute the line search weights based on the number of candidates
+  computeLineSearchWeights();
+}
+
+ROBUST_MPPI_TEMPLATE
+void RobustMPPI::updateCandidateMemory()
+{
   // Resize the vector holding the candidate nominal states
   candidate_nominal_states_.resize(getNumCandidates());
 
@@ -202,9 +217,6 @@ void RobustMPPI::updateNumCandidates(int new_num_candidates)
 
   // Deallocate and reallocate cuda memory
   resetCandidateCudaMem();
-
-  // Recompute the line search weights based on the number of candidates
-  computeLineSearchWeights();
 }
 
 ROBUST_MPPI_TEMPLATE
@@ -282,7 +294,6 @@ void RobustMPPI::updateImportanceSamplingControl(const Eigen::Ref<const state_ar
   real_stride_ = stride;
 
   computeNominalStateAndStride(state, stride);  // Launches the init eval kernel
-  std::cout << "Did the eval kernel" << std::endl;
 
   // Save the nominal control history for the importance sampler
   this->saveControlHistoryHelper(nominal_stride_, nominal_control_trajectory_, nominal_control_history_);
@@ -293,13 +304,10 @@ void RobustMPPI::updateImportanceSamplingControl(const Eigen::Ref<const state_ar
   // Slide the control sequence for the nominal control trajectory
   this->slideControlSequenceHelper(nominal_stride_, nominal_control_trajectory_);
 
-  std::cout << "State trajectory to be made" << std::endl;
   // Compute the nominal trajectory because we have slid the control sequence and updated the nominal state
   this->computeStateTrajectoryHelper(nominal_state_trajectory_, nominal_state_, nominal_control_trajectory_);
-  std::cout << "State trajectory made" << std::endl;
   // Compute the feedback gains and save them to an array
   computeNominalFeedbackGains(state);
-  std::cout << "Where ever you go" << std::endl;
 }
 
 ROBUST_MPPI_TEMPLATE
@@ -323,7 +331,6 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
     // Send the importance sampler strides to the GPU
     HANDLE_ERROR(cudaMemcpyAsync(importance_sampling_strides_d_, importance_sampler_strides_.data(),
                                  sizeof(int) * getNumCandidates(), cudaMemcpyHostToDevice, this->stream_));
-
     // Send the nominal control to the GPU
     copyNominalControlToDevice(false);
 
@@ -346,7 +353,6 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
                                  sizeof(float) * getNumCandidates() * getNumEvalSamplesPerCandidate(),
                                  cudaMemcpyDeviceToHost, this->stream_));
     cudaStreamSynchronize(this->stream_);
-    // std::cout << "Costs: " << candidate_trajectory_costs_.transpose() << std::endl;
 
     // Compute the best nominal state candidate from the rollouts
     computeBestIndex();

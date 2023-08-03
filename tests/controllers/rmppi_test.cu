@@ -622,8 +622,8 @@ TEST(RMPPITest, RobustMPPILargeVariance)
       &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, value_function_threshold);
 
   auto controller_params = controller.getParams();
-  controller_params.dynamics_rollout_dim_ = dim3(64, 8, 2);
-  controller_params.cost_rollout_dim_ = dim3(num_timesteps, 8, 2);
+  controller_params.dynamics_rollout_dim_ = dim3(64, 4, 2);
+  controller_params.cost_rollout_dim_ = dim3(num_timesteps, 1, 2);
   controller.setParams(controller_params);
 
   int fail_count = 0;
@@ -780,8 +780,9 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost)
   auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024>(
       &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, value_function_threshold);
   auto controller_params = controller.getParams();
-  controller_params.dynamics_rollout_dim_ = dim3(64, 8, 2);
-  controller_params.cost_rollout_dim_ = dim3(num_timesteps, 8, 2);
+  controller_params.dynamics_rollout_dim_ = dim3(64, 4, 2);
+  controller_params.cost_rollout_dim_ = dim3(num_timesteps, 1, 2);
+  controller_params.eval_kernel_dim_.x = 64;
   controller.setParams(controller_params);
   int fail_count = 0;
 

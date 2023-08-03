@@ -111,12 +111,6 @@ __global__ void initEvalDynKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __re
     // Increment states
     dynamics->step(x, x_next, xdot, u, y, theta_s_shared, t, dt);
     __syncthreads();
-    if (global_idx == 1 && threadIdx.y == 0 && t < 3)
-    {
-      printf("rollout %d, t: %d, u: %8.6f, %8.6f, y: (%8.6f, %8.6f, %8.6f, %8.6f)\n", global_idx, t, u[0], u[1], y[0],
-             y[1], y[2], y[3]);
-    }
-    __syncthreads();
     x_temp = x;
     x = x_next;
     x_next = x_temp;
@@ -210,16 +204,6 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
       // int candidate_t = min(t + strides_shared[candidate_idx], num_timesteps - 1);
       sampling->readControlSample(candidate_sample_idx, candidate_t, distribution_idx, u, theta_d, blockDim.y,
                                   thread_idy, y);
-    }
-    __syncthreads();
-    if (t == 2 && global_idx == 1)
-    {
-      printf("Rollout %d, t %d, y: ", global_idx, t);
-      for (int i = 0; i < COST_T::OUTPUT_DIM; i++)
-      {
-        printf("%f, ", y[i]);
-      }
-      printf("\n");
     }
     __syncthreads();
 
@@ -353,21 +337,6 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
           math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
   float* theta_d_shared = &theta_s_shared[size_of_theta_s_bytes / sizeof(float)];
   float* theta_fb = &theta_d_shared[size_of_theta_d_bytes / sizeof(float)];
-  __syncthreads();
-  if (global_idx == 0 && threadIdx.x == 0 && threadIdx.z == 0 && threadIdx.y == 0)
-  {
-    int num_shared = sample_dim * distribution_dim;
-    printf("x_shared: %p, %d\n", x_shared, math::nearest_multiple_4(num_shared * DYN_T::STATE_DIM));
-    printf("x_next  : %p, %d\n", x_next_shared, math::nearest_multiple_4(num_shared * DYN_T::STATE_DIM));
-    printf("y_shared: %p, %d\n", y_shared, math::nearest_multiple_4(num_shared * DYN_T::OUTPUT_DIM));
-    printf("u_shared: %p, %d\n", u_shared, math::nearest_multiple_4(num_shared * DYN_T::CONTROL_DIM));
-    // printf("run_cost: %p, %d\n", running_cost_shared, math::nearest_multiple_4(num_shared * 2));
-    // printf("crash_st: %p, %d\n", crash_status_shared, math::nearest_multiple_4(num_shared));
-    printf("Cost_shr: %p, mem size: %d\n", theta_s_shared, size_of_theta_s_bytes);
-    printf("Dist shr: %p, next float + 1: %p\n", theta_d_shared, &theta_d_shared[1]);
-    printf("Block Dim x = %d, Block Dim y = %d Block Dim z = %d\n", blockDim.x, blockDim.y, blockDim.z);
-  }
-  __syncthreads();
 
   // Create local state, state dot and controls
   float* x = &(reinterpret_cast<float*>(x_shared)[shared_idx * DYN_T::STATE_DIM]);
@@ -412,8 +381,6 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
     for (i = thread_idy; i < DYN_T::CONTROL_DIM; i += blockDim.y)
     {
       u[i] += fb_control[i];
-      // Make sure feedback is added to the modified control noise pointer
-      // du_d[control_index + i] += fb_control[i];
     }
     __syncthreads();
 
@@ -422,15 +389,11 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
     // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     dynamics->enforceConstraints(x, u);
     __syncthreads();
+    // copy back feedback-filled controls to global memory
+    sampling->writeControlSample(global_idx, t, distribution_idx, u, theta_d_shared, blockDim.y, thread_idy, y);
 
     // Increment states
     dynamics->step(x, x_next, xdot, u, y, theta_s_shared, t, dt);
-    // copy back feedback-filled controls to global memory
-    if (thread_idz != NOMINAL_STATE_IDX)
-    {
-      mp1::loadArrayParallel<DYN_T::CONTROL_DIM>(sampling->getControlSample(global_idx, t, distribution_idx, y), 0, u,
-                                                 0);
-    }
     __syncthreads();
     x_temp = x;
     x = x_next;
@@ -475,17 +438,6 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
       num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
   float* theta_d = &theta_c[size_of_theta_c_bytes / sizeof(float)];
   float* theta_fb = &theta_d[size_of_theta_d_bytes / sizeof(float)];
-  __syncthreads();
-  if (global_idx == 0 && threadIdx.x == 0 && threadIdx.z == 0 && threadIdx.y == 0)
-  {
-    printf("y_shared: %p, %d\n", y_shared, math::nearest_multiple_4(num_shared * COST_T::OUTPUT_DIM));
-    printf("u_shared: %p, %d\n", u_shared, math::nearest_multiple_4(num_shared * COST_T::CONTROL_DIM));
-    printf("run_cost: %p, %d\n", running_cost_shared, math::nearest_multiple_4(num_shared * 2));
-    printf("crash_st: %p, %d\n", crash_status_shared, math::nearest_multiple_4(num_shared));
-    printf("Cost_shr: %p, mem size: %d\n", theta_c, size_of_theta_c_bytes);
-    printf("Dist shr: %p, next float + 1: %p\n", theta_d, &theta_d[1]);
-  }
-  __syncthreads();
 
   // Initialize running cost and total cost
   int sample_time_offset = 0;
@@ -535,6 +487,12 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
     {  // load controls from t = 1 to t = num_timesteps - 1
       sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d, blockDim.y, thread_idy, y);
     }
+    float x[DYN_T::STATE_DIM];
+    float x_nom[DYN_T::STATE_DIM];
+    dynamics->outputToState(y, x);
+    dynamics->outputToState(y_nom, x_nom);
+    __syncthreads();
+    fb_controller->k(x, x_nom, t, theta_fb, fb_control);
     __syncthreads();
 
     // Compute cost
@@ -549,16 +507,9 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
       running_cost_extra[0] +=
           sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
     }
+
     if (thread_idz != NOMINAL_STATE_IDX && thread_idy == 0 && t < num_timesteps)
     {
-      // we do not apply feedback on the nominal state
-      float x[DYN_T::STATE_DIM];
-      float x_nom[DYN_T::STATE_DIM];
-      dynamics->outputToState(y, x);
-      dynamics->outputToState(y_nom, x_nom);
-      __syncthreads();
-      fb_controller->k(x, x_nom, t, theta_fb, fb_control);
-
       running_cost[0] +=
           curr_cost + sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
       running_cost_extra[0] +=
@@ -693,9 +644,6 @@ void launchFastInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
               << ") must be greater than or equal to cost block size x (" << dimCostBlock.x << ")" << std::endl;
     exit(EXIT_FAILURE);
   }
-  std::cout << "EVAL KERNEL OUTPUT NUMBER: " << num_timesteps * num_rollouts << std::endl;
-  std::cout << "EVAL KERNEL NUM TIMESTEPS: " << num_timesteps << ", NUM ROLLOUTS: " << num_rollouts
-            << ", SAMPLES_PER_CANDIDATE: " << samples_per_condition << std::endl;
   // Run Dynamics
   const int gridsize_x = math::int_ceil(num_rollouts, dimDynBlock.x);
   dim3 dimGrid(gridsize_x, 1, 1);
@@ -707,8 +655,7 @@ void launchFastInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
       math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       dynamics_num_shared * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
       math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      dynamics_num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
-      math::nearest_multiple_4(num_rollouts / samples_per_condition) * sizeof(float);
+      dynamics_num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
 
   initEvalDynKernel<DYN_T, SAMPLING_T><<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(
       dynamics, sampling, dt, num_timesteps, num_rollouts, samples_per_condition, strides_d, init_x_d, y_d);
@@ -780,6 +727,7 @@ void launchFastRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restri
   dynamics_shared_size +=
       math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       dynamics_num_shared * math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+
   rolloutRMPPIDynamicsKernel<DYN_T, FB_T, SAMPLING_T, NOMINAL_STATE_IDX>
       <<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(dynamics, fb_controller, sampling, dt, num_timesteps,
                                                                num_rollouts, init_x_d, y_d);
@@ -797,8 +745,6 @@ void launchFastRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restri
       cost_num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
   cost_shared_size += math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
                       cost_num_shared * math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
-  // std::cout << "crash status shared mem space: " << math::nearest_multiple_4(cost_num_shared) << " running cost: " <<
-  // math::nearest_multiple_4(cost_num_shared * 2) << std::endl;
   rolloutRMPPICostKernel<COST_T, DYN_T, SAMPLING_T, FB_T, NOMINAL_STATE_IDX>
       <<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(costs, dynamics, fb_controller, sampling, dt,
                                                                 num_timesteps, num_rollouts, lambda, alpha,
