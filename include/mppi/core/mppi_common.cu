@@ -5,8 +5,14 @@
 #include <mppi/utils/cuda_math_utils.cuh>
 
 #include <cooperative_groups.h>
+#include <cuda/barrier>
 namespace cg = cooperative_groups;
 namespace mp1 = mppi::p1;
+
+using barrier = cuda::barrier<cuda::thread_scope_block>;
+
+// #define USE_SYNC_THREADS
+// #define USE_SYNC_THREADS_COST
 
 namespace mppi_common
 {
@@ -138,6 +144,10 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
   __shared__ float4 du_shared[mppi::math::int_ceil(BLOCKSIZE_X * DYN_T::CONTROL_DIM * BLOCKSIZE_Z, 4)];
   __shared__ float4 sigma_u[mppi::math::int_ceil(DYN_T::CONTROL_DIM, 4)];
 
+#ifndef USE_SYNC_THREADS
+  __shared__ barrier bar_shared[BLOCKSIZE_X * BLOCKSIZE_Z];
+#endif
+
   // Create a shared array for the dynamics model to use
   __shared__ float4 theta_s4[mppi::math::int_ceil(DYN_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 +
                                                       DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z,
@@ -152,6 +162,9 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
   float* u;
   float* du;
   float* y;
+#ifndef USE_SYNC_THREADS
+  barrier* bar;
+#endif
 
   // Load global array to shared array
   if (global_idx < NUM_ROLLOUTS)
@@ -162,10 +175,19 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
     xdot = &(reinterpret_cast<float*>(xdot_shared)[(blockDim.x * thread_idz + thread_idx) * DYN_T::STATE_DIM]);
     u = &(reinterpret_cast<float*>(u_shared)[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM]);
     du = &(reinterpret_cast<float*>(du_shared)[(blockDim.x * thread_idz + thread_idx) * DYN_T::CONTROL_DIM]);
+#ifndef USE_SYNC_THREADS
+    bar = &bar_shared[blockDim.x * thread_idz + thread_idx];
+#endif
   }
   loadGlobalToShared<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>(NUM_ROLLOUTS, BLOCKSIZE_Y, global_idx, thread_idy,
                                                            thread_idz, init_x_d, sigma_u_d, x, xdot, u, du,
                                                            reinterpret_cast<float*>(sigma_u));
+#ifndef USE_SYNC_THREADS
+  if (thread_idy == 0)
+  {
+    init(bar, BLOCKSIZE_Y);
+  }
+#endif
   __syncthreads();
 
   if (global_idx < NUM_ROLLOUTS)
@@ -178,7 +200,12 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
       injectControlNoise(DYN_T::CONTROL_DIM, BLOCKSIZE_Y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy,
                          optimization_stride, u_d, du_d, reinterpret_cast<float*>(sigma_u), u, du);
       // du_d is now v
+#ifdef USE_SYNC_THREADS
       __syncthreads();
+#else
+      barrier::arrival_token control_read_token = bar->arrive();
+      bar->wait(std::move(control_read_token));
+#endif
 
       // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
       // usually just control clamping
@@ -187,11 +214,21 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, float dt, in
                                              global_idx * num_timesteps + t) *
                                             DYN_T::CONTROL_DIM]);
       dynamics->enforceConstraints(x, u);
+#ifdef USE_SYNC_THREADS
       __syncthreads();
+#else
+      barrier::arrival_token enforce_constraints_token = bar->arrive();
+      bar->wait(std::move(enforce_constraints_token));
+#endif
 
       // Increment states
       dynamics->step(x, x_next, xdot, u, y, theta_s, t, dt);
+#ifdef USE_SYNC_THREADS
       __syncthreads();
+#else
+      barrier::arrival_token dynamics_token = bar->arrive();
+      bar->wait(std::move(dynamics_token));
+#endif
       x_temp = x;
       x = x_next;
       x_next = x_temp;
@@ -220,15 +257,23 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, cons
   float* u_shared = &y_shared[blockDim.x * blockDim.z * DYN_T::OUTPUT_DIM];
   float* du_shared = &u_shared[blockDim.x * blockDim.z * DYN_T::CONTROL_DIM];
   float* sigma_u = &du_shared[blockDim.x * blockDim.z * DYN_T::CONTROL_DIM];
-  float* running_cost_shared = &sigma_u[DYN_T::CONTROL_DIM];
+  float* running_cost_shared = &sigma_u[mppi::math::int_ceil(DYN_T::CONTROL_DIM, 4) * 4];
   int* crash_status_shared = (int*)&running_cost_shared[blockDim.x * blockDim.z];
+#ifndef USE_SYNC_THREADS_COST
+  barrier* barrier_shared = (barrier*)&crash_status_shared[blockDim.x * blockDim.z];
+  float* theta_c = (float*)&barrier_shared[mppi::math::int_ceil(blockDim.x * blockDim.z, 4) * 4];
+#else
   float* theta_c = (float*)&crash_status_shared[blockDim.x * blockDim.z];
+#endif
 
   // Create local state, state dot and controls
   float* y;
   float* u;
   float* du;
   int* crash_status;
+#ifndef USE_SYNC_THREADS_COST
+  barrier* bar;
+#endif
 
   // Initialize running cost and total cost
   float* running_cost;
@@ -242,11 +287,20 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, cons
   crash_status = &crash_status_shared[thread_idz * blockDim.x + thread_idx];
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
   running_cost = &running_cost_shared[thread_idz * blockDim.x + thread_idx];
+#ifndef USE_SYNC_THREADS_COST
+  bar = &barrier_shared[thread_idz * blockDim.x + thread_idx];
+#endif
   running_cost[0] = 0;
   if (thread_idx == 0)
   {
     mp1::loadArrayParallel<DYN_T::CONTROL_DIM>(sigma_u, 0, sigma_u_d, 0);
   }
+#ifndef USE_SYNC_THREADS_COST
+  if (thread_idy == 0)
+  {
+    init(bar, blockDim.y);
+  }
+#endif
 
   /*<----Start of simulation loop-----> */
   const int max_time_iters = ceilf((float)num_timesteps / BLOCKSIZE_X);
@@ -275,7 +329,12 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, cons
       readControlsFromGlobal(DYN_T::CONTROL_DIM, blockDim.y, NUM_ROLLOUTS, num_timesteps, t, global_idx, thread_idy,
                              u_d, du_d, u, du);
     }
+#ifdef USE_SYNC_THREADS_COST
     __syncthreads();
+#else
+    barrier::arrival_token read_global_token = bar->arrive();
+    bar->wait(std::move(read_global_token));
+#endif
 
     // dynamics->enforceConstraints(x, u);
     // __syncthreads();
@@ -284,7 +343,12 @@ __global__ void rolloutCostKernel(DYN_T* dynamics, COST_T* costs, float dt, cons
     {
       running_cost[0] += costs->computeRunningCost(y, u, du, sigma_u, lambda, alpha, t, theta_c, crash_status);
     }
+#ifdef USE_SYNC_THREADS_COST
     __syncthreads();
+#else
+    barrier::arrival_token calc_cost_token = bar->arrive();
+    bar->wait(std::move(calc_cost_token));
+#endif
   }
 
   // Add all costs together
@@ -1265,11 +1329,15 @@ void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, const int
   // Run Costs
   dim3 dimCostBlock(COST_BLOCK_X, COST_BLOCK_Y, BLOCKSIZE_Z);
   dim3 dimCostGrid(NUM_ROLLOUTS, 1, 1);
-  unsigned shared_mem_size =
-      ((COST_BLOCK_X * BLOCKSIZE_Z) * (DYN_T::OUTPUT_DIM + 2 * DYN_T::CONTROL_DIM + 1) + DYN_T::CONTROL_DIM) *
-          sizeof(float) +
-      (COST_BLOCK_X * BLOCKSIZE_Z) * sizeof(int) + COST_T::SHARED_MEM_REQUEST_GRD +
-      COST_T::SHARED_MEM_REQUEST_BLK * COST_BLOCK_X * BLOCKSIZE_Z * sizeof(float);
+  unsigned shared_mem_size = ((COST_BLOCK_X * BLOCKSIZE_Z) * (DYN_T::OUTPUT_DIM + 2 * DYN_T::CONTROL_DIM + 1) +
+                              mppi::math::int_ceil(DYN_T::CONTROL_DIM, 4) * 4) *
+                                 sizeof(float) +
+                             (COST_BLOCK_X * BLOCKSIZE_Z) * (sizeof(int) + sizeof(barrier)) +
+                             COST_T::SHARED_MEM_REQUEST_GRD +
+                             COST_T::SHARED_MEM_REQUEST_BLK * COST_BLOCK_X * BLOCKSIZE_Z * sizeof(float);
+#ifndef USE_SYNC_THREADS_COST
+  shared_mem_size += mppi::math::int_ceil(COST_BLOCK_X * BLOCKSIZE_Z, 4) * 4;
+#endif
   rolloutCostKernel<DYN_T, COST_T, NUM_ROLLOUTS, COST_BLOCK_X><<<dimCostGrid, dimCostBlock, shared_mem_size, stream>>>(
       dynamics, costs, dt, num_timesteps, lambda, alpha, init_x_d, u_d, du_d, sigma_u_d, x_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());

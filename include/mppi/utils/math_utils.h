@@ -554,14 +554,14 @@ inline __device__ void loadArrayParallel(T* __restrict__ a1, const int off1, con
 {
   int p_index, p_step;
   getParallel1DIndex<P_DIR>(p_index, p_step);
-  if (N % 4 == 0 && sizeof(type4<T>) < 16 && off1 % 4 == 0 && off2 % 4 == 0)
+  if (N % 4 == 0 && sizeof(type4<T>) <= 16 && off1 % 4 == 0 && off2 % 4 == 0)
   {
     for (int i = p_index; i < N / 4; i += p_step)
     {
       reinterpret_cast<type4<T>*>(&a1[off1])[i] = reinterpret_cast<const type4<T>*>(&a2[off2])[i];
     }
   }
-  else if (N % 2 == 0 && sizeof(type2<T>) < 16 && off1 % 2 == 0 && off2 % 2 == 0)
+  else if (N % 2 == 0 && sizeof(type2<T>) <= 16 && off1 % 2 == 0 && off2 % 2 == 0)
   {
     for (int i = p_index; i < N / 2; i += p_step)
     {
