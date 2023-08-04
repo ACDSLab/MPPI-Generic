@@ -484,12 +484,19 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
   float* control_cost_coeff = params_p->control_cost_coeff;
 
   float cost = 0;
+#ifdef __CUDA_ARCH__
+  int i = threadIdx.y;
+  int step = blockDim.y;
+#else
+  int i = 0;
+  int step = 1;
+#endif
 
   if (CONTROL_DIM % 4 == 0)
   {
     float4 cost_i = make_float4(0, 0, 0, 0);
     float4 mean_i, std_dev_i, u_i, control_cost_coeff_i;
-    for (int i = 0; i < CONTROL_DIM / 4; i++)
+    for (; i < CONTROL_DIM / 4; i += step)
     {
       if (sample_index >= (1.0f - params_p->pure_noise_trajectories_percentage) * params_p->num_rollouts)
       {
@@ -511,7 +518,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
   {
     float2 cost_i = make_float2(0, 0);
     float2 mean_i, std_dev_i, u_i, control_cost_coeff_i;
-    for (int i = 0; i < CONTROL_DIM / 2; i++)
+    for (; i < CONTROL_DIM / 2; i += step)
     {
       if (sample_index >= (1.0f - params_p->pure_noise_trajectories_percentage) * params_p->num_rollouts)
       {
@@ -532,7 +539,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
   else
   {
     float mean_i;
-    for (int i = 0; i < CONTROL_DIM; i++)
+    for (; i < CONTROL_DIM; i += step)
     {
       if (sample_index >= (1.0f - params_p->pure_noise_trajectories_percentage) * params_p->num_rollouts)
       {
@@ -566,12 +573,19 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
   float* control_cost_coeff = params_p->control_cost_coeff;
 
   float cost = 0;
+#ifdef __CUDA_ARCH__
+  int i = threadIdx.y;
+  int step = blockDim.y;
+#else
+  int i = 0;
+  int step = 1;
+#endif
 
   if (CONTROL_DIM % 4 == 0)
   {
     float4 cost_i = make_float4(0, 0, 0, 0);
     float4 std_dev_i, control_cost_coeff_i, u_fb_i;
-    for (int i = 0; i < CONTROL_DIM / 4; i++)
+    for (; i < CONTROL_DIM / 4; i += step)
     {
       std_dev_i = reinterpret_cast<float4*>(std_dev)[i];
       u_fb_i = reinterpret_cast<const float4*>(u_fb)[i];
@@ -584,7 +598,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
   {
     float2 cost_i = make_float2(0, 0);
     float2 std_dev_i, control_cost_coeff_i, u_fb_i;
-    for (int i = 0; i < CONTROL_DIM / 2; i++)
+    for (; i < CONTROL_DIM / 2; i += step)
     {
       std_dev_i = reinterpret_cast<float2*>(std_dev)[i];
       control_cost_coeff_i = reinterpret_cast<float2*>(control_cost_coeff)[i];
@@ -595,7 +609,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
   }
   else
   {
-    for (int i = 0; i < CONTROL_DIM; i++)
+    for (; i < CONTROL_DIM; i += step)
     {
       cost += control_cost_coeff[i] * (u_fb[i] * u_fb[i]) / (std_dev[i] * std_dev[i]);
     }

@@ -35,3 +35,19 @@ void Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::GPUSetup()
   }
   derived->paramsToDevice();
 }
+
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+__device__ float Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::computeRunningCost(float* y, float* u, int timestep,
+                                                                           float* theta_c, int* crash)
+{
+  if (threadIdx.y == 0)
+  {
+    CLASS_T* derived = static_cast<CLASS_T*>(this);
+    return derived->computeStateCost(y, timestep, theta_c, crash) +
+           derived->computeControlCost(u, timestep, theta_c, crash);
+  }
+  else
+  {
+    return 0;
+  }
+}

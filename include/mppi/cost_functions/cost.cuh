@@ -221,12 +221,7 @@ public:
   }
 
   __device__ float computeRunningCost(float* y, float* u,
-                                      int timestep, float* theta_c, int* crash)
-  {
-    CLASS_T* derived = static_cast<CLASS_T*>(this);
-    return derived->computeStateCost(y, timestep, theta_c, crash) +
-           derived->computeControlCost(u, timestep, theta_c, crash);
-  }
+                                      int timestep, float* theta_c, int* crash);
   // =================== END METHODS THAT CAN BE OVERWRITTEN ===================
 
   inline __host__ __device__ PARAMS_T getParams() const

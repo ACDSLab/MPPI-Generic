@@ -31,12 +31,13 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
       math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       blockDim.x * blockDim.z * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
 
+  int running_cost_index = thread_idx + blockDim.x * (thread_idy + blockDim.y * thread_idz);
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
   float* y_shared = entire_buffer;
   float* u_shared = &y_shared[math::nearest_multiple_4(blockDim.x * blockDim.z * COST_T::OUTPUT_DIM)];
   float* running_cost_shared = &u_shared[math::nearest_multiple_4(blockDim.x * blockDim.z * COST_T::CONTROL_DIM)];
-  int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
+  int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(blockDim.x * blockDim.y * blockDim.z)];
   float* theta_c = (float*)&crash_status_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
   float* theta_d = &theta_c[size_of_theta_c_bytes / sizeof(float)];
 #ifdef USE_CUDA_BARRIERS_COST
@@ -58,7 +59,8 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   u = &u_shared[(blockDim.x * thread_idz + thread_idx) * COST_T::CONTROL_DIM];
   crash_status = &crash_status_shared[thread_idz * blockDim.x + thread_idx];
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
-  running_cost = &running_cost_shared[thread_idz * blockDim.x + thread_idx];
+  // running_cost = &running_cost_shared[thread_idz * blockDim.x + thread_idx];
+  running_cost = &running_cost_shared[running_cost_index];
   running_cost[0] = 0;
 #ifdef USE_CUDA_BARRIERS_COST
   barrier* bar = &barrier_shared[(blockDim.x * thread_idz + thread_idx)];
@@ -103,7 +105,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
 #endif
 
     // Compute cost
-    if (thread_idy == 0 && t < num_timesteps)
+    if (t < num_timesteps)
     {
       running_cost[0] +=
           costs->computeRunningCost(y, u, t, theta_c, crash_status) +
@@ -118,21 +120,21 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   }
 
   // Add all costs together
-  running_cost = &running_cost_shared[blockDim.x * thread_idz];
+  running_cost = &running_cost_shared[blockDim.x * blockDim.y * thread_idz];
 #if true
-  int prev_size = blockDim.x;
+  int prev_size = blockDim.x * blockDim.y;
   // Allow for better computation when blockDim.x is a power of 2
   const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
   const int stop_condition = (block_power_of_2) ? 32 : 0;
   int size;
+  const int xy_index = thread_idx + blockDim.x * thread_idy;
+  const int xy_step = blockDim.x * blockDim.y;
+
   for (size = prev_size / 2; size > stop_condition; size /= 2)
   {
-    if (thread_idy == 0)
+    for (j = xy_index; j < size; j += xy_step)
     {
-      for (j = thread_idx; j < size; j += blockDim.x)
-      {
-        running_cost[j] += running_cost[j + size];
-      }
+      running_cost[j] += running_cost[j + size];
     }
     __syncthreads();
     if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1 && thread_idy == 0)
@@ -142,30 +144,30 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
     __syncthreads();
     prev_size = size;
   }
-  if (thread_idx < 32 && thread_idy == 0)
+  if (xy_index < 32 && block_power_of_2)
   {  // unroll the last warp
     switch (size * 2)
     {
       case 64:
-        warpReduceAdd<64>(running_cost, thread_idx);
+        warpReduceAdd<64>(running_cost, xy_index);
         break;
       case 32:
-        warpReduceAdd<32>(running_cost, thread_idx);
+        warpReduceAdd<32>(running_cost, xy_index);
         break;
       case 16:
-        warpReduceAdd<16>(running_cost, thread_idx);
+        warpReduceAdd<16>(running_cost, xy_index);
         break;
       case 8:
-        warpReduceAdd<8>(running_cost, thread_idx);
+        warpReduceAdd<8>(running_cost, xy_index);
         break;
       case 4:
-        warpReduceAdd<4>(running_cost, thread_idx);
+        warpReduceAdd<4>(running_cost, xy_index);
         break;
       case 2:
-        warpReduceAdd<2>(running_cost, thread_idx);
+        warpReduceAdd<2>(running_cost, xy_index);
         break;
       case 1:
-        warpReduceAdd<1>(running_cost, thread_idx);
+        warpReduceAdd<1>(running_cost, xy_index);
         break;
     }
   }
@@ -342,7 +344,8 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   float* y_shared = entire_buffer;
   float* u_shared = &y_shared[math::nearest_multiple_4(blockDim.x * blockDim.z * COST_T::OUTPUT_DIM)];
   float* running_cost_shared = &u_shared[math::nearest_multiple_4(blockDim.x * blockDim.z * COST_T::CONTROL_DIM)];
-  int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(blockDim.z * num_timesteps)];
+  int* crash_status_shared =
+      (int*)&running_cost_shared[math::nearest_multiple_4(blockDim.y * blockDim.z * num_timesteps)];
   float* theta_c = (float*)&crash_status_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
   float* theta_d = &theta_c[size_of_theta_c_bytes / sizeof(float)];
   // Create local state, state dot and controls
@@ -374,7 +377,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   {
     int t = thread_idx + time_iter * blockDim.x + 1;
     cost_index = (thread_idz * num_rollouts + global_idx) * (num_timesteps) + t - 1;
-    running_cost = &running_cost_shared[thread_idz * blockDim.x + t - 1];
+    running_cost = &running_cost_shared[blockDim.x * (thread_idz * blockDim.y + thread_idy) + t - 1];
     if (t <= num_timesteps)
     {  // t = num_timesteps is the terminal state for outside this for-loop
       if (COALESCE)
@@ -397,7 +400,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     __syncthreads();
 
     // Compute cost
-    if (thread_idy == 0 && t < num_timesteps)
+    if (t < num_timesteps)
     {
       float cost = costs->computeRunningCost(y, u, t, theta_c, crash_status) +
                    sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
@@ -406,6 +409,26 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     }
     __syncthreads();
   }
+  // consiladate y threads into single cost
+  running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
+  int prev_size = blockDim.y;
+  int size;
+  int j;
+  for (size = prev_size / 2; size > 0; size /= 2)
+  {
+    for (j = thread_idy; j < size; j += blockDim.y)
+    {
+      running_cost[j * blockDim.x] += running_cost[(j + size) * blockDim.x];
+    }
+    __syncthreads();
+    if (prev_size - 2 * size == 1 && threadIdx.y == blockDim.y - 1)
+    {
+      running_cost[(size - 1) * blockDim.x] += running_cost[(prev_size - 1) * blockDim.x];
+    }
+    __syncthreads();
+    prev_size = size;
+  }
+  __syncthreads();
   // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
   const int last_y_index = (num_timesteps - 1) % blockDim.x;
   y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
@@ -423,7 +446,8 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   {
     float4* cost_traj_d4 =
         reinterpret_cast<float4*>(&cost_traj_d[(thread_idz * num_rollouts + global_idx) * num_timesteps]);
-    float4* running_cost_shared4 = reinterpret_cast<float4*>(&running_cost_shared[thread_idz * num_timesteps]);
+    float4* running_cost_shared4 =
+        reinterpret_cast<float4*>(&running_cost_shared[thread_idz * num_timesteps * blockDim.y]);
     for (int i = thread_idx; i < num_timesteps / 4; i += blockDim.x)
     {
       cost_traj_d4[i] = running_cost_shared4[i];
@@ -433,7 +457,8 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   {
     float2* cost_traj_d2 =
         reinterpret_cast<float2*>(&cost_traj_d[(thread_idz * num_rollouts + global_idx) * num_timesteps]);
-    float2* running_cost_shared2 = reinterpret_cast<float2*>(&running_cost_shared[thread_idz * num_timesteps]);
+    float2* running_cost_shared2 =
+        reinterpret_cast<float2*>(&running_cost_shared[thread_idz * num_timesteps * blockDim.y]);
     for (int i = thread_idx; i < num_timesteps / 2; i += blockDim.x)
     {
       cost_traj_d2[i] = running_cost_shared2[i];
@@ -444,7 +469,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     for (int i = thread_idx; i < num_timesteps; i += blockDim.x)
     {
       cost_traj_d[(thread_idz * num_rollouts + global_idx) * num_timesteps + i] =
-          running_cost_shared[thread_idz * num_timesteps + i];
+          running_cost_shared[thread_idz * num_timesteps * blockDim.y + i];
     }
   }
 }
@@ -656,7 +681,7 @@ void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ 
   unsigned cost_shared_size =
       sizeof(float) * (math::nearest_multiple_4(cost_num_shared * COST_T::OUTPUT_DIM) +
                        math::nearest_multiple_4(cost_num_shared * COST_T::CONTROL_DIM) +
-                       math::nearest_multiple_4(cost_num_shared)) +
+                       math::nearest_multiple_4(cost_num_shared * dimCostBlock.y)) +
       sizeof(int) * math::nearest_multiple_4(cost_num_shared) +
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       cost_num_shared * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
@@ -693,7 +718,7 @@ void launchVisualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restric
   unsigned shared_mem_size =
       sizeof(float) * (math::nearest_multiple_4(shared_num * COST_T::OUTPUT_DIM) +
                        math::nearest_multiple_4(shared_num * COST_T::CONTROL_DIM) +
-                       math::nearest_multiple_4(dimBlock.z * num_timesteps)) +
+                       math::nearest_multiple_4(dimBlock.z * num_timesteps * dimBlock.y)) +
       sizeof(int) * math::nearest_multiple_4(dimBlock.z * num_timesteps) +
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       shared_num * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
