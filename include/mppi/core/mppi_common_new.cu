@@ -144,7 +144,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
     __syncthreads();
     prev_size = size;
   }
-  if (xy_index < 32 && block_power_of_2)
+  if (xy_index < 32)
   {  // unroll the last warp
     switch (size * 2)
     {
@@ -328,12 +328,12 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   const int thread_idx = threadIdx.x;
   const int thread_idy = threadIdx.y;
   const int thread_idz = threadIdx.z;
-  const int block_idx = blockIdx.x;
-  const int global_idx = blockDim.x * block_idx + thread_idx;
+  // const int block_idx = blockIdx.x;
+  const int global_idx = blockIdx.x;
   const int shared_idx = blockDim.x * thread_idz + thread_idx;
   const int distribution_idx = threadIdx.z;
-  const int distribution_dim = blockDim.z;
-  const int sample_dim = blockDim.x;
+  // const int distribution_dim = blockDim.z;
+  // const int sample_dim = blockDim.x;
   const int size_of_theta_c_bytes =
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       blockDim.x * blockDim.z * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
@@ -360,12 +360,12 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   int cost_index = 0;
 
   // Load global array to shared array
-  y = &y_shared[(blockDim.x * thread_idz + thread_idx) * COST_T::OUTPUT_DIM];
-  u = &u_shared[(blockDim.x * thread_idz + thread_idx) * COST_T::CONTROL_DIM];
-  // du = &du_shared[(blockDim.x * thread_idz + thread_idx) * COST_T::CONTROL_DIM];
-  crash_status = &crash_status_shared[thread_idz * blockDim.x + thread_idx];
+  y = &y_shared[shared_idx * COST_T::OUTPUT_DIM];
+  u = &u_shared[shared_idx * COST_T::CONTROL_DIM];
+  // du = &du_shared[shared_idx * COST_T::CONTROL_DIM];
+  crash_status = &crash_status_shared[shared_idx];
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
-  // running_cost = &running_cost_shared[thread_idz * blockDim.x + thread_idx];
+  // running_cost = &running_cost_shared[shared_idx];
   // running_cost[0] = 0;
 
   /*<----Start of simulation loop-----> */
@@ -404,12 +404,12 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     {
       float cost = costs->computeRunningCost(y, u, t, theta_c, crash_status) +
                    sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
-      running_cost[0] += cost / (num_timesteps - 1);
+      running_cost[0] = cost / (num_timesteps - 1);
       crash_status_d[global_idx * num_timesteps + t] = crash_status[0];
     }
     __syncthreads();
   }
-  // consiladate y threads into single cost
+  // consolidate y threads into single cost
   running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
   int prev_size = blockDim.y;
   int size;

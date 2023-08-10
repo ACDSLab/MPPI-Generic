@@ -9,6 +9,7 @@
 #define MPPIGENERIC_COLORED_MPPI_CONTROLLER_CUH
 
 #include <mppi/controllers/controller.cuh>
+#include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
 
 #include <vector>
 
@@ -39,15 +40,15 @@ struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
   }
 };
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, int BDIM_X, int BDIM_Y,
-          int COST_B_X = 64, int COST_B_Y = 2,
+template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+          class SAMPLING_T = ::mppi::sampling_distributions::ColoredNoiseDistribution<typename DYN_T::DYN_PARAMS_T>,
           class PARAMS_T = ColoredMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class ColoredMPPIController
-  : public Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T>
+  : public Controller<DYN_T, COST_T, FB_T, SAMPLING_T, MAX_TIMESTEPS, NUM_ROLLOUTS, PARAMS_T>
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  typedef Controller<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, BDIM_X, BDIM_Y, PARAMS_T> PARENT_CLASS;
+  typedef Controller<DYN_T, COST_T, FB_T, SAMPLING_T, MAX_TIMESTEPS, NUM_ROLLOUTS, PARAMS_T> PARENT_CLASS;
   // need control_array = ... so that we can initialize
   // Eigen::Matrix with Eigen::Matrix::Zero();
   using control_array = typename PARENT_CLASS::control_array;
@@ -62,13 +63,13 @@ public:
    * Public member functions
    */
   // Constructor
-  ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, float dt, int max_iter, float lambda,
-                        float alpha, const Eigen::Ref<const control_array>& control_std_dev,
+  ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter, float lambda,
+                        float alpha,
                         int num_timesteps = MAX_TIMESTEPS,
                         const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                         cudaStream_t stream = nullptr);
 
-  ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, PARAMS_T& params,
+  ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, PARAMS_T& params,
                         cudaStream_t stream = nullptr);
 
   // Destructor
@@ -117,32 +118,46 @@ public:
 
   void setOffsetDecayRate(float decay_rate)
   {
-    this->params_.offset_decay_rate = decay_rate;
+    this->sampler_->setOffsetDecayRate(decay_rate);
   }
 
   float getOffsetDecayRate()
   {
-    return this->params_.offset_decay_rate;
+    return this->sampler_->getOffsetDecayRate();
   }
 
   void setColoredNoiseExponents(std::vector<float>& new_exponents)
   {
-    this->params_.colored_noise_exponents_ = new_exponents;
+    auto sampler_params = this->sampler_->getParams();
+    for (int i = 0; i < new_exponents.size(); i++)
+    {
+      sampler_params.exponents[i] = new_exponents[i];
+    }
+    this->sampler_->setParams(sampler_params);
   }
 
   float getColoredNoiseExponent(int index)
   {
-    return this->params_.colored_noise_exponents_[index];
+    auto sampler_params = this->sampler_->getParams();
+    return sampler_params.exponents[index];
   }
 
   std::vector<float> getColoredNoiseExponents()
   {
-    return this->params_.colored_noise_exponents_;
+    std::vector<float> exponents;
+    auto sampler_params = this->sampler_->getParams();
+    for (int i = 0; i < DYN_T::CONTROL_DIM; i++)
+    {
+      exponents.push_back(sampler_params.exponents[i]);
+    }
+    return exponents;
   }
 
   void setNoiseDecay(float new_noise_decay)
   {
-    control_std_dev_decay_ = new_noise_decay;
+    auto sampler_params = this->sampler_->getParams();
+    sampler_params.std_dev_decay = new_noise_decay;
+    this->sampler_->setParams(sampler_params);
   }
 
   void setStateLeashLength(float new_state_leash, int index = 0)
