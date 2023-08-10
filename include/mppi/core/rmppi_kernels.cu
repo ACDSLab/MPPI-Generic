@@ -146,7 +146,7 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   float* y_shared = entire_buffer;
   float* u_shared = &y_shared[math::nearest_multiple_4(blockDim.x * blockDim.z * COST_T::OUTPUT_DIM)];
   float* running_cost_shared = &u_shared[math::nearest_multiple_4(blockDim.x * blockDim.z * COST_T::CONTROL_DIM)];
-  int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
+  int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(blockDim.x * blockDim.z * blockDim.y)];
   float* theta_c = (float*)&crash_status_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
   // int* strides_shared = &crash_status_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
   // float* theta_c = (float*)&strides_shared[math::nearest_multiple_4(num_candidates)];
@@ -171,7 +171,8 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   u = &u_shared[(shared_idx)*COST_T::CONTROL_DIM];
   crash_status = &crash_status_shared[shared_idx];
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
-  running_cost = &running_cost_shared[shared_idx];
+  const int running_cost_index = thread_idx + blockDim.x * (thread_idy + blockDim.y * thread_idz);
+  running_cost = &running_cost_shared[running_cost_index];
   running_cost[0] = 0;
 
   /*<----Start of simulation loop-----> */
@@ -208,7 +209,7 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
     __syncthreads();
 
     // Compute cost
-    if (thread_idy == 0 && t < num_timesteps)
+    if (t < num_timesteps)
     {
       running_cost[0] +=
           costs->computeRunningCost(y, u, t, theta_c, crash_status) +
@@ -218,21 +219,20 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   }
 
   // Add all costs together
-  running_cost = &running_cost_shared[blockDim.x * thread_idz];
+  running_cost = &running_cost_shared[blockDim.x * blockDim.y * thread_idz];
 #if true
-  int prev_size = blockDim.x;
+  int prev_size = blockDim.x * blockDim.y;
   // Allow for better computation when blockDim.x is a power of 2
   const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
   const int stop_condition = (block_power_of_2) ? 32 : 0;
   int size;
+  const int xy_index = thread_idx + blockDim.x * thread_idy;
+  const int xy_step = blockDim.x * blockDim.y;
   for (size = prev_size / 2; size > stop_condition; size /= 2)
   {
-    if (thread_idy == 0)
+    for (j = xy_index; j < size; j += xy_step)
     {
-      for (j = thread_idx; j < size; j += blockDim.x)
-      {
-        running_cost[j] += running_cost[j + size];
-      }
+      running_cost[j] += running_cost[j + size];
     }
     __syncthreads();
     if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1 && thread_idy == 0)
@@ -242,30 +242,30 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
     __syncthreads();
     prev_size = size;
   }
-  if (thread_idx < 32 && thread_idy == 0)
+  if (xy_index < 32)
   {  // unroll the last warp
     switch (size * 2)
     {
       case 64:
-        warpReduceAdd<64>(running_cost, thread_idx);
+        warpReduceAdd<64>(running_cost, xy_index);
         break;
       case 32:
-        warpReduceAdd<32>(running_cost, thread_idx);
+        warpReduceAdd<32>(running_cost, xy_index);
         break;
       case 16:
-        warpReduceAdd<16>(running_cost, thread_idx);
+        warpReduceAdd<16>(running_cost, xy_index);
         break;
       case 8:
-        warpReduceAdd<8>(running_cost, thread_idx);
+        warpReduceAdd<8>(running_cost, xy_index);
         break;
       case 4:
-        warpReduceAdd<4>(running_cost, thread_idx);
+        warpReduceAdd<4>(running_cost, xy_index);
         break;
       case 2:
-        warpReduceAdd<2>(running_cost, thread_idx);
+        warpReduceAdd<2>(running_cost, xy_index);
         break;
       case 1:
-        warpReduceAdd<1>(running_cost, thread_idx);
+        warpReduceAdd<1>(running_cost, xy_index);
         break;
     }
   }
@@ -428,7 +428,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   float* y_shared = entire_buffer;
   float* u_shared = &y_shared[math::nearest_multiple_4(num_shared * COST_T::OUTPUT_DIM)];
   float* running_cost_shared = &u_shared[math::nearest_multiple_4(num_shared * COST_T::CONTROL_DIM)];
-  int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(num_shared * 2)];
+  int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(num_shared * 2 * blockDim.y)];
   float* theta_c = (float*)&crash_status_shared[math::nearest_multiple_4(num_shared)];
   const int size_of_theta_c_bytes =
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
@@ -451,8 +451,9 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   float* y_nom = &y_shared[(blockDim.x * NOMINAL_STATE_IDX + thread_idx) * COST_T::OUTPUT_DIM];
   float* u = &u_shared[shared_idx * COST_T::CONTROL_DIM];
   int* crash_status = &crash_status_shared[shared_idx];
-  float* running_cost = &running_cost_shared[shared_idx];
-  float* running_cost_extra = &running_cost_shared[shared_idx + num_shared];
+  const int cost_index = blockDim.x * (thread_idz * blockDim.y + thread_idy) + thread_idx;
+  float* running_cost = &running_cost_shared[cost_index];
+  float* running_cost_extra = &running_cost_shared[cost_index + num_shared * blockDim.y];
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
   running_cost[0] = 0;
   running_cost_extra[0] = 0;
@@ -496,19 +497,19 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
     __syncthreads();
 
     // Compute cost
-    if (thread_idy == 0 && t < num_timesteps)
+    if (t < num_timesteps)
     {
       curr_cost = costs->computeRunningCost(y, u, t, theta_c, crash_status);
     }
 
-    if (thread_idz == NOMINAL_STATE_IDX && thread_idy == 0 && t < num_timesteps)
+    if (thread_idz == NOMINAL_STATE_IDX && t < num_timesteps)
     {
       running_cost[0] += curr_cost;
       running_cost_extra[0] +=
           sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
     }
 
-    if (thread_idz != NOMINAL_STATE_IDX && thread_idy == 0 && t < num_timesteps)
+    if (thread_idz != NOMINAL_STATE_IDX && t < num_timesteps)
     {
       running_cost[0] +=
           curr_cost + sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
@@ -525,23 +526,22 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   }
 
   // Add all costs together
-  running_cost = &running_cost_shared[blockDim.x * thread_idz];
-  running_cost_extra = &running_cost_shared[blockDim.x * (blockDim.z + thread_idz)];
+  running_cost = &running_cost_shared[blockDim.x * blockDim.y * thread_idz];
+  running_cost_extra = &running_cost_shared[blockDim.x * blockDim.y * (blockDim.z + thread_idz)];
 
-  int prev_size = blockDim.x;
+  int prev_size = blockDim.x * blockDim.y;
   // Allow for better computation when blockDim.x is a power of 2
   const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
   const int stop_condition = (block_power_of_2) ? 32 : 0;
   int size;
+  const int xy_index = thread_idx + blockDim.x * thread_idy;
+  const int xy_step = blockDim.x * blockDim.y;
   for (size = prev_size / 2; size > stop_condition; size /= 2)
   {
-    if (thread_idy == 0)
+    for (j = xy_index; j < size; j += xy_step)
     {
-      for (j = thread_idx; j < size; j += blockDim.x)
-      {
-        running_cost[j] += running_cost[j + size];
-        running_cost_extra[j] += running_cost_extra[j + size];
-      }
+      running_cost[j] += running_cost[j + size];
+      running_cost_extra[j] += running_cost_extra[j + size];
     }
     __syncthreads();
     if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1 && thread_idy == 0)
@@ -552,37 +552,37 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
     __syncthreads();
     prev_size = size;
   }
-  if (thread_idx < 32 && thread_idy == 0)
+  if (xy_index < 32)
   {  // unroll the last warp
     switch (size * 2)
     {
       case 64:
-        warpReduceAdd<64>(running_cost, thread_idx);
-        warpReduceAdd<64>(running_cost_extra, thread_idx);
+        warpReduceAdd<64>(running_cost, xy_index);
+        warpReduceAdd<64>(running_cost_extra, xy_index);
         break;
       case 32:
-        warpReduceAdd<32>(running_cost, thread_idx);
-        warpReduceAdd<32>(running_cost_extra, thread_idx);
+        warpReduceAdd<32>(running_cost, xy_index);
+        warpReduceAdd<32>(running_cost_extra, xy_index);
         break;
       case 16:
-        warpReduceAdd<16>(running_cost, thread_idx);
-        warpReduceAdd<16>(running_cost_extra, thread_idx);
+        warpReduceAdd<16>(running_cost, xy_index);
+        warpReduceAdd<16>(running_cost_extra, xy_index);
         break;
       case 8:
-        warpReduceAdd<8>(running_cost, thread_idx);
-        warpReduceAdd<8>(running_cost_extra, thread_idx);
+        warpReduceAdd<8>(running_cost, xy_index);
+        warpReduceAdd<8>(running_cost_extra, xy_index);
         break;
       case 4:
-        warpReduceAdd<4>(running_cost, thread_idx);
-        warpReduceAdd<4>(running_cost_extra, thread_idx);
+        warpReduceAdd<4>(running_cost, xy_index);
+        warpReduceAdd<4>(running_cost_extra, xy_index);
         break;
       case 2:
-        warpReduceAdd<2>(running_cost, thread_idx);
-        warpReduceAdd<2>(running_cost_extra, thread_idx);
+        warpReduceAdd<2>(running_cost, xy_index);
+        warpReduceAdd<2>(running_cost_extra, xy_index);
         break;
       case 1:
-        warpReduceAdd<1>(running_cost, thread_idx);
-        warpReduceAdd<1>(running_cost_extra, thread_idx);
+        warpReduceAdd<1>(running_cost, xy_index);
+        warpReduceAdd<1>(running_cost_extra, xy_index);
         break;
     }
   }
@@ -606,9 +606,9 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   __syncthreads();
   if (thread_idz != NOMINAL_STATE_IDX && thread_idx == 0 && thread_idy == 0)
   {
-    float* running_nom_cost = &running_cost_shared[blockDim.x * NOMINAL_STATE_IDX];
+    float* running_nom_cost = &running_cost_shared[blockDim.x * blockDim.y * NOMINAL_STATE_IDX];
     const float* running_nom_cost_likelihood_ratio_cost =
-        &running_cost_shared[blockDim.x * (blockDim.z + NOMINAL_STATE_IDX)];
+        &running_cost_shared[blockDim.x * blockDim.y * (blockDim.z + NOMINAL_STATE_IDX)];
     // const float value_func_threshold = 109;
     *running_nom_cost =
         0.5 * *running_nom_cost + 0.5 * fmaxf(fminf(*running_cost_extra, value_func_threshold), *running_nom_cost);
@@ -666,7 +666,7 @@ void launchFastInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
   unsigned cost_shared_size =
       sizeof(float) * (math::nearest_multiple_4(cost_num_shared * COST_T::OUTPUT_DIM) +
                        math::nearest_multiple_4(cost_num_shared * COST_T::CONTROL_DIM) +
-                       math::nearest_multiple_4(cost_num_shared)) +
+                       math::nearest_multiple_4(cost_num_shared * dimCostBlock.y)) +
       sizeof(int) * math::nearest_multiple_4(cost_num_shared) +
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       cost_num_shared * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
@@ -737,7 +737,7 @@ void launchFastRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restri
   unsigned cost_shared_size =
       sizeof(float) * (math::nearest_multiple_4(cost_num_shared * COST_T::OUTPUT_DIM) +
                        math::nearest_multiple_4(cost_num_shared * COST_T::CONTROL_DIM) +
-                       math::nearest_multiple_4(cost_num_shared * 2)) +
+                       math::nearest_multiple_4(cost_num_shared * dimCostBlock.y * 2)) +
       sizeof(int) * math::nearest_multiple_4(cost_num_shared) +
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       cost_num_shared * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
