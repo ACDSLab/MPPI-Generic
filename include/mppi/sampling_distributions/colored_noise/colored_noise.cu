@@ -74,8 +74,8 @@ __host__ void COLORED_NOISE::allocateCUDAMemoryHelper()
                                      this->getNumDistributions(),
                                  this->stream_));
     // Recreate FFT Plan
-    HANDLE_CUFFT_ERROR(
-        cufftPlan1d(&plan_, sample_num_timesteps, CUFFT_C2R, this->getNumRollouts() * this->getNumDistributions()));
+    HANDLE_CUFFT_ERROR(cufftPlan1d(&plan_, sample_num_timesteps, CUFFT_C2R,
+                                   this->getNumRollouts() * this->getNumDistributions() * this->CONTROL_DIM));
     HANDLE_CUFFT_ERROR(cufftSetStream(plan_, this->stream_));
   }
 }

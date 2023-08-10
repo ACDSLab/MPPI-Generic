@@ -202,7 +202,7 @@ struct ColoredNoiseParamsImpl : public GaussianParamsImpl<C_DIM, MAX_DISTRIBUTIO
 
   void copyExponentToDistribution(const int src_distribution_idx, const int dest_distribution_idx)
   {
-    bool src_out_of_distribution = src_out_of_distribution >= MAX_DISTRIBUTIONS;
+    bool src_out_of_distribution = src_distribution_idx >= MAX_DISTRIBUTIONS;
     if (src_out_of_distribution || dest_distribution_idx >= MAX_DISTRIBUTIONS)
     {
       printf("%s Distribution %d is out of range. There are only %d total distributions\n",

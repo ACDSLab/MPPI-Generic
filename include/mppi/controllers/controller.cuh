@@ -43,7 +43,7 @@ struct ControllerParams
   static const int TEMPLATED_CONTROL_DIM = C_DIM;
   static const int TEMPLATED_MAX_TIMESTEPS = MAX_TIMESTEPS;
   float dt_;
-  float lambda_;       // Value of the temperature in the softmax.
+  float lambda_ = 1.0;       // Value of the temperature in the softmax.
   float alpha_ = 0.0;  //
   // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
   // does not reallocate cuda memory
