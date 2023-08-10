@@ -398,6 +398,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
   for (int opt_iter = 0; opt_iter < this->getNumIters(); opt_iter++)
   {
     // Copy the importance sampling control to the system
+    this->sampler_->copyImportanceSamplerToDevice(nominal_control_trajectory_.data(), 0, false);
     this->sampler_->copyImportanceSamplerToDevice(nominal_control_trajectory_.data(), 1, false);
     // HANDLE_ERROR(cudaMemcpyAsync(this->control_d_, nominal_control_trajectory_.data(),
     //                              sizeof(float) * DYN_T::CONTROL_DIM * this->getNumTimesteps(),

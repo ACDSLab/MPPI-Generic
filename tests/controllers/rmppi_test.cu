@@ -624,6 +624,7 @@ TEST(RMPPITest, RobustMPPILargeVariance)
   auto controller_params = controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 4, 2);
   controller_params.cost_rollout_dim_ = dim3(num_timesteps, 1, 2);
+  controller_params.eval_kernel_dim_.x = 64;
   controller.setParams(controller_params);
 
   int fail_count = 0;
