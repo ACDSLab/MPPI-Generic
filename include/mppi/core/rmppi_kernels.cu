@@ -22,6 +22,12 @@ __global__ void initEvalDynKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __re
   const int candidate_idx = global_idx / samples_per_condition;
   const int candidate_sample_idx = global_idx % samples_per_condition;
   const int tdy = threadIdx.y;
+  const int size_of_theta_s_bytes =
+      math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      blockDim.x * blockDim.z * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  const int size_of_theta_d_bytes =
+      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      blockDim.x * blockDim.z * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
 
   // const int thread_idx = threadIdx.x;
   // const int thread_idy = threadIdx.y;
@@ -46,10 +52,10 @@ __global__ void initEvalDynKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __re
   // float* theta_s_shared = &u_shared[math::nearest_multiple_4(sample_dim * DYN_T::CONTROL_DIM * distribution_dim)];
   // Ensure that there is enough room for the SHARED_MEM_REQUEST_GRD_BYTES and SHARED_MEM_REQUEST_BLK_BYTES portions to
   // be aligned to the float4 boundary.
-  const int size_of_theta_s_bytes =
-      math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      sample_dim * distribution_dim * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
   float* theta_d_shared = &theta_s_shared[size_of_theta_s_bytes / sizeof(float)];
+#ifdef USE_CUDA_BARRIERS_DYN
+  barrier* barrier_shared = (barrier*)&theta_d_shared[size_of_theta_d_bytes / sizeof(float)];
+#endif
 
   // Create local state, state dot and controls
   float* x = &(reinterpret_cast<float*>(x_shared)[shared_idx * DYN_T::STATE_DIM]);
@@ -78,6 +84,13 @@ __global__ void initEvalDynKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __re
   }
   __syncthreads();
 
+#ifdef USE_CUDA_BARRIERS_DYN
+  barrier* bar = &barrier_shared[(shared_idx)];
+  if (tdy == 0)
+  {
+    init(bar, blockDim.y);
+  }
+#endif
   /*<----Start of simulation loop-----> */
   dynamics->initializeDynamics(x, u, y, theta_s_shared, 0.0, dt);
   sampling->initializeDistributions(y, 0.0, dt, theta_d_shared);
@@ -100,17 +113,32 @@ __global__ void initEvalDynKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __re
     //   }
     //   printf("\n");
     // }
+#ifdef USE_CUDA_BARRIERS_DYN
+    barrier::arrival_token control_read_token = bar->arrive();
+    bar->wait(std::move(control_read_token));
+#else
     __syncthreads();
+#endif
 
     // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
     // usually just control clamping
     // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     dynamics->enforceConstraints(x, u);
+#ifdef USE_CUDA_BARRIERS_DYN
+    barrier::arrival_token enforce_constraints_token = bar->arrive();
+    bar->wait(std::move(enforce_constraints_token));
+#else
     __syncthreads();
+#endif
 
     // Increment states
     dynamics->step(x, x_next, xdot, u, y, theta_s_shared, t, dt);
+#ifdef USE_CUDA_BARRIERS_DYN
+    barrier::arrival_token dynamics_token = bar->arrive();
+    bar->wait(std::move(dynamics_token));
+#else
     __syncthreads();
+#endif
     x_temp = x;
     x = x_next;
     x_next = x_temp;
@@ -140,6 +168,12 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   // const int global_idx = blockIdx.x;
   // const int distribution_idx = threadIdx.z;
   const int shared_idx = blockDim.x * threadIdx.z + threadIdx.x;
+  const int size_of_theta_c_bytes =
+      math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      blockDim.x * blockDim.z * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  const int size_of_theta_d_bytes =
+      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      blockDim.x * blockDim.z * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -150,10 +184,10 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   float* theta_c = (float*)&crash_status_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
   // int* strides_shared = &crash_status_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
   // float* theta_c = (float*)&strides_shared[math::nearest_multiple_4(num_candidates)];
-  const int size_of_theta_c_bytes =
-      math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      blockDim.x * blockDim.z * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
   float* theta_d = &theta_c[size_of_theta_c_bytes / sizeof(float)];
+#ifdef USE_CUDA_BARRIERS_COST
+  barrier* barrier_shared = (barrier*)&theta_d[size_of_theta_d_bytes / sizeof(float)];
+#endif
 
   // Create local state, state dot and controls
   float* y;
@@ -174,6 +208,13 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   const int running_cost_index = thread_idx + blockDim.x * (thread_idy + blockDim.y * thread_idz);
   running_cost = &running_cost_shared[running_cost_index];
   running_cost[0] = 0;
+#ifdef USE_CUDA_BARRIERS_COST
+  barrier* bar = &barrier_shared[(blockDim.x * thread_idz + thread_idx)];
+  if (thread_idy == 0)
+  {
+    init(bar, blockDim.y);
+  }
+#endif
 
   /*<----Start of simulation loop-----> */
   // mppi::p1::loadArrayParallel<mppi::p1::Parallel1Dir::THREAD_X>(strides_shared, 0, strides_d, 0, num_candidates);
@@ -206,7 +247,12 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
       sampling->readControlSample(candidate_sample_idx, candidate_t, distribution_idx, u, theta_d, blockDim.y,
                                   thread_idy, y);
     }
+#ifdef USE_CUDA_BARRIERS_COST
+    barrier::arrival_token read_global_token = bar->arrive();
+    bar->wait(std::move(read_global_token));
+#else
     __syncthreads();
+#endif
 
     // Compute cost
     if (t < num_timesteps)
@@ -215,7 +261,12 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
           costs->computeRunningCost(y, u, t, theta_c, crash_status) +
           sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
     }
+#ifdef USE_CUDA_BARRIERS_COST
+    barrier::arrival_token calc_cost_token = bar->arrive();
+    bar->wait(std::move(calc_cost_token));
+#else
     __syncthreads();
+#endif
   }
 
   // Add all costs together
@@ -316,6 +367,16 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
   const int distribution_idx = threadIdx.z;
   const int distribution_dim = blockDim.z;
   const int sample_dim = blockDim.x;
+  const int size_of_theta_s_bytes =
+      math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      sample_dim * distribution_dim * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  const int size_of_theta_d_bytes =
+      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      sample_dim * distribution_dim *
+          math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  const int size_of_theta_fb_bytes =
+      math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      sample_dim * distribution_dim * math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -328,15 +389,11 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
   float* theta_s_shared = &u_shared[math::nearest_multiple_4(sample_dim * DYN_T::CONTROL_DIM * distribution_dim)];
   // Ensure that there is enough room for the SHARED_MEM_REQUEST_GRD_BYTES and SHARED_MEM_REQUEST_BLK_BYTES portions to
   // be aligned to the float4 boundary.
-  const int size_of_theta_s_bytes =
-      math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      sample_dim * distribution_dim * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
-  const int size_of_theta_d_bytes =
-      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      sample_dim * distribution_dim *
-          math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
   float* theta_d_shared = &theta_s_shared[size_of_theta_s_bytes / sizeof(float)];
   float* theta_fb = &theta_d_shared[size_of_theta_d_bytes / sizeof(float)];
+#ifdef USE_CUDA_BARRIERS_DYN
+  barrier* barrier_shared = (barrier*)&theta_fb[size_of_theta_fb_bytes / sizeof(float)];
+#endif
 
   // Create local state, state dot and controls
   float* x = &(reinterpret_cast<float*>(x_shared)[shared_idx * DYN_T::STATE_DIM]);
@@ -347,6 +404,13 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
   float* xdot = &(reinterpret_cast<float*>(x_dot_shared)[shared_idx * DYN_T::STATE_DIM]);
   float* u = &(reinterpret_cast<float*>(u_shared)[shared_idx * DYN_T::CONTROL_DIM]);
   float* y = &(reinterpret_cast<float*>(y_shared)[shared_idx * DYN_T::OUTPUT_DIM]);
+#ifdef USE_CUDA_BARRIERS_DYN
+  barrier* bar = &barrier_shared[shared_idx];
+  if (thread_idy == 0)
+  {
+    init(bar, blockDim.y);
+  }
+#endif
   // The array to hold K(x,x*)
   float fb_control[DYN_T::CONTROL_DIM];
   int i;
@@ -360,11 +424,17 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
   dynamics->initializeDynamics(x, u, y, theta_s_shared, 0.0, dt);
   sampling->initializeDistributions(y, 0.0, dt, theta_d_shared);
   fb_controller->initializeFeedback(x, u, theta_fb, 0.0, dt);
+  __syncthreads();
   for (int t = 0; t < num_timesteps; t++)
   {
     // Load noise trajectories scaled by the exploration factor
     sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d_shared, blockDim.y, thread_idy, y);
+#ifdef USE_CUDA_BARRIERS_DYN
+    barrier::arrival_token control_read_token = bar->arrive();
+    bar->wait(std::move(control_read_token));
+#else
     __syncthreads();
+#endif
 
     // Now find feedback control
     for (i = 0; i < DYN_T::CONTROL_DIM; i++)
@@ -382,19 +452,34 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
     {
       u[i] += fb_control[i];
     }
+#ifdef USE_CUDA_BARRIERS_DYN
+    barrier::arrival_token feedback_token = bar->arrive();
+    bar->wait(std::move(feedback_token));
+#else
     __syncthreads();
+#endif
 
     // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
     // usually just control clamping
     // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     dynamics->enforceConstraints(x, u);
+#ifdef USE_CUDA_BARRIERS_DYN
+    barrier::arrival_token enforce_constraints_token = bar->arrive();
+    bar->wait(std::move(enforce_constraints_token));
+#else
     __syncthreads();
+#endif
     // copy back feedback-filled controls to global memory
     sampling->writeControlSample(global_idx, t, distribution_idx, u, theta_d_shared, blockDim.y, thread_idy, y);
 
     // Increment states
     dynamics->step(x, x_next, xdot, u, y, theta_s_shared, t, dt);
+#ifdef USE_CUDA_BARRIERS_DYN
+    barrier::arrival_token dynamics_token = bar->arrive();
+    bar->wait(std::move(dynamics_token));
+#else
     __syncthreads();
+#endif
     x_temp = x;
     x = x_next;
     x_next = x_temp;
@@ -422,6 +507,15 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   const int distribution_idx = threadIdx.z;
   const int shared_idx = blockDim.x * thread_idz + thread_idx;
   const int num_shared = blockDim.x * blockDim.z;
+  const int size_of_theta_c_bytes =
+      math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      num_shared * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  const int size_of_theta_d_bytes =
+      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  const int size_of_theta_fb_bytes =
+      math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      num_shared * math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -430,14 +524,11 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   float* running_cost_shared = &u_shared[math::nearest_multiple_4(num_shared * COST_T::CONTROL_DIM)];
   int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(num_shared * 2 * blockDim.y)];
   float* theta_c = (float*)&crash_status_shared[math::nearest_multiple_4(num_shared)];
-  const int size_of_theta_c_bytes =
-      math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      num_shared * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
-  const int size_of_theta_d_bytes =
-      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
   float* theta_d = &theta_c[size_of_theta_c_bytes / sizeof(float)];
   float* theta_fb = &theta_d[size_of_theta_d_bytes / sizeof(float)];
+#ifdef USE_CUDA_BARRIERS_COST
+  barrier* barrier_shared = (barrier*)&theta_fb[size_of_theta_fb_bytes / sizeof(float)];
+#endif
 
   // Initialize running cost and total cost
   int sample_time_offset = 0;
@@ -457,6 +548,13 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
   running_cost[0] = 0;
   running_cost_extra[0] = 0;
+#ifdef USE_CUDA_BARRIERS_COST
+  barrier* bar = &barrier_shared[(blockDim.x * thread_idz + thread_idx)];
+  if (thread_idy == 0)
+  {
+    init(bar, blockDim.y);
+  }
+#endif
 
   float curr_cost = 0.0f;
 
@@ -492,9 +590,19 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
     float x_nom[DYN_T::STATE_DIM];
     dynamics->outputToState(y, x);
     dynamics->outputToState(y_nom, x_nom);
+#ifdef USE_CUDA_BARRIERS_COST
+    barrier::arrival_token read_global_token = bar->arrive();
+    bar->wait(std::move(read_global_token));
+#else
     __syncthreads();
+#endif
     fb_controller->k(x, x_nom, t, theta_fb, fb_control);
+#ifdef USE_CUDA_BARRIERS_COST
+    barrier::arrival_token feedback_token = bar->arrive();
+    bar->wait(std::move(feedback_token));
+#else
     __syncthreads();
+#endif
 
     // Compute cost
     if (t < num_timesteps)
@@ -522,7 +630,12 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
     // Nominal system needs to know running_state_cost_nom, running_control_cost_nom, and running_cost_feedback
     // Real system needs to know running_cost_real
 
+#ifdef USE_CUDA_BARRIERS_COST
+    barrier::arrival_token calc_cost_token = bar->arrive();
+    bar->wait(std::move(calc_cost_token));
+#else
     __syncthreads();
+#endif
   }
 
   // Add all costs together
@@ -656,6 +769,9 @@ void launchFastInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
       dynamics_num_shared * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
       math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       dynamics_num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+#ifdef USE_CUDA_BARRIERS_DYN
+  dynamics_shared_size += math::int_multiple_const(dynamics_num_shared * sizeof(barrier), 16);
+#endif
 
   initEvalDynKernel<DYN_T, SAMPLING_T><<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(
       dynamics, sampling, dt, num_timesteps, num_rollouts, samples_per_condition, strides_d, init_x_d, y_d);
@@ -673,6 +789,9 @@ void launchFastInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
       math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       cost_num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
       math::nearest_multiple_4(num_rollouts / samples_per_condition) * sizeof(float);
+#ifdef USE_CUDA_BARRIERS_COST
+  cost_shared_size += math::int_multiple_const(cost_num_shared * sizeof(barrier), 16);
+#endif
 
   initEvalCostKernel<COST_T, SAMPLING_T, COST_BLOCK_X><<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
       costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, samples_per_condition, strides_d, y_d,
@@ -727,6 +846,9 @@ void launchFastRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restri
   dynamics_shared_size +=
       math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       dynamics_num_shared * math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+#ifdef USE_CUDA_BARRIERS_DYN
+  dynamics_shared_size += math::int_multiple_const(dynamics_num_shared * sizeof(barrier), 16);
+#endif
 
   rolloutRMPPIDynamicsKernel<DYN_T, FB_T, SAMPLING_T, NOMINAL_STATE_IDX>
       <<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(dynamics, fb_controller, sampling, dt, num_timesteps,
@@ -745,6 +867,9 @@ void launchFastRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restri
       cost_num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
   cost_shared_size += math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
                       cost_num_shared * math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+#ifdef USE_CUDA_BARRIERS_COST
+  cost_shared_size += math::int_multiple_const(cost_num_shared * sizeof(barrier), 16);
+#endif
   rolloutRMPPICostKernel<COST_T, DYN_T, SAMPLING_T, FB_T, NOMINAL_STATE_IDX>
       <<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(costs, dynamics, fb_controller, sampling, dt,
                                                                 num_timesteps, num_rollouts, lambda, alpha,
