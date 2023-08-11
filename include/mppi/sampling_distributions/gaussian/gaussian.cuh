@@ -109,6 +109,11 @@ public:
   GaussianDistributionImpl(cudaStream_t stream = 0);
   GaussianDistributionImpl(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0);
 
+  ~GaussianDistributionImpl()
+  {
+    freeCudaMem();
+  }
+
   __host__ std::string getSamplingDistributionName()
   {
     return "Gaussian";

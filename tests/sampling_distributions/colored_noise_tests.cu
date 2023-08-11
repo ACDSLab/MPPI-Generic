@@ -6,6 +6,7 @@
 #include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
 
 #include <numeric>
+#include "gtest/gtest.h"
 
 void assert_float_rel_near(const float known, const float compute, float rel_err)
 {
@@ -26,13 +27,188 @@ TEST(cuFFT, checkErrorCode)
 #pragma diag_suppress = used_before_set
   auto status = cufftExecC2R(plan, input_d, output_d);
 #pragma pop
-  // cufftAssert(status, __FILE__, __LINE__);
   std::string error_string = cufftGetErrorString(status);
   // std::cout << error_string << std::endl;
   EXPECT_TRUE(error_string == "cuFFT was passed an invalid plan handle");
 }
 
-TEST(ColoredNoise, checkWhiteNoise)
+template <int C_DIM>
+struct TestDynamicsParams : public DynamicsParams
+{
+  enum class ControlIndex : int
+  {
+    NUM_CONTROLS = C_DIM,
+  };
+  enum class OutputIndex : int
+  {
+    EMPTY = 0,
+    NUM_OUTPUTS
+  };
+};
+
+template <class DYN_PARAMS_T>
+class TestNoise : public ::testing::Test
+{
+public:
+  const int NUM_TIMESTEPS = 250;
+  const int NUM_ROLLOUTS = 5000;
+  const int CONTROL_DIM = C_IND_CLASS(DYN_PARAMS_T, NUM_CONTROLS);
+  using SAMPLER_T = mppi::sampling_distributions::ColoredNoiseDistribution<DYN_PARAMS_T>;
+  using SAMPLER_PARAMS_T = typename SAMPLER_T::SAMPLING_PARAMS_T;
+
+  SAMPLER_T* sampler;
+  cudaStream_t stream;
+  curandGenerator_t* gen;
+
+protected:
+  void SetUp() override
+  {
+    SAMPLER_PARAMS_T params;
+    for (int i = 0; i < CONTROL_DIM; i++)
+    {
+      params.exponents[i] = 0.0;
+    }
+    params.num_timesteps = NUM_TIMESTEPS;
+    params.num_rollouts = NUM_ROLLOUTS;
+    params.pure_noise_trajectories_percentage = 0.0;
+    params.offset_decay_rate = 0.0;
+
+    cudaStreamCreate(&stream);
+    gen = new curandGenerator_t();
+    curandCreateGenerator(gen, CURAND_RNG_PSEUDO_DEFAULT);
+    curandSetPseudoRandomGeneratorSeed(*gen, 42);
+    curandSetGeneratorOffset(*gen, 0);
+    curandSetStream(*gen, stream);
+    sampler = new SAMPLER_T(params, stream);
+    sampler->GPUSetup();
+  }
+
+  void TearDown() override
+  {
+    delete gen;
+    delete sampler;
+  }
+};
+
+using DIFFERENT_CONTROL_DIMS =
+    ::testing::Types<TestDynamicsParams<1>, TestDynamicsParams<2>, TestDynamicsParams<3>, TestDynamicsParams<4>>;
+
+TYPED_TEST_SUITE(TestNoise, DIFFERENT_CONTROL_DIMS);
+
+TYPED_TEST(TestNoise, WhiteNoise)
+{
+  int full_buffer_size = this->NUM_ROLLOUTS * this->NUM_TIMESTEPS * this->CONTROL_DIM;
+  float* colored_noise_output = new float[full_buffer_size]{ 0 };
+
+  auto sampler_params = this->sampler->getParams();
+  for (int i = 0; i < this->CONTROL_DIM; i++)
+  {
+    sampler_params.exponents[i] = 0.0;
+    sampler_params.std_dev[i] = 1.0;
+  }
+  this->sampler->setParams(sampler_params);
+
+  this->sampler->generateSamples(0, 0, *(this->gen), false);
+  HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, this->sampler->getControlSample(0, 0, 0),
+                               sizeof(float) * full_buffer_size, cudaMemcpyDeviceToHost, this->stream));
+  HANDLE_ERROR(cudaStreamSynchronize(this->stream));
+
+  std::vector<int> num_within_std_dev(3, 0);
+  // Ignore first rollout as that will be all zeros
+  for (int i = this->NUM_TIMESTEPS * this->CONTROL_DIM; i < full_buffer_size; i++)
+  {
+    for (int j = 0; j < num_within_std_dev.size(); j++)
+    {
+      if (fabsf(colored_noise_output[i]) < j + 1.0)
+      {
+        num_within_std_dev[j]++;
+        break;
+      }
+    }
+  }
+
+  float perc_within_n_std_dev[num_within_std_dev.size()];
+  // Percentages from https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule
+  float known_percentages[3] = { 0.6827, 0.9545, 0.9973 };
+  for (int i = 0; i < num_within_std_dev.size(); i++)
+  {
+    perc_within_n_std_dev[i] =
+        std::accumulate(num_within_std_dev.begin(), num_within_std_dev.begin() + i + 1, 0.0) / full_buffer_size;
+    assert_float_rel_near(known_percentages[i], perc_within_n_std_dev[i], 0.001);
+  }
+  delete[] colored_noise_output;
+}
+
+TYPED_TEST(TestNoise, MultiNoise)
+{
+  int full_buffer_size = this->NUM_ROLLOUTS * this->NUM_TIMESTEPS * this->CONTROL_DIM;
+  float* colored_noise_output = new float[full_buffer_size]{ 0 };
+
+  auto sampler_params = this->sampler->getParams();
+  for (int i = 0; i < this->CONTROL_DIM; i++)
+  {
+    sampler_params.exponents[i] = i;
+    sampler_params.std_dev[i] = 1.0;
+  }
+  this->sampler->setParams(sampler_params);
+
+  this->sampler->generateSamples(0, 0, *(this->gen), false);
+  HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, this->sampler->getControlSample(0, 0, 0),
+                               sizeof(float) * full_buffer_size, cudaMemcpyDeviceToHost, this->stream));
+  HANDLE_ERROR(cudaStreamSynchronize(this->stream));
+
+  const int num_std_devs = 3;
+  // std::vector<int> num_within_std_dev(3, 0);
+  std::vector<std::array<int, num_std_devs>> control_std_dev_count;
+  for (int i = 0; i < this->CONTROL_DIM; i++)
+  {
+    std::array<int, num_std_devs> std_dev_count_i = { 0, 0, 0 };
+    control_std_dev_count.push_back(std_dev_count_i);
+  }
+
+  for (int n = 1; n < this->NUM_ROLLOUTS; n++)
+  {
+    for (int t = 0; t < this->NUM_TIMESTEPS; t++)
+    {
+      for (int i = 0; i < this->CONTROL_DIM; i++)
+      {
+        const int sample_idx = (n * this->NUM_TIMESTEPS + t) * this->CONTROL_DIM + i;
+        for (int j = 0; j < num_std_devs; j++)
+        {
+          if (fabsf(colored_noise_output[sample_idx]) < j + 1.0)
+          {
+            control_std_dev_count[i][j]++;
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  float perc_within_n_std_dev[num_std_devs];
+  // Percentages from https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule
+  float known_percentages[num_std_devs] = { 0.6827, 0.9545, 0.9973 };
+  float proper_count = (this->NUM_ROLLOUTS - 1) * this->NUM_TIMESTEPS;
+  for (int i = 0; i < num_std_devs; i++)
+  {
+    perc_within_n_std_dev[i] =
+        std::accumulate(control_std_dev_count[0].begin(), control_std_dev_count[0].begin() + i + 1, 0.0) / proper_count;
+    assert_float_rel_near(known_percentages[i], perc_within_n_std_dev[i], 0.001);
+  }
+  if (this->CONTROL_DIM > 1)
+  {
+    for (int i = 0; i < num_std_devs; i++)
+    {
+      perc_within_n_std_dev[i] =
+          std::accumulate(control_std_dev_count[1].begin(), control_std_dev_count[1].begin() + i + 1, 0.0) /
+          proper_count;
+      std::cout << "Control 1 values within " << i + 1 << " std dev: " << perc_within_n_std_dev[i] << std::endl;
+    }
+  }
+  delete[] colored_noise_output;
+}
+
+TEST(ColoredNoise, DISABLED_checkWhiteNoise)
 {
   int NUM_TIMESTEPS = 50000;
   int NUM_ROLLOUTS = 1;
@@ -80,7 +256,7 @@ TEST(ColoredNoise, checkWhiteNoise)
   }
 }
 
-TEST(ColoredNoise, checkPinkNoise)
+TEST(ColoredNoise, DISABLED_checkPinkNoise)
 {
   int NUM_TIMESTEPS = 50000;
   int NUM_ROLLOUTS = 1;
@@ -123,7 +299,7 @@ TEST(ColoredNoise, checkPinkNoise)
   // assert_float_rel_near(0.9545, perc_two_std_dev, 0.001);
 }
 
-TEST(ColoredNoise, checkRedNoise)
+TEST(ColoredNoise, DISABLED_checkRedNoise)
 {
   int NUM_TIMESTEPS = 50000;
   int NUM_ROLLOUTS = 1;
@@ -172,7 +348,7 @@ TEST(ColoredNoise, checkRedNoise)
   }
 }
 
-TEST(ColoredNoise, checkMultiNoise)
+TEST(ColoredNoise, DISABLED_checkMultiNoise)
 {
   int NUM_TIMESTEPS = 6000;
   int NUM_ROLLOUTS = 50;

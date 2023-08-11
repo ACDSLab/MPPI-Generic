@@ -43,17 +43,18 @@ __global__ void configureFrequencyNoise(cufftComplex* noise, float* variance, in
 }
 
 __global__ void rearrangeNoise(float* input, float* output, float* variance, int num_trajectories, int num_timesteps,
-                               int control_dim, int offset_t, float decay_rate = 1.0)
+                               int control_dim, int offset_t, float decay_rate = 0.0)
 {
-  int sample_index = blockIdx.x * blockDim.x + threadIdx.x;
-  int time_index = blockIdx.y * blockDim.y + threadIdx.y;
-  int control_index = blockIdx.z * blockDim.z + threadIdx.z;
+  const int sample_index = blockIdx.x * blockDim.x + threadIdx.x;
+  const int time_index = blockIdx.y * blockDim.y + threadIdx.y;
+  const int control_index = blockIdx.z * blockDim.z + threadIdx.z;
+  const float decayed_offset = decay_rate == 0 ? 0 : powf(decay_rate, time_index);
   if (sample_index < num_trajectories && time_index < (num_timesteps) && control_index < control_dim)
   {  // cuFFT does not normalize inverse transforms so a division by the num_timesteps is required
     output[(sample_index * num_timesteps + time_index) * control_dim + control_index] =
-        (input[(sample_index * control_dim + control_index) * num_timesteps + time_index] -
-         input[(sample_index * control_dim + control_index) * num_timesteps + offset_t] *
-             powf(decay_rate, time_index)) /
+        (input[(sample_index * control_dim + control_index) * 2 * num_timesteps + time_index] -
+         input[(sample_index * control_dim + control_index) * 2 * num_timesteps + offset_t] *
+             decayed_offset) /
         (variance[control_index] * 2 * num_timesteps);
     // printf("ROLLOUT %d CONTROL %d TIME %d: in %f out: %f\n", sample_index, control_index, time_index,
     //     input[(sample_index * control_dim + control_index) * num_timesteps + time_index],
@@ -234,6 +235,11 @@ public:
 
   ColoredNoiseDistributionImpl(cudaStream_t stream = 0);
   ColoredNoiseDistributionImpl(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0);
+
+  ~ColoredNoiseDistributionImpl()
+  {
+    freeCudaMem();
+  }
 
   __host__ std::string getSamplingDistributionName()
   {
