@@ -241,8 +241,8 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
   // auto controller = CONTROLLER(&model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_std_dev,
   //                              num_timesteps, init_control);
   auto controller_params = controller->getParams();
-  controller_params.dynamics_rollout_dim_ = dim3(64, 4, 1);
-  controller_params.cost_rollout_dim_ = dim3(32, 1, 1);
+  controller_params.dynamics_rollout_dim_ = dim3(32, 4, 1);
+  controller_params.cost_rollout_dim_ = dim3(32, 4, 1);
   controller->setParams(controller_params);
   controller->setDebug(true);
   DYN_T::state_array current_state = DYN_T::state_array::Zero();

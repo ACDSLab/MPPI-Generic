@@ -1,5 +1,6 @@
 #include <mppi/controllers/controller.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
+#include <mppi/sampling_distributions/gaussian/gaussian.cuh>
 #include <mppi_test/mock_classes/mock_costs.h>
 #include <mppi_test/mock_classes/mock_dynamics.h>
 
@@ -13,36 +14,32 @@
 static const int number_rollouts = 1200;
 static const int NUM_TIMESTEPS = 100;
 using FEEDBACK_T = DDPFeedback<MockDynamics, NUM_TIMESTEPS>;
+const dim3 rolloutDim(1, 2, 1);
+using SAMPLER_T = mppi::sampling_distributions::GaussianDistribution<MockDynamics::DYN_PARAMS_T>;
 
-class TestController : public Controller<MockDynamics, MockCost, FEEDBACK_T, NUM_TIMESTEPS, number_rollouts, 1, 2>
+class TestController : public Controller<MockDynamics, MockCost, FEEDBACK_T, SAMPLER_T, NUM_TIMESTEPS, number_rollouts>
 {
 public:
-  typedef Controller<MockDynamics, MockCost, FEEDBACK_T, NUM_TIMESTEPS, number_rollouts, 1, 2> PARENT_CLASS;
+  typedef Controller<MockDynamics, MockCost, FEEDBACK_T, SAMPLER_T, NUM_TIMESTEPS, number_rollouts> PARENT_CLASS;
   using PARAMS_T = PARENT_CLASS::TEMPLATED_PARAMS;
 
-  TestController(MockDynamics* model, MockCost* cost, FEEDBACK_T* fb_controller, float dt, int max_iter, float lambda,
-                 float alpha, const Eigen::Ref<const control_array>& control_variance, int num_timesteps = 100,
+  TestController(MockDynamics* model, MockCost* cost, FEEDBACK_T* fb_controller, SAMPLER_T* sampler, float dt,
+                 int max_iter, float lambda, float alpha, int num_timesteps = 100,
                  const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
                  cudaStream_t stream = nullptr)
-    : PARENT_CLASS(model, cost, fb_controller, dt, max_iter, lambda, alpha, control_variance, num_timesteps,
-                   init_control_traj, stream)
+    : PARENT_CLASS(model, cost, fb_controller, sampler, dt, max_iter, lambda, alpha, num_timesteps, init_control_traj,
+                   stream)
   {
     // Allocate CUDA memory for the controller
     allocateCUDAMemoryHelper(0);
-
-    // Copy the noise variance to the device
-    this->copyControlStdDevToDevice();
   }
 
-  TestController(MockDynamics* model, MockCost* cost, FEEDBACK_T* fb_controller, PARAMS_T& params,
+  TestController(MockDynamics* model, MockCost* cost, FEEDBACK_T* fb_controller, SAMPLER_T* sampler, PARAMS_T& params,
                  cudaStream_t stream = nullptr)
-    : PARENT_CLASS(model, cost, fb_controller, params, stream)
+    : PARENT_CLASS(model, cost, fb_controller, sampler, params, stream)
   {
     // Allocate CUDA memory for the controller
     allocateCUDAMemoryHelper(0);
-
-    // Copy the noise variance to the device
-    this->copyControlStdDevToDevice();
   }
 
   virtual void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) override
@@ -57,7 +54,7 @@ public:
     int trajectory_size = control_trajectory().size();
     for (int i = 0; i < number_rollouts; i++)
     {
-      HANDLE_ERROR(cudaMemcpyAsync(control_noise_d_ + i * trajectory_size, noise[i].data(),
+      HANDLE_ERROR(cudaMemcpyAsync(this->sampler_->getControlSample(i, 0, 0), noise[i].data(),
                                    sizeof(float) * trajectory_size, cudaMemcpyHostToDevice, stream_));
     }
     HANDLE_ERROR(cudaStreamSynchronize(stream_));
@@ -86,6 +83,7 @@ protected:
     mockDynamics = new MockDynamics();
     mockCost = new MockCost();
     mockFeedback = new FEEDBACK_T(mockDynamics, dt);
+    sampler = new SAMPLER_T();
     HANDLE_ERROR(cudaStreamCreate(&stream));
     MockDynamics tmp_dynamics();
 
@@ -99,7 +97,11 @@ protected:
     EXPECT_CALL(*mockDynamics, GPUSetup()).Times(1);
     // EXPECT_CALL(mockFeedback, GPUSetup()).Times(1);
 
-    controller = new TestController(mockDynamics, mockCost, mockFeedback, dt, max_iter, lambda, alpha, control_var);
+    controller = new TestController(mockDynamics, mockCost, mockFeedback, sampler, dt, max_iter, lambda, alpha);
+    auto controller_params = controller->getParams();
+    controller_params.dynamics_rollout_dim_ = rolloutDim;
+    controller_params.cost_rollout_dim_ = rolloutDim;
+    controller->setParams(controller_params);
   }
   void TearDown() override
   {
@@ -107,18 +109,19 @@ protected:
     delete mockDynamics;
     delete mockCost;
     delete mockFeedback;
+    delete sampler;
   }
 
   MockDynamics* mockDynamics;
   MockCost* mockCost;
   FEEDBACK_T* mockFeedback;
+  SAMPLER_T* sampler;
   TestController* controller;
 
   float dt = 0.1;
   int max_iter = 1;
   float lambda = 1.2;
   float alpha = 0.1;
-  MockDynamics::control_array control_var = MockDynamics::control_array::Constant(1.0);
   cudaStream_t stream;
 };
 
@@ -137,9 +140,8 @@ TEST_F(ControllerTests, ConstructorDestructor)
   EXPECT_CALL(*mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(*mockDynamics, GPUSetup()).Times(1);
   // EXPECT_CALL(mockFeedback, GPUSetup()).Times(1);
-  TestController* controller_test =
-      new TestController(mockDynamics, mockCost, mockFeedback, dt, max_iter, lambda, alpha, control_var, num_timesteps,
-                         init_control_trajectory, stream);
+  TestController* controller_test = new TestController(mockDynamics, mockCost, mockFeedback, sampler, dt, max_iter,
+                                                       lambda, alpha, num_timesteps, init_control_trajectory, stream);
 
   EXPECT_EQ(controller_test->model_, mockDynamics);
   EXPECT_EQ(controller_test->cost_, mockCost);
@@ -148,7 +150,6 @@ TEST_F(ControllerTests, ConstructorDestructor)
   EXPECT_EQ(controller_test->getLambda(), lambda);
   EXPECT_EQ(controller_test->getAlpha(), alpha);
   EXPECT_EQ(controller_test->getNumTimesteps(), num_timesteps);
-  EXPECT_EQ(controller_test->getControlStdDev(), control_var);
   EXPECT_EQ(controller_test->getControlSeq(), init_control_trajectory);
   EXPECT_EQ(controller_test->getStream(), stream);
   EXPECT_EQ(controller_test->getFeedbackEnabled(), false);
@@ -169,7 +170,6 @@ TEST_F(ControllerTests, ParamBasedConstructor)
   controller_params.num_iters_ = max_iter;
   controller_params.lambda_ = lambda;
   controller_params.alpha_ = alpha;
-  controller_params.control_std_dev_ = control_var;
   controller_params.init_control_traj_ = TestController::control_trajectory::Ones();
 
   // expect double check rebind
@@ -181,7 +181,8 @@ TEST_F(ControllerTests, ParamBasedConstructor)
   EXPECT_CALL(*mockCost, GPUSetup()).Times(1);
   EXPECT_CALL(*mockDynamics, GPUSetup()).Times(1);
   // EXPECT_CALL(mockFeedback, GPUSetup()).Times(1);
-  TestController* controller_test = new TestController(mockDynamics, mockCost, mockFeedback, controller_params, stream);
+  TestController* controller_test =
+      new TestController(mockDynamics, mockCost, mockFeedback, sampler, controller_params, stream);
 
   EXPECT_EQ(controller_test->model_, mockDynamics);
   EXPECT_EQ(controller_test->cost_, mockCost);
@@ -190,7 +191,6 @@ TEST_F(ControllerTests, ParamBasedConstructor)
   EXPECT_EQ(controller_test->getLambda(), lambda);
   EXPECT_EQ(controller_test->getAlpha(), alpha);
   EXPECT_EQ(controller_test->getNumTimesteps(), num_timesteps);
-  EXPECT_EQ(controller_test->getControlStdDev(), control_var);
   EXPECT_EQ(controller_test->getControlSeq(), controller_params.init_control_traj_);
   EXPECT_EQ(controller_test->getStream(), stream);
   EXPECT_EQ(controller_test->getFeedbackEnabled(), false);
@@ -209,16 +209,6 @@ TEST_F(ControllerTests, setNumTimesteps)
 
   controller->setNumTimesteps(1000);
   EXPECT_EQ(controller->getNumTimesteps(), 100);
-}
-
-TEST_F(ControllerTests, updateControlNoiseStdDev)
-{
-  TestController::control_array new_control_var = TestController::control_array::Constant(2.0);
-
-  controller->updateControlNoiseStdDev(new_control_var);
-
-  EXPECT_EQ(controller->getControlStdDev(), new_control_var);
-  // TODO verify copied to GPU correctly
 }
 
 TEST_F(ControllerTests, smoothControlTrajectory)
