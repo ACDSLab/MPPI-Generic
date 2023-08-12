@@ -2,6 +2,8 @@
 #include <iostream>
 #include <chrono>
 
+using SAMPLER_T = mppi::sampling_distributions::GaussianDistribution<CartpoleDynamics::DYN_PARAMS_T>;
+
 int main(int argc, char** argv)
 {
   auto model = new CartpoleDynamics(1.0, 1.0, 1.0);
@@ -30,16 +32,24 @@ int main(int argc, char** argv)
   float alpha = 0.0;
   const int num_timesteps = 100;
 
-  CartpoleDynamics::control_array control_var;
-  control_var = CartpoleDynamics::control_array::Constant(5.0);
+  // Set up Gaussian Distribution
+  auto sampler_params = SAMPLER_T::SAMPLING_PARAMS_T();
+  for (int i = 0; i < CartpoleDynamics::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 5.0;
+  }
+  auto sampler = new SAMPLER_T(sampler_params);
 
   // Feedback Controller
   auto fb_controller = new DDPFeedback<CartpoleDynamics, num_timesteps>(model, dt);
 
   auto CartpoleController =
       new VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, num_timesteps>,
-                                num_timesteps, 2048, 64, 8>(model, cost, fb_controller, dt, max_iter, lambda, alpha,
-                                                            control_var);
+                                num_timesteps, 2048>(model, cost, fb_controller, sampler, dt, max_iter, lambda, alpha);
+  auto controller_params = CartpoleController->getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 4, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 4, 1);
+  CartpoleController->setParams(controller_params);
 
   CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
   CartpoleDynamics::state_array next_state = CartpoleDynamics::state_array::Zero();
@@ -84,6 +94,7 @@ int main(int argc, char** argv)
   delete (cost);
   delete (model);
   delete (fb_controller);
+  delete sampler;
 
   return 0;
 }

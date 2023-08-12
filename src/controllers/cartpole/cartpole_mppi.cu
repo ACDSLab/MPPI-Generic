@@ -13,12 +13,34 @@ const int NUMBER_TIMESTEPS = 100;
 template class DDPFeedback<CartpoleDynamics, 150>;
 
 template class DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>;
-template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
-                                     DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 2048, 64, 8>;
-template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
-                                     DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 256, 64, 8>;
-template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 150>, 150,
-                                     512, 64, 8>;
 
-template class TubeMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
-                                  DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 2048, 64, 8>;
+#define SAMPLER_T mppi::sampling_distributions::GaussianDistribution<CartpoleDynamics::DYN_PARAMS_T>
+
+template class SAMPLER_T;
+
+template class mppi::sampling_distributions::GaussianDistributionImpl<
+    SAMPLER_T, mppi::sampling_distributions::GaussianParams, CartpoleDynamics::DYN_PARAMS_T>;
+
+// template __host__ void mppi::sampling_distributions::SamplingDistribution<SAMPLER_T,
+//          mppi::sampling_distributions::GaussianParams,
+//          CartpoleDynamics::DYN_PARAMS_T>::freeCudaMem();
+template class mppi::sampling_distributions::SamplingDistribution<
+    SAMPLER_T, mppi::sampling_distributions::GaussianParams, CartpoleDynamics::DYN_PARAMS_T>;
+
+template class Controller<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>,
+                          SAMPLER_T, NUMBER_TIMESTEPS, 2048>;
+template class Controller<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>,
+                          SAMPLER_T, NUMBER_TIMESTEPS, 256>;
+template class Controller<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 150>, SAMPLER_T, 150,
+                          512>;
+
+template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
+                                     DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 2048>;
+template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
+                                     DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 256>;
+template class VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost, DDPFeedback<CartpoleDynamics, 150>, 150,
+                                     512>;
+
+#undef SAMPLER_T
+// template class TubeMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
+//                                   DDPFeedback<CartpoleDynamics, NUMBER_TIMESTEPS>, NUMBER_TIMESTEPS, 2048>;

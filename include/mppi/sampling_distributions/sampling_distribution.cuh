@@ -443,6 +443,6 @@ const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::SHARED_M
 }  // namespace sampling_distributions
 }  // namespace mppi
 
-#if __CUDACC__
+#ifdef __CUDACC__
 #include "sampling_distribution.cu"
 #endif

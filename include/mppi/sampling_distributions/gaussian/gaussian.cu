@@ -623,7 +623,7 @@ __host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const
                                                           const float alpha)
 {
   float cost = 0.0f;
-  const int distribution_i = distribution_idx >= this->params_->num_distributions ? 0 : distribution_idx;
+  const int distribution_i = distribution_idx >= this->params_.num_distributions ? 0 : distribution_idx;
   const int mean_index = (distribution_i * this->getNumTimesteps() + t) * CONTROL_DIM;
   float* mean = &(this->means_[mean_index]);
   float* std_dev = &(this->params_.std_dev[CONTROL_DIM * distribution_i]);
