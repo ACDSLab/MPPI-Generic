@@ -226,7 +226,7 @@ TEST(ColoredNoise, DISABLED_checkWhiteNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, offset_decay_rate, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, 0.0f, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -274,7 +274,7 @@ TEST(ColoredNoise, DISABLED_checkPinkNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, offset_decay_rate, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, 0.0f, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -317,7 +317,7 @@ TEST(ColoredNoise, DISABLED_checkRedNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, offset_decay_rate, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, 0.0f, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -370,7 +370,7 @@ TEST(ColoredNoise, DISABLED_checkMultiNoise)
   curandSetPseudoRandomGeneratorSeed(gen, 42);
   curandSetStream(gen, stream);
 
-  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, offset_decay_rate, stream);
+  powerlaw_psd_gaussian(exponents, NUM_TIMESTEPS, NUM_ROLLOUTS, colored_noise_d, 0, gen, 0.0f, stream);
   HANDLE_ERROR(cudaMemcpyAsync(colored_noise_output, colored_noise_d, sizeof(float) * full_buffer_size,
                                cudaMemcpyDeviceToHost, stream));
   HANDLE_ERROR(cudaStreamSynchronize(stream));

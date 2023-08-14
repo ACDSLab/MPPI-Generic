@@ -34,8 +34,8 @@ void fftfreq(const int num_samples, std::vector<float>& result, const float spac
 }
 
 void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int num_trajectories,
-                           float* control_noise_d, int offset_t, curandGenerator_t& gen, cudaStream_t stream = 0,
-                           float fmin = 0.0);
+                           float* control_noise_d, int offset_t, curandGenerator_t& gen, float offset_decay_rate,
+                           cudaStream_t stream = 0, float fmin = 0.0);
 
 namespace mppi
 {

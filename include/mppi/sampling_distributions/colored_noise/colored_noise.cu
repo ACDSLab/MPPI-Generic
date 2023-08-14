@@ -56,8 +56,8 @@ __global__ void rearrangeNoise(float* input, float* output, float* variance, int
 }
 
 void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int num_trajectories,
-                           float* control_noise_d, int offset_t, curandGenerator_t& gen, cudaStream_t stream,
-                           float fmin)
+                           float* control_noise_d, int offset_t, curandGenerator_t& gen, float offset_decay_rate,
+                           cudaStream_t stream, float fmin)
 {
   const int BLOCKSIZE_X = 32;
   const int BLOCKSIZE_Y = 32;
@@ -65,8 +65,9 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   int control_dim = exponents.size();
 
   std::vector<float> sample_freq;
-  fftfreq(num_timesteps, sample_freq);
-  float cutoff_freq = fmaxf(fmin, 1.0 / num_timesteps);
+  const int sample_num_timesteps = num_timesteps * 2;
+  fftfreq(sample_num_timesteps, sample_freq);
+  float cutoff_freq = fmaxf(fmin, 1.0 / sample_num_timesteps);
   int freq_size = sample_freq.size();
 
   int smaller_index = 0;
@@ -105,24 +106,25 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
       sigma[i] += powf(sample_freqs(j, i), 2);
     }
     // std::for_each(sample_freq.begin() + 1, sample_freq.end() - 1, [&sigma, &i](float j) { sigma[i] += powf(j, 2); });
-    sigma[i] += powf(sample_freqs(freq_size - 1, i) * ((1.0 + (num_timesteps % 2)) / 2.0), 2);
-    sigma[i] = 2 * sqrt(sigma[i]) / num_timesteps;
+    sigma[i] += powf(sample_freqs(freq_size - 1, i) * ((1.0 + (sample_num_timesteps % 2)) / 2.0), 2);
+    sigma[i] = 2 * sqrt(sigma[i]) / sample_num_timesteps;
   }
 
   // Sample the noise in frequency domain and reutrn to time domain
   cufftHandle plan;
   const int batch = num_trajectories * control_dim;
-  // Need 2 * (num_timesteps / 2 + 1) * batch of randomly sampled values
+  // Need 2 * (sample_num_timesteps / 2 + 1) * batch of randomly sampled values
   // float* samples_in_freq_d;
   float* sigma_d;
   float* noise_in_time_d;
   cufftComplex* samples_in_freq_complex_d;
   float* freq_coeffs_d;
   // HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * freq_size, stream));
-  // HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * num_timesteps, stream));
+  // HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * sample_num_timesteps,
+  // stream));
   HANDLE_ERROR(cudaMallocAsync((void**)&freq_coeffs_d, sizeof(float) * freq_size * control_dim, stream));
   HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_complex_d, sizeof(cufftComplex) * batch * freq_size, stream));
-  HANDLE_ERROR(cudaMallocAsync((void**)&noise_in_time_d, sizeof(float) * batch * num_timesteps, stream));
+  HANDLE_ERROR(cudaMallocAsync((void**)&noise_in_time_d, sizeof(float) * batch * sample_num_timesteps, stream));
   HANDLE_ERROR(cudaMallocAsync((void**)&sigma_d, sizeof(float) * control_dim, stream));
   // curandSetStream(gen, stream);
   HANDLE_CURAND_ERROR(curandGenerateNormal(gen, (float*)samples_in_freq_complex_d, 2 * batch * freq_size, 0.0, 1.0));
@@ -139,10 +141,10 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   configureFrequencyNoise<<<grid, block, 0, stream>>>(samples_in_freq_complex_d, freq_coeffs_d, num_trajectories,
                                                       control_dim, freq_size);
   HANDLE_ERROR(cudaGetLastError());
-  HANDLE_CUFFT_ERROR(cufftPlan1d(&plan, num_timesteps, CUFFT_C2R, batch));
+  HANDLE_CUFFT_ERROR(cufftPlan1d(&plan, sample_num_timesteps, CUFFT_C2R, batch));
   HANDLE_CUFFT_ERROR(cufftSetStream(plan, stream));
-  // freq_data needs to be batch number of num_timesteps/2 + 1 cuComplex values
-  // time_data needs to be batch * num_timesteps floats
+  // freq_data needs to be batch number of sample_num_timesteps/2 + 1 cuComplex values
+  // time_data needs to be batch * sample_num_timesteps floats
   HANDLE_CUFFT_ERROR(cufftExecC2R(plan, samples_in_freq_complex_d, noise_in_time_d));
   const int reorder_grid_x = (num_trajectories - 1) / BLOCKSIZE_X + 1;
   const int reorder_grid_y = (num_timesteps - 1) / BLOCKSIZE_Y + 1;
@@ -152,7 +154,8 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   // std::cout << "Grid: " << reorder_grid.x << ", " << reorder_grid.y << ", " << reorder_grid.z << std::endl;
   // std::cout << "Block: " << reorder_block.x << ", " << reorder_block.y << ", " << reorder_block.z << std::endl;
   rearrangeNoise<<<reorder_grid, reorder_block, 0, stream>>>(noise_in_time_d, control_noise_d, sigma_d,
-                                                             num_trajectories, num_timesteps, control_dim, offset_t);
+                                                             num_trajectories, num_timesteps, control_dim, offset_t,
+                                                             offset_decay_rate);
   HANDLE_ERROR(cudaGetLastError());
   HANDLE_ERROR(cudaStreamSynchronize(stream));
   HANDLE_CUFFT_ERROR(cufftDestroy(plan));
