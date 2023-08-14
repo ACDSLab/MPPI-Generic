@@ -17,8 +17,7 @@ namespace kernels
 template <class COST_T, class SAMPLING_T, int BLOCKSIZE_X, bool COALESCE = false>
 __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
                                   const int num_timesteps, const int num_rollouts, float lambda, float alpha,
-                                  const float* __restrict__ init_x_d, const float* __restrict__ y_d,
-                                  float* __restrict__ trajectory_costs_d);
+                                  const float* __restrict__ y_d, float* __restrict__ trajectory_costs_d);
 
 template <class DYN_T, class SAMPLING_T>
 __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restrict__ sampling, float dt,
@@ -55,7 +54,7 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
                                    float* __restrict__ x_thread, float* __restrict__ xdot_thread, float* u_thread);
 
 template <int BLOCKSIZE>
-__device__ void warpReduceAdd(volatile float* sdata, const int tid);
+__device__ void warpReduceAdd(volatile float* sdata, const int tid, const int stride = 1);
 /**
  * Launch Kernel Methods
  **/

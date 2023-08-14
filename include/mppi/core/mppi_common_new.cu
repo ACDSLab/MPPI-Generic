@@ -1,12 +1,16 @@
 #include <mppi/utils/math_utils.h>
 #include <mppi/core/mppi_common.cuh>
 
+namespace mp1 = mppi::p1;
+
+// CUDA barriers were first implemented in Cuda 11
+#if defined(CUDA_VERSION) && CUDA_VERSION > 11060
 #include <cuda/barrier>
 using barrier = cuda::barrier<cuda::thread_scope_block>;
-namespace mp1 = mppi::p1;
 
 #define USE_CUDA_BARRIERS_DYN
 #define USE_CUDA_BARRIERS_COST
+#endif
 
 namespace mppi
 {
@@ -15,8 +19,7 @@ namespace kernels
 template <class COST_T, class SAMPLING_T, int BLOCKSIZE_X, bool COALESCE>
 __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
                                   const int num_timesteps, const int num_rollouts, float lambda, float alpha,
-                                  const float* __restrict__ init_x_d, const float* __restrict__ y_d,
-                                  float* __restrict__ trajectory_costs_d)
+                                  const float* __restrict__ y_d, float* __restrict__ trajectory_costs_d)
 {
   // Get thread and block id
   const int thread_idx = threadIdx.x;
@@ -27,9 +30,9 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   const int size_of_theta_c_bytes =
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       blockDim.x * blockDim.z * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
-  const int size_of_theta_d_bytes =
-      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      blockDim.x * blockDim.z * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  // const int size_of_theta_d_bytes =
+  //     math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+  //     blockDim.x * blockDim.z * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
 
   int running_cost_index = thread_idx + blockDim.x * (thread_idy + blockDim.y * thread_idz);
   // Create shared state and control arrays
@@ -601,31 +604,31 @@ __device__ void strideControlWeightReduction(const int num_rollouts, const int n
 }
 
 template <int BLOCKSIZE>
-__device__ void warpReduceAdd(volatile float* sdata, const int tid)
+__device__ void warpReduceAdd(volatile float* sdata, const int tid, const int stride)
 {
   if (BLOCKSIZE >= 64)
   {
-    sdata[tid] += sdata[tid + 32];
+    sdata[tid * stride] += sdata[(tid + 32) * stride];
   }
   if (BLOCKSIZE >= 32)
   {
-    sdata[tid] += sdata[tid + 16];
+    sdata[tid * stride] += sdata[(tid + 16) * stride];
   }
   if (BLOCKSIZE >= 16)
   {
-    sdata[tid] += sdata[tid + 8];
+    sdata[tid * stride] += sdata[(tid + 8) * stride];
   }
   if (BLOCKSIZE >= 8)
   {
-    sdata[tid] += sdata[tid + 4];
+    sdata[tid * stride] += sdata[(tid + 4) * stride];
   }
   if (BLOCKSIZE >= 4)
   {
-    sdata[tid] += sdata[tid + 2];
+    sdata[tid * stride] += sdata[(tid + 2) * stride];
   }
   if (BLOCKSIZE >= 2)
   {
-    sdata[tid] += sdata[tid + 1];
+    sdata[tid * stride] += sdata[(tid + 1) * stride];
   }
 }
 
@@ -691,7 +694,7 @@ void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ 
   cost_shared_size += math::int_multiple_const(cost_num_shared * sizeof(barrier), 16);
 #endif
   rolloutCostKernel<COST_T, SAMPLING_T, COST_BLOCK_X><<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
-      costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, init_x_d, y_d, trajectory_costs);
+      costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, y_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {
