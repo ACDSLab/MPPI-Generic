@@ -146,6 +146,8 @@ public:
     cost_ = cost;
     fb_controller_ = fb_controller;
     sampler_ = sampler;
+    sampler_->setNumRollouts(NUM_ROLLOUTS);
+    sampler_->setNumDistributions(1);
     // Create the random number generator
     createAndSeedCUDARandomNumberGen();
     setParams(params);
