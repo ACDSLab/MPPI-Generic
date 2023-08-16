@@ -397,8 +397,8 @@ public:
    * @param distribution_i - which distribution to update
    * @param synchronize - whether or not to run cudaStreamSynchronize
    */
-  __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
-                                                   const int& distribution_i, bool synchronize = false);
+  __host__ virtual void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
+                                                           const int& distribution_i, bool synchronize = false) = 0;
 
   /**
    * @brief Write to a specific control sample located at [distribution_index][sample_index][t] from the

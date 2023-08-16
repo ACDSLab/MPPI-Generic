@@ -16,9 +16,7 @@ __global__ void initEvalDynKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __re
 {
   // Get thread and block id
   const int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
-  const int sample_idx = global_idx / samples_per_condition;
   const int distribution_idx = threadIdx.z;
-  const int num_candidates = num_rollouts / samples_per_condition;
   const int candidate_idx = global_idx / samples_per_condition;
   const int candidate_sample_idx = global_idx % samples_per_condition;
   const int tdy = threadIdx.y;
@@ -157,7 +155,6 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   // Get thread and block id
   const int global_idx = blockIdx.x;
   const int distribution_idx = threadIdx.z;
-  const int num_candidates = num_rollouts / samples_per_condition;
   const int candidate_idx = global_idx / samples_per_condition;
   const int candidate_sample_idx = global_idx % samples_per_condition;
   // const int tdy = threadIdx.y;

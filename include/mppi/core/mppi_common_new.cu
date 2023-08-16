@@ -4,7 +4,7 @@
 namespace mp1 = mppi::p1;
 
 // CUDA barriers were first implemented in Cuda 11
-#if defined(CUDA_VERSION) && CUDA_VERSION > 11060
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
 #include <cuda/barrier>
 using barrier = cuda::barrier<cuda::thread_scope_block>;
 
@@ -30,9 +30,9 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   const int size_of_theta_c_bytes =
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       blockDim.x * blockDim.z * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
-  // const int size_of_theta_d_bytes =
-  //     math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-  //     blockDim.x * blockDim.z * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  const int size_of_theta_d_bytes =
+      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      blockDim.x * blockDim.z * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
 
   int running_cost_index = thread_idx + blockDim.x * (thread_idy + blockDim.y * thread_idz);
   // Create shared state and control arrays

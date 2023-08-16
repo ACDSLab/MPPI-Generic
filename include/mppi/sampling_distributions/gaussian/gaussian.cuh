@@ -147,7 +147,7 @@ public:
                                               bool synchronize = true);
 
   __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
-                                                   const int& distribution_i, bool synchronize = false);
+                                                   const int& distribution_i, bool synchronize = false) override;
 
 protected:
   float* std_dev_d_ = nullptr;

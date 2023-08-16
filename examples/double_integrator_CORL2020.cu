@@ -30,6 +30,7 @@ using RCost = DoubleIntegratorRobustCost;
 const int num_timesteps = 50;  // Optimization time horizon
 const int total_time_horizon = 5000;
 using Feedback = DDPFeedback<Dyn, num_timesteps>;
+using Sampler = mppi::sampling_distributions::GaussianDistribution<Dyn::DYN_PARAMS_T>;
 
 // Problem setup
 const float dt = 0.02;   // Timestep of dynamics propagation
@@ -66,8 +67,11 @@ void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tota
   Dyn::state_array xdot;
 
   // control variance
-  Dyn::control_array control_var;
-  control_var << 1, 1;
+  Sampler::SAMPLING_PARAMS_T sampler_params;
+  for (int i = 0; i < Dyn::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 1;
+  }
 
   // Save actual trajectories, nominal_trajectory, free energy
   std::vector<float> van_trajectory(Dyn::STATE_DIM * total_time_horizon, 0);
@@ -77,13 +81,18 @@ void runVanilla(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tota
   // Initialize the controllers
   Dyn model;
   SCost cost;
+  Sampler sampler(sampler_params);
   // DDP cost parameters
   Feedback fb_controller(&model, dt);
   auto fb_params = fb_controller.getParams();
   fb_params.Q.diagonal() << 500, 500, 100, 100;
   fb_controller.setParams(fb_params);
-  auto controller = VanillaMPPIController<Dyn, SCost, Feedback, num_timesteps, 1024, 64, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_var);
+  auto controller = VanillaMPPIController<Dyn, SCost, Feedback, num_timesteps, 1024, Sampler>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
+  controller.setParams(controller_params);
   controller.initFeedback();
 
   // Start the loop
@@ -141,8 +150,11 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
   DoubleIntegratorDynamics::state_array xdot;
 
   // control variance
-  DoubleIntegratorDynamics::control_array control_var;
-  control_var << 1, 1;
+  Sampler::SAMPLING_PARAMS_T sampler_params;
+  for (int i = 0; i < Dyn::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 1;
+  }
 
   // Save actual trajectories, nominal_trajectory, free energy
   std::vector<float> van_large_trajectory(Dyn::STATE_DIM * total_time_horizon, 0);
@@ -152,13 +164,18 @@ void runVanillaLarge(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM,
   // Initialize the controllers
   Dyn model(100);
   SCost cost;
+  Sampler sampler(sampler_params);
   // DDP cost parameters
   Feedback fb_controller(&model, dt);
   auto fb_params = fb_controller.getParams();
   fb_params.Q.diagonal() << 500, 500, 100, 100;
   fb_controller.setParams(fb_params);
-  auto controller = VanillaMPPIController<Dyn, SCost, Feedback, num_timesteps, 1024, 64, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_var);
+  auto controller = VanillaMPPIController<Dyn, SCost, Feedback, num_timesteps, 1024, Sampler>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
+  controller.setParams(controller_params);
   controller.initFeedback();
 
   // Start the loop
@@ -216,8 +233,11 @@ void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DI
   DoubleIntegratorDynamics::state_array xdot;
 
   // control variance
-  DoubleIntegratorDynamics::control_array control_var;
-  control_var << 1, 1;
+  Sampler::SAMPLING_PARAMS_T sampler_params;
+  for (int i = 0; i < Dyn::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 1;
+  }
 
   // Save actual trajectories, nominal_trajectory, free energy
   std::vector<float> van_large_trajectory(Dyn::STATE_DIM * total_time_horizon, 0);
@@ -228,6 +248,7 @@ void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DI
   Dyn model(100);
 
   RCost cost;
+  Sampler sampler(sampler_params);
   auto params = cost.getParams();
   params.crash_cost = 100;
   cost.setParams(params);
@@ -237,8 +258,12 @@ void runVanillaLargeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DI
   fb_params.Q.diagonal() << 500, 500, 100, 100;
   fb_controller.setParams(fb_params);
 
-  auto controller = VanillaMPPIController<Dyn, RCost, Feedback, num_timesteps, 1024, 64, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_var);
+  auto controller = VanillaMPPIController<Dyn, RCost, Feedback, num_timesteps, 1024, Sampler>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
+  controller.setParams(controller_params);
   controller.initFeedback();
 
   // Start the loop
@@ -296,8 +321,11 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
   DoubleIntegratorDynamics::state_array xdot;
 
   // control variance
-  DoubleIntegratorDynamics::control_array control_var;
-  control_var << 1, 1;
+  Sampler::SAMPLING_PARAMS_T sampler_params;
+  for (int i = 0; i < Dyn::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 1;
+  }
 
   // Save actual trajectories, nominal_trajectory, free energy
   std::vector<float> tube_trajectory(Dyn::STATE_DIM * total_time_horizon, 0);
@@ -309,13 +337,18 @@ void runTube(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total_t
   // Initialize the controllers
   Dyn model(100);
   SCost cost;
+  Sampler sampler(sampler_params);
   // DDP cost parameters
   Feedback fb_controller(&model, dt);
   auto fb_params = fb_controller.getParams();
   fb_params.Q.diagonal() << 500, 500, 100, 100;
   fb_controller.setParams(fb_params);
-  auto controller = TubeMPPIController<Dyn, SCost, Feedback, num_timesteps, 1024, 64, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_var);
+  auto controller = TubeMPPIController<Dyn, SCost, Feedback, num_timesteps, 1024, Sampler>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
+  controller.setParams(controller_params);
   controller.setNominalThreshold(20);
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t)
@@ -377,8 +410,11 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
   DoubleIntegratorDynamics::state_array xdot;
 
   // control variance
-  DoubleIntegratorDynamics::control_array control_var;
-  control_var << 1, 1;
+  Sampler::SAMPLING_PARAMS_T sampler_params;
+  for (int i = 0; i < Dyn::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 1;
+  }
 
   // Save actual trajectories, nominal_trajectory, free energy
   std::vector<float> tube_trajectory(Dyn::STATE_DIM * total_time_horizon, 0);
@@ -390,6 +426,7 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
   // Initialize the controllers
   Dyn model(100);
   RCost cost;
+  Sampler sampler(sampler_params);
   auto params = cost.getParams();
   params.crash_cost = 100;
   cost.setParams(params);
@@ -398,8 +435,12 @@ void runTubeRC(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, total
   auto fb_params = fb_controller.getParams();
   fb_params.Q.diagonal() << 500, 500, 100, 100;
   fb_controller.setParams(fb_params);
-  auto controller = TubeMPPIController<Dyn, RCost, Feedback, num_timesteps, 1024, 64, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_var);
+  auto controller = TubeMPPIController<Dyn, RCost, Feedback, num_timesteps, 1024>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
+  controller.setParams(controller_params);
   controller.setNominalThreshold(2);
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t)
@@ -461,8 +502,11 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   DoubleIntegratorDynamics::state_array xdot;
 
   // control variance
-  DoubleIntegratorDynamics::control_array control_var;
-  control_var << 1, 1;
+  Sampler::SAMPLING_PARAMS_T sampler_params;
+  for (int i = 0; i < Dyn::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 1;
+  }
 
   // Save actual trajectories, nominal_trajectory, free energy
   std::vector<float> robust_sc_trajectory(Dyn::STATE_DIM * total_time_horizon, 0);
@@ -477,6 +521,7 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   // Initialize the controllers
   Dyn model(100);
   SCost cost;
+  Sampler sampler(sampler_params);
   // DDP cost parameters
   Feedback fb_controller(&model, dt);
   auto fb_params = fb_controller.getParams();
@@ -484,8 +529,12 @@ void runRobustSc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   fb_controller.setParams(fb_params);
   // Value function threshold
   float value_function_threshold = 20.0;
-  auto controller = RobustMPPIController<Dyn, SCost, Feedback, num_timesteps, 1024, 64, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
+  auto controller = RobustMPPIController<Dyn, SCost, Feedback, num_timesteps, 1024, Sampler>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, value_function_threshold);
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
+  controller.setParams(controller_params);
 
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t)
@@ -558,8 +607,11 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   DoubleIntegratorDynamics::state_array xdot;
 
   // control variance
-  DoubleIntegratorDynamics::control_array control_var;
-  control_var << 1, 1;
+  Sampler::SAMPLING_PARAMS_T sampler_params;
+  for (int i = 0; i < Dyn::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 1;
+  }
 
   // Save actual trajectories, nominal_trajectory, free energy
   std::vector<float> robust_rc_trajectory(Dyn::STATE_DIM * total_time_horizon, 0);
@@ -579,6 +631,7 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
   auto params = cost.getParams();
   params.crash_cost = 100;
   cost.setParams(params);
+  Sampler sampler(sampler_params);
 
   // DDP cost parameters
   Feedback fb_controller(&model, dt);
@@ -588,8 +641,12 @@ void runRobustRc(const Eigen::Ref<const Eigen::Matrix<float, Dyn::STATE_DIM, tot
 
   // Value function threshold
   float value_function_threshold = 20.0;
-  auto controller = RobustMPPIController<Dyn, RCost, Feedback, num_timesteps, 1024, 64, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, value_function_threshold, control_var);
+  auto controller = RobustMPPIController<Dyn, RCost, Feedback, num_timesteps, 1024, Sampler>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, value_function_threshold);
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
+  controller.setParams(controller_params);
 
   // Start the loop
   for (int t = 0; t < total_time_horizon; ++t)

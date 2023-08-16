@@ -6,14 +6,16 @@
  * and a controller of just MPPI, (not tube or R)
  */
 // Num_timesteps, num_rollouts, blockdim x, blockdim y
+typedef mppi::sampling_distributions::GaussianDistribution<DoubleIntegratorDynamics::DYN_PARAMS_T> Sampler;
+
 template class VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost,
-                                     DDPFeedback<DoubleIntegratorDynamics, 100>, 100, 512, 64, 8>;
+                                     DDPFeedback<DoubleIntegratorDynamics, 100>, 100, 512, Sampler>;
 template class VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost,
-                                     DDPFeedback<DoubleIntegratorDynamics, 50>, 50, 1024, 64, 8>;
+                                     DDPFeedback<DoubleIntegratorDynamics, 50>, 50, 1024, Sampler>;
 
 template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost,
-                                  DDPFeedback<DoubleIntegratorDynamics, 100>, 100, 512, 64, 8>;
+                                  DDPFeedback<DoubleIntegratorDynamics, 100>, 100, 512, Sampler>;
 template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost,
-                                  DDPFeedback<DoubleIntegratorDynamics, 50>, 50, 1024, 64, 8>;
+                                  DDPFeedback<DoubleIntegratorDynamics, 50>, 50, 1024, Sampler>;
 template class TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost,
-                                  DDPFeedback<DoubleIntegratorDynamics, 100>, 100, 1024, 64, 8>;
+                                  DDPFeedback<DoubleIntegratorDynamics, 100>, 100, 1024, Sampler>;

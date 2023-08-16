@@ -3,8 +3,12 @@
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
 
+#include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
+
 #include <iomanip>
 // #include <sstream>
+
+#define USE_COLORED_NOISE
 
 const int TIMESTEPS = 65;
 const int NUM_ROLLOUTS = 128;
@@ -12,6 +16,12 @@ const int NUM_ROLLOUTS = 128;
 using DYN = DoubleIntegratorDynamics;
 using COST = QuadraticCost<DYN>;
 using FB_CONTROLLER = DDPFeedback<DYN, TIMESTEPS>;
+
+#ifdef USE_COLORED_NOISE
+using SAMPLER = mppi::sampling_distributions::ColoredNoiseDistribution<DYN::DYN_PARAMS_T>;
+#else
+using SAMPLER = mppi::sampling_distributions::GaussianDistribution<DYN::DYN_PARAMS_T>;
+#endif
 
 int main()
 {
@@ -22,9 +32,15 @@ int main()
   x << -9, -9, 0.1, 0.1;
   DYN::state_array xdot;
 
-  // control standard deviation
-  DYN::control_array control_std_dev;
-  control_std_dev << 0.1, 0.1;
+  SAMPLER::SAMPLING_PARAMS_T sampler_params;
+  for (int i = 0; i < DYN::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 0.5;
+#ifdef USE_COLORED_NOISE
+    sampler_params.exponents[i] = 1.0;
+#endif
+  }
+  SAMPLER sampler(sampler_params);
 
   // Create the dynamics, cost function, and feedback controller
   DYN model;
@@ -36,7 +52,7 @@ int main()
   DYN::state_array x_goal;
   x_goal << -4, -4, 0, 0;
   DYN::state_array q_coeffs;
-  q_coeffs << 0.5, 0.5, 0.0, 0.0;
+  q_coeffs << 5, 5, 0.5, 0.5;
   for (int i = 0; i < DYN::STATE_DIM; i++)
   {
     cost_params.s_coeffs[i] = q_coeffs[i];
@@ -50,8 +66,13 @@ int main()
   int max_iter = 1;
   int total_time_horizon = 300;
 
-  auto controller = VanillaMPPIController<DYN, COST, FB_CONTROLLER, TIMESTEPS, NUM_ROLLOUTS, 64, 1>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_std_dev);
+  auto controller = VanillaMPPIController<DYN, COST, FB_CONTROLLER, TIMESTEPS, NUM_ROLLOUTS, SAMPLER>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);
+  controller_params.cost_rollout_dim_ = dim3(64, 1, 1);
+  controller.setParams(controller_params);
 
   /********************** Vanilla MPPI **********************/
   float cumulative_cost = 0;
@@ -66,8 +87,12 @@ int main()
 
     DYN::control_array current_control = nominal_control.col(0);
     // Propagate dynamics forward
-    model.computeDynamics(x, current_control, xdot);
-    model.updateState(x, xdot, dt);
+    DYN::output_array y;
+    DYN::state_array x_next;
+    // model.computeDynamics(x, current_control, xdot);
+    // model.updateState(x, xdot, dt);
+    model.step(x, x_next, xdot, current_control, y, t, dt);
+    x = x_next;
     if (t % 10 == 0)
     {
       std::cout << "T: " << std::fixed << std::setprecision(3) << t * dt;
@@ -78,8 +103,7 @@ int main()
 
     // Slide the control sequence
     controller.slideControlSequence(1);
-    cumulative_cost +=
-        cost.computeRunningCost(x, current_control, current_control, control_std_dev, lambda, alpha, t, &crash);
+    cumulative_cost += cost.computeRunningCost(y, current_control, t, &crash);
   }
   std::cout << "Total Cost: " << cumulative_cost << std::endl;
 
