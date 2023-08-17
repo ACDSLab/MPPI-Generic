@@ -1,12 +1,10 @@
 #pragma once
-#include <algorithm>
 
-#include <thrust/device_vector.h>
-#include <thrust/sort.h>
 namespace mppi
 {
 class RiskMeasure
 {
+public:
   enum FUNC_TYPE : int
   {
     MAX = 0,

@@ -85,7 +85,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
     {  // t = num_timesteps is the terminal state for outside this for-loop
       if (COALESCE)
       {  // Fill entire shared mem sequentially using sequential threads_idx
-        mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_X>(
+        mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_XY>(
             y_shared, blockDim.x * thread_idz * COST_T::OUTPUT_DIM, y_d,
             ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
             COST_T::OUTPUT_DIM * blockDim.x);

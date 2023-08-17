@@ -491,13 +491,20 @@ struct __align__(2 * sizeof(T)) type2
   }
 };
 
-namespace p1  // parallelize using 1 thread dim
+namespace p1  // parallelize to 1 index and step
 {
 enum class Parallel1Dir : int
 {
   THREAD_X = 0,
   THREAD_Y,
   THREAD_Z,
+  THREAD_XY,
+  THREAD_YX,
+  THREAD_XZ,
+  THREAD_ZX,
+  THREAD_YZ,
+  THREAD_ZY,
+  THREAD_XYZ,
   GLOBAL_X,
   GLOBAL_Y,
   GLOBAL_Z,
@@ -537,6 +544,90 @@ inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::THREAD_Z>(int& 
 #ifdef __CUDA_ARCH__
   p_index = threadIdx.z;
   p_step = blockDim.z;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::THREAD_XY>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.x + blockDim.x * threadIdx.y;
+  p_step = blockDim.x * blockDim.y;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::THREAD_XZ>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.x + blockDim.x * threadIdx.z;
+  p_step = blockDim.x * blockDim.z;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::THREAD_YX>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.y + blockDim.y * threadIdx.x;
+  p_step = blockDim.y * blockDim.x;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::THREAD_YZ>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.y + blockDim.y * threadIdx.z;
+  p_step = blockDim.y * blockDim.z;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::THREAD_ZX>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.z + blockDim.z * threadIdx.x;
+  p_step = blockDim.z * blockDim.x;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::THREAD_ZY>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.z + blockDim.z * threadIdx.y;
+  p_step = blockDim.z * blockDim.y;
+#else
+  p_index = 0;
+  p_step = 1;
+#endif
+}
+
+template <>
+inline __host__ __device__ void getParallel1DIndex<Parallel1Dir::THREAD_XYZ>(int& p_index, int& p_step)
+{
+#ifdef __CUDA_ARCH__
+  p_index = threadIdx.x + blockDim.x * (threadIdx.y + blockDim.y * threadIdx.z);
+  p_step = blockDim.x * blockDim.y * blockDim.z;
 #else
   p_index = 0;
   p_step = 1;
@@ -622,7 +713,7 @@ inline __device__ void loadArrayParallel(T* __restrict__ a1, const int off1, con
 }
 }  // namespace p1
 
-namespace p2  // parallelize using 2 thread dim
+namespace p2  // parallelize using 2 indices and steps
 {
 enum class Parallel2Dir : int
 {

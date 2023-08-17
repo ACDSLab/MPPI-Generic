@@ -14,7 +14,7 @@ namespace kernels
  * Kernels Methods
  **/
 
-template <class COST_T, class SAMPLING_T, int BLOCKSIZE_X, bool COALESCE = false>
+template <class COST_T, class SAMPLING_T, int BLOCKSIZE_X, bool COALESCE = true>
 __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
                                   const int num_timesteps, const int num_rollouts, float lambda, float alpha,
                                   const float* __restrict__ y_d, float* __restrict__ trajectory_costs_d);
