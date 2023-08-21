@@ -27,7 +27,7 @@ public:
   static __host__ __device__ float shaping_func(float* __restrict__ costs, const int num_costs,
                                                 const FUNC_TYPE type = MEAN, const float risk_tolerance = 0.5f)
   {
-    float cost = 0;
+    float cost = 0.0f;
     if (num_costs == 1)
     {
       return costs[0];
@@ -44,7 +44,7 @@ public:
         cost = mean_measure(costs, num_costs);
         break;
       case MEDIAN:
-        cost = var(costs, num_costs, 0.5);
+        cost = var(costs, num_costs, 0.5f);
         break;
       case MIN:
         cost = min_measure(costs, num_costs);
@@ -84,7 +84,7 @@ public:
 
   static __host__ __device__ float mean_measure(const float* __restrict__ costs, const int num_costs)
   {
-    float cost = 0;
+    float cost = 0.0f;
     for (int i = 0; i < num_costs; i++)
     {
       cost += costs[i];

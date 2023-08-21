@@ -59,6 +59,9 @@ protected:
   std::shared_ptr<NN> lstm_lstm_helper_;
 };
 
+const int RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_GRD_BYTES;
+const int RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_BLK_BYTES;
+
 #if __CUDACC__
 #include "racer_dubins_elevation_lstm_steering.cu"
 #endif

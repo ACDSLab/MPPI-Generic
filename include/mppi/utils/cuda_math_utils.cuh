@@ -5,6 +5,62 @@
 #ifndef MPPIGENERIC_CUDA_MATH_UTILS_CUH
 #define MPPIGENERIC_CUDA_MATH_UTILS_CUH
 
+#ifndef __UNROLL
+#define __xstr__(s) __str__(s)
+#define __str__(s) #s
+#ifdef __CUDACC__
+#define __UNROLL(a) _Pragma("unroll")
+#elif defined(__GNUC__)  // GCC is the compiler and uses different unroll syntax
+#define __UNROLL(a) _Pragma(__xstr__(GCC unroll a))
+#endif
+#endif
+
+// Matching float4 syntax
+template <class T = float>
+struct __align__(4 * sizeof(T)) type4
+{
+  T x;
+  T y;
+  T z;
+  T w;
+  // Allow writing to struct using array index
+  __host__ __device__ T& operator[](int i)
+  {
+    assert(i >= 0);
+    assert(i < 4);
+    return (i > 1) ? ((i == 2) ? z : w) : ((i == 0) ? x : y);
+  }
+  // Allow reading from struct using array index
+  __host__ __device__ const T& operator[](int i) const
+  {
+    assert(i >= 0);
+    assert(i < 4);
+    return (i > 1) ? ((i == 2) ? z : w) : ((i == 0) ? x : y);
+  }
+};
+
+template <class T = float>
+struct __align__(2 * sizeof(T)) type2
+{
+  T x;
+  T y;
+
+  // Allow writing to struct using array index
+  __host__ __device__ T& operator[](int i)
+  {
+    assert(i >= 0);
+    assert(i < 2);
+    return (i == 0) ? x : y;
+  }
+  // Allow reading from struct using array index
+  __host__ __device__ const T& operator[](int i) const
+  {
+    assert(i >= 0);
+    assert(i < 2);
+    return (i == 0) ? x : y;
+  }
+};
+
 // Scalar-Vector Multiplication
 __host__ __device__ inline float2 operator*(const float2& a, const float& b)
 {

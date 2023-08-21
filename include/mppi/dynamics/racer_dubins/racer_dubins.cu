@@ -281,7 +281,7 @@ __device__ __host__ void RACER::computeStaticSettling(TEX_T* tex_helper, const f
   float3 front_right = make_float3(2.981f, -0.737f, 0.f);
   float3 rear_left = make_float3(0.0f, 0.737f, 0.0f);
   float3 rear_right = make_float3(0.0f, -0.737f, 0.0f);
-  float3 body_pose = make_float3(x, y, 0);
+  float3 body_pose = make_float3(x, y, 0.0f);
   float3 rotation = make_float3(roll, pitch, yaw);
   // front_left = make_float3(front_left.x * cosf(yaw) - front_left.y * sinf(yaw) + x,
   //                          front_left.x * sinf(yaw) + front_left.y * cosf(yaw) + y, 0.0f);
@@ -329,13 +329,13 @@ __device__ __host__ void RACER::computeStaticSettling(TEX_T* tex_helper, const f
   }
 
   // using 2pi so any rotation that accidently uses this will be using identity
-  if (isnan(roll) || isinf(roll) || abs(roll) > M_PIf32)
+  if (isnan(roll) || isinf(roll) || fabsf(roll) > M_PIf32)
   {
-    roll = 2 * M_PIf32;
+    roll = 2.0f * M_PIf32;
   }
-  if (isnan(pitch) || isinf(pitch) || abs(pitch) > M_PIf32)
+  if (isnan(pitch) || isinf(pitch) || fabsf(pitch) > M_PIf32)
   {
-    pitch = 2 * M_PIf32;
+    pitch = 2.0f * M_PIf32;
   }
   if (isnan(height) || isinf(height))
   {

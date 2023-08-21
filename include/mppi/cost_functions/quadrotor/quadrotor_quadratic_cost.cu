@@ -107,9 +107,9 @@ __device__ float QuadrotorQuadraticCost::computeStateCost(float* s, int timestep
     // Get Euler Angles
     float r_diff, p_diff, y_diff;
     mppi::math::Quat2EulerNWU(q_diff, r_diff, p_diff, y_diff);
-    sum += this->params_.roll_coeff * powf(r_diff, 2);
-    sum += this->params_.pitch_coeff * powf(p_diff, 2);
-    sum += this->params_.yaw_coeff * powf(y_diff, 2);
+    sum += this->params_.roll_coeff * SQ(r_diff);
+    sum += this->params_.pitch_coeff * SQ(p_diff);
+    sum += this->params_.yaw_coeff * SQ(y_diff);
   }
 
   for (i = 10; i < 13; i++)

@@ -63,7 +63,7 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
   input(4) = state_der(S_INDEX(STEER_ANGLE));  // this is the parametric part as input
   LSTM::output_array nn_output = LSTM::output_array::Zero();
   lstm_lstm_helper_->forward(input, nn_output);
-  state_der(S_INDEX(STEER_ANGLE)) += nn_output(0) * 10;
+  state_der(S_INDEX(STEER_ANGLE)) += nn_output(0) * 10.0f;
 
   // Integrate using racer_dubins updateState
   this->PARENT_CLASS::updateState(state, next_state, state_der, dt);
@@ -130,7 +130,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   // copies the results of the network to state derivative
   if (threadIdx.y == 0)
   {
-    state_der[S_INDEX(STEER_ANGLE)] += nn_output[0] * 10;
+    state_der[S_INDEX(STEER_ANGLE)] += nn_output[0] * 10.0f;
   }
   __syncthreads();
 

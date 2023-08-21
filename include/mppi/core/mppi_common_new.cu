@@ -64,7 +64,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
   // running_cost = &running_cost_shared[thread_idz * blockDim.x + thread_idx];
   running_cost = &running_cost_shared[running_cost_index];
-  running_cost[0] = 0;
+  running_cost[0] = 0.0f;
 #ifdef USE_CUDA_BARRIERS_COST
   barrier* bar = &barrier_shared[(blockDim.x * thread_idz + thread_idx)];
   if (thread_idy == 0)
@@ -75,8 +75,8 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
 
   /*<----Start of simulation loop-----> */
   const int max_time_iters = ceilf((float)num_timesteps / blockDim.x);
-  costs->initializeCosts(y, u, theta_c, 0.0, dt);
-  sampling->initializeDistributions(y, 0.0, dt, theta_d);
+  costs->initializeCosts(y, u, theta_c, 0.0f, dt);
+  sampling->initializeDistributions(y, 0.0f, dt, theta_d);
   __syncthreads();
   for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
@@ -101,8 +101,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
       sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d, blockDim.y, thread_idy, y);
     }
 #ifdef USE_CUDA_BARRIERS_COST
-    barrier::arrival_token read_global_token = bar->arrive();
-    bar->wait(std::move(read_global_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -115,8 +114,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
           sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
     }
 #ifdef USE_CUDA_BARRIERS_COST
-    barrier::arrival_token calc_cost_token = bar->arrive();
-    bar->wait(std::move(calc_cost_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -265,8 +263,8 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
   __syncthreads();
 
   /*<----Start of simulation loop-----> */
-  dynamics->initializeDynamics(x, u, y, theta_s_shared, 0.0, dt);
-  sampling->initializeDistributions(y, 0.0, dt, theta_d_shared);
+  dynamics->initializeDynamics(x, u, y, theta_s_shared, 0.0f, dt);
+  sampling->initializeDistributions(y, 0.0f, dt, theta_d_shared);
   __syncthreads();
   for (int t = 0; t < num_timesteps; t++)
   {
@@ -285,8 +283,7 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
     //   printf("\n");
     // }
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token control_read_token = bar->arrive();
-    bar->wait(std::move(control_read_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -296,8 +293,7 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
     // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     dynamics->enforceConstraints(x, u);
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token enforce_constraints_token = bar->arrive();
-    bar->wait(std::move(enforce_constraints_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -307,8 +303,7 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
     // Increment states
     dynamics->step(x, x_next, xdot, u, y, theta_s_shared, t, dt);
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token dynamics_token = bar->arrive();
-    bar->wait(std::move(dynamics_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -340,6 +335,9 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   const int size_of_theta_c_bytes =
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       blockDim.x * blockDim.z * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  const int size_of_theta_d_bytes =
+      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+      blockDim.x * blockDim.z * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -351,6 +349,9 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
       (int*)&running_cost_shared[math::nearest_multiple_4(blockDim.y * blockDim.z * num_timesteps)];
   float* theta_c = (float*)&crash_status_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
   float* theta_d = &theta_c[size_of_theta_c_bytes / sizeof(float)];
+#ifdef USE_CUDA_BARRIERS_COST
+  barrier* barrier_shared = (barrier*)&theta_d[size_of_theta_d_bytes / sizeof(float)];
+#endif
   // Create local state, state dot and controls
   float* y;
   float* u;
@@ -368,13 +369,20 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   // du = &du_shared[shared_idx * COST_T::CONTROL_DIM];
   crash_status = &crash_status_shared[shared_idx];
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
+#ifdef USE_CUDA_BARRIERS_COST
+  barrier* bar = &barrier_shared[(blockDim.x * thread_idz + thread_idx)];
+  if (thread_idy == 0)
+  {
+    init(bar, blockDim.y);
+  }
+#endif
   // running_cost = &running_cost_shared[shared_idx];
   // running_cost[0] = 0;
 
   /*<----Start of simulation loop-----> */
   const int max_time_iters = ceilf((float)num_timesteps / blockDim.x);
-  costs->initializeCosts(y, u, theta_c, 0.0, dt);
-  sampling->initializeDistributions(y, 0.0, dt, theta_d);
+  costs->initializeCosts(y, u, theta_c, 0.0f, dt);
+  sampling->initializeDistributions(y, 0.0f, dt, theta_d);
   __syncthreads();
   for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
@@ -385,7 +393,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     {  // t = num_timesteps is the terminal state for outside this for-loop
       if (COALESCE)
       {  // Fill entire shared mem sequentially using sequential threads_idx
-        mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_X>(
+        mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_XY>(
             y_shared, blockDim.x * thread_idz, y_d,
             ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
             COST_T::OUTPUT_DIM * blockDim.x);
@@ -400,7 +408,11 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     {  // load controls from t = 1 to t = num_timesteps - 1
       sampling->readVisControlSample(global_idx, t, distribution_idx, u, theta_d, blockDim.y, thread_idy, y);
     }
+#ifdef USE_CUDA_BARRIERS_COST
+    bar->arrive_and_wait();
+#else
     __syncthreads();
+#endif
 
     // Compute cost
     if (t < num_timesteps)
@@ -410,7 +422,11 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
       running_cost[0] = cost / (num_timesteps - 1);
       crash_status_d[global_idx * num_timesteps + t] = crash_status[0];
     }
+#ifdef USE_CUDA_BARRIERS_COST
+    bar->arrive_and_wait();
+#else
     __syncthreads();
+#endif
   }
   // consolidate y threads into single cost
   running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
@@ -524,7 +540,7 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
       float4* xdot4_t = reinterpret_cast<float4*>(xdot_thread);
       for (i = thread_idy; i < STATE_DIM / 4; i += blocksize_y)
       {
-        xdot4_t[i] = make_float4(0, 0, 0, 0);
+        xdot4_t[i] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
       }
     }
     else if (STATE_DIM % 2 == 0)
@@ -532,14 +548,14 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
       float2* xdot2_t = reinterpret_cast<float2*>(xdot_thread);
       for (i = thread_idy; i < STATE_DIM / 2; i += blocksize_y)
       {
-        xdot2_t[i] = make_float2(0, 0);
+        xdot2_t[i] = make_float2(0.0f, 0.0f);
       }
     }
     else
     {
       for (i = thread_idy; i < STATE_DIM; i += blocksize_y)
       {
-        xdot_thread[i] = 0;
+        xdot_thread[i] = 0.0f;
       }
     }
 
@@ -548,7 +564,7 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
       float4* u4_t = reinterpret_cast<float4*>(u_thread);
       for (i = thread_idy; i < CONTROL_DIM / 4; i += blocksize_y)
       {
-        u4_t[i] = make_float4(0, 0, 0, 0);
+        u4_t[i] = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
       }
     }
     else if (CONTROL_DIM % 2 == 0)
@@ -556,25 +572,25 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
       float2* u2_t = reinterpret_cast<float2*>(u_thread);
       for (i = thread_idy; i < CONTROL_DIM / 2; i += blocksize_y)
       {
-        u2_t[i] = make_float2(0, 0);
+        u2_t[i] = make_float2(0.0f, 0.0f);
       }
     }
     else
     {
       for (i = thread_idy; i < CONTROL_DIM; i += blocksize_y)
       {
-        u_thread[i] = 0;
+        u_thread[i] = 0.0f;
       }
     }
 #else
     for (i = thread_idy; i < STATE_DIM; i += blocksize_y)
     {
       x_thread[i] = x_device[i + STATE_DIM * thread_idz];
-      xdot_thread[i] = 0;
+      xdot_thread[i] = 0.0f;
     }
     for (i = thread_idy; i < CONTROL_DIM; i += blocksize_y)
     {
-      u_thread[i] = 0;
+      u_thread[i] = 0.0f;
     }
 #endif
   }
@@ -727,6 +743,9 @@ void launchVisualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restric
       shared_num * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
       math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       shared_num * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+#ifdef USE_CUDA_BARRIERS_COST
+  shared_mem_size += math::int_multiple_const(shared_num * sizeof(barrier), 16);
+#endif
   // unsigned shared_mem_size =
   //     ((COST_BLOCK_X * BLOCKSIZE_Z) * (COST_T::OUTPUT_DIM + 2 * COST_T::CONTROL_DIM) + COST_T::CONTROL_DIM) *
   //         sizeof(float) +

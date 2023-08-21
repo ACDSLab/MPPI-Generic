@@ -148,6 +148,7 @@ public:
     sampler_ = sampler;
     sampler_->setNumRollouts(NUM_ROLLOUTS);
     sampler_->setNumDistributions(1);
+    setNumTimesteps(params_.num_timesteps_);
     // Create the random number generator
     createAndSeedCUDARandomNumberGen();
     setParams(params);

@@ -48,6 +48,6 @@ __device__ float Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>::computeRunningCost(float
   }
   else
   {
-    return 0;
+    return 0.0f;
   }
 }

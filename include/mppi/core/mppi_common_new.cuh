@@ -24,7 +24,7 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
                                       const int num_timesteps, const int num_rollouts,
                                       const float* __restrict__ init_x_d, float* __restrict__ y_d);
 
-template <class COST_T, class SAMPLING_T, bool COALESCE = false>
+template <class COST_T, class SAMPLING_T, bool COALESCE = true>
 __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
                                     const int num_timesteps, const int num_rollouts, const float lambda, float alpha,
                                     const float* __restrict__ y_d, float* __restrict__ cost_traj_d,

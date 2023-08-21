@@ -1,5 +1,5 @@
 #include "shaping_function.cuh"
-
+#include <mppi/utils/math_utils.h>
 namespace mppi_common
 {
 template <class CLASS_T, int NUM_ROLLOUTS>
@@ -105,12 +105,12 @@ void ShapingFunctionImpl<CLASS_T, PARAMS_T, NUM_ROLLOUTS, BDIM_X>::computeFreeEn
   for (int i = 0; i < NUM_ROLLOUTS; i++)
   {
     norm += cost_rollouts_host[i];
-    var += powf(cost_rollouts_host[i], 2);
+    var += SQ(cost_rollouts_host[i]);
   }
   norm /= NUM_ROLLOUTS;
-  free_energy = -1.0 / this->params_.lambda_inv * logf(norm) + baseline;
-  free_energy_var = 1.0 / this->params_.lambda_inv * (var / NUM_ROLLOUTS - powf(norm, 2));
+  free_energy = -1.0f / this->params_.lambda_inv * logf(norm) + baseline;
+  free_energy_var = 1.0f / this->params_.lambda_inv * (var / NUM_ROLLOUTS - SQ(norm));
   // TODO Figure out the point of the following lines
   float weird_term = free_energy_var / (norm * sqrtf(1.0 * NUM_ROLLOUTS));
-  free_energy_modified = 1.0 / this->params_.lambda_inv * (weird_term + 0.5 * powf(weird_term, 2));
+  free_energy_modified = 1.0f / this->params_.lambda_inv * (weird_term + 0.5 * SQ(weird_term));
 }

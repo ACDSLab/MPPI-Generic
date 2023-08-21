@@ -66,6 +66,48 @@ TEST(MATH_UTILS, RotatePointByQuat)
   }
 }
 
+TEST(MATH_UTILS, QuatDCM)
+{
+  for (int iteration = 0; iteration < 100; iteration++)
+  {
+    Eigen::Quaternionf q_eig = Eigen::Quaternionf::UnitRandom();
+    float q[4] = { q_eig.w(), q_eig.x(), q_eig.y(), q_eig.z() };
+    float M[3][3];
+    Eigen::Matrix3f M_eig;
+    M_eig = q_eig.toRotationMatrix();
+    mppi::math::Quat2DCM(q, M);
+    for (int i = 0; i < 3; i++)
+    {
+      for (int j = 0; j < 3; j++)
+      {
+        EXPECT_NEAR(M_eig(i, j), M[i][j], 1.0e-5);
+      }
+    }
+  }
+}
+
+TEST(MATH_UTILS, EulerDCM)
+{
+  for (int iteration = 0; iteration < 100; iteration++)
+  {
+    Eigen::Quaternionf q_eig = Eigen::Quaternionf::UnitRandom();
+    float r, p, y;
+    float M[3][3];
+    Eigen::Matrix3f M_eig;
+    M_eig = q_eig.toRotationMatrix();
+
+    mppi::math::Quat2EulerNWU(q_eig, r, p, y);
+    mppi::math::Euler2DCM_NWU(r, p, y, M);
+    for (int i = 0; i < 3; i++)
+    {
+      for (int j = 0; j < 3; j++)
+      {
+        EXPECT_NEAR(M_eig(i, j), M[i][j], 1.0e-5);
+      }
+    }
+  }
+}
+
 TEST(MATH_UTILS, SkewSymmetricMatrixSameAsCrossProd)
 {
   Eigen::Vector3f a(1, 2, 3);

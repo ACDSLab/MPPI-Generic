@@ -483,7 +483,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
   float* mean = &(this->control_means_d_[(params_p->num_timesteps * distribution_i + t) * CONTROL_DIM]);
   float* control_cost_coeff = params_p->control_cost_coeff;
 
-  float cost = 0;
+  float cost = 0.0f;
 #ifdef __CUDA_ARCH__
   int i = threadIdx.y;
   int step = blockDim.y;
@@ -494,13 +494,13 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
 
   if (CONTROL_DIM % 4 == 0)
   {
-    float4 cost_i = make_float4(0, 0, 0, 0);
+    float4 cost_i = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     float4 mean_i, std_dev_i, u_i, control_cost_coeff_i;
     for (; i < CONTROL_DIM / 4; i += step)
     {
       if (sample_index >= (1.0f - params_p->pure_noise_trajectories_percentage) * params_p->num_rollouts)
       {
-        mean_i = make_float4(0, 0, 0, 0);
+        mean_i = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
       }
       else
       {
@@ -516,13 +516,13 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
   }
   else if (CONTROL_DIM % 2 == 0)
   {
-    float2 cost_i = make_float2(0, 0);
+    float2 cost_i = make_float2(0.0f, 0.0f);
     float2 mean_i, std_dev_i, u_i, control_cost_coeff_i;
     for (; i < CONTROL_DIM / 2; i += step)
     {
       if (sample_index >= (1.0f - params_p->pure_noise_trajectories_percentage) * params_p->num_rollouts)
       {
-        mean_i = make_float2(0, 0);
+        mean_i = make_float2(0.0f, 0.0f);
       }
       else
       {
@@ -554,7 +554,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
       // cost += control_cost_coeff[i] * mean_i * (u[i] + noise) / (std_dev[i] * std_dev[i]); // Way in cost kernel
     }
   }
-  return 0.5 * lambda * (1 - alpha) * cost;
+  return 0.5f * lambda * (1.0f - alpha) * cost;
 }
 
 GAUSSIAN_TEMPLATE
@@ -572,7 +572,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
   }
   float* control_cost_coeff = params_p->control_cost_coeff;
 
-  float cost = 0;
+  float cost = 0.0f;
 #ifdef __CUDA_ARCH__
   int i = threadIdx.y;
   int step = blockDim.y;
@@ -583,7 +583,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
 
   if (CONTROL_DIM % 4 == 0)
   {
-    float4 cost_i = make_float4(0, 0, 0, 0);
+    float4 cost_i = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
     float4 std_dev_i, control_cost_coeff_i, u_fb_i;
     for (; i < CONTROL_DIM / 4; i += step)
     {
@@ -596,7 +596,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
   }
   else if (CONTROL_DIM % 2 == 0)
   {
-    float2 cost_i = make_float2(0, 0);
+    float2 cost_i = make_float2(0.0f, 0.0f);
     float2 std_dev_i, control_cost_coeff_i, u_fb_i;
     for (; i < CONTROL_DIM / 2; i += step)
     {
@@ -614,7 +614,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
       cost += control_cost_coeff[i] * (u_fb[i] * u_fb[i]) / (std_dev[i] * std_dev[i]);
     }
   }
-  return 0.5 * lambda * (1 - alpha) * cost;
+  return 0.5f * lambda * (1.0f - alpha) * cost;
 }
 
 GAUSSIAN_TEMPLATE

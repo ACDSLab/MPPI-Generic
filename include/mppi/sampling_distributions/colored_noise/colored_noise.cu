@@ -67,7 +67,7 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   std::vector<float> sample_freq;
   const int sample_num_timesteps = num_timesteps * 2;
   fftfreq(sample_num_timesteps, sample_freq);
-  float cutoff_freq = fmaxf(fmin, 1.0 / sample_num_timesteps);
+  float cutoff_freq = fmaxf(fmin, 1.0f / sample_num_timesteps);
   int freq_size = sample_freq.size();
 
   int smaller_index = 0;
@@ -87,13 +87,13 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
         sample_freq[j] = sample_freq[smaller_index];
         for (int k = 0; k < control_dim; k++)
         {
-          sample_freqs(j, k) = powf(sample_freq[smaller_index], -exponents[k] / 2.0);
+          sample_freqs(j, k) = powf(sample_freq[smaller_index], -exponents[k] / 2.0f);
         }
       }
     }
     for (int j = 0; j < control_dim; j++)
     {
-      sample_freqs(i, j) = powf(sample_freq[i], -exponents[j] / 2.0);
+      sample_freqs(i, j) = powf(sample_freq[i], -exponents[j] / 2.0f);
     }
   }
 
@@ -103,11 +103,11 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   {
     for (int j = 1; j < freq_size - 1; j++)
     {
-      sigma[i] += powf(sample_freqs(j, i), 2);
+      sigma[i] += SQ(sample_freqs(j, i));
     }
     // std::for_each(sample_freq.begin() + 1, sample_freq.end() - 1, [&sigma, &i](float j) { sigma[i] += powf(j, 2); });
-    sigma[i] += powf(sample_freqs(freq_size - 1, i) * ((1.0 + (sample_num_timesteps % 2)) / 2.0), 2);
-    sigma[i] = 2 * sqrt(sigma[i]) / sample_num_timesteps;
+    sigma[i] += SQ(sample_freqs(freq_size - 1, i) * ((1.0f + (sample_num_timesteps % 2)) / 2.0f));
+    sigma[i] = 2.0f * sqrtf(sigma[i]) / sample_num_timesteps;
   }
 
   // Sample the noise in frequency domain and reutrn to time domain
@@ -253,7 +253,7 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
   std::vector<float> sample_freq;
   const int sample_num_timesteps = 2 * this->getNumTimesteps();
   fftfreq(sample_num_timesteps, sample_freq);
-  const float cutoff_freq = fmaxf(this->params_.fmin, 1.0 / sample_num_timesteps);
+  const float cutoff_freq = fmaxf(this->params_.fmin, 1.0f / sample_num_timesteps);
   const int freq_size = sample_freq.size();
 
   int smaller_index = 0;
@@ -273,13 +273,13 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
         sample_freq[j] = sample_freq[smaller_index];
         for (int k = 0; k < this->CONTROL_DIM; k++)
         {
-          sample_freqs(j, k) = powf(sample_freq[smaller_index], -this->params_.exponents[k] / 2.0);
+          sample_freqs(j, k) = powf(sample_freq[smaller_index], -this->params_.exponents[k] / 2.0f);
         }
       }
     }
     for (int j = 0; j < this->CONTROL_DIM; j++)
     {
-      sample_freqs(i, j) = powf(sample_freq[i], -this->params_.exponents[j] / 2.0);
+      sample_freqs(i, j) = powf(sample_freq[i], -this->params_.exponents[j] / 2.0f);
     }
   }
 
@@ -289,10 +289,10 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
   {
     for (int j = 1; j < freq_size - 1; j++)
     {
-      sigma[i] += powf(sample_freqs(j, i), 2);
+      sigma[i] += SQ(sample_freqs(j, i));
     }
-    sigma[i] += powf(sample_freqs(freq_size - 1, i) * ((1.0 + (sample_num_timesteps % 2)) / 2.0), 2);
-    sigma[i] = 2 * sqrt(sigma[i]) / sample_num_timesteps;
+    sigma[i] += SQ(sample_freqs(freq_size - 1, i) * ((1.0f + (sample_num_timesteps % 2)) / 2.0f));
+    sigma[i] = 2.0f * sqrtf(sigma[i]) / sample_num_timesteps;
   }
 
   // Sample the noise in frequency domain and reutrn to time domain

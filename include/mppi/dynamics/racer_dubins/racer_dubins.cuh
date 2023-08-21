@@ -4,11 +4,11 @@
 #include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/angle_utils.cuh>
 
-namespace RACER {
-    template<class OUTPUT_T, class TEX_T>
-    __device__ __host__ static void computeStaticSettling(TEX_T* tex_helper,
-                                                          const float yaw, const float x, const float y,
-                                                          float& roll, float& pitch, float* output);
+namespace RACER
+{
+template <class OUTPUT_T, class TEX_T>
+__device__ __host__ static void computeStaticSettling(TEX_T* tex_helper, const float yaw, const float x, const float y,
+                                                      float& roll, float& pitch, float* output);
 };
 
 struct RacerDubinsParams : public DynamicsParams

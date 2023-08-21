@@ -27,7 +27,7 @@ __host__ __device__ void insertionSort(T* __restrict__ array, const int N)
 
 __host__ __device__ float RiskMeasure::var(float* __restrict__ costs, const int num_costs, float alpha)
 {
-  float cost = 0;
+  float cost = 0.0f;
 #ifdef __CUDA_ARCH__
   // thrust::device_ptr<float> thrust_ptr = thrust::device_pointer_cast(costs);
   // thrust::sort(thrust::seq, thrust_ptr, thrust_ptr + num_costs);
@@ -44,7 +44,7 @@ __host__ __device__ float RiskMeasure::var(float* __restrict__ costs, const int 
 
 __host__ __device__ float RiskMeasure::cvar(float* __restrict__ costs, const int num_costs, float alpha)
 {
-  float cost = 0;
+  float cost = 0.0f;
   float value_at_risk = var(costs, num_costs, alpha);  // also sorts costs
   int num_costs_above = 1;
   float sum_costs_above = value_at_risk;

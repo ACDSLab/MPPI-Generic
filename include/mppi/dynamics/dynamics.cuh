@@ -461,17 +461,20 @@ public:
     }
   }
 
-  virtual bool checkRequiresBuffer() {
+  virtual bool checkRequiresBuffer()
+  {
     return requires_buffer_;
   }
 
-  void updateFromBuffer(const buffer_trajectory& buffer) {}
+  void updateFromBuffer(const buffer_trajectory& buffer)
+  {
+  }
 
   virtual state_array stateFromMap(const std::map<std::string, float>& map) = 0;
 
   // control ranges [.x, .y]
   float2 control_rngs_[CONTROL_DIM];
-  float control_deadband_[CONTROL_DIM] = { 0.0 };
+  float control_deadband_[CONTROL_DIM] = { 0.0f };
 
   // device pointer, null on the device
   CLASS_T* model_d_ = nullptr;

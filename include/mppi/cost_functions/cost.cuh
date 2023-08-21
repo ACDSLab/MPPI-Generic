@@ -19,13 +19,13 @@ struct CostParams
 {
   static const int CONTROL_DIM = C_DIM;
   float control_cost_coeff[C_DIM];
-  float discount = 1.0;
+  float discount = 1.0f;
   CostParams()
   {
     // Default set all controls to 1
     for (int i = 0; i < C_DIM; ++i)
     {
-      control_cost_coeff[i] = 1.0;
+      control_cost_coeff[i] = 1.0f;
     }
   }
 };
@@ -112,15 +112,15 @@ public:
    * Computes the feedback control cost on CPU for RMPPI
    */
   float computeFeedbackCost(const Eigen::Ref<const control_array> fb_u, const Eigen::Ref<const control_array> std_dev,
-                            const float lambda = 1.0, const float alpha = 0.0)
+                            const float lambda = 1.0f, const float alpha = 0.0f)
   {
-    float cost = 0;
+    float cost = 0.0f;
     for (int i = 0; i < CONTROL_DIM; i++)
     {
-      cost += params_.control_cost_coeff[i] * fb_u(i) * fb_u(i) / powf(std_dev(i), 2);
+      cost += params_.control_cost_coeff[i] * SQ(fb_u(i)) / SQ(std_dev(i));
     }
 
-    return 0.5 * lambda * (1 - alpha) * cost;
+    return 0.5f * lambda * (1.0f - alpha) * cost;
   }
 
   /**
@@ -187,14 +187,14 @@ public:
    * assumption that we are provided std_dev and the covriance matrix is
    * diagonal.
    */
-  __device__ float computeFeedbackCost(float* fb_u, float* std_dev, float lambda = 1.0, float alpha = 0.0)
+  __device__ float computeFeedbackCost(float* fb_u, float* std_dev, float lambda = 1.0f, float alpha = 0.0f)
   {
-    float cost = 0;
+    float cost = 0.0f;
     for (int i = 0; i < CONTROL_DIM; i++)
     {
-      cost += params_.control_cost_coeff[i] * powf(fb_u[i] / std_dev[i], 2);
+      cost += params_.control_cost_coeff[i] * SQ(fb_u[i] / std_dev[i]);
     }
-    return 0.5 * lambda * (1 - alpha) * cost;
+    return 0.5f * lambda * (1.0f - alpha) * cost;
   }
 
   /**

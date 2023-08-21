@@ -87,16 +87,7 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::bodyOffsetToWorldPose(con
                                                                              const float3& body_pose,
                                                                              const float3& rotation, float3& output)
 {
-  // convert RPY to quaternion
-  float q[4];
-  mppi::math::Euler2QuatNWU(rotation.x, rotation.y, rotation.z, q);
-  // rotate body vector into world frame
-  float3 rotated_offset = make_float3(offset.x, offset.y, offset.z);
-  mppi::math::RotatePointByQuat(q, rotated_offset);
-  // add offset to body pose
-  output.x = body_pose.x + rotated_offset.x;
-  output.y = body_pose.y + rotated_offset.y;
-  output.z = body_pose.z + rotated_offset.z;
+  mppi::math::bodyOffsetToWorldPoseEuler(offset, body_pose, rotation, output);
 }
 
 template <class TEX_T, class DATA_T>
@@ -252,6 +243,7 @@ void TextureHelper<TEX_T, DATA_T>::addNewTexture(const cudaExtent& extent)
   textures_.resize(textures_.size() + 1);
   textures_buffer_.back().extent = extent;
   textures_.back().extent = extent;
+  size_ = textures_.size();
 
   if (this->GPUMemStatus_)
   {
