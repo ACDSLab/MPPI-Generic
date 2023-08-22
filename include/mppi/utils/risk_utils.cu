@@ -1,7 +1,7 @@
 #include <mppi/utils/risk_utils.cuh>
 
-#include <thrust/device_vector.h>
-#include <thrust/sort.h>
+// #include <thrust/device_vector.h>
+// #include <thrust/sort.h>
 
 #include <algorithm>
 

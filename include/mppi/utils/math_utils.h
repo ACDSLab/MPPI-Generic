@@ -170,7 +170,11 @@ inline __host__ __device__ void QuatMultiply(const float q_1[4], const float q_2
   q_3[3] = q_1[3] * q_2[0] - q_1[2] * q_2[1] + q_1[1] * q_2[2] + q_1[0] * q_2[3];
   if (normalize)
   {
+#ifdef __CUDA_ARCH__
     float inv_norm = rsqrtf(SQ(q_3[0]) + SQ(q_3[1]) + SQ(q_3[2]) + SQ(q_3[3]));
+#else
+    float inv_norm = 1.0f / sqrtf(SQ(q_3[0]) + SQ(q_3[1]) + SQ(q_3[2]) + SQ(q_3[3]));
+#endif
     __UNROLL(4)
     for (int i = 0; i < 4; i++)
     {
@@ -181,7 +185,11 @@ inline __host__ __device__ void QuatMultiply(const float q_1[4], const float q_2
 
 inline __host__ __device__ void QuatInv(const float q[4], float q_inv[4])
 {
+#ifdef __CUDA_ARCH__
   float inv_norm = rsqrtf(SQ(q[0]) + SQ(q[1]) + SQ(q[2]) + SQ(q[3]));
+#else
+  float inv_norm = 1.0f / sqrtf(SQ(q[0]) + SQ(q[1]) + SQ(q[2]) + SQ(q[3]));
+#endif
   q_inv[0] = q[0] * inv_norm;
   q_inv[1] = -q[1] * inv_norm;
   q_inv[2] = -q[2] * inv_norm;
