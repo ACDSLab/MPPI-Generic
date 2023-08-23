@@ -14,7 +14,8 @@ __global__ void runGPUDynamics(DYN_T* dynamics, const int num_timesteps, float d
   __shared__ float x_dot_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
   __shared__ float u_shared[DYN_T::CONTROL_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
   __shared__ float y_shared[DYN_T::OUTPUT_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
-  __shared__ float theta_s[DYN_T::SHARED_MEM_REQUEST_GRD + DYN_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X * BLOCKSIZE_Z];
+  __shared__ float
+      theta_s[DYN_T::SHARED_MEM_REQUEST_GRD_BYTES + DYN_T::SHARED_MEM_REQUEST_BLK_BYTES * BLOCKSIZE_X * BLOCKSIZE_Z];
 
   int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
   int j = 0;

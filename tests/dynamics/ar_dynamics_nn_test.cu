@@ -39,10 +39,10 @@ TEST(ARNeuralNetDynamics, verifyTemplateParamters)
   int num_params = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::NUM_PARAMS;
   EXPECT_EQ(num_params, (6 + 1) * 32 + (32 + 1) * 32 + (32 + 1) * 4);
 
-  int shared_mem_request_grd = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::SHARED_MEM_REQUEST_GRD;
+  int shared_mem_request_grd = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::SHARED_MEM_REQUEST_GRD_BYTES;
   EXPECT_EQ(shared_mem_request_grd, sizeof(FNNParams<6, 32, 32, 4>));
 
-  int shared_mem_request_blk = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::SHARED_MEM_REQUEST_BLK;
+  int shared_mem_request_blk = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::SHARED_MEM_REQUEST_BLK_BYTES;
   EXPECT_EQ(shared_mem_request_blk, (32 + 1) * 2);
 
   NeuralNetModel<7, 2, 3, 6, 32, 32, 4> model;

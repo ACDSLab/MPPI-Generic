@@ -319,7 +319,7 @@ template <typename COST_T>
 __global__ void computeCostTestKernel(COST_T* cost, float* test_xu, float* cost_results, int* timestep, int* crash,
                                       int num_points)
 {
-  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD + COST_T::SHARED_MEM_REQUEST_BLK * 1024];
+  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD_BYTES + COST_T::SHARED_MEM_REQUEST_BLK_BYTES * 1024];
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < num_points)
   {

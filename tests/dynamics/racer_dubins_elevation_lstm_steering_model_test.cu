@@ -31,10 +31,10 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, Template)
   EXPECT_EQ(2, RacerDubinsElevationLSTMSteering::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
-  const int blk = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_BLK;
-  EXPECT_EQ(blk, 62);
-  const int grd = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_GRD;
-  EXPECT_EQ(grd, 1917);
+  const int blk = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_BLK_BYTES;
+  EXPECT_EQ(blk, 203);
+  const int grd = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_GRD_BYTES;
+  EXPECT_EQ(grd, 1916);
 }
 
 TEST_F(RacerDubinsElevationLSTMSteeringTest, BindStream)
