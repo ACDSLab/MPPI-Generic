@@ -271,6 +271,81 @@ RacerDubinsImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::string, flo
   return s;
 }
 
+template <class CLASS_T, class PARAMS_T>
+__device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricDelayDeriv(float* state, float* control,
+                                                                                float* state_der, PARAMS_T* params_p)
+{
+  bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
+
+  // Compute dynamics
+  state_der[S_INDEX(BRAKE_STATE)] =
+      min(max((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
+                  params_p->brake_delay_constant,
+              -params_p->max_brake_rate_neg),
+          params_p->max_brake_rate_pos);
+}
+
+template <class CLASS_T, class PARAMS_T>
+__device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricSteerDeriv(float* state, float* control,
+                                                                                float* state_der, PARAMS_T* params_p)
+{
+  state_der[S_INDEX(STEER_ANGLE)] =
+      max(min((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+                  params_p->steering_constant,
+              params_p->max_steer_rate),
+          -params_p->max_steer_rate);
+}
+
+template <class CLASS_T, class PARAMS_T>
+void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricDelayDeriv(const Eigen::Ref<const state_array>& state,
+                                                                     const Eigen::Ref<const control_array>& control,
+                                                                     Eigen::Ref<state_array> state_der)
+{
+  bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0.0f;
+
+  state_der(S_INDEX(BRAKE_STATE)) =
+      min(max((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
+                  this->params_.brake_delay_constant,
+              -this->params_.max_brake_rate_neg),
+          this->params_.max_brake_rate_pos);
+}
+
+template <class CLASS_T, class PARAMS_T>
+void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricSteerDeriv(const Eigen::Ref<const state_array>& state,
+                                                                     const Eigen::Ref<const control_array>& control,
+                                                                     Eigen::Ref<state_array> state_der)
+{
+  state_der(S_INDEX(STEER_ANGLE)) =
+      (control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
+      this->params_.steering_constant;
+  state_der(S_INDEX(STEER_ANGLE)) =
+      max(min(state_der(S_INDEX(STEER_ANGLE)), this->params_.max_steer_rate), -this->params_.max_steer_rate);
+}
+
+template <class CLASS_T, class PARAMS_T>
+__host__ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::setOutputs(const float* state_der, const float* next_state,
+                                                                        float* output)
+{
+  // Setup output
+  output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
+  output[O_INDEX(BASELINK_VEL_B_Y)] = 0.0f;
+  output[O_INDEX(BASELINK_VEL_B_Z)] = 0.0f;
+  output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
+  output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
+  output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
+  output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
+  output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
+  output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
+  output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
+  output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000.0f;
+  output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000.0f;
+  output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000.0f;
+  output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000.0f;
+  output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
+  output[O_INDEX(ACCEL_Y)] = 0.0f;
+  output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+}
+
 template <class OUTPUT_T, class TEX_T>
 __device__ __host__ void RACER::computeStaticSettling(TEX_T* tex_helper, const float yaw, const float x, const float y,
                                                       float& roll, float& pitch, float* output)
@@ -325,25 +400,25 @@ __device__ __host__ void RACER::computeStaticSettling(TEX_T* tex_helper, const f
     pitch = (left_pitch + right_pitch) / 2.0f;
 
     height = (rear_left_height + rear_right_height) / 2.0f;
+
+    // using 2pi so any rotation that accidently uses this will be using identity
+    if (isnan(roll) || isinf(roll) || fabsf(roll) > M_PIf32)
+    {
+      roll = 2.0f * M_PIf32;
+    }
+    if (isnan(pitch) || isinf(pitch) || fabsf(pitch) > M_PIf32)
+    {
+      pitch = 2.0f * M_PIf32;
+    }
+    if (isnan(height) || isinf(height))
+    {
+      height = 0.0f;
+    }
   }
   else
   {
     roll = 0.0f;
     pitch = 0.0f;
-    height = 0.0f;
-  }
-
-  // using 2pi so any rotation that accidently uses this will be using identity
-  if (!isfinite(roll) || fabsf(roll) > M_PIf32)
-  {
-    roll = 2.0f * M_PIf32;
-  }
-  if (!isfinite(pitch) || fabsf(pitch) > M_PIf32)
-  {
-    pitch = 2.0f * M_PIf32;
-  }
-  if (!isfinite(height))
-  {
     height = 0.0f;
   }
 

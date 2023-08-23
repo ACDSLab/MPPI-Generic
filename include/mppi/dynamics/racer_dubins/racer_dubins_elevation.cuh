@@ -122,37 +122,12 @@ public:
                                    const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der,
                                    const float dt);
 
-  void computeParametricDelayDeriv(const Eigen::Ref<const state_array>& state,
-                                   const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der);
-
-  void computeParametricSteerDeriv(const Eigen::Ref<const state_array>& state,
-                                   const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der);
-
   __device__ void computeParametricAccelDeriv(float* state, float* control, float* state_der, const float dt,
                                               DYN_PARAMS_T* params_p);
-
-  __device__ void computeParametricDelayDeriv(float* state, float* control, float* state_der, DYN_PARAMS_T* params_p);
-
-  __device__ void computeParametricSteerDeriv(float* state, float* control, float* state_der, DYN_PARAMS_T* params_p);
-
-  __host__ __device__ void setOutputs(const float* state_der, const float* next_state, float* output);
 
   bool computeGrad(const Eigen::Ref<const state_array>& state = state_array(),
                    const Eigen::Ref<const control_array>& control = control_array(), Eigen::Ref<dfdx> A = dfdx(),
                    Eigen::Ref<dfdu> B = dfdu());
-
-  __host__ __device__ void computeUncertaintyPropagation(const float* state, const float* control,
-                                                         const float* state_der, float* next_state,
-                                                         float dt, DYN_PARAMS_T* params_p,
-                                                         SharedBlock* uncertainty_data);
-
-  __host__ __device__ void uncertaintyMatrixToOutput(const float* uncertainty_matrix, float* output);
-  __host__ __device__ void uncertaintyMatrixToState(const float* uncertainty_matrix, float* state);
-  __host__ __device__ void uncertaintyStateToMatrix(const float* state, float* uncertainty_matrix);
-  __host__ __device__ bool computeUncertaintyJacobian(const float* state, const float* control, float* A,
-                                                      DYN_PARAMS_T* params_p);
-  __host__ __device__ bool computeQ(const float* state, const float* control, const float* state_der, float* Q,
-                                                        DYN_PARAMS_T* params_p);
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt,
                               DYN_PARAMS_T* params_p);

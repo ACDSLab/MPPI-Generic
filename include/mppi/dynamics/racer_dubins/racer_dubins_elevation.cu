@@ -30,32 +30,6 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::paramsToDevice()
 }
 
 template <class CLASS_T, class PARAMS_T>
-void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricDelayDeriv(
-    const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-    Eigen::Ref<state_array> state_der)
-{
-  bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0.0f;
-
-  state_der(S_INDEX(BRAKE_STATE)) =
-      min(max((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
-                  this->params_.brake_delay_constant,
-              -this->params_.max_brake_rate_neg),
-          this->params_.max_brake_rate_pos);
-}
-
-template <class CLASS_T, class PARAMS_T>
-void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricSteerDeriv(
-    const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
-    Eigen::Ref<state_array> state_der)
-{
-  state_der(S_INDEX(STEER_ANGLE)) =
-      (control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
-      this->params_.steering_constant;
-  state_der(S_INDEX(STEER_ANGLE)) =
-      max(min(state_der(S_INDEX(STEER_ANGLE)), this->params_.max_steer_rate), -this->params_.max_steer_rate);
-}
-
-template <class CLASS_T, class PARAMS_T>
 void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricAccelDeriv(
     const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
     Eigen::Ref<state_array> state_der, const float dt)
@@ -88,138 +62,14 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricAccelDeriv(
 }
 
 template <class CLASS_T, class PARAMS_T>
-__host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::setOutputs(const float* state_der,
-                                                                                 const float* next_state, float* output)
-{
-  // Setup output
-  // output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
-  // output[O_INDEX(BASELINK_VEL_B_Y)] = 0.0f;
-  // output[O_INDEX(BASELINK_VEL_B_Z)] = 0.0f;
-  // output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
-  // output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
-  // output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
-  // output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
-  // output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
-  // output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
-  // output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
-  // output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000.0f;
-  // output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000.0f;
-  // output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000.0f;
-  // output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000.0f;
-  // output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
-  // output[O_INDEX(ACCEL_Y)] = 0.0f;
-  // output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
-  // output[O_INDEX(UNCERTAINTY_VEL_X)] = next_state[S_INDEX(UNCERTAINTY_VEL_X)];
-  // output[O_INDEX(UNCERTAINTY_YAW_VEL_X)] = next_state[S_INDEX(UNCERTAINTY_YAW_VEL_X)];
-  // output[O_INDEX(UNCERTAINTY_POS_X_VEL_X)] = next_state[S_INDEX(UNCERTAINTY_POS_X_VEL_X)];
-  // output[O_INDEX(UNCERTAINTY_POS_Y_VEL_X)] = next_state[S_INDEX(UNCERTAINTY_POS_Y_VEL_X)];
-  // output[O_INDEX(UNCERTAINTY_YAW)] = next_state[S_INDEX(UNCERTAINTY_YAW)];
-  // output[O_INDEX(UNCERTAINTY_POS_X_YAW)] = next_state[S_INDEX(UNCERTAINTY_POS_X_YAW)];
-  // output[O_INDEX(UNCERTAINTY_POS_Y_YAW)] = next_state[S_INDEX(UNCERTAINTY_POS_Y_YAW)];
-  // output[O_INDEX(UNCERTAINTY_POS_X)] = next_state[S_INDEX(UNCERTAINTY_POS_X)];
-  // output[O_INDEX(UNCERTAINTY_POS_X_Y)] = next_state[S_INDEX(UNCERTAINTY_POS_X_Y)];
-  // output[O_INDEX(UNCERTAINTY_POS_Y)] = next_state[S_INDEX(UNCERTAINTY_POS_Y)];
-
-  int step, pi;
-  mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
-  for (int i = pi; i < this->OUTPUT_DIM; i += step)
-  {
-    switch (i)
-    {
-      case O_INDEX(BASELINK_VEL_B_X):
-        output[i] = next_state[S_INDEX(VEL_X)];
-        break;
-      case O_INDEX(BASELINK_VEL_B_Y):
-        output[i] = 0.0f;
-        break;
-      case O_INDEX(BASELINK_VEL_B_Z):
-        output[i] = 0.0f;
-        break;
-      case O_INDEX(BASELINK_POS_I_X):
-        output[i] = next_state[S_INDEX(POS_X)];
-        break;
-      case O_INDEX(BASELINK_POS_I_Y):
-        output[i] = next_state[S_INDEX(POS_Y)];
-        break;
-      case O_INDEX(PITCH):
-        output[i] = next_state[S_INDEX(PITCH)];
-        break;
-      case O_INDEX(ROLL):
-        output[i] = next_state[S_INDEX(ROLL)];
-        break;
-      case O_INDEX(YAW):
-        output[i] = next_state[S_INDEX(YAW)];
-        break;
-      case O_INDEX(STEER_ANGLE):
-        output[i] = next_state[S_INDEX(STEER_ANGLE)];
-        break;
-      case O_INDEX(STEER_ANGLE_RATE):
-        output[i] = next_state[S_INDEX(STEER_ANGLE_RATE)];
-        break;
-      case O_INDEX(WHEEL_FORCE_B_FL):
-        output[i] = 10000.0f;
-        break;
-      case O_INDEX(WHEEL_FORCE_B_FR):
-        output[i] = 10000.0f;
-        break;
-      case O_INDEX(WHEEL_FORCE_B_RL):
-        output[i] = 10000.0f;
-        break;
-      case O_INDEX(WHEEL_FORCE_B_RR):
-        output[i] = 10000.0f;
-        break;
-      case O_INDEX(ACCEL_X):
-        output[i] = state_der[S_INDEX(VEL_X)];
-        break;
-      case O_INDEX(ACCEL_Y):
-        output[i] = 0.0f;
-        break;
-      case O_INDEX(OMEGA_Z):
-        output[i] = state_der[S_INDEX(YAW)];
-        break;
-      case O_INDEX(UNCERTAINTY_VEL_X):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_VEL_X)];
-        break;
-      case O_INDEX(UNCERTAINTY_YAW_VEL_X):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_YAW_VEL_X)];
-        break;
-      case O_INDEX(UNCERTAINTY_POS_X_VEL_X):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_X_VEL_X)];
-        break;
-      case O_INDEX(UNCERTAINTY_POS_Y_VEL_X):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_Y_VEL_X)];
-        break;
-      case O_INDEX(UNCERTAINTY_YAW):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_YAW)];
-        break;
-      case O_INDEX(UNCERTAINTY_POS_X_YAW):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_X_YAW)];
-        break;
-      case O_INDEX(UNCERTAINTY_POS_Y_YAW):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_Y_YAW)];
-        break;
-      case O_INDEX(UNCERTAINTY_POS_X):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_X)];
-        break;
-      case O_INDEX(UNCERTAINTY_POS_X_Y):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_X_Y)];
-        break;
-      case O_INDEX(UNCERTAINTY_POS_Y):
-        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_Y)];
-        break;
-    }
-  }
-}
-
-template <class CLASS_T, class PARAMS_T>
 void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> state,
                                                        Eigen::Ref<state_array> next_state,
                                                        Eigen::Ref<state_array> state_der,
                                                        const Eigen::Ref<const control_array>& control,
                                                        Eigen::Ref<output_array> output, const float t, const float dt)
 {
-  computeParametricDelayDeriv(state, control, state_der);
-  computeParametricSteerDeriv(state, control, state_der);
+  this->computeParametricDelayDeriv(state, control, state_der);
+  this->computeParametricSteerDeriv(state, control, state_der);
   computeParametricAccelDeriv(state, control, state_der, dt);
   SharedBlock sb;
 
@@ -236,7 +86,7 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> s
   next_state[S_INDEX(PITCH)] = pitch;
   next_state[S_INDEX(ROLL)] = roll;
 
-  setOutputs(state_der.data(), next_state.data(), output.data());
+  this->setOutputs(state_der.data(), next_state.data(), output.data());
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -720,33 +570,6 @@ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::initializeDynamics(
 }
 
 template <class CLASS_T, class PARAMS_T>
-__device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricDelayDeriv(float* state, float* control,
-                                                                                         float* state_der,
-                                                                                         DYN_PARAMS_T* params_p)
-{
-  bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
-
-  // Compute dynamics
-  state_der[S_INDEX(BRAKE_STATE)] =
-      min(max((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
-                  params_p->brake_delay_constant,
-              -params_p->max_brake_rate_neg),
-          params_p->max_brake_rate_pos);
-}
-
-template <class CLASS_T, class PARAMS_T>
-__device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricSteerDeriv(float* state, float* control,
-                                                                                         float* state_der,
-                                                                                         DYN_PARAMS_T* params_p)
-{
-  state_der[S_INDEX(STEER_ANGLE)] =
-      max(min((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
-                  params_p->steering_constant,
-              params_p->max_steer_rate),
-          -params_p->max_steer_rate);
-}
-
-template <class CLASS_T, class PARAMS_T>
 __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricAccelDeriv(float* state, float* control,
                                                                                          float* state_der,
                                                                                          const float dt,
@@ -838,14 +661,8 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(float* 
   {
     params_p = &(this->params_);
   }
-  if (SHARED_MEM_REQUEST_BLK_BYTES != 0)
-  {
-    sb_mem = (SharedBlock*)&theta_s[mppi::math::int_multiple_const(SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) /
-                                    sizeof(float)];
-    sb = &sb_mem[threadIdx.x + blockDim.x * threadIdx.z];
-  }
-  computeParametricDelayDeriv(state, control, state_der, params_p);
-  computeParametricSteerDeriv(state, control, state_der, params_p);
+  this->computeParametricDelayDeriv(state, control, state_der, params_p);
+  this->computeParametricSteerDeriv(state, control, state_der, params_p);
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
 
   updateState(state, next_state, state_der, dt, params_p);
@@ -861,7 +678,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(float* 
     next_state[S_INDEX(PITCH)] = pitch;
     next_state[S_INDEX(ROLL)] = roll;
   }
-  setOutputs(state_der, next_state, output);
+  this->setOutputs(state_der, next_state, output);
 }
 
 template <class CLASS_T, class PARAMS_T>
