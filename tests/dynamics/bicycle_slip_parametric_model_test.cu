@@ -110,7 +110,7 @@ TEST_F(BicycleSlipParametricTest, ComputeDynamics)
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, STEER_ANGLE)), 0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, BRAKE_STATE)), 0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_X)), -0.079 * 2 + 1.0 * 0.6);
-  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), -6.5 - 2 * 0.6 * 0.4 - 0.6 * 1.6);
+  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), -6.5 - 2 * 0.6 + 0.6 * 1.6);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, OMEGA_Z)), -0.6 * 2.2 - 4.2 * 0.6);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, ROLL)), 0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, PITCH)), 0);
@@ -200,7 +200,7 @@ TEST_F(BicycleSlipParametricTest, ComputeDynamics)
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, STEER_ANGLE)), -0.6);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, BRAKE_STATE)), 0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_X)), -0.079 * 2);
-  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), -0.6 * 1.6 + 2 * 0.6 * 0.4);
+  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), -0.6 * 1.6 + 2 * 0.6);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, OMEGA_Z)),
                   (0.6 + (2 / 0.3) * tanf(1.0f / -9.1f)) * 2.2 + 4.2 * 0.6);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, ROLL)), 0);
@@ -217,7 +217,7 @@ TEST_F(BicycleSlipParametricTest, ComputeDynamics)
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, STEER_ANGLE)), -0.6);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, BRAKE_STATE)), 0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_X)), -0.079 * 2);
-  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), yaw_rate * 1.6 - 2 * yaw_rate * 0.4);
+  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), yaw_rate * 1.6 - 2 * yaw_rate);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, OMEGA_Z)), -4.2 * yaw_rate);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, ROLL)), 0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, PITCH)), 0);
@@ -233,7 +233,7 @@ TEST_F(BicycleSlipParametricTest, ComputeDynamics)
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, STEER_ANGLE)), 0.3);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, BRAKE_STATE)), 0.0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_X)), -0.079 * 2 + 4 * -0.0145f + 2 * 0.15 + 2.73);
-  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), yaw_rate * 1.6 - 2 * yaw_rate * 0.4);
+  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), yaw_rate * 1.6 - 2 * yaw_rate);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, OMEGA_Z)), -4.2 * yaw_rate);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, ROLL)), 0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, PITCH)), 0);
@@ -248,7 +248,7 @@ TEST_F(BicycleSlipParametricTest, ComputeDynamics)
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, BRAKE_STATE)), 0.0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_X)),
                   -0.079 * 2 + 0.3 * (4 * -0.0145f + 2 * 0.15 + 2.73));
-  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), yaw_rate * 1.6 - 2 * yaw_rate * 0.4);
+  EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, VEL_Y)), yaw_rate * 1.6 - 2 * yaw_rate);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, OMEGA_Z)), -4.2 * yaw_rate);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, ROLL)), 0);
   EXPECT_FLOAT_EQ(x_dot(S_IND_CLASS(BicycleSlipParametricParams, PITCH)), 0);

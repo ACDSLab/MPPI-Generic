@@ -11,6 +11,13 @@ BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::BicycleSlipParametricImpl(cudaStre
 }
 
 template <class CLASS_T, class PARAMS_T>
+void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::paramsToDevice()
+{
+  normals_tex_helper_->copyToDevice();
+  PARENT_CLASS::paramsToDevice();
+}
+
+template <class CLASS_T, class PARAMS_T>
 BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::state_array
 BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::string, float>& map)
 {
@@ -104,10 +111,9 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::
   float gravity_y_accel = normal_y_avg * this->params_.gravity_y;
 
   const float throttle = std::max((this->params_.c_t[2] * state(S_INDEX(VEL_X)) * state(S_INDEX(VEL_X)) +
-                                   this->params_.c_t[1] * state(S_INDEX(VEL_X)) + this->params_.c_t[0]) *
-                                      throttle_cmd,
+                                   this->params_.c_t[1] * state(S_INDEX(VEL_X)) + this->params_.c_t[0]),
                                   0.0f) *
-                         this->params_.gear_sign;
+                         throttle_cmd * this->params_.gear_sign;
   const float brake = this->params_.c_b[0] * state(S_INDEX(BRAKE_STATE)) *
                       std::min(std::max(state(S_INDEX(VEL_X)), -this->params_.brake_vel), this->params_.brake_vel);
   const float x_drag = this->params_.c_v[0] * state(S_INDEX(VEL_X));
@@ -116,8 +122,9 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::
   const float mu_actual = (this->params_.mu + this->params_.environment * this->params_.mu_env) * normal_z_avg;
   state_der(S_INDEX(VEL_X)) = std::min(std::max(accel_x, -mu_actual), mu_actual) - gravity_x_accel + y_vel_comp;
 
-  float y_accel = -state(S_INDEX(VEL_X)) * state(S_INDEX(OMEGA_Z)) * this->params_.vy_vx_comp -
-                  std::copysignf(state(S_INDEX(OMEGA_Z)) * this->params_.vy_omega, state(S_INDEX(VEL_X)));
+  const int vel_x_sign = state(S_INDEX(VEL_X)) >= 0 ? 1 : -1;
+  float y_accel =
+      -state(S_INDEX(VEL_X)) * state(S_INDEX(OMEGA_Z)) + vel_x_sign * state(S_INDEX(OMEGA_Z)) * this->params_.vy_omega;
   const float drag_y = this->params_.c_vy * state(S_INDEX(VEL_Y));
   state_der(S_INDEX(VEL_Y)) = y_accel - drag_y - gravity_y_accel;
 
@@ -157,9 +164,8 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> 
                                                         const Eigen::Ref<const control_array>& control,
                                                         Eigen::Ref<output_array> output, const float t, const float dt)
 {
-  CLASS_T* derived = static_cast<CLASS_T*>(this);
-  derived->computeDynamics(state, control, state_der);
-  derived->updateState(state, next_state, state_der, dt);
+  computeDynamics(state, control, state_der);
+  updateState(state, next_state, state_der, dt);
 
   output = output_array::Zero();
 
@@ -242,10 +248,9 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(fl
   float gravity_y_accel = normal_y_avg * this->params_.gravity_y;
 
   const float throttle = fmaxf((params_p->c_t[2] * state[S_INDEX(VEL_X)] * state[S_INDEX(VEL_X)] +
-                                params_p->c_t[1] * state[S_INDEX(VEL_X)] + params_p->c_t[0]) *
-                                   throttle_cmd,
+                                params_p->c_t[1] * state[S_INDEX(VEL_X)] + params_p->c_t[0]),
                                0.0f) *
-                         params_p->gear_sign;
+                         throttle_cmd * params_p->gear_sign;
   const float brake = params_p->c_b[0] * state[S_INDEX(BRAKE_STATE)] *
                       fminf(fmaxf(state[S_INDEX(VEL_X)], -params_p->brake_vel), params_p->brake_vel);
   const float x_drag = params_p->c_v[0] * state[S_INDEX(VEL_X)];
@@ -254,8 +259,9 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(fl
   const float mu_actual = (params_p->mu + params_p->environment * params_p->mu_env) * normal_z_avg;
   state_der[S_INDEX(VEL_X)] = fminf(fmaxf(accel_x, -mu_actual), mu_actual) - gravity_x_accel + y_vel_comp;
 
-  float y_accel = -state[S_INDEX(VEL_X)] * state[S_INDEX(OMEGA_Z)] * params_p->vy_vx_comp -
-                  copysignf(state[S_INDEX(OMEGA_Z)] * params_p->vy_omega, state[S_INDEX(VEL_X)]);
+  const int vel_x_sign = state[S_INDEX(VEL_X)] >= 0 ? 1 : -1;
+  float y_accel =
+      -state[S_INDEX(VEL_X)] * state[S_INDEX(OMEGA_Z)] + vel_x_sign * state[S_INDEX(OMEGA_Z)] * params_p->vy_omega;
   const float drag_y = params_p->c_vy * state[S_INDEX(VEL_Y)];
   state_der[S_INDEX(VEL_Y)] = y_accel - drag_y - gravity_y_accel;
 
@@ -288,9 +294,8 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(float* state,
   }
   const uint tdy = threadIdx.y;
 
-  CLASS_T* derived = static_cast<CLASS_T*>(this);
-  derived->computeDynamics(state, control, state_der, theta_s);
-  derived->updateState(state, next_state, state_der, dt, params_p);
+  computeDynamics(state, control, state_der, theta_s);
+  updateState(state, next_state, state_der, dt, params_p);
 
   if (tdy == 0)
   {

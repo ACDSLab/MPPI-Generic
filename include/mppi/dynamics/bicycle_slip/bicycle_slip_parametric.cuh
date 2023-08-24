@@ -2,8 +2,8 @@
 // Created by jason on 12/12/22.
 //
 
-#ifndef MPPIGENERIC_BICYCLE_SLIP_KINEMATIC_CUH
-#define MPPIGENERIC_BICYCLE_SLIP_KINEMATIC_CUH
+#ifndef MPPIGENERIC_BICYCLE_SLIP_PARAMTERIC_CUH
+#define MPPIGENERIC_BICYCLE_SLIP_PARAMTERIC_CUH
 
 #include <mppi/utils/angle_utils.cuh>
 #include <mppi/utils/math_utils.h>
@@ -49,7 +49,6 @@ struct BicycleSlipParametricParams : public RacerDubinsParams
   float brake_vel = 0.9f;
   float max_effective_brake = 0.596f;
   float c_vy = 6.5f;
-  float vy_vx_comp = 0.4f;
   float vy_omega = 1.6f;
 
   float c_omega = 2.2f;
@@ -114,6 +113,8 @@ public:
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
 
+  void paramsToDevice();
+
   // state_array interpolateState(const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2,
   //                              const float alpha);
 
@@ -155,4 +156,4 @@ public:
 #include "bicycle_slip_parametric.cu"
 #endif
 
-#endif  // MPPIGENERIC_BICYCLE_SLIP_KINEMATIC_CUH
+#endif  // MPPIGENERIC_BICYCLE_SLIP_PARAMTERIC_CUH
