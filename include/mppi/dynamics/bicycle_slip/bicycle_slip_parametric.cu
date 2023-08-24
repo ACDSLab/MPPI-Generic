@@ -106,6 +106,8 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::
   RACER::computeBodyFrameNormals<TwoDTextureHelper<float4>>(
       this->normals_tex_helper_, state(S_INDEX(YAW)), state(S_INDEX(POS_X)), state(S_INDEX(POS_Y)),
       state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), normal_x_avg, normal_y_avg, normal_z_avg);
+  normal_x_avg = (normal_x_avg >= 0 ? 1 : -1) * std::max(abs(normal_x_avg) - 0.04f, 0.0f);
+  normal_y_avg = (normal_y_avg >= 0 ? 1 : -1) * std::max(abs(normal_y_avg) - 0.07f, 0.0f);
 
   float gravity_x_accel = normal_x_avg * this->params_.gravity_x;
   float gravity_y_accel = normal_y_avg * this->params_.gravity_y;
@@ -243,6 +245,8 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(fl
   RACER::computeBodyFrameNormals<TwoDTextureHelper<float4>>(
       this->normals_tex_helper_, state[S_INDEX(YAW)], state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)],
       state[S_INDEX(ROLL)], state[S_INDEX(PITCH)], normal_x_avg, normal_y_avg, normal_z_avg);
+  normal_x_avg = (normal_x_avg >= 0 ? 1 : -1) * fmaxf(abs(normal_x_avg) - 0.04f, 0.0f);
+  normal_y_avg = (normal_y_avg >= 0 ? 1 : -1) * fmaxf(abs(normal_y_avg) - 0.07f, 0.0f);
 
   float gravity_x_accel = normal_x_avg * this->params_.gravity_x;
   float gravity_y_accel = normal_y_avg * this->params_.gravity_y;
@@ -380,11 +384,14 @@ __device__ __host__ void RACER::computeBodyFrameNormals(TEX_T* tex_helper, const
     rear_right_normals_rot.z = rear_right_normals.z;
 
     mean_normals_x =
-        (front_left_normals_rot.x + front_right_normals_rot.x + rear_right_normals_rot.x + rear_left_normals_rot.x) / 4;
+        (front_left_normals_rot.x + front_right_normals_rot.x + rear_right_normals_rot.x + rear_left_normals_rot.x) /
+        4.0f;
     mean_normals_y =
-        (front_left_normals_rot.y + front_right_normals_rot.y + rear_right_normals_rot.y + rear_left_normals_rot.y) / 4;
+        (front_left_normals_rot.y + front_right_normals_rot.y + rear_right_normals_rot.y + rear_left_normals_rot.y) /
+        4.0f;
     mean_normals_z =
-        (front_left_normals_rot.z + front_right_normals_rot.z + rear_right_normals_rot.z + rear_left_normals_rot.z) / 4;
+        (front_left_normals_rot.z + front_right_normals_rot.z + rear_right_normals_rot.z + rear_left_normals_rot.z) /
+        4.0f;
 
     // using 2pi so any rotation that accidently uses this will be using identity
     if (isnan(mean_normals_x) || isinf(mean_normals_x) || isnan(mean_normals_y) || isinf(mean_normals_y) ||
