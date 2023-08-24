@@ -344,6 +344,7 @@ __host__ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::setOutputs(const fl
   output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
   output[O_INDEX(ACCEL_Y)] = 0.0f;
   output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+  output[O_INDEX(TOTAL_VELOCITY)] = next_state[S_INDEX(VEL_X)];
 }
 
 template <class OUTPUT_T, class TEX_T>

@@ -70,6 +70,8 @@ struct RacerDubinsParams : public DynamicsParams
     UNCERTAINTY_POS_Y_YAW,
     UNCERTAINTY_POS_Y_VEL_X,
     UNCERTAINTY_YAW_VEL_X,
+    FILLER_1,
+    TOTAL_VELOCITY,
     NUM_OUTPUTS
   };
 
