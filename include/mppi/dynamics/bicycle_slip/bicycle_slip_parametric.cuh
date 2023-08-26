@@ -7,8 +7,8 @@
 
 #include <mppi/utils/angle_utils.cuh>
 #include <mppi/utils/math_utils.h>
-#include <mppi/utils/nn_helpers/lstm_lstm_helper.cuh>
 #include <mppi/utils/texture_helpers/two_d_texture_helper.cuh>
+#include <mppi/utils/activation_functions.cuh>
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation.cuh>
 
 namespace RACER
@@ -43,13 +43,16 @@ struct BicycleSlipParametricParams : public RacerDubinsParams
   float mu = 4.7f;
   float mu_env = 2.0f;
   float gravity_x = -3.9f;
-  float min_gravity_x = 0.155f;
+  float min_normal_x = 0.155f;
   float gravity_y = -7.2f;
-  float min_gravity_y = 0.24f;
+  float min_normal_y = 0.24f;
   float brake_vel = 0.9f;
-  float max_effective_brake = 0.596f;
   float c_vy = 6.5f;
   float vy_omega = 1.6f;
+  float c_rolling = 0.2f;
+  float max_roll_resistance_vel = 0.8f;
+  float c_sliding = 0.2f;
+  float max_slide_vel = 0.8f;
 
   float c_omega = 2.2f;
   float c_v_omega = 4.2f;

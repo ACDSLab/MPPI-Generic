@@ -520,6 +520,16 @@ inline __host__ double inverseNormalCDFSlow(double x, int num_precision = 10)
   return M_SQRT2 * inverseErrorFuncSlow(2.0 * x - 1.0, num_precision);
 }
 
+inline __device__ __host__ float clamp(float value, float min, float max)
+{
+  return fminf(fmaxf(value, min), max);
+}
+
+inline __device__ __host__ float sign(float value)
+{
+  return value >= 0 ? 1 : -1;
+}
+
 }  // namespace math
 
 }  // namespace mppi

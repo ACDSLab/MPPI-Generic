@@ -93,7 +93,7 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::
 {
   state_der = state_array::Zero();
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
-  float brake_cmd = std::min(-enable_brake * control(C_INDEX(THROTTLE_BRAKE)), this->params_.max_effective_brake);
+  float brake_cmd = -enable_brake * control(C_INDEX(THROTTLE_BRAKE));
   float throttle_cmd = !enable_brake * control(C_INDEX(THROTTLE_BRAKE));
 
   // runs parametric delay model
@@ -106,28 +106,33 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::
   RACER::computeBodyFrameNormals<TwoDTextureHelper<float4>>(
       this->normals_tex_helper_, state(S_INDEX(YAW)), state(S_INDEX(POS_X)), state(S_INDEX(POS_Y)),
       state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), normal_x_avg, normal_y_avg, normal_z_avg);
-  normal_x_avg = (normal_x_avg >= 0 ? 1 : -1) * std::max(abs(normal_x_avg) - 0.04f, 0.0f);
-  normal_y_avg = (normal_y_avg >= 0 ? 1 : -1) * std::max(abs(normal_y_avg) - 0.07f, 0.0f);
 
-  float gravity_x_accel = normal_x_avg * this->params_.gravity_x;
-  float gravity_y_accel = normal_y_avg * this->params_.gravity_y;
+  const float gravity_x_accel =
+      act_func::tanhshrink_scale(normal_x_avg, this->params_.min_normal_x) * this->params_.gravity_x;
+  const float gravity_y_accel =
+      act_func::tanhshrink_scale(normal_y_avg, this->params_.min_normal_y) * this->params_.gravity_y;
 
-  const float throttle = std::max((this->params_.c_t[2] * state(S_INDEX(VEL_X)) * state(S_INDEX(VEL_X)) +
-                                   this->params_.c_t[1] * state(S_INDEX(VEL_X)) + this->params_.c_t[0]),
-                                  0.0f) *
+  const float brake_vel = mppi::math::clamp(state(S_INDEX(VEL_X)), -this->params_.brake_vel, this->params_.brake_vel);
+  const float rolling_vel = mppi::math::clamp(state(S_INDEX(VEL_X)), -this->params_.max_roll_resistance_vel,
+                                              this->params_.max_roll_resistance_vel);
+  const float sliding_vel =
+      mppi::math::clamp(state(S_INDEX(VEL_Y)), -this->params_.max_slide_vel, this->params_.max_slide_vel);
+
+  const float throttle = act_func::relu(this->params_.c_t[2] * state(S_INDEX(VEL_X)) * state(S_INDEX(VEL_X)) +
+                                        this->params_.c_t[1] * state(S_INDEX(VEL_X)) + this->params_.c_t[0]) *
                          throttle_cmd * this->params_.gear_sign;
-  const float brake = this->params_.c_b[0] * state(S_INDEX(BRAKE_STATE)) *
-                      std::min(std::max(state(S_INDEX(VEL_X)), -this->params_.brake_vel), this->params_.brake_vel);
-  const float x_drag = this->params_.c_v[0] * state(S_INDEX(VEL_X));
+  const float brake = this->params_.c_b[0] * state(S_INDEX(BRAKE_STATE)) * brake_vel;
+  const float x_drag =
+      this->params_.c_v[0] * state(S_INDEX(VEL_X)) + rolling_vel * normal_z_avg * this->params_.c_rolling;
   const float y_vel_comp = state(S_INDEX(VEL_Y)) * state(S_INDEX(OMEGA_Z));
   const float accel_x = throttle - brake - x_drag;
   const float mu_actual = (this->params_.mu + this->params_.environment * this->params_.mu_env) * normal_z_avg;
-  state_der(S_INDEX(VEL_X)) = std::min(std::max(accel_x, -mu_actual), mu_actual) - gravity_x_accel + y_vel_comp;
+  state_der(S_INDEX(VEL_X)) = mppi::math::clamp(accel_x, -mu_actual, mu_actual) - gravity_x_accel + y_vel_comp;
 
-  const int vel_x_sign = state(S_INDEX(VEL_X)) >= 0 ? 1 : -1;
-  float y_accel =
-      -state(S_INDEX(VEL_X)) * state(S_INDEX(OMEGA_Z)) + vel_x_sign * state(S_INDEX(OMEGA_Z)) * this->params_.vy_omega;
-  const float drag_y = this->params_.c_vy * state(S_INDEX(VEL_Y));
+  float y_accel = -state(S_INDEX(VEL_X)) * state(S_INDEX(OMEGA_Z)) +
+                  mppi::math::sign(state(S_INDEX(VEL_X))) * state(S_INDEX(OMEGA_Z)) * this->params_.vy_omega;
+  const float drag_y =
+      this->params_.c_vy * state(S_INDEX(VEL_Y)) + sliding_vel * normal_z_avg * this->params_.c_sliding;
   state_der(S_INDEX(VEL_Y)) = y_accel - drag_y - gravity_y_accel;
 
   const float parametric_omega = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
@@ -247,28 +252,28 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(fl
   RACER::computeBodyFrameNormals<TwoDTextureHelper<float4>>(
       this->normals_tex_helper_, state[S_INDEX(YAW)], state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)],
       state[S_INDEX(ROLL)], state[S_INDEX(PITCH)], normal_x_avg, normal_y_avg, normal_z_avg);
-  normal_x_avg = (normal_x_avg >= 0 ? 1 : -1) * fmaxf(abs(normal_x_avg) - 0.04f, 0.0f);
-  normal_y_avg = (normal_y_avg >= 0 ? 1 : -1) * fmaxf(abs(normal_y_avg) - 0.07f, 0.0f);
+  const float gravity_x_accel = act_func::tanhshrink_scale(normal_x_avg, params_p->min_normal_x) * params_p->gravity_x;
+  const float gravity_y_accel = act_func::tanhshrink_scale(normal_y_avg, params_p->min_normal_y) * params_p->gravity_y;
 
-  float gravity_x_accel = normal_x_avg * this->params_.gravity_x;
-  float gravity_y_accel = normal_y_avg * this->params_.gravity_y;
+  const float brake_vel = mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->brake_vel, params_p->brake_vel);
+  const float rolling_vel =
+      mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->max_roll_resistance_vel, params_p->max_roll_resistance_vel);
+  const float sliding_vel = mppi::math::clamp(state[S_INDEX(VEL_Y)], -params_p->max_slide_vel, params_p->max_slide_vel);
 
-  const float throttle = fmaxf((params_p->c_t[2] * state[S_INDEX(VEL_X)] * state[S_INDEX(VEL_X)] +
-                                params_p->c_t[1] * state[S_INDEX(VEL_X)] + params_p->c_t[0]),
-                               0.0f) *
+  const float throttle = act_func::relu(params_p->c_t[2] * state[S_INDEX(VEL_X)] * state[S_INDEX(VEL_X)] +
+                                        params_p->c_t[1] * state[S_INDEX(VEL_X)] + params_p->c_t[0]) *
                          throttle_cmd * params_p->gear_sign;
   const float brake = params_p->c_b[0] * state[S_INDEX(BRAKE_STATE)] *
-                      fminf(fmaxf(state[S_INDEX(VEL_X)], -params_p->brake_vel), params_p->brake_vel);
-  const float x_drag = params_p->c_v[0] * state[S_INDEX(VEL_X)];
+                      mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->brake_vel, params_p->brake_vel);
+  const float x_drag = params_p->c_v[0] * state[S_INDEX(VEL_X)] + rolling_vel * normal_z_avg * params_p->c_rolling;
   const float y_vel_comp = state[S_INDEX(VEL_Y)] * state[S_INDEX(OMEGA_Z)];
   const float accel_x = throttle - brake - x_drag;
   const float mu_actual = (params_p->mu + params_p->environment * params_p->mu_env) * normal_z_avg;
-  state_der[S_INDEX(VEL_X)] = fminf(fmaxf(accel_x, -mu_actual), mu_actual) - gravity_x_accel + y_vel_comp;
+  state_der[S_INDEX(VEL_X)] = mppi::math::clamp(accel_x, -mu_actual, mu_actual) - gravity_x_accel + y_vel_comp;
 
-  const int vel_x_sign = state[S_INDEX(VEL_X)] >= 0 ? 1 : -1;
-  float y_accel =
-      -state[S_INDEX(VEL_X)] * state[S_INDEX(OMEGA_Z)] + vel_x_sign * state[S_INDEX(OMEGA_Z)] * params_p->vy_omega;
-  const float drag_y = params_p->c_vy * state[S_INDEX(VEL_Y)];
+  float y_accel = -state[S_INDEX(VEL_X)] * state[S_INDEX(OMEGA_Z)] +
+                  mppi::math::sign(state[S_INDEX(VEL_X)]) * state[S_INDEX(OMEGA_Z)] * params_p->vy_omega;
+  const float drag_y = params_p->c_vy * state[S_INDEX(VEL_Y)] + sliding_vel * normal_z_avg * params_p->c_sliding;
   state_der[S_INDEX(VEL_Y)] = y_accel - drag_y - gravity_y_accel;
 
   const float parametric_omega =
