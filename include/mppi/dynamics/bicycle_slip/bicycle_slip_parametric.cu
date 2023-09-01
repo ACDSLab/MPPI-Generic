@@ -189,8 +189,9 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> 
   output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
   output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
   output[O_INDEX(OMEGA_Z)] = next_state[S_INDEX(OMEGA_Z)];
-  output[O_INDEX(TOTAL_VELOCITY)] = sqrt(next_state[S_INDEX(VEL_X)] * next_state[S_INDEX(VEL_X)] +
-                                         next_state[S_INDEX(VEL_Y)] * next_state[S_INDEX(VEL_Y)]);
+  output[O_INDEX(TOTAL_VELOCITY)] =
+      mppi::math::sign(next_state(S_INDEX(VEL_X))) * sqrt(next_state[S_INDEX(VEL_X)] * next_state[S_INDEX(VEL_X)] +
+                                                          next_state[S_INDEX(VEL_Y)] * next_state[S_INDEX(VEL_Y)]);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -323,8 +324,9 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(float* state,
     output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
     output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
     output[O_INDEX(OMEGA_Z)] = next_state[S_INDEX(OMEGA_Z)];
-    output[O_INDEX(TOTAL_VELOCITY)] = sqrt(next_state[S_INDEX(VEL_X)] * next_state[S_INDEX(VEL_X)] +
-                                           next_state[S_INDEX(VEL_Y)] * next_state[S_INDEX(VEL_Y)]);
+    const float vel_x_sign = output[O_INDEX(TOTAL_VELOCITY)] =
+        mppi::math::sign(next_state[S_INDEX(VEL_X)]) * sqrt(next_state[S_INDEX(VEL_X)] * next_state[S_INDEX(VEL_X)] +
+                                                            next_state[S_INDEX(VEL_Y)] * next_state[S_INDEX(VEL_Y)]);
   }
 }
 
