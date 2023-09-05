@@ -2,7 +2,6 @@
 // #include <mppi/ddp/ddp_model_wrapper.h>
 // #include <mppi/ddp/ddp_tracking_costs.h>
 // #include <mppi/ddp/ddp.h>
-// #include <eigen3/Eigen/Dense>
 #include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
 #include <mppi/instantiations/quadrotor_mppi/quadrotor_mppi.cuh>
 

@@ -1,5 +1,4 @@
 #include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
-#include <mppi/utils/angle_utils.cuh>
 
 CartpoleQuadraticCost::CartpoleQuadraticCost(cudaStream_t stream)
 {

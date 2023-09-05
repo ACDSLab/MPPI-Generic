@@ -2,15 +2,15 @@
 #define AR_NN_DYNAMICS_CUH_
 
 #include <mppi/dynamics/dynamics.cuh>
-#include <mppi/utils/nn_helpers/meta_math.h>
 #include <mppi/utils/file_utils.h>
+#include <mppi/utils/nn_helpers/meta_math.h>
 #include <mppi/utils/nn_helpers/fnn_helper.cuh>
-#include <vector>
-#include <eigen3/Eigen/Dense>
-#include <opencv2/core/core.hpp>
+
+#include <Eigen/Dense>
 #include <cuda_runtime.h>
 #include <cnpy.h>
 
+#include <vector>
 /**
  * For AutoRally
  * State x, y, yaw, roll, u_x, u_y, yaw_rate

@@ -6,7 +6,6 @@ Generic implementation of Model Predictive Path Integral Control
 * CMake >= 3.8
 * CUDA Toolkit == 10.0
 * Eigen >= 3.3.4
-* OpenCV
 * python-pil
 
 ## Install instructions (Ubuntu 16.04)
@@ -47,7 +46,7 @@ make install # Install Eigen to ~/.local
 ### Install Dependencies
 
 ```bash
-sudo apt install cmake libeigen3-dev libopencv-dev python3-pil
+sudo apt install cmake libeigen3-dev python3-pil
 ```
 
 Note: If using Pop!\_OS you can `sudo apt install system76-cuda` instead of installing CUDA manually.

@@ -2,13 +2,12 @@
 #define LSTM_DYNAMICS_CUH_
 
 #include <mppi/dynamics/dynamics.cuh>
-#include "mppi/utils/nn_helpers/meta_math.h"
+#include <mppi/utils/nn_helpers/meta_math.h>
 #include <mppi/utils/file_utils.h>
 
 #include <cnpy.h>
 #include <cuda_runtime.h>
-#include <eigen3/Eigen/Dense>
-#include <opencv2/core/core.hpp>
+#include <Eigen/Dense>
 #include <memory>
 #include <vector>
 

@@ -2,8 +2,6 @@
 #define DDP_MODEL_WRAPPER_H
 
 #include "ddp_dynamics.h"
-#include <boost/typeof/typeof.hpp>
-#include <boost/type_traits.hpp>
 #include <type_traits>
 
 template <typename T>

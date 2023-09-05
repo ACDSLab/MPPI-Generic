@@ -8,7 +8,6 @@
 #include <mppi/utils/file_utils.h>
 #include <vector>
 #include <Eigen/Dense>
-#include <opencv2/core/core.hpp>
 #include <cuda_runtime.h>
 #include <cnpy.h>
 

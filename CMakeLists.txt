@@ -37,10 +37,6 @@ find_package(Eigen3 REQUIRED)
 # https://listengine.tuxfamily.org/lists.tuxfamily.org/eigen/2016/06/msg00006.html
 add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=0)
 
-# Find OpenCV
-find_package(OpenCV REQUIRED)
-include_directories(SYSTEM ${OpenCV_INCLUDE_DIRS})
-
 # Create a Header-only MPPI Library
 add_library(${MPPI_HEADER_LIBRARY_NAME} INTERFACE)
 target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE

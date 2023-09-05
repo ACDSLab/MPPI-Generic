@@ -6,9 +6,6 @@
 #include <mppi/cost_functions/cost.cuh>
 #include <mppi/dynamics/cartpole/cartpole_dynamics.cuh>
 #include <mppi/utils/file_utils.h>
-#include <vector>
-#include <eigen3/Eigen/Dense>
-#include <cuda_runtime.h>
 
 struct CartpoleQuadraticCostParams : public CostParams<1>
 {
