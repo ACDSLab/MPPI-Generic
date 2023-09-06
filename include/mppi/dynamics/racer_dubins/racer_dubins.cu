@@ -277,12 +277,17 @@ __device__ __host__ void RACER::computeStaticSettling(TEX_T* tex_helper, const f
 {
   float height = 0.0f;
 
-  float3 front_left = make_float3(2.981f, 0.737f, 0.0f);
-  float3 front_right = make_float3(2.981f, -0.737f, 0.f);
-  float3 rear_left = make_float3(0.0f, 0.737f, 0.0f);
-  float3 rear_right = make_float3(0.0f, -0.737f, 0.0f);
+  float3 body_front_left = make_float3(2.981f, 0.737f, 0.0f);
+  float3 body_front_right = make_float3(2.981f, -0.737f, 0.f);
+  float3 body_rear_left = make_float3(0.0f, 0.737f, 0.0f);
+  float3 body_rear_right = make_float3(0.0f, -0.737f, 0.0f);
   float3 body_pose = make_float3(x, y, 0.0f);
   float3 rotation = make_float3(roll, pitch, yaw);
+  float3 front_left, front_right, rear_left, rear_right;
+  mppi::math::bodyOffsetToWorldPoseEuler(body_front_left, body_pose, rotation, front_left);
+  mppi::math::bodyOffsetToWorldPoseEuler(body_front_right, body_pose, rotation, front_right);
+  mppi::math::bodyOffsetToWorldPoseEuler(body_rear_left, body_pose, rotation, rear_left);
+  mppi::math::bodyOffsetToWorldPoseEuler(body_rear_right, body_pose, rotation, rear_right);
   // front_left = make_float3(front_left.x * cosf(yaw) - front_left.y * sinf(yaw) + x,
   //                          front_left.x * sinf(yaw) + front_left.y * cosf(yaw) + y, 0.0f);
   // front_right = make_float3(front_right.x * cosf(yaw) - front_right.y * sinf(yaw) + x,
@@ -298,10 +303,10 @@ __device__ __host__ void RACER::computeStaticSettling(TEX_T* tex_helper, const f
 
   if (tex_helper->checkTextureUse(0))
   {
-    front_left_height = tex_helper->queryTextureAtWorldOffsetPose(0, body_pose, front_left, rotation);
-    front_right_height = tex_helper->queryTextureAtWorldOffsetPose(0, body_pose, front_right, rotation);
-    rear_left_height = tex_helper->queryTextureAtWorldOffsetPose(0, body_pose, rear_left, rotation);
-    rear_right_height = tex_helper->queryTextureAtWorldOffsetPose(0, body_pose, rear_right, rotation);
+    front_left_height = tex_helper->queryTextureAtWorldPose(0, front_left);
+    front_right_height = tex_helper->queryTextureAtWorldPose(0, front_right);
+    rear_left_height = tex_helper->queryTextureAtWorldPose(0, rear_left);
+    rear_right_height = tex_helper->queryTextureAtWorldPose(0, rear_right);
 
     float front_diff = front_left_height - front_right_height;
     front_diff = max(min(front_diff, 0.736f * 2.0f), -0.736f * 2.0f);
