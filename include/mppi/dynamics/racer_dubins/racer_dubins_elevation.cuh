@@ -8,6 +8,12 @@
 
 using namespace MPPI_internal;
 
+#ifndef U_INDEX
+#define U_IND_CLASS(CLASS, enum_val) E_INDEX(CLASS::UncertaintyIndex, enum_val)
+#define U_IND(param, enum_val) U_IND_CLASS(decltype(param), enum_val)
+#define U_INDEX(enum_val) U_IND(this->params_, enum_val)
+#endif
+
 struct RacerDubinsElevationParams : public RacerDubinsParams
 {
   enum class StateIndex : int
@@ -21,7 +27,25 @@ struct RacerDubinsElevationParams : public RacerDubinsParams
     ROLL,
     PITCH,
     STEER_ANGLE_RATE,
+    UNCERTAINTY_POS_X,
+    UNCERTAINTY_POS_Y,
+    UNCERTAINTY_YAW,
+    UNCERTAINTY_VEL_X,
+    UNCERTAINTY_POS_X_Y,
+    UNCERTAINTY_POS_X_YAW,
+    UNCERTAINTY_POS_X_VEL_X,
+    UNCERTAINTY_POS_Y_YAW,
+    UNCERTAINTY_POS_Y_VEL_X,
+    UNCERTAINTY_YAW_VEL_X,
     NUM_STATES
+  };
+  enum class UncertaintyIndex : int
+  {
+    VEL_X = 0,
+    YAW,
+    POS_X,
+    POS_Y,
+    NUM_UNCERTAINTIES
   };
 };
 
@@ -34,9 +58,17 @@ public:
   using PARENT_CLASS::initializeDynamics;
 
   typedef PARAMS_T DYN_PARAMS_T;
+  static const int UNCERTAINTY_DIM = U_IND_CLASS(PARAMS_T, NUM_UNCERTAINTIES);
+
+  struct __align__(16) SharedBlock
+  {
+    float A[UNCERTAINTY_DIM * UNCERTAINTY_DIM] MPPI_ALIGN(16) = { 0.0f };
+    float Sigma_a[UNCERTAINTY_DIM * UNCERTAINTY_DIM] MPPI_ALIGN(16) = { 0.0f };
+    float Sigma_b[UNCERTAINTY_DIM * UNCERTAINTY_DIM] MPPI_ALIGN(16) = { 0.0f };
+  };
 
   static const int SHARED_MEM_REQUEST_GRD_BYTES = 0;  // TODO set to one to prevent array of size 0 error
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock);
 
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;
@@ -99,6 +131,15 @@ public:
   bool computeGrad(const Eigen::Ref<const state_array>& state = state_array(),
                    const Eigen::Ref<const control_array>& control = control_array(), Eigen::Ref<dfdx> A = dfdx(),
                    Eigen::Ref<dfdu> B = dfdu());
+
+  __device__ void computeUncertaintyPropagation(float* state, float* control,
+                                               float* output,
+                                               DYN_PARAMS_T* params_p, SharedBlock* uncertainty_data);
+
+  __device__ void uncertaintyMatrixToOutput(const float* uncertainty_matrix, float* output);
+  __device__ void uncertaintyMatrixToState(const float* uncertainty_matrix, float* state);
+  __device__ void uncertaintyStateToMatrix(const float* state, float* uncertainty_matrix);
+  __device__ bool computeUncertaintyJacobian(float* state, float* control, float* A, DYN_PARAMS_T* params_p);
 
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt, DYN_PARAMS_T* params_p);

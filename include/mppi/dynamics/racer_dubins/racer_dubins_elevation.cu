@@ -1,6 +1,9 @@
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation.cuh>
 #include <mppi/utils/math_utils.h>
 
+namespace mm = mppi::matrix_multiplication;
+namespace mp1 = mppi::p1;
+
 template <class CLASS_T, class PARAMS_T>
 void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::GPUSetup()
 {
@@ -213,6 +216,165 @@ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeGrad(const Eigen::Ref<c
 }
 
 template <class CLASS_T, class PARAMS_T>
+__device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUncertaintyJacobian(float* state, float* control,
+                                                                                        float* A,
+                                                                                        DYN_PARAMS_T* params_p)
+{
+  float eps = 0.01f;
+  bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
+  float sin_yaw, cos_yaw, tan_steer_angle;
+#ifdef __CUDA_ARCH__
+  float yaw_norm = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
+  __sincosf(yaw_norm, &sin_yaw, &cos_yaw);
+  tan_steer_angle = __tanf(angle_utils::normalizeAngle(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale));
+#else
+  sincosf(state[S_INDEX(YAW)], &sin_yaw, &cos_yaw);
+  tan_steer_angle = tanf(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
+#endif
+
+  // vx
+  float linear_brake_slope = params_p->c_b[1] / (0.9f * (2.0f / 0.01));
+  int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
+              (fabsf(state[S_INDEX(VEL_X)]) > 3.0f) * 2;
+
+  A[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), UNCERTAINTY_DIM)] = -params_p->c_v[index];
+  A[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(YAW), UNCERTAINTY_DIM)] = 0.0f;
+  A[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_X), UNCERTAINTY_DIM)] = 0.0f;
+  A[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_Y), UNCERTAINTY_DIM)] = 0.0f;
+
+  // yaw
+  A[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(VEL_X), UNCERTAINTY_DIM)] =
+      (1.0f / params_p->wheel_base) * tan_steer_angle;
+  A[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(YAW), UNCERTAINTY_DIM)] = 0.0f;
+  A[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_X), UNCERTAINTY_DIM)] = 0.0f;
+  A[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_Y), UNCERTAINTY_DIM)] = 0.0f;
+  // pos x
+  A[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(VEL_X), UNCERTAINTY_DIM)] = cos_yaw;
+  A[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(YAW), UNCERTAINTY_DIM)] = -sin_yaw * state[S_INDEX(VEL_X)];
+  A[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_X), UNCERTAINTY_DIM)] = 0.0f;
+  A[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_Y), UNCERTAINTY_DIM)] = 0.0f;
+  // pos y
+  A[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(VEL_X), UNCERTAINTY_DIM)] = sin_yaw;
+  A[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(YAW), UNCERTAINTY_DIM)] = cos_yaw * state[S_INDEX(VEL_X)];
+  A[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_Y), UNCERTAINTY_DIM)] = 0.0f;
+  A[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_X), UNCERTAINTY_DIM)] = 0.0f;
+  return true;
+}
+
+template <class CLASS_T, class PARAMS_T>
+__device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::uncertaintyStateToMatrix(const float* state,
+                                                                                      float* uncertainty_matrix)
+{
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_VEL_X)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(VEL_X), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_YAW_VEL_X)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(VEL_X), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_X_VEL_X)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(VEL_X), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_Y_VEL_X)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(YAW), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_YAW_VEL_X)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(YAW), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_YAW)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(YAW), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_X_YAW)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(YAW), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_Y_YAW)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_X), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_X_VEL_X)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_X), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_X_YAW)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_X), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_X)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_X), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_X_Y)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_Y), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_Y_VEL_X)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_Y), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_Y_YAW)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_Y), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_X_Y)];
+  uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_Y), UNCERTAINTY_DIM)] =
+      state[S_INDEX(UNCERTAINTY_POS_Y)];
+}
+
+template <class CLASS_T, class PARAMS_T>
+__device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::uncertaintyMatrixToState(const float* uncertainty_matrix,
+                                                                                      float* state)
+{
+  state[S_INDEX(UNCERTAINTY_VEL_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), UNCERTAINTY_DIM)];
+  state[S_INDEX(UNCERTAINTY_YAW_VEL_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(VEL_X), UNCERTAINTY_DIM)];
+  state[S_INDEX(UNCERTAINTY_POS_X_VEL_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(VEL_X), UNCERTAINTY_DIM)];
+  state[S_INDEX(UNCERTAINTY_POS_Y_VEL_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(VEL_X), UNCERTAINTY_DIM)];
+  state[S_INDEX(UNCERTAINTY_YAW)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(YAW), UNCERTAINTY_DIM)];
+  state[S_INDEX(UNCERTAINTY_POS_X_YAW)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(YAW), UNCERTAINTY_DIM)];
+  state[S_INDEX(UNCERTAINTY_POS_Y_YAW)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(YAW), UNCERTAINTY_DIM)];
+  state[S_INDEX(UNCERTAINTY_POS_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_X), UNCERTAINTY_DIM)];
+  state[S_INDEX(UNCERTAINTY_POS_X_Y)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_X), UNCERTAINTY_DIM)];
+  state[S_INDEX(UNCERTAINTY_POS_Y)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_Y), UNCERTAINTY_DIM)];
+}
+
+template <class CLASS_T, class PARAMS_T>
+__device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::uncertaintyMatrixToOutput(const float* uncertainty_matrix,
+                                                                                       float* output)
+{
+  output[O_INDEX(UNCERTAINTY_VEL_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), UNCERTAINTY_DIM)];
+  output[O_INDEX(UNCERTAINTY_YAW_VEL_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(VEL_X), UNCERTAINTY_DIM)];
+  output[O_INDEX(UNCERTAINTY_POS_X_VEL_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(VEL_X), UNCERTAINTY_DIM)];
+  output[O_INDEX(UNCERTAINTY_POS_Y_VEL_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(VEL_X), UNCERTAINTY_DIM)];
+  output[O_INDEX(UNCERTAINTY_YAW)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(YAW), UNCERTAINTY_DIM)];
+  output[O_INDEX(UNCERTAINTY_POS_X_YAW)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(YAW), UNCERTAINTY_DIM)];
+  output[O_INDEX(UNCERTAINTY_POS_Y_YAW)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(YAW), UNCERTAINTY_DIM)];
+  output[O_INDEX(UNCERTAINTY_POS_X)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_X), UNCERTAINTY_DIM)];
+  output[O_INDEX(UNCERTAINTY_POS_X_Y)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_X), UNCERTAINTY_DIM)];
+  output[O_INDEX(UNCERTAINTY_POS_Y)] =
+      uncertainty_matrix[mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_Y), UNCERTAINTY_DIM)];
+}
+
+template <class CLASS_T, class PARAMS_T>
+__device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUncertaintyPropagation(
+    float* state, float* control, float* output, DYN_PARAMS_T* params_p, SharedBlock* uncertainty_data)
+{
+  computeUncertaintyJacobian(state, control, uncertainty_data->A, params_p);
+  uncertaintyStateToMatrix(state, uncertainty_data->Sigma_a);
+  mm::gemm1<UNCERTAINTY_DIM, UNCERTAINTY_DIM, UNCERTAINTY_DIM, mp1::Parallel1Dir::NONE>(
+      uncertainty_data->A, uncertainty_data->Sigma_a, uncertainty_data->Sigma_b, 1.0f, 0.0f, mm::MAT_OP::NONE,
+      mm::MAT_OP::NONE);
+  mm::gemm1<UNCERTAINTY_DIM, UNCERTAINTY_DIM, UNCERTAINTY_DIM, mp1::Parallel1Dir::NONE>(
+      uncertainty_data->Sigma_b, uncertainty_data->A, uncertainty_data->Sigma_a, 1.0f, 0.0f, mm::MAT_OP::NONE,
+      mm::MAT_OP::TRANSPOSE);
+  float Q[UNCERTAINTY_DIM * UNCERTAINTY_DIM] = {
+    1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+  };
+  for (int i = 0; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i++)
+  {
+    uncertainty_data->Sigma_a[i] += Q[i];
+  }
+  uncertaintyMatrixToState(uncertainty_data->Sigma_a, state);
+  uncertaintyMatrixToOutput(uncertainty_data->Sigma_a, output);
+}
+
+template <class CLASS_T, class PARAMS_T>
 __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::initializeDynamics(float* state, float* control,
                                                                                 float* output, float* theta_s,
                                                                                 float t_0, float dt)
@@ -328,6 +490,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(float* 
                                                                          const float dt)
 {
   DYN_PARAMS_T* params_p;
+  SharedBlock *sb_mem, *sb;
   if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     params_p = (DYN_PARAMS_T*)theta_s;
@@ -336,11 +499,20 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(float* 
   {
     params_p = &(this->params_);
   }
+  if (SHARED_MEM_REQUEST_BLK_BYTES != 0)
+  {
+    sb_mem = (SharedBlock*)&theta_s[mppi::math::int_multiple_const(SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) /
+                                    sizeof(float)];
+    sb = &sb_mem[threadIdx.x + blockDim.x * threadIdx.z];
+  }
   computeParametricDelayDeriv(state, control, state_der, params_p);
   computeParametricSteerDeriv(state, control, state_der, params_p);
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
 
   updateState(state, next_state, state_der, dt, params_p);
+  __syncthreads();
+  computeUncertaintyPropagation(state, control, output, params_p, sb);
+  __syncthreads();
 
   if (threadIdx.y == 0)
   {

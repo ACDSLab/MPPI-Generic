@@ -693,6 +693,7 @@ void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ 
   //     << std::endl;
   rolloutDynamicsKernel<DYN_T, SAMPLING_T><<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(
       dynamics, sampling, dt, num_timesteps, num_rollouts, init_x_d, y_d);
+  HANDLE_ERROR(cudaGetLastError());
   // Run Costs
   dim3 dimCostGrid(num_rollouts, 1, 1);
   const int cost_num_shared = dimCostBlock.x * dimCostBlock.z;
