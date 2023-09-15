@@ -691,6 +691,8 @@ void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ 
   //     << " GRD_BYTES: " << SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES << " BLK BYTES: " <<
   //     SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES
   //     << std::endl;
+  HANDLE_ERROR(cudaFuncSetAttribute(rolloutDynamicsKernel<DYN_T, SAMPLING_T>,
+                                    cudaFuncAttributeMaxDynamicSharedMemorySize, dynamics_shared_size));
   rolloutDynamicsKernel<DYN_T, SAMPLING_T><<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(
       dynamics, sampling, dt, num_timesteps, num_rollouts, init_x_d, y_d);
   HANDLE_ERROR(cudaGetLastError());
