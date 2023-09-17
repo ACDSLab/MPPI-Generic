@@ -574,6 +574,7 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
   {
     uncertainty_data->A[i] = (i % (UNCERTAINTY_DIM + 1) == 0) + uncertainty_data->A[i] * dt;
   }
+
 #ifdef __CUDA_ARCH__
   __syncthreads();
   mm::gemm1<UNCERTAINTY_DIM, UNCERTAINTY_DIM, UNCERTAINTY_DIM, mp1::Parallel1Dir::THREAD_Y>(
@@ -591,12 +592,11 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
   Eigen::Map<eigen_uncertainty_matrx> Sigma_b_eigen(uncertainty_data->Sigma_b);
   Sigma_a_eigen = A_eigen * Sigma_a_eigen * A_eigen.transpose();
 #endif
-
   float Q[UNCERTAINTY_DIM * UNCERTAINTY_DIM] = {
     1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 0.0f, 0.0f,
+    0.0f, 0.01f, 0.0f, 0.0f,
     0.0f, 0.0f, 1.0f, 0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f,
+    0.0f, 0.0f, 0.0f, 0.25f,
   };
 
   for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
