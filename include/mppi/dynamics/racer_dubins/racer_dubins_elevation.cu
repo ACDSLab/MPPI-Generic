@@ -121,7 +121,7 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::setOutputs
   // output[O_INDEX(UNCERTAINTY_POS_Y)] = next_state[S_INDEX(UNCERTAINTY_POS_Y)];
 
   int step, pi;
-  mp1::getParallel1DIndex<mp1::Parallel1Dir::NONE>(pi, step);
+  mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
   for (int i = pi; i < this->OUTPUT_DIM; i += step)
   {
     switch (i)
