@@ -67,6 +67,9 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
 
   // Integrate using racer_dubins updateState
   this->PARENT_CLASS::updateState(state, next_state, state_der, dt);
+  SharedBlock sb;
+  computeUncertaintyPropagation(state.data(), control.data(), state_der.data(), next_state.data(), dt, &this->params_,
+                                &sb);
 
   float roll = state(S_INDEX(ROLL));
   float pitch = state(S_INDEX(PITCH));
@@ -146,7 +149,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   __syncthreads();
 
   updateState(state, next_state, state_der, dt, params_p);
-  computeUncertaintyPropagation(state, control, next_state, dt, params_p, sb);
+  computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb);
   if (tdy == 0)
   {
     float roll = state[S_INDEX(ROLL)];

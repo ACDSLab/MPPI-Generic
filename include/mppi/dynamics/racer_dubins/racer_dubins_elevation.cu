@@ -226,7 +226,8 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> s
   // Integrate using racer_dubins updateState
   this->PARENT_CLASS::updateState(state, next_state, state_der, dt);
 
-  computeUncertaintyPropagation(state.data(), control.data(), next_state.data(), dt, &this->params_, &sb);
+  computeUncertaintyPropagation(state.data(), control.data(), state_der.data(), next_state.data(), dt, &this->params_,
+                                &sb);
   float roll = state(S_INDEX(ROLL));
   float pitch = state(S_INDEX(PITCH));
   RACER::computeStaticSettling<typename DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
@@ -318,22 +319,27 @@ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeGrad(const Eigen::Ref<c
 }
 
 template <class CLASS_T, class PARAMS_T>
-__host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUncertaintyJacobian(float* state,
+__host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUncertaintyJacobian(const float* state,
                                                                                                  const float* control,
                                                                                                  float* A,
                                                                                                  DYN_PARAMS_T* params_p)
 {
   float eps = 0.01f;
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
-  float sin_yaw, cos_yaw, tan_steer_angle;
+  float sin_yaw, cos_yaw, tan_steer_angle, cos_2_delta;
 #ifdef __CUDA_ARCH__
   float yaw_norm = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
+  float delta = angle_utils::normalizeAngle(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
   __sincosf(yaw_norm, &sin_yaw, &cos_yaw);
-  tan_steer_angle = __tanf(angle_utils::normalizeAngle(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale));
+  tan_steer_angle = __tanf(delta);
+  cos_2_delta = __cosf(delta) * __cosf(delta);
 #else
   sincosf(state[S_INDEX(YAW)], &sin_yaw, &cos_yaw);
-  tan_steer_angle = tanf(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
+  float delta = state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale;
+  tan_steer_angle = tanf(delta);
+  cos_2_delta = cosf(delta) * cosf(delta);
 #endif
+  // const float cos_2_delta = cos_yaw * cos_yaw;
 
   // vx
   float linear_brake_slope = params_p->c_b[1] / (0.9f * (2.0f / 0.01f));
@@ -342,21 +348,22 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
 
   int step, pi;
   mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
+  // A = df/dx + df/du * K
   for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
   {
     switch (i)
     {
       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), UNCERTAINTY_DIM):
-        A[i] = -params_p->c_v[index];
+        A[i] = -params_p->c_v[index] - params_p->K_vel_x;
         break;
       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(YAW), UNCERTAINTY_DIM):
         A[i] = 0.0f;
         break;
       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_X), UNCERTAINTY_DIM):
-        A[i] = 0.0f;
+        A[i] = -params_p->K_x * cos_yaw;
         break;
       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_Y), UNCERTAINTY_DIM):
-        A[i] = 0.0f;
+        A[i] = -params_p->K_y * sin_yaw;
         break;
 
       // yaw
@@ -364,13 +371,13 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
         A[i] = tan_steer_angle / (params_p->wheel_base);
         break;
       case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(YAW), UNCERTAINTY_DIM):
-        A[i] = 0.0f;
+        A[i] = -fabsf(state[S_INDEX(VEL_X)]) * params_p->K_yaw / (params_p->wheel_base * cos_2_delta);
         break;
       case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_X), UNCERTAINTY_DIM):
-        A[i] = 0.0f;
+        A[i] = -state[S_INDEX(VEL_X)] * params_p->K_y * sin_yaw / (params_p->wheel_base * cos_2_delta);
         break;
       case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_Y), UNCERTAINTY_DIM):
-        A[i] = 0.0f;
+        A[i] = -state[S_INDEX(VEL_X)] * params_p->K_y * cos_yaw / (params_p->wheel_base * cos_2_delta);
         break;
       // pos x
       case mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(VEL_X), UNCERTAINTY_DIM):
@@ -397,6 +404,91 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
         break;
       case mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_X), UNCERTAINTY_DIM):
         A[i] = 0.0f;
+        break;
+    }
+  }
+  return true;
+}
+
+template <class CLASS_T, class PARAMS_T>
+__host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeQ(const float* state, const float* control,
+                                                                               const float* state_der, float* Q,
+                                                                               DYN_PARAMS_T* params_p)
+{
+  const float abs_vx = fabsf(state[S_INDEX(VEL_X)]);
+  const float abs_acc_x = fabsf(state_der[S_INDEX(VEL_X)]);
+  const float delta = angle_utils::normalizeAngle(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
+
+  float sin_yaw, cos_yaw, tan_steer_angle, sin_roll;
+#ifdef __CUDA_ARCH__
+  const float yaw_norm = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
+  __sincosf(yaw_norm, &sin_yaw, &cos_yaw);
+  tan_steer_angle = __tanf(delta);
+  sin_roll = __sinf(angle_utils::normalizeAngle(state[S_INDEX(ROLL)]));
+#else
+  sincosf(state[S_INDEX(YAW)], &sin_yaw, &cos_yaw);
+  tan_steer_angle = tanf(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
+#endif
+  const float side_force = SQ(abs_vx) * tan_steer_angle / params_p->wheel_base + params_p->gravity * sin_roll;
+  const float Q_11 = params_p->Q_y_f * fabsf(side_force) * abs_vx;
+
+  int step, pi;
+  mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
+  for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
+  {
+    switch (i)
+    {
+      // vel_x
+      case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), UNCERTAINTY_DIM):
+        Q[i] = params_p->Q_x_acc * abs_acc_x + params_p->Q_x_v * abs_vx;
+        break;
+      case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(YAW), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_X), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_Y), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      // yaw
+      case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(VEL_X), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(YAW), UNCERTAINTY_DIM):
+        Q[i] = abs_vx * (params_p->Q_omega_steering * fabsf(delta) + params_p->Q_omega_v);
+        break;
+      case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_X), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_Y), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      // pos x
+      case mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(VEL_X), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      case mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(YAW), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      case mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_X), UNCERTAINTY_DIM):
+        Q[i] = Q_11 * sin_yaw * sin_yaw;
+        break;
+      case mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_Y), UNCERTAINTY_DIM):
+        Q[i] = -Q_11 * sin_yaw * cos_yaw;
+        break;
+      // pos y
+      case mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(VEL_X), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      case mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(YAW), UNCERTAINTY_DIM):
+        Q[i] = 0.0f;
+        break;
+      case mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_Y), UNCERTAINTY_DIM):
+        Q[i] = Q_11 * cos_yaw * cos_yaw;
+        break;
+      case mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_X), UNCERTAINTY_DIM):
+        Q[i] = -Q_11 * sin_yaw * cos_yaw;
         break;
     }
   }
@@ -559,8 +651,8 @@ RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::uncertaintyMatrixToOutput(const flo
 
 template <class CLASS_T, class PARAMS_T>
 __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUncertaintyPropagation(
-    float* state, const float* control, float* next_state, float dt, DYN_PARAMS_T* params_p,
-    SharedBlock* uncertainty_data)
+    const float* state, const float* control, const float* state_der, float* next_state, float dt,
+    DYN_PARAMS_T* params_p, SharedBlock* uncertainty_data)
 {
   computeUncertaintyJacobian(state, control, uncertainty_data->A, params_p);
   uncertaintyStateToMatrix(state, uncertainty_data->Sigma_a);
@@ -592,16 +684,19 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
   Eigen::Map<eigen_uncertainty_matrx> Sigma_b_eigen(uncertainty_data->Sigma_b);
   Sigma_a_eigen = A_eigen * Sigma_a_eigen * A_eigen.transpose();
 #endif
-  float Q[UNCERTAINTY_DIM * UNCERTAINTY_DIM] = {
-    1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 0.01f, 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f, 0.0f,
-    0.0f, 0.0f, 0.0f, 0.25f,
-  };
-
+  // float Q[UNCERTAINTY_DIM * UNCERTAINTY_DIM] = {
+  //   1.0f, 0.0f, 0.0f, 0.0f,
+  //   0.0f, 0.01f, 0.0f, 0.0f,
+  //   0.0f, 0.0f, 1.0f, 0.0f,
+  //   0.0f, 0.0f, 0.0f, 0.25f,
+  // };
+  computeQ(state, control, state_der, uncertainty_data->Sigma_b, params_p);
+#ifdef __CUDA_ARCH__
+  __syncthreads();  // TODO: Check if this syncthreads is even needed
+#endif
   for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
   {
-    uncertainty_data->Sigma_a[i] += Q[i] * dt;
+    uncertainty_data->Sigma_a[i] += uncertainty_data->Sigma_b[i] * dt;
   }
 #ifdef __CUDA_ARCH__
   __syncthreads();
@@ -755,7 +850,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(float* 
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
 
   updateState(state, next_state, state_der, dt, params_p);
-  computeUncertaintyPropagation(state, control, next_state, dt, params_p, sb);
+  computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb);
 
   if (threadIdx.y == 0)
   {

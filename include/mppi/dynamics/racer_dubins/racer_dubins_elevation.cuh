@@ -47,6 +47,16 @@ struct RacerDubinsElevationParams : public RacerDubinsParams
     POS_Y,
     NUM_UNCERTAINTIES
   };
+  // Uncertainty feedback and Noise coefficients
+  float K_x = 1.0f; // feedback for pos_x
+  float K_y = 1.0f; // feedback for pos_y
+  float K_yaw = 1.0f; // feedback for yaw
+  float K_vel_x = 1.0f; // feedback for vel x
+  float Q_x_acc = 1.0f; // Add noise to vel x based on accel_x
+  float Q_x_v = 0.1f; // Add noise to vel x based on vel x
+  float Q_y_f = 0.1f; // Add noise to pos x and y based on side force
+  float Q_omega_v = 0.001f; // Add noise to yaw based on vel x
+  float Q_omega_steering = 0.0f; // Add noise to yaw based on steering
 };
 
 template <class CLASS_T, class PARAMS_T>
@@ -131,15 +141,18 @@ public:
                    const Eigen::Ref<const control_array>& control = control_array(), Eigen::Ref<dfdx> A = dfdx(),
                    Eigen::Ref<dfdu> B = dfdu());
 
-  __host__ __device__ void computeUncertaintyPropagation(float* state, const float* control, float* next_state,
+  __host__ __device__ void computeUncertaintyPropagation(const float* state, const float* control,
+                                                         const float* state_der, float* next_state,
                                                          float dt, DYN_PARAMS_T* params_p,
                                                          SharedBlock* uncertainty_data);
 
   __host__ __device__ void uncertaintyMatrixToOutput(const float* uncertainty_matrix, float* output);
   __host__ __device__ void uncertaintyMatrixToState(const float* uncertainty_matrix, float* state);
   __host__ __device__ void uncertaintyStateToMatrix(const float* state, float* uncertainty_matrix);
-  __host__ __device__ bool computeUncertaintyJacobian(float* state, const float* control, float* A,
+  __host__ __device__ bool computeUncertaintyJacobian(const float* state, const float* control, float* A,
                                                       DYN_PARAMS_T* params_p);
+  __host__ __device__ bool computeQ(const float* state, const float* control, const float* state_der, float* Q,
+                                                        DYN_PARAMS_T* params_p);
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt,
                               DYN_PARAMS_T* params_p);
