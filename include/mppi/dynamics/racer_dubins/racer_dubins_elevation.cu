@@ -324,7 +324,6 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
                                                                                                  float* A,
                                                                                                  DYN_PARAMS_T* params_p)
 {
-  float eps = 0.01f;
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
   float sin_yaw, cos_yaw, tan_steer_angle, cos_2_delta;
 #ifdef __CUDA_ARCH__
@@ -417,17 +416,17 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeQ(c
 {
   const float abs_vx = fabsf(state[S_INDEX(VEL_X)]);
   const float abs_acc_x = fabsf(state_der[S_INDEX(VEL_X)]);
-  const float delta = angle_utils::normalizeAngle(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
+  const float delta = state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale;
 
   float sin_yaw, cos_yaw, tan_steer_angle, sin_roll;
 #ifdef __CUDA_ARCH__
   const float yaw_norm = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
   __sincosf(yaw_norm, &sin_yaw, &cos_yaw);
-  tan_steer_angle = __tanf(delta);
+  tan_steer_angle = __tanf(angle_utils::normalizeAngle(delta));
   sin_roll = __sinf(angle_utils::normalizeAngle(state[S_INDEX(ROLL)]));
 #else
   sincosf(state[S_INDEX(YAW)], &sin_yaw, &cos_yaw);
-  tan_steer_angle = tanf(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
+  tan_steer_angle = tanf(delta);
 #endif
   const float side_force = SQ(abs_vx) * tan_steer_angle / params_p->wheel_base + params_p->gravity * sin_roll;
   const float Q_11 = params_p->Q_y_f * fabsf(side_force) * abs_vx;
