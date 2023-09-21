@@ -913,6 +913,23 @@ RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::st
   s(S_INDEX(UNCERTAINTY_POS_Y_YAW)) = map.at("UNCERTAINTY_POS_Y_YAW");
   s(S_INDEX(UNCERTAINTY_POS_Y_VEL_X)) = map.at("UNCERTAINTY_POS_Y_VEL_X");
   s(S_INDEX(UNCERTAINTY_YAW_VEL_X)) = map.at("UNCERTAINTY_YAW_VEL_X");
+  float eps = 1e-3f;
+  if (s(S_INDEX(UNCERTAINTY_POS_X)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_POS_X)) = eps;
+  }
+  if (s(S_INDEX(UNCERTAINTY_POS_Y)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_POS_Y)) = eps;
+  }
+  if (s(S_INDEX(UNCERTAINTY_YAW)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_YAW)) = eps;
+  }
+  if (s(S_INDEX(UNCERTAINTY_VEL_X)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_VEL_X)) = eps;
+  }
   return s;
 }
 
