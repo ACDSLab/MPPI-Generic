@@ -405,8 +405,7 @@ __device__ __host__ void RACER::computeBodyFrameNormals(TEX_T* tex_helper, const
         4.0f;
 
     // using 2pi so any rotation that accidently uses this will be using identity
-    if (isnan(mean_normals_x) || isinf(mean_normals_x) || isnan(mean_normals_y) || isinf(mean_normals_y) ||
-        isnan(mean_normals_z) || isinf(mean_normals_z))
+    if (!isfinite(mean_normals_x) || !isfinite(mean_normals_y) || !isfinite(mean_normals_z))
     {
       mean_normals_x = 0.0f;
       mean_normals_y = 0.0f;
