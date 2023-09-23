@@ -11,6 +11,8 @@
 #include <mppi/utils/activation_functions.cuh>
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation.cuh>
 
+#define BICYCLE_UNCERTAINTY
+
 namespace RACER
 {
 template <class TEX_T>
@@ -19,7 +21,7 @@ __device__ __host__ void computeBodyFrameNormals(TEX_T* tex_helper, const float 
                                                  float& mean_normals_y, float& mean_normals_z);
 };
 
-struct BicycleSlipParametricParams : public RacerDubinsParams
+struct BicycleSlipParametricParams : public RacerDubinsElevationParams
 {
   enum class StateIndex : int
   {
@@ -34,7 +36,17 @@ struct BicycleSlipParametricParams : public RacerDubinsParams
     ROLL,
     PITCH,
     STEER_ANGLE_RATE,
-    FILLER_1,
+    FILLER_1, // TODO: Figure out if more filler is necessary
+    UNCERTAINTY_POS_X,
+    UNCERTAINTY_POS_Y,
+    UNCERTAINTY_YAW,
+    UNCERTAINTY_VEL_X,
+    UNCERTAINTY_POS_X_Y,
+    UNCERTAINTY_POS_X_YAW,
+    UNCERTAINTY_POS_X_VEL_X,
+    UNCERTAINTY_POS_Y_YAW,
+    UNCERTAINTY_POS_Y_VEL_X,
+    UNCERTAINTY_YAW_VEL_X,
     NUM_STATES
   };
 
@@ -76,8 +88,8 @@ public:
 
   typedef PARAMS_T DYN_PARAMS_T;
 
-  static const int SHARED_MEM_REQUEST_GRD_BYTES = 0;  // TODO set to one to prevent array of size 0 error
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
+  static const int SHARED_MEM_REQUEST_GRD_BYTES = sizeof(PARAMS_T);  // TODO set to one to prevent array of size 0 error
+  static const int SHARED_MEM_REQUEST_BLK_BYTES = PARENT_CLASS::SHARED_MEM_REQUEST_BLK_BYTES;
 
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;
@@ -115,6 +127,10 @@ public:
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
+// #ifdef BICYCLE_UNCERTAINTY
+//   __host__ __device__ bool computeUncertaintyJacobian(const float* state, const float* control, float* A,
+//                                                       PARAMS_T* params_p);
+// #endif
 
   void paramsToDevice();
 

@@ -174,7 +174,16 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> 
   computeDynamics(state, control, state_der);
   updateState(state, next_state, state_der, dt);
 
+#ifdef BICYCLE_UNCERTAINTY
+  typename PARENT_CLASS::SharedBlock sb;
+#endif
+
   output = output_array::Zero();
+
+#ifdef BICYCLE_UNCERTAINTY
+  PARENT_CLASS::computeUncertaintyPropagation(state.data(), control.data(), state_der.data(), next_state.data(), dt,
+                                              &this->params_, &sb);
+#endif
 
   float roll = state(S_INDEX(ROLL));
   float pitch = state(S_INDEX(PITCH));
@@ -296,6 +305,9 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(float* state,
                                                                    const float t, const float dt)
 {
   DYN_PARAMS_T* params_p;
+#ifdef BICYCLE_UNCERTAINTY
+  typename PARENT_CLASS::SharedBlock *sb_mem, *sb;
+#endif
   if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     params_p = (DYN_PARAMS_T*)theta_s;
@@ -304,10 +316,22 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(float* state,
   {
     params_p = &(this->params_);
   }
+#ifdef BICYCLE_UNCERTAINTY
+  if (SHARED_MEM_REQUEST_BLK_BYTES != 0)
+  {
+    sb_mem = (typename PARENT_CLASS::SharedBlock*)&theta_s[mppi::math::int_multiple_const(SHARED_MEM_REQUEST_GRD_BYTES,
+                                                                                          sizeof(float4)) /
+                                                           sizeof(float)];
+    sb = &sb_mem[threadIdx.x + blockDim.x * threadIdx.z];
+  }
+#endif
   const uint tdy = threadIdx.y;
 
   computeDynamics(state, control, state_der, theta_s);
   updateState(state, next_state, state_der, dt, params_p);
+#ifdef BICYCLE_UNCERTAINTY
+  PARENT_CLASS::computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb);
+#endif
 
   if (tdy == 0)
   {
@@ -419,3 +443,95 @@ __device__ __host__ void RACER::computeBodyFrameNormals(TEX_T* tex_helper, const
     mean_normals_z = 1.0f;
   }
 }
+
+// #ifdef BICYCLE_UNCERTAINTY
+// template <class CLASS_T, class PARAMS_T>
+// __host__ __device__ bool BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeUncertaintyJacobian(const float* state,
+//                                                                                                  const float*
+//                                                                                                  control, float* A,
+//                                                                                                  PARAMS_T* params_p)
+// {
+//   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
+//   float sin_yaw, cos_yaw, tan_steer_angle, cos_2_delta;
+// #ifdef __CUDA_ARCH__
+//   float yaw_norm = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
+//   float delta = angle_utils::normalizeAngle(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
+//   __sincosf(yaw_norm, &sin_yaw, &cos_yaw);
+//   tan_steer_angle = __tanf(delta);
+//   cos_2_delta = __cosf(delta) * __cosf(delta);
+// #else
+//   sincosf(state[S_INDEX(YAW)], &sin_yaw, &cos_yaw);
+//   float delta = state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale;
+//   tan_steer_angle = tanf(delta);
+//   cos_2_delta = cosf(delta) * cosf(delta);
+// #endif
+//   // const float cos_2_delta = cos_yaw * cos_yaw;
+
+//   // vx
+//   float linear_brake_slope = params_p->c_b[1] / (0.9f * (2.0f / 0.01f));
+//   int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
+//               (fabsf(state[S_INDEX(VEL_X)]) > 3.0f) * 2;
+
+//   int step, pi;
+//   mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
+//   // A = df/dx + df/du * K
+//   for (int i = pi; i < this->UNCERTAINTY_DIM * this->UNCERTAINTY_DIM; i += step)
+//   {
+//     switch (i)
+//     {
+//       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), this->UNCERTAINTY_DIM):
+//         A[i] = -params_p->c_v[index] - params_p->K_vel_x;
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(YAW), this->UNCERTAINTY_DIM):
+//         A[i] = 0.0f;
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_X), this->UNCERTAINTY_DIM):
+//         A[i] = -params_p->K_x * cos_yaw;
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(POS_Y), this->UNCERTAINTY_DIM):
+//         A[i] = -params_p->K_x * sin_yaw;
+//         break;
+
+//       // yaw
+//       case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(VEL_X), this->UNCERTAINTY_DIM):
+//         A[i] = 0.0f;
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(YAW), this->UNCERTAINTY_DIM):
+//         A[i] = -fabsf(state[S_INDEX(VEL_X)]) * params_p->K_yaw / (params_p->wheel_base * cos_2_delta);
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_X), this->UNCERTAINTY_DIM):
+//         A[i] = state[S_INDEX(VEL_X)] * params_p->K_y * sin_yaw / (params_p->wheel_base * cos_2_delta);
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(POS_Y), this->UNCERTAINTY_DIM):
+//         A[i] = -state[S_INDEX(VEL_X)] * params_p->K_y * cos_yaw / (params_p->wheel_base * cos_2_delta);
+//         break;
+//       // pos x
+//       case mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(VEL_X), this->UNCERTAINTY_DIM):
+//         A[i] = cos_yaw;
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(YAW), this->UNCERTAINTY_DIM):
+//         A[i] = -sin_yaw * state[S_INDEX(VEL_X)] - cos_yaw * state[S_INDEX(VEL_Y)];
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_X), this->UNCERTAINTY_DIM):
+//         A[i] = 0.0f;
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(POS_X), U_INDEX(POS_Y), this->UNCERTAINTY_DIM):
+//         A[i] = 0.0f;
+//         break;
+//       // pos y
+//       case mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(VEL_X), this->UNCERTAINTY_DIM):
+//         A[i] = sin_yaw;
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(YAW), this->UNCERTAINTY_DIM):
+//         A[i] = cos_yaw * state[S_INDEX(VEL_X)] - sin_yaw * state[S_INDEX(VEL_Y)];
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_Y), this->UNCERTAINTY_DIM):
+//         A[i] = 0.0f;
+//         break;
+//       case mm::columnMajorIndex(U_INDEX(POS_Y), U_INDEX(POS_X), this->UNCERTAINTY_DIM):
+//         A[i] = 0.0f;
+//         break;
+//     }
+//   }
+// }
+// #endif

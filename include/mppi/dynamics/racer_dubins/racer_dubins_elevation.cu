@@ -503,8 +503,9 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
     const float* state, const float* control, const float* state_der, float* next_state, float dt,
     DYN_PARAMS_T* params_p, SharedBlock* uncertainty_data)
 {
-  computeUncertaintyJacobian(state, control, uncertainty_data->A, params_p);
-  uncertaintyStateToMatrix(state, uncertainty_data->Sigma_a);
+  CLASS_T* derived = static_cast<CLASS_T*>(this);
+  derived->computeUncertaintyJacobian(state, control, uncertainty_data->A, params_p);
+  derived->uncertaintyStateToMatrix(state, uncertainty_data->Sigma_a);
 #ifdef __CUDA_ARCH__
   __syncthreads();  // TODO: Check if this syncthreads is even needed
 #endif
@@ -539,7 +540,7 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
   //   0.0f, 0.0f, 1.0f, 0.0f,
   //   0.0f, 0.0f, 0.0f, 0.25f,
   // };
-  computeQ(state, control, state_der, uncertainty_data->Sigma_b, params_p);
+  derived->computeQ(state, control, state_der, uncertainty_data->Sigma_b, params_p);
 #ifdef __CUDA_ARCH__
   __syncthreads();  // TODO: Check if this syncthreads is even needed
 #endif
@@ -550,7 +551,7 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
 #ifdef __CUDA_ARCH__
   __syncthreads();
 #endif
-  uncertaintyMatrixToState(uncertainty_data->Sigma_a, next_state);
+  derived->uncertaintyMatrixToState(uncertainty_data->Sigma_a, next_state);
 #ifdef __CUDA_ARCH__
   __syncthreads();
 #endif
