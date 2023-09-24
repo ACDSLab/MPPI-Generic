@@ -174,7 +174,6 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
                                                                                                  float* A,
                                                                                                  DYN_PARAMS_T* params_p)
 {
-  bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
   float sin_yaw, cos_yaw, tan_steer_angle, cos_2_delta;
 #ifdef __CUDA_ARCH__
   float yaw_norm = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);

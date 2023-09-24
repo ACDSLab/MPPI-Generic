@@ -127,10 +127,10 @@ public:
   __device__ void computeDynamics(float* state, float* control, float* state_der, float* theta = nullptr);
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
-// #ifdef BICYCLE_UNCERTAINTY
-//   __host__ __device__ bool computeUncertaintyJacobian(const float* state, const float* control, float* A,
-//                                                       PARAMS_T* params_p);
-// #endif
+#ifdef BICYCLE_UNCERTAINTY
+  __host__ __device__ bool computeUncertaintyJacobian(const float* state, const float* control, float* A,
+                                                      PARAMS_T* params_p);
+#endif
 
   void paramsToDevice();
 
