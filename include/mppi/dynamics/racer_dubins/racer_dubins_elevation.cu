@@ -278,7 +278,8 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeQ(c
   tan_steer_angle = tanf(delta);
 #endif
   const float side_force = SQ(abs_vx) * tan_steer_angle / params_p->wheel_base + params_p->gravity * sin_roll;
-  const float Q_11 = params_p->Q_y_f * fabsf(side_force) * abs_vx;
+  // const float Q_11 = params_p->Q_y_f * side_force * side_force * abs_vx;
+  const float Q_11 = params_p->Q_y_f * fabsf(side_force) * fmaxf(abs_vx - 2, 0.0f);
 
   int step, pi;
   mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
