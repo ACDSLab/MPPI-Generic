@@ -696,14 +696,16 @@ RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::st
   bool UNCERTAINTY_POS_Y_YAW_UNFOUND = map.find("UNCERTAINTY_POS_Y_YAW") == map.end();
   bool UNCERTAINTY_POS_Y_VEL_X_UNFOUND = map.find("UNCERTAINTY_POS_Y_VEL_X") == map.end();
   bool UNCERTAINTY_YAW_VEL_X_UNFOUND = map.find("UNCERTAINTY_YAW_VEL_X") == map.end();
+  // bool found_uncertainty = UNCERTAINTY_POS_X_UNFOUND || UNCERTAINTY_POS_Y_UNFOUND ||
+  //     UNCERTAINTY_YAW_UNFOUND || UNCERTAINTY_VEL_X_UNFOUND || UNCERTAINTY_POS_X_Y_UNFOUND ||
+  //     UNCERTAINTY_POS_X_YAW_UNFOUND || UNCERTAINTY_POS_X_VEL_X_UNFOUND || UNCERTAINTY_POS_Y_YAW_UNFOUND ||
+  //     UNCERTAINTY_POS_Y_VEL_X_UNFOUND || UNCERTAINTY_YAW_VEL_X_UNFOUND;
+  bool found_uncertainty = false;
   state_array s = state_array::Zero();
   if (map.find("VEL_X") == map.end() || map.find("VEL_Y") == map.end() || map.find("POS_X") == map.end() ||
       map.find("POS_Y") == map.end() || map.find("ROLL") == map.end() || map.find("PITCH") == map.end() ||
       map.find("STEER_ANGLE") == map.end() || map.find("STEER_ANGLE_RATE") == map.end() ||
-      map.find("BRAKE_STATE") == map.end() || UNCERTAINTY_POS_X_UNFOUND || UNCERTAINTY_POS_Y_UNFOUND ||
-      UNCERTAINTY_YAW_UNFOUND || UNCERTAINTY_VEL_X_UNFOUND || UNCERTAINTY_POS_X_Y_UNFOUND ||
-      UNCERTAINTY_POS_X_YAW_UNFOUND || UNCERTAINTY_POS_X_VEL_X_UNFOUND || UNCERTAINTY_POS_Y_YAW_UNFOUND ||
-      UNCERTAINTY_POS_Y_VEL_X_UNFOUND || UNCERTAINTY_YAW_VEL_X_UNFOUND)
+      map.find("BRAKE_STATE") == map.end() || found_uncertainty)
   {
     std::cout << "WARNING: could not find all keys for elevation dynamics" << std::endl;
     for (const auto& it : map)
@@ -721,16 +723,16 @@ RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::st
   s(S_INDEX(ROLL)) = map.at("ROLL");
   s(S_INDEX(PITCH)) = map.at("PITCH");
   s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");
-  s(S_INDEX(UNCERTAINTY_POS_X)) = map.at("UNCERTAINTY_POS_X");
-  s(S_INDEX(UNCERTAINTY_POS_Y)) = map.at("UNCERTAINTY_POS_Y");
-  s(S_INDEX(UNCERTAINTY_YAW)) = map.at("UNCERTAINTY_YAW");
-  s(S_INDEX(UNCERTAINTY_VEL_X)) = map.at("UNCERTAINTY_VEL_X");
-  s(S_INDEX(UNCERTAINTY_POS_X_Y)) = map.at("UNCERTAINTY_POS_X_Y");
-  s(S_INDEX(UNCERTAINTY_POS_X_YAW)) = map.at("UNCERTAINTY_POS_X_YAW");
-  s(S_INDEX(UNCERTAINTY_POS_X_VEL_X)) = map.at("UNCERTAINTY_POS_X_VEL_X");
-  s(S_INDEX(UNCERTAINTY_POS_Y_YAW)) = map.at("UNCERTAINTY_POS_Y_YAW");
-  s(S_INDEX(UNCERTAINTY_POS_Y_VEL_X)) = map.at("UNCERTAINTY_POS_Y_VEL_X");
-  s(S_INDEX(UNCERTAINTY_YAW_VEL_X)) = map.at("UNCERTAINTY_YAW_VEL_X");
+  // s(S_INDEX(UNCERTAINTY_POS_X)) = map.at("UNCERTAINTY_POS_X");
+  // s(S_INDEX(UNCERTAINTY_POS_Y)) = map.at("UNCERTAINTY_POS_Y");
+  // s(S_INDEX(UNCERTAINTY_YAW)) = map.at("UNCERTAINTY_YAW");
+  // s(S_INDEX(UNCERTAINTY_VEL_X)) = map.at("UNCERTAINTY_VEL_X");
+  // s(S_INDEX(UNCERTAINTY_POS_X_Y)) = map.at("UNCERTAINTY_POS_X_Y");
+  // s(S_INDEX(UNCERTAINTY_POS_X_YAW)) = map.at("UNCERTAINTY_POS_X_YAW");
+  // s(S_INDEX(UNCERTAINTY_POS_X_VEL_X)) = map.at("UNCERTAINTY_POS_X_VEL_X");
+  // s(S_INDEX(UNCERTAINTY_POS_Y_YAW)) = map.at("UNCERTAINTY_POS_Y_YAW");
+  // s(S_INDEX(UNCERTAINTY_POS_Y_VEL_X)) = map.at("UNCERTAINTY_POS_Y_VEL_X");
+  // s(S_INDEX(UNCERTAINTY_YAW_VEL_X)) = map.at("UNCERTAINTY_YAW_VEL_X");
   float eps = 1e-3f;
   if (s(S_INDEX(UNCERTAINTY_POS_X)) < eps)
   {
