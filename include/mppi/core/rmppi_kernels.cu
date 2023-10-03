@@ -112,8 +112,7 @@ __global__ void initEvalDynKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __re
     //   printf("\n");
     // }
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token control_read_token = bar->arrive();
-    bar->wait(std::move(control_read_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -123,8 +122,7 @@ __global__ void initEvalDynKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __re
     // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     dynamics->enforceConstraints(x, u);
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token enforce_constraints_token = bar->arrive();
-    bar->wait(std::move(enforce_constraints_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -132,8 +130,7 @@ __global__ void initEvalDynKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __re
     // Increment states
     dynamics->step(x, x_next, xdot, u, y, theta_s_shared, t, dt);
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token dynamics_token = bar->arrive();
-    bar->wait(std::move(dynamics_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -222,20 +219,18 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
     int t = thread_idx + time_iter * blockDim.x + 1;  // start at t = 1
-    if (t <= num_timesteps)
+    if (COALESCE)
+    {  // Fill entire shared mem sequentially using sequential threads_idx
+      int amount_to_fill = (time_iter + 1) * blockDim.x > num_timesteps ? num_timesteps % blockDim.x : blockDim.x;
+      mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_XY>(
+          y_shared, blockDim.x * thread_idz * COST_T::OUTPUT_DIM, y_d,
+          ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
+          COST_T::OUTPUT_DIM * amount_to_fill);
+    }
+    else if (t <= num_timesteps)
     {  // t = num_timesteps is the terminal state for outside this for-loop
-      if (COALESCE)
-      {  // Fill entire shared mem sequentially using sequential threads_idx
-        mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_X>(
-            y_shared, blockDim.x * thread_idz * COST_T::OUTPUT_DIM, y_d,
-            ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
-            COST_T::OUTPUT_DIM * blockDim.x);
-      }
-      else
-      {
-        sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
-        mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
-      }
+      sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
+      mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
     }
     if (t < num_timesteps)
     {  // load controls from t = 1 to t = num_timesteps - 1
@@ -245,8 +240,7 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
                                   thread_idy, y);
     }
 #ifdef USE_CUDA_BARRIERS_COST
-    barrier::arrival_token read_global_token = bar->arrive();
-    bar->wait(std::move(read_global_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -259,8 +253,7 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
           sampling->computeLikelihoodRatioCost(u, theta_d, global_idx, t, distribution_idx, lambda, alpha);
     }
 #ifdef USE_CUDA_BARRIERS_COST
-    barrier::arrival_token calc_cost_token = bar->arrive();
-    bar->wait(std::move(calc_cost_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -268,6 +261,7 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
 
   // Add all costs together
   running_cost = &running_cost_shared[blockDim.x * blockDim.y * thread_idz];
+  __syncthreads();
 #if true
   int prev_size = blockDim.x * blockDim.y;
   // Allow for better computation when blockDim.x is a power of 2
@@ -427,8 +421,7 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
     // Load noise trajectories scaled by the exploration factor
     sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d_shared, blockDim.y, thread_idy, y);
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token control_read_token = bar->arrive();
-    bar->wait(std::move(control_read_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -450,8 +443,7 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
       u[i] += fb_control[i];
     }
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token feedback_token = bar->arrive();
-    bar->wait(std::move(feedback_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -461,8 +453,7 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
     // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     dynamics->enforceConstraints(x, u);
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token enforce_constraints_token = bar->arrive();
-    bar->wait(std::move(enforce_constraints_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -472,8 +463,7 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
     // Increment states
     dynamics->step(x, x_next, xdot, u, y, theta_s_shared, t, dt);
 #ifdef USE_CUDA_BARRIERS_DYN
-    barrier::arrival_token dynamics_token = bar->arrive();
-    bar->wait(std::move(dynamics_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -564,20 +554,18 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
     int t = thread_idx + time_iter * blockDim.x + 1;  // start at t = 1
-    if (t <= num_timesteps)
+    if (COALESCE)
+    {  // Fill entire shared mem sequentially using sequential threads_idx
+      int amount_to_fill = (time_iter + 1) * blockDim.x > num_timesteps ? num_timesteps % blockDim.x : blockDim.x;
+      mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_XY>(
+          y_shared, blockDim.x * thread_idz * COST_T::OUTPUT_DIM, y_d,
+          ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
+          COST_T::OUTPUT_DIM * amount_to_fill);
+    }
+    else if (t <= num_timesteps)
     {  // t = num_timesteps is the terminal state for outside this for-loop
-      if (COALESCE)
-      {  // Fill entire shared mem sequentially using sequential threads_idx
-        mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_X>(
-            y_shared, blockDim.x * thread_idz * COST_T::OUTPUT_DIM, y_d,
-            ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
-            COST_T::OUTPUT_DIM * blockDim.x);
-      }
-      else
-      {
-        sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
-        mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
-      }
+      sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
+      mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
     }
     if (t < num_timesteps)
     {  // load controls from t = 1 to t = num_timesteps - 1
@@ -588,15 +576,13 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
     dynamics->outputToState(y, x);
     dynamics->outputToState(y_nom, x_nom);
 #ifdef USE_CUDA_BARRIERS_COST
-    barrier::arrival_token read_global_token = bar->arrive();
-    bar->wait(std::move(read_global_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
     fb_controller->k(x, x_nom, t, theta_fb, fb_control);
 #ifdef USE_CUDA_BARRIERS_COST
-    barrier::arrival_token feedback_token = bar->arrive();
-    bar->wait(std::move(feedback_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -628,8 +614,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
     // Real system needs to know running_cost_real
 
 #ifdef USE_CUDA_BARRIERS_COST
-    barrier::arrival_token calc_cost_token = bar->arrive();
-    bar->wait(std::move(calc_cost_token));
+    bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
@@ -638,6 +623,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   // Add all costs together
   running_cost = &running_cost_shared[blockDim.x * blockDim.y * thread_idz];
   running_cost_extra = &running_cost_shared[blockDim.x * blockDim.y * (blockDim.z + thread_idz)];
+  __syncthreads();
 
   int prev_size = blockDim.x * blockDim.y;
   // Allow for better computation when blockDim.x is a power of 2

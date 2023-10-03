@@ -388,20 +388,18 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     int t = thread_idx + time_iter * blockDim.x + 1;
     cost_index = (thread_idz * num_rollouts + global_idx) * (num_timesteps) + t - 1;
     running_cost = &running_cost_shared[blockDim.x * (thread_idz * blockDim.y + thread_idy) + t - 1];
-    if (t <= num_timesteps)
+    if (COALESCE)
+    {  // Fill entire shared mem sequentially using sequential threads_idx
+      int amount_to_fill = (time_iter + 1) * blockDim.x > num_timesteps ? num_timesteps % blockDim.x : blockDim.x;
+      mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_XY>(
+          y_shared, blockDim.x * thread_idz * COST_T::OUTPUT_DIM, y_d,
+          ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
+          COST_T::OUTPUT_DIM * amount_to_fill);
+    }
+    else if (t <= num_timesteps)
     {  // t = num_timesteps is the terminal state for outside this for-loop
-      if (COALESCE)
-      {  // Fill entire shared mem sequentially using sequential threads_idx
-        mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_XY>(
-            y_shared, blockDim.x * thread_idz, y_d,
-            ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
-            COST_T::OUTPUT_DIM * blockDim.x);
-      }
-      else
-      {
-        sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
-        mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
-      }
+      sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
+      mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
     }
     if (t < num_timesteps)
     {  // load controls from t = 1 to t = num_timesteps - 1
@@ -429,6 +427,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   }
   // consolidate y threads into single cost
   running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
+  __syncthreads();
   int prev_size = blockDim.y;
   int size;
   int j;
