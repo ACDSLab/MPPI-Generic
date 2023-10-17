@@ -9,7 +9,7 @@ namespace mp1 = mppi::p1;
 using barrier = cuda::barrier<cuda::thread_scope_block>;
 
 #define USE_CUDA_BARRIERS_DYN
-#define USE_CUDA_BARRIERS_COST
+// #define USE_CUDA_BARRIERS_COST
 #endif
 
 namespace mppi

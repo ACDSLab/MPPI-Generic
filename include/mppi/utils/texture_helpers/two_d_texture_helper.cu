@@ -144,7 +144,7 @@ void TwoDTextureHelper<DATA_T>::updateTexture(
     cudaExtent& extent, bool column_major)
 {
   setExtent(index, extent);
-  updateTexture(index, values);
+  updateTexture(index, values, column_major);
 }
 
 template <class DATA_T>
