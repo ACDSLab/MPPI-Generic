@@ -173,6 +173,14 @@ DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3&
       query.x = 0.0;
     }
   }
+  else if (param->texDesc.addressMode[0] == cudaAddressModeBorder)
+  {
+    if (query.x > param->extent.width - 1 || query.x <= 0.0)
+    {
+      return createPartialCudaTuple<DATA_T>(param->texDesc.borderColor[0], param->texDesc.borderColor[1],
+                                            param->texDesc.borderColor[2], param->texDesc.borderColor[3]);
+    }
+  }
   else
   {
     throw std::runtime_error(std::string("using unsupported address mode on the CPU in texture utils"));
@@ -186,6 +194,14 @@ DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3&
     else if (query.y <= 0.0)
     {
       query.y = 0.0;
+    }
+  }
+  else if (param->texDesc.addressMode[1] == cudaAddressModeBorder)
+  {
+    if (query.y > param->extent.height - 1 || query.y <= 0.0)
+    {
+      return createPartialCudaTuple<DATA_T>(param->texDesc.borderColor[0], param->texDesc.borderColor[1],
+                                            param->texDesc.borderColor[2], param->texDesc.borderColor[3]);
     }
   }
   else

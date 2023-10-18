@@ -154,6 +154,14 @@ __host__ __device__ DATA_T ThreeDTextureHelper<DATA_T>::queryTexture(const int i
       query.x = 0.0;
     }
   }
+  else if (param->texDesc.addressMode[0] == cudaAddressModeBorder)
+  {
+    if (query.x > param->extent.width - 1 || query.x <= 0.0)
+    {
+      return createPartialCudaTuple<DATA_T>(param->texDesc.borderColor[0], param->texDesc.borderColor[1],
+                                            param->texDesc.borderColor[2], param->texDesc.borderColor[3]);
+    }
+  }
   else
   {
     throw std::runtime_error(std::string("using unsupported address mode on the CPU in texture utils"));
@@ -169,6 +177,14 @@ __host__ __device__ DATA_T ThreeDTextureHelper<DATA_T>::queryTexture(const int i
       query.y = 0.0;
     }
   }
+  else if (param->texDesc.addressMode[1] == cudaAddressModeBorder)
+  {
+    if (query.y > param->extent.height - 1 || query.y <= 0.0)
+    {
+      return createPartialCudaTuple<DATA_T>(param->texDesc.borderColor[0], param->texDesc.borderColor[1],
+                                            param->texDesc.borderColor[2], param->texDesc.borderColor[3]);
+    }
+  }
   else
   {
     throw std::runtime_error(std::string("using unsupported address mode on the CPU in texture utils"));
@@ -182,6 +198,14 @@ __host__ __device__ DATA_T ThreeDTextureHelper<DATA_T>::queryTexture(const int i
     else if (query.z <= 0.0f)
     {
       query.z = 0.0;
+    }
+  }
+  if (param->texDesc.addressMode[2] == cudaAddressModeBorder)
+  {
+    if (query.z > param->extent.depth - 1 || query.z <= 0.0)
+    {
+      return createPartialCudaTuple<DATA_T>(param->texDesc.borderColor[0], param->texDesc.borderColor[1],
+                                            param->texDesc.borderColor[2], param->texDesc.borderColor[3]);
     }
   }
   else if (param->texDesc.addressMode[2] == cudaAddressModeWrap)

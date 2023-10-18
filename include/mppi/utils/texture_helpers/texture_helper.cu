@@ -359,11 +359,32 @@ void TextureHelper<TEX_T, DATA_T>::updateAddressMode(int index, cudaTextureAddre
   this->textures_buffer_[index].texDesc.addressMode[0] = mode;
   this->textures_buffer_[index].texDesc.addressMode[1] = mode;
   this->textures_buffer_[index].texDesc.addressMode[2] = mode;
-  this->textures_buffer_[index].update_mem = true;
+  // this->textures_buffer_[index].update_mem = true;
 }
 
 template <class TEX_T, class DATA_T>
 void TextureHelper<TEX_T, DATA_T>::updateAddressMode(int index, int layer, cudaTextureAddressMode mode)
 {
   this->textures_buffer_[index].texDesc.addressMode[layer] = mode;
+  // TODO: seting update mem to true causes crashes. Needs more investigation
+  // this->textures_buffer_[index].update_mem = true;
+}
+
+template <class TEX_T, class DATA_T>
+void TextureHelper<TEX_T, DATA_T>::updateBorder(int index, float value)
+{
+  this->textures_buffer_[index].texDesc.borderColor[0] = value;
+  this->textures_buffer_[index].texDesc.borderColor[1] = value;
+  this->textures_buffer_[index].texDesc.borderColor[2] = value;
+  this->textures_buffer_[index].texDesc.borderColor[3] = value;
+  // TODO: seting update mem to true causes crashes. Needs more investigation
+  // this->textures_buffer_[index].update_mem = true;
+}
+
+template <class TEX_T, class DATA_T>
+void TextureHelper<TEX_T, DATA_T>::updateBorder(int index, int layer, float value)
+{
+  this->textures_buffer_[index].texDesc.borderColor[layer] = value;
+  // TODO: seting update mem to true causes crashes. Needs more investigation
+  // this->textures_buffer_[index].update_mem = true;
 }

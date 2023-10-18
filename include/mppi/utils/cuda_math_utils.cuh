@@ -303,4 +303,66 @@ __host__ __device__ inline bool operator==(const float4& lhs, const float4& rhs)
 {
   return (lhs.x == rhs.x) && (lhs.y == rhs.y) && (lhs.z == rhs.z) && (lhs.w == rhs.w);
 }
+
+// Create different data types given the same input. Needed for handling border values in cudaTextures with Border
+// adress mode
+template <class DATA_T>
+inline __host__ __device__ DATA_T createPartialCudaTuple(const float& r, const float& g, const float& b,
+                                                         const float& a);
+
+template <>
+inline __host__ __device__ float createPartialCudaTuple<float>(const float& r, const float& g, const float& b,
+                                                               const float& a)
+{
+  return r;
+}
+
+template <>
+inline __host__ __device__ float2 createPartialCudaTuple<float2>(const float& r, const float& g, const float& b,
+                                                                 const float& a)
+{
+  return make_float2(r, g);
+}
+
+template <>
+inline __host__ __device__ float3 createPartialCudaTuple<float3>(const float& r, const float& g, const float& b,
+                                                                 const float& a)
+{
+  return make_float3(r, g, b);
+}
+
+template <>
+inline __host__ __device__ float4 createPartialCudaTuple<float4>(const float& r, const float& g, const float& b,
+                                                                 const float& a)
+{
+  return make_float4(r, g, b, a);
+}
+
+template <>
+inline __host__ __device__ int createPartialCudaTuple<int>(const float& r, const float& g, const float& b,
+                                                           const float& a)
+{
+  return static_cast<int>(r);
+}
+
+template <>
+inline __host__ __device__ int2 createPartialCudaTuple<int2>(const float& r, const float& g, const float& b,
+                                                             const float& a)
+{
+  return make_int2(static_cast<int>(r), static_cast<int>(g));
+}
+
+template <>
+inline __host__ __device__ int3 createPartialCudaTuple<int3>(const float& r, const float& g, const float& b,
+                                                             const float& a)
+{
+  return make_int3(static_cast<int>(r), static_cast<int>(g), static_cast<int>(b));
+}
+
+template <>
+inline __host__ __device__ int4 createPartialCudaTuple<int4>(const float& r, const float& g, const float& b,
+                                                             const float& a)
+{
+  return make_int4(static_cast<int>(r), static_cast<int>(g), static_cast<int>(b), static_cast<int>(a));
+}
 #endif  // MPPIGENERIC_CUDA_MATH_UTILS_CUH

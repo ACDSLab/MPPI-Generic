@@ -41,6 +41,10 @@ struct TextureParams
     texDesc.addressMode[0] = cudaAddressModeClamp;
     texDesc.addressMode[1] = cudaAddressModeClamp;
     texDesc.addressMode[2] = cudaAddressModeClamp;
+    texDesc.borderColor[0] = 0.0f;
+    texDesc.borderColor[1] = 0.0f;
+    texDesc.borderColor[2] = 0.0f;
+    texDesc.borderColor[3] = 0.0f;
     texDesc.filterMode = cudaFilterModeLinear;
     texDesc.readMode = cudaReadModeElementType;
     texDesc.normalizedCoords = 1;
@@ -123,6 +127,9 @@ public:
 
   void updateAddressMode(int index, cudaTextureAddressMode mode);
   void updateAddressMode(int index, int layer, cudaTextureAddressMode mode);
+
+  void updateBorder(int index, float value);
+  void updateBorder(int index, int layer, float value);
 
   std::vector<TextureParams<DATA_T>> getTextures()
   {
