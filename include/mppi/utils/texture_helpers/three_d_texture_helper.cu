@@ -200,7 +200,7 @@ __host__ __device__ DATA_T ThreeDTextureHelper<DATA_T>::queryTexture(const int i
       query.z = 0.0;
     }
   }
-  if (param->texDesc.addressMode[2] == cudaAddressModeBorder)
+  else if (param->texDesc.addressMode[2] == cudaAddressModeBorder)
   {
     if (query.z > param->extent.depth - 1 || query.z <= 0.0)
     {

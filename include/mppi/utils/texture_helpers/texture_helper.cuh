@@ -32,7 +32,7 @@ struct TextureParams
 
   TextureParams()
   {
-    extent = make_cudaExtent(0, 0, 0);
+    extent = make_cudaExtent(1, 1, 1);
     resDesc.resType = cudaResourceTypeArray;
     channelDesc = cudaCreateChannelDesc<DATA_T>();
 
