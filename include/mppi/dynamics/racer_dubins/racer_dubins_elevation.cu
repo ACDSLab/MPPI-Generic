@@ -679,6 +679,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(float* 
     next_state[S_INDEX(PITCH)] = pitch;
     next_state[S_INDEX(ROLL)] = roll;
   }
+  __syncthreads();
   this->setOutputs(state_der, next_state, output);
 }
 

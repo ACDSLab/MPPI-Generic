@@ -160,6 +160,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
     next_state[S_INDEX(PITCH)] = pitch;
     next_state[S_INDEX(ROLL)] = roll;
   }
+  __syncthreads();
   setOutputs(state_der, next_state, output);
 }
 

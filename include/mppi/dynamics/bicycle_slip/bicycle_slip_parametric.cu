@@ -341,15 +341,28 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(float* state,
         pitch, output);
     next_state[S_INDEX(PITCH)] = pitch;
     next_state[S_INDEX(ROLL)] = roll;
+  }
+  __syncthreads();
+  this->setOutputs(state_der, next_state, output);
 
-    this->setOutputs(state_der, next_state, output);
-
+  // Rather than need a syncthreads, just overwrite the given outputs using the proper thread
+  if (tdy == O_INDEX(BASELINK_VEL_B_Y) % blockIdx.y)
+  {
     output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
+  }
+  if (tdy == O_INDEX(ACCEL_Y) % blockIdx.y)
+  {
     output[O_INDEX(ACCEL_Y)] = state_der[S_INDEX(VEL_Y)];
+  }
+  if (tdy == O_INDEX(OMEGA_Z) % blockIdx.y)
+  {
     output[O_INDEX(OMEGA_Z)] = next_state[S_INDEX(OMEGA_Z)];
+  }
+  if (tdy == O_INDEX(TOTAL_VELOCITY) % blockIdx.y)
+  {
     const float vel_x_sign = output[O_INDEX(TOTAL_VELOCITY)] =
-        mppi::math::sign(next_state[S_INDEX(VEL_X)]) * sqrt(next_state[S_INDEX(VEL_X)] * next_state[S_INDEX(VEL_X)] +
-                                                            next_state[S_INDEX(VEL_Y)] * next_state[S_INDEX(VEL_Y)]);
+        mppi::math::sign(next_state[S_INDEX(VEL_X)]) * sqrtf(next_state[S_INDEX(VEL_X)] * next_state[S_INDEX(VEL_X)] +
+                                                             next_state[S_INDEX(VEL_Y)] * next_state[S_INDEX(VEL_Y)]);
   }
 }
 
