@@ -142,10 +142,11 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::
 
   // kinematics component
   state_der(S_INDEX(YAW)) = state(S_INDEX(OMEGA_Z));
-  state_der(S_INDEX(POS_X)) =
-      state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW))) - state(S_INDEX(VEL_Y)) * sinf(state(S_INDEX(YAW)));
-  state_der(S_INDEX(POS_Y)) =
-      state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW))) + state(S_INDEX(VEL_Y)) * cosf(state(S_INDEX(YAW)));
+  float yaw, sin_yaw, cos_yaw;
+  yaw = state[S_INDEX(YAW)];
+  sincosf(yaw, &sin_yaw, &cos_yaw);
+  state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cos_yaw - state(S_INDEX(VEL_Y)) * sin_yaw;
+  state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sin_yaw + state(S_INDEX(VEL_Y)) * cos_yaw;
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -292,10 +293,11 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(fl
 
   // kinematics component
   state_der[S_INDEX(YAW)] = state[S_INDEX(OMEGA_Z)];
-  state_der[S_INDEX(POS_X)] =
-      state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]) - state[S_INDEX(VEL_Y)] * sinf(state[S_INDEX(YAW)]);
-  state_der[S_INDEX(POS_Y)] =
-      state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]) + state[S_INDEX(VEL_Y)] * cosf(state[S_INDEX(YAW)]);
+  float yaw, sin_yaw, cos_yaw;
+  yaw = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
+  __sincosf(yaw, &sin_yaw, &cos_yaw);
+  state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cos_yaw - state[S_INDEX(VEL_Y)] * sin_yaw;
+  state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sin_yaw + state[S_INDEX(VEL_Y)] * cos_yaw;
 }
 
 template <class CLASS_T, class PARAMS_T>

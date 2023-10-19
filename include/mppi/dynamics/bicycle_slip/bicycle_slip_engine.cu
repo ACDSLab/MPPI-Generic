@@ -316,7 +316,6 @@ void BicycleSlipEngine::step(Eigen::Ref<state_array> state, Eigen::Ref<state_arr
 
   output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
   output[O_INDEX(BASELINK_VEL_B_Y)] = next_state[S_INDEX(VEL_Y)];
-  output[O_INDEX(BASELINK_VEL_B_Z)] = 0;
   output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
   output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
   output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];

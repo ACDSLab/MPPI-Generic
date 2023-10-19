@@ -162,6 +162,21 @@ public:
 
   TEX_T* ptr_d_ = nullptr;
 
+  __host__ __device__ float3 getOrigin(int index) const
+  {
+    return this->textures_d_[index].origin;
+  }
+
+  __host__ __device__ float3 getResolution(int index) const
+  {
+    return this->textures_d_[index].resolution;
+  }
+
+  __host__ __device__ cudaExtent getExtent(int index) const
+  {
+    return this->textures_d_[index].extent;
+  }
+
 protected:
   // std::mutex buffer_lck_;
 

@@ -9,10 +9,10 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::Ref<const 
   bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0;
 
   state_der(S_INDEX(BRAKE_STATE)) =
-      min(max((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
-                  this->params_.brake_delay_constant,
-              -this->params_.max_brake_rate_neg),
-          this->params_.max_brake_rate_pos);
+      fminf(fmaxf((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
+                      this->params_.brake_delay_constant,
+                  -this->params_.max_brake_rate_neg),
+            this->params_.max_brake_rate_pos);
   // applying position throttle
   state_der(S_INDEX(VEL_X)) =
       (!enable_brake) * this->params_.c_t[0] * control(C_INDEX(THROTTLE_BRAKE)) * this->params_.gear_sign +
@@ -20,13 +20,16 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::Ref<const 
       this->params_.c_v[0] * state(S_INDEX(VEL_X)) + this->params_.c_0;
   state_der(S_INDEX(YAW)) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
                             tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
-  state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW)));
-  state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW)));
+  float yaw, sin_yaw, cos_yaw;
+  yaw = state[S_INDEX(YAW)];
+  sincosf(yaw, &sin_yaw, &cos_yaw);
+  state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cos_yaw;
+  state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sin_yaw;
   state_der(S_INDEX(STEER_ANGLE)) =
       (control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
       this->params_.steering_constant;
   state_der(S_INDEX(STEER_ANGLE)) =
-      max(min(state_der(S_INDEX(STEER_ANGLE)), this->params_.max_steer_rate), -this->params_.max_steer_rate);
+      fmaxf(fminf(state_der(S_INDEX(STEER_ANGLE)), this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -49,10 +52,10 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(const Eigen::Ref<const stat
   }
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
   next_state(S_INDEX(STEER_ANGLE)) =
-      max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
+      fmaxf(fminf(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
   next_state(S_INDEX(BRAKE_STATE)) =
-      min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
+      fminf(fmaxf(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -81,12 +84,12 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::updateState(float* state, fl
     }
     if (i == S_INDEX(STEER_ANGLE))
     {
-      next_state[i] = max(min(next_state[i], this->params_.max_steer_angle), -this->params_.max_steer_angle);
+      next_state[i] = fmaxf(fminf(next_state[i], this->params_.max_steer_angle), -this->params_.max_steer_angle);
       next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[i];
     }
     if (i == S_INDEX(BRAKE_STATE))
     {
-      next_state[i] = min(max(next_state[i], 0.0f), 1.0f);
+      next_state[i] = fminf(fmaxf(next_state[i], 0.0f), 1.0f);
     }
   }
 }
@@ -138,10 +141,10 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(float* state
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
 
   state_der[S_INDEX(BRAKE_STATE)] =
-      min(max((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
-                  this->params_.brake_delay_constant,
-              -this->params_.max_brake_rate_neg),
-          this->params_.max_brake_rate_pos);
+      fminf(fmaxf((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
+                      this->params_.brake_delay_constant,
+                  -this->params_.max_brake_rate_neg),
+            this->params_.max_brake_rate_pos);
 
   // applying position throttle
   state_der[S_INDEX(VEL_X)] =
@@ -150,13 +153,16 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(float* state
       this->params_.c_v[0] * state[S_INDEX(VEL_X)] + this->params_.c_0;
   state_der[S_INDEX(YAW)] = (state[S_INDEX(VEL_X)] / this->params_.wheel_base) *
                             tan(state[S_INDEX(STEER_ANGLE)] / this->params_.steer_angle_scale);
-  state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cosf(state[S_INDEX(YAW)]);
-  state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sinf(state[S_INDEX(YAW)]);
+  float yaw, sin_yaw, cos_yaw;
+  yaw = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
+  __sincosf(yaw, &sin_yaw, &cos_yaw);
+  state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cos_yaw;
+  state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sin_yaw;
   state_der[S_INDEX(STEER_ANGLE)] =
-      max(min((control[1] * this->params_.steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
-                  this->params_.steering_constant,
-              this->params_.max_steer_rate),
-          -this->params_.max_steer_rate);
+      fmaxf(fminf((control[1] * this->params_.steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+                      this->params_.steering_constant,
+                  this->params_.max_steer_rate),
+            -this->params_.max_steer_rate);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -279,10 +285,10 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricDelayDeriv(
 
   // Compute dynamics
   state_der[S_INDEX(BRAKE_STATE)] =
-      min(max((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
-                  params_p->brake_delay_constant,
-              -params_p->max_brake_rate_neg),
-          params_p->max_brake_rate_pos);
+      fminf(fmaxf((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
+                      params_p->brake_delay_constant,
+                  -params_p->max_brake_rate_neg),
+            params_p->max_brake_rate_pos);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -290,10 +296,10 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricSteerDeriv(
                                                                                 float* state_der, PARAMS_T* params_p)
 {
   state_der[S_INDEX(STEER_ANGLE)] =
-      max(min((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
-                  params_p->steering_constant,
-              params_p->max_steer_rate),
-          -params_p->max_steer_rate);
+      fmaxf(fminf((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+                      params_p->steering_constant,
+                  params_p->max_steer_rate),
+            -params_p->max_steer_rate);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -304,10 +310,10 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricDelayDeriv(const Eigen
   bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0.0f;
 
   state_der(S_INDEX(BRAKE_STATE)) =
-      min(max((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
-                  this->params_.brake_delay_constant,
-              -this->params_.max_brake_rate_neg),
-          this->params_.max_brake_rate_pos);
+      fminf(fmaxf((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
+                      this->params_.brake_delay_constant,
+                  -this->params_.max_brake_rate_neg),
+            this->params_.max_brake_rate_pos);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -319,7 +325,7 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricSteerDeriv(const Eigen
       (control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
       this->params_.steering_constant;
   state_der(S_INDEX(STEER_ANGLE)) =
-      max(min(state_der(S_INDEX(STEER_ANGLE)), this->params_.max_steer_rate), -this->params_.max_steer_rate);
+      fmaxf(fminf(state_der(S_INDEX(STEER_ANGLE)), this->params_.max_steer_rate), -this->params_.max_steer_rate);
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -385,17 +391,17 @@ __device__ __host__ void RACER::computeStaticSettling(TEX_T* tex_helper, const f
     rear_right_height = tex_helper->queryTextureAtWorldPose(0, rear_right);
 
     float front_diff = front_left_height - front_right_height;
-    front_diff = max(min(front_diff, 0.736f * 2.0f), -0.736f * 2.0f);
+    front_diff = fmaxf(fminf(front_diff, 0.736f * 2.0f), -0.736f * 2.0f);
     float rear_diff = rear_left_height - rear_right_height;
-    rear_diff = max(min(rear_diff, 0.736f * 2.0f), -0.736f * 2.0f);
+    rear_diff = fmaxf(fminf(rear_diff, 0.736f * 2.0f), -0.736f * 2.0f);
     float front_roll = asinf(front_diff / (0.737f * 2.0f));
     float rear_roll = asinf(rear_diff / (0.737f * 2.0f));
     roll = (front_roll + rear_roll) / 2.0f;
 
     float left_diff = rear_left_height - front_left_height;
-    left_diff = max(min(left_diff, 2.98f), -2.98f);
+    left_diff = fmaxf(fminf(left_diff, 2.98f), -2.98f);
     float right_diff = rear_right_height - front_right_height;
-    right_diff = max(min(right_diff, 2.98f), -2.98f);
+    right_diff = fmaxf(fminf(right_diff, 2.98f), -2.98f);
     float left_pitch = asinf((left_diff) / 2.981f);
     float right_pitch = asinf((right_diff) / 2.981f);
     pitch = (left_pitch + right_pitch) / 2.0f;
@@ -422,14 +428,5 @@ __device__ __host__ void RACER::computeStaticSettling(TEX_T* tex_helper, const f
     pitch = 0.0f;
     height = 0.0f;
   }
-
-  output[E_INDEX(OUTPUT_T, WHEEL_POS_I_FL_X)] = front_left.x;
-  output[E_INDEX(OUTPUT_T, WHEEL_POS_I_FL_Y)] = front_left.y;
-  output[E_INDEX(OUTPUT_T, WHEEL_POS_I_FR_X)] = front_right.x;
-  output[E_INDEX(OUTPUT_T, WHEEL_POS_I_FR_Y)] = front_right.y;
-  output[E_INDEX(OUTPUT_T, WHEEL_POS_I_RL_X)] = rear_left.x;
-  output[E_INDEX(OUTPUT_T, WHEEL_POS_I_RL_Y)] = rear_left.y;
-  output[E_INDEX(OUTPUT_T, WHEEL_POS_I_RR_X)] = rear_right.x;
-  output[E_INDEX(OUTPUT_T, WHEEL_POS_I_RR_Y)] = rear_right.y;
   output[E_INDEX(OUTPUT_T, BASELINK_POS_I_Z)] = height;
 }

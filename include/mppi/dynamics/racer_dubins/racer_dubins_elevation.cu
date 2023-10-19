@@ -57,8 +57,138 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricAccelDeriv(
   }
   state_der(S_INDEX(YAW)) = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
                             tanf(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
-  state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cosf(state(S_INDEX(YAW)));
-  state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sinf(state(S_INDEX(YAW)));
+  float yaw, sin_yaw, cos_yaw;
+  yaw = state[S_INDEX(YAW)];
+  sincosf(yaw, &sin_yaw, &cos_yaw);
+  state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cos_yaw;
+  state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sin_yaw;
+}
+
+template <class CLASS_T, class PARAMS_T>
+__host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::setOutputs(const float* state_der,
+                                                                                 const float* next_state, float* output)
+{
+  // Setup output
+  // output[O_INDEX(BASELINK_VEL_B_X)] = next_state[S_INDEX(VEL_X)];
+  // output[O_INDEX(BASELINK_VEL_B_Y)] = 0.0f;
+  // output[O_INDEX(BASELINK_VEL_B_Z)] = 0.0f;
+  // output[O_INDEX(BASELINK_POS_I_X)] = next_state[S_INDEX(POS_X)];
+  // output[O_INDEX(BASELINK_POS_I_Y)] = next_state[S_INDEX(POS_Y)];
+  // output[O_INDEX(PITCH)] = next_state[S_INDEX(PITCH)];
+  // output[O_INDEX(ROLL)] = next_state[S_INDEX(ROLL)];
+  // output[O_INDEX(YAW)] = next_state[S_INDEX(YAW)];
+  // output[O_INDEX(STEER_ANGLE)] = next_state[S_INDEX(STEER_ANGLE)];
+  // output[O_INDEX(STEER_ANGLE_RATE)] = next_state[S_INDEX(STEER_ANGLE_RATE)];
+  // output[O_INDEX(WHEEL_FORCE_B_FL)] = 10000.0f;
+  // output[O_INDEX(WHEEL_FORCE_B_FR)] = 10000.0f;
+  // output[O_INDEX(WHEEL_FORCE_B_RL)] = 10000.0f;
+  // output[O_INDEX(WHEEL_FORCE_B_RR)] = 10000.0f;
+  // output[O_INDEX(ACCEL_X)] = state_der[S_INDEX(VEL_X)];
+  // output[O_INDEX(ACCEL_Y)] = 0.0f;
+  // output[O_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+  // output[O_INDEX(UNCERTAINTY_VEL_X)] = next_state[S_INDEX(UNCERTAINTY_VEL_X)];
+  // output[O_INDEX(UNCERTAINTY_YAW_VEL_X)] = next_state[S_INDEX(UNCERTAINTY_YAW_VEL_X)];
+  // output[O_INDEX(UNCERTAINTY_POS_X_VEL_X)] = next_state[S_INDEX(UNCERTAINTY_POS_X_VEL_X)];
+  // output[O_INDEX(UNCERTAINTY_POS_Y_VEL_X)] = next_state[S_INDEX(UNCERTAINTY_POS_Y_VEL_X)];
+  // output[O_INDEX(UNCERTAINTY_YAW)] = next_state[S_INDEX(UNCERTAINTY_YAW)];
+  // output[O_INDEX(UNCERTAINTY_POS_X_YAW)] = next_state[S_INDEX(UNCERTAINTY_POS_X_YAW)];
+  // output[O_INDEX(UNCERTAINTY_POS_Y_YAW)] = next_state[S_INDEX(UNCERTAINTY_POS_Y_YAW)];
+  // output[O_INDEX(UNCERTAINTY_POS_X)] = next_state[S_INDEX(UNCERTAINTY_POS_X)];
+  // output[O_INDEX(UNCERTAINTY_POS_X_Y)] = next_state[S_INDEX(UNCERTAINTY_POS_X_Y)];
+  // output[O_INDEX(UNCERTAINTY_POS_Y)] = next_state[S_INDEX(UNCERTAINTY_POS_Y)];
+
+  int step, pi;
+  mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
+  for (int i = pi; i < this->OUTPUT_DIM; i += step)
+  {
+    switch (i)
+    {
+      case O_INDEX(BASELINK_VEL_B_X):
+        output[i] = next_state[S_INDEX(VEL_X)];
+        break;
+      case O_INDEX(BASELINK_VEL_B_Y):
+        output[i] = 0.0f;
+        break;
+      // case O_INDEX(BASELINK_VEL_B_Z):
+      //   output[i] = 0.0f;
+      //   break;
+      case O_INDEX(BASELINK_POS_I_X):
+        output[i] = next_state[S_INDEX(POS_X)];
+        break;
+      case O_INDEX(BASELINK_POS_I_Y):
+        output[i] = next_state[S_INDEX(POS_Y)];
+        break;
+      case O_INDEX(PITCH):
+        output[i] = next_state[S_INDEX(PITCH)];
+        break;
+      case O_INDEX(ROLL):
+        output[i] = next_state[S_INDEX(ROLL)];
+        break;
+      case O_INDEX(YAW):
+        output[i] = next_state[S_INDEX(YAW)];
+        break;
+      case O_INDEX(STEER_ANGLE):
+        output[i] = next_state[S_INDEX(STEER_ANGLE)];
+        break;
+      case O_INDEX(STEER_ANGLE_RATE):
+        output[i] = next_state[S_INDEX(STEER_ANGLE_RATE)];
+        break;
+      case O_INDEX(WHEEL_FORCE_B_FL):
+        output[i] = 10000.0f;
+        break;
+      case O_INDEX(WHEEL_FORCE_B_FR):
+        output[i] = 10000.0f;
+        break;
+      case O_INDEX(WHEEL_FORCE_B_RL):
+        output[i] = 10000.0f;
+        break;
+      case O_INDEX(WHEEL_FORCE_B_RR):
+        output[i] = 10000.0f;
+        break;
+      case O_INDEX(ACCEL_X):
+        output[i] = state_der[S_INDEX(VEL_X)];
+        break;
+      case O_INDEX(ACCEL_Y):
+        output[i] = 0.0f;
+        break;
+      case O_INDEX(OMEGA_Z):
+        output[i] = state_der[S_INDEX(YAW)];
+        break;
+      case O_INDEX(UNCERTAINTY_VEL_X):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_VEL_X)];
+        break;
+      case O_INDEX(UNCERTAINTY_YAW_VEL_X):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_YAW_VEL_X)];
+        break;
+      case O_INDEX(UNCERTAINTY_POS_X_VEL_X):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_X_VEL_X)];
+        break;
+      case O_INDEX(UNCERTAINTY_POS_Y_VEL_X):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_Y_VEL_X)];
+        break;
+      case O_INDEX(UNCERTAINTY_YAW):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_YAW)];
+        break;
+      case O_INDEX(UNCERTAINTY_POS_X_YAW):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_X_YAW)];
+        break;
+      case O_INDEX(UNCERTAINTY_POS_Y_YAW):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_Y_YAW)];
+        break;
+      case O_INDEX(UNCERTAINTY_POS_X):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_X)];
+        break;
+      case O_INDEX(UNCERTAINTY_POS_X_Y):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_X_Y)];
+        break;
+      case O_INDEX(UNCERTAINTY_POS_Y):
+        output[i] = next_state[S_INDEX(UNCERTAINTY_POS_Y)];
+        break;
+      case O_INDEX(TOTAL_VELOCITY):
+        output[i] = fabsf(next_state[S_INDEX(VEL_X)]);
+        break;
+    }
+  }
 }
 
 template <class CLASS_T, class PARAMS_T>
