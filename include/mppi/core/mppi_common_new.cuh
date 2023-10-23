@@ -90,6 +90,30 @@ void launchWeightedReductionKernel(const float* __restrict__ exp_costs_d, const 
                                    const int num_rollouts, const int sum_stride, cudaStream_t stream,
                                    bool synchronize = true);
 
+/**
+ * Shared Memory Calculators for various kernels
+ */
+template <class DYN_T, class SAMPLER_T>
+unsigned calcRolloutDynamicsKernelSharedMemSize(const DYN_T* dynamics, const SAMPLER_T* sampler, dim3& threadBlockDim);
+
+template <class COST_T, class SAMPLER_T>
+unsigned calcRolloutCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler, dim3& threadBlockDim);
+
+template <class DYN_T, class COST_T, class SAMPLER_T>
+unsigned calcRolloutCombinedKernelSharedMemSize(const DYN_T* dynamics, const COST_T* cost, const SAMPLER_T* sampler,
+                                                dim3& threadBlockDim);
+
+template <class COST_T, class SAMPLER_T>
+unsigned calcVisCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler, dim3& threadBlockDim);
+
+template <class DYN_T>
+__host__ __device__ inline unsigned calcDynamicsSharedMemSize(const DYN_T* dynamics, const dim3& threadBlockDim);
+
+template <class SAMPLER_T>
+__host__ __device__ inline unsigned calcSamplerSharedMemSize(const SAMPLER_T* sampler, const dim3& threadBlockDim);
+
+template <class COST_T>
+__host__ __device__ inline unsigned calcCostSharedMemSize(const COST_T* cost, const dim3& threadBlockDim);
 }  // namespace kernels
 }  // namespace mppi
 

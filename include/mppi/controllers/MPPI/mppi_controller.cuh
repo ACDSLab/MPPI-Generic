@@ -66,6 +66,8 @@ public:
 
   void calculateSampledStateTrajectories() override;
 
+  void chooseAppropriateKernel() override;
+
 protected:
   void computeStateTrajectory(const Eigen::Ref<const state_array>& x0);
 

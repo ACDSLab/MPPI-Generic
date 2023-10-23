@@ -104,6 +104,8 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
   controller_params.slide_control_scale_[0] = 1.0;
   controller->setParams(controller_params);
 
+  controller->chooseAppropriateKernel();
+
   DYN_T::state_array current_state = DYN_T::state_array::Zero();
   int time_horizon = 1000;
 

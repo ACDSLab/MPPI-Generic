@@ -36,6 +36,12 @@ struct MPPIFreeEnergyStatistics
   freeEnergyEstimate real_sys;
 };
 
+enum class kernelType : int
+{
+  USE_SINGLE_KERNEL = 0,  // combine dynamics and cost calls into a single kernel
+  USE_SPLIT_KERNELS,      // separate kernels for dynamics and cost calls
+};
+
 template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
 struct ControllerParams
 {
@@ -43,8 +49,8 @@ struct ControllerParams
   static const int TEMPLATED_CONTROL_DIM = C_DIM;
   static const int TEMPLATED_MAX_TIMESTEPS = MAX_TIMESTEPS;
   float dt_;
-  float lambda_ = 1.0;       // Value of the temperature in the softmax.
-  float alpha_ = 0.0;  //
+  float lambda_ = 1.0;  // Value of the temperature in the softmax.
+  float alpha_ = 0.0;   //
   // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
   // does not reallocate cuda memory
   int num_timesteps_ = MAX_TIMESTEPS;
@@ -273,6 +279,11 @@ public:
   virtual std::vector<float> getTopTransformedCosts() const
   {
     return top_n_costs_;
+  }
+
+  virtual void chooseAppropriateKernel()
+  {
+    use_kernel_ = kernelType::USE_SPLIT_KERNELS;
   }
 
   /**
@@ -829,6 +840,37 @@ public:
   {
     debug_ = debug;
   }
+
+  int getKernelChoiceAsInt() const
+  {
+    return static_cast<int>(use_kernel_);
+  }
+
+  kernelType getKernelChoiceAsEnum() const
+  {
+    return use_kernel_;
+  }
+
+  int getNumKernelEvaluations() const
+  {
+    return this->num_kernel_evaluations_;
+  }
+
+  void setKernelChoice(const int& kernel_type)
+  {
+    use_kernel_ = static_cast<kernelType>(kernel_type);
+  }
+
+  void setKernelChoice(const kernelType& kernel_type)
+  {
+    use_kernel_ = kernel_type;
+  }
+
+  void setNumKernelEvaluations(const int& num_kernel_evaluations)
+  {
+    num_kernel_evaluations_ = num_kernel_evaluations;
+  }
+
   void setCUDAStream(cudaStream_t stream);
 
 protected:
@@ -839,6 +881,8 @@ protected:
 
   // TODO get raw pointers for different things
   bool debug_ = false;
+  int num_kernel_evaluations_ = 5;  // number of kernel calls to do to determine which kernel to use
+  kernelType use_kernel_ = kernelType::USE_SPLIT_KERNELS;  // default is to use the split kernels
 
   // Free energy variables
   MPPIFreeEnergyStatistics free_energy_statistics_;
