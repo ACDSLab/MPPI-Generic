@@ -16,6 +16,7 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w")
 
 option(BUILD_TESTS "BUILD_TESTS" ON)
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
+option(MPPI_USE_CUDA_BARRIERS "Compile MPPI-Generic with cuda barrier support" ON)
 # set(BUILD_TESTS OFF)
 # set(BUILD_EXAMPLES OFF)
 # add_subdirectory(submodules/cnpy)
@@ -49,6 +50,13 @@ target_link_libraries(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
   cnpy
   Eigen3::Eigen
 )
+
+# Allow the ability to turn off cuda barriers through CMake. Necessary for GPUs older than
+# the 20 series
+if (MPPI_USE_CUDA_BARRIERS)
+  target_compile_definitions(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
+    CMAKE_USE_CUDA_BARRIERS)
+endif()
 
 if (BUILD_TESTS OR BUILD_EXAMPLES)
     # find yaml-cpp

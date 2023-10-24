@@ -4,7 +4,7 @@
 namespace mp1 = mppi::p1;
 
 // CUDA barriers were first implemented in Cuda 11
-#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
+#if defined(CMAKE_USE_CUDA_BARRIERS) && defined(CUDART_VERSION) && CUDART_VERSION > 11000
 #include <cuda/barrier>
 using barrier = cuda::barrier<cuda::thread_scope_block>;
 
