@@ -75,6 +75,16 @@ void VanillaMPPI::chooseAppropriateKernel()
         " bytes. Considering lowering the corresponding thread block sizes.";
     throw std::runtime_error(error_msg);
   }
+  else if (too_much_mem_single_kernel)
+  {
+    this->setKernelChoice(kernelType::USE_SPLIT_KERNELS);
+    return;
+  }
+  else if (too_much_mem_split_kernel)
+  {
+    this->setKernelChoice(kernelType::USE_SINGLE_KERNEL);
+    return;
+  }
 
   // Send the nominal control to the device
   this->copyNominalControlToDevice(false);
@@ -95,13 +105,13 @@ void VanillaMPPI::chooseAppropriateKernel()
     mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
         this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
         this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
-        this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, true);
+        this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, true);
   }
   auto end_single_kernel_time = std::chrono::steady_clock::now();
   auto start_split_kernel_time = std::chrono::steady_clock::now();
   for (int i = 0; i < this->getNumKernelEvaluations() && !too_much_mem_split_kernel; i++)
   {
-    mppi::kernels::launchFastRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
+    mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
         this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
         this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
         this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
@@ -110,13 +120,19 @@ void VanillaMPPI::chooseAppropriateKernel()
   auto end_split_kernel_time = std::chrono::steady_clock::now();
 
   // calc times
-  single_kernel_time_ms = mppi::math::timeDiffms(end_single_kernel_time, start_single_kernel_time);
-  split_kernel_time_ms = mppi::math::timeDiffms(end_split_kernel_time, start_split_kernel_time);
+  if (!too_much_mem_single_kernel)
+  {
+    single_kernel_time_ms = mppi::math::timeDiffms(end_single_kernel_time, start_single_kernel_time);
+  }
+  if (!too_much_mem_split_kernel)
+  {
+    split_kernel_time_ms = mppi::math::timeDiffms(end_split_kernel_time, start_split_kernel_time);
+  }
   std::string kernel_choice = "";
   if (split_kernel_time_ms < single_kernel_time_ms)
   {
     this->setKernelChoice(kernelType::USE_SPLIT_KERNELS);
-    kernel_choice = "split";
+    kernel_choice = "split ";
   }
   else
   {
@@ -158,7 +174,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     // Launch the rollout kernel
     if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
-      mppi::kernels::launchFastRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
+      mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
           this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
           this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
           this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
@@ -169,7 +185,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
       mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
           this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
           this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
-          this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, false);
+          this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, false);
     }
 
     // Copy the costs back to the host
@@ -209,27 +225,8 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 
     this->sampler_->updateDistributionParamsFromDevice(this->trajectory_costs_d_, this->getNormalizerCost(), 0, false);
 
-    /*
-    noise = this->getSampledNoise();
-    mean = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      mean += (noise[k]/noise.size());
-    }
-
-    std_dev = 0;
-    for(int k = 0; k < noise.size(); k++) {
-      std_dev += powf(noise[k] - mean, 2);
-    }
-    std_dev = sqrt(std_dev/noise.size());
-    printf("CPU 3 side N(%f, %f)\n", mean, std_dev);
-     */
-
     // Transfer the new control to the host
     this->sampler_->setHostOptimalControlSequence(this->control_.data(), 0, true);
-    // HANDLE_ERROR(cudaMemcpyAsync(this->control_.data(), this->control_d_,
-    //                              sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
-    //                              cudaMemcpyDeviceToHost, this->stream_));
-    // HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
   }
 
   this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerCost() / NUM_ROLLOUTS;
@@ -246,8 +243,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
   // Copy back sampled trajectories
   this->copySampledControlFromDevice(false);
   if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
-  {
-    // copy initial state to vis initial state for use with visualizeKernel
+  {  // copy initial state to vis initial state for use with visualizeKernel
     HANDLE_ERROR(cudaMemcpyAsync(this->vis_initial_state_d_, this->initial_state_d_, sizeof(float) * DYN_T::STATE_DIM,
                                  cudaMemcpyDeviceToDevice, this->vis_stream_));
   }

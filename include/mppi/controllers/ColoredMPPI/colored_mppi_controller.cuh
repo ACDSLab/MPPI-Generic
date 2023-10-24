@@ -16,10 +16,8 @@
 template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
 struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 {
-  std::vector<float> colored_noise_exponents_;
   float r = 2.0;
   float gamma = 0;
-  float offset_decay_rate = 0.97;
   Eigen::Matrix<float, S_DIM, 1> state_leash_dist_ = Eigen::Matrix<float, S_DIM, 1>::Zero();
 
   ColoredMPPIParams() = default;
@@ -28,7 +26,7 @@ struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
     typedef ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS> BASE;
     const BASE& other_item_ref = other;
     *(static_cast<BASE*>(this)) = other_item_ref;
-    this->colored_noise_exponents_ = other.colored_noise_exponents_;
+    // this->colored_noise_exponents_ = other.colored_noise_exponents_;
   }
 
   ColoredMPPIParams(ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)
@@ -36,7 +34,7 @@ struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
     typedef ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS> BASE;
     BASE& other_item_ref = other;
     *(static_cast<BASE*>(this)) = other_item_ref;
-    this->colored_noise_exponents_ = other.colored_noise_exponents_;
+    // this->colored_noise_exponents_ = other.colored_noise_exponents_;
   }
 };
 
@@ -181,6 +179,8 @@ public:
   }
 
   void calculateSampledStateTrajectories() override;
+
+  void chooseAppropriateKernel() override;
 
 protected:
   std::vector<float>& getColoredNoiseExponentsLValue()

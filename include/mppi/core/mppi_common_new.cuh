@@ -74,7 +74,7 @@ __device__ inline void costArrayReduction(float* running_cost, const int start_s
  * Launch Kernel Methods
  **/
 template <class DYN_T, class COST_T, typename SAMPLING_T>
-void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
+void launchSplitRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
                              SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
                              const int num_rollouts, float lambda, float alpha, float* __restrict__ init_x_d,
                              float* __restrict__ y_d, float* __restrict__ trajectory_costs, dim3 dimDynBlock,
@@ -83,7 +83,7 @@ void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ 
 template <class DYN_T, class COST_T, typename SAMPLING_T>
 void launchRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling,
                          float dt, const int num_timesteps, const int num_rollouts, float lambda, float alpha,
-                         float* __restrict__ init_x_d, float* __restrict__ y_d, float* __restrict__ trajectory_costs,
+                         float* __restrict__ init_x_d, float* __restrict__ trajectory_costs,
                          dim3 dimBlock, cudaStream_t stream, bool synchronize);
 
 template <class COST_T, class SAMPLING_T>

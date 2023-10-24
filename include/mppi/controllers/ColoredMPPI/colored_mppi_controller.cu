@@ -20,11 +20,10 @@ ColoredMPPI_TEMPLATE ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* co
 {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
-  // std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  // this->params_.colored_noise_exponents_ = std::move(tmp_vec);
 
   // Copy the noise std_dev to the device
   // this->copyControlStdDevToDevice();
+  chooseAppropriateKernel();
 }
 
 ColoredMPPI_TEMPLATE ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller,
@@ -33,14 +32,113 @@ ColoredMPPI_TEMPLATE ColoredMPPI::ColoredMPPIController(DYN_T* model, COST_T* co
 {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
-  // if (this->getColoredNoiseExponentsLValue().size() == 0)
-  // {
-  //   std::vector<float> tmp_vec(DYN_T::CONTROL_DIM, 0.0);
-  //   getColoredNoiseExponentsLValue() = std::move(tmp_vec);
-  // }
 
   // // Copy the noise std_dev to the device
   // this->copyControlStdDevToDevice();
+  chooseAppropriateKernel();
+}
+
+ColoredMPPI_TEMPLATE void ColoredMPPI::chooseAppropriateKernel()
+{
+  cudaDeviceProp deviceProp;
+  HANDLE_ERROR(cudaGetDeviceProperties(&deviceProp, 0));
+  unsigned single_kernel_byte_size = mppi::kernels::calcRolloutCombinedKernelSharedMemSize(
+      this->model_, this->cost_, this->sampler_, this->params_.dynamics_rollout_dim_);
+  unsigned split_dyn_kernel_byte_size = mppi::kernels::calcRolloutDynamicsKernelSharedMemSize(
+      this->model_, this->sampler_, this->params_.dynamics_rollout_dim_);
+  unsigned split_cost_kernel_byte_size =
+      mppi::kernels::calcRolloutCostKernelSharedMemSize(this->cost_, this->sampler_, this->params_.cost_rollout_dim_);
+  unsigned vis_single_kernel_byte_size = mppi::kernels::calcVisualizeKernelSharedMemSize(
+      this->model_, this->cost_, this->sampler_, this->getNumTimesteps(), this->params_.visualize_dim_);
+
+  bool too_much_mem_single_kernel = single_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  bool too_much_mem_vis_kernel = vis_single_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  bool too_much_mem_split_kernel = split_dyn_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  too_much_mem_split_kernel = too_much_mem_split_kernel || split_cost_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  too_much_mem_single_kernel = too_much_mem_single_kernel || too_much_mem_vis_kernel;
+
+  if (too_much_mem_split_kernel && too_much_mem_single_kernel)
+  {
+    std::string error_msg =
+        "There is not enough shared memory on the GPU for either rollout kernel option. The combined rollout kernel "
+        "takes " +
+        std::to_string(single_kernel_byte_size) + " bytes, the cost rollout kernel takes " +
+        std::to_string(split_cost_kernel_byte_size) + " bytes, the dynamics rollout kernel takes " +
+        std::to_string(split_dyn_kernel_byte_size) + " bytes, the combined visualization kernel takes " +
+        std::to_string(vis_single_kernel_byte_size) + " bytes, and the max is " +
+        std::to_string(deviceProp.sharedMemPerBlock) +
+        " bytes. Considering lowering the corresponding thread block sizes.";
+    throw std::runtime_error(error_msg);
+  }
+  else if (too_much_mem_single_kernel)
+  {
+    this->setKernelChoice(kernelType::USE_SPLIT_KERNELS);
+    return;
+  }
+  else if (too_much_mem_split_kernel)
+  {
+    this->setKernelChoice(kernelType::USE_SINGLE_KERNEL);
+    return;
+  }
+
+  // Send the nominal control to the device
+  this->copyNominalControlToDevice(false);
+  state_array zero_state = state_array::Zero();
+  // Send zero state to the device
+  HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, zero_state.data(), DYN_T::STATE_DIM * sizeof(float),
+                               cudaMemcpyHostToDevice, this->stream_));
+  // Generate noise data
+  this->sampler_->generateSamples(1, 0, this->gen_, true);
+
+  float single_kernel_time_ms = std::numeric_limits<float>::infinity();
+  float split_kernel_time_ms = std::numeric_limits<float>::infinity();
+
+  // Evaluate each kernel that is applicable
+  auto start_single_kernel_time = std::chrono::steady_clock::now();
+  for (int i = 0; i < this->getNumKernelEvaluations() && !too_much_mem_single_kernel; i++)
+  {
+    mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
+        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+        this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
+        this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, true);
+  }
+  auto end_single_kernel_time = std::chrono::steady_clock::now();
+  auto start_split_kernel_time = std::chrono::steady_clock::now();
+  for (int i = 0; i < this->getNumKernelEvaluations() && !too_much_mem_split_kernel; i++)
+  {
+    mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
+        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+        this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
+        this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
+        this->params_.cost_rollout_dim_, this->stream_, true);
+  }
+  auto end_split_kernel_time = std::chrono::steady_clock::now();
+
+  // calc times
+  if (!too_much_mem_single_kernel)
+  {
+    single_kernel_time_ms = mppi::math::timeDiffms(end_single_kernel_time, start_single_kernel_time);
+  }
+  if (!too_much_mem_split_kernel)
+  {
+    split_kernel_time_ms = mppi::math::timeDiffms(end_split_kernel_time, start_split_kernel_time);
+  }
+  std::string kernel_choice = "";
+  if (split_kernel_time_ms < single_kernel_time_ms)
+  {
+    this->setKernelChoice(kernelType::USE_SPLIT_KERNELS);
+    kernel_choice = "split ";
+  }
+  else
+  {
+    this->setKernelChoice(kernelType::USE_SINGLE_KERNEL);
+    kernel_choice = "single";
+  }
+  // if (this->debug_)
+  // {
+  printf("Choosing %s kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
+         kernel_choice.c_str(), split_kernel_time_ms, single_kernel_time_ms, this->getNumKernelEvaluations());
+  // }
 }
 
 ColoredMPPI_TEMPLATE ColoredMPPI::~ColoredMPPIController()
@@ -59,52 +157,34 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::computeControl(const Eigen::Ref<const sta
     this->model_->enforceLeash(state, this->state_.col(leash_jump_), this->params_.state_leash_dist_, local_state);
   }
 
-  // for testing convergence from scratch at every iteration
-  // for (int i = optimization_stride + 1; i < MAX_TIMESTEPS; i++)
-  // {
-  //   this->control_.col(i) = this->control_.col(optimization_stride);
-  // }
-
   // Send the initial condition to the device
   HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, local_state.data(), DYN_T::STATE_DIM * sizeof(float),
                                cudaMemcpyHostToDevice, this->stream_));
 
   float baseline_prev = 1e8;
-  // control_array noise0 = this->getControlStdDev();
   for (int opt_iter = 0; opt_iter < this->getNumIters(); opt_iter++)
   {
     // Send the nominal control to the device
     this->copyNominalControlToDevice(false);
 
     // Generate noise data
-    // const int colored_num_timesteps = (this->getNumTimesteps() > optimization_stride) ?
-    //                                       this->getNumTimesteps() - optimization_stride :
-    //                                       this->getNumTimesteps();
-    // const int colored_stride = (this->getNumTimesteps() > optimization_stride) ? optimization_stride : 0;
-    // if (colored_stride == 0)
-    // {
-    //   std::cout << "We tripped the fail-safe by having optimization stride greater than timestamps: "
-    //             << optimization_stride << std::endl;
-    // }
-    // HANDLE_ERROR(cudaMemcpyAsync(this->control_d_, this->control_.data(),
-    //                              sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
-    //                              cudaMemcpyHostToDevice, this->stream_));
-    // powerlaw_psd_gaussian(getColoredNoiseExponentsLValue(), this->getNumTimesteps(), NUM_ROLLOUTS,
-    //                       this->control_noise_d_, optimization_stride, this->gen_, this->getOffsetDecayRate(),
-    //                       this->stream_);
-    // // scale noise down at each iteration
-    // this->updateControlNoiseStdDev(noise0 * powf(control_std_dev_decay_, opt_iter));
     this->sampler_->generateSamples(optimization_stride, opt_iter, this->gen_, false);
     // Launch the rollout kernel
-    // mppi_common::launchFastRolloutKernel<DYN_T, COST_T, NUM_ROLLOUTS, BDIM_X, BDIM_Y, 1, COST_B_X, COST_B_Y>(
-    //     this->model_->model_d_, this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), optimization_stride,
-    //     this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->control_d_,
-    //     this->control_noise_d_, this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
-    mppi::kernels::launchFastRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-        this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
-        this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
-        this->params_.cost_rollout_dim_, this->stream_, false);
+    if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
+    {
+      mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
+          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+          this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
+          this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
+          this->params_.cost_rollout_dim_, this->stream_, false);
+    }
+    else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
+    {
+      mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
+          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+          this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
+          this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, false);
+    }
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
@@ -150,19 +230,10 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::computeControl(const Eigen::Ref<const sta
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     this->sampler_->updateDistributionParamsFromDevice(this->trajectory_costs_d_, this->getNormalizerCost(), 0, false);
-    // mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
-    //     this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->getNormalizerCost(),
-    //     this->getNumTimesteps(), this->stream_, false);
 
     // Transfer the new control to the host
     this->sampler_->setHostOptimalControlSequence(this->control_.data(), 0, true);
-    // HANDLE_ERROR(cudaMemcpyAsync(this->control_.data(), this->control_d_,
-    //                              sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
-    //                              cudaMemcpyDeviceToHost, this->stream_));
-    // HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
   }
-  // reset noise
-  // this->updateControlNoiseStdDev(noise0);
 
   this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerCost() / NUM_ROLLOUTS;
   this->free_energy_statistics_.real_sys.increase =
@@ -179,6 +250,11 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::computeControl(const Eigen::Ref<const sta
 
   // Copy back sampled trajectories
   this->copySampledControlFromDevice(false);
+  if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
+  {  // copy initial state to vis initial state for use with visualizeKernel
+    HANDLE_ERROR(cudaMemcpyAsync(this->vis_initial_state_d_, this->initial_state_d_, sizeof(float) * DYN_T::STATE_DIM,
+                                 cudaMemcpyDeviceToDevice, this->vis_stream_));
+  }
   this->copyTopControlFromDevice(true);
 }
 
@@ -211,17 +287,33 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::calculateSampledStateTrajectories()
 {
   int num_sampled_trajectories = this->getTotalSampledTrajectories();
   // controls already copied in compute control
-#if true
-  mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
-      this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
-      num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
-      this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->vis_stream_, false);
-#else
-  mppi_common::launchVisualizeCostKernel<COST_T, 128, COST_B_Y, 1>(
-      this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(),
-      this->getAlpha(), this->sampled_outputs_d_, this->sampled_noise_d_, this->sampled_crash_status_d_,
-      this->control_std_dev_d_, this->sampled_costs_d_, this->vis_stream_, false);
-#endif
+  if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
+  {
+    mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
+        this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
+        num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
+        this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->stream_, false);
+  }
+  else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
+  {
+    mppi::kernels::launchVisualizeKernel<DYN_T, COST_T, SAMPLING_T>(
+        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+        this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(), this->getAlpha(),
+        this->vis_initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+        this->params_.visualize_dim_, this->stream_, false);
+  }
+  // #if true
+  //   mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
+  //       this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
+  //       num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
+  //       this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->vis_stream_,
+  //       false);
+  // #else
+  //   mppi_common::launchVisualizeCostKernel<COST_T, 128, COST_B_Y, 1>(
+  //       this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(),
+  //       this->getAlpha(), this->sampled_outputs_d_, this->sampled_noise_d_, this->sampled_crash_status_d_,
+  //       this->control_std_dev_d_, this->sampled_costs_d_, this->vis_stream_, false);
+  // #endif
   for (int i = 0; i < num_sampled_trajectories; i++)
   {
     // set initial state to the first location

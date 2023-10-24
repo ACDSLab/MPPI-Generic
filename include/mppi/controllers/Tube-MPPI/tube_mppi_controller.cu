@@ -84,7 +84,7 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
     {
       this->params_.cost_rollout_dim_.z = 2;
     }
-    mppi::kernels::launchFastRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
+    mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
         this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
         this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
         this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,

@@ -13,7 +13,7 @@ using barrier = cuda::barrier<cuda::thread_scope_block>;
 // #define USE_CUDA_BARRIERS_ROLLOUT
 #endif
 
-#define USE_ARRAY_REDUCTION_METHOD
+// #define USE_COST_WITH_OFF_NUM_TIMESTEPS
 namespace mppi
 {
 namespace kernels
@@ -202,7 +202,11 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
 #endif
 
   /*<----Start of simulation loop-----> */
+#ifdef USE_COST_WITH_OFF_NUM_TIMESTEPS
+  const int max_time_iters = ceilf((float)(num_timesteps - 2) / blockDim.x);
+#else
   const int max_time_iters = ceilf((float)num_timesteps / blockDim.x);
+#endif
   costs->initializeCosts(y, u, theta_c, 0.0f, dt);
   sampling->initializeDistributions(y, 0.0f, dt, theta_d);
   __syncthreads();
@@ -254,6 +258,14 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
   const int last_y_index = (num_timesteps - 1) % blockDim.x;
   y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
+#ifdef USE_COST_WITH_OFF_NUM_TIMESTEPS
+  // load last output array
+  const int t = num_timesteps - 1;
+  mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_XY>(
+      y_shared, (blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM, y_d,
+      ((global_idx + num_rollouts * thread_idz) * num_timesteps + t) * COST_T::OUTPUT_DIM, COST_T::OUTPUT_DIM);
+  __syncthreads();
+#endif
   // Compute terminal cost and the final cost for each thread
   mppi_common::computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y,
                                   running_cost[0] / (num_timesteps - 1), theta_c, trajectory_costs_d);
@@ -544,12 +556,10 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   const int thread_idx = threadIdx.x;
   const int thread_idy = threadIdx.y;
   const int thread_idz = threadIdx.z;
-  // const int block_idx = blockIdx.x;
   const int global_idx = blockIdx.x;
   const int shared_idx = blockDim.x * thread_idz + thread_idx;
   const int distribution_idx = threadIdx.z;
-  // const int distribution_dim = blockDim.z;
-  // const int sample_dim = blockDim.x;
+
   const int size_of_theta_c_bytes =
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       blockDim.x * blockDim.z * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
@@ -730,7 +740,6 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
 {
   // Transfer to shared memory
   int i;
-  // float zero_state[STATE_DIM] = { 0 };
   if (global_idx < num_rollouts)
   {
 #if true
@@ -853,7 +862,6 @@ __device__ void costArrayReduction(float* running_cost, const int start_size, co
 {
   int prev_size = start_size;
   const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
-  // const int stop_condition = (block_power_of_2) && start_size >= 32 ? 32 : 0;
   const int stop_condition = (block_power_of_2) ? 32 : 0;
   int size;
   int j;
@@ -872,8 +880,6 @@ __device__ void costArrayReduction(float* running_cost, const int start_size, co
     __syncthreads();
     prev_size = size;
   }
-  // if (index < 32 && start_size >= 32)
-  // {  // unroll the last warp
   switch (size * 2)
   {
     case 64:
@@ -913,16 +919,15 @@ __device__ void costArrayReduction(float* running_cost, const int start_size, co
       }
       break;
   }
-  // }
   __syncthreads();
 }
 
 template <class DYN_T, class COST_T, typename SAMPLING_T>
-void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
-                             SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
-                             const int num_rollouts, float lambda, float alpha, float* __restrict__ init_x_d,
-                             float* __restrict__ y_d, float* __restrict__ trajectory_costs, dim3 dimDynBlock,
-                             dim3 dimCostBlock, cudaStream_t stream, bool synchronize)
+void launchSplitRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
+                              SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
+                              const int num_rollouts, float lambda, float alpha, float* __restrict__ init_x_d,
+                              float* __restrict__ y_d, float* __restrict__ trajectory_costs, dim3 dimDynBlock,
+                              dim3 dimCostBlock, cudaStream_t stream, bool synchronize)
 {
   if (num_rollouts % dimDynBlock.x != 0)
   {
@@ -961,8 +966,8 @@ void launchFastRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ 
 template <class DYN_T, class COST_T, typename SAMPLING_T>
 void launchRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling,
                          float dt, const int num_timesteps, const int num_rollouts, float lambda, float alpha,
-                         float* __restrict__ init_x_d, float* __restrict__ y_d, float* __restrict__ trajectory_costs,
-                         dim3 dimBlock, cudaStream_t stream, bool synchronize)
+                         float* __restrict__ init_x_d, float* __restrict__ trajectory_costs, dim3 dimBlock,
+                         cudaStream_t stream, bool synchronize)
 {
   if (num_rollouts % dimBlock.x != 0)
   {
