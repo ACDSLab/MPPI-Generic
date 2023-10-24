@@ -247,6 +247,7 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
   controller_params.cost_rollout_dim_ = dim3(32, 4, 1);
   controller->setParams(controller_params);
   controller->setDebug(true);
+  controller->chooseAppropriateKernel();
   DYN_T::state_array current_state = DYN_T::state_array::Zero();
   // current_state(6) = 1;  // set q_w to 1
   current_state(S_IND_CLASS(DYN_T::DYN_PARAMS_T, QUAT_W)) = 1;  // set q_w to 1

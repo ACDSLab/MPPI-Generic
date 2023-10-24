@@ -13,6 +13,7 @@ using barrier = cuda::barrier<cuda::thread_scope_block>;
 // #define USE_CUDA_BARRIERS_ROLLOUT
 #endif
 
+#define USE_ARRAY_REDUCTION_METHOD
 namespace mppi
 {
 namespace kernels
@@ -139,6 +140,9 @@ __global__ void rolloutKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restri
   // Add all costs together
   running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
   __syncthreads();
+#ifdef USE_ARRAY_REDUCTION_METHOD
+  costArrayReduction(running_cost, blockDim.y, thread_idy, blockDim.y, thread_idy == 0, blockDim.x);
+#else
   int prev_size = blockDim.y;
   // Allow for better computation when blockDim.x is a power of 2
   const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
@@ -191,6 +195,7 @@ __global__ void rolloutKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restri
     }
   }
   __syncthreads();
+#endif
   // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
   // const int last_y_index = (num_timesteps - 1) % blockDim.x;
   // y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
@@ -234,7 +239,6 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   // Initialize running cost and total cost
   float* running_cost;
   int sample_time_offset = 0;
-  int j = 0;
 
   // Load global array to shared array
   y = &y_shared[(blockDim.x * thread_idz + thread_idx) * COST_T::OUTPUT_DIM];
@@ -300,7 +304,10 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   // Add all costs together
   running_cost = &running_cost_shared[blockDim.x * blockDim.y * thread_idz];
   __syncthreads();
-#if true
+#ifdef USE_ARRAY_REDUCTION_METHOD
+  costArrayReduction(running_cost, blockDim.x * blockDim.y, thread_idx + blockDim.x * thread_idy,
+                     blockDim.x * blockDim.y, thread_idx == blockDim.x - 1 && thread_idy == 0);
+#else
   int prev_size = blockDim.x * blockDim.y;
   // Allow for better computation when blockDim.x is a power of 2
   const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
@@ -350,28 +357,7 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
         break;
     }
   }
-#else
-  int prev_size = BLOCKSIZE_X;
-#pragma unroll
-  for (int size = prev_size / 2; size > 0; size /= 2)
-  {
-    if (thread_idy == 0)
-    {
-      for (j = thread_idx; j < size; j += blockDim.x)
-      {
-        running_cost[j] += running_cost[j + size];
-      }
-    }
-    __syncthreads();
-    if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1 && thread_idy == 0)
-    {
-      running_cost[size - 1] += running_cost[prev_size - 1];
-    }
-    __syncthreads();
-    prev_size = size;
-  }
 #endif
-  __syncthreads();
   // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
   const int last_y_index = (num_timesteps - 1) % blockDim.x;
   y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
@@ -602,6 +588,9 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   // consolidate y threads into single cost
   running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
   __syncthreads();
+#ifdef USE_ARRAY_REDUCTION_METHOD
+  costArrayReduction(running_cost, blockDim.y, thread_idy, blockDim.y, thread_idy == blockDim.y - 1, blockDim.x);
+#else
   int prev_size = blockDim.y;
   int size;
   int j;
@@ -620,6 +609,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     prev_size = size;
   }
   __syncthreads();
+#endif
   // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
   const int last_y_index = (num_timesteps - 1) % blockDim.x;
   y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
@@ -818,6 +808,75 @@ __device__ void warpReduceAdd(volatile float* sdata, const int tid, const int st
   {
     sdata[tid * stride] += sdata[(tid + 1) * stride];
   }
+}
+
+__device__ void costArrayReduction(float* running_cost, const int start_size, const int index, const int step,
+                                   const bool catch_condition, const int stride)
+{
+  int prev_size = start_size;
+  const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
+  // const int stop_condition = (block_power_of_2) && start_size >= 32 ? 32 : 0;
+  const int stop_condition = (block_power_of_2) ? 32 : 0;
+  int size;
+  int j;
+
+  for (size = prev_size / 2; size > stop_condition; size /= 2)
+  {
+    for (j = index; j < size; j += step)
+    {
+      running_cost[j * stride] += running_cost[(j + size) * stride];
+    }
+    __syncthreads();
+    if (prev_size - 2 * size == 1 && catch_condition)
+    {
+      running_cost[(size - 1) * stride] += running_cost[(prev_size - 1) * stride];
+    }
+    __syncthreads();
+    prev_size = size;
+  }
+  // if (index < 32 && start_size >= 32)
+  // {  // unroll the last warp
+  switch (size * 2)
+  {
+    case 64:
+      if (index < 32)
+      {
+        warpReduceAdd<64>(running_cost, index, stride);
+      }
+      break;
+    case 32:
+      if (index < 16)
+      {
+        warpReduceAdd<32>(running_cost, index, stride);
+      }
+      break;
+    case 16:
+      if (index < 8)
+      {
+        warpReduceAdd<16>(running_cost, index, stride);
+      }
+      break;
+    case 8:
+      if (index < 4)
+      {
+        warpReduceAdd<8>(running_cost, index, stride);
+      }
+      break;
+    case 4:
+      if (index < 2)
+      {
+        warpReduceAdd<4>(running_cost, index, stride);
+      }
+      break;
+    case 2:
+      if (index < 1)
+      {
+        warpReduceAdd<2>(running_cost, index, stride);
+      }
+      break;
+  }
+  // }
+  __syncthreads();
 }
 
 template <class DYN_T, class COST_T, typename SAMPLING_T>

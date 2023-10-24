@@ -61,6 +61,9 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
 
 template <int BLOCKSIZE>
 __device__ void warpReduceAdd(volatile float* sdata, const int tid, const int stride = 1);
+
+__device__ inline void costArrayReduction(float* running_cost, const int start_size, const int index,
+                                          const int step, const bool catch_condition, const int stride = 1);
 /**
  * Launch Kernel Methods
  **/
