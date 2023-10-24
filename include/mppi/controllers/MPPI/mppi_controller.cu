@@ -50,19 +50,24 @@ void VanillaMPPI::chooseAppropriateKernel()
       this->model_, this->sampler_, this->params_.dynamics_rollout_dim_);
   unsigned split_cost_kernel_byte_size = mppi::kernels::calcRolloutCostKernelSharedMemSize(
       this->cost_, this->sampler_, this->params_.dynamics_rollout_dim_);
+  unsigned vis_single_kernel_byte_size = mppi::kernels::calcVisualizeKernelSharedMemSize(
+      this->model_, this->cost_, this->sampler_, this->getNumTimesteps(), this->params_.visualize_dim_);
 
   bool too_much_mem_single_kernel = single_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  bool too_much_mem_vis_kernel = vis_single_kernel_byte_size > deviceProp.sharedMemPerBlock;
   bool too_much_mem_split_kernel = split_dyn_kernel_byte_size > deviceProp.sharedMemPerBlock;
   too_much_mem_split_kernel = too_much_mem_split_kernel || split_cost_kernel_byte_size > deviceProp.sharedMemPerBlock;
 
-  if (too_much_mem_split_kernel && too_much_mem_single_kernel)
+  if (too_much_mem_split_kernel && (too_much_mem_single_kernel || too_much_mem_vis_kernel))
   {
     printf(
         "There is not enough shared memory on the GPU for either rollout kernel option. The combined rollout kernel "
-        "takes %d bytes, the cost rollout kernel takes %d bytes, the dynamics rollout kernel takes %d bytes, and the "
-        "max is %d bytes. Considering lowering the thread block sizes.\n",
-        single_kernel_byte_size, split_cost_kernel_byte_size, split_dyn_kernel_byte_size, deviceProp.sharedMemPerBlock);
-    exit(-1);
+        "takes %d bytes, the cost rollout kernel takes %d bytes, the dynamics rollout kernel takes %d bytes, the "
+        "combined visualization kernel takes %d bytes, and the "
+        "max is %d bytes. Considering lowering the corresponding thread block sizes.\n",
+        single_kernel_byte_size, split_cost_kernel_byte_size, split_dyn_kernel_byte_size, vis_single_kernel_byte_size,
+        deviceProp.sharedMemPerBlock);
+    exit(EXIT_FAILURE);
   }
 
   // Send the nominal control to the device
@@ -84,8 +89,7 @@ void VanillaMPPI::chooseAppropriateKernel()
     mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
         this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
         this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
-        this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
-        this->params_.cost_rollout_dim_, this->stream_, true);
+        this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, true);
   }
   auto end_single_kernel_time = std::chrono::steady_clock::now();
   auto start_split_kernel_time = std::chrono::steady_clock::now();
@@ -159,8 +163,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
       mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
           this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
           this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
-          this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
-          this->params_.cost_rollout_dim_, this->stream_, false);
+          this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, false);
     }
 
     // Copy the costs back to the host

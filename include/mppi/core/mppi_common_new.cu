@@ -140,62 +140,7 @@ __global__ void rolloutKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restri
   // Add all costs together
   running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
   __syncthreads();
-#ifdef USE_ARRAY_REDUCTION_METHOD
   costArrayReduction(running_cost, blockDim.y, thread_idy, blockDim.y, thread_idy == 0, blockDim.x);
-#else
-  int prev_size = blockDim.y;
-  // Allow for better computation when blockDim.x is a power of 2
-  const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
-  const int stop_condition = (block_power_of_2) && blockDim.y >= 32 ? 32 : 0;
-  int size = prev_size / 2;
-  const int xy_index = thread_idy;
-  const int xy_step = blockDim.y;
-  int j = 0;
-  const int stride = blockDim.x;
-
-  for (size = prev_size / 2; size > stop_condition; size /= 2)
-  {
-    for (j = xy_index; j < size; j += xy_step)
-    {
-      running_cost[j * stride] += running_cost[(j + size) * stride];
-    }
-    __syncthreads();
-    if (prev_size - 2 * size == 1 && thread_idy == 0)
-    {
-      running_cost[(size - 1) * stride] += running_cost[(prev_size - 1) * stride];
-    }
-    __syncthreads();
-    prev_size = size;
-  }
-  if (xy_index < 32 && blockDim.y >= 32)
-  {  // unroll the last warp
-    switch (size * 2)
-    {
-      case 64:
-        warpReduceAdd<64>(running_cost, xy_index, stride);
-        break;
-      case 32:
-        warpReduceAdd<32>(running_cost, xy_index, stride);
-        break;
-      case 16:
-        warpReduceAdd<16>(running_cost, xy_index, stride);
-        break;
-      case 8:
-        warpReduceAdd<8>(running_cost, xy_index, stride);
-        break;
-      case 4:
-        warpReduceAdd<4>(running_cost, xy_index, stride);
-        break;
-      case 2:
-        warpReduceAdd<2>(running_cost, xy_index, stride);
-        break;
-      case 1:
-        warpReduceAdd<1>(running_cost, xy_index, stride);
-        break;
-    }
-  }
-  __syncthreads();
-#endif
   // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
   // const int last_y_index = (num_timesteps - 1) % blockDim.x;
   // y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
@@ -304,60 +249,8 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   // Add all costs together
   running_cost = &running_cost_shared[blockDim.x * blockDim.y * thread_idz];
   __syncthreads();
-#ifdef USE_ARRAY_REDUCTION_METHOD
   costArrayReduction(running_cost, blockDim.x * blockDim.y, thread_idx + blockDim.x * thread_idy,
                      blockDim.x * blockDim.y, thread_idx == blockDim.x - 1 && thread_idy == 0);
-#else
-  int prev_size = blockDim.x * blockDim.y;
-  // Allow for better computation when blockDim.x is a power of 2
-  const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
-  const int stop_condition = (block_power_of_2) ? 32 : 0;
-  int size;
-  const int xy_index = thread_idx + blockDim.x * thread_idy;
-  const int xy_step = blockDim.x * blockDim.y;
-
-  for (size = prev_size / 2; size > stop_condition; size /= 2)
-  {
-    for (j = xy_index; j < size; j += xy_step)
-    {
-      running_cost[j] += running_cost[j + size];
-    }
-    __syncthreads();
-    if (prev_size - 2 * size == 1 && threadIdx.x == blockDim.x - 1 && thread_idy == 0)
-    {
-      running_cost[size - 1] += running_cost[prev_size - 1];
-    }
-    __syncthreads();
-    prev_size = size;
-  }
-  if (xy_index < 32)
-  {  // unroll the last warp
-    switch (size * 2)
-    {
-      case 64:
-        warpReduceAdd<64>(running_cost, xy_index);
-        break;
-      case 32:
-        warpReduceAdd<32>(running_cost, xy_index);
-        break;
-      case 16:
-        warpReduceAdd<16>(running_cost, xy_index);
-        break;
-      case 8:
-        warpReduceAdd<8>(running_cost, xy_index);
-        break;
-      case 4:
-        warpReduceAdd<4>(running_cost, xy_index);
-        break;
-      case 2:
-        warpReduceAdd<2>(running_cost, xy_index);
-        break;
-      case 1:
-        warpReduceAdd<1>(running_cost, xy_index);
-        break;
-    }
-  }
-#endif
   // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
   const int last_y_index = (num_timesteps - 1) % blockDim.x;
   y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
@@ -588,28 +481,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   // consolidate y threads into single cost
   running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
   __syncthreads();
-#ifdef USE_ARRAY_REDUCTION_METHOD
   costArrayReduction(running_cost, blockDim.y, thread_idy, blockDim.y, thread_idy == blockDim.y - 1, blockDim.x);
-#else
-  int prev_size = blockDim.y;
-  int size;
-  int j;
-  for (size = prev_size / 2; size > 0; size /= 2)
-  {
-    for (j = thread_idy; j < size; j += blockDim.y)
-    {
-      running_cost[j * blockDim.x] += running_cost[(j + size) * blockDim.x];
-    }
-    __syncthreads();
-    if (prev_size - 2 * size == 1 && threadIdx.y == blockDim.y - 1)
-    {
-      running_cost[(size - 1) * blockDim.x] += running_cost[(prev_size - 1) * blockDim.x];
-    }
-    __syncthreads();
-    prev_size = size;
-  }
-  __syncthreads();
-#endif
   // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
   const int last_y_index = (num_timesteps - 1) % blockDim.x;
   y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
@@ -924,36 +796,21 @@ template <class DYN_T, class COST_T, typename SAMPLING_T>
 void launchRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling,
                          float dt, const int num_timesteps, const int num_rollouts, float lambda, float alpha,
                          float* __restrict__ init_x_d, float* __restrict__ y_d, float* __restrict__ trajectory_costs,
-                         dim3 dimDynBlock, dim3 dimCostBlock, cudaStream_t stream, bool synchronize)
+                         dim3 dimBlock, cudaStream_t stream, bool synchronize)
 {
-  if (num_rollouts % dimDynBlock.x != 0)
+  if (num_rollouts % dimBlock.x != 0)
   {
     std::cerr << __FILE__ << " (" << __LINE__ << "): num_rollouts (" << num_rollouts
-              << ") must be evenly divided by dynamics block size x (" << dimDynBlock.x << ")" << std::endl;
+              << ") must be evenly divided by rollout thread block size x (" << dimBlock.x << ")" << std::endl;
     exit(EXIT_FAILURE);
   }
-  // Run Dynamics
-  const int gridsize_x = math::int_ceil(num_rollouts, dimDynBlock.x);
+
+  const int gridsize_x = math::int_ceil(num_rollouts, dimBlock.x);
   dim3 dimGrid(gridsize_x, 1, 1);
-  const int num_shared = dimDynBlock.x * dimDynBlock.z;
-  unsigned shared_mem_size =
-      sizeof(float) * (3 * math::nearest_multiple_4(num_shared * DYN_T::STATE_DIM) +
-                       math::nearest_multiple_4(num_shared * DYN_T::OUTPUT_DIM) +
-                       math::nearest_multiple_4(num_shared * DYN_T::CONTROL_DIM) +
-                       math::nearest_multiple_4(num_shared * dimDynBlock.y)) +
-      sizeof(int) * math::nearest_multiple_4(num_shared) +
-      math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      num_shared * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
-      math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      num_shared * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
-      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      num_shared * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
-#ifdef USE_CUDA_BARRIERS_ROLLOUT
-  shared_mem_size += math::int_multiple_const(num_shared * sizeof(barrier), 16);
-#endif
+  unsigned shared_mem_size = calcRolloutCombinedKernelSharedMemSize(dynamics, costs, sampling, dimBlock);
   HANDLE_ERROR(cudaFuncSetAttribute(rolloutKernel<DYN_T, COST_T, SAMPLING_T>,
                                     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem_size));
-  rolloutKernel<DYN_T, COST_T, SAMPLING_T><<<dimGrid, dimDynBlock, shared_mem_size, stream>>>(
+  rolloutKernel<DYN_T, COST_T, SAMPLING_T><<<dimGrid, dimBlock, shared_mem_size, stream>>>(
       dynamics, sampling, costs, dt, num_timesteps, num_rollouts, init_x_d, lambda, alpha, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
@@ -974,28 +831,9 @@ void launchVisualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restric
     std::cerr << "Not enough samples to visualize" << std::endl;
     return;
   }
-  // Run Costs
-  dim3 dimCostGrid(num_rollouts, 1, 1);
 
-  const int shared_num = dimBlock.x * dimBlock.z;
-  unsigned shared_mem_size =
-      sizeof(float) * (math::nearest_multiple_4(shared_num * COST_T::OUTPUT_DIM) +
-                       math::nearest_multiple_4(shared_num * COST_T::CONTROL_DIM) +
-                       math::nearest_multiple_4(dimBlock.z * num_timesteps * dimBlock.y)) +
-      sizeof(int) * math::nearest_multiple_4(dimBlock.z * num_timesteps) +
-      math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      shared_num * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
-      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      shared_num * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
-#ifdef USE_CUDA_BARRIERS_COST
-  shared_mem_size += math::int_multiple_const(shared_num * sizeof(barrier), 16);
-#endif
-  // unsigned shared_mem_size =
-  //     ((COST_BLOCK_X * BLOCKSIZE_Z) * (COST_T::OUTPUT_DIM + 2 * COST_T::CONTROL_DIM) + COST_T::CONTROL_DIM) *
-  //         sizeof(float) +
-  //     sizeof(float) * (num_timesteps * BLOCKSIZE_Z) + (COST_BLOCK_X * BLOCKSIZE_Z) * sizeof(int) +
-  //     COST_T::SHARED_MEM_REQUEST_GRD_BYTES + sizeof(float) +
-  //     COST_T::SHARED_MEM_REQUEST_BLK_BYTES * COST_BLOCK_X * BLOCKSIZE_Z;
+  dim3 dimCostGrid(num_rollouts, 1, 1);
+  unsigned shared_mem_size = calcVisCostKernelSharedMemSize(costs, sampling, num_timesteps, dimBlock);
   visualizeCostKernel<COST_T, SAMPLING_T><<<dimCostGrid, dimBlock, shared_mem_size, stream>>>(
       costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, y_d, cost_traj_result, sampled_crash_status_d);
   HANDLE_ERROR(cudaGetLastError());
@@ -1052,15 +890,15 @@ __device__ void setInitialControlToZero(int control_dim, int thread_idx, float* 
 }
 
 template <class DYN_T, class SAMPLER_T>
-unsigned calcRolloutDynamicsKernelSharedMemSize(const DYN_T* dynamics, const SAMPLER_T* sampler, dim3& threadBlockDim)
+unsigned calcRolloutDynamicsKernelSharedMemSize(const DYN_T* dynamics, const SAMPLER_T* sampler, dim3& dimBlock)
 {
-  const int dynamics_num_shared = threadBlockDim.x * threadBlockDim.z;
+  const int dynamics_num_shared = dimBlock.x * dimBlock.z;
   unsigned dynamics_shared_size =
       sizeof(float) * (3 * math::nearest_multiple_4(dynamics_num_shared * DYN_T::STATE_DIM) +
                        math::nearest_multiple_4(dynamics_num_shared * DYN_T::OUTPUT_DIM) +
                        math::nearest_multiple_4(dynamics_num_shared * DYN_T::CONTROL_DIM)) +
-      calcDynamicsSharedMemSize<DYN_T>(dynamics, threadBlockDim) +
-      calcSamplerSharedMemSize<SAMPLER_T>(sampler, threadBlockDim);
+      calcDynamicsSharedMemSize<DYN_T>(dynamics, dimBlock) +
+      calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
 #ifdef USE_CUDA_BARRIERS_DYN
   dynamics_shared_size += math::int_multiple_const(dynamics_num_shared * sizeof(barrier), 16);
 #endif
@@ -1068,15 +906,15 @@ unsigned calcRolloutDynamicsKernelSharedMemSize(const DYN_T* dynamics, const SAM
 }
 
 template <class COST_T, class SAMPLER_T>
-unsigned calcRolloutCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler, dim3& threadBlockDim)
+unsigned calcRolloutCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler, dim3& dimBlock)
 {
-  const int cost_num_shared = threadBlockDim.x * threadBlockDim.z;
+  const int cost_num_shared = dimBlock.x * dimBlock.z;
   unsigned cost_shared_size = sizeof(float) * (math::nearest_multiple_4(cost_num_shared * COST_T::OUTPUT_DIM) +
                                                math::nearest_multiple_4(cost_num_shared * COST_T::CONTROL_DIM) +
-                                               math::nearest_multiple_4(cost_num_shared * threadBlockDim.y)) +
+                                               math::nearest_multiple_4(cost_num_shared * dimBlock.y)) +
                               sizeof(int) * math::nearest_multiple_4(cost_num_shared) +
-                              calcCostSharedMemSize(cost, threadBlockDim) +
-                              calcSamplerSharedMemSize<SAMPLER_T>(sampler, threadBlockDim);
+                              calcCostSharedMemSize(cost, dimBlock) +
+                              calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
 #ifdef USE_CUDA_BARRIERS_COST
   cost_shared_size += math::int_multiple_const(cost_num_shared * sizeof(barrier), 16);
 #endif
@@ -1085,26 +923,61 @@ unsigned calcRolloutCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T*
 
 template <class DYN_T, class COST_T, class SAMPLER_T>
 unsigned calcRolloutCombinedKernelSharedMemSize(const DYN_T* dynamics, const COST_T* cost, const SAMPLER_T* sampler,
-                                                dim3& threadBlockDim)
+                                                dim3& dimBlock)
 {
-  const int num_shared = threadBlockDim.x * threadBlockDim.z;
+  const int num_shared = dimBlock.x * dimBlock.z;
   unsigned shared_mem_size =
       sizeof(float) * (3 * math::nearest_multiple_4(num_shared * DYN_T::STATE_DIM) +
                        math::nearest_multiple_4(num_shared * DYN_T::OUTPUT_DIM) +
                        math::nearest_multiple_4(num_shared * DYN_T::CONTROL_DIM) +
-                       math::nearest_multiple_4(num_shared * threadBlockDim.y)) +
-      sizeof(int) * math::nearest_multiple_4(num_shared) + calcDynamicsSharedMemSize(dynamics, threadBlockDim) +
-      calcCostSharedMemSize(cost, threadBlockDim) + calcSamplerSharedMemSize<SAMPLER_T>(sampler, threadBlockDim);
+                       math::nearest_multiple_4(num_shared * dimBlock.y)) +
+      sizeof(int) * math::nearest_multiple_4(num_shared) + calcDynamicsSharedMemSize(dynamics, dimBlock) +
+      calcCostSharedMemSize(cost, dimBlock) + calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
   shared_mem_size += math::int_multiple_const(num_shared * sizeof(barrier), 16);
 #endif
   return shared_mem_size;
 }
 
-template <class DYN_T>
-__host__ __device__ unsigned calcDynamicsSharedMemSize(const DYN_T* dynamics, const dim3& threadBlockDim)
+template <class DYN_T, class COST_T, class SAMPLER_T>
+unsigned calcVisualizeKernelSharedMemSize(const DYN_T* dynamics, const COST_T* cost, const SAMPLER_T* sampler,
+                                          const int& num_timesteps, dim3& dimBlock)
 {
-  const int dynamics_num_shared = threadBlockDim.x * threadBlockDim.z;
+  const int num_shared = dimBlock.x * dimBlock.z;
+  unsigned shared_mem_size =
+      sizeof(float) * (3 * math::nearest_multiple_4(num_shared * DYN_T::STATE_DIM) +
+                       math::nearest_multiple_4(num_shared * DYN_T::OUTPUT_DIM) +
+                       math::nearest_multiple_4(num_shared * DYN_T::CONTROL_DIM) +
+                       math::nearest_multiple_4(num_timesteps * dimBlock.y * dimBlock.z)) +
+      sizeof(int) * math::nearest_multiple_4(num_shared) + calcDynamicsSharedMemSize(dynamics, dimBlock) +
+      calcCostSharedMemSize(cost, dimBlock) + calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
+#ifdef USE_CUDA_BARRIERS_ROLLOUT
+  shared_mem_size += math::int_multiple_const(num_shared * sizeof(barrier), 16);
+#endif
+  return shared_mem_size;
+}
+
+template <class COST_T, class SAMPLER_T>
+unsigned calcVisCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler,
+                                        const int& num_timesteps, dim3& dimBlock)
+{
+  const int shared_num = dimBlock.x * dimBlock.z;
+  unsigned shared_mem_size =
+      sizeof(float) * (math::nearest_multiple_4(shared_num * COST_T::OUTPUT_DIM) +
+                       math::nearest_multiple_4(shared_num * COST_T::CONTROL_DIM) +
+                       math::nearest_multiple_4(dimBlock.z * num_timesteps * dimBlock.y)) +
+      sizeof(int) * math::nearest_multiple_4(dimBlock.z * num_timesteps) +
+      calcCostSharedMemSize(cost, dimBlock) + calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
+#ifdef USE_CUDA_BARRIERS_COST
+  shared_mem_size += math::int_multiple_const(shared_num * sizeof(barrier), 16);
+#endif
+  return shared_mem_size;
+}
+
+template <class DYN_T>
+__host__ __device__ unsigned calcDynamicsSharedMemSize(const DYN_T* dynamics, const dim3& dimBlock)
+{
+  const int dynamics_num_shared = dimBlock.x * dimBlock.z;
   unsigned dynamics_shared_size =
       math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       dynamics_num_shared * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
@@ -1112,9 +985,9 @@ __host__ __device__ unsigned calcDynamicsSharedMemSize(const DYN_T* dynamics, co
 }
 
 template <class SAMPLER_T>
-__host__ __device__ unsigned calcSamplerSharedMemSize(const SAMPLER_T* sampler, const dim3& threadBlockDim)
+__host__ __device__ unsigned calcSamplerSharedMemSize(const SAMPLER_T* sampler, const dim3& dimBlock)
 {
-  const int sampler_num_shared = threadBlockDim.x * threadBlockDim.z;
+  const int sampler_num_shared = dimBlock.x * dimBlock.z;
   unsigned sampler_shared_size =
       math::int_multiple_const(SAMPLER_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       sampler_num_shared * math::int_multiple_const(SAMPLER_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
@@ -1122,9 +995,9 @@ __host__ __device__ unsigned calcSamplerSharedMemSize(const SAMPLER_T* sampler, 
 }
 
 template <class COST_T>
-__host__ __device__ unsigned calcCostSharedMemSize(const COST_T* cost, const dim3& threadBlockDim)
+__host__ __device__ unsigned calcCostSharedMemSize(const COST_T* cost, const dim3& dimBlock)
 {
-  const int cost_num_shared = threadBlockDim.x * threadBlockDim.z;
+  const int cost_num_shared = dimBlock.x * dimBlock.z;
   unsigned cost_shared_size =
       math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
       cost_num_shared * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));

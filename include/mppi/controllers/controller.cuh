@@ -59,6 +59,7 @@ struct ControllerParams
 
   dim3 dynamics_rollout_dim_;
   dim3 cost_rollout_dim_;
+  dim3 visualize_dim_ = dim3(32, 1, 1);
   int norm_exp_kernel_parallelization_ = 64;
 
   Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS> init_control_traj_ = Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS>::Zero();

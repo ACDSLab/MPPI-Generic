@@ -62,8 +62,8 @@ __device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y
 template <int BLOCKSIZE>
 __device__ void warpReduceAdd(volatile float* sdata, const int tid, const int stride = 1);
 
-__device__ inline void costArrayReduction(float* running_cost, const int start_size, const int index,
-                                          const int step, const bool catch_condition, const int stride = 1);
+__device__ inline void costArrayReduction(float* running_cost, const int start_size, const int index, const int step,
+                                          const bool catch_condition, const int stride = 1);
 /**
  * Launch Kernel Methods
  **/
@@ -78,7 +78,7 @@ template <class DYN_T, class COST_T, typename SAMPLING_T>
 void launchRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling,
                          float dt, const int num_timesteps, const int num_rollouts, float lambda, float alpha,
                          float* __restrict__ init_x_d, float* __restrict__ y_d, float* __restrict__ trajectory_costs,
-                         dim3 dimDynBlock, dim3 dimCostBlock, cudaStream_t stream, bool synchronize = true);
+                         dim3 dimBlock, cudaStream_t stream, bool synchronize);
 
 template <class COST_T, class SAMPLING_T>
 void launchVisualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
@@ -97,26 +97,31 @@ void launchWeightedReductionKernel(const float* __restrict__ exp_costs_d, const 
  * Shared Memory Calculators for various kernels
  */
 template <class DYN_T, class SAMPLER_T>
-unsigned calcRolloutDynamicsKernelSharedMemSize(const DYN_T* dynamics, const SAMPLER_T* sampler, dim3& threadBlockDim);
+unsigned calcRolloutDynamicsKernelSharedMemSize(const DYN_T* dynamics, const SAMPLER_T* sampler, dim3& dimBlock);
 
 template <class COST_T, class SAMPLER_T>
-unsigned calcRolloutCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler, dim3& threadBlockDim);
+unsigned calcRolloutCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler, dim3& dimBlock);
 
 template <class DYN_T, class COST_T, class SAMPLER_T>
 unsigned calcRolloutCombinedKernelSharedMemSize(const DYN_T* dynamics, const COST_T* cost, const SAMPLER_T* sampler,
-                                                dim3& threadBlockDim);
+                                                dim3& dimBlock);
+
+template <class DYN_T, class COST_T, class SAMPLER_T>
+unsigned calcVisualizeKernelSharedMemSize(const DYN_T* dynamics, const COST_T* cost, const SAMPLER_T* sampler,
+                                          const int& num_timesteps, dim3& dimBlock);
 
 template <class COST_T, class SAMPLER_T>
-unsigned calcVisCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler, dim3& threadBlockDim);
+unsigned calcVisCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler, const int& num_timesteps,
+                                        dim3& dimBlock);
 
 template <class DYN_T>
-__host__ __device__ inline unsigned calcDynamicsSharedMemSize(const DYN_T* dynamics, const dim3& threadBlockDim);
+__host__ __device__ inline unsigned calcDynamicsSharedMemSize(const DYN_T* dynamics, const dim3& dimBlock);
 
 template <class SAMPLER_T>
-__host__ __device__ inline unsigned calcSamplerSharedMemSize(const SAMPLER_T* sampler, const dim3& threadBlockDim);
+__host__ __device__ inline unsigned calcSamplerSharedMemSize(const SAMPLER_T* sampler, const dim3& dimBlock);
 
 template <class COST_T>
-__host__ __device__ inline unsigned calcCostSharedMemSize(const COST_T* cost, const dim3& threadBlockDim);
+__host__ __device__ inline unsigned calcCostSharedMemSize(const COST_T* cost, const dim3& dimBlock);
 }  // namespace kernels
 }  // namespace mppi
 
