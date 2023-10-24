@@ -30,6 +30,12 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
                                       const int num_timesteps, const int num_rollouts,
                                       const float* __restrict__ init_x_d, float* __restrict__ y_d);
 
+template <class DYN_T, class COST_T, class SAMPLING_T>
+__global__ void visualizeKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restrict__ sampling,
+                                COST_T* __restrict__ costs, float dt, const int num_timesteps, const int num_rollouts,
+                                const float* __restrict__ init_x_d, float lambda, float alpha, float* __restrict__ y_d,
+                                float* __restrict__ cost_traj_d, int* __restrict__ crash_status_d);
+
 template <class COST_T, class SAMPLING_T, bool COALESCE = true>
 __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
                                     const int num_timesteps, const int num_rollouts, const float lambda, float alpha,
@@ -86,6 +92,13 @@ void launchVisualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restric
                                float* __restrict__ y_d, int* __restrict__ sampled_crash_status_d,
                                float* __restrict__ cost_traj_result, dim3 dimBlock, cudaStream_t stream,
                                bool synchronize = true);
+
+template <class DYN_T, class COST_T, typename SAMPLING_T>
+void launchVisualizeKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling,
+                           float dt, const int num_timesteps, const int num_rollouts, float lambda, float alpha,
+                           float* __restrict__ init_x_d, float* __restrict__ y_d, float* __restrict__ trajectory_costs,
+                           int* __restrict__ crash_status_d, dim3 dimVisBlock, cudaStream_t stream,
+                           bool synchronize = true);
 
 template <int CONTROL_DIM>
 void launchWeightedReductionKernel(const float* __restrict__ exp_costs_d, const float* __restrict__ du_d,

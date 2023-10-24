@@ -1,8 +1,11 @@
+#include <atomic>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
 #include <mppi/core/mppi_common_new.cuh>
 #include <mppi/core/mppi_common.cuh>
 #include <algorithm>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 #define VANILLA_MPPI_TEMPLATE                                                                                          \
   template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, class SAMPLING_T,              \
@@ -48,8 +51,8 @@ void VanillaMPPI::chooseAppropriateKernel()
       this->model_, this->cost_, this->sampler_, this->params_.dynamics_rollout_dim_);
   unsigned split_dyn_kernel_byte_size = mppi::kernels::calcRolloutDynamicsKernelSharedMemSize(
       this->model_, this->sampler_, this->params_.dynamics_rollout_dim_);
-  unsigned split_cost_kernel_byte_size = mppi::kernels::calcRolloutCostKernelSharedMemSize(
-      this->cost_, this->sampler_, this->params_.dynamics_rollout_dim_);
+  unsigned split_cost_kernel_byte_size =
+      mppi::kernels::calcRolloutCostKernelSharedMemSize(this->cost_, this->sampler_, this->params_.cost_rollout_dim_);
   unsigned vis_single_kernel_byte_size = mppi::kernels::calcVisualizeKernelSharedMemSize(
       this->model_, this->cost_, this->sampler_, this->getNumTimesteps(), this->params_.visualize_dim_);
 
@@ -57,17 +60,20 @@ void VanillaMPPI::chooseAppropriateKernel()
   bool too_much_mem_vis_kernel = vis_single_kernel_byte_size > deviceProp.sharedMemPerBlock;
   bool too_much_mem_split_kernel = split_dyn_kernel_byte_size > deviceProp.sharedMemPerBlock;
   too_much_mem_split_kernel = too_much_mem_split_kernel || split_cost_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  too_much_mem_single_kernel = too_much_mem_single_kernel || too_much_mem_vis_kernel;
 
-  if (too_much_mem_split_kernel && (too_much_mem_single_kernel || too_much_mem_vis_kernel))
+  if (too_much_mem_split_kernel && too_much_mem_single_kernel)
   {
-    printf(
+    std::string error_msg =
         "There is not enough shared memory on the GPU for either rollout kernel option. The combined rollout kernel "
-        "takes %d bytes, the cost rollout kernel takes %d bytes, the dynamics rollout kernel takes %d bytes, the "
-        "combined visualization kernel takes %d bytes, and the "
-        "max is %d bytes. Considering lowering the corresponding thread block sizes.\n",
-        single_kernel_byte_size, split_cost_kernel_byte_size, split_dyn_kernel_byte_size, vis_single_kernel_byte_size,
-        deviceProp.sharedMemPerBlock);
-    exit(EXIT_FAILURE);
+        "takes " +
+        std::to_string(single_kernel_byte_size) + " bytes, the cost rollout kernel takes " +
+        std::to_string(split_cost_kernel_byte_size) + " bytes, the dynamics rollout kernel takes " +
+        std::to_string(split_dyn_kernel_byte_size) + " bytes, the combined visualization kernel takes " +
+        std::to_string(vis_single_kernel_byte_size) + " bytes, and the max is " +
+        std::to_string(deviceProp.sharedMemPerBlock) +
+        " bytes. Considering lowering the corresponding thread block sizes.";
+    throw std::runtime_error(error_msg);
   }
 
   // Send the nominal control to the device
@@ -239,6 +245,12 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 
   // Copy back sampled trajectories
   this->copySampledControlFromDevice(false);
+  if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
+  {
+    // copy initial state to vis initial state for use with visualizeKernel
+    HANDLE_ERROR(cudaMemcpyAsync(this->vis_initial_state_d_, this->initial_state_d_, sizeof(float) * DYN_T::STATE_DIM,
+                                 cudaMemcpyDeviceToDevice, this->vis_stream_));
+  }
   this->copyTopControlFromDevice(true);
 }
 
@@ -277,22 +289,21 @@ void VanillaMPPI::calculateSampledStateTrajectories()
   int num_sampled_trajectories = this->getTotalSampledTrajectories();
 
   // control already copied in compute control, so run kernel
-  mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
-      this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
-      num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
-      this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->stream_, false);
-  // #if true
-  //   mppi_common::launchVisualizeCostKernel<COST_T, 128, 4, 1>(
-  //       this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(),
-  //       this->getAlpha(), this->sampled_outputs_d_, this->sampled_noise_d_, this->sampled_crash_status_d_,
-  //       this->control_std_dev_d_, this->sampled_costs_d_, this->vis_stream_, false);
-  // #else
-  //   mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y>(
-  //       this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(),
-  //       this->sampled_noise_d_, this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_,
-  //       this->sampled_crash_status_d_, num_sampled_trajectories, this->getNumTimesteps(), this->getDt(),
-  //       this->vis_stream_);
-  // #endif
+  if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
+  {
+    mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
+        this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
+        num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
+        this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->stream_, false);
+  }
+  else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
+  {
+    mppi::kernels::launchVisualizeKernel<DYN_T, COST_T, SAMPLING_T>(
+        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+        this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(), this->getAlpha(),
+        this->vis_initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+        this->params_.visualize_dim_, this->stream_, false);
+  }
 
   for (int i = 0; i < num_sampled_trajectories; i++)
   {

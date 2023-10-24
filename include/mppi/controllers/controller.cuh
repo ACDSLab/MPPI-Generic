@@ -897,7 +897,8 @@ protected:
 
   curandGenerator_t gen_;
   // float* control_std_dev_d_;  // Array of size DYN_T::CONTROL_DIM
-  float* initial_state_d_;  // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
+  float* initial_state_d_;      // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
+  float* vis_initial_state_d_;  // Array of sizae DYN_T::STATE_DIM * (2 if there is a nominal state)
 
   Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2> control_history_;
 
