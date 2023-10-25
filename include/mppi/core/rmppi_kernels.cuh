@@ -91,7 +91,8 @@ void launchRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
  * Device-only Kernel Helper Methods
  **/
 __device__ void multiCostArrayReduction(float* running_cost, float* running_cost_extra, const int start_size,
-                                        const int index, const int step, const bool catch_condition, const int stride);
+                                        const int index, const int step, const bool catch_condition,
+                                        const int stride = 1);
 
 /**
  * Shared Memory Calculators for various kernels

@@ -10,10 +10,10 @@ using barrier = cuda::barrier<cuda::thread_scope_block>;
 
 #define USE_CUDA_BARRIERS_DYN
 // #define USE_CUDA_BARRIERS_COST
-// #define USE_CUDA_BARRIERS_ROLLOUT
+#define USE_CUDA_BARRIERS_ROLLOUT
 #endif
 
-// #define USE_COST_WITH_OFF_NUM_TIMESTEPS
+#define USE_COST_WITH_OFF_NUM_TIMESTEPS
 namespace mppi
 {
 namespace kernels
@@ -79,7 +79,6 @@ __global__ void rolloutKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restri
 #endif
 
   // Load global array to shared array
-  // const int blocksize_y = blockDim.y;
   loadGlobalToShared<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>(num_rollouts, blockDim.y, global_idx, thread_idy, thread_idz,
                                                            init_x_d, x, xdot, u);
   __syncthreads();
@@ -101,7 +100,6 @@ __global__ void rolloutKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restri
 
     // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
     // usually just control clamping
-    // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     dynamics->enforceConstraints(x, u);
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
     bar->arrive_and_wait();
@@ -141,9 +139,6 @@ __global__ void rolloutKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restri
   running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
   __syncthreads();
   costArrayReduction(running_cost, blockDim.y, thread_idy, blockDim.y, thread_idy == 0, blockDim.x);
-  // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
-  // const int last_y_index = (num_timesteps - 1) % blockDim.x;
-  // y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
   // Compute terminal cost and the final cost for each thread
   mppi_common::computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y,
                                   running_cost[0] / (num_timesteps - 1), theta_c_shared, trajectory_costs_d);
@@ -190,7 +185,6 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   u = &u_shared[(blockDim.x * thread_idz + thread_idx) * COST_T::CONTROL_DIM];
   crash_status = &crash_status_shared[thread_idz * blockDim.x + thread_idx];
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
-  // running_cost = &running_cost_shared[thread_idz * blockDim.x + thread_idx];
   running_cost = &running_cost_shared[running_cost_index];
   running_cost[0] = 0.0f;
 #ifdef USE_CUDA_BARRIERS_COST
@@ -321,7 +315,6 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
 #endif
 
   // Load global array to shared array
-  // const int blocksize_y = blockDim.y;
   loadGlobalToShared<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>(num_rollouts, blockDim.y, global_idx, thread_idy, thread_idz,
                                                            init_x_d, x, xdot, u);
   __syncthreads();
@@ -332,20 +325,8 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
   __syncthreads();
   for (int t = 0; t < num_timesteps; t++)
   {
-    // __syncthreads();
     // Load noise trajectories scaled by the exploration factor
     sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d_shared, blockDim.y, thread_idy, y);
-    // du_d is now v
-    // __syncthreads();
-    // if (global_idx == 0 && t == 0 && threadIdx.y == 0)
-    // {
-    //   printf("Control before: ");
-    //   for (int i = 0; i < DYN_T::CONTROL_DIM; i++)
-    //   {
-    //     printf("%f, ", u[i]);
-    //   }
-    //   printf("\n");
-    // }
 #ifdef USE_CUDA_BARRIERS_DYN
     bar->arrive_and_wait();
 #else
@@ -354,7 +335,6 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
 
     // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
     // usually just control clamping
-    // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     dynamics->enforceConstraints(x, u);
 #ifdef USE_CUDA_BARRIERS_DYN
     bar->arrive_and_wait();
@@ -422,7 +402,6 @@ __global__ void visualizeKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __rest
 #endif
 
   // Create local state, state dot and controls
-  int running_cost_index = thread_idx + blockDim.x * (thread_idy + blockDim.y * thread_idz);
   float* x = &x_shared[shared_idx * DYN_T::STATE_DIM];
   float* x_next = &x_next_shared[shared_idx * DYN_T::STATE_DIM];
   float* x_temp;
@@ -442,7 +421,6 @@ __global__ void visualizeKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __rest
 #endif
 
   // Load global array to shared array
-  // const int blocksize_y = blockDim.y;
   loadGlobalToShared<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>(num_rollouts, blockDim.y, global_idx, thread_idy, thread_idz,
                                                            init_x_d, x, xdot, u);
   __syncthreads();
@@ -464,7 +442,6 @@ __global__ void visualizeKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __rest
 
     // applies constraints as defined in dynamics.cuh see specific dynamics class for what happens here
     // usually just control clamping
-    // calls enforceConstraints on both since one is used later on in kernel (u), du_d is what is sent back to the CPU
     dynamics->enforceConstraints(x, u);
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
     bar->arrive_and_wait();
@@ -500,7 +477,7 @@ __global__ void visualizeKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __rest
     mp1::loadArrayParallel<DYN_T::OUTPUT_DIM>(y_d, sample_time_offset * DYN_T::OUTPUT_DIM, y, 0);
   }
 
-  // Add all costs together
+  // Add all thread_y components of cost together
   running_cost = &running_cost_shared[thread_idx + blockDim.x * blockDim.y * thread_idz];
   __syncthreads();
   costArrayReduction(running_cost, blockDim.y, thread_idy, blockDim.y, thread_idy == blockDim.y - 1, blockDim.x);
@@ -560,12 +537,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   const int shared_idx = blockDim.x * thread_idz + thread_idx;
   const int distribution_idx = threadIdx.z;
 
-  const int size_of_theta_c_bytes =
-      math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      blockDim.x * blockDim.z * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
-  const int size_of_theta_d_bytes =
-      math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      blockDim.x * blockDim.z * math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  const int size_of_theta_c_bytes = calcCostSharedMemSize(costs, blockDim);
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -578,12 +550,12 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   float* theta_c = (float*)&crash_status_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
   float* theta_d = &theta_c[size_of_theta_c_bytes / sizeof(float)];
 #ifdef USE_CUDA_BARRIERS_COST
+  const int size_of_theta_d_bytes = calcSamplerSharedMemSize(sampling, blockDim);
   barrier* barrier_shared = (barrier*)&theta_d[size_of_theta_d_bytes / sizeof(float)];
 #endif
   // Create local state, state dot and controls
   float* y;
   float* u;
-  // float* du;
   int* crash_status;
 
   // Initialize running cost and total cost
@@ -594,7 +566,6 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   // Load global array to shared array
   y = &y_shared[shared_idx * COST_T::OUTPUT_DIM];
   u = &u_shared[shared_idx * COST_T::CONTROL_DIM];
-  // du = &du_shared[shared_idx * COST_T::CONTROL_DIM];
   crash_status = &crash_status_shared[shared_idx];
   crash_status[0] = 0;  // We have not crashed yet as of the first trajectory.
 #ifdef USE_CUDA_BARRIERS_COST
@@ -604,8 +575,6 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
     init(bar, blockDim.y);
   }
 #endif
-  // running_cost = &running_cost_shared[shared_idx];
-  // running_cost[0] = 0;
 
   /*<----Start of simulation loop-----> */
 #ifdef USE_COST_WITH_OFF_NUM_TIMESTEPS
@@ -678,8 +647,6 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   {
     cost_index = (threadIdx.z * num_rollouts + global_idx) * (num_timesteps + 1) + num_timesteps;
     cost_traj_d[cost_index] = costs->terminalCost(y, theta_c) / (num_timesteps - 1);
-    // running_cost = &running_cost_shared[thread_idz * blockDim.x + num_timesteps];
-    // running_cost[0] = costs->terminalCost(y, theta_c) / (num_timesteps - 1);
   }
   __syncthreads();
   // Copy to global memory
