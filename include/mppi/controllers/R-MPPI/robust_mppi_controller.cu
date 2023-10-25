@@ -342,12 +342,24 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
     //     0.0, 1.0));
 
     // Launch the init eval kernel
-    mppi::kernels::rmppi::launchFastInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-        this->getNumTimesteps(), getNumEvalSamplesPerCandidate() * getNumCandidates(), this->getLambda(),
-        this->getAlpha(), getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_,
-        importance_sampling_states_d_, importance_sampling_outputs_d_, importance_sampling_costs_d_,
-        dim3(getNumEvalSamplesPerCandidate(), 8, 1), dim3(this->getNumTimesteps(), 1, 1), this->stream_, false);
+    if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
+    {
+      mppi::kernels::rmppi::launchFastInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
+          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+          this->getNumTimesteps(), getNumEvalSamplesPerCandidate() * getNumCandidates(), this->getLambda(),
+          this->getAlpha(), getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_,
+          importance_sampling_states_d_, importance_sampling_outputs_d_, importance_sampling_costs_d_,
+          dim3(getNumEvalSamplesPerCandidate(), 8, 1), dim3(this->getNumTimesteps(), 1, 1), this->stream_, false);
+    }
+    else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
+    {
+      mppi::kernels::rmppi::launchInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
+          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+          this->getNumTimesteps(), getNumEvalSamplesPerCandidate() * getNumCandidates(), this->getLambda(),
+          this->getAlpha(), getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_,
+          importance_sampling_states_d_, importance_sampling_outputs_d_, importance_sampling_costs_d_,
+          dim3(getNumEvalSamplesPerCandidate(), 8, 1), dim3(this->getNumTimesteps(), 1, 1), this->stream_, false);
+    }
 
     HANDLE_ERROR(cudaMemcpyAsync(candidate_trajectory_costs_.data(), importance_sampling_costs_d_,
                                  sizeof(float) * getNumCandidates() * getNumEvalSamplesPerCandidate(),
@@ -420,12 +432,24 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
     //     this->getNumTimesteps(), optimization_stride, this->getLambda(), this->getAlpha(),
     //     getValueFunctionThreshold(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
     //     this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
-    mppi::kernels::rmppi::launchFastRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
-        this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
-        this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_, this->output_d_,
-        this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_,
-        false);
+    if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
+    {
+      mppi::kernels::rmppi::launchFastRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
+          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
+          this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_, this->output_d_,
+          this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_,
+          this->stream_, false);
+    }
+    else
+    {
+      mppi::kernels::rmppi::launchRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
+          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
+          this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_, this->output_d_,
+          this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_,
+          this->stream_, false);
+    }
 
     // Return the costs ->  nominal,  real costs
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), trajectory_costs_real_d, NUM_ROLLOUTS * sizeof(float),

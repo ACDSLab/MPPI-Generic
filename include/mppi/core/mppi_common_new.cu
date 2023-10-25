@@ -149,7 +149,7 @@ __global__ void rolloutKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restri
                                   running_cost[0] / (num_timesteps - 1), theta_c_shared, trajectory_costs_d);
 }
 
-template <class COST_T, class SAMPLING_T, int BLOCKSIZE_X, bool COALESCE>
+template <class COST_T, class SAMPLING_T, bool COALESCE>
 __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
                                   const int num_timesteps, const int num_rollouts, float lambda, float alpha,
                                   const float* __restrict__ y_d, float* __restrict__ trajectory_costs_d)
@@ -608,7 +608,11 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   // running_cost[0] = 0;
 
   /*<----Start of simulation loop-----> */
+#ifdef USE_COST_WITH_OFF_NUM_TIMESTEPS
+  const int max_time_iters = ceilf((float)(num_timesteps - 2) / blockDim.x);
+#else
   const int max_time_iters = ceilf((float)num_timesteps / blockDim.x);
+#endif
   costs->initializeCosts(y, u, theta_c, 0.0f, dt);
   sampling->initializeDistributions(y, 0.0f, dt, theta_d);
   __syncthreads();
@@ -661,6 +665,14 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   // point every thread to the last output at t = NUM_TIMESTEPS for terminal cost calculation
   const int last_y_index = (num_timesteps - 1) % blockDim.x;
   y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
+#ifdef USE_COST_WITH_OFF_NUM_TIMESTEPS
+  // load last output array
+  const int t = num_timesteps - 1;
+  mp1::loadArrayParallel<mp1::Parallel1Dir::THREAD_XY>(
+      y_shared, (blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM, y_d,
+      ((global_idx + num_rollouts * thread_idz) * num_timesteps + t) * COST_T::OUTPUT_DIM, COST_T::OUTPUT_DIM);
+  __syncthreads();
+#endif
   // Compute terminal cost for each thread
   if (threadIdx.x == 0 && threadIdx.y == 0)
   {
@@ -952,9 +964,8 @@ void launchSplitRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
   HANDLE_ERROR(cudaGetLastError());
   // Run Costs
   dim3 dimCostGrid(num_rollouts, 1, 1);
-  const int COST_BLOCK_X = 64;
   unsigned cost_shared_size = calcRolloutCostKernelSharedMemSize(costs, sampling, dimCostBlock);
-  rolloutCostKernel<COST_T, SAMPLING_T, COST_BLOCK_X><<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
+  rolloutCostKernel<COST_T, SAMPLING_T><<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
       costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, y_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)

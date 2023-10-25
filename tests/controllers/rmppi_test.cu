@@ -785,6 +785,7 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost)
   controller_params.cost_rollout_dim_ = dim3(num_timesteps, 1, 2);
   controller_params.eval_kernel_dim_.x = 64;
   controller.setParams(controller_params);
+  controller.setKernelChoice(kernelType::USE_SPLIT_KERNELS);
   int fail_count = 0;
 
   // Start the while loop
