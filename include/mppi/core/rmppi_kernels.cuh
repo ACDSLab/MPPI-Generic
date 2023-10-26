@@ -57,20 +57,20 @@ __global__ void rolloutRMPPIKernel(DYN_T* __restrict__ dynamics, COST_T* __restr
  * Launch Methods
  **/
 template <class DYN_T, class COST_T, typename SAMPLING_T>
-void launchFastInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
-                              SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
-                              const int num_rollouts, float lambda, float alpha, int samples_per_condition,
-                              int* __restrict__ strides_d, float* __restrict__ init_x_d, float* __restrict__ y_d,
-                              float* __restrict__ trajectory_costs, dim3 dimDynBlock, dim3 dimCostBlock,
-                              cudaStream_t stream, bool synchronize);
+void launchSplitInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
+                               SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
+                               const int num_rollouts, float lambda, float alpha, int samples_per_condition,
+                               int* __restrict__ strides_d, float* __restrict__ init_x_d, float* __restrict__ y_d,
+                               float* __restrict__ trajectory_costs, dim3 dimDynBlock, dim3 dimCostBlock,
+                               cudaStream_t stream, bool synchronize);
 
 template <class DYN_T, class COST_T, class SAMPLING_T, class FB_T, int NOMINAL_STATE_IDX = 0>
-void launchFastRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
-                                  SAMPLING_T* __restrict__ sampling, FB_T* __restrict__ fb_controller, float dt,
-                                  const int num_timesteps, const int num_rollouts, float lambda, float alpha,
-                                  float value_func_threshold, float* __restrict__ init_x_d, float* __restrict__ y_d,
-                                  float* __restrict__ trajectory_costs, dim3 dimDynBlock, dim3 dimCostBlock,
-                                  cudaStream_t stream, bool synchronize);
+void launchSplitRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
+                                   SAMPLING_T* __restrict__ sampling, FB_T* __restrict__ fb_controller, float dt,
+                                   const int num_timesteps, const int num_rollouts, float lambda, float alpha,
+                                   float value_func_threshold, float* __restrict__ init_x_d, float* __restrict__ y_d,
+                                   float* __restrict__ trajectory_costs, dim3 dimDynBlock, dim3 dimCostBlock,
+                                   cudaStream_t stream, bool synchronize);
 
 template <class DYN_T, class COST_T, typename SAMPLING_T>
 void launchInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling,

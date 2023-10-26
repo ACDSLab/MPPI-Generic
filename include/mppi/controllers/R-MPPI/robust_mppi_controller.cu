@@ -167,7 +167,7 @@ void RobustMPPI::chooseAppropriateKernel()
   auto start_rollout_split_kernel_time = std::chrono::steady_clock::now();
   for (int i = 0; i < this->getNumKernelEvaluations() && !rollout_set; i++)
   {
-    mppi::kernels::rmppi::launchFastRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
+    mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
         this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
         this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
         this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_, this->output_d_,
@@ -270,7 +270,7 @@ void RobustMPPI::chooseAppropriateEvalKernel()
   auto start_eval_split_kernel_time = std::chrono::steady_clock::now();
   for (int i = 0; i < this->getNumKernelEvaluations() && !eval_set; i++)
   {
-    mppi::kernels::rmppi::launchFastInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
+    mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
         this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
         this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
         getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
@@ -583,7 +583,7 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
     // Launch the init eval kernel
     if (this->getEvalKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
-      mppi::kernels::rmppi::launchFastInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
+      mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
           this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
           this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
           getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
@@ -654,7 +654,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
     // Launch the rollout kernel
     if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
-      mppi::kernels::rmppi::launchFastRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
+      mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
           this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
           this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
           this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_, this->output_d_,

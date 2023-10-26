@@ -104,6 +104,8 @@ public:
 
   void calculateSampledStateTrajectories() override;
 
+  void chooseAppropriateKernel();
+
 private:
   // float nominal_threshold_ = 20;  // How much worse the actual system has to be compared to the nominal
 

@@ -531,12 +531,9 @@ TEST_F(RMPPINominalStateSelection, DDPFeedbackGainInternalStorage)
   x << 2, 0, 0, 0;
   int stride = 1;
   test_controller->updateImportanceSamplingControl(x, stride);
-  std::cout << "Finished one update" << std::endl;
   test_controller->updateImportanceSamplingControl(x, stride);
-  std::cout << "Finished importance sampling update" << std::endl;
   auto fb_parm = test_controller->getFeedbackState();
   auto feedback_gain_eigen_aligned = test_controller->getFeedbackGainsEigen();
-  std::cout << "Got feedback gains: " << feedback_gain_eigen_aligned.size() << std::endl;
   for (size_t i = 0; i < feedback_gain_eigen_aligned.size(); i++)
   {
     int i_index = i * DYN::STATE_DIM * DYN::CONTROL_DIM;
