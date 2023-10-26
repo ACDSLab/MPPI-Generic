@@ -32,6 +32,9 @@ template <class CLASS_T, class PARAMS_T = ARRobustCostParams>
 class ARRobustCostImpl : public ARStandardCostImpl<CLASS_T, PARAMS_T>
 {
 public:
+  using PARENT_CLASS = ARStandardCostImpl<CLASS_T, PARAMS_T>;
+  using output_array = typename PARENT_CLASS::output_array;
+
   ARRobustCostImpl(cudaStream_t stream = 0);  // : ARStandardCost<PARAMS_T>(steam);
   ~ARRobustCostImpl();
 
@@ -40,9 +43,13 @@ public:
     return "AutoRally robust cost function";
   }
 
-  __host__ __device__ float getStabilizingCost(float* s);
-  __device__ float getCostmapCost(float* s);
-  __device__ float computeStateCost(float* s, int timestep, float* theta_c, int* crash_status);
+  __host__ __device__ float getStabilizingCost(const float* s);
+  __host__ __device__ float getCostmapCost(const float* s);
+  __host__ __device__ float computeStateCost(const float* s, int timestep, float* theta_c, int* crash_status);
+
+  float computeStateCost(const Eigen::Ref<const output_array> y, int timestep, int* crash_status);
+
+  using PARENT_CLASS::terminalCost;
 
 private:
 };

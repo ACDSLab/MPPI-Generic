@@ -40,12 +40,13 @@ struct ARStandardCostParams : public CostParams<2>
   }
 };
 
-template <class CLASS_T, class PARAMS_T = ARStandardCostParams,
-          class DYN_PARAMS_T = NNDynamicsParams>
+template <class CLASS_T, class PARAMS_T = ARStandardCostParams, class DYN_PARAMS_T = NNDynamicsParams>
 class ARStandardCostImpl : public Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>
 {
 public:
   //  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  using PARENT_CLASS = Cost<CLASS_T, PARAMS_T, DYN_PARAMS_T>;
+  using output_array = typename PARENT_CLASS::output_array;
   static constexpr float MAX_COST_VALUE = 1e16;
 
   /**
@@ -135,7 +136,7 @@ public:
   /**
    * Queries the texture using coorTransform beforehand
    */
-  __device__ float4 queryTextureTransformed(float x, float y);
+  __host__ __device__ float4 queryTextureTransformed(float x, float y);
 
   /**
    *@brief Initializes the debug window for a default 20x20 meter window.
@@ -197,7 +198,7 @@ public:
    * @brief Compute the current track cost based on the costmap.
    * Requires using CUDA texture memory so can only be run on the GPU
    */
-  __device__ float getTrackCost(float* s, int* crash);
+  __host__ __device__ float getTrackCost(float* s, int* crash);
 
   /**
    * @brief Compute all of the individual cost terms and adds them together.
@@ -208,6 +209,8 @@ public:
    * @brief Computes the terminal cost from a state
    */
   __device__ float terminalCost(float* s, float* theta_c);
+
+  float terminalCost(const Eigen::Ref<const output_array> y);
 
   // Constant variables
   const float FRONT_D = 0.5;  ///< Distance from GPS receiver to front of car.

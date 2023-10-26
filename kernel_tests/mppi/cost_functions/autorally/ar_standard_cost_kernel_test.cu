@@ -1,3 +1,5 @@
+#include <mppi/core/mppi_common_new.cuh>
+
 template <typename COST_T, typename PARAMS_T>
 __global__ void parameterTestKernel(const COST_T* cost, PARAMS_T& params, int& width, int& height)
 {
@@ -319,19 +321,15 @@ template <typename COST_T>
 __global__ void computeCostTestKernel(COST_T* cost, float* test_xu, float* cost_results, int* timestep, int* crash,
                                       int num_points)
 {
-  __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD_BYTES + COST_T::SHARED_MEM_REQUEST_BLK_BYTES * 1024];
+  // __shared__ float theta_c[COST_T::SHARED_MEM_REQUEST_GRD_BYTES + COST_T::SHARED_MEM_REQUEST_BLK_BYTES * 1024];
+  extern __shared__ float theta_c[];
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < num_points)
   {
     float* state = &test_xu[tid * 9];
     float* control = &test_xu[tid * 9 + 7];
-    float vars[2] = { 1, 1 };
-    float du[2] = { 0, 0 };
-    float lambda = 1.0;
-    float alpha = 0.0;
     cost->initializeCosts(state, control, theta_c, 0.0, 0.01);
-    cost_results[tid] =
-        cost->computeRunningCost(state, control, du, vars, lambda, alpha, timestep[tid], theta_c, crash + tid);
+    cost_results[tid] = cost->computeRunningCost(state, control, timestep[tid], theta_c, crash + tid);
   }
 }
 
@@ -358,8 +356,9 @@ void launchComputeCostTestKernel(const COST_T& cost, std::vector<std::array<floa
   // TODO amount should depend on the number of query points
   dim3 threadsPerBlock(num_test_points, 1);
   dim3 numBlocks(1, 1);
-  computeCostTestKernel<<<numBlocks, threadsPerBlock>>>(cost.cost_d_, test_xu_d, cost_results_d, timestep_d, crash_d,
-                                                        num_test_points);
+  unsigned shared_mem_size = mppi::kernels::calcCostSharedMemSize<COST_T>(&cost, threadsPerBlock);
+  computeCostTestKernel<<<numBlocks, threadsPerBlock, shared_mem_size>>>(cost.cost_d_, test_xu_d, cost_results_d,
+                                                                         timestep_d, crash_d, num_test_points);
   CudaCheckError();
   cudaDeviceSynchronize();
 

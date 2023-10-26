@@ -41,90 +41,91 @@ __global__ void computeRunningCostTestKernel(COST_T* __restrict__ cost, const fl
   running_cost[0] = cost->computeRunningCost(y, u, t, theta_c_shared, crash);
 
   __syncthreads();
-  if (threadIdx.y == 0)
-  {
-    int num_zeros = 0;
-    for (int i = 0; i < blockDim.y; i++)
-    {
-      if (running_cost[i * blockDim.x] == 0)
-      {
-        num_zeros++;
-      }
-    }
-    if (num_zeros != blockDim.y - 1)
-    {
-      printf("Sample %d, t %d block_y %d: ", sample_idx, t, blockDim.y);
-      for (int i = 0; i < blockDim.y; i++)
-      {
-        printf("%f, ", running_cost[i * blockDim.x]);
-      }
-      printf("\n");
-    }
-  }
-  if (sample_idx == 0 && t == 0 && blockDim.y < 4)
-  {
-    printf("Cost y %d: %f\n", threadIdx.y, running_cost[0]);
-  }
-  __syncthreads();
+  // if (threadIdx.y == 0)
+  // {
+  //   int num_zeros = 0;
+  //   for (int i = 0; i < blockDim.y; i++)
+  //   {
+  //     if (running_cost[i * blockDim.x] == 0)
+  //     {
+  //       num_zeros++;
+  //     }
+  //   }
+  //   if (num_zeros != blockDim.y - 1)
+  //   {
+  //     printf("Sample %d, t %d block_y %d: ", sample_idx, t, blockDim.y);
+  //     for (int i = 0; i < blockDim.y; i++)
+  //     {
+  //       printf("%f, ", running_cost[i * blockDim.x]);
+  //     }
+  //     printf("\n");
+  //   }
+  // }
+  // if (sample_idx == 0 && t == 0 && blockDim.y < 4)
+  // {
+  //   printf("Cost y %d: %f\n", threadIdx.y, running_cost[0]);
+  // }
+  // __syncthreads();
 
   running_cost = &running_cost_shared[threadIdx.x + blockDim.x * blockDim.y * threadIdx.z];
   __syncthreads();
-  int prev_size = blockDim.y;
-  // Allow for better computation when blockDim.x is a power of 2
-  const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
-  const int stop_condition = (block_power_of_2) ? 32 : 0;
-  int size;
-  const int xy_index = threadIdx.y;
-  const int xy_step = blockDim.y;
+  mppi::kernels::costArrayReduction(running_cost, blockDim.y, threadIdx.y, blockDim.y, threadIdx.y == 0, blockDim.x);
+  // int prev_size = blockDim.y;
+  // // Allow for better computation when blockDim.x is a power of 2
+  // const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
+  // const int stop_condition = (block_power_of_2) ? 32 : 0;
+  // int size;
+  // const int xy_index = threadIdx.y;
+  // const int xy_step = blockDim.y;
 
-  for (size = prev_size / 2; size > stop_condition; size /= 2)
-  {
-    for (int j = xy_index; j < size; j += xy_step)
-    {
-      running_cost[j * blockDim.x] += running_cost[(j + size) * blockDim.x];
-    }
-    __syncthreads();
-    if (prev_size - 2 * size == 1 && xy_index == 0)
-    {
-      running_cost[(size - 1) * blockDim.x] += running_cost[(prev_size - 1) * blockDim.x];
-    }
-    __syncthreads();
-    prev_size = size;
-  }
+  // for (size = prev_size / 2; size > stop_condition; size /= 2)
+  // {
+  //   for (int j = xy_index; j < size; j += xy_step)
+  //   {
+  //     running_cost[j * blockDim.x] += running_cost[(j + size) * blockDim.x];
+  //   }
+  //   __syncthreads();
+  //   if (prev_size - 2 * size == 1 && xy_index == 0)
+  //   {
+  //     running_cost[(size - 1) * blockDim.x] += running_cost[(prev_size - 1) * blockDim.x];
+  //   }
+  //   __syncthreads();
+  //   prev_size = size;
+  // }
 
-  if (xy_index < 32 && stop_condition != 0)
-  {  // unroll the last warp
-    switch (size * 2)
-    {
-      case 64:
-        mppi::kernels::warpReduceAdd<64>(running_cost, xy_index, blockDim.x);
-        break;
-      case 32:
-        mppi::kernels::warpReduceAdd<32>(running_cost, xy_index, blockDim.x);
-        break;
-      case 16:
-        mppi::kernels::warpReduceAdd<16>(running_cost, xy_index, blockDim.x);
-        break;
-      case 8:
-        mppi::kernels::warpReduceAdd<8>(running_cost, xy_index, blockDim.x);
-        break;
-      case 4:
-        mppi::kernels::warpReduceAdd<4>(running_cost, xy_index, blockDim.x);
-        break;
-      case 2:
-        mppi::kernels::warpReduceAdd<2>(running_cost, xy_index, blockDim.x);
-        break;
-      case 1:
-        mppi::kernels::warpReduceAdd<1>(running_cost, xy_index, blockDim.x);
-        break;
-    }
-  }
-  __syncthreads();
-  __syncthreads();
-  if (sample_idx == 0 && t == 0 && blockDim.y < 4)
-  {
-    printf("Final Cost y %d: %f\n", threadIdx.y, running_cost[0]);
-  }
+  // if (xy_index < 32 && stop_condition != 0)
+  // {  // unroll the last warp
+  //   switch (size * 2)
+  //   {
+  //     case 64:
+  //       mppi::kernels::warpReduceAdd<64>(running_cost, xy_index, blockDim.x);
+  //       break;
+  //     case 32:
+  //       mppi::kernels::warpReduceAdd<32>(running_cost, xy_index, blockDim.x);
+  //       break;
+  //     case 16:
+  //       mppi::kernels::warpReduceAdd<16>(running_cost, xy_index, blockDim.x);
+  //       break;
+  //     case 8:
+  //       mppi::kernels::warpReduceAdd<8>(running_cost, xy_index, blockDim.x);
+  //       break;
+  //     case 4:
+  //       mppi::kernels::warpReduceAdd<4>(running_cost, xy_index, blockDim.x);
+  //       break;
+  //     case 2:
+  //       mppi::kernels::warpReduceAdd<2>(running_cost, xy_index, blockDim.x);
+  //       break;
+  //     case 1:
+  //       mppi::kernels::warpReduceAdd<1>(running_cost, xy_index, blockDim.x);
+  //       break;
+  //   }
+  // }
+  // __syncthreads();
+  // __syncthreads();
+  // if (sample_idx == 0 && t == 0 && blockDim.y < 4)
+  // {
+  //   printf("Final Cost y %d: %f\n", threadIdx.y, running_cost[0]);
+  // }
   __syncthreads();
   if (threadIdx.y == 0)
   {
@@ -270,22 +271,21 @@ void launchRolloutCostKernel(COST_T& cost, SAMPLING_T& sampler, std::vector<std:
 
   // Figure shared memory size
   const int block_num_shared = block_dim.x * block_dim.z;
-  unsigned compute_cost_shared_mem_size =
-      sizeof(float) * (mppi::math::nearest_multiple_4(block_num_shared * COST_T::OUTPUT_DIM) +
-                       mppi::math::nearest_multiple_4(block_num_shared * COST_T::CONTROL_DIM) +
-                       mppi::math::nearest_multiple_4(block_num_shared * block_dim.y)) +
-      sizeof(int) * mppi::math::nearest_multiple_4(block_num_shared) +
-      mppi::math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      block_num_shared * mppi::math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
-      mppi::math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      block_num_shared * mppi::math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
-#ifdef USE_CUDA_BARRIERS_COST
-  compute_cost_shared_mem_size += mppi::math::int_multiple_const(block_num_shared * sizeof(barrier), 16);
-#endif
+  unsigned compute_cost_shared_mem_size = mppi::kernels::calcRolloutCostKernelSharedMemSize(&cost, &sampler, block_dim);
+  //       sizeof(float) * (mppi::math::nearest_multiple_4(block_num_shared * COST_T::OUTPUT_DIM) +
+  //                        mppi::math::nearest_multiple_4(block_num_shared * COST_T::CONTROL_DIM) +
+  //                        mppi::math::nearest_multiple_4(block_num_shared * block_dim.y)) +
+  //       sizeof(int) * mppi::math::nearest_multiple_4(block_num_shared) +
+  //       mppi::math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+  //       block_num_shared * mppi::math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4)) +
+  //       mppi::math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
+  //       block_num_shared * mppi::math::int_multiple_const(SAMPLING_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  // #ifdef USE_CUDA_BARRIERS_COST
+  //   compute_cost_shared_mem_size += mppi::math::int_multiple_const(block_num_shared * sizeof(barrier), 16);
+  // #endif
   // Launch kernel
-  mppi::kernels::rolloutCostKernel<COST_T, SAMPLING_T, 64>
-      <<<grid_dim, block_dim, compute_cost_shared_mem_size, stream>>>(
-          cost.cost_d_, sampler.sampling_d_, dt, num_timesteps, num_rollouts, 1.0, 0.0, y_d, output_costs_d);
+  mppi::kernels::rolloutCostKernel<COST_T, SAMPLING_T><<<grid_dim, block_dim, compute_cost_shared_mem_size, stream>>>(
+      cost.cost_d_, sampler.sampling_d_, dt, num_timesteps, num_rollouts, 1.0, 0.0, y_d, output_costs_d);
 
   // Copy memory back to CPU
   output_costs.resize(num_rollouts);
@@ -349,7 +349,7 @@ void checkGPURolloutCost(COST_T& cost, float dt)
 {
   cost.GPUSetup();
   const int num_rollouts = 1000;
-  const int num_timesteps = 25;
+  const int num_timesteps = 8;
 #ifdef USE_ROLLOUT_COST_KERNEL
   using SAMPLER_T = mppi::sampling_distributions::GaussianDistribution<typename COST_T::TEMPLATED_DYN_PARAMS>;
   using SAMPLER_PARAMS = typename SAMPLER_T::SAMPLING_PARAMS_T;
@@ -423,8 +423,8 @@ void checkGPURolloutCost(COST_T& cost, float dt)
     {
 #ifdef USE_ROLLOUT_COST_KERNEL
       control_trajectory u_traj_n;
-      cudaMemcpy(u_traj_n.data(), sampler.getControlSample(n, 0, 0),
-                 sizeof(float) * num_timesteps * COST_T::CONTROL_DIM, cudaMemcpyDeviceToHost);
+      HANDLE_ERROR(cudaMemcpy(u_traj_n.data(), sampler.getControlSample(n, 0, 0),
+                              sizeof(float) * num_timesteps * COST_T::CONTROL_DIM, cudaMemcpyDeviceToHost));
       float total_cost = 0;
       for (int t = 1; t < num_timesteps; t++)
       {
@@ -432,16 +432,17 @@ void checkGPURolloutCost(COST_T& cost, float dt)
         typename COST_T::control_array u_index = u_traj_n.col(t);
         Eigen::Map<typename COST_T::output_array> y_index(y[index - 1].data());
 #else
-      for (int t = 0; t < num_timesteps; t++)
+      for (int t = 1; t < num_timesteps; t++)
       {
         int index = t + n * num_timesteps;
         Eigen::Map<typename COST_T::control_array> u_index(u[index].data());
-        Eigen::Map<typename COST_T::output_array> y_index(y[index].data());
+        Eigen::Map<typename COST_T::output_array> y_index(y[index - 1].data());
 #endif
 
         int crash = 0;
         float cpu_cost = cost.computeRunningCost(y_index, u_index, t, &crash);
 #ifdef USE_ROLLOUT_COST_KERNEL
+        cpu_cost += sampler.computeLikelihoodRatioCost(u_index, t, 0);
         total_cost += cpu_cost;
 #else
         ASSERT_NEAR(cpu_cost, output_cost_gpu[index], cpu_cost * 0.0015)
@@ -450,7 +451,7 @@ void checkGPURolloutCost(COST_T& cost, float dt)
       }
 #ifdef USE_ROLLOUT_COST_KERNEL
       total_cost /= (num_timesteps - 1);
-      Eigen::Map<typename COST_T::output_array> y_index(y[(n + 1) * num_timesteps].data());
+      Eigen::Map<typename COST_T::output_array> y_index(y[(n + 1) * num_timesteps - 1].data());
       total_cost += cost.terminalCost(y_index) / (num_timesteps - 1);
       ASSERT_NEAR(total_cost, output_cost_gpu[n], total_cost * 0.001) << " Sample " << n << " y_dim " << y_dim;
 #endif

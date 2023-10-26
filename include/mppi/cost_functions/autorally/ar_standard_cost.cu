@@ -218,14 +218,24 @@ __host__ __device__ void ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::co
 }
 
 template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
-__device__ float4 ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::queryTextureTransformed(float x, float y)
+__host__ __device__ float4 ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::queryTextureTransformed(float x,
+                                                                                                        float y)
 {
   float u, v, w;
   coorTransform(x, y, &u, &v, &w);
   // printf("input coordinates: %f, %f\n", x, y);
   // printf("\nu = %f, v = %f, w = %f", u, v, w);
   // printf("transformed coordinates %f, %f = %f\n", u/w, v/w, tex2D<float4>(costmap_tex_d_, u/w, v/w).x);
+#ifdef __CUDA_ARCH__
   return tex2D<float4>(costmap_tex_d_, u / w, v / w);
+#else
+  float2 query = make_float2(u / w * width_, v / w * height_);
+  query.x = query.x - 0.5f;
+  query.y = query.y - 0.5f;
+  query.x = fmaxf(0.0f, fminf(width_ - 1, query.x));
+  query.y = fmaxf(0.0f, fminf(height_ - 1, query.y));
+  return this->track_costs_[std::round(query.y) * width_ + std::round(query.x)];
+#endif
 }
 
 template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
@@ -256,6 +266,12 @@ Eigen::Array3f ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::getTranslati
 
 template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
 inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::terminalCost(float* s, float* theta_c)
+{
+  return 0.0;
+}
+
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::terminalCost(const Eigen::Ref<const output_array> y)
 {
   return 0.0;
 }
@@ -314,15 +330,22 @@ inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAM
 }
 
 template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
-inline __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::getTrackCost(float* s, int* crash)
+inline __host__ __device__ float ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::getTrackCost(float* s, int* crash)
 {
   float track_cost = 0;
 
   // Compute a transformation to get the (x,y) positions of the front and back of the car.
-  float x_front = s[0] + FRONT_D * __cosf(s[2]);
-  float y_front = s[1] + FRONT_D * __sinf(s[2]);
-  float x_back = s[0] + BACK_D * __cosf(s[2]);
-  float y_back = s[1] + BACK_D * __sinf(s[2]);
+#ifdef __CUDA_ARCH__
+  float x_front = s[0] + this->FRONT_D * __cosf(s[2]);
+  float y_front = s[1] + this->FRONT_D * __sinf(s[2]);
+  float x_back = s[0] + this->BACK_D * __cosf(s[2]);
+  float y_back = s[1] + this->BACK_D * __sinf(s[2]);
+#else
+  float x_front = s[0] + this->FRONT_D * cosf(s[2]);
+  float y_front = s[1] + this->FRONT_D * sinf(s[2]);
+  float x_back = s[0] + this->BACK_D * cosf(s[2]);
+  float y_back = s[1] + this->BACK_D * sinf(s[2]);
+#endif
 
   // Cost of front of the car
   // printf("front before %f, %f\n", x_front, y_front);

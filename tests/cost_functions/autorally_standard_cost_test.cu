@@ -718,35 +718,6 @@ TEST(ARStandardCost, TerminalCostTest)
   EXPECT_FLOAT_EQ(cost_results[0], 0.0);
 }
 
-TEST(ARStandardCost, controlCostTest)
-{
-  ARStandardCost::control_array u, du, nu;
-  u << 0.5, 0.6;
-  du << 0.3, 0.4;
-  nu << 0.2, 0.8;
-
-  ARStandardCost cost;
-  ARStandardCostParams params;
-  params.control_cost_coeff[0] = 20;
-  params.control_cost_coeff[1] = 10;
-  cost.setParams(params);
-
-  float result = cost.computeLikelihoodRatioCost(u, du, nu);
-
-  float known_result = (params.control_cost_coeff[0] * u(0) * (u(0) + 2 * du(0)) / (nu(0) * nu(0)) +
-                        params.control_cost_coeff[1] * u(1) * (u(1) + 2 * du(1)) / (nu(1) * nu(1))) /
-                       2.0;
-
-  EXPECT_FLOAT_EQ(result, known_result);
-
-  params.control_cost_coeff[0] = 20;
-  params.control_cost_coeff[1] = 10;
-  cost.setParams(params);
-
-  result = cost.computeLikelihoodRatioCost(u, du, nu);
-  EXPECT_FLOAT_EQ(result, known_result);
-}
-
 TEST(ARStandardCost, getSpeedCostTest)
 {
   ARStandardCost cost;

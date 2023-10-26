@@ -14,13 +14,6 @@ template <class CLASS_T>
 void launchGetCostmapCostTestKernel(CLASS_T& cost, std::vector<std::array<float, 9>>& test_xu,
                                     std::vector<float>& cost_results);
 
-template <class CLASS_T>
-__global__ void computeCostTestKernel(CLASS_T* cost, float* test_xu, float* cost_results, int num_points);
-
-template <class CLASS_T>
-void launchComputeCostTestKernel(CLASS_T& cost, std::vector<std::array<float, 9>>& test_xu,
-                                 std::vector<float>& cost_results);
-
 #include "ar_robust_cost_kernel_test.cu"
 
 #endif  // MPPIGENERIC_AR_ROBUST_COST_KERNEL_TEST_CUH

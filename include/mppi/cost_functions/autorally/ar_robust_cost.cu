@@ -11,7 +11,7 @@ ARRobustCostImpl<CLASS_T, PARAMS_T>::~ARRobustCostImpl()
 }
 
 template <class CLASS_T, class PARAMS_T>
-__host__ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getStabilizingCost(float* s)
+__host__ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getStabilizingCost(const float* s)
 {
   float penalty_val = 0;
   float slip;
@@ -38,23 +38,50 @@ __host__ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getStabilizingCos
 }
 
 template <class CLASS_T, class PARAMS_T>
-__device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
+__host__ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(const float* s)
 {
   float cost = 0;
 
   // Compute a transformation to get the (x,y) positions of the front and back of the car.
+#ifdef __CUDA_ARCH__
   float x_front = s[0] + this->FRONT_D * __cosf(s[2]);
   float y_front = s[1] + this->FRONT_D * __sinf(s[2]);
   float x_back = s[0] + this->BACK_D * __cosf(s[2]);
   float y_back = s[1] + this->BACK_D * __sinf(s[2]);
+#else
+  float x_front = s[0] + this->FRONT_D * cosf(s[2]);
+  float y_front = s[1] + this->FRONT_D * sinf(s[2]);
+  float x_back = s[0] + this->BACK_D * cosf(s[2]);
+  float y_back = s[1] + this->BACK_D * sinf(s[2]);
+#endif
 
   float u, v, w;  // Transformed coordinates
 
   // parameters for the front and back of car
   this->coorTransform(x_front, y_front, &u, &v, &w);
+#ifdef __CUDA_ARCH__
   float4 track_params_front = tex2D<float4>(this->costmap_tex_d_, u / w, v / w);
+#else
+  float2 query = make_float2(u / w * this->width_, v / w * this->height_);
+  query.x = query.x - 0.5f;
+  query.y = query.y - 0.5f;
+  query.x = fmaxf(0.0f, fminf(this->width_ - 1, query.x));
+  query.y = fmaxf(0.0f, fminf(this->height_ - 1, query.y));
+  float4 track_params_front = this->track_costs_[std::round(query.y) * this->width_ + std::round(query.x)];
+#endif
+
+  // Calculate back texture query
   this->coorTransform(x_back, y_back, &u, &v, &w);
+#ifdef __CUDA_ARCH__
   float4 track_params_back = tex2D<float4>(this->costmap_tex_d_, u / w, v / w);
+#else
+  query = make_float2(u / w * this->width_, v / w * this->height_);
+  query.x = query.x - 0.5f;
+  query.y = query.y - 0.5f;
+  query.x = fmaxf(0.0f, fminf(this->width_ - 1, query.x));
+  query.y = fmaxf(0.0f, fminf(this->height_ - 1, query.y));
+  float4 track_params_back = this->track_costs_[std::round(query.y) * this->width_ + std::round(query.x)];
+#endif
   // printf("thread (%d %d %d) front val (%f, %f) %f back_val (%f, %f) %f\n", threadIdx.x, threadIdx.y, threadIdx.z,
   // x_front, y_front, track_params_front.x, x_back, y_back, track_params_back.x);
 
@@ -90,8 +117,9 @@ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::getCostmapCost(float* s)
 }
 
 template <class CLASS_T, class PARAMS_T>
-inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(float* s, int timestep, float* theta_c,
-                                                                              int* crash_status)
+inline __host__ __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(const float* s, int timestep,
+                                                                                       float* theta_c,
+                                                                                       int* crash_status)
 {
   float stabilizing_cost = getStabilizingCost(s);
   float costmap_cost = getCostmapCost(s);
@@ -101,4 +129,11 @@ inline __device__ float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(fl
     cost = this->MAX_COST_VALUE;
   }
   return cost;
+}
+
+template <class CLASS_T, class PARAMS_T>
+inline float ARRobustCostImpl<CLASS_T, PARAMS_T>::computeStateCost(const Eigen::Ref<const output_array> y, int timestep,
+                                                                   int* crash_status)
+{
+  return computeStateCost(y.data(), timestep, nullptr, crash_status);
 }
