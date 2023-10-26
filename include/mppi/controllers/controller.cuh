@@ -120,15 +120,16 @@ public:
     sampler_ = sampler;
     sampler_->setNumRollouts(NUM_ROLLOUTS);
     sampler_->setNumDistributions(1);
-    params_.dt_ = dt;
-    params_.num_iters_ = max_iter;
-    params_.lambda_ = lambda;
-    params_.alpha_ = alpha;
-    setNumTimesteps(num_timesteps);
-    // sampler_->setNumTimesteps(num_timesteps);
-    // params_.num_timesteps_ = num_timesteps;
+    TEMPLATED_PARAMS params;
+    params.dt_ = dt;
+    params.num_iters_ = max_iter;
+    params.lambda_ = lambda;
+    params.alpha_ = alpha;
+    params.num_timesteps_ = num_timesteps;
+    params.init_control_traj_ = init_control_traj;
+    setNumTimesteps(params.num_timesteps_);
+    setParams(params);
 
-    params_.init_control_traj_ = init_control_traj;
     control_ = init_control_traj;
     control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
 
@@ -854,7 +855,7 @@ public:
 
   int getNumKernelEvaluations() const
   {
-    return this->num_kernel_evaluations_;
+    return num_kernel_evaluations_;
   }
 
   void setKernelChoice(const int& kernel_type)

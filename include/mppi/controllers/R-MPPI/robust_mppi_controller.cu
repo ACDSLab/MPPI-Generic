@@ -4,11 +4,9 @@
 
 #define ROBUST_MPPI_TEMPLATE                                                                                           \
   template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, class SAMPLING_T,              \
-            class PARAMS_T, int SAMPLES_PER_CANDIDATE_MULTIPLIER>
+            class PARAMS_T>
 
-#define RobustMPPI                                                                                                     \
-  RobustMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, SAMPLING_T, PARAMS_T,                         \
-                       SAMPLES_PER_CANDIDATE_MULTIPLIER>
+#define RobustMPPI RobustMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, SAMPLING_T, PARAMS_T>
 
 ROBUST_MPPI_TEMPLATE
 RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt,
@@ -22,8 +20,7 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller
   setOptimizationStride(optimization_stride);
   setNumCandidates(num_candidate_nominal_states);
   updateNumCandidates(getNumCandidates());
-  this->params_.dynamics_rollout_dim_.z = 2;
-  this->params_.cost_rollout_dim_.z = 2;
+  setParams(this->params_);
   this->sampler_->setNumDistributions(2);
 
   // Zero the control history
@@ -43,6 +40,7 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller
   nominal_control_trajectory_ = init_control_traj;
 
   this->enable_feedback_ = true;
+  chooseAppropriateKernel();
 }
 
 ROBUST_MPPI_TEMPLATE
@@ -51,6 +49,8 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller
   : PARENT_CLASS(model, cost, fb_controller, sampler, params, stream)
 {
   updateNumCandidates(getNumCandidates());
+  setParams(params);
+  this->sampler_->setNumDistributions(2);
 
   // Zero the control history
   this->control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
@@ -69,6 +69,7 @@ RobustMPPI::RobustMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller
   nominal_control_trajectory_ = this->params_.init_control_traj_;
 
   this->enable_feedback_ = true;
+  chooseAppropriateKernel();
 }
 
 ROBUST_MPPI_TEMPLATE
@@ -84,13 +85,261 @@ void RobustMPPI::allocateCUDAMemory()
 }
 
 ROBUST_MPPI_TEMPLATE
+void RobustMPPI::chooseAppropriateKernel()
+{
+  // Get properties of current GPU
+  cudaDeviceProp deviceProp;
+  HANDLE_ERROR(cudaGetDeviceProperties(&deviceProp, 0));
+
+  unsigned single_rollout_kernel_byte_size = mppi::kernels::rmppi::calcRMPPICombinedKernelSharedMemSize(
+      this->model_, this->cost_, this->sampler_, this->fb_controller_->getHostPointer().get(),
+      this->params_.dynamics_rollout_dim_);
+  unsigned rollout_dyn_kernel_byte_size = mppi::kernels::rmppi::calcRMPPIDynKernelSharedMemSize(
+      this->model_, this->sampler_, this->fb_controller_->getDevicePointer(), this->params_.dynamics_rollout_dim_);
+  unsigned rollout_cost_kernel_byte_size = mppi::kernels::rmppi::calcRMPPICostKernelSharedMemSize(
+      this->cost_, this->sampler_, this->fb_controller_->getDevicePointer(), this->params_.cost_rollout_dim_);
+
+  // Limit kernel choice to those that fit within shared memory constraints
+  bool rollout_dyn_too_large = rollout_dyn_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  bool rollout_cost_too_large = rollout_cost_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  bool rollout_combined_too_large = single_rollout_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  bool rollout_set = false;
+
+  if (rollout_combined_too_large && (rollout_dyn_too_large || rollout_cost_too_large))
+  {
+    std::string error_msg =
+        "There is not enough shared memory on the GPU for either rollout kernel option. The combined rollout kernel "
+        "takes " +
+        std::to_string(single_rollout_kernel_byte_size) + " bytes, the cost rollout kernel takes " +
+        std::to_string(rollout_cost_kernel_byte_size) + " bytes, the dynamics rollout kernel takes " +
+        std::to_string(rollout_dyn_kernel_byte_size) + " bytes, and the max is " +
+        std::to_string(deviceProp.sharedMemPerBlock) +
+        " bytes. Considering lowering the corresponding thread block sizes.";
+    throw std::runtime_error(error_msg);
+  }
+  else if (rollout_dyn_too_large || rollout_cost_too_large)
+  {
+    this->setKernelChoice(kernelType::USE_SINGLE_KERNEL);
+    rollout_set = true;
+  }
+  else if (rollout_combined_too_large)
+  {
+    this->setKernelChoice(kernelType::USE_SPLIT_KERNELS);
+    rollout_set = true;
+  }
+
+  /**
+   * Set up for kernel comparison
+   */
+  state_array zero_state = state_array::Zero();
+  float* initial_state_nominal_d = this->initial_state_d_;
+  float* initial_state_real_d = this->initial_state_d_ + DYN_T::STATE_DIM;
+
+  // Transfer the initial state to the GPU
+  HANDLE_ERROR(cudaMemcpyAsync(initial_state_real_d, zero_state.data(), sizeof(float) * DYN_T::STATE_DIM,
+                               cudaMemcpyHostToDevice, this->stream_));
+  HANDLE_ERROR(cudaMemcpyAsync(initial_state_nominal_d, zero_state.data(), sizeof(float) * DYN_T::STATE_DIM,
+                               cudaMemcpyHostToDevice, this->stream_));
+  // Copy the importance sampling control to the system
+  this->sampler_->copyImportanceSamplerToDevice(nominal_control_trajectory_.data(), 0, false);
+  this->sampler_->copyImportanceSamplerToDevice(nominal_control_trajectory_.data(), 1, false);
+  // Send feedback gains to the GPU
+  this->fb_controller_->copyToDevice(false);
+
+  // Generate a the control perturbations for exploration
+  this->sampler_->generateSamples(1, 0, this->gen_, true);
+
+  float single_rollout_kernel_time_ms = std::numeric_limits<float>::infinity();
+  float split_rollout_kernel_time_ms = std::numeric_limits<float>::infinity();
+
+  auto start_rollout_single_kernel_time = std::chrono::steady_clock::now();
+  for (int i = 0; i < this->getNumKernelEvaluations() && !rollout_set; i++)
+  {
+    mppi::kernels::rmppi::launchRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
+        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
+        this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+        this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_, this->output_d_,
+        this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_,
+        true);
+  }
+  auto end_rollout_single_kernel_time = std::chrono::steady_clock::now();
+
+  auto start_rollout_split_kernel_time = std::chrono::steady_clock::now();
+  for (int i = 0; i < this->getNumKernelEvaluations() && !rollout_set; i++)
+  {
+    mppi::kernels::rmppi::launchFastRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
+        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
+        this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+        this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_, this->output_d_,
+        this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_,
+        true);
+  }
+  auto end_rollout_split_kernel_time = std::chrono::steady_clock::now();
+
+  if (!rollout_set)
+  {
+    single_rollout_kernel_time_ms =
+        mppi::math::timeDiffms(end_rollout_single_kernel_time, start_rollout_single_kernel_time);
+    split_rollout_kernel_time_ms =
+        mppi::math::timeDiffms(end_rollout_split_kernel_time, start_rollout_split_kernel_time);
+  }
+
+  std::string kernel_choice = "";
+  if (split_rollout_kernel_time_ms < single_rollout_kernel_time_ms)
+  {
+    this->setKernelChoice(kernelType::USE_SPLIT_KERNELS);
+    kernel_choice = "split ";
+  }
+  else
+  {
+    this->setKernelChoice(kernelType::USE_SINGLE_KERNEL);
+    kernel_choice = "single";
+  }
+
+  printf("Choosing %s rollout kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
+         kernel_choice.c_str(), split_rollout_kernel_time_ms, single_rollout_kernel_time_ms,
+         this->getNumKernelEvaluations());
+
+  // Do the same for the eval kernel
+  chooseAppropriateEvalKernel();
+}
+
+ROBUST_MPPI_TEMPLATE
+void RobustMPPI::chooseAppropriateEvalKernel()
+{
+  // Get properties of current GPU
+  cudaDeviceProp deviceProp;
+  HANDLE_ERROR(cudaGetDeviceProperties(&deviceProp, 0));
+  // Get shared mem sizes for various kernels
+  unsigned single_eval_kernel_byte_size = mppi::kernels::rmppi::calcEvalCombinedKernelSharedMemSize(
+      this->model_, this->cost_, this->sampler_, getNumEvalRollouts(), getNumEvalSamplesPerCandidate(),
+      this->params_.eval_dyn_kernel_dim_);
+
+  unsigned eval_dyn_kernel_byte_size = mppi::kernels::rmppi::calcEvalDynKernelSharedMemSize(
+      this->model_, this->sampler_, this->params_.eval_dyn_kernel_dim_);
+  unsigned eval_cost_kernel_byte_size = mppi::kernels::rmppi::calcEvalCostKernelSharedMemSize(
+      this->cost_, this->sampler_, getNumEvalRollouts(), getNumEvalSamplesPerCandidate(),
+      this->params_.eval_cost_kernel_dim_);
+
+  // Limit kernel choice to those that fit within shared memory constraints
+  bool eval_dyn_too_large = eval_dyn_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  bool eval_cost_too_large = eval_cost_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  bool eval_combined_too_large = single_eval_kernel_byte_size > deviceProp.sharedMemPerBlock;
+  bool eval_set = false;
+
+  if (eval_combined_too_large && (eval_dyn_too_large || eval_cost_too_large))
+  {
+    std::string error_msg =
+        "There is not enough shared memory on the GPU for either eval kernel option. The combined eval kernel "
+        "takes " +
+        std::to_string(single_eval_kernel_byte_size) + " bytes, the cost eval kernel takes " +
+        std::to_string(eval_cost_kernel_byte_size) + " bytes, the dynamics eval kernel takes " +
+        std::to_string(eval_dyn_kernel_byte_size) + " bytes, and the max is " +
+        std::to_string(deviceProp.sharedMemPerBlock) +
+        " bytes. Considering lowering the corresponding thread block sizes.";
+    throw std::runtime_error(error_msg);
+  }
+  else if (eval_dyn_too_large || eval_cost_too_large)
+  {
+    this->setEvalKernelChoice(kernelType::USE_SINGLE_KERNEL);
+    eval_set = true;
+  }
+  else if (eval_combined_too_large)
+  {
+    this->setEvalKernelChoice(kernelType::USE_SPLIT_KERNELS);
+    eval_set = true;
+  }
+
+  // Send the nominal state candidates to the GPU
+  HANDLE_ERROR(cudaMemcpyAsync(importance_sampling_states_d_, candidate_nominal_states_.data(),
+                               sizeof(float) * DYN_T::STATE_DIM * getNumCandidates(), cudaMemcpyHostToDevice,
+                               this->stream_));
+
+  Eigen::MatrixXi temp_importance_sampler_strides = Eigen::MatrixXi::Ones(getNumCandidates(), 1);
+  // Send the importance sampler strides to the GPU
+  HANDLE_ERROR(cudaMemcpyAsync(importance_sampling_strides_d_, temp_importance_sampler_strides.data(),
+                               sizeof(int) * getNumCandidates(), cudaMemcpyHostToDevice, this->stream_));
+  // Send the nominal control to the GPU
+  copyNominalControlToDevice(false);
+  // Generate noise for the samples
+  this->sampler_->generateSamples(1, 0, this->gen_, true);
+
+  float single_eval_kernel_time_ms = std::numeric_limits<float>::infinity();
+  float split_eval_kernel_time_ms = std::numeric_limits<float>::infinity();
+
+  auto start_eval_split_kernel_time = std::chrono::steady_clock::now();
+  for (int i = 0; i < this->getNumKernelEvaluations() && !eval_set; i++)
+  {
+    mppi::kernels::rmppi::launchFastInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
+        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+        this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
+        getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
+        importance_sampling_outputs_d_, importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_,
+        this->params_.eval_cost_kernel_dim_, this->stream_, true);
+  }
+  auto end_eval_split_kernel_time = std::chrono::steady_clock::now();
+  auto start_eval_single_kernel_time = std::chrono::steady_clock::now();
+  for (int i = 0; i < this->getNumKernelEvaluations() && !eval_set; i++)
+  {
+    mppi::kernels::rmppi::launchInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
+        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+        this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
+        getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
+        importance_sampling_outputs_d_, importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_,
+        this->params_.eval_cost_kernel_dim_, this->stream_, true);
+  }
+  auto end_eval_single_kernel_time = std::chrono::steady_clock::now();
+
+  if (!eval_set)
+  {
+    single_eval_kernel_time_ms = mppi::math::timeDiffms(end_eval_single_kernel_time, start_eval_single_kernel_time);
+    split_eval_kernel_time_ms = mppi::math::timeDiffms(end_eval_split_kernel_time, start_eval_split_kernel_time);
+  }
+
+  std::string kernel_choice = "";
+  if (split_eval_kernel_time_ms < single_eval_kernel_time_ms)
+  {
+    this->setEvalKernelChoice(kernelType::USE_SPLIT_KERNELS);
+    kernel_choice = "split ";
+  }
+  else
+  {
+    this->setEvalKernelChoice(kernelType::USE_SINGLE_KERNEL);
+    kernel_choice = "single";
+  }
+
+  printf("Choosing %s eval kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
+         kernel_choice.c_str(), split_eval_kernel_time_ms, single_eval_kernel_time_ms, this->getNumKernelEvaluations());
+}
+
+ROBUST_MPPI_TEMPLATE
 void RobustMPPI::setParams(const PARAMS_T& p)
 {
-  bool changed_sample_size = p.eval_kernel_dim_.x != this->params_.eval_kernel_dim_.x;
+  bool empty_eval_dyn_size = p.eval_dyn_kernel_dim_.x == 0;
+  bool changed_sample_size = p.eval_dyn_kernel_dim_.x != this->params_.eval_dyn_kernel_dim_.x;
   bool changed_num_candidates = p.num_candidate_nominal_states_ != this->params_.num_candidate_nominal_states_;
   PARENT_CLASS::setParams(p);
-  this->params_.dynamics_rollout_dim_.z = min(2, p.dynamics_rollout_dim_.z);
-  this->params_.cost_rollout_dim_.z = min(2, p.cost_rollout_dim_.z);
+  this->params_.dynamics_rollout_dim_.z = max(2, p.dynamics_rollout_dim_.z);
+  this->params_.cost_rollout_dim_.z = max(2, p.cost_rollout_dim_.z);
+
+  // Set up cost eval kernel dimensions
+  if (p.eval_cost_kernel_dim_.x == 0)
+  {
+    this->params_.eval_cost_kernel_dim_.x = this->getNumTimesteps();
+  }
+
+  this->params_.eval_cost_kernel_dim_.y = max(1, p.eval_cost_kernel_dim_.y);
+  this->params_.eval_cost_kernel_dim_.z = max(1, p.eval_cost_kernel_dim_.z);
+
+  // Set up dynamics eval kernel dimensions
+  if (empty_eval_dyn_size)
+  {
+    this->params_.eval_dyn_kernel_dim_.x = 32;
+    changed_sample_size = true;
+  }
+  this->params_.eval_dyn_kernel_dim_.y = max(1, p.eval_dyn_kernel_dim_.y);
+  this->params_.eval_dyn_kernel_dim_.z = max(1, p.eval_dyn_kernel_dim_.z);
+
   if (changed_sample_size)
   {
     updateCandidateMemory();
@@ -119,14 +368,15 @@ ROBUST_MPPI_TEMPLATE
 void RobustMPPI::resetCandidateCudaMem()
 {
   deallocateNominalStateCandidateMemory();
-  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_costs_d_,
-                          sizeof(float) * getNumCandidates() * getNumEvalSamplesPerCandidate()));
-  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_outputs_d_, sizeof(float) * getNumCandidates() *
-                                                                       getNumEvalSamplesPerCandidate() *
-                                                                       this->getNumTimesteps() * DYN_T::OUTPUT_DIM));
   HANDLE_ERROR(
-      cudaMalloc((void**)&importance_sampling_states_d_, sizeof(float) * DYN_T::STATE_DIM * getNumCandidates()));
-  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_strides_d_, sizeof(int) * getNumCandidates()));
+      cudaMallocAsync((void**)&importance_sampling_costs_d_, sizeof(float) * getNumEvalRollouts(), this->stream_));
+  HANDLE_ERROR(cudaMallocAsync((void**)&importance_sampling_outputs_d_,
+                               sizeof(float) * getNumEvalRollouts() * this->getNumTimesteps() * DYN_T::OUTPUT_DIM,
+                               this->stream_));
+  HANDLE_ERROR(cudaMallocAsync((void**)&importance_sampling_states_d_,
+                               sizeof(float) * DYN_T::STATE_DIM * getNumCandidates(), this->stream_));
+  HANDLE_ERROR(
+      cudaMallocAsync((void**)&importance_sampling_strides_d_, sizeof(int) * getNumCandidates(), this->stream_));
   // Set flag so that the we know cudamemory is allocated
   importance_sampling_cuda_mem_init_ = true;
 }
@@ -136,10 +386,10 @@ void RobustMPPI::deallocateNominalStateCandidateMemory()
 {
   if (importance_sampling_cuda_mem_init_)
   {
-    HANDLE_ERROR(cudaFree(importance_sampling_costs_d_));
-    HANDLE_ERROR(cudaFree(importance_sampling_outputs_d_));
-    HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
-    HANDLE_ERROR(cudaFree(importance_sampling_strides_d_));
+    HANDLE_ERROR(cudaFreeAsync(importance_sampling_costs_d_, this->stream_));
+    HANDLE_ERROR(cudaFreeAsync(importance_sampling_outputs_d_, this->stream_));
+    HANDLE_ERROR(cudaFreeAsync(importance_sampling_states_d_, this->stream_));
+    HANDLE_ERROR(cudaFreeAsync(importance_sampling_strides_d_, this->stream_));
     importance_sampling_costs_d_ = nullptr;
     importance_sampling_outputs_d_ = nullptr;
     importance_sampling_states_d_ = nullptr;
@@ -154,13 +404,6 @@ ROBUST_MPPI_TEMPLATE
 void RobustMPPI::copyNominalControlToDevice(bool synchronize)
 {
   this->sampler_->copyImportanceSamplerToDevice(nominal_control_trajectory_.data(), 0, synchronize);
-  // HANDLE_ERROR(cudaMemcpyAsync(this->control_d_, nominal_control_trajectory_.data(),
-  //                              sizeof(float) * nominal_control_trajectory_.size(), cudaMemcpyHostToDevice,
-  //                              this->stream_));
-  // if (synchronize)
-  // {
-  //   HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
-  // }
 }
 
 ROBUST_MPPI_TEMPLATE
@@ -205,10 +448,10 @@ void RobustMPPI::updateCandidateMemory()
   candidate_nominal_states_.resize(getNumCandidates());
 
   // Resize the matrix holding the importance sampler strides
-  importance_sampler_strides_.resize(1, getNumCandidates());
+  importance_sampler_strides_.resize(getNumCandidates(), 1);
 
   // Resize the trajectory costs matrix
-  candidate_trajectory_costs_.resize(getNumCandidates() * getNumEvalSamplesPerCandidate(), 1);
+  candidate_trajectory_costs_.resize(getNumEvalRollouts(), 1);
   candidate_trajectory_costs_.setZero();
 
   // Resize the free energy costs matrix
@@ -256,7 +499,7 @@ ROBUST_MPPI_TEMPLATE
 float RobustMPPI::computeCandidateBaseline()
 {
   float baseline = candidate_trajectory_costs_(0);
-  for (int i = 0; i < getNumEvalSamplesPerCandidate() * getNumCandidates(); i++)
+  for (int i = 1; i < getNumEvalRollouts(); i++)
   {  // TODO What is the reasoning behind only using the first condition to get the baseline?
     if (candidate_trajectory_costs_(i) < baseline)
     {
@@ -336,34 +579,29 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
 
     // Generate noise for the samples
     this->sampler_->generateSamples(stride, 0, this->gen_, false);
-    // HANDLE_CURAND_ERROR(curandGenerateNormal(
-    //     this->gen_, this->control_noise_d_,
-    //     getNumEvalSamplesPerCandidate() * getNumCandidates() * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
-    //     0.0, 1.0));
 
     // Launch the init eval kernel
-    if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
+    if (this->getEvalKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
       mppi::kernels::rmppi::launchFastInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
           this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-          this->getNumTimesteps(), getNumEvalSamplesPerCandidate() * getNumCandidates(), this->getLambda(),
-          this->getAlpha(), getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_,
-          importance_sampling_states_d_, importance_sampling_outputs_d_, importance_sampling_costs_d_,
-          dim3(getNumEvalSamplesPerCandidate(), 8, 1), dim3(this->getNumTimesteps(), 1, 1), this->stream_, false);
+          this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
+          getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
+          importance_sampling_outputs_d_, importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_,
+          this->params_.eval_cost_kernel_dim_, this->stream_, false);
     }
-    else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
+    else if (this->getEvalKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
     {
       mppi::kernels::rmppi::launchInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
           this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-          this->getNumTimesteps(), getNumEvalSamplesPerCandidate() * getNumCandidates(), this->getLambda(),
-          this->getAlpha(), getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_,
-          importance_sampling_states_d_, importance_sampling_outputs_d_, importance_sampling_costs_d_,
-          dim3(getNumEvalSamplesPerCandidate(), 8, 1), dim3(this->getNumTimesteps(), 1, 1), this->stream_, false);
+          this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
+          getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
+          importance_sampling_outputs_d_, importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_,
+          this->params_.eval_cost_kernel_dim_, this->stream_, false);
     }
 
     HANDLE_ERROR(cudaMemcpyAsync(candidate_trajectory_costs_.data(), importance_sampling_costs_d_,
-                                 sizeof(float) * getNumCandidates() * getNumEvalSamplesPerCandidate(),
-                                 cudaMemcpyDeviceToHost, this->stream_));
+                                 sizeof(float) * getNumEvalRollouts(), cudaMemcpyDeviceToHost, this->stream_));
     cudaStreamSynchronize(this->stream_);
 
     // Compute the best nominal state candidate from the rollouts
@@ -389,9 +627,6 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
   float* trajectory_costs_real_d = this->trajectory_costs_d_ + NUM_ROLLOUTS;
   float* initial_state_nominal_d = this->initial_state_d_;
   float* initial_state_real_d = this->initial_state_d_ + DYN_T::STATE_DIM;
-  // float* control_noise_nominal_d = this->control_noise_d_ + NUM_ROLLOUTS * this->getNumTimesteps() *
-  // DYN_T::CONTROL_DIM;
-  float* control_nominal_d = this->control_d_ + this->getNumTimesteps() * DYN_T::CONTROL_DIM;
 
   this->free_energy_statistics_.nominal_sys.previousBaseline = this->getBaselineCost(0);
   this->free_energy_statistics_.real_sys.previousBaseline = this->getBaselineCost(1);
@@ -402,7 +637,7 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
   // Transfer the real initial state to the GPU
   HANDLE_ERROR(cudaMemcpyAsync(initial_state_real_d, state.data(), sizeof(float) * DYN_T::STATE_DIM,
                                cudaMemcpyHostToDevice, this->stream_));
-  // Transfer the nominal state to the GPU: recall that the device GPU has the augmented state [real state, nominal
+  // Transfer the nominal state to the GPU: recall that the device GPU has the augmented state [nominal state, real
   // state]
   HANDLE_ERROR(cudaMemcpyAsync(initial_state_nominal_d, nominal_state_.data(), sizeof(float) * DYN_T::STATE_DIM,
                                cudaMemcpyHostToDevice, this->stream_));
@@ -412,26 +647,11 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
     // Copy the importance sampling control to the system
     this->sampler_->copyImportanceSamplerToDevice(nominal_control_trajectory_.data(), 0, false);
     this->sampler_->copyImportanceSamplerToDevice(nominal_control_trajectory_.data(), 1, false);
-    // HANDLE_ERROR(cudaMemcpyAsync(this->control_d_, nominal_control_trajectory_.data(),
-    //                              sizeof(float) * DYN_T::CONTROL_DIM * this->getNumTimesteps(),
-    //                              cudaMemcpyHostToDevice, this->stream_));
 
     // Generate a the control perturbations for exploration
     this->sampler_->generateSamples(optimization_stride, opt_iter, this->gen_, false);
-    // curandGenerateNormal(this->gen_, this->control_noise_d_,
-    //                      DYN_T::CONTROL_DIM * this->getNumTimesteps() * NUM_ROLLOUTS, 0.0, 1.0);
 
-    // Make a second copy of the random deviations
-    // HANDLE_ERROR(cudaMemcpyAsync(control_noise_nominal_d, this->control_noise_d_,
-    //                              DYN_T::CONTROL_DIM * this->getNumTimesteps() * NUM_ROLLOUTS * sizeof(float),
-    //                              cudaMemcpyDeviceToDevice, this->stream_));
-
-    // Launch the new rollout kernel
-    // rmppi_kernels::launchRMPPIRolloutKernel<DYN_T, COST_T, FEEDBACK_GPU, NUM_ROLLOUTS, BLOCKSIZE_X, BLOCKSIZE_Y, 2>(
-    //     this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->getDt(),
-    //     this->getNumTimesteps(), optimization_stride, this->getLambda(), this->getAlpha(),
-    //     getValueFunctionThreshold(), this->initial_state_d_, this->control_d_, this->control_noise_d_,
-    //     this->control_std_dev_d_, this->trajectory_costs_d_, this->stream_, false);
+    // Launch the rollout kernel
     if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
       mppi::kernels::rmppi::launchFastRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
@@ -491,27 +711,15 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
                                    this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
                                    this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS, this->getBaselineCost(0),
                                    this->getLambda());
+
+    // Calculate new optimal trajectories
     this->sampler_->updateDistributionParamsFromDevice(trajectory_costs_nominal_d, this->getNormalizerCost(0), 0,
                                                        false);
     this->sampler_->updateDistributionParamsFromDevice(trajectory_costs_real_d, this->getNormalizerCost(1), 1, false);
 
-    // mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
-    //     this->trajectory_costs_d_, this->control_noise_d_, this->control_d_, this->getNormalizerCost(0),
-    //     this->getNumTimesteps(), this->stream_, false);
-    // mppi_common::launchWeightedReductionKernel<DYN_T, NUM_ROLLOUTS, BDIM_X>(
-    //     trajectory_costs_nominal_d, control_noise_nominal_d, control_nominal_d, this->getNormalizerCost(1),
-    //     this->getNumTimesteps(), this->stream_, false);
-
     // Transfer the new control to the host
     this->sampler_->setHostOptimalControlSequence(nominal_control_trajectory_.data(), 0, false);
     this->sampler_->setHostOptimalControlSequence(this->control_.data(), 1, true);
-    // HANDLE_ERROR(cudaMemcpyAsync(this->control_.data(), this->control_d_,
-    //                              sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
-    //                              cudaMemcpyDeviceToHost, this->stream_));
-    // HANDLE_ERROR(cudaMemcpyAsync(nominal_control_trajectory_.data(), control_nominal_d,
-    //                              sizeof(float) * this->getNumTimesteps() * DYN_T::CONTROL_DIM,
-    //                              cudaMemcpyDeviceToHost, this->stream_));
-    // cudaStreamSynchronize(this->stream_);
   }
   // Smooth the control
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);
@@ -529,6 +737,11 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
 
   // Copy back sampled trajectories
   this->copySampledControlFromDevice(false);
+  if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
+  {  // copy initial state to vis initial state for use with visualizeKernel
+    HANDLE_ERROR(cudaMemcpyAsync(this->vis_initial_state_d_, this->initial_state_d_,
+                                 sizeof(float) * DYN_T::STATE_DIM * 2, cudaMemcpyDeviceToDevice, this->vis_stream_));
+  }
   this->copyTopControlFromDevice(true);
 }
 
@@ -545,16 +758,21 @@ void RobustMPPI::calculateSampledStateTrajectories()
   int num_sampled_trajectories = this->getTotalSampledTrajectories();
 
   // control already copied in compute control, so run kernel
-  // mppi_common::launchStateAndCostTrajectoryKernel<DYN_T, COST_T, FEEDBACK_GPU, BDIM_X, BDIM_Y, 2>(
-  //     this->model_->model_d_, this->cost_->cost_d_, this->fb_controller_->getDevicePointer(), this->sampled_noise_d_,
-  //     this->initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
-  //     num_sampled_trajectories, this->getNumTimesteps(), this->getDt(), this->vis_stream_,
-  //     getValueFunctionThreshold());
-
-  mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
-      this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
-      num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
-      this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->stream_, false);
+  if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
+  {
+    mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
+        this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
+        num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
+        this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->stream_, false);
+  }
+  else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
+  {
+    mppi::kernels::launchVisualizeKernel<DYN_T, COST_T, SAMPLING_T>(
+        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
+        this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(), this->getAlpha(),
+        this->vis_initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
+        this->params_.visualize_dim_, this->stream_, false);
+  }
 
   // copy back results
   for (int i = 0; i < num_sampled_trajectories * 2; i++)

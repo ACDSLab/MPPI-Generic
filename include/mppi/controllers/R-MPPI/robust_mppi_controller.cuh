@@ -48,7 +48,8 @@ struct RobustMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
   float value_function_threshold_ = 1000.0;
   int optimization_stride_ = 1;
   int num_candidate_nominal_states_ = 9;
-  dim3 eval_kernel_dim_;
+  dim3 eval_cost_kernel_dim_;
+  dim3 eval_dyn_kernel_dim_;
 };
 
 // template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560, int BDIM_X = 64,
@@ -56,8 +57,7 @@ struct RobustMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
 //           int SAMPLES_PER_CONDITION_MULTIPLIER = 1>
 template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS = 2560,
           class SAMPLING_T = ::mppi::sampling_distributions::GaussianDistribution<typename DYN_T::DYN_PARAMS_T>,
-          class PARAMS_T = RobustMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>,
-          int SAMPLES_PER_CANDIDATE_MULTIPLIER = 1>
+          class PARAMS_T = RobustMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
 class RobustMPPIController : public Controller<DYN_T, COST_T, FB_T, SAMPLING_T, MAX_TIMESTEPS, NUM_ROLLOUTS, PARAMS_T>
 {
 public:
@@ -80,11 +80,11 @@ public:
   static const int CONTROL_DIM = DYN_T::CONTROL_DIM;
 
   // Number of samples per condition must be a multiple of the blockDIM
-  static const int SAMPLES_PER_CANDIDATE = SAMPLES_PER_CANDIDATE_MULTIPLIER;
+  // static const int SAMPLES_PER_CANDIDATE = SAMPLES_PER_CANDIDATE_MULTIPLIER;
 
   int getNumEvalSamplesPerCandidate() const
   {
-    return this->params_.eval_kernel_dim_.x * SAMPLES_PER_CANDIDATE_MULTIPLIER;
+    return this->params_.eval_dyn_kernel_dim_.x;
   }
 
   // float value_function_threshold_ = 1000.0;
@@ -168,6 +168,21 @@ public:
     return this->params_.num_candidate_nominal_states_;
   }
 
+  int getNumEvalRollouts() const
+  {
+    return getNumCandidates() * getNumEvalSamplesPerCandidate();
+  }
+
+  int getEvalKernelChoiceAsInt() const
+  {
+    return static_cast<int>(use_eval_kernel_);
+  }
+
+  kernelType getEvalKernelChoiceAsEnum() const
+  {
+    return use_eval_kernel_;
+  }
+
   // Does nothing. This reason is because the control sliding happens during the importance sampler update.
   // The control applied to the real system (during the MPPI rollouts) is the nominal control (which slides
   // during the importance sampler update), plus the feedback term. Inside the runControlIteration function
@@ -207,9 +222,29 @@ public:
     this->params_.num_candidate_nominal_states_ = num_candidate_nominal_states;
   }
 
+  void setNumSamplesPerCandidate(const int& num_samples)
+  {
+    this->params_.eval_dyn_kernel_dim_.x = num_samples;
+    updateCandidateMemory();
+  }
+
+  void setEvalKernelChoice(const int& kernel_type)
+  {
+    use_eval_kernel_ = static_cast<kernelType>(kernel_type);
+  }
+
+  void setEvalKernelChoice(const kernelType& kernel_type)
+  {
+    use_eval_kernel_ = kernel_type;
+  }
+
   void setParams(const PARAMS_T& p);
 
   void calculateSampledStateTrajectories() override;
+
+  void chooseAppropriateKernel() override;
+
+  void chooseAppropriateEvalKernel();
 
 protected:
   bool importance_sampling_cuda_mem_init_ = false;
@@ -277,6 +312,7 @@ protected:
   float* importance_sampling_states_d_ = nullptr;
   int* importance_sampling_strides_d_ = nullptr;
   float* feedback_gain_array_d_ = nullptr;
+  kernelType use_eval_kernel_ = kernelType::USE_SPLIT_KERNELS;
 };
 
 #if __CUDACC__

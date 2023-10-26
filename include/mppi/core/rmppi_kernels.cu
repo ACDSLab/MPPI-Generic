@@ -262,7 +262,7 @@ __global__ void initEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict_
   float* running_cost_shared = &theta_c_shared[size_of_theta_c_bytes / sizeof(float)];
   int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(blockDim.x * blockDim.y * blockDim.z)];
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
-  barrier* barrier_shared = (barrier*)&crash_status_shared[sample_dim * distribution_dim];
+  barrier* barrier_shared = (barrier*)&crash_status_shared[math::nearest_multiple_4(sample_dim * distribution_dim)];
 #endif
 
   // Create local state, state dot and controls
@@ -571,16 +571,21 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
     {  // load controls from t = 1 to t = num_timesteps - 1
       sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d, blockDim.y, thread_idy, y);
     }
-    float x[DYN_T::STATE_DIM];
-    float x_nom[DYN_T::STATE_DIM];
-    dynamics->outputToState(y, x);
-    dynamics->outputToState(y_nom, x_nom);
 #ifdef USE_CUDA_BARRIERS_COST
     bar->arrive_and_wait();
 #else
     __syncthreads();
 #endif
-    fb_controller->k(x, x_nom, t, theta_fb, fb_control);
+
+    // Get feedback
+    float x[DYN_T::STATE_DIM];
+    float x_nom[DYN_T::STATE_DIM];
+    if (t < num_timesteps)
+    {
+      dynamics->outputToState(y, x);
+      dynamics->outputToState(y_nom, x_nom);
+      fb_controller->k(x, x_nom, t, theta_fb, fb_control);
+    }
 #ifdef USE_CUDA_BARRIERS_COST
     bar->arrive_and_wait();
 #else
@@ -696,7 +701,7 @@ __global__ void rolloutRMPPIKernel(DYN_T* __restrict__ dynamics, COST_T* __restr
   float* running_cost_shared = &theta_fb[size_of_theta_fb_bytes / sizeof(float)];
   int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(num_shared * 2 * blockDim.y)];
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
-  barrier* barrier_shared = (barrier*)&crash_status_shared[num_shared];
+  barrier* barrier_shared = (barrier*)&crash_status_shared[math::nearest_multiple_4(num_shared)];
 #endif
 
   // Create local state, state dot and controls
@@ -894,6 +899,7 @@ void launchFastInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
   dim3 dimCostGrid(num_rollouts, 1, 1);
   unsigned cost_shared_size =
       calcEvalCostKernelSharedMemSize(costs, sampling, num_rollouts, samples_per_condition, dimCostBlock);
+
   initEvalCostKernel<COST_T, SAMPLING_T><<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
       costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, samples_per_condition, strides_d, y_d,
       trajectory_costs);

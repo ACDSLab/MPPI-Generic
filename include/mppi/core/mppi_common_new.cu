@@ -55,7 +55,7 @@ __global__ void rolloutKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restri
   int* crash_status_shared = (int*)&running_cost_shared[math::nearest_multiple_4(blockDim.x * blockDim.y * blockDim.z)];
 
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
-  barrier* barrier_shared = (barrier*)&crash_status_shared[sample_dim * distribution_dim];
+  barrier* barrier_shared = (barrier*)&crash_status_shared[math::nearest_multiple_4(sample_dim * distribution_dim)];
 #endif
 
   // Create local state, state dot and controls
@@ -398,7 +398,7 @@ __global__ void visualizeKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __rest
       (int*)&running_cost_shared[math::nearest_multiple_4(num_timesteps * blockDim.y * blockDim.z)];
 
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
-  barrier* barrier_shared = (barrier*)&crash_status_shared[sample_dim * distribution_dim];
+  barrier* barrier_shared = (barrier*)&crash_status_shared[math::nearest_multiple_4(sample_dim * distribution_dim)];
 #endif
 
   // Create local state, state dot and controls

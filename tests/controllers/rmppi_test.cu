@@ -134,6 +134,12 @@ protected:
     controller_params.value_function_threshold_ = 1000.0;
     controller_params.num_timesteps_ = 100;
     controller_params.init_control_traj_.setZero();
+
+    controller_params.dynamics_rollout_dim_ = dim3(64, 4, 2);
+    controller_params.cost_rollout_dim_ = dim3(64, 4, 2);
+    controller_params.eval_dyn_kernel_dim_ = dim3(64, 4, 1);
+    controller_params.eval_cost_kernel_dim_ = dim3(controller_params.num_timesteps_, 1, 1);
+
     // Q, Qf, R
     auto fb_params = fb_controller->getParams();
     fb_params.Q.setIdentity();
@@ -141,11 +147,6 @@ protected:
     fb_params.R.setIdentity();
     fb_controller->setParams(fb_params);
     test_controller = new TestRobust(model, cost, fb_controller, sampler, controller_params, 0);
-    auto controller_params = test_controller->getParams();
-    controller_params.dynamics_rollout_dim_ = dim3(64, 8, 2);
-    controller_params.cost_rollout_dim_ = dim3(64, 8, 2);
-    controller_params.eval_kernel_dim_.x = 32;
-    test_controller->setParams(controller_params);
   }
 
   void TearDown() override
@@ -320,10 +321,12 @@ protected:
     test_controller =
         new TestRobust(model, cost, fb_controller, sampler, dt, 3, lambda, alpha, 1000.0, 100, init_control_traj, 0);
     auto controller_params = test_controller->getParams();
-    controller_params.dynamics_rollout_dim_ = dim3(64, 8, 2);
-    controller_params.cost_rollout_dim_ = dim3(64, 8, 2);
-    controller_params.eval_kernel_dim_.x = num_samples;
+    controller_params.dynamics_rollout_dim_ = dim3(64, 4, 2);
+    controller_params.cost_rollout_dim_ = dim3(64, 1, 2);
+    controller_params.eval_dyn_kernel_dim_ = dim3(num_samples, 4, 1);
+    controller_params.eval_cost_kernel_dim_ = dim3(controller_params.num_timesteps_, 1, 1);
     test_controller->setParams(controller_params);
+    test_controller->chooseAppropriateKernel();
 
     // Set the size of the trajectory costs function
     trajectory_costs.resize(num_samples * num_candidates, 1);
@@ -624,7 +627,8 @@ TEST(RMPPITest, RobustMPPILargeVariance)
   auto controller_params = controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 4, 2);
   controller_params.cost_rollout_dim_ = dim3(num_timesteps, 1, 2);
-  controller_params.eval_kernel_dim_.x = 64;
+  controller_params.eval_dyn_kernel_dim_ = dim3(64, 4, 1);
+  controller_params.eval_cost_kernel_dim_ = dim3(num_timesteps, 1, 1);
   controller.setParams(controller_params);
 
   int fail_count = 0;
@@ -777,14 +781,21 @@ TEST(RMPPITest, RobustMPPILargeVarianceRobustCost)
   // auto controller2 = RobustMPPIController<DYNAMICS, DoubleIntegratorRobustCost, num_timesteps,
   //         1024, 64, 8, 1>(&model, &cost2, dt, max_iter, gamma, value_function_threshold, Q, Qf, R, control_var);
 
-  // Initialize the R MPPI controller
-  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, SAMPLING>(
-      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, value_function_threshold);
-  auto controller_params = controller.getParams();
+  using CONTROLLER_PARAMS =
+      typename RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, SAMPLING>::TEMPLATED_PARAMS;
+  CONTROLLER_PARAMS controller_params;
+  controller_params.dt_ = dt;
+  controller_params.num_iters_ = max_iter;
+  controller_params.lambda_ = lambda;
+  controller_params.alpha_ = alpha;
+  controller_params.value_function_threshold_ = value_function_threshold;
   controller_params.dynamics_rollout_dim_ = dim3(64, 4, 2);
   controller_params.cost_rollout_dim_ = dim3(num_timesteps, 1, 2);
-  controller_params.eval_kernel_dim_.x = 64;
-  controller.setParams(controller_params);
+  controller_params.eval_dyn_kernel_dim_ = dim3(64, 4, 1);
+  controller_params.eval_cost_kernel_dim_ = dim3(num_timesteps, 1, 1);
+  // Initialize the R MPPI controller
+  auto controller = RobustMPPIController<DYNAMICS, COST_T, FEEDBACK_T, num_timesteps, 1024, SAMPLING>(
+      &model, &cost, &fb_controller, &sampler, controller_params);
   controller.setKernelChoice(kernelType::USE_SPLIT_KERNELS);
   int fail_count = 0;
 
