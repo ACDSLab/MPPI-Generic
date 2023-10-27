@@ -878,13 +878,13 @@ void launchSplitInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict_
   if (num_rollouts % dimDynBlock.x != 0)
   {
     std::cerr << __FILE__ << " (" << __LINE__ << "): num_rollouts (" << num_rollouts
-              << ") must be evenly divided by dynamics block size x (" << dimDynBlock.x << ")" << std::endl;
+              << ") must be evenly divided by eval dynamics block size x (" << dimDynBlock.x << ")" << std::endl;
     exit(EXIT_FAILURE);
   }
   if (num_timesteps < dimCostBlock.x)
   {
     std::cerr << __FILE__ << " (" << __LINE__ << "): num_timesteps (" << num_timesteps
-              << ") must be greater than or equal to cost block size x (" << dimCostBlock.x << ")" << std::endl;
+              << ") must be greater than or equal to eval cost block size x (" << dimCostBlock.x << ")" << std::endl;
     exit(EXIT_FAILURE);
   }
 
@@ -914,21 +914,20 @@ template <class DYN_T, class COST_T, typename SAMPLING_T>
 void launchInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling,
                           float dt, const int num_timesteps, const int num_rollouts, float lambda, float alpha,
                           int samples_per_condition, int* __restrict__ strides_d, float* __restrict__ init_x_d,
-                          float* __restrict__ y_d, float* __restrict__ trajectory_costs, dim3 dimDynBlock,
-                          dim3 dimCostBlock, cudaStream_t stream, bool synchronize)
+                          float* __restrict__ trajectory_costs, dim3 dimBlock, cudaStream_t stream, bool synchronize)
 {
-  if (num_rollouts % dimDynBlock.x != 0)
+  if (num_rollouts % dimBlock.x != 0)
   {
     std::cerr << __FILE__ << " (" << __LINE__ << "): num_rollouts (" << num_rollouts
-              << ") must be evenly divided by dynamics block size x (" << dimDynBlock.x << ")" << std::endl;
+              << ") must be evenly divided by eval kernel block size x (" << dimBlock.x << ")" << std::endl;
     exit(EXIT_FAILURE);
   }
   // Run initEvalKernel
-  const int gridsize_x = math::int_ceil(num_rollouts, dimDynBlock.x);
+  const int gridsize_x = math::int_ceil(num_rollouts, dimBlock.x);
   dim3 dimGrid(gridsize_x, 1, 1);
   unsigned shared_size =
-      calcEvalCombinedKernelSharedMemSize(dynamics, costs, sampling, num_rollouts, samples_per_condition, dimDynBlock);
-  initEvalKernel<DYN_T, COST_T, SAMPLING_T><<<dimGrid, dimDynBlock, shared_size, stream>>>(
+      calcEvalCombinedKernelSharedMemSize(dynamics, costs, sampling, num_rollouts, samples_per_condition, dimBlock);
+  initEvalKernel<DYN_T, COST_T, SAMPLING_T><<<dimGrid, dimBlock, shared_size, stream>>>(
       dynamics, costs, sampling, dt, num_timesteps, num_rollouts, samples_per_condition, lambda, alpha, strides_d,
       init_x_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
@@ -992,14 +991,14 @@ template <class DYN_T, class COST_T, class SAMPLING_T, class FB_T, int NOMINAL_S
 void launchRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
                               SAMPLING_T* __restrict__ sampling, FB_T* __restrict__ fb_controller, float dt,
                               const int num_timesteps, const int num_rollouts, float lambda, float alpha,
-                              float value_func_threshold, float* __restrict__ init_x_d, float* __restrict__ y_d,
-                              float* __restrict__ trajectory_costs, dim3 dimDynBlock, dim3 dimCostBlock,
-                              cudaStream_t stream, bool synchronize)
+                              float value_func_threshold, float* __restrict__ init_x_d,
+                              float* __restrict__ trajectory_costs, dim3 dimBlock, cudaStream_t stream,
+                              bool synchronize)
 {
-  if (num_rollouts % dimDynBlock.x != 0)
+  if (num_rollouts % dimBlock.x != 0)
   {
     std::cerr << __FILE__ << " (" << __LINE__ << "): num_rollouts (" << num_rollouts
-              << ") must be evenly divided by dynamics block size x (" << dimDynBlock.x << ")" << std::endl;
+              << ") must be evenly divided by dynamics block size x (" << dimBlock.x << ")" << std::endl;
     exit(EXIT_FAILURE);
   }
   // if (num_timesteps < dimCostBlock.x)
@@ -1008,18 +1007,17 @@ void launchRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
   //             << ") must be greater than or equal to cost block size x (" << dimCostBlock.x << ")" << std::endl;
   //   exit(EXIT_FAILURE);
   // }
-  // if (dimDynBlock.z < 2 || dimDynBlock.z != dimCostBlock.z)
-  // {
-  //   std::cerr << __FILE__ << " (" << __LINE__ << "): number of dynamics systems (" << dimDynBlock.z
-  //             << ") and cost systems (" << dimCostBlock.z << ") must be equal to each other and greater than 2"
-  //             << std::endl;
-  //   exit(EXIT_FAILURE);
-  // }
+  if (dimBlock.z < 2)
+  {
+    std::cerr << __FILE__ << " (" << __LINE__ << "): number of dynamics systems (" << dimBlock.z
+              << ")  must be greater than 2" << std::endl;
+    exit(EXIT_FAILURE);
+  }
   // Run RMPPI Rollout kernel
-  const int gridsize_x = math::int_ceil(num_rollouts, dimDynBlock.x);
+  const int gridsize_x = math::int_ceil(num_rollouts, dimBlock.x);
   dim3 dimGrid(gridsize_x, 1, 1);
-  unsigned shared_size = calcRMPPICombinedKernelSharedMemSize(dynamics, costs, sampling, fb_controller, dimDynBlock);
-  rolloutRMPPIKernel<DYN_T, COST_T, FB_T, SAMPLING_T, NOMINAL_STATE_IDX><<<dimGrid, dimDynBlock, shared_size, stream>>>(
+  unsigned shared_size = calcRMPPICombinedKernelSharedMemSize(dynamics, costs, sampling, fb_controller, dimBlock);
+  rolloutRMPPIKernel<DYN_T, COST_T, FB_T, SAMPLING_T, NOMINAL_STATE_IDX><<<dimGrid, dimBlock, shared_size, stream>>>(
       dynamics, costs, fb_controller, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, value_func_threshold,
       init_x_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
