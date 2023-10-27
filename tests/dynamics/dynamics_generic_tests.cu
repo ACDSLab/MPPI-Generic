@@ -70,6 +70,7 @@ public:
 
   state_array stateFromMap(const std::map<std::string, float>& map)
   {
+    return state_array::Zero();
   }
 };
 
@@ -168,7 +169,7 @@ TEST(Dynamics, ClassConstants)
   DynamicsTester<> tester;
   EXPECT_EQ(tester.STATE_DIM, 1);
   EXPECT_EQ(tester.CONTROL_DIM, 1);
-  EXPECT_EQ(tester.SHARED_MEM_REQUEST_GRD_BYTES, 1);
+  EXPECT_EQ(tester.SHARED_MEM_REQUEST_GRD_BYTES, 0);
   EXPECT_EQ(tester.SHARED_MEM_REQUEST_BLK_BYTES, 0);
 
   DynamicsTester<56, 65> tester_2;
@@ -177,7 +178,7 @@ TEST(Dynamics, ClassConstants)
   int control_dim = DynamicsTester<56, 65>::CONTROL_DIM;
   EXPECT_EQ(control_dim, 65);
   int shared_mem_request_grd = DynamicsTester<56, 65>::SHARED_MEM_REQUEST_GRD_BYTES;
-  EXPECT_EQ(shared_mem_request_grd, 1);
+  EXPECT_EQ(shared_mem_request_grd, 0);
   int shared_mem_request_blk = DynamicsTester<56, 65>::SHARED_MEM_REQUEST_BLK_BYTES;
   EXPECT_EQ(shared_mem_request_blk, 0);
 }
@@ -466,6 +467,7 @@ TEST(Dynamics, computeStateDerivGPU)
 TEST(Dynamics, stepGPU)
 {
   DynamicsTester<2, 1> tester;
+  tester.GPUSetup();
   std::vector<std::array<float, 2>> s(1);
   std::vector<std::array<float, 1>> u(1);
   std::vector<std::array<float, 2>> s_der(1);

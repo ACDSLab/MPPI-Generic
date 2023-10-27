@@ -95,7 +95,7 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(const E
 {
   nn_input_array input;
   nn_output_array output;
-  int i, j;
+  int i;
   for (i = 0; i < DYNAMICS_DIM; i++)
   {
     input(i) = state(i + (S_DIM - DYNAMICS_DIM));
@@ -124,10 +124,8 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
                                                                                     float* state_der, float* theta_s)
 {
   float* curr_act;
-  int tdx = threadIdx.x;
   int tdy = threadIdx.y;
-  int tdz = threadIdx.z;
-  int i, j, k;
+  int i;
   // curr_act = &theta_s[SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 + (2 * LARGEST_LAYER) * (blockDim.x * tdz +
   // tdx)];
   curr_act = helper_->getInputLocation(theta_s);

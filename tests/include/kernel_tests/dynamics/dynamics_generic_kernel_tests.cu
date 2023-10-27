@@ -296,16 +296,17 @@ __global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* contro
   extern __shared__ float entire_buffer[];
 
   float* theta = entire_buffer;
-  float* x = state + (tid * DYNAMICS_T::STATE_DIM);
-  float* x_dot = state_der + (tid * DYNAMICS_T::STATE_DIM);
-  float* x_next = next_state + (tid * DYNAMICS_T::STATE_DIM);
-  float* u = control + (tid * DYNAMICS_T::CONTROL_DIM);
-  float* y = output + (tid * DYNAMICS_T::OUTPUT_DIM);
-
-  dynamics->initializeDynamics(state, control, output, theta, 0.0f, dt);
 
   if (tid < num)
   {
+    float* x = state + (tid * DYNAMICS_T::STATE_DIM);
+    float* x_dot = state_der + (tid * DYNAMICS_T::STATE_DIM);
+    float* x_next = next_state + (tid * DYNAMICS_T::STATE_DIM);
+    float* u = control + (tid * DYNAMICS_T::CONTROL_DIM);
+    float* y = output + (tid * DYNAMICS_T::OUTPUT_DIM);
+
+    dynamics->initializeDynamics(state, control, output, theta, 0.0f, dt);
+
     // printf("calling on thread %d, %d\n", tid, threadIdx.y);
     dynamics->enforceConstraints(x, u);
     dynamics->step(x, x_next, x_dot, u, y, theta, t, dt);

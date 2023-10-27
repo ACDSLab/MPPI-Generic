@@ -29,7 +29,6 @@ FNNHelper<PARAMS_T, USE_SHARED>::~FNNHelper()
 template <class PARAMS_T, bool USE_SHARED>
 void FNNHelper<PARAMS_T, USE_SHARED>::loadParams(const std::string& model_path)
 {
-  int i, j, k;
   std::string bias_name = "";
   std::string weight_name = "";
   if (!fileExists(model_path))
