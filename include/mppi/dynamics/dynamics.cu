@@ -146,23 +146,44 @@ __device__ inline void Dynamics<CLASS_T, PARAMS_T>::step(float* state, float* ne
 }
 
 template <class CLASS_T, class PARAMS_T>
-__device__ inline void Dynamics<CLASS_T, PARAMS_T>::stateToOutput(const float* __restrict__ state,
-                                                                  float* __restrict__ output)
+__host__ __device__ inline void Dynamics<CLASS_T, PARAMS_T>::stateToOutput(const float* __restrict__ state,
+                                                                           float* __restrict__ output)
 {
   // TODO this is a hack
-  for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i += blockDim.y)
+  int p_index, step;
+  mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(p_index, step);
+  for (int i = p_index; i < OUTPUT_DIM && i < STATE_DIM; i += step)
   {
     output[i] = state[i];
   }
 }
 
 template <class CLASS_T, class PARAMS_T>
-__device__ inline void Dynamics<CLASS_T, PARAMS_T>::outputToState(const float* __restrict__ output,
-                                                                  float* __restrict__ state)
+__host__ __device__ inline void Dynamics<CLASS_T, PARAMS_T>::outputToState(const float* __restrict__ output,
+                                                                           float* __restrict__ state)
 {
   // TODO this is a hack
-  for (int i = threadIdx.y; i < OUTPUT_DIM && i < STATE_DIM; i += blockDim.y)
+  int p_index, step;
+  mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(p_index, step);
+  for (int i = p_index; i < OUTPUT_DIM && i < STATE_DIM; i += step)
   {
     state[i] = output[i];
+  }
+}
+
+template <class CLASS_T, class PARAMS_T>
+Dynamics<CLASS_T, PARAMS_T>::state_array Dynamics<CLASS_T, PARAMS_T>::getZeroState() const
+{
+  return state_array::Zero();
+}
+
+template <class CLASS_T, class PARAMS_T>
+__host__ __device__ inline void Dynamics<CLASS_T, PARAMS_T>::getZeroState(float* state) const
+{
+  int p_index, step;
+  mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(p_index, step);
+  for (int i = p_index; i < STATE_DIM; i += step)
+  {
+    state[i] = 0.0f;
   }
 }

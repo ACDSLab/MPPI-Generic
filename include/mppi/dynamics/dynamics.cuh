@@ -160,7 +160,7 @@ public:
   {
     zero_control_ = zero_control;
   }
-  control_array getZeroControl()
+  control_array getZeroControl() const
   {
     return zero_control_;
   }
@@ -300,9 +300,13 @@ public:
     }
   }
 
-  __device__ void stateToOutput(const float* __restrict__ state, float* __restrict__ output);
+  __host__ __device__ void stateToOutput(const float* __restrict__ state, float* __restrict__ output);
 
-  __device__ void outputToState(const float* __restrict__ output, float* __restrict__ state);
+  __host__ __device__ void outputToState(const float* __restrict__ output, float* __restrict__ state);
+
+  state_array getZeroState() const;
+
+  __host__ __device__ void getZeroState(float* state) const;
 
   /**
    * does a linear interpolation of states

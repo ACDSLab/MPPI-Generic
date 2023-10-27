@@ -83,7 +83,7 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::chooseAppropriateKernel()
 
   // Send the nominal control to the device
   this->copyNominalControlToDevice(false);
-  state_array zero_state = state_array::Zero();
+  state_array zero_state = this->model_->getZeroState();
   // Send zero state to the device
   HANDLE_ERROR(cudaMemcpyAsync(this->initial_state_d_, zero_state.data(), DYN_T::STATE_DIM * sizeof(float),
                                cudaMemcpyHostToDevice, this->stream_));
@@ -240,7 +240,7 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::computeControl(const Eigen::Ref<const sta
       this->getBaselineCost() - this->free_energy_statistics_.real_sys.previousBaseline;
   smoothControlTrajectory();
   computeStateTrajectory(local_state);
-  state_array zero_state = state_array::Zero();
+  state_array zero_state = this->model_->getZeroState();
   for (int i = 0; i < this->getNumTimesteps(); i++)
   {
     // this->model_->enforceConstraints(zero_state, this->control_.col(i));

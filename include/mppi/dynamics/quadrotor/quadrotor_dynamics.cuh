@@ -84,17 +84,16 @@ class QuadrotorDynamics : public Dynamics<QuadrotorDynamics, QuadrotorDynamicsPa
 public:
   using PARENT_CLASS = Dynamics<QuadrotorDynamics, QuadrotorDynamicsParams>;
 
-  using PARENT_CLASS::updateState;  // needed as overloading updateState here hides all parent versions of updateState
   using state_array = typename PARENT_CLASS::state_array;
-
   using control_array = typename PARENT_CLASS::control_array;
-
   using dfdx = typename PARENT_CLASS::dfdx;
-
   using dfdu = typename PARENT_CLASS::dfdu;
+
   // Constructor
   QuadrotorDynamics(cudaStream_t stream = 0);
   QuadrotorDynamics(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream = 0);
+
+  using PARENT_CLASS::updateState;  // needed as overloading updateState here hides all parent versions of updateState
 
   std::string getDynamicsModelName() const override
   {
@@ -117,6 +116,10 @@ public:
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
 
   state_array stateFromMap(const std::map<std::string, float>& map) override;
+
+  __host__ __device__ void getZeroState(float* state) const;
+
+  state_array getZeroState() const;
 };
 
 #if __CUDACC__

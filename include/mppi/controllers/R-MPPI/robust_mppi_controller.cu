@@ -131,7 +131,7 @@ void RobustMPPI::chooseAppropriateKernel()
   /**
    * Set up for kernel comparison
    */
-  state_array zero_state = state_array::Zero();
+  state_array zero_state = this->model_->getZeroState();
   float* initial_state_nominal_d = this->initial_state_d_;
   float* initial_state_real_d = this->initial_state_d_ + DYN_T::STATE_DIM;
 

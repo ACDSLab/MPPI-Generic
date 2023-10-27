@@ -208,3 +208,27 @@ QuadrotorDynamics::state_array QuadrotorDynamics::stateFromMap(const std::map<st
   s(S_INDEX(ANG_VEL_Z)) = map.at("OMEGA_Z");
   return QuadrotorDynamics::state_array();
 }
+
+QuadrotorDynamics::state_array QuadrotorDynamics::getZeroState() const
+{
+  state_array zero = state_array::Zero();
+  zero[S_INDEX(QUAT_W)] = 1.0f;
+  return zero;
+}
+
+__host__ __device__ void QuadrotorDynamics::getZeroState(float* state) const
+{
+  int p_index, step;
+  mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(p_index, step);
+  for (int i = p_index; i < STATE_DIM; i += step)
+  {
+    if (i == S_INDEX(QUAT_W))
+    {
+      state[i] = 1.0f;
+    }
+    else
+    {
+      state[i] = 0.0f;
+    }
+  }
+}

@@ -66,11 +66,11 @@ protected:
   std::atomic<bool> enabled_{ false };
 
   // Values needed
-  s_array init_state_ = s_array::Zero();
+  s_array init_state_ = this->controller_->model_->getZeroState();
   c_array init_u_ = c_array::Zero();
 
   // Values updated at every time step
-  s_array state_ = s_array::Zero();
+  s_array state_ = this->controller_->model_->getZeroState();
   c_array u_ = c_array::Zero();
   // solution
   s_traj state_traj_;

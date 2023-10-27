@@ -324,11 +324,8 @@ public:
       u_fb = interpolateFeedback(state, target_nominal_state, rel_time, fb_state);
     }
     control_array result = u_ff + u_fb;
-    // printf("rel_time %f\n", rel_time);
-    // printf("uff: %f, %f u_fb: %f, %f\n", u_ff[0], u_ff[1], u_fb[0], u_fb[1]);
 
-    // TODO this is kinda jank
-    state_array empty_state = state_array::Zero();
+    state_array empty_state = model_->getZeroState();
     model_->enforceConstraints(empty_state, result);
 
     return result;
