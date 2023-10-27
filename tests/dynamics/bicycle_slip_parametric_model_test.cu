@@ -1,7 +1,7 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
 #include <mppi/dynamics/bicycle_slip/bicycle_slip_parametric.cuh>
-#include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
+#include <kernel_tests/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 

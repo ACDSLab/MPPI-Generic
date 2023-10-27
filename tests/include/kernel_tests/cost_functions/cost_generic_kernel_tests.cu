@@ -270,7 +270,7 @@ void launchRolloutCostKernel(COST_T& cost, SAMPLING_T& sampler, std::vector<std:
   }
 
   // Figure shared memory size
-  const int block_num_shared = block_dim.x * block_dim.z;
+  // const int block_num_shared = block_dim.x * block_dim.z;
   unsigned compute_cost_shared_mem_size = mppi::kernels::calcRolloutCostKernelSharedMemSize(&cost, &sampler, block_dim);
   //       sizeof(float) * (mppi::math::nearest_multiple_4(block_num_shared * COST_T::OUTPUT_DIM) +
   //                        mppi::math::nearest_multiple_4(block_num_shared * COST_T::CONTROL_DIM) +

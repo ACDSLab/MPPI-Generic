@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include <mppi/dynamics/dynamics.cuh>
 
-#include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
+#include <kernel_tests/dynamics/dynamics_generic_kernel_tests.cuh>
 
 template <int STATE_DIM = 1, int CONTROL_DIM = 1, int OUTPUT_DIM = 1>
 struct DynamicsTesterParams : public DynamicsParams

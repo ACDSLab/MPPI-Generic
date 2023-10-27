@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
-#include <mppi/cost_functions/cartpole/cartpole_quadratic_cost_kernel_test.cuh>
+#include <kernel_tests/cost_functions/cartpole/cartpole_quadratic_cost_kernel_test.cuh>
 #include <array>
 
 TEST(CartpoleQuadraticCost, Constructor)

@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <mppi/core/weightedreduction_kernel_test.cuh>
+#include <kernel_test/core/weightedreduction_kernel_test.cuh>
 #include <mppi/utils/test_helper.h>
 #include <random>
 

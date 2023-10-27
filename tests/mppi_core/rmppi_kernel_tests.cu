@@ -4,7 +4,7 @@
 #include <gtest/gtest.h>
 #include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 #include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
-#include <mppi/core/rmppi_kernel_test.cuh>
+#include <kernel_test/core/rmppi_kernel_test.cuh>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
 #include <mppi/utils/test_helper.h>

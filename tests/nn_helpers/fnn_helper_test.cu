@@ -8,7 +8,7 @@
 #include <mppi/utils/nn_helpers/fnn_helper.cuh>
 // Auto-generated header file
 #include <test_networks.h>
-#include <mppi/utils/network_helper_kernel_test.cuh>
+#include <kernel_test/utils/network_helper_kernel_test.cuh>
 #include <unsupported/Eigen/NumericalDiff>
 #include "mppi/ddp/ddp_dynamics.h"
 

@@ -4,8 +4,8 @@
 
 #include <gtest/gtest.h>
 #include <mppi/cost_functions/autorally/ar_robust_cost.cuh>
-#include <mppi/cost_functions/autorally/ar_robust_cost_kernel_test.cuh>
-#include <mppi/cost_functions/cost_generic_kernel_tests.cuh>
+#include <kernel_tests/cost_functions/autorally/ar_robust_cost_kernel_test.cuh>
+#include <kernel_tests/cost_functions/cost_generic_kernel_tests.cuh>
 
 // Auto-generated header file
 #include <autorally_test_map.h>
@@ -36,6 +36,7 @@ TEST_F(ARRobustCostTest, Constructor)
 {
   // checks for CRTP
   ARRobustCost* robust = cost.cost_d_;
+  EXPECT_EQ(robust, nullptr);
 }
 
 TEST_F(ARRobustCostTest, GPUSetup)

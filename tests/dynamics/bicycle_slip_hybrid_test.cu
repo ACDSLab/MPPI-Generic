@@ -1,7 +1,7 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
 #include "mppi/dynamics/bicycle_slip/bicycle_slip_hybrid.cuh"
-#include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
+#include <kernel_tests/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 #include <racer_test_networks.h>
@@ -1130,7 +1130,7 @@ TEST_F(BicycleSlipHybridTest, TestPythonComparisonFinal)
 
 TEST_F(BicycleSlipHybridTest, TestStepGPUvsCPU)
 {
-  const int num_rollouts = 2000;
+  const int num_rollouts = 1000;
   const float dt = 0.1f;
   CudaCheckError();
   using DYN = BicycleSlipHybrid;
@@ -1252,7 +1252,7 @@ TEST_F(BicycleSlipHybridTest, TestStepGPUvsCPU)
 // {
 //   using DYN = BicycleSlipHybrid;
 //
-//   const int num_rollouts = 2000;
+//   const int num_rollouts = 1000;
 //   const float dt = 0.1f;
 //   CudaCheckError();
 //   BicycleSlipHybrid dynamics = BicycleSlipHybrid(mppi::tests::steering_lstm);

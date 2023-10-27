@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <mppi/dynamics/cartpole/cartpole_dynamics.cuh>
 #include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
-#include <mppi/core/rollout_kernel_test.cuh>
+#include <kernel_test/core/rollout_kernel_test.cuh>
 #include <mppi/cost_functions/autorally/ar_standard_cost.cuh>
 #include <mppi/dynamics/autorally/ar_nn_model.cuh>
 

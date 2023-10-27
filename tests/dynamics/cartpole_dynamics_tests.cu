@@ -4,7 +4,7 @@
 
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
-#include <mppi/dynamics/cartpole/cartpole_dynamics_kernel_test.cuh>
+#include <kernel_tests/dynamics/cartpole/cartpole_dynamics_kernel_test.cuh>
 #include <cuda_runtime.h>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <memory>

@@ -1,3 +1,5 @@
+#include <mppi/core/mppi_common_new.cuh>
+
 template <typename CLASS_T, typename PARAMS_T>
 __global__ void parameterTestKernel(CLASS_T* class_t, PARAMS_T& params)
 {
@@ -174,9 +176,10 @@ void launchComputeKinematicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
 template <class DYNAMICS_T, int S_DIM, int C_DIM, int BLOCKDIM_X>
 __global__ void computeDynamicsTestKernel(DYNAMICS_T* model, float* state, float* control, float* state_der, int count)
 {
-  __shared__ float theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
-                         DYNAMICS_T::SHARED_MEM_REQUEST_BLK_BYTES * BLOCKDIM_X];
-  __shared__ float output[S_DIM * BLOCKDIM_X];
+  extern __shared__ float entire_buffer[];
+
+  float* output = entire_buffer;
+  float* theta = &output[mppi::math::nearest_multiple_4(blockDim.x * DYNAMICS_T::OUTPUT_DIM)];
 
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -209,9 +212,11 @@ void launchComputeDynamicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::arra
   const int gridsize_x = (count - 1) / BLOCKDIM_X + 1;
   dim3 threadsPerBlock(BLOCKDIM_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
+  unsigned shared_mem = mppi::kernels::calcDynamicsSharedMemSize(&dynamics, threadsPerBlock) +
+                        mppi::math::nearest_multiple_4(threadsPerBlock.x * DYNAMICS_T::OUTPUT_DIM);
   // launch kernel
   computeDynamicsTestKernel<DYNAMICS_T, S_DIM, C_DIM, BLOCKDIM_X>
-      <<<numBlocks, threadsPerBlock>>>(dynamics.model_d_, state_d, control_d, state_der_d, count);
+      <<<numBlocks, threadsPerBlock, shared_mem>>>(dynamics.model_d_, state_d, control_d, state_der_d, count);
   CudaCheckError();
 
   HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float) * S_DIM * count, cudaMemcpyDeviceToHost));
@@ -228,9 +233,10 @@ template <typename DYNAMICS_T, int S_DIM, int C_DIM, int BLOCKDIM_X>
 __global__ void computeStateDerivTestKernel(DYNAMICS_T* dynamics, float* state, float* control, float* state_der,
                                             int num)
 {
-  __shared__ float theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
-                         DYNAMICS_T::SHARED_MEM_REQUEST_BLK_BYTES * BLOCKDIM_X];
-  __shared__ float output[S_DIM * BLOCKDIM_X];
+  extern __shared__ float entire_buffer[];
+
+  float* output = entire_buffer;
+  float* theta = &output[mppi::math::nearest_multiple_4(blockDim.x * DYNAMICS_T::OUTPUT_DIM)];
 
   dynamics->initializeDynamics(state, control, output, theta, 0.0f, 0.0f);
 
@@ -262,7 +268,10 @@ void launchComputeStateDerivTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
   const int gridsize_x = (count - 1) / BLOCKDIM_X + 1;
   dim3 threadsPerBlock(BLOCKDIM_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
-  computeStateDerivTestKernel<DYNAMICS_T, S_DIM, C_DIM, BLOCKDIM_X><<<numBlocks, threadsPerBlock>>>(
+
+  unsigned shared_mem = mppi::kernels::calcDynamicsSharedMemSize(&dynamics, threadsPerBlock) +
+                        mppi::math::nearest_multiple_4(threadsPerBlock.x * DYNAMICS_T::OUTPUT_DIM);
+  computeStateDerivTestKernel<DYNAMICS_T, S_DIM, C_DIM, BLOCKDIM_X><<<numBlocks, threadsPerBlock, shared_mem>>>(
       static_cast<DYNAMICS_T*>(dynamics.model_d_), state_d, control_d, state_der_d, count);
   CudaCheckError();
 
@@ -283,8 +292,10 @@ __global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* contro
                                float* output, int t, float dt, int num)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ float theta[DYNAMICS_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
-                         DYNAMICS_T::SHARED_MEM_REQUEST_BLK_BYTES * BLOCKDIM_X];
+
+  extern __shared__ float entire_buffer[];
+
+  float* theta = entire_buffer;
   float* x = state + (tid * DYNAMICS_T::STATE_DIM);
   float* x_dot = state_der + (tid * DYNAMICS_T::STATE_DIM);
   float* x_next = next_state + (tid * DYNAMICS_T::STATE_DIM);
@@ -347,7 +358,9 @@ void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DY
   const int gridsize_x = (count - 1) / BLOCKDIM_X + 1;
   dim3 threadsPerBlock(BLOCKDIM_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
-  stepTestKernel<DYNAMICS_T, BLOCKDIM_X><<<numBlocks, threadsPerBlock>>>(
+
+  unsigned shared_mem = mppi::kernels::calcDynamicsSharedMemSize(&dynamics, threadsPerBlock);
+  stepTestKernel<DYNAMICS_T, BLOCKDIM_X><<<numBlocks, threadsPerBlock, shared_mem>>>(
       dynamics.model_d_, state_d, control_d, state_der_d, next_state_d, output_d, t, dt, count);
   CudaCheckError();
 

@@ -1,6 +1,4 @@
 # Add project includes and cuda includes for g++
-include_directories(${PROJECT_SOURCE_DIR}/kernel_tests/
-        ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
 #include test utils
 include_directories(include)

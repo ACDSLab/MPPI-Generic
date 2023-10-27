@@ -7,7 +7,7 @@
 #include <algorithm>
 
 #include <mppi/shaping_functions/CEM/cem_shaping_function.cuh>
-#include <mppi/shaping_functions/shaping_function_kernels_tests.cuh>
+#include <kernel_test/shaping_functions/shaping_function_kernels_tests.cuh>
 
 class CEMShapingFunctionTest : public testing::Test
 {

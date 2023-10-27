@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <mppi/cost_functions/cost_generic_kernel_tests.cuh>
+#include <kernel_tests/cost_functions/cost_generic_kernel_tests.cuh>
 #include <mppi/cost_functions/cartpole/cartpole_quadratic_cost.cuh>
 #include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
 

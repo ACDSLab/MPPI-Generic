@@ -5,7 +5,7 @@
 #include <algorithm>
 
 #include <mppi/utils/texture_helpers/three_d_texture_helper.cuh>
-#include <mppi/utils/texture_test_kernels.cuh>
+#include <kernel_test/utils/texture_test_kernels.cuh>
 
 class ThreeDTextureHelperTest : public testing::Test
 {

@@ -1,7 +1,8 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
 #include <mppi/dynamics/racer_suspension/racer_suspension.cuh>
-#include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
+#include <kernel_tests/dynamics/dynamics_generic_kernel_tests.cuh>
+#include <mppi/core/mppi_common_new.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 
@@ -10,12 +11,12 @@ __global__ void runGPUDynamics(DYN_T* dynamics, const int num_timesteps, float d
                                const float* __restrict__ u_d, float* __restrict__ x_next_d,
                                float* __restrict__ output_d)
 {
-  __shared__ float x_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z * 2];
-  __shared__ float x_dot_shared[DYN_T::STATE_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
-  __shared__ float u_shared[DYN_T::CONTROL_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
-  __shared__ float y_shared[DYN_T::OUTPUT_DIM * BLOCKSIZE_X * BLOCKSIZE_Z];
-  __shared__ float
-      theta_s[DYN_T::SHARED_MEM_REQUEST_GRD_BYTES + DYN_T::SHARED_MEM_REQUEST_BLK_BYTES * BLOCKSIZE_X * BLOCKSIZE_Z];
+  extern __shared__ float entire_buffer[];
+  float* x_shared = entire_buffer;
+  float* x_dot_shared = &x_shared[mppi::math::nearest_multiple_4(BLOCKSIZE_X * BLOCKSIZE_Z * 2 * DYN_T::STATE_DIM)];
+  float* u_shared = &x_dot_shared[mppi::math::nearest_multiple_4(BLOCKSIZE_X * BLOCKSIZE_Z * DYN_T::STATE_DIM)];
+  float* y_shared = &u_shared[mppi::math::nearest_multiple_4(BLOCKSIZE_X * BLOCKSIZE_Z * DYN_T::CONTROL_DIM)];
+  float* theta_s = &y_shared[mppi::math::nearest_multiple_4(BLOCKSIZE_X * BLOCKSIZE_Z * 2 * DYN_T::OUTPUT_DIM)];
 
   int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
   int j = 0;
@@ -245,8 +246,13 @@ TEST_F(RacerSuspensionTest, CPUvsGPU)
   // Ensure that there won't memory overwriting due to inproper indexing
   static_assert(NUM_PARALLEL_TESTS % BLOCKSIZE_X == 0);
 
-  runGPUDynamics<DYN, NUM_PARALLEL_TESTS, BLOCKSIZE_X, BLOCKSIZE_Y>
-      <<<grid_dim, block_dim, 0, stream>>>(dynamics.model_d_, NUM_TIMESTEPS, dt, x_init_d, u_d, x_next_d, output_d);
+  int num_shared = block_dim.x * block_dim.z;
+  unsigned shared_mem = mppi::kernels::calcDynamicsSharedMemSize(&dynamics, block_dim) +
+                        sizeof(float) * (3 * mppi::math::nearest_multiple_4(num_shared * DYN::STATE_DIM) +
+                                         mppi::math::nearest_multiple_4(num_shared * DYN::OUTPUT_DIM) +
+                                         mppi::math::nearest_multiple_4(num_shared * DYN::CONTROL_DIM));
+  runGPUDynamics<DYN, NUM_PARALLEL_TESTS, BLOCKSIZE_X, BLOCKSIZE_Y><<<grid_dim, block_dim, shared_mem, stream>>>(
+      dynamics.model_d_, NUM_TIMESTEPS, dt, x_init_d, u_d, x_next_d, output_d);
   for (int s = 0; s < NUM_PARALLEL_TESTS; s++)
   {
     HANDLE_ERROR(cudaMemcpyAsync(x_next_GPU[s].data(), x_next_d + s * NUM_TIMESTEPS * DYN::STATE_DIM,

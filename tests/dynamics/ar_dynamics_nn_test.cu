@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 #include <mppi/dynamics/autorally/ar_nn_model.cuh>
-#include <mppi/dynamics/autorally/ar_nn_dynamics_kernel_test.cuh>
+#include <kernel_tests/dynamics/autorally/ar_nn_dynamics_kernel_test.cuh>
 #include <stdio.h>
 #include <math.h>
 
@@ -43,7 +43,7 @@ TEST(ARNeuralNetDynamics, verifyTemplateParamters)
   EXPECT_EQ(shared_mem_request_grd, sizeof(FNNParams<6, 32, 32, 4>));
 
   int shared_mem_request_blk = NeuralNetModel<7, 2, 3, 6, 32, 32, 4>::SHARED_MEM_REQUEST_BLK_BYTES;
-  EXPECT_EQ(shared_mem_request_blk, (32 + 1) * 2);
+  EXPECT_EQ(shared_mem_request_blk, (32 + 1) * 2 * sizeof(float));
 
   NeuralNetModel<7, 2, 3, 6, 32, 32, 4> model;
   std::array<int, 4> net_structure = model.getNetStructure();

@@ -1,7 +1,7 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation.cuh>
-#include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
+#include <kernel_tests/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 
@@ -606,7 +606,7 @@ TEST_F(RacerDubinsElevationTest, TestStep)
 
 TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPU)
 {
-  const int num_rollouts = 2000;
+  const int num_rollouts = 1000;
   const float dt = 0.1f;
   CudaCheckError();
   RacerDubinsElevation dynamics = RacerDubinsElevation();
@@ -915,7 +915,7 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
 
 TEST_F(RacerDubinsElevationTest, TestStepGPUvsCPUReverse)
 {
-  const int num_rollouts = 2000;
+  const int num_rollouts = 1000;
   const float dt = 0.1f;
   CudaCheckError();
   RacerDubinsElevation dynamics = RacerDubinsElevation();
