@@ -2,18 +2,18 @@
 // Created by jgibson37 on 2/24/20.
 //
 
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <mppi/utils/test_helper.h>
-#include <random>
-#include <algorithm>
-#include <numeric>
-
+#include <gtest/gtest.h>
 #include <mppi/core/base_plant.hpp>
 #include <mppi/instantiations/cartpole_mppi/cartpole_mppi.cuh>
-#include <mppi_test/mock_classes/mock_dynamics.h>
+#include <mppi/utils/test_helper.h>
 #include <mppi_test/mock_classes/mock_controller.h>
 #include <mppi_test/mock_classes/mock_costs.h>
+#include <mppi_test/mock_classes/mock_dynamics.h>
+
+#include <algorithm>
+#include <numeric>
+#include <random>
 
 template <class CONTROLLER_T>
 class TestPlant : public BasePlant<CONTROLLER_T>
@@ -148,6 +148,7 @@ protected:
     mockController->cost_ = &mockCost;
     mockController->model_ = &mockDynamics;
     mockController->fb_controller_ = mockFeedback;
+    mockController->sampler_ = &sampler;
 
     plant = std::make_shared<MockTestPlant>(mockController);
   }
@@ -161,6 +162,7 @@ protected:
   MockDynamics mockDynamics;
   MockCost mockCost;
   FEEDBACK_T* mockFeedback;
+  SAMPLER sampler;
   std::shared_ptr<MockController> mockController;
   std::shared_ptr<MockTestPlant> plant;
 

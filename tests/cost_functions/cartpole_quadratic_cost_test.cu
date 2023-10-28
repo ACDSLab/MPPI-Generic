@@ -127,22 +127,6 @@ TEST(CartpoleQuadraticCost, ComputeStateCost)
   ASSERT_EQ(cost_known, cost_compute);
 }
 
-TEST(CartpoleQuadraticCost, ComputeControlCost)
-{
-  CartpoleQuadraticCost cost;
-  CartpoleQuadraticCost::control_array control, noise, std_dev;
-  control << 10;
-  noise << 0.4;
-  std_dev << 1;
-  float lambda = 0.7;
-  float alpha = 0.1;
-
-  float cost_compute = cost.computeLikelihoodRatioCost(control, noise, std_dev, lambda, alpha);
-  float cost_known = 0.5f * lambda * (1 - alpha) * cost.getParams().control_cost_coeff[0] * control(0) *
-                     (control(0) + 2 * noise(0)) / (std_dev(0) * std_dev(0));
-  ASSERT_FLOAT_EQ(cost_known, cost_compute);
-}
-
 TEST(CartpoleQuadraticCost, ComputeRunningCost)
 {
   CartpoleQuadraticCost cost;
@@ -158,7 +142,7 @@ TEST(CartpoleQuadraticCost, ComputeRunningCost)
   float alpha = 0.0;
   int crash_status[1] = { 0 };
 
-  float cost_compute = cost.computeRunningCost(state, control, noise, std_dev, lambda, alpha, timestep, crash_status);
+  float cost_compute = cost.computeRunningCost(state, control, timestep, crash_status);
   float cost_known =
       (state[0] - cost.getParams().desired_terminal_state[0]) *
           (state(0) - cost.getParams().desired_terminal_state[0]) * cost.getParams().cart_position_coeff +
@@ -167,9 +151,7 @@ TEST(CartpoleQuadraticCost, ComputeRunningCost)
       (state[2] - cost.getParams().desired_terminal_state[2]) *
           (state(2) - cost.getParams().desired_terminal_state[2]) * cost.getParams().pole_angle_coeff +
       (state[3] - cost.getParams().desired_terminal_state[3]) *
-          (state(3) - cost.getParams().desired_terminal_state[3]) * cost.getParams().pole_angular_velocity_coeff +
-      cost.getParams().control_cost_coeff[0] * control(0) * (control(0) + 2 * noise(0)) / (std_dev(0) * std_dev(0)) *
-          0.5f * lambda * (1 - alpha);
+          (state(3) - cost.getParams().desired_terminal_state[3]) * cost.getParams().pole_angular_velocity_coeff;
 
   cost_known = cost_known;
   ASSERT_EQ(cost_known, cost_compute);

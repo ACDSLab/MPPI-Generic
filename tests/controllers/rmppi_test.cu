@@ -1,14 +1,13 @@
 #include <gtest/gtest.h>
-#include <mppi/dynamics/double_integrator/di_dynamics.cuh>
+#include <mppi/controllers/R-MPPI/robust_mppi_controller.cuh>
 #include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
 #include <mppi/cost_functions/double_integrator/double_integrator_robust_cost.cuh>
-#include <mppi/controllers/R-MPPI/robust_mppi_controller.cuh>
-#include <cnpy.h>
-#include <random>  // Used to generate random noise for control trajectories
-
+#include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
 #include <mppi/sampling_distributions/gaussian/gaussian.cuh>
 
+#include <cnpy.h>
+#include <random>  // Used to generate random noise for control trajectories
 /******************************************************************************
  * Test class for RobustControllerPrivateMethods
  ******************************************************************************/

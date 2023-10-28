@@ -134,6 +134,7 @@ TEST_F(TrackingCosts_Test, ComputeCostHessian)
 
 TEST(DDPSolver_Test, Cartpole_Tracking)
 {
+  using SAMPLER_T = mppi::sampling_distributions::GaussianDistribution<typename CartpoleDynamics::DYN_PARAMS_T>;
   // SETUP THE MPPI CONTROLLER
   CartpoleDynamics model = CartpoleDynamics(1.0, 1.0, 1.0);
   CartpoleQuadraticCost cost;
@@ -159,6 +160,14 @@ TEST(DDPSolver_Test, Cartpole_Tracking)
   const int num_timesteps = 100;
   auto fb_controller = DDPFeedback<CartpoleDynamics, num_timesteps>(&model, dt);
 
+  auto sampler = SAMPLER_T();
+  auto sampler_params = sampler.getParams();
+  for (int i = 0; i < CartpoleDynamics::CONTROL_DIM; i++)
+  {
+    sampler_params.std_dev[i] = 5.0;
+  }
+  sampler.setParams(sampler_params);
+
   DDPParams<CartpoleDynamics> fb_params;
   fb_params.Q = 100 *
                 CartpoleDynamics::dfdx::
@@ -170,17 +179,19 @@ TEST(DDPSolver_Test, Cartpole_Tracking)
   fb_controller.setParams(fb_params);
   fb_controller.initTrackingController();
 
-  CartpoleDynamics::control_array control_var = CartpoleDynamics::control_array::Constant(5.0);
-
   auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
-                                          DDPFeedback<CartpoleDynamics, num_timesteps>, num_timesteps, 2048, 64, 8>(
-      &model, &cost, &fb_controller, dt, max_iter, lambda, alpha, control_var);
-  CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
+                                          DDPFeedback<CartpoleDynamics, num_timesteps>, num_timesteps, 2048, SAMPLER_T>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+
+  auto controller_params = controller.getParams();
+  controller_params.dynamics_rollout_dim_ = dim3(64, 8, 1);
+  controller_params.cost_rollout_dim_ = dim3(num_timesteps, 1, 1);
+  controller.setParams(controller_params);
+  CartpoleDynamics::state_array current_state = model.getZeroState();
   // Compute the control
   controller.computeControl(current_state, 0);
   auto nominal_state = controller.getTargetStateSeq();
   auto nominal_control = controller.getControlSeq();
-  //  std::cout << nominal_state << std::endl;
   // END MPPI CONTROLLER
 
   // util::DefaultLogger logger;
@@ -238,7 +249,7 @@ TEST(DDPSolver_Test, Quadrotor_Tracking)
 
   using DYN = QuadrotorDynamics;
   using COST = QuadrotorQuadraticCost;
-  using CONTROLLER = VanillaMPPIController<DYN, COST, DDPFeedback<DYN, num_timesteps>, num_timesteps, 2048, 64, 8>;
+  using CONTROLLER = VanillaMPPIController<DYN, COST, DDPFeedback<DYN, num_timesteps>, num_timesteps, 2048>;
 
   std::array<float2, DYN::CONTROL_DIM> control_ranges;
   for (int i = 0; i < 3; i++)

@@ -1,10 +1,11 @@
 #include <gtest/gtest.h>
-#include <kernel_test/core/normexp_kernel_test.cuh>
+#include <kernel_tests/core/normexp_kernel_test.cuh>
 #include <mppi/utils/test_helper.h>
-#include <chrono>
-#include <random>
+
 #include <algorithm>
+#include <chrono>
 #include <numeric>
+#include <random>
 
 class NormExpKernel : public testing::Test
 {

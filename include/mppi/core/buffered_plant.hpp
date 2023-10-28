@@ -6,9 +6,10 @@
 #define MPPIGENERIC_BUFFERED_PLANT_H
 
 #include "base_plant.hpp"
-#include <array>
 #include <algorithm>
+#include <array>
 #include <functional>
+#include <list>
 
 template <class T>
 struct BufferMessage

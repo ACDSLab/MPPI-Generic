@@ -2,14 +2,15 @@
 // Created by mgandhi on 5/23/20.
 //
 #include <gtest/gtest.h>
-#include <mppi/dynamics/double_integrator/di_dynamics.cuh>
-#include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
-#include <kernel_test/core/rmppi_kernel_test.cuh>
+#include <kernel_tests/core/rmppi_kernel_test.cuh>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
+#include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
+#include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
 #include <mppi/utils/test_helper.h>
-#include <vector>
+
 #include <iostream>
+#include <vector>
 
 class RMPPIKernels : public ::testing::Test
 {
@@ -159,10 +160,9 @@ TEST_F(RMPPIKernels, InitEvalRollout)
         // compute the cost
         if (k > 0)
         {
-          cost_current += (cost->computeRunningCost(output, candidate_nominal_control.col(k), noise_current,
-                                                    exploration_var, lambda, alpha, k, crash_status) -
-                           cost_current) /
-                          (1.0f * k);
+          cost_current +=
+              (cost->computeRunningCost(output, candidate_nominal_control.col(k), k, crash_status) - cost_current) /
+              (1.0f * k);
         }
         // Update State
         model->step(x_current, x_next, x_dot_current, u_current, output, k, dt);

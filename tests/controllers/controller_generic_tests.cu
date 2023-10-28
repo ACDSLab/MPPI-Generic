@@ -1,15 +1,15 @@
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <mppi/controllers/controller.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
 #include <mppi/sampling_distributions/gaussian/gaussian.cuh>
+#include <mppi/utils/test_helper.h>
 #include <mppi_test/mock_classes/mock_costs.h>
 #include <mppi_test/mock_classes/mock_dynamics.h>
 
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
-#include <mppi/utils/test_helper.h>
-#include <random>
 #include <algorithm>
 #include <numeric>
+#include <random>
 
 static const int number_rollouts = 1200;
 static const int NUM_TIMESTEPS = 100;

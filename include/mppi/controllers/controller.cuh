@@ -187,10 +187,22 @@ public:
   virtual ~Controller()
   {
     // Free the CUDA memory of every object
-    model_->freeCudaMem();
-    cost_->freeCudaMem();
-    fb_controller_->freeCudaMem();
-    sampler_->freeCudaMem();
+    if (model_)
+    {
+      model_->freeCudaMem();
+    }
+    if (cost_)
+    {
+      cost_->freeCudaMem();
+    }
+    if (fb_controller_)
+    {
+      fb_controller_->freeCudaMem();
+    }
+    if (sampler_)
+    {
+      sampler_->freeCudaMem();
+    }
 
     // Free the CUDA memory of the controller
     deallocateCUDAMemory();
@@ -756,10 +768,10 @@ public:
   /**
    * Public data members
    */
-  DYN_T* model_;
-  COST_T* cost_;
-  FB_T* fb_controller_;
-  SAMPLING_T* sampler_;
+  DYN_T* model_ = nullptr;
+  COST_T* cost_ = nullptr;
+  FB_T* fb_controller_ = nullptr;
+  SAMPLING_T* sampler_ = nullptr;
   cudaStream_t stream_;
   cudaStream_t vis_stream_;
 
