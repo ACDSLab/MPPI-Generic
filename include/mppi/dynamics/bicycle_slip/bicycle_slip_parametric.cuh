@@ -154,6 +154,14 @@ public:
     return normals_tex_helper_;
   }
 
+  void updateRotation(std::array<float3, 3>& rotation)
+  {
+      this->tex_helper_->updateRotation(0, rotation);
+      this->normals_tex_helper_->updateRotation(0, rotation);
+      this->normals_tex_helper_->updateRotation(1, rotation);
+      this->normals_tex_helper_->updateRotation(2, rotation);
+  }
+
 protected:
   TwoDTextureHelper<float4>* normals_tex_helper_ = nullptr;
 };

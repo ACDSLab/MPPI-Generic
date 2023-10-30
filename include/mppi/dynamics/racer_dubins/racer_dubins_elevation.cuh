@@ -111,6 +111,11 @@ public:
     this->PARENT_CLASS::updateState(state, next_state, state_der, dt);
   }
 
+  void updateRotation(std::array<float3, 3>& rotation)
+  {
+      this->tex_helper_->updateRotation(0, rotation);
+  }
+
   void GPUSetup();
 
   void freeCudaMem();
