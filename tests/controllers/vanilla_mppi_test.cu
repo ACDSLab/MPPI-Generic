@@ -281,8 +281,7 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
       printf("Current Baseline Cost: %f \n", controller->getBaselineCost());
       model.printState(current_state.data());
       std::cout << "Control: " << control.transpose() << std::endl;
-
-      break;
+      FAIL();
     }
 
     // Compute the control

@@ -174,7 +174,7 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   __syncthreads();
   for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
-    int t = thread_idx + time_iter * blockDim.x + 1;  // start at t = 1
+    int t = thread_idx + time_iter * blockDim.x;
     if (COALESCE)
     {  // Fill entire shared mem sequentially using sequential threads_idx
       int amount_to_fill = (time_iter + 1) * blockDim.x > num_timesteps ? num_timesteps % blockDim.x : blockDim.x;
@@ -183,13 +183,13 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
           ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
           COST_T::OUTPUT_DIM * amount_to_fill);
     }
-    else if (t <= num_timesteps)
+    else if (t < num_timesteps)
     {  // t = num_timesteps is the terminal state for outside this for-loop
-      sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
+      sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t;
       mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
     }
     if (t < num_timesteps)
-    {  // load controls from t = 1 to t = num_timesteps - 1
+    {  // load controls from t = 0 to t = num_timesteps - 1
       int candidate_t = min(t + stride, num_timesteps - 1);
       sampling->readControlSample(candidate_sample_idx, candidate_t, distribution_idx, u, theta_d, blockDim.y,
                                   thread_idy, y);
@@ -223,8 +223,8 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   const int last_y_index = (num_timesteps - 1) % blockDim.x;
   y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
   // Compute terminal cost and the final cost for each thread
-  mppi_common::computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y,
-                                  running_cost[0] / (num_timesteps - 1), theta_c, trajectory_costs_d);
+  mppi_common::computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y, running_cost[0] / (num_timesteps),
+                                  theta_c, trajectory_costs_d);
 }
 
 template <class DYN_T, class COST_T, class SAMPLING_T>
@@ -332,12 +332,10 @@ __global__ void initEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict_
 #else
     __syncthreads();
 #endif
-    if (t > 0)
-    {
-      running_cost[0] +=
-          costs->computeRunningCost(y, u, t, theta_c_shared, crash_status) +
-          sampling->computeLikelihoodRatioCost(u, theta_d_shared, global_idx, t, distribution_idx, lambda, alpha);
-    }
+    running_cost[0] +=
+        costs->computeRunningCost(y, u, t, theta_c_shared, crash_status) +
+        sampling->computeLikelihoodRatioCost(u, theta_d_shared, global_idx, t, distribution_idx, lambda, alpha);
+
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
     bar->arrive_and_wait();
 #else
@@ -353,8 +351,8 @@ __global__ void initEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict_
   costArrayReduction(running_cost, blockDim.y, tdy, blockDim.y, tdy == 0, blockDim.x);
 
   // Compute terminal cost and the final cost for each thread
-  mppi_common::computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y,
-                                  running_cost[0] / (num_timesteps - 1), theta_c_shared, trajectory_costs_d);
+  mppi_common::computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y, running_cost[0] / (num_timesteps),
+                                  theta_c_shared, trajectory_costs_d);
 }
 
 template <class DYN_T, class FB_T, class SAMPLING_T, int NOMINAL_STATE_IDX>
@@ -553,7 +551,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   __syncthreads();
   for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
-    int t = thread_idx + time_iter * blockDim.x + 1;  // start at t = 1
+    int t = thread_idx + time_iter * blockDim.x;
     if (COALESCE)
     {  // Fill entire shared mem sequentially using sequential threads_idx
       int amount_to_fill = (time_iter + 1) * blockDim.x > num_timesteps ? num_timesteps % blockDim.x : blockDim.x;
@@ -562,13 +560,13 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
           ((num_rollouts * thread_idz + global_idx) * num_timesteps + time_iter * blockDim.x) * COST_T::OUTPUT_DIM,
           COST_T::OUTPUT_DIM * amount_to_fill);
     }
-    else if (t <= num_timesteps)
+    else if (t < num_timesteps)
     {  // t = num_timesteps is the terminal state for outside this for-loop
-      sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t - 1;
+      sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + t;
       mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
     }
     if (t < num_timesteps)
-    {  // load controls from t = 1 to t = num_timesteps - 1
+    {  // load controls from t = 0 to t = num_timesteps - 1
       sampling->readControlSample(global_idx, t, distribution_idx, u, theta_d, blockDim.y, thread_idy, y);
     }
 #ifdef USE_CUDA_BARRIERS_COST
@@ -644,8 +642,8 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
     {
       *running_cost_extra += costs->terminalCost(y, theta_c);
     }
-    *running_cost /= ((float)num_timesteps - 1);
-    *running_cost_extra /= ((float)num_timesteps - 1);
+    *running_cost /= ((float)num_timesteps);
+    *running_cost_extra /= ((float)num_timesteps);
   }
   __syncthreads();
   if (thread_idz != NOMINAL_STATE_IDX && thread_idx == 0 && thread_idy == 0)
@@ -847,8 +845,8 @@ __global__ void rolloutRMPPIKernel(DYN_T* __restrict__ dynamics, COST_T* __restr
     {
       *running_cost_extra += costs->terminalCost(y, theta_c_shared);
     }
-    *running_cost /= ((float)num_timesteps - 1);
-    *running_cost_extra /= ((float)num_timesteps - 1);
+    *running_cost /= ((float)num_timesteps);
+    *running_cost_extra /= ((float)num_timesteps);
   }
   __syncthreads();
   if (thread_idz != NOMINAL_STATE_IDX && thread_idy == 0)
@@ -867,7 +865,7 @@ __global__ void rolloutRMPPIKernel(DYN_T* __restrict__ dynamics, COST_T* __restr
   }
 }
 
-template <class DYN_T, class COST_T, typename SAMPLING_T>
+template <class DYN_T, class COST_T, typename SAMPLING_T, bool COALESCE>
 void launchSplitInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
                                SAMPLING_T* __restrict__ sampling, float dt, const int num_timesteps,
                                const int num_rollouts, float lambda, float alpha, int samples_per_condition,
@@ -900,7 +898,7 @@ void launchSplitInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict_
   unsigned cost_shared_size =
       calcEvalCostKernelSharedMemSize(costs, sampling, num_rollouts, samples_per_condition, dimCostBlock);
 
-  initEvalCostKernel<COST_T, SAMPLING_T><<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
+  initEvalCostKernel<COST_T, SAMPLING_T, COALESCE><<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
       costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, samples_per_condition, strides_d, y_d,
       trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
@@ -937,7 +935,7 @@ void launchInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ cos
   }
 }
 
-template <class DYN_T, class COST_T, class SAMPLING_T, class FB_T, int NOMINAL_STATE_IDX>
+template <class DYN_T, class COST_T, class SAMPLING_T, class FB_T, int NOMINAL_STATE_IDX, bool COALESCE>
 void launchSplitRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs,
                                    SAMPLING_T* __restrict__ sampling, FB_T* __restrict__ fb_controller, float dt,
                                    const int num_timesteps, const int num_rollouts, float lambda, float alpha,
@@ -975,7 +973,7 @@ void launchSplitRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restr
   // Run Costs
   dim3 dimCostGrid(num_rollouts, 1, 1);
   unsigned cost_shared_size = calcRMPPICostKernelSharedMemSize(costs, sampling, fb_controller, dimCostBlock);
-  rolloutRMPPICostKernel<COST_T, DYN_T, SAMPLING_T, FB_T, NOMINAL_STATE_IDX>
+  rolloutRMPPICostKernel<COST_T, DYN_T, SAMPLING_T, FB_T, NOMINAL_STATE_IDX, COALESCE>
       <<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(costs, dynamics, fb_controller, sampling, dt,
                                                                 num_timesteps, num_rollouts, lambda, alpha,
                                                                 value_func_threshold, init_x_d, y_d, trajectory_costs);

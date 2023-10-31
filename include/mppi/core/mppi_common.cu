@@ -741,7 +741,7 @@ __device__ void computeAndSaveCost(int num_rollouts, int num_timesteps, int glob
   if (threadIdx.y == 0 && global_idx < num_rollouts)
   {
     cost_rollouts_device[global_idx + num_rollouts * threadIdx.z] =
-        running_cost + costs->terminalCost(output, theta_c) / (num_timesteps - 1);
+        running_cost + costs->terminalCost(output, theta_c) / (num_timesteps);
   }
 }
 
