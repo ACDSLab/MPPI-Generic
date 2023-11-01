@@ -45,7 +45,7 @@ public:
   SAMPLER_T* sampler = nullptr;
   FB_T* fb_controller = nullptr;
   std::shared_ptr<CONTROLLER_T> controller;
-  mppi::util::MPPILogger logger = mppi::util::MPPILogger(mppi::util::LOG_LEVEL::DEBUG);
+  mppi::util::MPPILoggerPtr logger = std::make_shared<mppi::util::MPPILogger>(mppi::util::LOG_LEVEL::DEBUG);
 
   void SetUp() override
   {

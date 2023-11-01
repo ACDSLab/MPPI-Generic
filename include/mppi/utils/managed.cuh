@@ -36,6 +36,7 @@
 #define MPPI_MANAGED_CUH_
 
 #include "gpu_err_chk.cuh"
+#include <mppi/utils/logger.hpp>
 
 /**
  * @class Managed managed.cuh
@@ -61,6 +62,8 @@ public:
   Managed(cudaStream_t stream = 0)
   {
     this->bindToStream(stream);
+    auto logger = std::make_shared<mppi::util::MPPILogger>();
+    setLogger(logger);
   }
 
   /**
@@ -83,6 +86,26 @@ public:
   // printParams
   // other printing methods
 
+  __host__ void setLogger(const mppi::util::MPPILoggerPtr& logger)
+  {
+    logger_ = logger;
+  }
+
+  __host__ void setLogLevel(const mppi::util::LOG_LEVEL& level)
+  {
+    logger_->setLogLevel(level);
+  }
+
+  __host__ mppi::util::MPPILoggerPtr getLogger()
+  {
+    return logger_;
+  }
+
+  __host__ mppi::util::MPPILoggerPtr getLogger() const
+  {
+    return logger_;
+  }
+
 protected:
   template <class T>
   static T* GPUSetup(T* host_ptr)
@@ -96,6 +119,7 @@ protected:
     host_ptr->GPUMemStatus_ = true;
     return device_ptr;
   }
+  mppi::util::MPPILoggerPtr logger_ = nullptr;
 
   // TODO CRTP template this on the base class for allocation and dealloation
 };

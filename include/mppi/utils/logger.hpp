@@ -6,6 +6,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <vector>
+#include <memory>
 
 namespace mppi
 {
@@ -16,7 +17,8 @@ enum class LOG_LEVEL : int
   DEBUG = 0,
   INFO,
   WARNING,
-  ERROR
+  ERROR,
+  NONE
 };
 
 const char BLACK[] = "\033[0;30m";
@@ -94,7 +96,7 @@ public:
     {
       std::va_list argptr;
       va_start(argptr, fmt);
-      colored_fprintf(output_stream_, GREEN, fmt, argptr);
+      surround_fprintf(output_stream_, GREEN, RESET, fmt, argptr);
       va_end(argptr);
     }
   }
@@ -109,7 +111,7 @@ public:
     {
       std::va_list argptr;
       va_start(argptr, fmt);
-      colored_fprintf(output_stream_, CYAN, fmt, argptr);
+      surround_fprintf(output_stream_, CYAN, RESET, fmt, argptr);
       va_end(argptr);
     }
   }
@@ -124,7 +126,7 @@ public:
     {
       std::va_list argptr;
       va_start(argptr, fmt);
-      colored_fprintf(output_stream_, YELLOW, fmt, argptr);
+      surround_fprintf(output_stream_, YELLOW, RESET, fmt, argptr);
       va_end(argptr);
     }
   }
@@ -139,7 +141,7 @@ public:
     {
       std::va_list argptr;
       va_start(argptr, fmt);
-      colored_fprintf(output_stream_, RED, fmt, argptr);
+      surround_fprintf(output_stream_, RED, RESET, fmt, argptr);
       va_end(argptr);
     }
   }
@@ -157,7 +159,8 @@ protected:
    * @param fmt       format string
    * @param ...       extra variables for format string
    */
-  virtual void colored_fprintf(std::FILE* fstream, const char* color, const char* fmt, std::va_list args)
+  virtual void surround_fprintf(std::FILE* fstream, const char* prefix, const char* suffix, const char* fmt,
+                                std::va_list args)
   {
     // introducing a second copy of the args as calling vsnprintf leaves args in an indeterminate state
     std::va_list args_cpy;
@@ -168,9 +171,10 @@ protected:
     std::vsnprintf(buf.data(), buf.size(), fmt, args_cpy);
     va_end(args_cpy);
     // print formatted string but colored
-    std::fprintf(fstream, "%s%s%s", color, buf.data(), RESET);
+    std::fprintf(fstream, "%s%s%s", prefix, buf.data(), suffix);
   }
 };
 
+using MPPILoggerPtr = std::shared_ptr<MPPILogger>;
 }  // namespace util
 }  // namespace mppi

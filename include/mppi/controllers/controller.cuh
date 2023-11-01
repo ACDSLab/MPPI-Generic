@@ -141,6 +141,9 @@ public:
 
     GPUSetup();
 
+    auto logger = std::make_shared<mppi::util::MPPILogger>();
+    setLogger(logger);
+
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the
      * constructor along with any other methods to copy memory to the device and back
@@ -170,6 +173,9 @@ public:
     HANDLE_ERROR(cudaStreamCreate(&vis_stream_));
 
     GPUSetup();
+
+    auto logger = std::make_shared<mppi::util::MPPILogger>();
+    setLogger(logger);
 
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the
@@ -700,7 +706,7 @@ public:
     enable_feedback_ = false;
   }
 
-  void setFeedbackParams(TEMPLATED_FEEDBACK_PARAMS fb_params)
+  void setFeedbackParams(const TEMPLATED_FEEDBACK_PARAMS& fb_params)
   {
     fb_controller_->setParams(fb_params);
   }
@@ -886,31 +892,30 @@ public:
 
   void setCUDAStream(cudaStream_t stream);
 
-  void setLogLevel(const mppi::util::LOG_LEVEL& level, const bool set_all = true)
+  void setLogLevel(const mppi::util::LOG_LEVEL& level)
   {
-    logger_.setLogLevel(level);
-    if (set_all)
-    {
-      model_->setLogLevel(level);
-      cost_->setLogLevel(level);
-      sampler_->setLogLevel(level);
-      fb_controller_->setLogLevel(level);
-    }
+    logger_->setLogLevel(level);
+    model_->setLogLevel(level);
+    cost_->setLogLevel(level);
+    sampler_->setLogLevel(level);
+    fb_controller_->setLogLevel(level);
   }
 
-  void setLogger(const mppi::util::MPPILogger& logger, const bool set_all = true)
+  void setLogger(const mppi::util::MPPILoggerPtr& logger)
   {
     logger_ = logger;
-    if (set_all)
-    {
-      model_->setLogger(logger);
-      cost_->setLogger(logger);
-      sampler_->setLogger(logger);
-      fb_controller_->setLogger(logger);
-    }
+    model_->setLogger(logger);
+    cost_->setLogger(logger);
+    sampler_->setLogger(logger);
+    fb_controller_->setLogger(logger);
   }
 
-  mppi::util::MPPILogger getLogger() const
+  mppi::util::MPPILoggerPtr getLogger() const
+  {
+    return logger_;
+  }
+
+  mppi::util::MPPILoggerPtr getLogger()
   {
     return logger_;
   }
@@ -920,7 +925,7 @@ protected:
   void deallocateCUDAMemory();
 
   PARAMS_T params_;
-  mppi::util::MPPILogger logger_;
+  mppi::util::MPPILoggerPtr logger_ = nullptr;
 
   // TODO get raw pointers for different things
   bool debug_ = false;

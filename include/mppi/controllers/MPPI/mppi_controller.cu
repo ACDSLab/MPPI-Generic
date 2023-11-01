@@ -139,7 +139,7 @@ void VanillaMPPI::chooseAppropriateKernel()
     this->setKernelChoice(kernelType::USE_SINGLE_KERNEL);
     kernel_choice = "single";
   }
-  this->logger_.info("Choosing %s kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
+  this->logger_->info("Choosing %s kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
                      kernel_choice.c_str(), split_kernel_time_ms, single_kernel_time_ms,
                      this->getNumKernelEvaluations());
 }
@@ -195,7 +195,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 
     if (this->getBaselineCost() > baseline_prev + 1)
     {
-      this->logger_.debug("Previous Baseline: %f\n         Baseline: %f\n", baseline_prev, this->getBaselineCost());
+      this->logger_->debug("Previous Baseline: %f\n         Baseline: %f\n", baseline_prev, this->getBaselineCost());
     }
 
     baseline_prev = this->getBaselineCost();

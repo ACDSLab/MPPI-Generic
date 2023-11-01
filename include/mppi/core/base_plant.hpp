@@ -18,7 +18,6 @@
 #include <thread>
 #include <memory>
 #include <mppi/controllers/controller.cuh>
-#include <mppi/utils/logger.hpp>
 #include <mppi/utils/math_utils.h>
 
 template <class CONTROLLER_T>
@@ -49,7 +48,7 @@ public:
 
 protected:
   std::mutex access_guard_;
-  mppi::util::MPPILogger logger_;
+  mppi::util::MPPILoggerPtr logger_ = nullptr;
 
   int hz_ = 10;  // Frequency of control publisher
   int visualization_hz_ = 5;
@@ -131,6 +130,8 @@ public:
     state_traj_ = s_traj::Zero();
     dynamics_params_ = controller->model_->getParams();
     cost_params_ = controller_->cost_->getParams();
+    auto logger = std::make_shared<mppi::util::MPPILogger>();
+    setLogger(logger);
   };
   /**
    * Destructor must be virtual so that children are properly
@@ -210,11 +211,11 @@ public:
     return state_;
   };
 
-  virtual void setState(s_array state)
+  virtual void setState(const Eigen::Ref<const s_array>& state)
   {
     state_ = state;
   }
-  virtual void setControl(c_array u)
+  virtual void setControl(const Eigen::Ref<const c_array>& u)
   {
     u_ = u;
   }
@@ -271,7 +272,9 @@ public:
     throw std::logic_error("Invalid dynamics with current plant, it requires the buffered plant");
   }
 
-  virtual void setSolution(const s_traj& state_seq, const c_traj& control_seq, const o_traj& output_seq,
+  virtual void setSolution(const Eigen::Ref<const s_traj>& state_seq,
+                           const Eigen::Ref<const c_traj>& control_seq,
+                           const Eigen::Ref<const o_traj>& output_seq,
                            const FB_STATE_T& fb_state, double timestamp)
   {
     last_used_state_update_time_ = timestamp;
@@ -345,26 +348,26 @@ public:
     return controller_params_;
   }
 
-  virtual void setDynamicsParams(DYN_PARAMS_T params)
+  virtual void setDynamicsParams(const DYN_PARAMS_T& params)
   {
     std::lock_guard<std::mutex> guard(dynamics_params_guard_);
     dynamics_params_ = params;
     has_new_dynamics_params_ = true;
   }
-  virtual void setCostParams(COST_PARAMS_T params)
+  virtual void setCostParams(const COST_PARAMS_T& params)
   {
     std::lock_guard<std::mutex> guard(cost_params_guard_);
     cost_params_ = params;
     has_new_cost_params_ = true;
   }
-  virtual void setControllerParams(CONTROLLER_PARAMS_T params)
+  virtual void setControllerParams(const CONTROLLER_PARAMS_T& params)
   {
     std::lock_guard<std::mutex> guard(controller_params_guard_);
     controller_params_ = params;
     has_new_controller_params_ = true;
   }
 
-  virtual void setLogger(const mppi::util::MPPILogger& logger)
+  virtual void setLogger(const mppi::util::MPPILoggerPtr& logger)
   {
     logger_ = logger;
     controller_->setLogger(logger);
@@ -372,16 +375,16 @@ public:
 
   virtual void setLogLevel(const mppi::util::LOG_LEVEL& level)
   {
-    logger_.setLogLevel(level);
+    logger_->setLogLevel(level);
     controller_->setLogLevel(level);
   }
 
-  virtual mppi::util::MPPILogger getLogger()
+  virtual mppi::util::MPPILoggerPtr getLogger()
   {
     return logger_;
   }
 
-  inline virtual mppi::util::MPPILogger getLogger() const
+  virtual mppi::util::MPPILoggerPtr getLogger() const
   {
     return logger_;
   }

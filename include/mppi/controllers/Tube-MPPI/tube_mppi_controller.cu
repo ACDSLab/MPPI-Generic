@@ -150,7 +150,7 @@ void TubeMPPI::chooseAppropriateKernel()
     this->setKernelChoice(kernelType::USE_SINGLE_KERNEL);
     kernel_choice = "single";
   }
-  this->logger_.info("Choosing %s kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
+  this->logger_->info("Choosing %s kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
                      kernel_choice.c_str(), split_kernel_time_ms, single_kernel_time_ms,
                      this->getNumKernelEvaluations());
 }
@@ -253,8 +253,8 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
     // Compute the nominal and actual state trajectories
     computeStateTrajectory(state);  // Input is the actual state
 
-    // this->logger_.debug("Actual baseline: %f\n", this->getBaselineCost(0));
-    // this->logger_.debug("Nominal baseline: %f\n", this->getBaselineCost(1));
+    // this->logger_->debug("Actual baseline: %f\n", this->getBaselineCost(0));
+    // this->logger_->debug("Nominal baseline: %f\n", this->getBaselineCost(1));
 
     if (this->getBaselineCost(0) < this->getBaselineCost(1) + getNominalThreshold())
     {

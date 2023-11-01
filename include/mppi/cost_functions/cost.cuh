@@ -11,7 +11,6 @@ Header file for costs
 #include <math.h>
 #include <mppi/dynamics/dynamics.cuh>
 #include <mppi/utils/managed.cuh>
-#include <mppi/utils/logger.hpp>
 
 #include <stdexcept>
 
@@ -93,26 +92,6 @@ public:
   __host__ __device__ PARAMS_T getParams()
   {
     return params_;
-  }
-
-  __host__ void setLogger(const mppi::util::MPPILogger& logger)
-  {
-    logger_ = logger;
-  }
-
-  __host__ void setLogLevel(const mppi::util::LOG_LEVEL& level)
-  {
-    logger_.setLogLevel(level);
-  }
-
-  __host__ mppi::util::MPPILogger getLogger()
-  {
-    return logger_;
-  }
-
-  inline __host__ mppi::util::MPPILogger getLogger() const
-  {
-    return logger_;
   }
 
   void paramsToDevice();
@@ -254,7 +233,6 @@ public:
 
 protected:
   PARAMS_T params_;
-  mppi::util::MPPILogger logger_;
 };
 
 #if __CUDACC__

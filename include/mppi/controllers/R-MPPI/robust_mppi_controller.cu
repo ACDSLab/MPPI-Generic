@@ -195,7 +195,7 @@ void RobustMPPI::chooseAppropriateKernel()
     kernel_choice = "single";
   }
 
-  this->logger_.info(
+  this->logger_->info(
       "Choosing %s rollout kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
       kernel_choice.c_str(), split_rollout_kernel_time_ms, single_rollout_kernel_time_ms,
       this->getNumKernelEvaluations());
@@ -307,7 +307,7 @@ void RobustMPPI::chooseAppropriateEvalKernel()
     kernel_choice = "single";
   }
 
-  this->logger_.info(
+  this->logger_->info(
       "Choosing %s eval kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
       kernel_choice.c_str(), split_eval_kernel_time_ms, single_eval_kernel_time_ms, this->getNumKernelEvaluations());
 }
