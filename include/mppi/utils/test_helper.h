@@ -82,7 +82,17 @@ inline void eigen_assert_float_eq(const Eigen::Ref<const EIGEN_MAT>& known, cons
 {
   for (int i = 0; i < known.size(); i++)
   {
-    ASSERT_FLOAT_EQ(known[i], compute[i]) << "Failed at index: " << i;
+    ASSERT_FLOAT_EQ(known.data()[i], compute.data()[i]) << "Failed at index: " << i;
+  }
+}
+
+template <class EIGEN_MAT>
+inline void eigen_assert_float_near(const Eigen::Ref<const EIGEN_MAT>& known,
+                                    const Eigen::Ref<const EIGEN_MAT>& compute, float tol)
+{
+  for (int i = 0; i < known.size(); i++)
+  {
+    ASSERT_NEAR(known.data()[i], compute.data()[i], tol * known.data()[i]) << "Failed at index: " << i;
   }
 }
 
