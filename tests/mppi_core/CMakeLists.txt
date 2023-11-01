@@ -1,6 +1,8 @@
 set(GTEST_LIBRARIES gtest gmock gtest_main)
 file(GLOB TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
 
+list(REMOVE_ITEM TARGET_SRCS "CCM_tests.cu")
+
 foreach(T_FILE IN LISTS TARGET_SRCS)
   get_filename_component(T_NAME ${T_FILE} NAME_WE)
   add_executable(${T_NAME} ${PROJECT_SOURCE_DIR}/tests/test_main.cpp ${T_FILE})

@@ -40,9 +40,6 @@ public:
       case MAX:
         cost = max_measure(costs, num_costs);
         break;
-      case MEAN:
-        cost = mean_measure(costs, num_costs);
-        break;
       case MEDIAN:
         cost = var(costs, num_costs, 0.5f);
         break;
@@ -51,6 +48,10 @@ public:
         break;
       case VAR:
         cost = var(costs, num_costs, risk_tolerance);
+        break;
+      default: // go to mean case
+      case MEAN:
+        cost = mean_measure(costs, num_costs);
         break;
     }
     return cost;

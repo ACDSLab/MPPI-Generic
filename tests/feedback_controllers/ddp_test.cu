@@ -269,7 +269,7 @@ TEST(DDPSolver_Test, Quadrotor_Tracking)
 
   // Create DDP and find feedback gains
   util::DefaultLogger logger;
-  bool verbose = false;
+  // bool verbose = false;
 
   // CONTROLLER::StateCostWeight Q;
   // CONTROLLER::ControlCostWeight R;

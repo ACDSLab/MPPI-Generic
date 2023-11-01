@@ -138,8 +138,6 @@ TEST(CartpoleQuadraticCost, ComputeRunningCost)
   noise << 0.3;
   std_dev << 2;
   int timestep = 0;
-  float lambda = 1.0;
-  float alpha = 0.0;
   int crash_status[1] = { 0 };
 
   float cost_compute = cost.computeRunningCost(state, control, timestep, crash_status);

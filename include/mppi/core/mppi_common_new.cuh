@@ -84,7 +84,7 @@ template <class DYN_T, class COST_T, typename SAMPLING_T>
 void launchRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling,
                          float dt, const int num_timesteps, const int num_rollouts, float lambda, float alpha,
                          float* __restrict__ init_x_d, float* __restrict__ trajectory_costs, dim3 dimBlock,
-                         cudaStream_t stream, bool synchronize);
+                         cudaStream_t stream, bool synchronize = true);
 
 template <class COST_T, class SAMPLING_T, bool COALESCE = true>
 void launchVisualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restrict__ sampling, float dt,
