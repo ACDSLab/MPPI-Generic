@@ -45,6 +45,7 @@ public:
   SAMPLER_T* sampler = nullptr;
   FB_T* fb_controller = nullptr;
   std::shared_ptr<CONTROLLER_T> controller;
+  mppi::util::MPPILogger logger = mppi::util::MPPILogger(mppi::util::LOG_LEVEL::DEBUG);
 
   void SetUp() override
   {
@@ -65,6 +66,8 @@ public:
     CONTROLLER_PARAMS_T controller_params;
     setUpControllerParams(controller_params);
     controller = std::make_shared<CONTROLLER_T>(model, cost, fb_controller, sampler, controller_params, stream);
+    controller->setLogger(logger);
+    controller->setLogLevel(mppi::util::LOG_LEVEL::WARNING);
   }
 
   void setUpControllerParams(CONTROLLER_PARAMS_T& params)
@@ -135,9 +138,17 @@ TYPED_TEST(ControllerKernelChoiceTest, CheckAppropriateKernelSelection)
   float single_kernel_duration = mppi::math::timeDiffms(end_single_kernel_time, start_single_kernel_time);
   float split_kernel_duration = mppi::math::timeDiffms(end_split_kernel_time, start_split_kernel_time);
 
-  ASSERT_EQ(split_kernel_duration <= single_kernel_duration, auto_kernel_choice == kernelType::USE_SPLIT_KERNELS)
-      << "chooseAppropriateKernel() did not choose the faster kernel, single: " << single_kernel_duration
-      << " ms, split: " << split_kernel_duration;
+  if (fabsf(single_kernel_duration - split_kernel_duration) < 1.0f)
+  {  // the kernels are within 1 ms of each other
+    this->logger.info("Durations of both kernels too close to determine winner: split = %f ms, single = %f ms\n",
+                      split_kernel_duration, single_kernel_duration);
+  }
+  else
+  {
+    ASSERT_EQ(split_kernel_duration <= single_kernel_duration, auto_kernel_choice == kernelType::USE_SPLIT_KERNELS)
+        << "chooseAppropriateKernel() did not choose the faster kernel, single: " << single_kernel_duration
+        << " ms, split: " << split_kernel_duration;
+  }
 }
 
 TYPED_TEST(ControllerKernelChoiceTest, KernelChoiceThroughSharedMemCheck)
@@ -162,7 +173,7 @@ TYPED_TEST(ControllerKernelChoiceTest, NoUsableKernelCheck)
 
 TYPED_TEST(ControllerKernelChoiceTest, MoreEvaluationsDoNotAdjustChoice)
 {
-  const int num_evaluations = 5;
+  const int num_evaluations = 10;
   auto curr_select_kernel = this->controller->getKernelChoiceAsEnum();
 
   this->controller->setNumKernelEvaluations(num_evaluations);

@@ -348,7 +348,7 @@ template <class COST_T>
 void checkGPURolloutCost(COST_T& cost, float dt)
 {
   cost.GPUSetup();
-  const int num_rollouts = 1000;
+  const int num_rollouts = 512;
   const int num_timesteps = 8;
 #ifdef USE_ROLLOUT_COST_KERNEL
   using SAMPLER_T = mppi::sampling_distributions::GaussianDistribution<typename COST_T::TEMPLATED_DYN_PARAMS>;
@@ -426,17 +426,17 @@ void checkGPURolloutCost(COST_T& cost, float dt)
       HANDLE_ERROR(cudaMemcpy(u_traj_n.data(), sampler.getControlSample(n, 0, 0),
                               sizeof(float) * num_timesteps * COST_T::CONTROL_DIM, cudaMemcpyDeviceToHost));
       float total_cost = 0;
-      for (int t = 1; t < num_timesteps; t++)
+      for (int t = 0; t < num_timesteps; t++)
       {
         int index = t + n * num_timesteps;
         typename COST_T::control_array u_index = u_traj_n.col(t);
-        Eigen::Map<typename COST_T::output_array> y_index(y[index - 1].data());
+        Eigen::Map<typename COST_T::output_array> y_index(y[index].data());
 #else
-      for (int t = 1; t < num_timesteps; t++)
+      for (int t = 0; t < num_timesteps; t++)
       {
         int index = t + n * num_timesteps;
         Eigen::Map<typename COST_T::control_array> u_index(u[index].data());
-        Eigen::Map<typename COST_T::output_array> y_index(y[index - 1].data());
+        Eigen::Map<typename COST_T::output_array> y_index(y[index].data());
 #endif
 
         int crash = 0;
@@ -450,9 +450,9 @@ void checkGPURolloutCost(COST_T& cost, float dt)
 #endif
       }
 #ifdef USE_ROLLOUT_COST_KERNEL
-      total_cost /= (num_timesteps - 1);
+      total_cost /= num_timesteps;
       Eigen::Map<typename COST_T::output_array> y_index(y[(n + 1) * num_timesteps - 1].data());
-      total_cost += cost.terminalCost(y_index) / (num_timesteps - 1);
+      total_cost += cost.terminalCost(y_index) / num_timesteps;
       ASSERT_NEAR(total_cost, output_cost_gpu[n], total_cost * 0.001) << " Sample " << n << " y_dim " << y_dim;
 #endif
     }

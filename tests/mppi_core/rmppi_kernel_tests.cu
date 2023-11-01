@@ -10,6 +10,7 @@
 #include <mppi/dynamics/double_integrator/di_dynamics.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
 #include <mppi/utils/test_helper.h>
+#include <mppi/utils/logger.hpp>
 
 #include <iostream>
 #include <vector>
@@ -39,6 +40,7 @@ public:
   float* cost_trajectories_d = nullptr;
   curandGenerator_t gen;
   cudaStream_t stream;
+  mppi::util::MPPILogger logger;
 
   void SetUp() override
   {
@@ -162,6 +164,7 @@ TEST_F(RMPPIKernels, ValidateCombinedInitEvalKernelAgainstCPU)
     for (const auto& thread_y : possible_thread_y)
     {
       dim3 threadsPerBlock(thread_x, thread_y, 1);
+      logger.info("Testing Combined Eval Kernel on (%d, %d, 1)\n", thread_x, thread_y);
       mppi::kernels::rmppi::launchInitEvalKernel<DYN_T, COST_T, SAMPLER_T>(
           model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
           num_samples, strides_d, initial_x_d, cost_trajectories_d, threadsPerBlock, stream, false);
@@ -255,6 +258,9 @@ TEST_F(RMPPIKernels, ValidateSplitInitEvalKernelAgainstCPU)
         for (const auto& cost_thread_y : possible_thread_y)
         {
           dim3 costThreadsPerBlock(cost_thread_x, cost_thread_y, 1);
+          logger.info("Testing coalesced Split Eval Kernel with dyn(%d, %d, %d), cost(%d %d, %d)\n",
+                      dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
+                      costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLER_T, true>(
               model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
               num_samples, strides_d, initial_x_d, output_d, cost_trajectories_d, dynThreadsPerBlock,
@@ -274,6 +280,9 @@ TEST_F(RMPPIKernels, ValidateSplitInitEvalKernelAgainstCPU)
                 << error_prefix << ": CPU = " << trajectory_costs_cpu(i) << ", GPU = " << trajectory_costs_gpu(i)
                 << std::endl;
           }
+          logger.info("Testing non-coalesced Split Eval Kernel with dyn(%d, %d, %d), cost(%d %d, %d)\n",
+                      dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
+                      costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLER_T, false>(
               model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
               num_samples, strides_d, initial_x_d, output_d, cost_trajectories_d, dynThreadsPerBlock,
@@ -351,6 +360,8 @@ TEST_F(RMPPIKernels, ValidateCombinedRMPPIRolloutKernelAgainstCPU)
     for (const auto& thread_y : possible_thread_y)
     {
       dim3 threadsPerBlock(thread_x, thread_y, 2);
+      logger.info("Testing RMPPI Rollout Kernel with (%d, %d, %d)\n", threadsPerBlock.x, threadsPerBlock.y,
+                  threadsPerBlock.z);
       mppi::kernels::rmppi::launchRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                      nominal_idx>(
           model->model_d_, cost->cost_d_, sampler->sampling_d_, fb_controller->getDevicePointer(), dt, num_timesteps,
@@ -435,6 +446,9 @@ TEST_F(RMPPIKernels, ValidateSplitRMPPIRolloutKernelAgainstCPU)
         for (const auto& cost_thread_y : possible_thread_y)
         {
           dim3 costThreadsPerBlock(cost_thread_x, cost_thread_y, 2);
+          logger.info("Testing coalesced RMPPI Rollout Kernel with dyn(%d, %d, %d), cost(%d %d, %d)\n",
+                      dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
+                      costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                               nominal_idx, true>(
               model->model_d_, cost->cost_d_, sampler->sampling_d_, fb_controller->getDevicePointer(), dt,
@@ -455,6 +469,9 @@ TEST_F(RMPPIKernels, ValidateSplitRMPPIRolloutKernelAgainstCPU)
                 << error_prefix << ": CPU = " << trajectory_costs_cpu(i) << ", GPU = " << trajectory_costs_gpu(i)
                 << std::endl;
           }
+          logger.info("Testing non-coalesced RMPPI Rollout Kernel with dyn(%d, %d, %d), cost(%d %d, %d)\n",
+                      dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
+                      costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                               nominal_idx, false>(
               model->model_d_, cost->cost_d_, sampler->sampling_d_, fb_controller->getDevicePointer(), dt,
