@@ -6,6 +6,7 @@
 #define FEEDBACK_BASE_CUH_
 
 #include <Eigen/Core>
+#include <mppi/utils/logger.hpp>
 #include <mppi/utils/managed.cuh>
 
 #include <cmath>
@@ -281,11 +282,32 @@ public:
     dt_ = dt;
   }
 
+  __host__ void setLogger(const mppi::util::MPPILogger& logger)
+  {
+    logger_ = logger;
+  }
+
+  __host__ void setLogLevel(const mppi::util::LOG_LEVEL& level)
+  {
+    logger_.setLogLevel(level);
+  }
+
+  __host__ mppi::util::MPPILogger getLogger()
+  {
+    return logger_;
+  }
+
+  __host__ mppi::util::MPPILogger getLogger() const
+  {
+    return logger_;
+  }
+
 protected:
   std::shared_ptr<GPU_FB_T> gpu_controller_;
   float dt_;
   int num_timesteps_;
   PARAMS_T params_;
+  mppi::util::MPPILogger logger_;
 };
 
 #ifdef __CUDACC__

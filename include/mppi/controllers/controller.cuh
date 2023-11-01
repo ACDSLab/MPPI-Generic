@@ -13,6 +13,7 @@
 #include <mppi/core/mppi_common.cuh>
 #include <mppi/feedback_controllers/feedback.cuh>
 #include <mppi/utils/gpu_err_chk.cuh>
+#include <mppi/utils/logger.hpp>
 #include <mppi/utils/math_utils.h>
 
 #include <cfloat>
@@ -850,6 +851,7 @@ public:
   void setDebug(bool debug)
   {
     debug_ = debug;
+    setLogLevel(mppi::util::LOG_LEVEL::DEBUG);
   }
 
   int getKernelChoiceAsInt() const
@@ -884,11 +886,41 @@ public:
 
   void setCUDAStream(cudaStream_t stream);
 
+  void setLogLevel(const mppi::util::LOG_LEVEL& level, const bool set_all = true)
+  {
+    logger_.setLogLevel(level);
+    if (set_all)
+    {
+      model_->setLogLevel(level);
+      cost_->setLogLevel(level);
+      sampler_->setLogLevel(level);
+      fb_controller_->setLogLevel(level);
+    }
+  }
+
+  void setLogger(const mppi::util::MPPILogger& logger, const bool set_all = true)
+  {
+    logger_ = logger;
+    if (set_all)
+    {
+      model_->setLogger(logger);
+      cost_->setLogger(logger);
+      sampler_->setLogger(logger);
+      fb_controller_->setLogger(logger);
+    }
+  }
+
+  mppi::util::MPPILogger getLogger() const
+  {
+    return logger_;
+  }
+
 protected:
   // no default protected members
   void deallocateCUDAMemory();
 
   PARAMS_T params_;
+  mppi::util::MPPILogger logger_;
 
   // TODO get raw pointers for different things
   bool debug_ = false;

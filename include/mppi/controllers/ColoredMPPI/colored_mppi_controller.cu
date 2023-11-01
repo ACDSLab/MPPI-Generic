@@ -134,11 +134,9 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::chooseAppropriateKernel()
     this->setKernelChoice(kernelType::USE_SINGLE_KERNEL);
     kernel_choice = "single";
   }
-  // if (this->debug_)
-  // {
-  printf("Choosing %s kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
-         kernel_choice.c_str(), split_kernel_time_ms, single_kernel_time_ms, this->getNumKernelEvaluations());
-  // }
+  this->logger_.info("Choosing %s kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
+                     kernel_choice.c_str(), split_kernel_time_ms, single_kernel_time_ms,
+                     this->getNumKernelEvaluations());
 }
 
 ColoredMPPI_TEMPLATE ColoredMPPI::~ColoredMPPIController()
@@ -195,12 +193,7 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::computeControl(const Eigen::Ref<const sta
 
     if (this->getBaselineCost() > baseline_prev + 1)
     {
-      // TODO handle printing
-      if (this->debug_)
-      {
-        std::cout << "Previous Baseline: " << baseline_prev << std::endl;
-        std::cout << "         Baseline: " << this->getBaselineCost() << std::endl;
-      }
+      this->logger_.debug("Previous Baseline: %f\n         Baseline: %f\n", baseline_prev, this->getBaselineCost());
     }
 
     baseline_prev = this->getBaselineCost();

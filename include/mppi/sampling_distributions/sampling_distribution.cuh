@@ -4,6 +4,7 @@ Created by Bogdan Vlahov on 3/22/2023
 */
 
 #include <mppi/dynamics/dynamics.cuh>
+#include <mppi/utils/logger.hpp>
 #include <mppi/utils/managed.cuh>
 
 #include <string>
@@ -85,6 +86,26 @@ public:
    *************************************/
 
   void GPUSetup();
+
+  __host__ void setLogger(const mppi::util::MPPILogger& logger)
+  {
+    logger_ = logger;
+  }
+
+  __host__ void setLogLevel(const mppi::util::LOG_LEVEL& level)
+  {
+    logger_.setLogLevel(level);
+  }
+
+  __host__ mppi::util::MPPILogger getLogger()
+  {
+    return logger_;
+  }
+
+  __host__ mppi::util::MPPILogger getLogger() const
+  {
+    return logger_;
+  }
 
   /**
    * Updates the sampling distribution parameters
@@ -427,6 +448,7 @@ protected:
   float* vis_control_samples_d_ = nullptr;
 
   SAMPLING_PARAMS_T params_;
+  mppi::util::MPPILogger logger_;
 };
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>

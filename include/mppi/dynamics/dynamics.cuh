@@ -11,6 +11,7 @@ Header file for dynamics
 #include <mppi/utils/managed.cuh>
 #include <mppi/utils/angle_utils.cuh>
 #include <mppi/utils/math_utils.h>
+#include <mppi/utils/logger.hpp>
 
 #include <stdio.h>
 #include <math.h>
@@ -196,6 +197,26 @@ public:
   __device__ __host__ PARAMS_T getParams()
   {
     return params_;
+  }
+
+  __host__ void setLogger(const mppi::util::MPPILogger& logger)
+  {
+    logger_ = logger;
+  }
+
+  __host__ void setLogLevel(const mppi::util::LOG_LEVEL& level)
+  {
+    logger_.setLogLevel(level);
+  }
+
+  __host__ mppi::util::MPPILogger getLogger()
+  {
+    return logger_;
+  }
+
+  inline __host__ mppi::util::MPPILogger getLogger() const
+  {
+    return logger_;
   }
 
   /*
@@ -486,6 +507,7 @@ public:
 protected:
   // generic parameter structure
   PARAMS_T params_;
+  mppi::util::MPPILogger logger_;
 
   bool requires_buffer_ = false;
 };

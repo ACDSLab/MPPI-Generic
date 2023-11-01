@@ -18,6 +18,7 @@
 #include <thread>
 #include <memory>
 #include <mppi/controllers/controller.cuh>
+#include <mppi/utils/logger.hpp>
 #include <mppi/utils/math_utils.h>
 
 template <class CONTROLLER_T>
@@ -48,6 +49,7 @@ public:
 
 protected:
   std::mutex access_guard_;
+  mppi::util::MPPILogger logger_;
 
   int hz_ = 10;  // Frequency of control publisher
   int visualization_hz_ = 5;
@@ -360,6 +362,28 @@ public:
     std::lock_guard<std::mutex> guard(controller_params_guard_);
     controller_params_ = params;
     has_new_controller_params_ = true;
+  }
+
+  virtual void setLogger(const mppi::util::MPPILogger& logger)
+  {
+    logger_ = logger;
+    controller_->setLogger(logger);
+  }
+
+  virtual void setLogLevel(const mppi::util::LOG_LEVEL& level)
+  {
+    logger_.setLogLevel(level);
+    controller_->setLogLevel(level);
+  }
+
+  virtual mppi::util::MPPILogger getLogger()
+  {
+    return logger_;
+  }
+
+  inline virtual mppi::util::MPPILogger getLogger() const
+  {
+    return logger_;
   }
 
   /**
