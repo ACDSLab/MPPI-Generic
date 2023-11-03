@@ -5,7 +5,7 @@
 #include <algorithm>
 
 #include <mppi/utils/texture_helpers/two_d_texture_helper.cuh>
-#include <kernel_test/utils/texture_test_kernels.cuh>
+#include <kernel_tests/utils/texture_test_kernels.cuh>
 
 class TwoDTextureHelperTest : public testing::Test
 {

@@ -8,7 +8,7 @@
 #include <mppi/utils/nn_helpers/fnn_helper.cuh>
 // Auto-generated header file
 #include <test_networks.h>
-#include <kernel_test/utils/network_helper_kernel_test.cuh>
+#include <kernel_tests/utils/network_helper_kernel_test.cuh>
 #include <unsupported/Eigen/NumericalDiff>
 #include "mppi/ddp/ddp_dynamics.h"
 
@@ -34,8 +34,8 @@ TEST_F(FNNHelperTest, ParamsConstructor1)
   const int layers = FNNParams<5, 10, 3>::NUM_LAYERS;
   const int padding = FNNParams<5, 10, 3>::PRIME_PADDING;
   const int largest_layer = FNNParams<5, 10, 3>::LARGEST_LAYER;
-  const int shared_mem_grd = FNNHelper<FNNParams<5, 10, 3>>::SHARED_MEM_REQUEST_GRD;
-  const int shared_mem_blk = FNNHelper<FNNParams<5, 10, 3>>::SHARED_MEM_REQUEST_BLK;
+  const int shared_mem_grd = FNNHelper<FNNParams<5, 10, 3>>::SHARED_MEM_REQUEST_GRD_BYTES;
+  const int shared_mem_blk = FNNHelper<FNNParams<5, 10, 3>>::SHARED_MEM_REQUEST_BLK_BYTES;
   const int input_dim = FNNParams<5, 10, 3>::INPUT_DIM;
   const int output_dim = FNNParams<5, 10, 3>::OUTPUT_DIM;
   EXPECT_EQ(layers, 3);
@@ -79,8 +79,8 @@ TEST_F(FNNHelperTest, ParamsConstructor2)
   const int layers = FNNParams<5, 10, 20, 3, 3>::NUM_LAYERS;
   const int padding = FNNParams<5, 10, 20, 3, 3>::PRIME_PADDING;
   const int largest_layer = FNNParams<5, 10, 20, 3, 3>::LARGEST_LAYER;
-  const int shared_mem_grd = FNNHelper<FNNParams<5, 10, 20, 3, 3>>::SHARED_MEM_REQUEST_GRD;
-  const int shared_mem_blk = FNNHelper<FNNParams<5, 10, 20, 3, 3>>::SHARED_MEM_REQUEST_BLK;
+  const int shared_mem_grd = FNNHelper<FNNParams<5, 10, 20, 3, 3>>::SHARED_MEM_REQUEST_GRD_BYTES;
+  const int shared_mem_blk = FNNHelper<FNNParams<5, 10, 20, 3, 3>>::SHARED_MEM_REQUEST_BLK_BYTES;
   const int input_dim = FNNParams<5, 10, 20, 3, 3>::INPUT_DIM;
   const int output_dim = FNNParams<5, 10, 20, 3, 3>::OUTPUT_DIM;
   EXPECT_EQ(layers, 5);
@@ -130,8 +130,8 @@ TEST_F(FNNHelperTest, ParamsConstructor3)
   const int layers = FNNParams<5, 3>::NUM_LAYERS;
   const int padding = FNNParams<5, 3>::PRIME_PADDING;
   const int largest_layer = FNNParams<5, 3>::LARGEST_LAYER;
-  const int shared_mem_grd = FNNHelper<FNNParams<5, 3>>::SHARED_MEM_REQUEST_GRD;
-  const int shared_mem_blk = FNNHelper<FNNParams<5, 3>>::SHARED_MEM_REQUEST_BLK;
+  const int shared_mem_grd = FNNHelper<FNNParams<5, 3>>::SHARED_MEM_REQUEST_GRD_BYTES;
+  const int shared_mem_blk = FNNHelper<FNNParams<5, 3>>::SHARED_MEM_REQUEST_BLK_BYTES;
   const int input_dim = FNNParams<5, 3>::INPUT_DIM;
   const int output_dim = FNNParams<5, 3>::OUTPUT_DIM;
   EXPECT_EQ(layers, 2);
@@ -169,8 +169,8 @@ TEST_F(FNNHelperTest, ParamsConstructor3)
 
 TEST_F(FNNHelperTest, ParamsConstructor4)
 {
-  const int shared_mem_grd = FNNHelper<FNNParams<5, 3>, false>::SHARED_MEM_REQUEST_GRD;
-  const int shared_mem_blk = FNNHelper<FNNParams<5, 3>, false>::SHARED_MEM_REQUEST_BLK;
+  const int shared_mem_grd = FNNHelper<FNNParams<5, 3>, false>::SHARED_MEM_REQUEST_GRD_BYTES;
+  const int shared_mem_blk = FNNHelper<FNNParams<5, 3>, false>::SHARED_MEM_REQUEST_BLK_BYTES;
   EXPECT_EQ(shared_mem_grd, 0);
   EXPECT_EQ(shared_mem_blk, 12);
 }

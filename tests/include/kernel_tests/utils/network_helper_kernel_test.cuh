@@ -11,7 +11,8 @@ template <class NETWORK_T, int THETA_SIZE, int STRIDE_SIZE, int NUM_LAYERS>
 __global__ void parameterCheckTestKernel(NETWORK_T* model, float* theta, int* stride, int* net_structure,
                                          float* shared_theta, int* shared_stride, int* shared_net_structure)
 {
-  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK];
+  __shared__ float
+      theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK_BYTES];
   model->initialize(theta_s);
   typename NETWORK_T::NN_PARAMS_T* params_shared = (typename NETWORK_T::NN_PARAMS_T*)theta_s;
   for (int i = 0; i < THETA_SIZE; i++)
@@ -83,7 +84,8 @@ __global__ void parameterCheckTestKernel(NETWORK_T* model, typename NETWORK_T::L
                                          typename NETWORK_T::OUTPUT_PARAMS_T* fnn_params,
                                          typename NETWORK_T::OUTPUT_PARAMS_T* shared_fnn_params)
 {
-  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK];
+  __shared__ float
+      theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK_BYTES];
   uint tid = blockIdx.x;
 
   *(lstm_params + tid) = model->getLSTMParams();
@@ -105,7 +107,7 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::vector<typename NETWO
                                     std::vector<typename NETWORK_T::OUTPUT_PARAMS_T>& fnn_params,
                                     std::vector<typename NETWORK_T::OUTPUT_PARAMS_T>& shared_fnn_params)
 {
-  static_assert(NETWORK_T::SHARED_MEM_REQUEST_GRD != 0);
+  static_assert(NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES != 0);
 
   typename NETWORK_T::LSTM_PARAMS_T* lstm_params_d = nullptr;
   typename NETWORK_T::LSTM_PARAMS_T* shared_lstm_params_d = nullptr;
@@ -145,8 +147,8 @@ template <typename NETWORK_T, int BLOCKSIZE_X>
 __global__ void forwardTestKernel(NETWORK_T* network, float* input, float* output, int num, int steps)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ float
-      theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
+  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           NETWORK_T::SHARED_MEM_REQUEST_BLK_BYTES * BLOCKSIZE_X];
   float* local_input = input + (tid * NETWORK_T::INPUT_DIM);
   float* local_output = output + (tid * NETWORK_T::OUTPUT_DIM);
 
@@ -207,8 +209,8 @@ template <typename NETWORK_T, int BLOCKSIZE_X>
 __global__ void forwardTestKernelPreload(NETWORK_T* network, float* input, float* output, int num, int steps)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ float
-      theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK * BLOCKSIZE_X];
+  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
+                           NETWORK_T::SHARED_MEM_REQUEST_BLK_BYTES * BLOCKSIZE_X];
   float* local_input = input + (tid * NETWORK_T::INPUT_DIM);
   float* local_output = output + (tid * NETWORK_T::OUTPUT_DIM);
 

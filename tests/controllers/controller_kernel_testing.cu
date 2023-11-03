@@ -140,8 +140,8 @@ TYPED_TEST(ControllerKernelChoiceTest, CheckAppropriateKernelSelection)
 
   if (fabsf(single_kernel_duration - split_kernel_duration) < 1.0f)
   {  // the kernels are within 1 ms of each other
-    this->logger.info("Durations of both kernels too close to determine winner: split = %f ms, single = %f ms\n",
-                      split_kernel_duration, single_kernel_duration);
+    this->logger->info("Durations of both kernels too close to determine winner: split = %f ms, single = %f ms\n",
+                       split_kernel_duration, single_kernel_duration);
   }
   else
   {

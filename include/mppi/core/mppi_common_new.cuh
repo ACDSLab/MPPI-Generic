@@ -107,6 +107,15 @@ void launchWeightedReductionKernel(const float* __restrict__ exp_costs_d, const 
                                    bool synchronize = true);
 
 /**
+ * Device functions
+ */
+template <int STATE_DIM, int CONTROL_DIM>
+__device__ void loadGlobalToShared(const int num_rollouts, const int blocksize_y, const int global_idx,
+                                   const int thread_idy, const int thread_idz, const float* __restrict__ x_device,
+                                   float* __restrict__ x_thread, float* __restrict__ xdot_thread,
+                                   float* __restrict__ u_thread);
+
+/**
  * Shared Memory Calculators for various kernels
  */
 template <class DYN_T, class SAMPLER_T>

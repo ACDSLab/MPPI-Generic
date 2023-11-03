@@ -8,7 +8,7 @@
 #include <mppi/utils/nn_helpers/lstm_helper.cuh>
 // Auto-generated header file
 #include <test_networks.h>
-#include <kernel_test/utils/network_helper_kernel_test.cuh>
+#include <kernel_tests/utils/network_helper_kernel_test.cuh>
 #include <mppi/utils/math_utils.h>
 #include <unsupported/Eigen/NumericalDiff>
 #include "mppi/ddp/ddp_dynamics.h"
@@ -33,8 +33,8 @@ protected:
 TEST_F(LSTMHelperTest, ParamsConstructor1)
 {
   const int hidden_dim = LSTMParams<5, 25>::HIDDEN_DIM;
-  const int shared_mem_grd = LSTMHelper<LSTMParams<5, 25>, FNNParams<28, 3>>::SHARED_MEM_REQUEST_GRD;
-  const int shared_mem_blk = LSTMHelper<LSTMParams<5, 25>, FNNParams<28, 3>>::SHARED_MEM_REQUEST_BLK;
+  const int shared_mem_grd = LSTMHelper<LSTMParams<5, 25>, FNNParams<28, 3>>::SHARED_MEM_REQUEST_GRD_BYTES;
+  const int shared_mem_blk = LSTMHelper<LSTMParams<5, 25>, FNNParams<28, 3>>::SHARED_MEM_REQUEST_BLK_BYTES;
   const int input_dim = LSTMParams<5, 25>::INPUT_DIM;
   const int hidden_hidden_dim = LSTMParams<5, 25>::HIDDEN_HIDDEN_SIZE;
   const int input_hidden_dim = LSTMParams<5, 25>::INPUT_HIDDEN_SIZE;
@@ -95,17 +95,17 @@ TEST_F(LSTMHelperTest, ParamsConstructor2)
 {
   int total_amount = 0;
   // delay model
-  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_BLK * 32;
+  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
+  total_amount += LSTMHelper<LSTMParams<1, 1>, FNNParams<2, 10, 1>>::SHARED_MEM_REQUEST_BLK_BYTES * 32;
   // terra model
-  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_BLK * 32;
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
+  total_amount += LSTMHelper<LSTMParams<8, 10>, FNNParams<18, 10, 3>>::SHARED_MEM_REQUEST_BLK_BYTES * 32;
   // engine model
-  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_BLK * 32;
+  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
+  total_amount += LSTMHelper<LSTMParams<4, 5>, FNNParams<9, 10, 1>>::SHARED_MEM_REQUEST_BLK_BYTES * 32;
   // steering model
-  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_GRD / sizeof(float) + 1;
-  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_BLK * 32;
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
+  total_amount += LSTMHelper<LSTMParams<7, 5>, FNNParams<12, 20, 1>>::SHARED_MEM_REQUEST_BLK_BYTES * 32;
 
   std::cout << "total amount: " << total_amount << std::endl;
   EXPECT_LT(total_amount, 49152);

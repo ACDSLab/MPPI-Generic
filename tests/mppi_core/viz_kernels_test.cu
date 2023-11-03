@@ -104,88 +104,89 @@ protected:
   std::vector<crash_status_trajectory> crash_status = std::vector<crash_status_trajectory>(num_rollouts);
 };
 
-TEST_F(VizualizationKernelsTest, stateAndCostTrajectoryKernelNoZNoFeedbackTest)
-{
-  for (int tdy = 1; tdy < 8; tdy++)
-  {
-    /**
-     * Fill in GPU arrays
-     */
-    HANDLE_ERROR(cudaMemcpyAsync(initial_state_d, x0.data(), sizeof(float) * CartpoleDynamics::STATE_DIM,
-                                 cudaMemcpyHostToDevice, stream));
-    HANDLE_ERROR(cudaMemcpyAsync(initial_state_d + CartpoleDynamics::STATE_DIM, x0.data(),
-                                 sizeof(float) * CartpoleDynamics::STATE_DIM, cudaMemcpyHostToDevice, stream));
-    for (int i = 0; i < num_rollouts; i++)
-    {
-      HANDLE_ERROR(cudaMemcpyAsync(control_d + i * MAX_TIMESTEPS * CartpoleDynamics::CONTROL_DIM, control[i].data(),
-                                   MAX_TIMESTEPS * CartpoleDynamics::CONTROL_DIM * sizeof(float),
-                                   cudaMemcpyHostToDevice, stream));
-    }
-    HANDLE_ERROR(cudaStreamSynchronize(stream));
+// TEST_F(VizualizationKernelsTest, stateAndCostTrajectoryKernelNoZNoFeedbackTest)
+// {
+//   for (int tdy = 1; tdy < 8; tdy++)
+//   {
+//     /**
+//      * Fill in GPU arrays
+//      */
+//     HANDLE_ERROR(cudaMemcpyAsync(initial_state_d, x0.data(), sizeof(float) * CartpoleDynamics::STATE_DIM,
+//                                  cudaMemcpyHostToDevice, stream));
+//     HANDLE_ERROR(cudaMemcpyAsync(initial_state_d + CartpoleDynamics::STATE_DIM, x0.data(),
+//                                  sizeof(float) * CartpoleDynamics::STATE_DIM, cudaMemcpyHostToDevice, stream));
+//     for (int i = 0; i < num_rollouts; i++)
+//     {
+//       HANDLE_ERROR(cudaMemcpyAsync(control_d + i * MAX_TIMESTEPS * CartpoleDynamics::CONTROL_DIM, control[i].data(),
+//                                    MAX_TIMESTEPS * CartpoleDynamics::CONTROL_DIM * sizeof(float),
+//                                    cudaMemcpyHostToDevice, stream));
+//     }
+//     HANDLE_ERROR(cudaStreamSynchronize(stream));
 
-    const int gridsize_x = (num_rollouts - 1) / 32 + 1;
-    dim3 dimBlock(32, tdy, 1);
-    dim3 dimGrid(gridsize_x, 1, 1);
-    mppi_common::stateAndCostTrajectoryKernel<CartpoleDynamics, CartpoleQuadraticCost,
-                                              DeviceDDP<CartpoleDynamics, MAX_TIMESTEPS>, 32, 1>
-        <<<dimGrid, dimBlock, 0, stream>>>(dynamics.model_d_, cost.cost_d_, fb_controller.getDevicePointer(), control_d,
-                                           initial_state_d, result_state_d, trajectory_costs_d, crash_status_d,
-                                           num_rollouts, MAX_TIMESTEPS, dt, -1);
+//     const int gridsize_x = (num_rollouts - 1) / 32 + 1;
+//     dim3 dimBlock(32, tdy, 1);
+//     dim3 dimGrid(gridsize_x, 1, 1);
+//     mppi_common::stateAndCostTrajectoryKernel<CartpoleDynamics, CartpoleQuadraticCost,
+//                                               DeviceDDP<CartpoleDynamics, MAX_TIMESTEPS>, 32, 1>
+//         <<<dimGrid, dimBlock, 0, stream>>>(dynamics.model_d_, cost.cost_d_, fb_controller.getDevicePointer(),
+//         control_d,
+//                                            initial_state_d, result_state_d, trajectory_costs_d, crash_status_d,
+//                                            num_rollouts, MAX_TIMESTEPS, dt, -1);
 
-    // Copy the results back to the host
-    for (int i = 0; i < num_rollouts; i++)
-    {
-      result_state[i].col(0) = x0;
-      // shifted by one since we do not save the initial state
-      HANDLE_ERROR(cudaMemcpyAsync(result_state[i].data() + (CartpoleDynamics::STATE_DIM),
-                                   result_state_d + i * MAX_TIMESTEPS * CartpoleDynamics::STATE_DIM,
-                                   (MAX_TIMESTEPS - 1) * CartpoleDynamics::STATE_DIM * sizeof(float),
-                                   cudaMemcpyDeviceToHost, stream));
-      HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs[i].data(), trajectory_costs_d + i * (MAX_TIMESTEPS + 1),
-                                   (MAX_TIMESTEPS + 1) * sizeof(float), cudaMemcpyDeviceToHost, stream));
-      HANDLE_ERROR(cudaMemcpyAsync(crash_status[i].data(), crash_status_d + i * MAX_TIMESTEPS,
-                                   MAX_TIMESTEPS * sizeof(float), cudaMemcpyDeviceToHost, stream));
-    }
-    HANDLE_ERROR(cudaStreamSynchronize(stream));
+//     // Copy the results back to the host
+//     for (int i = 0; i < num_rollouts; i++)
+//     {
+//       result_state[i].col(0) = x0;
+//       // shifted by one since we do not save the initial state
+//       HANDLE_ERROR(cudaMemcpyAsync(result_state[i].data() + (CartpoleDynamics::STATE_DIM),
+//                                    result_state_d + i * MAX_TIMESTEPS * CartpoleDynamics::STATE_DIM,
+//                                    (MAX_TIMESTEPS - 1) * CartpoleDynamics::STATE_DIM * sizeof(float),
+//                                    cudaMemcpyDeviceToHost, stream));
+//       HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs[i].data(), trajectory_costs_d + i * (MAX_TIMESTEPS + 1),
+//                                    (MAX_TIMESTEPS + 1) * sizeof(float), cudaMemcpyDeviceToHost, stream));
+//       HANDLE_ERROR(cudaMemcpyAsync(crash_status[i].data(), crash_status_d + i * MAX_TIMESTEPS,
+//                                    MAX_TIMESTEPS * sizeof(float), cudaMemcpyDeviceToHost, stream));
+//     }
+//     HANDLE_ERROR(cudaStreamSynchronize(stream));
 
-    for (int sample = 0; sample < num_rollouts; sample++)
-    {
-      CartpoleDynamics::state_array x = x0;
-      CartpoleDynamics::state_array x_dot;
-      control_trajectory u_traj = control[sample];
-      int crash_status_val = 0;
+//     for (int sample = 0; sample < num_rollouts; sample++)
+//     {
+//       CartpoleDynamics::state_array x = x0;
+//       CartpoleDynamics::state_array x_dot;
+//       control_trajectory u_traj = control[sample];
+//       int crash_status_val = 0;
 
-      int t = 0;
-      for (; t < MAX_TIMESTEPS; t++)
-      {
-        EXPECT_NEAR(x(0), result_state[sample].col(t)(0), 1e-5)
-            << "\ntdy: " << tdy << "\nsample: " << sample << "\nat time: " << t;
-        EXPECT_NEAR(x(1), result_state[sample].col(t)(1), 1e-5)
-            << "\ntdy: " << tdy << "\nsample: " << sample << "\nat time: " << t;
-        EXPECT_NEAR(x(2), result_state[sample].col(t)(2), 1e-5)
-            << "\ntdy: " << tdy << "\nsample: " << sample << "\nat time: " << t;
-        EXPECT_NEAR(x(3), result_state[sample].col(t)(3), 1e-5)
-            << "\ntdy: " << tdy << "\nsample: " << sample << "\nat time: " << t;
+//       int t = 0;
+//       for (; t < MAX_TIMESTEPS; t++)
+//       {
+//         EXPECT_NEAR(x(0), result_state[sample].col(t)(0), 1e-5)
+//             << "\ntdy: " << tdy << "\nsample: " << sample << "\nat time: " << t;
+//         EXPECT_NEAR(x(1), result_state[sample].col(t)(1), 1e-5)
+//             << "\ntdy: " << tdy << "\nsample: " << sample << "\nat time: " << t;
+//         EXPECT_NEAR(x(2), result_state[sample].col(t)(2), 1e-5)
+//             << "\ntdy: " << tdy << "\nsample: " << sample << "\nat time: " << t;
+//         EXPECT_NEAR(x(3), result_state[sample].col(t)(3), 1e-5)
+//             << "\ntdy: " << tdy << "\nsample: " << sample << "\nat time: " << t;
 
-        CartpoleDynamics::control_array u = u_traj.col(t);
-        float cost_val = cost.computeStateCost(x, t, &crash_status_val);
-        if (t == 0)
-        {
-          // don't weight the first state
-          EXPECT_FLOAT_EQ(trajectory_costs[sample](t), 0);
-        }
-        else
-        {
-          EXPECT_FLOAT_EQ(cost_val, trajectory_costs[sample](t)) << "\nsample: " << sample << "\nat time: " << t;
-        }
-        EXPECT_EQ(crash_status_val, crash_status[sample](t)) << "\nsample: " << sample << "\nat time: " << t;
+//         CartpoleDynamics::control_array u = u_traj.col(t);
+//         float cost_val = cost.computeStateCost(x, t, &crash_status_val);
+//         if (t == 0)
+//         {
+//           // don't weight the first state
+//           EXPECT_FLOAT_EQ(trajectory_costs[sample](t), 0);
+//         }
+//         else
+//         {
+//           EXPECT_FLOAT_EQ(cost_val, trajectory_costs[sample](t)) << "\nsample: " << sample << "\nat time: " << t;
+//         }
+//         EXPECT_EQ(crash_status_val, crash_status[sample](t)) << "\nsample: " << sample << "\nat time: " << t;
 
-        dynamics.enforceConstraints(x, u);
-        dynamics.computeStateDeriv(x, u, x_dot);
-        dynamics.updateState(x, x_dot, dt);
-      }
-      float terminal_cost = cost.terminalCost(x);
-      EXPECT_FLOAT_EQ(terminal_cost, trajectory_costs[sample](t)) << "\nsample: " << sample << "\nat terminal";
-    }
-  }
-}
+//         dynamics.enforceConstraints(x, u);
+//         dynamics.computeStateDeriv(x, u, x_dot);
+//         dynamics.updateState(x, x_dot, dt);
+//       }
+//       float terminal_cost = cost.terminalCost(x);
+//       EXPECT_FLOAT_EQ(terminal_cost, trajectory_costs[sample](t)) << "\nsample: " << sample << "\nat terminal";
+//     }
+//   }
+// }

@@ -13,7 +13,7 @@ using barrier = cuda::barrier<cuda::thread_scope_block>;
 #define USE_CUDA_BARRIERS_ROLLOUT
 #endif
 
-#define USE_COST_WITH_OFF_NUM_TIMESTEPS
+// #define USE_COST_WITH_OFF_NUM_TIMESTEPS
 namespace mppi
 {
 namespace kernels
