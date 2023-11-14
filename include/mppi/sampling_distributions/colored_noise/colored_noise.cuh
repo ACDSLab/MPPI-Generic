@@ -93,7 +93,7 @@ public:
     freeCudaMem();
   }
 
-  __host__ std::string getSamplingDistributionName()
+  __host__ virtual std::string getSamplingDistributionName() const override
   {
     return "Colored Noise";
   }

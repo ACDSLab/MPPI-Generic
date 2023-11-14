@@ -64,7 +64,7 @@ void Dynamics<CLASS_T, PARAMS_T>::GPUSetup()
   }
   else
   {
-    std::cout << "GPU Memory already set" << std::endl;  // TODO should this be an exception?
+    this->logger_->debug("%s: GPU Memory already set\n", derived->getDynamicsModelName().c_str());
   }
   derived->paramsToDevice();
 }

@@ -63,7 +63,7 @@ public:
     freeCudaMem();
   }
 
-  std::string getCostFunctionName()
+  virtual std::string getCostFunctionName() const
   {
     return "cost function name not set";
   }

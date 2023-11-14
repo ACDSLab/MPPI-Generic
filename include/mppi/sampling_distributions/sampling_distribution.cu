@@ -19,7 +19,7 @@ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::GPUSetup()
   }
   else
   {
-    std::cout << "GPU Memory already set" << std::endl;
+    this->logger_->debug("%s: GPU Memory already set.\n", derived->getSamplingDistributionName().c_str());
   }
   derived->paramsToDevice();
 }

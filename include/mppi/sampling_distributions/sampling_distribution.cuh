@@ -75,7 +75,7 @@ public:
    *
    * @return std::string - name of the sampling distribution
    */
-  __host__ std::string getSamplingDistributionName()
+  __host__ virtual std::string getSamplingDistributionName() const
   {
     return "Sampling distribution name not set";
   }
