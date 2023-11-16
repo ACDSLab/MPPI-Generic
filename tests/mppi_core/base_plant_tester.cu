@@ -143,6 +143,7 @@ protected:
     EXPECT_CALL(mockDynamics, getParams()).Times(1);
 
     mockController = std::make_shared<MockController>();
+    mockController->setDt(0.05);
     EXPECT_CALL(*mockController, getDt()).WillRepeatedly(testing::Return(0.05));
     mockFeedback = new FEEDBACK_T(&mockDynamics, mockController->getDt());
     mockController->cost_ = &mockCost;
@@ -318,7 +319,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
 {
   double init_time = 100;
   plant->setLastTime(init_time);
-
+  MockController::state_array s = MockController::state_array::Zero();
   for (int i = 0; i < 2; i++)
   {
     double wait_ms = 50 * i;
@@ -345,6 +346,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
     EXPECT_EQ(plant->getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
+    plant->updateState(s, init_time + i * 0.05);
     plant->runControlIteration(&is_alive);
     plant->incrementTime();
 
@@ -383,6 +385,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
   double init_time = 51789;
   plant->setLastTime(init_time);
 
+  MockController::state_array s = MockController::state_array::Zero();
   for (int i = 0; i < 10; i++)
   {
     double wait_ms = 50 * i;
@@ -410,6 +413,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
     EXPECT_EQ(plant->getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
+    plant->updateState(s, init_time + i * 0.05);
     plant->runControlIteration(&is_alive);
     plant->incrementTime();
 
@@ -442,6 +446,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
 
   double init_time = 51531;
   plant->setLastTime(init_time);
+  MockController::state_array s = MockController::state_array::Zero();
 
   for (int i = 0; i < 10; i++)
   {
@@ -470,6 +475,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
     EXPECT_EQ(plant->getDebugMode(), false);
 
     std::atomic<bool> is_alive(true);
+    plant->updateState(s, init_time + i * 0.05);
     plant->runControlIteration(&is_alive);
     plant->incrementTime();
 

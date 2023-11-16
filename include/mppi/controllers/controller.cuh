@@ -789,7 +789,10 @@ public:
   void setDt(float dt)
   {
     params_.dt_ = dt;
-    fb_controller_->setDt(dt);
+    if (fb_controller_)
+    {
+      fb_controller_->setDt(dt);
+    }
   }
 
   float getLambda() const
