@@ -93,8 +93,11 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::
 {
   state_der = state_array::Zero();
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
-  float brake_cmd = -enable_brake * control(C_INDEX(THROTTLE_BRAKE));
-  float throttle_cmd = !enable_brake * control(C_INDEX(THROTTLE_BRAKE));
+  float linear_brake_slope = this->params_.c_b[1] / (0.9f * (2.0f / 0.02));
+  // float brake_cmd = -enable_brake * control(C_INDEX(THROTTLE_BRAKE));
+  int index = (abs(state(S_INDEX(VEL_X))) > linear_brake_slope && abs(state(S_INDEX(VEL_X))) <= 3.0f) +
+              (abs(state(S_INDEX(VEL_X))) > 3.0f) * 2;
+  const float throttle = this->params_.c_t[index] * control(C_INDEX(THROTTLE_BRAKE)) * this->params_.gear_sign;
 
   // runs parametric delay model
   this->computeParametricDelayDeriv(state, control, state_der);
@@ -118,9 +121,6 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::
   const float sliding_vel =
       mppi::math::clamp(state(S_INDEX(VEL_Y)), -this->params_.max_slide_vel, this->params_.max_slide_vel);
 
-  const float throttle = act_func::relu(this->params_.c_t[2] * state(S_INDEX(VEL_X)) * state(S_INDEX(VEL_X)) +
-                                        this->params_.c_t[1] * state(S_INDEX(VEL_X)) + this->params_.c_t[0]) *
-                         throttle_cmd * this->params_.gear_sign;
   const float brake = this->params_.c_b[0] * state(S_INDEX(BRAKE_STATE)) * brake_vel;
   const float x_drag =
       this->params_.c_v[0] * state(S_INDEX(VEL_X)) + rolling_vel * normal_z_avg * this->params_.c_rolling;
@@ -255,7 +255,10 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(fl
   // nullptr if not shared memory
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
   const float brake_cmd = -enable_brake * control[C_INDEX(THROTTLE_BRAKE)];
-  const float throttle_cmd = !enable_brake * control[C_INDEX(THROTTLE_BRAKE)];
+  float linear_brake_slope = params_p->c_b[1] / (0.9f * (2.0f / 0.02));
+  int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
+              (fabsf(state[S_INDEX(VEL_X)]) > 3.0f) * 2;
+  float throttle = params_p->c_t[index] * control[C_INDEX(THROTTLE_BRAKE)] * params_p->gear_sign;
 
   // calculates the average normals
   float normal_x_avg, normal_y_avg, normal_z_avg;
@@ -270,9 +273,6 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(fl
       mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->max_roll_resistance_vel, params_p->max_roll_resistance_vel);
   const float sliding_vel = mppi::math::clamp(state[S_INDEX(VEL_Y)], -params_p->max_slide_vel, params_p->max_slide_vel);
 
-  const float throttle = act_func::relu(params_p->c_t[2] * state[S_INDEX(VEL_X)] * state[S_INDEX(VEL_X)] +
-                                        params_p->c_t[1] * state[S_INDEX(VEL_X)] + params_p->c_t[0]) *
-                         throttle_cmd * params_p->gear_sign;
   const float brake = params_p->c_b[0] * state[S_INDEX(BRAKE_STATE)] *
                       mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->brake_vel, params_p->brake_vel);
   const float x_drag = params_p->c_v[0] * state[S_INDEX(VEL_X)] + rolling_vel * normal_z_avg * params_p->c_rolling;
