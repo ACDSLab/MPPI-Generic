@@ -636,21 +636,21 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
   CLASS_T* derived = static_cast<CLASS_T*>(this);
   int step, pi;
   mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
-  if (params_p->gear_sign == -1)
-  {  // Set Uncertainty to zero in reverse
-    for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
-    {
-      uncertainty_data->Sigma_a[i] = 0.0f;
-    }
-#ifdef __CUDA_ARCH__
-    __syncthreads();
-#endif
-    derived->uncertaintyMatrixToState(uncertainty_data->Sigma_a, next_state);
-#ifdef __CUDA_ARCH__
-    __syncthreads();
-#endif
-    return;
-  }
+  // if (params_p->gear_sign == -1)
+  // {  // Set Uncertainty to zero in reverse
+  //   for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
+  //   {
+  //     uncertainty_data->Sigma_a[i] = 0.0f;
+  //   }
+  // #ifdef __CUDA_ARCH__
+  //   __syncthreads();
+  // #endif
+  //   derived->uncertaintyMatrixToState(uncertainty_data->Sigma_a, next_state);
+  // #ifdef __CUDA_ARCH__
+  //   __syncthreads();
+  // #endif
+  //   return;
+  // }
   derived->computeUncertaintyJacobian(state, control, uncertainty_data->A, params_p);
   derived->uncertaintyStateToMatrix(state, uncertainty_data->Sigma_a);
 #ifdef __CUDA_ARCH__
