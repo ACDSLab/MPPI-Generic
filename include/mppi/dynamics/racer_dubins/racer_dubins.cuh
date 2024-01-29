@@ -81,6 +81,7 @@ struct RacerDubinsParams : public DynamicsParams
   float steer_accel_drag_constant = 1.0f;
   // brake parametric component
   float brake_delay_constant = 6.6;
+  float brake_delay_constant_neg = 8.2;
   float max_brake_rate_neg = 0.9;
   float max_brake_rate_pos = 0.33;
   // system parameters

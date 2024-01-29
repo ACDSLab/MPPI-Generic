@@ -282,11 +282,12 @@ __device__ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricDelayDeriv(
                                                                                 float* state_der, PARAMS_T* params_p)
 {
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
+  const float brake_error = (enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]);
 
   // Compute dynamics
   state_der[S_INDEX(BRAKE_STATE)] =
-      fminf(fmaxf((enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]) *
-                      params_p->brake_delay_constant,
+      fminf(fmaxf((brake_error > 0) * brake_error * params_p->brake_delay_constant +
+                      (brake_error < 0) * brake_error * params_p->brake_delay_constant_neg,
                   -params_p->max_brake_rate_neg),
             params_p->max_brake_rate_pos);
 }
@@ -308,10 +309,11 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeParametricDelayDeriv(const Eigen
                                                                      Eigen::Ref<state_array> state_der)
 {
   bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0.0f;
+  const float brake_error = (enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE)));
 
   state_der(S_INDEX(BRAKE_STATE)) =
-      fminf(fmaxf((enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE))) *
-                      this->params_.brake_delay_constant,
+      fminf(fmaxf((brake_error > 0) * brake_error * this->params_.brake_delay_constant +
+                      (brake_error < 0) * brake_error * this->params_.brake_delay_constant_neg,
                   -this->params_.max_brake_rate_neg),
             this->params_.max_brake_rate_pos);
 }

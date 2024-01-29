@@ -307,7 +307,7 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
   float sin_yaw, cos_yaw, tan_steer_angle, cos_2_delta;
 #ifdef __CUDA_ARCH__
   float yaw_norm = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
-  float delta = angle_utils::normalizeAngle(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
+  float delta = state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale;
   __sincosf(yaw_norm, &sin_yaw, &cos_yaw);
   tan_steer_angle = __tanf(delta);
   cos_2_delta = __cosf(delta) * __cosf(delta);
@@ -401,7 +401,7 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeQ(c
 #ifdef __CUDA_ARCH__
   const float yaw_norm = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
   __sincosf(yaw_norm, &sin_yaw, &cos_yaw);
-  tan_steer_angle = __tanf(angle_utils::normalizeAngle(delta));
+  tan_steer_angle = __tanf(delta);
   sin_roll = __sinf(angle_utils::normalizeAngle(state[S_INDEX(ROLL)]));
 #else
   sincosf(state[S_INDEX(YAW)], &sin_yaw, &cos_yaw);
@@ -691,7 +691,7 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
 #endif
   for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
   {
-    uncertainty_data->Sigma_a[i] += uncertainty_data->Sigma_b[i] * dt;
+    uncertainty_data->Sigma_a[i] += uncertainty_data->Sigma_b[i] * powf(dt, 2);
   }
 #ifdef __CUDA_ARCH__
   __syncthreads();
