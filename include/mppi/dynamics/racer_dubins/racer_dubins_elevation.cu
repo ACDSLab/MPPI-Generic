@@ -411,6 +411,10 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeQ(c
   // const float Q_11 = params_p->Q_y_f * side_force * side_force * abs_vx;
   const float Q_11 = params_p->Q_y_f * fabsf(side_force) * fmaxf(abs_vx - 2, 0.0f);
 
+  const float linear_brake_slope = 0.2f;
+  int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
+              (fabsf(state[S_INDEX(VEL_X)]) > 3.0f) * 2;
+
   int step, pi;
   mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
   for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
@@ -419,7 +423,7 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeQ(c
     {
       // vel_x
       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), UNCERTAINTY_DIM):
-        Q[i] = params_p->Q_x_acc * abs_acc_x + params_p->Q_x_v * abs_vx;
+        Q[i] = params_p->Q_x_acc * abs_acc_x + params_p->Q_x_v[index] * abs_vx;
         break;
       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(YAW), UNCERTAINTY_DIM):
         Q[i] = 0.0f;

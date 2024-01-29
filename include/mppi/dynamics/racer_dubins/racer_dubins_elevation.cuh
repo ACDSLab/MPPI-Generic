@@ -53,7 +53,7 @@ struct RacerDubinsElevationParams : public RacerDubinsParams
   float K_yaw = 1.0f; // feedback for yaw
   float K_vel_x = 1.0f; // feedback for vel x
   float Q_x_acc = 1.0f; // Add noise to vel x based on accel_x
-  float Q_x_v = 0.1f; // Add noise to vel x based on vel x
+  float Q_x_v[3] = {41.74219  , -0.8187027, -2.2131343}; // Add noise to vel x based on vel x
   float Q_y_f = 0.1f; // Add noise to pos x and y based on side force
   float Q_omega_v = 0.001f; // Add noise to yaw based on vel x
   float Q_omega_steering = 0.0f; // Add noise to yaw based on steering
