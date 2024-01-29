@@ -409,7 +409,7 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeQ(c
 #endif
   const float side_force = SQ(abs_vx) * tan_steer_angle / params_p->wheel_base + params_p->gravity * sin_roll;
   // const float Q_11 = params_p->Q_y_f * side_force * side_force * abs_vx;
-  const float Q_11 = params_p->Q_y_f * fabsf(side_force) * fmaxf(abs_vx - 2, 0.0f);
+  const float Q_11 = fabsf(params_p->Q_y_f * fabsf(side_force) * fmaxf(abs_vx - 2, 0.0f));
 
   const float linear_brake_slope = 0.2f;
   int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
