@@ -34,7 +34,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, Template)
   const int blk = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_BLK_BYTES;
   EXPECT_EQ(blk, 388);
   const int grd = RacerDubinsElevationLSTMSteering::SHARED_MEM_REQUEST_GRD_BYTES;
-  EXPECT_EQ(grd, 1604);
+  EXPECT_EQ(grd, 1444);
 }
 
 TEST_F(RacerDubinsElevationLSTMSteeringTest, BindStream)

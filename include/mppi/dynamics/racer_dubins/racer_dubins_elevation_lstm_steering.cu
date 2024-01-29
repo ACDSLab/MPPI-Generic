@@ -20,7 +20,7 @@ RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(RacerDubinsEl
 }
 
 RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream)
-  : RacerDubinsElevationLSTMSteering(stream)
+  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>(stream)
 {
   if (!fileExists(path))
   {
@@ -32,6 +32,8 @@ RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string p
   this->params_.steering_constant = param_dict.at("parameters/constant").data<float>()[0];
   this->params_.steer_accel_constant = param_dict.at("parameters/accel_constant").data<float>()[0];
   this->params_.steer_accel_drag_constant = param_dict.at("parameters/accel_drag_constant").data<float>()[0];
+  lstm_lstm_helper_ = std::make_shared<NN>(path, stream);
+  this->requires_buffer_ = true;
 }
 
 void RacerDubinsElevationLSTMSteering::GPUSetup()
@@ -69,7 +71,7 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
   input(0) = state(S_INDEX(STEER_ANGLE)) * 0.2f;
   input(1) = state(S_INDEX(STEER_ANGLE_RATE)) * 0.2f;
   input(2) = control(C_INDEX(STEER_CMD));
-  input(3) = state_der(S_INDEX(STEER_ANGLE)) * 0.2f;  // this is the parametric part as input
+  input(3) = state_der(S_INDEX(STEER_ANGLE_RATE)) * 0.2f;  // this is the parametric part as input
   LSTM::output_array nn_output = LSTM::output_array::Zero();
   lstm_lstm_helper_->forward(input, nn_output);
   state_der(S_INDEX(STEER_ANGLE_RATE)) += nn_output(0) * 5.0f;
@@ -133,14 +135,6 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
 
   // computes the velocity dot
-  const float parametric_accel =
-      fmaxf(fminf((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
-                      params_p->steering_constant,
-                  params_p->max_steer_rate),
-            -params_p->max_steer_rate);
-  state_der[S_INDEX(STEER_ANGLE_RATE)] =
-      (parametric_accel - state[S_INDEX(STEER_ANGLE_RATE)]) * params_p->steer_accel_constant -
-      state[S_INDEX(STEER_ANGLE_RATE)] * params_p->steer_accel_drag_constant;
 
   const uint tdy = threadIdx.y;
 
@@ -152,16 +146,25 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   float* input_loc = network_d_->getInputLocation(theta_s + shift);
   if (tdy == 0)
   {
+    const float parametric_accel =
+        fmaxf(fminf((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+                        params_p->steering_constant,
+                    params_p->max_steer_rate),
+              -params_p->max_steer_rate);
+    state_der[S_INDEX(STEER_ANGLE_RATE)] =
+        (parametric_accel - state[S_INDEX(STEER_ANGLE_RATE)]) * params_p->steer_accel_constant -
+        state[S_INDEX(STEER_ANGLE_RATE)] * params_p->steer_accel_drag_constant;
+
     input_loc[0] = state[S_INDEX(STEER_ANGLE)] * 0.2f;
     input_loc[1] = state[S_INDEX(STEER_ANGLE_RATE)] * 0.2f;
     input_loc[2] = control[C_INDEX(STEER_CMD)];
-    input_loc[3] = state_der[S_INDEX(STEER_ANGLE)] * 0.2f;  // this is the parametric part as input
+    input_loc[3] = state_der[S_INDEX(STEER_ANGLE_RATE)] * 0.2f;  // this is the parametric part as input
   }
   __syncthreads();
   // runs the network
   float* nn_output = network_d_->forward(nullptr, theta_s + shift);
   // copies the results of the network to state derivative
-  if (threadIdx.y == 0)
+  if (tdy == 0)
   {
     state_der[S_INDEX(STEER_ANGLE_RATE)] += nn_output[0] * 5.0f;
     state_der[S_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE_RATE)];

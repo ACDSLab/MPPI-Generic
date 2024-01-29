@@ -12,8 +12,8 @@ class RacerDubinsElevationLSTMSteering : public RacerDubinsElevationImpl<RacerDu
 {
 public:
   using PARENT_CLASS = RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>;
-  typedef FNNParams<10, 20, 1> FNN_PARAMS;
-  typedef FNNParams<43, 100, 8> FNN_INIT_PARAMS;
+  typedef FNNParams<8, 20, 1> FNN_PARAMS;
+  typedef FNNParams<23, 100, 8> FNN_INIT_PARAMS;
   typedef LSTMHelper<LSTMParams<4, 4>, FNN_PARAMS> LSTM;
   typedef LSTMHelper<LSTMParams<3, 20>, FNN_INIT_PARAMS> INIT_LSTM;
   typedef LSTMLSTMHelper<INIT_LSTM, LSTM, 11> NN;
