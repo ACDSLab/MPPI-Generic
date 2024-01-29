@@ -13,10 +13,10 @@ class RacerDubinsElevationLSTMSteering : public RacerDubinsElevationImpl<RacerDu
 public:
   using PARENT_CLASS = RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>;
   typedef FNNParams<10, 20, 1> FNN_PARAMS;
-  typedef FNNParams<64, 100, 10> FNN_INIT_PARAMS;
-  typedef LSTMHelper<LSTMParams<5, 5>, FNN_PARAMS> LSTM;
-  typedef LSTMHelper<LSTMParams<4, 60>, FNN_INIT_PARAMS> INIT_LSTM;
-  typedef LSTMLSTMHelper<INIT_LSTM, LSTM, 51> NN;
+  typedef FNNParams<43, 100, 8> FNN_INIT_PARAMS;
+  typedef LSTMHelper<LSTMParams<4, 4>, FNN_PARAMS> LSTM;
+  typedef LSTMHelper<LSTMParams<3, 20>, FNN_INIT_PARAMS> INIT_LSTM;
+  typedef LSTMLSTMHelper<INIT_LSTM, LSTM, 11> NN;
 
   static const int SHARED_MEM_REQUEST_GRD_BYTES = RacerDubinsElevation::SHARED_MEM_REQUEST_GRD_BYTES +
       NN::SHARED_MEM_REQUEST_GRD_BYTES;
@@ -49,6 +49,11 @@ public:
                               float* theta_s, const float t, const float dt);
 
   __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
+
+  __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
+
+  void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                   Eigen::Ref<state_array> state_der, const float dt);
 
   std::shared_ptr<NN> getHelper() {
     return lstm_lstm_helper_;

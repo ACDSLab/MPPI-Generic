@@ -27,6 +27,26 @@ __host__ __device__ static inline float tanh_deriv(float x)
 
 /**
  *
+ * @param input
+ * @return
+ */
+__host__ __device__ static inline float tanh_vel_scale(float state, float vel, float* constants)
+{
+  return state * constants[1] * tanhf(vel * constants[0]);
+}
+
+/**
+ *
+ * @param input
+ * @return
+ */
+__host__ __device__ static inline float tanh_scale(float state, float* constants)
+{
+  return constants[1] * tanhf(state * constants[0]);
+}
+
+/**
+ *
  * @param x
  * @return
  */

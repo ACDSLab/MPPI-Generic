@@ -77,6 +77,8 @@ struct RacerDubinsParams : public DynamicsParams
   float steer_angle_scale = -9.1;
   float max_steer_angle = 0.5;
   float max_steer_rate = 5;
+  float steer_accel_constant = 12.1f;
+  float steer_accel_drag_constant = 1.0f;
   // brake parametric component
   float brake_delay_constant = 6.6;
   float max_brake_rate_neg = 0.9;

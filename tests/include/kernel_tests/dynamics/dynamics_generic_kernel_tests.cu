@@ -294,8 +294,16 @@ __global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* contro
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
   extern __shared__ float entire_buffer[];
-
   float* theta = entire_buffer;
+
+  // float* theta = reinterpret_cast<float*>(theta_s4);
+  float* x = state + (tid * DYNAMICS_T::STATE_DIM);
+  float* x_dot = state_der + (tid * DYNAMICS_T::STATE_DIM);
+  float* x_next = next_state + (tid * DYNAMICS_T::STATE_DIM);
+  float* u = control + (tid * DYNAMICS_T::CONTROL_DIM);
+  float* y = output + (tid * DYNAMICS_T::OUTPUT_DIM);
+
+  dynamics->initializeDynamics(state, control, output, theta, 0.0f, dt);
 
   if (tid < num)
   {

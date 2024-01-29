@@ -5,7 +5,8 @@
 
 namespace mppi {
 namespace tests {
-  const std::string steering_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_steering.npz";
+  //const std::string steering_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_steering.npz";
+  const std::string steering_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_steering_accel.npz";
   const std::string brake_delay_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_brake_delay.npz";
   const std::string ackerman_lstm = "@PROJECT_SOURCE_DIR@/resources/lstm_lstm_ackerman.npz";
   const std::string ackerman_test = "@PROJECT_SOURCE_DIR@/resources/ackerman_test.npz";
