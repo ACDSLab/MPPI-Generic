@@ -36,7 +36,7 @@ struct BicycleSlipParametricParams : public RacerDubinsElevationParams
     ROLL,
     PITCH,
     STEER_ANGLE_RATE,
-    FILLER_1, // TODO: Figure out if more filler is necessary
+    ENGINE_RPM,  // TODO: Figure out if more filler is necessary
     UNCERTAINTY_POS_X,
     UNCERTAINTY_POS_Y,
     UNCERTAINTY_YAW,
@@ -50,21 +50,20 @@ struct BicycleSlipParametricParams : public RacerDubinsElevationParams
     NUM_STATES
   };
 
-  float environment = 1.0f;  // 1.0 for helendale, -1.0 for halter ranch
-
-  float mu = 4.7f;
-  float mu_env = 2.0f;
   float gravity_x = -3.9f;
-  float min_normal_x = 0.155f;
   float gravity_y = -7.2f;
-  float min_normal_y = 0.24f;
-  float brake_vel = 0.9f;
-  float c_vy = 6.5f;
-  float vy_omega = 1.6f;
-  float c_rolling = 0.2f;
-  float max_roll_resistance_vel = 0.8f;
-  float c_sliding = 0.2f;
-  float max_slide_vel = 0.8f;
+  float mass = 0.61;
+  // vx
+  float min_rpm = 1.1f;
+  float rpm_scale = 1.3;
+  float c_rolling[2] = { 0.3f, 0.4f };
+  float c_rpm[3] = {0.01f, 0.066f, 0.02f};
+  float c_vx = 0.12f;
+  float c_brake[2] = {0.4f, 4.23f};
+  // vy
+  float c_vy = 0.12f;
+  float y_f_c[2] = { 0.9f, 0.8f };
+  float c_sliding[2] = { 1.5f, 1.7f };
 
   float c_omega = 2.2f;
   float c_v_omega = 4.2f;
@@ -156,10 +155,10 @@ public:
 
   void updateRotation(std::array<float3, 3>& rotation)
   {
-      this->tex_helper_->updateRotation(0, rotation);
-      this->normals_tex_helper_->updateRotation(0, rotation);
-      this->normals_tex_helper_->updateRotation(1, rotation);
-      this->normals_tex_helper_->updateRotation(2, rotation);
+    this->tex_helper_->updateRotation(0, rotation);
+    this->normals_tex_helper_->updateRotation(0, rotation);
+    this->normals_tex_helper_->updateRotation(1, rotation);
+    this->normals_tex_helper_->updateRotation(2, rotation);
   }
 
 protected:

@@ -93,60 +93,60 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::
 {
   state_der = state_array::Zero();
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
-  float linear_brake_slope = this->params_.c_b[1] / (0.9f * (2.0f / 0.02));
-  // float brake_cmd = -enable_brake * control(C_INDEX(THROTTLE_BRAKE));
-  int index = (abs(state(S_INDEX(VEL_X))) > linear_brake_slope && abs(state(S_INDEX(VEL_X))) <= 3.0f) +
-              (abs(state(S_INDEX(VEL_X))) > 3.0f) * 2;
-  const float throttle = this->params_.c_t[index] * control(C_INDEX(THROTTLE_BRAKE)) * this->params_.gear_sign;
 
   // runs parametric delay model
-  this->computeParametricDelayDeriv(state, control, state_der);
+  // this->computeParametricDelayDeriv(state, control, state_der);
 
-  // runs the parametric part of the steering model
-  this->computeParametricSteerDeriv(state, control, state_der);
+  // // runs the parametric part of the steering model
+  // // TODO this needs to be the NN
+  // this->computeParametricSteerDeriv(state, control, state_der);
 
-  float normal_x_avg, normal_y_avg, normal_z_avg;
-  RACER::computeBodyFrameNormals<TwoDTextureHelper<float4>>(
-      this->normals_tex_helper_, state(S_INDEX(YAW)), state(S_INDEX(POS_X)), state(S_INDEX(POS_Y)),
-      state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), normal_x_avg, normal_y_avg, normal_z_avg);
+  // // TODO need to predict the brake state change
 
-  const float gravity_x_accel =
-      act_func::tanhshrink_scale(normal_x_avg, this->params_.min_normal_x) * this->params_.gravity_x;
-  const float gravity_y_accel =
-      act_func::tanhshrink_scale(normal_y_avg, this->params_.min_normal_y) * this->params_.gravity_y;
+  // float normal_x_avg, normal_y_avg, normal_z_avg;
+  // RACER::computeBodyFrameNormals<TwoDTextureHelper<float4>>(
+  //     this->normals_tex_helper_, state(S_INDEX(YAW)), state(S_INDEX(POS_X)), state(S_INDEX(POS_Y)),
+  //     state(S_INDEX(ROLL)), state(S_INDEX(PITCH)), normal_x_avg, normal_y_avg, normal_z_avg);
 
-  const float brake_vel = mppi::math::clamp(state(S_INDEX(VEL_X)), -this->params_.brake_vel, this->params_.brake_vel);
-  const float rolling_vel = mppi::math::clamp(state(S_INDEX(VEL_X)), -this->params_.max_roll_resistance_vel,
-                                              this->params_.max_roll_resistance_vel);
-  const float sliding_vel =
-      mppi::math::clamp(state(S_INDEX(VEL_Y)), -this->params_.max_slide_vel, this->params_.max_slide_vel);
+  // const float brake = tanh_vel_scale(state(S_INDEX(BRAKE_STATE)), state(S_INDEX(VEL_X)), this->params.c_brake);
+  // const float drag_x = tanh_scale(state(S_INDEX(VEL_X)), this->params.c_rolling);
+  // const float scaled_rpm = state(S_INDEX(ENGINE_RPM)) / 1.0e3 - this->params_.min_rpm;
+  // const float throttle = tanhf(powf(scaled_rpm, 2) * this->params_.c_rpm[2] + scaled_rpm * this->params_.c_rpm[1] +
+  //                              this->params_.c_rpm[0]) *
+  //                        this->params_.rpm_scale;
 
-  const float brake = this->params_.c_b[0] * state(S_INDEX(BRAKE_STATE)) * brake_vel;
-  const float x_drag =
-      this->params_.c_v[0] * state(S_INDEX(VEL_X)) + rolling_vel * normal_z_avg * this->params_.c_rolling;
-  const float y_vel_comp = state(S_INDEX(VEL_Y)) * state(S_INDEX(OMEGA_Z));
-  const float accel_x = throttle - brake - x_drag;
-  const float mu_actual = (this->params_.mu + this->params_.environment * this->params_.mu_env) * normal_z_avg;
-  state_der(S_INDEX(VEL_X)) = mppi::math::clamp(accel_x, -mu_actual, mu_actual) - gravity_x_accel + y_vel_comp;
+  // const float x_force = throttle - brake - drag_x;
 
-  float y_accel = -state(S_INDEX(VEL_X)) * state(S_INDEX(OMEGA_Z)) +
-                  mppi::math::sign(state(S_INDEX(VEL_X))) * state(S_INDEX(OMEGA_Z)) * this->params_.vy_omega;
-  const float drag_y =
-      this->params_.c_vy * state(S_INDEX(VEL_Y)) + sliding_vel * normal_z_avg * this->params_.c_sliding;
-  state_der(S_INDEX(VEL_Y)) = y_accel - drag_y - gravity_y_accel;
+  // const float wheel_angle = tanf(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
+  // const float parametric_omega = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) * wheel_angle;
+  // state_der(S_INDEX(OMEGA_Z)) = (parametric_omega - state(S_INDEX(OMEGA_Z))) * this->params_.c_omega -
+  //                               state(S_INDEX(OMEGA_Z)) * this->params_.c_v_omega;
 
-  const float parametric_omega = (state(S_INDEX(VEL_X)) / this->params_.wheel_base) *
-                                 tanf(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
-  state_der(S_INDEX(OMEGA_Z)) = (parametric_omega - state(S_INDEX(OMEGA_Z))) * this->params_.c_omega -
-                                state(S_INDEX(OMEGA_Z)) * this->params_.c_v_omega;
+  // const float drag_y = tanh_scale(state(S_INDEX(VEL_Y)), this->params_.c_sliding);
+  // const float y_force =
+  //     tanhf(state(S_INDEX(VEL_X)) * state(S_INDEX(OMEGA_Z)) * this->params_.y_f_c[0]) * this->params_.y_f_c[1] -
+  //     drag_y;
 
-  // kinematics component
-  state_der(S_INDEX(YAW)) = state(S_INDEX(OMEGA_Z));
-  float yaw, sin_yaw, cos_yaw;
-  yaw = state[S_INDEX(YAW)];
-  sincosf(yaw, &sin_yaw, &cos_yaw);
-  state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cos_yaw - state(S_INDEX(VEL_Y)) * sin_yaw;
-  state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sin_yaw + state(S_INDEX(VEL_Y)) * cos_yaw;
+  // float wheel_angle, sin_wheel_angle, cos_wheel_angle;
+  // sincosf(wheel_angle, &sin_wheel_angle, &cos_wheel_angle);
+
+  // state_der(S_INDEX(VEL_X)) = (x_force + x_force * cos_wheel_angle - y_force * sin_wheel_angle) / this->params_.mass
+  // -
+  //                             state(S_INDEX(VEL_X)) * this->params_.c_vx - normal_x_avg * this->params_.gravity_x +
+  //                             state(S_INDEX(VEL_Y)) * state(S_INDEX(OMEGA_Z));
+
+  // state_der(S_INDEX(VEL_Y)) = (y_force + y_force * cos_wheel_angle + x_force * sin_wheel_angle) / this->params_.mass
+  // -
+  //                             state(S_INDEX(VEL_Y)) * this->params_.c_vy - normal_y_avg * this->params_.gravity_y -
+  //                             state(S_INDEX(VEL_X)) * state(S_INDEX(OMEGA_Z));
+
+  // // kinematics component
+  // state_der(S_INDEX(YAW)) = state(S_INDEX(OMEGA_Z));
+  // float yaw, sin_yaw, cos_yaw;
+  // yaw = state[S_INDEX(YAW)];
+  // sincosf(yaw, &sin_yaw, &cos_yaw);
+  // state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cos_yaw - state(S_INDEX(VEL_Y)) * sin_yaw;
+  // state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sin_yaw + state(S_INDEX(VEL_Y)) * cos_yaw;
 }
 
 template <class CLASS_T, class PARAMS_T>
@@ -253,51 +253,56 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::computeDynamics(fl
   this->computeParametricSteerDeriv(state, control, state_der, params_p);
 
   // nullptr if not shared memory
-  bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
-  const float brake_cmd = -enable_brake * control[C_INDEX(THROTTLE_BRAKE)];
-  float linear_brake_slope = params_p->c_b[1] / (0.9f * (2.0f / 0.02));
-  int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
-              (fabsf(state[S_INDEX(VEL_X)]) > 3.0f) * 2;
-  float throttle = params_p->c_t[index] * control[C_INDEX(THROTTLE_BRAKE)] * params_p->gear_sign;
+  // bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0;
+  // const float brake_cmd = -enable_brake * control[C_INDEX(THROTTLE_BRAKE)];
+  // float linear_brake_slope = params_p->c_b[1] / (0.9f * (2.0f / 0.02));
+  // int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
+  //             (fabsf(state[S_INDEX(VEL_X)]) > 3.0f) * 2;
+  // float throttle = params_p->c_t[index] * control[C_INDEX(THROTTLE_BRAKE)] * params_p->gear_sign;
 
-  // calculates the average normals
-  float normal_x_avg, normal_y_avg, normal_z_avg;
-  RACER::computeBodyFrameNormals<TwoDTextureHelper<float4>>(
-      this->normals_tex_helper_, state[S_INDEX(YAW)], state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)],
-      state[S_INDEX(ROLL)], state[S_INDEX(PITCH)], normal_x_avg, normal_y_avg, normal_z_avg);
-  const float gravity_x_accel = act_func::tanhshrink_scale(normal_x_avg, params_p->min_normal_x) * params_p->gravity_x;
-  const float gravity_y_accel = act_func::tanhshrink_scale(normal_y_avg, params_p->min_normal_y) * params_p->gravity_y;
+  // // calculates the average normals
+  // float normal_x_avg, normal_y_avg, normal_z_avg;
+  // RACER::computeBodyFrameNormals<TwoDTextureHelper<float4>>(
+  //     this->normals_tex_helper_, state[S_INDEX(YAW)], state[S_INDEX(POS_X)], state[S_INDEX(POS_Y)],
+  //     state[S_INDEX(ROLL)], state[S_INDEX(PITCH)], normal_x_avg, normal_y_avg, normal_z_avg);
+  // const float gravity_x_accel = act_func::tanhshrink_scale(normal_x_avg, params_p->min_normal_x) *
+  // params_p->gravity_x; const float gravity_y_accel = act_func::tanhshrink_scale(normal_y_avg, params_p->min_normal_y)
+  // * params_p->gravity_y;
 
-  const float brake_vel = mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->brake_vel, params_p->brake_vel);
-  const float rolling_vel =
-      mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->max_roll_resistance_vel, params_p->max_roll_resistance_vel);
-  const float sliding_vel = mppi::math::clamp(state[S_INDEX(VEL_Y)], -params_p->max_slide_vel, params_p->max_slide_vel);
+  // const float brake_vel = mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->brake_vel, params_p->brake_vel);
+  // const float rolling_vel =
+  //     mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->max_roll_resistance_vel,
+  //     params_p->max_roll_resistance_vel);
+  // const float sliding_vel = mppi::math::clamp(state[S_INDEX(VEL_Y)], -params_p->max_slide_vel,
+  // params_p->max_slide_vel);
 
-  const float brake = params_p->c_b[0] * state[S_INDEX(BRAKE_STATE)] *
-                      mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->brake_vel, params_p->brake_vel);
-  const float x_drag = params_p->c_v[0] * state[S_INDEX(VEL_X)] + rolling_vel * normal_z_avg * params_p->c_rolling;
-  const float y_vel_comp = state[S_INDEX(VEL_Y)] * state[S_INDEX(OMEGA_Z)];
-  const float accel_x = throttle - brake - x_drag;
-  const float mu_actual = (params_p->mu + params_p->environment * params_p->mu_env) * normal_z_avg;
-  state_der[S_INDEX(VEL_X)] = mppi::math::clamp(accel_x, -mu_actual, mu_actual) - gravity_x_accel + y_vel_comp;
+  // const float brake = params_p->c_b[0] * state[S_INDEX(BRAKE_STATE)] *
+  //                     mppi::math::clamp(state[S_INDEX(VEL_X)], -params_p->brake_vel, params_p->brake_vel);
+  // const float x_drag = params_p->c_v[0] * state[S_INDEX(VEL_X)] + rolling_vel * normal_z_avg * params_p->c_rolling;
+  // const float y_vel_comp = state[S_INDEX(VEL_Y)] * state[S_INDEX(OMEGA_Z)];
+  // const float accel_x = throttle - brake - x_drag;
+  // const float mu_actual = (params_p->mu + params_p->environment * params_p->mu_env) * normal_z_avg;
+  // state_der[S_INDEX(VEL_X)] = mppi::math::clamp(accel_x, -mu_actual, mu_actual) - gravity_x_accel + y_vel_comp;
 
-  float y_accel = -state[S_INDEX(VEL_X)] * state[S_INDEX(OMEGA_Z)] +
-                  mppi::math::sign(state[S_INDEX(VEL_X)]) * state[S_INDEX(OMEGA_Z)] * params_p->vy_omega;
-  const float drag_y = params_p->c_vy * state[S_INDEX(VEL_Y)] + sliding_vel * normal_z_avg * params_p->c_sliding;
-  state_der[S_INDEX(VEL_Y)] = y_accel - drag_y - gravity_y_accel;
+  // float y_accel = -state[S_INDEX(VEL_X)] * state[S_INDEX(OMEGA_Z)] +
+  //                 mppi::math::sign(state[S_INDEX(VEL_X)]) * state[S_INDEX(OMEGA_Z)] * params_p->vy_omega;
+  // const float drag_y = params_p->c_vy * state[S_INDEX(VEL_Y)] + sliding_vel * normal_z_avg * params_p->c_sliding;
+  // state_der[S_INDEX(VEL_Y)] = y_accel - drag_y - gravity_y_accel;
 
-  const float parametric_omega =
-      (state[S_INDEX(VEL_X)] / params_p->wheel_base) * tanf(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale);
-  state_der[S_INDEX(OMEGA_Z)] =
-      (parametric_omega - state[S_INDEX(OMEGA_Z)]) * params_p->c_omega - state[S_INDEX(OMEGA_Z)] * params_p->c_v_omega;
+  // const float parametric_omega =
+  //     (state[S_INDEX(VEL_X)] / params_p->wheel_base) * tanf(state[S_INDEX(STEER_ANGLE)] /
+  //     params_p->steer_angle_scale);
+  // state_der[S_INDEX(OMEGA_Z)] =
+  //     (parametric_omega - state[S_INDEX(OMEGA_Z)]) * params_p->c_omega - state[S_INDEX(OMEGA_Z)] *
+  //     params_p->c_v_omega;
 
-  // kinematics component
-  state_der[S_INDEX(YAW)] = state[S_INDEX(OMEGA_Z)];
-  float yaw, sin_yaw, cos_yaw;
-  yaw = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
-  __sincosf(yaw, &sin_yaw, &cos_yaw);
-  state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cos_yaw - state[S_INDEX(VEL_Y)] * sin_yaw;
-  state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sin_yaw + state[S_INDEX(VEL_Y)] * cos_yaw;
+  // // kinematics component
+  // state_der[S_INDEX(YAW)] = state[S_INDEX(OMEGA_Z)];
+  // float yaw, sin_yaw, cos_yaw;
+  // yaw = angle_utils::normalizeAngle(state[S_INDEX(YAW)]);
+  // __sincosf(yaw, &sin_yaw, &cos_yaw);
+  // state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)] * cos_yaw - state[S_INDEX(VEL_Y)] * sin_yaw;
+  // state_der[S_INDEX(POS_Y)] = state[S_INDEX(VEL_X)] * sin_yaw + state[S_INDEX(VEL_Y)] * cos_yaw;
 }
 
 template <class CLASS_T, class PARAMS_T>
