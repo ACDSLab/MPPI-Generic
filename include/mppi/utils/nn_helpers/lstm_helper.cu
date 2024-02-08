@@ -4,256 +4,352 @@
 
 #include "lstm_helper.cuh"
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::LSTMHelper(cudaStream_t stream) : Managed(stream)
+template <bool USE_SHARED>
+LSTMHelper<USE_SHARED>::LSTMHelper(int input_dim, int hidden_dim, std::vector<int> output_layers, cudaStream_t stream)
+  : Managed(stream)
 {
-  output_nn_ = new OUTPUT_FNN_T(stream);
-  hidden_state_ = hidden_state::Zero();
-  cell_state_ = hidden_state::Zero();
+  output_nn_ = new FNNHelper<USE_SHARED>(output_layers, this->stream_);
+  setupMemory(input_dim, hidden_dim);
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::LSTMHelper(std::string path, cudaStream_t stream) : Managed(stream)
+template <bool USE_SHARED>
+LSTMHelper<USE_SHARED>::LSTMHelper(std::string path, cudaStream_t stream) : Managed(stream)
 {
-  output_nn_ = new OUTPUT_FNN_T(stream);
-  hidden_state_ = hidden_state::Zero();
-  cell_state_ = hidden_state::Zero();
   loadParams(path);
 }
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::GPUSetup()
+
+template <bool USE_SHARED>
+LSTMHelper<USE_SHARED>::LSTMHelper(const cnpy::npz_t& param_dict, std::string prefix, bool add_slash,
+                                   cudaStream_t stream)
+  : Managed(stream)
+{
+  loadParams(prefix, param_dict, add_slash);
+}
+
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::setupMemory(int input_dim, int hidden_dim)
+{
+  HIDDEN_DIM = hidden_dim;
+  INPUT_DIM = input_dim;
+  OUTPUT_DIM = output_nn_->getOutputDim();
+  assert(output_nn_->getInputDim() == INPUT_DIM + HIDDEN_DIM);
+
+  bool setupGPU = this->GPUMemStatus_;
+  if (setupGPU)
+  {
+    freeCudaMem();
+  }
+
+  HIDDEN_HIDDEN_SIZE = HIDDEN_DIM * HIDDEN_DIM;
+  INPUT_HIDDEN_SIZE = HIDDEN_DIM * INPUT_DIM;
+
+  // The initial cell and hidden does not need to be stored in shared memory
+  LSTM_PARAM_SIZE_BYTES = (HIDDEN_DIM * 4 + HIDDEN_HIDDEN_SIZE * 4 + INPUT_HIDDEN_SIZE * 4) * sizeof(float);
+  LSTM_SHARED_MEM_GRD_BYTES = LSTM_PARAM_SIZE_BYTES * USE_SHARED;
+
+  SHARED_MEM_REQUEST_GRD_BYTES = output_nn_->getGrdSharedSizeBytes() + LSTM_SHARED_MEM_GRD_BYTES;
+  SHARED_MEM_REQUEST_BLK_BYTES = output_nn_->getBlkSharedSizeBytes() + (3 * HIDDEN_DIM + INPUT_DIM) * sizeof(float);
+
+  hidden_state_ = Eigen::VectorXf(HIDDEN_DIM);
+  hidden_state_.setZero();
+  cell_state_ = Eigen::VectorXf(HIDDEN_DIM);
+  cell_state_.setZero();
+
+  if (weights_ != nullptr)
+  {
+    delete weights_;
+  }
+
+  // allocate all the memory dynamically
+  weights_ = (float*)::operator new(LSTM_PARAM_SIZE_BYTES + 2 * HIDDEN_DIM * sizeof(float));
+  W_im_ = weights_;
+  W_fm_ = weights_ + HIDDEN_HIDDEN_SIZE;
+  W_om_ = weights_ + 2 * HIDDEN_HIDDEN_SIZE;
+  W_cm_ = weights_ + 3 * HIDDEN_HIDDEN_SIZE;
+
+  W_ii_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE;
+  W_fi_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + INPUT_HIDDEN_SIZE;
+  W_oi_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + 2 * INPUT_HIDDEN_SIZE;
+  W_ci_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + 3 * INPUT_HIDDEN_SIZE;
+
+  b_i_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE;
+  b_f_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + HIDDEN_DIM;
+  b_o_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 2 * HIDDEN_DIM;
+  b_c_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 3 * HIDDEN_DIM;
+
+  initial_hidden_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 4 * HIDDEN_DIM;
+  initial_cell_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 5 * HIDDEN_DIM;
+
+  memset(weights_, 0.0f, LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float));
+  copyWeightsToEigen();
+
+  if (setupGPU)
+  {
+    GPUSetup();
+  }
+}
+
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::updateLSTMInitialStates(const Eigen::Ref<const Eigen::VectorXf> hidden,
+                                                     const Eigen::Ref<const Eigen::VectorXf> cell)
+{
+  setHiddenState(hidden);
+  setCellState(cell);
+}
+
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::GPUSetup()
 {
   output_nn_->GPUSetup();
   if (!this->GPUMemStatus_)
   {
-    network_d_ = Managed::GPUSetup<LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>>(this);
+    network_d_ = Managed::GPUSetup<LSTMHelper<USE_SHARED>>(this);
     HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->output_nn_), &(this->output_nn_->network_d_),
                                  sizeof(OUTPUT_FNN_T*), cudaMemcpyHostToDevice, this->stream_));
+    cudaMalloc((void**)&(this->weights_d_), LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float));
+
+    // copies all pointers to be right on the GPU side
+    float* incr_ptr = weights_d_;
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->weights_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->W_im_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    incr_ptr += HIDDEN_HIDDEN_SIZE;
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->W_fm_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    incr_ptr += HIDDEN_HIDDEN_SIZE;
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->W_om_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    incr_ptr += HIDDEN_HIDDEN_SIZE;
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->W_cm_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    incr_ptr += HIDDEN_HIDDEN_SIZE;
+
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->W_ii_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    incr_ptr += INPUT_HIDDEN_SIZE;
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->W_fi_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    incr_ptr += INPUT_HIDDEN_SIZE;
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->W_oi_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    incr_ptr += INPUT_HIDDEN_SIZE;
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->W_ci_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice,
+                                 this->stream_));
+    incr_ptr += INPUT_HIDDEN_SIZE;
+
+    HANDLE_ERROR(
+        cudaMemcpyAsync(&(this->network_d_->b_i_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice, this->stream_));
+    incr_ptr += HIDDEN_DIM;
+    HANDLE_ERROR(
+        cudaMemcpyAsync(&(this->network_d_->b_f_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice, this->stream_));
+    incr_ptr += HIDDEN_DIM;
+    HANDLE_ERROR(
+        cudaMemcpyAsync(&(this->network_d_->b_o_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice, this->stream_));
+    incr_ptr += HIDDEN_DIM;
+    HANDLE_ERROR(
+        cudaMemcpyAsync(&(this->network_d_->b_c_), &(incr_ptr), sizeof(float*), cudaMemcpyHostToDevice, this->stream_));
+    incr_ptr += HIDDEN_DIM;
+
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->initial_hidden_), &(incr_ptr), sizeof(float*),
+                                 cudaMemcpyHostToDevice, this->stream_));
+    incr_ptr += HIDDEN_DIM;
+    HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->initial_cell_), &(incr_ptr), sizeof(float*),
+                                 cudaMemcpyHostToDevice, this->stream_));
+    paramsToDevice();
   }
   else
   {
     this->logger_->debug("LSTM GPU Memory already set\n");
   }
 }
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::freeCudaMem()
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::freeCudaMem()
 {
   output_nn_->freeCudaMem();
   if (this->GPUMemStatus_)
   {
     cudaFree(network_d_);
+    cudaFree(weights_d_);
+    this->GPUMemStatus_ = false;
   }
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::paramsToDevice()
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::paramsToDevice()
 {
   if (this->GPUMemStatus_)
   {
     // copies entire params to device
-    HANDLE_ERROR(
-        cudaMemcpyAsync(&this->network_d_->params_, &this->params_, sizeof(PARAMS_T), cudaMemcpyHostToDevice, stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(this->weights_d_, this->weights_,
+                                 LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float), cudaMemcpyHostToDevice,
+                                 stream_));
   }
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-__device__ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::initialize(float* theta_s)
+template <bool USE_SHARED>
+__device__ void LSTMHelper<USE_SHARED>::initialize(float* theta_s)
 {
-  static_assert(std::is_trivially_copyable<PARAMS_T>::value);
-  const int slide = LSTM_SHARED_MEM_GRD / sizeof(float) + 1;
-
-  PARAMS_T* lstm_params = &this->params_;
-  OUTPUT_PARAMS_T* output_params = this->output_nn_->getParamsPtr();
-  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
+  if (USE_SHARED)
   {
-    lstm_params = (PARAMS_T*)theta_s;
-    output_params = (OUTPUT_PARAMS_T*)(theta_s + slide);
+    // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
+    // {
+    //   memcpy(theta_s, weights_, LSTM_PARAM_SIZE_BYTES);
+    // }
+    for (int i = blockDim.x * threadIdx.y + threadIdx.x; i < LSTM_PARAM_SIZE_BYTES / sizeof(float);
+         i += blockDim.x * blockDim.y)
+    {
+      theta_s[i] = weights_[i];
+    }
+    output_nn_->initialize(theta_s + LSTM_SHARED_MEM_GRD_BYTES / sizeof(float));
+    __syncthreads();
   }
 
-  const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) +
-                        SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
+  // copies the initial cell and hidden state to the correct place
+  const int shift =
+      SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * threadIdx.x;
+  for (int i = threadIdx.y; i < HIDDEN_DIM; i += blockDim.y)
+  {
+    (theta_s + shift)[i] = (weights_ + LSTM_PARAM_SIZE_BYTES / sizeof(float))[i];
+    (theta_s + shift + HIDDEN_DIM)[i] = (weights_ + LSTM_PARAM_SIZE_BYTES / sizeof(float) + HIDDEN_DIM)[i];
+  }
 
-  initialize(lstm_params, output_params, theta_s + block_idx);
+  // if (threadIdx.y == 0)
+  // {
+  //   memcpy(theta_s + shift, weights_ + LSTM_PARAM_SIZE_BYTES / sizeof(float), 2 * HIDDEN_DIM * sizeof(float));
+  // }
+  __syncthreads();
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-__device__ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::initialize(LSTM_PARAMS_T* lstm_params,
-                                                                           OUTPUT_PARAMS_T* output_params,
-                                                                           float* hidden_cell)
-{
-  // if using shared memory, copy parameters
-  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
-  {
-    *lstm_params = this->params_;
-    output_nn_->initialize(output_params);
-  }
-
-  float* c = hidden_cell;
-  float* h = hidden_cell + HIDDEN_DIM;
-
-  if (SHARED_MEM_REQUEST_GRD_BYTES == 0)
-  {
-    for (int i = threadIdx.y; i < HIDDEN_DIM; i += blockDim.y)
-    {
-      c[i] = params_.initial_cell[i];
-      h[i] = params_.initial_hidden[i];
-    }
-  }
-  else
-  {
-    for (int i = threadIdx.y; i < HIDDEN_DIM; i += blockDim.y)
-    {
-      c[i] = lstm_params->initial_cell[i];
-      h[i] = lstm_params->initial_hidden[i];
-    }
-  }
-}
-
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::copyHiddenCellToDevice()
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::copyHiddenCellToDevice()
 {
   if (this->GPUMemStatus_)
   {
-    HANDLE_ERROR(cudaMemcpyAsync(&this->network_d_->params_.initial_hidden, &this->params_.initial_hidden,
-                                 HIDDEN_DIM * sizeof(float), cudaMemcpyHostToDevice, stream_));
-    HANDLE_ERROR(cudaMemcpyAsync(&this->network_d_->params_.initial_cell, &this->params_.initial_cell,
-                                 HIDDEN_DIM * sizeof(float), cudaMemcpyHostToDevice, stream_));
+    // HANDLE_ERROR(cudaMemcpyAsync(this->weights_d_, this->weights_,
+    //                              LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float), cudaMemcpyHostToDevice,
+    //                              stream_));
+    HANDLE_ERROR(cudaMemcpyAsync(this->weights_d_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 4 * HIDDEN_DIM,
+                                 this->weights_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 4 * HIDDEN_DIM,
+                                 2 * HIDDEN_DIM * sizeof(float), cudaMemcpyHostToDevice, stream_));
   }
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::updateOutputModel(const std::vector<int>& description,
-                                                                       const std::vector<float>& data)
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::updateOutputModel(const std::vector<int>& description, const std::vector<float>& data)
 {
   output_nn_->updateModel(description, data);
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::setLSTMParams(PARAMS_T& params)
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::updateOutputModel(const std::vector<float>& data)
 {
-  params_ = params;
-  resetHiddenCellCPU();
-  paramsToDevice();
+  output_nn_->updateModel(data);
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(const Eigen::Ref<const input_array>& input)
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& input)
 {
-  // Create eigen matrices for all the weights and biases
-  Eigen::Map<const W_hh> W_im_mat(this->params_.W_im);
-  Eigen::Map<const W_hh> W_fm_mat(this->params_.W_fm);
-  Eigen::Map<const W_hh> W_om_mat(this->params_.W_om);
-  Eigen::Map<const W_hh> W_cm_mat(this->params_.W_cm);
-
-  Eigen::Map<const W_hi> W_ii_mat(this->params_.W_ii);
-  Eigen::Map<const W_hi> W_fi_mat(this->params_.W_fi);
-  Eigen::Map<const W_hi> W_oi_mat(this->params_.W_oi);
-  Eigen::Map<const W_hi> W_ci_mat(this->params_.W_ci);
-
-  Eigen::Map<const hidden_state> b_i_mat(this->params_.b_i);
-  Eigen::Map<const hidden_state> b_f_mat(this->params_.b_f);
-  Eigen::Map<const hidden_state> b_o_mat(this->params_.b_o);
-  Eigen::Map<const hidden_state> b_c_mat(this->params_.b_c);
-
-  hidden_state g_i = W_im_mat * hidden_state_ + W_ii_mat * input + b_i_mat;
-  hidden_state g_f = W_fm_mat * hidden_state_ + W_fi_mat * input + b_f_mat;
-  hidden_state g_o = W_om_mat * hidden_state_ + W_oi_mat * input + b_o_mat;
-  hidden_state g_c = W_cm_mat * hidden_state_ + W_ci_mat * input + b_c_mat;
+  Eigen::MatrixXf g_i = eig_W_im_ * hidden_state_ + eig_W_ii_ * input + eig_b_i_;
+  Eigen::MatrixXf g_f = eig_W_fm_ * hidden_state_ + eig_W_fi_ * input + eig_b_f_;
+  Eigen::MatrixXf g_o = eig_W_om_ * hidden_state_ + eig_W_oi_ * input + eig_b_o_;
+  Eigen::MatrixXf g_c = eig_W_cm_ * hidden_state_ + eig_W_ci_ * input + eig_b_c_;
   g_i = g_i.unaryExpr([](float x) { return SIGMOID(x); });
   g_f = g_f.unaryExpr([](float x) { return SIGMOID(x); });
   g_o = g_o.unaryExpr([](float x) { return SIGMOID(x); });
   g_c = g_c.unaryExpr([](float x) { return TANH(x); });
 
-  hidden_state c_next = g_i.cwiseProduct(g_c) + g_f.cwiseProduct(cell_state_);
-  hidden_state h_next = g_o.cwiseProduct(c_next.unaryExpr([](float x) { return tanhf(x); }));
+  Eigen::MatrixXf c_next = g_i.cwiseProduct(g_c) + g_f.cwiseProduct(cell_state_);
+  Eigen::MatrixXf h_next = g_o.cwiseProduct(c_next.unaryExpr([](float x) { return tanhf(x); }));
 
   hidden_state_ = h_next;
   cell_state_ = c_next;
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(const Eigen::Ref<const input_array>& input,
-                                                             Eigen::Ref<output_array> output)
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& input, Eigen::Ref<Eigen::VectorXf> output)
 {
   forward(input);
-  typename OUTPUT_FNN_T::input_array nn_input;
-  nn_input.head(HIDDEN_DIM) = hidden_state_;
-  nn_input.tail(INPUT_DIM) = input;
+  Eigen::VectorXf nn_input = output_nn_->getInputVector();
+  for (int i = 0; i < HIDDEN_DIM; i++)
+  {
+    nn_input(i) = hidden_state_(i);
+  }
+  for (int i = 0; i < INPUT_DIM; i++)
+  {
+    nn_input(i + HIDDEN_DIM) = input(i);
+  }
 
   output_nn_->forward(nn_input, output);
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-__device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s)
+template <bool USE_SHARED>
+__device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s)
 {
-  PARAMS_T* params = &this->params_;
-  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
-  {
-    params = (PARAMS_T*)theta_s;
-  }
-
   const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) +
-                        SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
-  return forward(input, theta_s, params, block_idx);
+                        SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);
+  return forward(input, theta_s, theta_s + block_idx);
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-__device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s,
-                                                                          LSTM_PARAMS_T* params, int block_idx)
+template <bool USE_SHARED>
+__device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, float* block_ptr)
 {
-  FNN_PARAMS_T* output_params;
-  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
-  {
-    const int slide = LSTM_SHARED_MEM_GRD / sizeof(float) + 1;
-    output_params = (FNN_PARAMS_T*)(theta_s + slide);
-  }
-  else
-  {
-    output_params = output_nn_->getParamsPtr();
-  }
-
-  return forward(input, theta_s, params, output_params, block_idx);
+  float* c = &block_ptr[0];
+  float* g_o = &block_ptr[2 * HIDDEN_DIM];  // input gate
+  return forward(input, theta_s, c, g_o);
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-__device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s,
-                                                                          LSTM_PARAMS_T* params,
-                                                                          FNN_PARAMS_T* output_params, int block_idx)
-{
-  float* c = &theta_s[block_idx];
-  float* g_o = &theta_s[block_idx + 2 * HIDDEN_DIM];  // input gate
-  return forward(input, g_o, c, params, output_params, 0);
-}
-
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-__device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float* input, float* theta_s,
-                                                                          float* hidden_cell, LSTM_PARAMS_T* params,
-                                                                          FNN_PARAMS_T* output_params, int block_idx)
+template <bool USE_SHARED>
+__device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, float* hidden_cell, float* block_ptr)
 {
   // Weights
-  const float* W_ii = &params->W_ii[0];
-  const float* W_im = &params->W_im[0];
-  const float* W_fi = &params->W_fi[0];
-  const float* W_fm = &params->W_fm[0];
-  const float* W_oi = &params->W_oi[0];
-  const float* W_om = &params->W_om[0];
-  const float* W_ci = &params->W_ci[0];
-  const float* W_cm = &params->W_cm[0];
+  float* W_ii = this->W_ii_;
+  float* W_im = this->W_im_;
+  float* W_fi = this->W_fi_;
+  float* W_fm = this->W_fm_;
+  float* W_oi = this->W_oi_;
+  float* W_om = this->W_om_;
+  float* W_ci = this->W_ci_;
+  float* W_cm = this->W_cm_;
 
   // Biases
-  const float* b_i = &params->b_i[0];  // hidden_size
-  const float* b_f = &params->b_f[0];  // hidden_size
-  const float* b_o = &params->b_o[0];  // hidden_size
-  const float* b_c = &params->b_c[0];  // hidden_size
+  float* b_i = this->b_i_;  // hidden_size
+  float* b_f = this->b_f_;  // hidden_size
+  float* b_o = this->b_o_;  // hidden_size
+  float* b_c = this->b_c_;  // hidden_size
+
+  if (USE_SHARED)
+  {
+    // Weights
+    W_im = &theta_s[0];
+    W_fm = &theta_s[HIDDEN_HIDDEN_SIZE];
+    W_om = &theta_s[2 * HIDDEN_HIDDEN_SIZE];
+    W_cm = &theta_s[3 * HIDDEN_HIDDEN_SIZE];
+    W_ii = &theta_s[4 * HIDDEN_HIDDEN_SIZE];
+    W_fi = &theta_s[4 * HIDDEN_HIDDEN_SIZE + INPUT_HIDDEN_SIZE];
+    W_oi = &theta_s[4 * HIDDEN_HIDDEN_SIZE + 2 * INPUT_HIDDEN_SIZE];
+    W_ci = &theta_s[4 * HIDDEN_HIDDEN_SIZE + 3 * INPUT_HIDDEN_SIZE];
+
+    // Biases
+    b_i = &theta_s[4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE];
+    b_f = &theta_s[4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + HIDDEN_DIM];
+    b_o = &theta_s[4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 2 * HIDDEN_DIM];
+    b_c = &theta_s[4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 3 * HIDDEN_DIM];
+  }
 
   uint i, j;
 
   // Intermediate outputs
-  float* c = &hidden_cell[block_idx];
-  float* h = &hidden_cell[block_idx + HIDDEN_DIM];
-  float* g_o = &theta_s[block_idx];  // output gate
-  float* x = &theta_s[block_idx + HIDDEN_DIM];
-  float* output_act = &theta_s[block_idx + HIDDEN_DIM + INPUT_DIM];
+  // for each block we have prior cell/hidden state
+  float* h = &hidden_cell[0];
+  float* c = &hidden_cell[HIDDEN_DIM];
+
+  // each block has place to compute g_o, and input
+  float* g_o = &block_ptr[0];  // output gate
+  float* x = &block_ptr[HIDDEN_DIM];
+
+  // FNN needs space for input and activations
+  float* output_act = &block_ptr[HIDDEN_DIM + INPUT_DIM];
 
   uint tdy = threadIdx.y;
 
@@ -325,59 +421,59 @@ __device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::forward(float*
     output_act[i + HIDDEN_DIM] = x[i];
   }
 
-  return output_nn_->forward(nullptr, output_act, output_params, 0);
+  return output_nn_->forward(nullptr, theta_s + LSTM_SHARED_MEM_GRD_BYTES / sizeof(float), output_act);
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::resetHiddenCPU()
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::resetHiddenCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
-    hidden_state_[i] = params_.initial_hidden[i];
+    hidden_state_[i] = initial_hidden_[i];
   }
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::resetCellCPU()
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::resetCellCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
-    cell_state_[i] = params_.initial_cell[i];
+    cell_state_[i] = initial_cell_[i];
   }
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::resetHiddenCellCPU()
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::resetHiddenCellCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
-    hidden_state_[i] = params_.initial_hidden[i];
-    cell_state_[i] = params_.initial_cell[i];
+    hidden_state_(i) = initial_hidden_[i];
+    cell_state_(i) = initial_cell_[i];
   }
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::setHiddenState(const Eigen::Ref<const hidden_state> hidden_state)
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::setHiddenState(const Eigen::Ref<const Eigen::VectorXf> hidden_state)
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
-    params_.initial_hidden[i] = hidden_state[i];
-    hidden_state_[i] = hidden_state[i];
+    initial_hidden_[i] = hidden_state(i);
+    hidden_state_(i) = hidden_state(i);
   }
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::setCellState(const Eigen::Ref<const hidden_state> cell_state)
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::setCellState(const Eigen::Ref<const Eigen::VectorXf> cell_state)
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
-    params_.initial_cell[i] = cell_state[i];
-    cell_state_[i] = cell_state[i];
+    initial_cell_[i] = cell_state(i);
+    cell_state_(i) = cell_state(i);
   }
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(const std::string& model_path)
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::loadParams(const std::string& model_path)
 {
   if (!fileExists(model_path))
   {
@@ -388,23 +484,72 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(const std::strin
   loadParams(param_dict);
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(const cnpy::npz_t& param_dict)
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::loadParams(const cnpy::npz_t& param_dict)
 {
   loadParams("", param_dict);
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& param_dict,
-                                                                bool add_slash)
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::copyWeightsToEigen()
+{
+  eig_W_im_.resize(HIDDEN_DIM, HIDDEN_DIM);
+  eig_W_fm_.resize(HIDDEN_DIM, HIDDEN_DIM);
+  eig_W_cm_.resize(HIDDEN_DIM, HIDDEN_DIM);
+  eig_W_om_.resize(HIDDEN_DIM, HIDDEN_DIM);
+  for (int i = 0; i < HIDDEN_HIDDEN_SIZE; i++)
+  {
+    eig_W_im_(i) = W_im_[i];
+    eig_W_fm_(i) = W_fm_[i];
+    eig_W_cm_(i) = W_cm_[i];
+    eig_W_om_(i) = W_om_[i];
+  }
+  eig_W_ii_.resize(HIDDEN_DIM, INPUT_DIM);
+  eig_W_fi_.resize(HIDDEN_DIM, INPUT_DIM);
+  eig_W_ci_.resize(HIDDEN_DIM, INPUT_DIM);
+  eig_W_oi_.resize(HIDDEN_DIM, INPUT_DIM);
+  for (int i = 0; i < INPUT_HIDDEN_SIZE; i++)
+  {
+    eig_W_ii_(i) = W_ii_[i];
+    eig_W_fi_(i) = W_fi_[i];
+    eig_W_ci_(i) = W_ci_[i];
+    eig_W_oi_(i) = W_oi_[i];
+  }
+  eig_b_i_.resize(HIDDEN_DIM);
+  eig_b_f_.resize(HIDDEN_DIM);
+  eig_b_c_.resize(HIDDEN_DIM);
+  eig_b_o_.resize(HIDDEN_DIM);
+  for (int i = 0; i < HIDDEN_DIM; i++)
+  {
+    eig_b_i_(i) = b_i_[i];
+    eig_b_f_(i) = b_f_[i];
+    eig_b_c_(i) = b_c_[i];
+    eig_b_o_(i) = b_o_[i];
+  }
+}
+
+template <bool USE_SHARED>
+void LSTMHelper<USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& param_dict, bool add_slash)
 {
   if (add_slash && !prefix.empty() && *prefix.rbegin() != '/')
   {
     prefix.append("/");
   }
 
+  if (param_dict.find("model/" + prefix + "lstm/weight_hh_l0") != param_dict.end())
+  {
+    prefix.insert(0, "model/");
+  }
+
   // assumes it has been unonioned
-  output_nn_->loadParams(prefix + "output/", param_dict);
+  if (output_nn_ == nullptr)
+  {
+    output_nn_ = new FNNHelper<USE_SHARED>(param_dict, prefix + "output/", this->stream_);
+  }
+  else
+  {
+    output_nn_->loadParams(prefix + "output/", param_dict);
+  }
 
   cnpy::NpyArray weight_hh_raw = param_dict.at(prefix + "lstm/weight_hh_l0");
   cnpy::NpyArray bias_hh_raw = param_dict.at(prefix + "lstm/bias_hh_l0");
@@ -415,49 +560,56 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::loadParams(std::string pref
   double* weight_ih = weight_ih_raw.data<double>();
   double* bias_ih = bias_ih_raw.data<double>();
 
-  for (int i = 0; i < PARAMS_T::HIDDEN_HIDDEN_SIZE; i++)
+  // TODO compute the correct values to use here
+  // TODO more asserts to make sure size makes sense
+  int input_dim = weight_ih_raw.shape[1];
+  int hidden_dim = bias_hh_raw.shape[0] / 4;
+  setupMemory(input_dim, hidden_dim);
+
+  for (int i = 0; i < HIDDEN_HIDDEN_SIZE; i++)
   {
-    params_.W_im[i] = weight_hh[i];
-    params_.W_fm[i] = weight_hh[i + PARAMS_T::HIDDEN_HIDDEN_SIZE];
-    params_.W_cm[i] = weight_hh[i + 2 * PARAMS_T::HIDDEN_HIDDEN_SIZE];
-    params_.W_om[i] = weight_hh[i + 3 * PARAMS_T::HIDDEN_HIDDEN_SIZE];
-    assert(isfinite(params_.W_im[i]));
-    assert(isfinite(params_.W_fm[i]));
-    assert(isfinite(params_.W_cm[i]));
-    assert(isfinite(params_.W_om[i]));
+    W_im_[i] = weight_hh[i];
+    W_fm_[i] = weight_hh[i + HIDDEN_HIDDEN_SIZE];
+    W_cm_[i] = weight_hh[i + 2 * HIDDEN_HIDDEN_SIZE];
+    W_om_[i] = weight_hh[i + 3 * HIDDEN_HIDDEN_SIZE];
+    assert(isfinite(W_im_[i]));
+    assert(isfinite(W_fm_[i]));
+    assert(isfinite(W_cm_[i]));
+    assert(isfinite(W_om_[i]));
   }
-  for (int i = 0; i < PARAMS_T::INPUT_HIDDEN_SIZE; i++)
+  for (int i = 0; i < INPUT_HIDDEN_SIZE; i++)
   {
-    params_.W_ii[i] = weight_ih[i];
-    params_.W_fi[i] = weight_ih[i + PARAMS_T::INPUT_HIDDEN_SIZE];
-    params_.W_ci[i] = weight_ih[i + 2 * PARAMS_T::INPUT_HIDDEN_SIZE];
-    params_.W_oi[i] = weight_ih[i + 3 * PARAMS_T::INPUT_HIDDEN_SIZE];
-    assert(isfinite(params_.W_ii[i]));
-    assert(isfinite(params_.W_fi[i]));
-    assert(isfinite(params_.W_ci[i]));
-    assert(isfinite(params_.W_oi[i]));
+    W_ii_[i] = weight_ih[i];
+    W_fi_[i] = weight_ih[i + INPUT_HIDDEN_SIZE];
+    W_ci_[i] = weight_ih[i + 2 * INPUT_HIDDEN_SIZE];
+    W_oi_[i] = weight_ih[i + 3 * INPUT_HIDDEN_SIZE];
+    assert(isfinite(W_ii_[i]));
+    assert(isfinite(W_fi_[i]));
+    assert(isfinite(W_ci_[i]));
+    assert(isfinite(W_oi_[i]));
   }
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
-    params_.b_i[i] = bias_hh[i] + bias_ih[i];
-    params_.b_f[i] = bias_hh[i + HIDDEN_DIM] + bias_ih[i + HIDDEN_DIM];
-    params_.b_c[i] = bias_hh[i + 2 * HIDDEN_DIM] + bias_ih[i + 2 * HIDDEN_DIM];
-    params_.b_o[i] = bias_hh[i + 3 * HIDDEN_DIM] + bias_ih[i + 3 * HIDDEN_DIM];
-    assert(isfinite(params_.b_i[i]));
-    assert(isfinite(params_.b_f[i]));
-    assert(isfinite(params_.b_c[i]));
-    assert(isfinite(params_.b_o[i]));
+    b_i_[i] = bias_hh[i] + bias_ih[i];
+    b_f_[i] = bias_hh[i + HIDDEN_DIM] + bias_ih[i + HIDDEN_DIM];
+    b_c_[i] = bias_hh[i + 2 * HIDDEN_DIM] + bias_ih[i + 2 * HIDDEN_DIM];
+    b_o_[i] = bias_hh[i + 3 * HIDDEN_DIM] + bias_ih[i + 3 * HIDDEN_DIM];
+    assert(isfinite(b_i_[i]));
+    assert(isfinite(b_f_[i]));
+    assert(isfinite(b_c_[i]));
+    assert(isfinite(b_o_[i]));
   }
+  copyWeightsToEigen();
 
   // Save parameters to GPU memory
   paramsToDevice();
 }
 
-template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>
-__device__ float* LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::getInputLocation(float* theta_s)
+template <bool USE_SHARED>
+__device__ float* LSTMHelper<USE_SHARED>::getInputLocation(float* theta_s)
 {
   const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) +
-                        SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1;
+                        SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);
   float* x = theta_s + block_idx + 3 * HIDDEN_DIM;
   return x;
 }

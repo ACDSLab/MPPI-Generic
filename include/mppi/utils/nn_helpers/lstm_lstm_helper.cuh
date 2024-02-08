@@ -7,38 +7,33 @@
 
 #include "lstm_helper.cuh"
 
-template <class INIT_T, class LSTM_T, int INITIAL_LEN>
+// TODO need to know the expected len of the initilization
+// TODO the input buffer is a different tau than the one this could want to use, use last N steps
+
+template <bool USE_SHARED = true>
 class LSTMLSTMHelper
 {
 public:
-  static const int NUM_PARAMS = INIT_T::NUM_PARAMS + LSTM_T::NUM_PARAMS;  ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD_BYTES =
-      LSTM_T::SHARED_MEM_REQUEST_GRD_BYTES;  ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK_BYTES =
-      LSTM_T::SHARED_MEM_REQUEST_BLK_BYTES;  ///< Amount of shared memory we need per ROLLOUT.
+  // static const int NUM_PARAMS = 0;  ///< Total number of model parameters;
 
-  static const int INPUT_DIM = LSTM_T::INPUT_DIM;
-  static const int HIDDEN_DIM = LSTM_T::HIDDEN_DIM;
-  static const int OUTPUT_DIM = LSTM_T::OUTPUT_DIM;
-  static const int INIT_LEN = INITIAL_LEN;
+  // static const int INPUT_DIM = LSTM_T::INPUT_DIM;
+  // static const int HIDDEN_DIM = LSTM_T::HIDDEN_DIM;
+  // static const int OUTPUT_DIM = LSTM_T::OUTPUT_DIM;
+  // static const int INIT_LEN = INITIAL_LEN;
 
-  static const int INIT_INPUT_DIM = INIT_T::INPUT_DIM;
-  static const int INIT_HIDDEN_DIM = INIT_T::HIDDEN_DIM;
+  // static const int INIT_INPUT_DIM = INIT_T::INPUT_DIM;
+  // static const int INIT_HIDDEN_DIM = INIT_T::HIDDEN_DIM;
 
-  typedef Eigen::Matrix<float, INIT_T::INPUT_DIM, INIT_LEN> init_buffer;
-  typedef Eigen::Matrix<float, LSTM_T::INPUT_DIM, 1> input_array;
-  typedef Eigen::Matrix<float, LSTM_T::OUTPUT_DIM, 1> output_array;
+  // typedef Eigen::Matrix<float, INIT_T::INPUT_DIM, INIT_LEN> init_buffer;
+  // typedef Eigen::Matrix<float, LSTM_T::INPUT_DIM, 1> input_array;
+  // typedef Eigen::Matrix<float, LSTM_T::OUTPUT_DIM, 1> output_array;
 
-  typedef typename LSTM_T::OUTPUT_FNN_T OUTPUT_FNN_T;
-  typedef typename LSTM_T::LSTM_PARAMS_T LSTM_PARAMS_T;
-  typedef typename INIT_T::LSTM_PARAMS_T INIT_PARAMS_T;
-  typedef typename LSTM_T::OUTPUT_PARAMS_T OUTPUT_PARAMS_T;
-  typedef typename INIT_T::OUTPUT_PARAMS_T INIT_OUTPUT_PARAMS_T;
-  // typedef Eigen::Matrix<float, LSTM_T::OUTPUT_DIM, PARAMS_T::INPUT_DIM> dfdx;
-
-  LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(cudaStream_t = 0);
-  LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string init_path, std::string lstm_path, cudaStream_t = 0);
-  LSTMLSTMHelper<INIT_T, LSTM_T, INITIAL_LEN>(std::string path, cudaStream_t = 0);
+  LSTMLSTMHelper<USE_SHARED>(int init_input_dim, int init_hidden_dim, std::vector<int> init_output_layers,
+                             int input_dim, int hidden_dim, std::vector<int> output_layers, int init_len,
+                             cudaStream_t = 0);
+  // LSTMLSTMHelper<USE_SHARED>(std::string init_path, std::string lstm_path, cudaStream_t = 0);
+  LSTMLSTMHelper<USE_SHARED>(std::string path, std::string prefix, cudaStream_t = 0);
+  LSTMLSTMHelper<USE_SHARED>(std::string path, cudaStream_t = 0);
 
   void loadParams(std::string prefix, std::string path);
 
@@ -51,8 +46,20 @@ public:
   void updateOutputModelInit(const std::vector<int>& description, const std::vector<float>& data);
   void updateOutputModel(const std::vector<int>& description, const std::vector<float>& data);
 
+  void updateOutputModelInit(const std::vector<float>& data);
+  void updateOutputModel(const std::vector<float>& data);
+
   void GPUSetup();
   void freeCudaMem();
+
+  Eigen::VectorXf getInputVector()
+  {
+    return lstm_->getInputVector();
+  }
+  Eigen::VectorXf getOutputVector()
+  {
+    return lstm_->getOutputVector();
+  }
 
   void resetInitHiddenCPU()
   {
@@ -63,37 +70,31 @@ public:
     lstm_->resetHiddenCellCPU();
   }
 
-  void initializeLSTM(const Eigen::Ref<const init_buffer>& buffer);
+  Eigen::MatrixXf getBuffer(int length)
+  {
+    return Eigen::MatrixXf(init_model_->getInputDim(), length);
+  }
 
-  void forward(const Eigen::Ref<const input_array>& input, Eigen::Ref<output_array> output);
+  void initializeLSTM(const Eigen::Ref<const Eigen::MatrixXf>& buffer);
 
-  std::shared_ptr<INIT_T> getInitModel();
-  std::shared_ptr<LSTM_T> getLSTMModel();
-  LSTM_T* getLSTMDevicePtr()
+  void forward(const Eigen::Ref<const Eigen::VectorXf>& input, Eigen::Ref<Eigen::VectorXf> output);
+
+  std::shared_ptr<LSTMHelper<false>> getInitModel();
+  std::shared_ptr<LSTMHelper<USE_SHARED>> getLSTMModel();
+  LSTMHelper<USE_SHARED>* getLSTMDevicePtr()
   {
     return lstm_->network_d_;
   }
 
-  void setInitParams(INIT_PARAMS_T& params);
-  void setLSTMParams(LSTM_PARAMS_T& params);
-
-  INIT_PARAMS_T getInitLSTMParams()
+  int getInitLen()
   {
-    // TODO why using the getter method causes memory issues with compilation
-    return init_model_->params_;
-  }
-  LSTM_PARAMS_T getLSTMParams()
-  {
-    return lstm_->params_;
-  }
-  OUTPUT_FNN_T* getOutputModel()
-  {
-    return lstm_->getOutputModel();
+    return init_len_;
   }
 
 private:
-  std::shared_ptr<INIT_T> init_model_ = nullptr;
-  std::shared_ptr<LSTM_T> lstm_ = nullptr;
+  std::shared_ptr<LSTMHelper<false>> init_model_ = nullptr;
+  std::shared_ptr<LSTMHelper<USE_SHARED>> lstm_ = nullptr;
+  int init_len_ = -1;
 };
 
 #if __CUDACC__
