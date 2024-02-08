@@ -77,9 +77,6 @@ public:
     float Sigma_b[UNCERTAINTY_DIM * UNCERTAINTY_DIM] MPPI_ALIGN(16) = { 0.0f };
   };
 
-  static const int SHARED_MEM_REQUEST_GRD_BYTES = 0;  // TODO set to one to prevent array of size 0 error
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock);
-
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;
   typedef typename PARENT_CLASS::output_array output_array;
@@ -89,11 +86,13 @@ public:
   RacerDubinsElevationImpl(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
+    this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock);
   }
   RacerDubinsElevationImpl(RacerDubinsElevationParams& params, cudaStream_t stream = nullptr)
     : PARENT_CLASS(params, stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
+    this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock);
   }
 
   std::string getDynamicsModelName() const override

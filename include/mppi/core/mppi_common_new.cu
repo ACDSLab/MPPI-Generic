@@ -1160,8 +1160,8 @@ __host__ __device__ unsigned calcDynamicsSharedMemSize(const DYN_T* dynamics, co
 {
   const int dynamics_num_shared = dimBlock.x * dimBlock.z;
   unsigned dynamics_shared_size =
-      math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      dynamics_num_shared * math::int_multiple_const(DYN_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+      math::int_multiple_const(dynamics->getGrdSharedSizeBytes(), sizeof(float4)) +
+      dynamics_num_shared * math::int_multiple_const(dynamics->getBlkSharedSizeBytes(), sizeof(float4));
   return dynamics_shared_size;
 }
 
@@ -1170,8 +1170,8 @@ __host__ __device__ unsigned calcSamplerSharedMemSize(const SAMPLER_T* sampler, 
 {
   const int sampler_num_shared = dimBlock.x * dimBlock.z;
   unsigned sampler_shared_size =
-      math::int_multiple_const(SAMPLER_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      sampler_num_shared * math::int_multiple_const(SAMPLER_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+      math::int_multiple_const(sampler->getGrdSharedSizeBytes(), sizeof(float4)) +
+      sampler_num_shared * math::int_multiple_const(sampler->getBlkSharedSizeBytes(), sizeof(float4));
   return sampler_shared_size;
 }
 
@@ -1179,9 +1179,8 @@ template <class COST_T>
 __host__ __device__ unsigned calcCostSharedMemSize(const COST_T* cost, const dim3& dimBlock)
 {
   const int cost_num_shared = dimBlock.x * dimBlock.z;
-  unsigned cost_shared_size =
-      math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      cost_num_shared * math::int_multiple_const(COST_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+  unsigned cost_shared_size = math::int_multiple_const(cost->getGrdSharedSizeBytes(), sizeof(float4)) +
+                              cost_num_shared * math::int_multiple_const(cost->getBlkSharedSizeBytes(), sizeof(float4));
   return cost_shared_size;
 }
 }  // namespace kernels

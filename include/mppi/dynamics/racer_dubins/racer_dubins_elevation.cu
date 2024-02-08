@@ -693,7 +693,7 @@ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::initializeDynamics(
                                                                                 float t_0, float dt)
 {
   PARENT_CLASS::initializeDynamics(state, control, output, theta_s, t_0, dt);
-  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
+  if (this->SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     DYN_PARAMS_T* shared_params = (DYN_PARAMS_T*)theta_s;
     *shared_params = this->params_;
@@ -784,13 +784,19 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(float* 
 {
   DYN_PARAMS_T* params_p;
   SharedBlock *sb_mem, *sb;
-  if (SHARED_MEM_REQUEST_GRD_BYTES != 0)
+  if (this->SHARED_MEM_REQUEST_GRD_BYTES != 0)
   {  // Allows us to turn on or off global or shared memory version of params
     params_p = (DYN_PARAMS_T*)theta_s;
   }
   else
   {
     params_p = &(this->params_);
+  }
+  if (this->SHARED_MEM_REQUEST_BLK_BYTES != 0)
+  {
+    sb_mem = (SharedBlock*)&theta_s[mppi::math::int_multiple_const(this->SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) /
+                                    sizeof(float)];
+    sb = &sb_mem[threadIdx.x + blockDim.x * threadIdx.z];
   }
   this->computeParametricDelayDeriv(state, control, state_der, params_p);
   this->computeParametricSteerDeriv(state, control, state_der, params_p);

@@ -169,18 +169,16 @@ TEST(Dynamics, ClassConstants)
   DynamicsTester<> tester;
   EXPECT_EQ(tester.STATE_DIM, 1);
   EXPECT_EQ(tester.CONTROL_DIM, 1);
-  EXPECT_EQ(tester.SHARED_MEM_REQUEST_GRD_BYTES, 0);
-  EXPECT_EQ(tester.SHARED_MEM_REQUEST_BLK_BYTES, 0);
+  EXPECT_EQ(tester.getGrdSharedSizeBytes(), 0);
+  EXPECT_EQ(tester.getBlkSharedSizeBytes(), 0);
 
   DynamicsTester<56, 65> tester_2;
   int state_dim = DynamicsTester<56, 65>::STATE_DIM;
   EXPECT_EQ(state_dim, 56);
   int control_dim = DynamicsTester<56, 65>::CONTROL_DIM;
   EXPECT_EQ(control_dim, 65);
-  int shared_mem_request_grd = DynamicsTester<56, 65>::SHARED_MEM_REQUEST_GRD_BYTES;
-  EXPECT_EQ(shared_mem_request_grd, 0);
-  int shared_mem_request_blk = DynamicsTester<56, 65>::SHARED_MEM_REQUEST_BLK_BYTES;
-  EXPECT_EQ(shared_mem_request_blk, 0);
+  EXPECT_EQ(tester_2.getGrdSharedSizeBytes(), 0);
+  EXPECT_EQ(tester_2.getBlkSharedSizeBytes(), 0);
 }
 
 TEST(Dynamics, SetControlRangesDefault)

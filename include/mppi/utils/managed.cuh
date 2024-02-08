@@ -106,6 +106,16 @@ public:
     return logger_;
   }
 
+  __device__ __host__ int getGrdSharedSizeBytes() const
+  {
+    return SHARED_MEM_REQUEST_GRD_BYTES;
+  }
+  __device__ __host__ int getBlkSharedSizeBytes() const
+  {
+    return SHARED_MEM_REQUEST_BLK_BYTES;
+  }
+
+
 protected:
   template <class T>
   static T* GPUSetup(T* host_ptr)
@@ -120,6 +130,9 @@ protected:
     return device_ptr;
   }
   mppi::util::MPPILoggerPtr logger_ = nullptr;
+
+  int SHARED_MEM_REQUEST_GRD_BYTES = 0;  ///< Amount of shared memory we need per BLOCK.
+  int SHARED_MEM_REQUEST_BLK_BYTES = 0;  ///< Amount of shared memory we need per ROLLOUT.
 
   // TODO CRTP template this on the base class for allocation and dealloation
 };
