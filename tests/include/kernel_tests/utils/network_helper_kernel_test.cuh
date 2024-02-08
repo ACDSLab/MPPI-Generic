@@ -5,30 +5,35 @@
 #ifndef MPPIGENERIC_NETWORK_HELPER_KERNEL_TEST_CUH
 #define MPPIGENERIC_NETWORK_HELPER_KERNEL_TEST_CUH
 
+#include <mppi/utils/math_utils.h>
+
 // TODO check on multiple different blocks
 
-template <class NETWORK_T, int THETA_SIZE, int STRIDE_SIZE, int NUM_LAYERS>
+template <class NETWORK_T>
 __global__ void parameterCheckTestKernel(NETWORK_T* model, float* theta, int* stride, int* net_structure,
                                          float* shared_theta, int* shared_stride, int* shared_net_structure)
 {
-  __shared__ float
-      theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK_BYTES];
+  extern __shared__ float theta_s[];
   model->initialize(theta_s);
-  typename NETWORK_T::NN_PARAMS_T* params_shared = (typename NETWORK_T::NN_PARAMS_T*)theta_s;
-  for (int i = 0; i < THETA_SIZE; i++)
+
+  float* theta_shared_ptr = theta_s;
+  int* stride_shared_ptr = (int*)(theta_s + model->getNumParams());
+  int* structure_shared_ptr = (int*)(theta_s + model->getNumParams() + model->getStrideSize());
+
+  for (int i = 0; i < model->getNumParams(); i++)
   {
     theta[i] = model->getThetaPtr()[i];
-    shared_theta[i] = params_shared->theta[i];
+    shared_theta[i] = theta_shared_ptr[i];
   }
-  for (int i = 0; i < STRIDE_SIZE; i++)
+  for (int i = 0; i < model->getStrideSize(); i++)
   {
     stride[i] = model->getStrideIdcsPtr()[i];
-    shared_stride[i] = params_shared->stride_idcs[i];
+    shared_stride[i] = stride_shared_ptr[i];
   }
-  for (int i = 0; i < NUM_LAYERS; i++)
+  for (int i = 0; i < model->getNumLayers(); i++)
   {
     net_structure[i] = model->getNetStructurePtr()[i];
-    shared_net_structure[i] = params_shared->net_structure[i];
+    shared_net_structure[i] = structure_shared_ptr[i];
   }
 }
 
@@ -56,7 +61,10 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::array<float, THETA_SI
 
   dim3 threadsPerBlock(3, 1);
   dim3 numBlocks(10, 1);
-  parameterCheckTestKernel<NETWORK_T, THETA_SIZE, STRIDE_SIZE, NUM_LAYERS><<<numBlocks, threadsPerBlock>>>(
+  const int num_shared = threadsPerBlock.x * threadsPerBlock.z;
+  unsigned shared_size = mppi::math::int_multiple_const(model.getGrdSharedSizeBytes(), sizeof(float4)) +
+                         num_shared * mppi::math::int_multiple_const(model.getBlkSharedSizeBytes(), sizeof(float4));
+  parameterCheckTestKernel<NETWORK_T><<<numBlocks, threadsPerBlock, shared_size>>>(
       model.network_d_, theta_d, stride_d, net_structure_d, shared_theta_d, shared_stride_d, shared_net_structure_d);
   CudaCheckError();
 
@@ -64,9 +72,9 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::array<float, THETA_SI
   HANDLE_ERROR(cudaMemcpy(stride.data(), stride_d, sizeof(int) * stride.size(), cudaMemcpyDeviceToHost))
   HANDLE_ERROR(
       cudaMemcpy(net_structure.data(), net_structure_d, sizeof(int) * net_structure.size(), cudaMemcpyDeviceToHost))
-  HANDLE_ERROR(cudaMemcpy(shared_theta.data(), theta_d, sizeof(float) * theta.size(), cudaMemcpyDeviceToHost))
-  HANDLE_ERROR(cudaMemcpy(shared_stride.data(), stride_d, sizeof(int) * stride.size(), cudaMemcpyDeviceToHost))
-  HANDLE_ERROR(cudaMemcpy(shared_net_structure.data(), net_structure_d, sizeof(int) * net_structure.size(),
+  HANDLE_ERROR(cudaMemcpy(shared_theta.data(), shared_theta_d, sizeof(float) * theta.size(), cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(shared_stride.data(), shared_stride_d, sizeof(int) * stride.size(), cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(shared_net_structure.data(), shared_net_structure_d, sizeof(int) * net_structure.size(),
                           cudaMemcpyDeviceToHost))
   cudaDeviceSynchronize();
 
@@ -79,62 +87,78 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::array<float, THETA_SI
 }
 
 template <class NETWORK_T>
-__global__ void parameterCheckTestKernel(NETWORK_T* model, typename NETWORK_T::LSTM_PARAMS_T* lstm_params,
-                                         typename NETWORK_T::LSTM_PARAMS_T* shared_lstm_params,
-                                         typename NETWORK_T::OUTPUT_PARAMS_T* fnn_params,
-                                         typename NETWORK_T::OUTPUT_PARAMS_T* shared_fnn_params)
+__global__ void parameterCheckTestKernel(NETWORK_T* model, float* lstm_params, float* shared_lstm_params,
+                                         float* fnn_params, float* shared_fnn_params)
 {
-  __shared__ float
-      theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 + NETWORK_T::SHARED_MEM_REQUEST_BLK_BYTES];
+  extern __shared__ float theta_s[];
+  model->initialize(theta_s);
   uint tid = blockIdx.x;
 
-  *(lstm_params + tid) = model->getLSTMParams();
-  *(fnn_params + tid) = model->getOutputModel()->getParams();
+  float* lstm_params_start =
+      lstm_params + tid * (model->getLSTMGrdSharedSizeBytes() / sizeof(float) + 2 * model->getHiddenDim());
+  memcpy(lstm_params_start, model->getWeights(),
+         model->getLSTMGrdSharedSizeBytes() + 2 * model->getHiddenDim() * sizeof(float));
 
-  model->initialize(theta_s);
+  float* fnn_params_start = fnn_params + tid * model->getOutputGrdSharedSizeBytes() / sizeof(float);
+  memcpy(fnn_params_start, model->getOutputWeights(), model->getOutputGrdSharedSizeBytes());
 
-  const int slide = NETWORK_T::LSTM_SHARED_MEM_GRD / sizeof(float) + 1;
-  auto* fnn_params_shared = (typename NETWORK_T::OUTPUT_PARAMS_T*)(theta_s + slide);
-  *(shared_fnn_params + tid) = *fnn_params_shared;
+  float* shared_lstm_params_start =
+      shared_lstm_params + tid * (model->getLSTMGrdSharedSizeBytes() / sizeof(float) + 2 * model->getHiddenDim());
+  memcpy(shared_lstm_params_start, theta_s, model->getLSTMGrdSharedSizeBytes());
+  memcpy(shared_lstm_params_start + model->getLSTMGrdSharedSizeBytes() / sizeof(float),
+         theta_s + model->getGrdSharedSizeBytes() / sizeof(float), model->getHiddenDim() * 2 * sizeof(float));
 
-  auto* lstm_params_shared = (typename NETWORK_T::LSTM_PARAMS_T*)theta_s;
-  *(shared_lstm_params + tid) = *lstm_params_shared;
+  float* shared_fnn_params_start = shared_fnn_params + tid * model->getOutputGrdSharedSizeBytes() / sizeof(float);
+  memcpy(shared_fnn_params_start, theta_s + model->getLSTMGrdSharedSizeBytes() / sizeof(float),
+         model->getOutputGrdSharedSizeBytes());
 }
 
 template <class NETWORK_T>
-void launchParameterCheckTestKernel(NETWORK_T& model, std::vector<typename NETWORK_T::LSTM_PARAMS_T>& lstm_params,
-                                    std::vector<typename NETWORK_T::LSTM_PARAMS_T>& shared_lstm_params,
-                                    std::vector<typename NETWORK_T::OUTPUT_PARAMS_T>& fnn_params,
-                                    std::vector<typename NETWORK_T::OUTPUT_PARAMS_T>& shared_fnn_params)
+void launchParameterCheckTestKernel(NETWORK_T& model, std::vector<float>& lstm_params,
+                                    std::vector<float>& shared_lstm_params, std::vector<float>& fnn_params,
+                                    std::vector<float>& shared_fnn_params, int num)
 {
-  static_assert(NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES != 0);
+  lstm_params.resize((model.getLSTMGrdSharedSizeBytes() / sizeof(float) + 2 * model.getHiddenDim()) * num);
+  shared_lstm_params.resize((model.getLSTMGrdSharedSizeBytes() / sizeof(float) + 2 * model.getHiddenDim()) * num);
+  fnn_params.resize(model.getOutputGrdSharedSizeBytes() / sizeof(float) * num);
+  shared_fnn_params.resize(model.getOutputGrdSharedSizeBytes() / sizeof(float) * num);
 
-  typename NETWORK_T::LSTM_PARAMS_T* lstm_params_d = nullptr;
-  typename NETWORK_T::LSTM_PARAMS_T* shared_lstm_params_d = nullptr;
-  typename NETWORK_T::OUTPUT_PARAMS_T* fnn_params_d = nullptr;
-  typename NETWORK_T::OUTPUT_PARAMS_T* shared_fnn_params_d = nullptr;
+  std::fill(lstm_params.begin(), lstm_params.end(), -1);
+  std::fill(shared_lstm_params.begin(), shared_lstm_params.end(), -1);
+  std::fill(fnn_params.begin(), fnn_params.end(), -2);
+  std::fill(shared_fnn_params.begin(), shared_fnn_params.end(), -2);
 
-  int num = lstm_params.size();
+  float* lstm_params_d = nullptr;
+  float* shared_lstm_params_d = nullptr;
+  float* fnn_params_d = nullptr;
+  float* shared_fnn_params_d = nullptr;
 
-  HANDLE_ERROR(cudaMalloc((void**)&lstm_params_d, sizeof(typename NETWORK_T::LSTM_PARAMS_T) * num));
-  HANDLE_ERROR(cudaMalloc((void**)&shared_lstm_params_d, sizeof(typename NETWORK_T::LSTM_PARAMS_T) * num));
-  HANDLE_ERROR(cudaMalloc((void**)&fnn_params_d, sizeof(typename NETWORK_T::OUTPUT_PARAMS_T) * num));
-  HANDLE_ERROR(cudaMalloc((void**)&shared_fnn_params_d, sizeof(typename NETWORK_T::OUTPUT_PARAMS_T) * num));
+  HANDLE_ERROR(cudaMalloc((void**)&lstm_params_d,
+                          (model.getLSTMGrdSharedSizeBytes() + 2 * model.getHiddenDim() * sizeof(float)) * num));
+  HANDLE_ERROR(cudaMalloc((void**)&shared_lstm_params_d,
+                          (model.getLSTMGrdSharedSizeBytes() + 2 * model.getHiddenDim() * sizeof(float)) * num));
+  HANDLE_ERROR(cudaMalloc((void**)&fnn_params_d, model.getOutputGrdSharedSizeBytes() * num));
+  HANDLE_ERROR(cudaMalloc((void**)&shared_fnn_params_d, model.getOutputGrdSharedSizeBytes() * num));
 
   dim3 threadsPerBlock(1, 1);
   dim3 numBlocks(num, 1);
-  parameterCheckTestKernel<NETWORK_T><<<numBlocks, threadsPerBlock>>>(
+  const int num_shared = threadsPerBlock.x * threadsPerBlock.z;
+  unsigned shared_size = mppi::math::int_multiple_const(model.getGrdSharedSizeBytes(), sizeof(float4)) +
+                         num_shared * mppi::math::int_multiple_const(model.getBlkSharedSizeBytes(), sizeof(float4));
+  parameterCheckTestKernel<NETWORK_T><<<numBlocks, threadsPerBlock, shared_size>>>(
       model.network_d_, lstm_params_d, shared_lstm_params_d, fnn_params_d, shared_fnn_params_d);
   CudaCheckError();
 
-  HANDLE_ERROR(cudaMemcpy(lstm_params.data(), lstm_params_d, sizeof(typename NETWORK_T::LSTM_PARAMS_T) * num,
-                          cudaMemcpyDeviceToHost))
+  HANDLE_ERROR(cudaMemcpy(lstm_params.data(), lstm_params_d,
+                          (model.getLSTMGrdSharedSizeBytes() + 2 * model.getHiddenDim() * sizeof(float)) * num,
+                          cudaMemcpyDeviceToHost));
   HANDLE_ERROR(cudaMemcpy(shared_lstm_params.data(), shared_lstm_params_d,
-                          sizeof(typename NETWORK_T::LSTM_PARAMS_T) * num, cudaMemcpyDeviceToHost))
-  HANDLE_ERROR(cudaMemcpy(fnn_params.data(), fnn_params_d, sizeof(typename NETWORK_T::OUTPUT_PARAMS_T) * num,
-                          cudaMemcpyDeviceToHost))
-  HANDLE_ERROR(cudaMemcpy(shared_fnn_params.data(), shared_fnn_params_d,
-                          sizeof(typename NETWORK_T::OUTPUT_PARAMS_T) * num, cudaMemcpyDeviceToHost))
+                          (model.getLSTMGrdSharedSizeBytes() + 2 * model.getHiddenDim() * sizeof(float)) * num,
+                          cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(
+      cudaMemcpy(fnn_params.data(), fnn_params_d, model.getOutputGrdSharedSizeBytes() * num, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(shared_fnn_params.data(), shared_fnn_params_d, model.getOutputGrdSharedSizeBytes() * num,
+                          cudaMemcpyDeviceToHost));
   cudaDeviceSynchronize();
 
   cudaFree(lstm_params_d);
@@ -147,10 +171,9 @@ template <typename NETWORK_T, int BLOCKSIZE_X>
 __global__ void forwardTestKernel(NETWORK_T* network, float* input, float* output, int num, int steps)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
-                           NETWORK_T::SHARED_MEM_REQUEST_BLK_BYTES * BLOCKSIZE_X];
-  float* local_input = input + (tid * NETWORK_T::INPUT_DIM);
-  float* local_output = output + (tid * NETWORK_T::OUTPUT_DIM);
+  extern __shared__ float theta_s[];
+  float* local_input = input + (tid * network->getInputDim());
+  float* local_output = output + (tid * network->getOutputDim());
 
   network->initialize(theta_s);
 
@@ -161,7 +184,7 @@ __global__ void forwardTestKernel(NETWORK_T* network, float* input, float* outpu
     {
       curr_act = network->forward(local_input, theta_s);
     }
-    for (uint i = threadIdx.y; i < NETWORK_T::OUTPUT_DIM; i += blockDim.y)
+    for (uint i = threadIdx.y; i < network->getOutputDim(); i += blockDim.y)
     {
       local_output[i] = curr_act[i];
     }
@@ -169,9 +192,9 @@ __global__ void forwardTestKernel(NETWORK_T* network, float* input, float* outpu
   }
 }
 
-template <typename NETWORK_T, int BLOCKSIZE_X>
-void launchForwardTestKernel(NETWORK_T& dynamics, std::vector<std::array<float, NETWORK_T::INPUT_DIM>>& input,
-                             std::vector<std::array<float, NETWORK_T::OUTPUT_DIM>>& output, int dim_y, int steps = 1)
+template <typename NETWORK_T, int INPUT_DIM, int OUTPUT_DIM, int BLOCKSIZE_X>
+void launchForwardTestKernel(NETWORK_T& model, std::vector<std::array<float, INPUT_DIM>>& input,
+                             std::vector<std::array<float, OUTPUT_DIM>>& output, int dim_y, int steps = 1)
 {
   if (input.size() != output.size())
   {
@@ -181,24 +204,27 @@ void launchForwardTestKernel(NETWORK_T& dynamics, std::vector<std::array<float, 
   int count = input.size();
   float* input_d;
   float* output_d;
-  HANDLE_ERROR(cudaMalloc((void**)&input_d, sizeof(float) * NETWORK_T::INPUT_DIM * count));
-  HANDLE_ERROR(cudaMalloc((void**)&output_d, sizeof(float) * NETWORK_T::OUTPUT_DIM * count));
+  HANDLE_ERROR(cudaMalloc((void**)&input_d, sizeof(float) * model.getInputDim() * count));
+  HANDLE_ERROR(cudaMalloc((void**)&output_d, sizeof(float) * model.getOutputDim() * count));
 
-  HANDLE_ERROR(cudaMemcpy(input_d, input.data(), sizeof(float) * NETWORK_T::INPUT_DIM * count, cudaMemcpyHostToDevice));
+  HANDLE_ERROR(cudaMemcpy(input_d, input.data(), sizeof(float) * model.getInputDim() * count, cudaMemcpyHostToDevice));
   HANDLE_ERROR(
-      cudaMemcpy(output_d, input.data(), sizeof(float) * NETWORK_T::OUTPUT_DIM * count, cudaMemcpyHostToDevice));
+      cudaMemcpy(output_d, input.data(), sizeof(float) * model.getOutputDim() * count, cudaMemcpyHostToDevice));
 
   const int gridsize_x = (count - 1) / BLOCKSIZE_X + 1;
   dim3 threadsPerBlock(BLOCKSIZE_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
+  const int num_shared = threadsPerBlock.x * threadsPerBlock.z;
+  unsigned shared_size = mppi::math::int_multiple_const(model.getGrdSharedSizeBytes(), sizeof(float4)) +
+                         num_shared * mppi::math::int_multiple_const(model.getBlkSharedSizeBytes(), sizeof(float4));
   forwardTestKernel<NETWORK_T, BLOCKSIZE_X>
-      <<<numBlocks, threadsPerBlock>>>(dynamics.network_d_, input_d, output_d, count, steps);
+      <<<numBlocks, threadsPerBlock, shared_size>>>(model.network_d_, input_d, output_d, count, steps);
   CudaCheckError();
 
   // Copy the memory back to the host
-  HANDLE_ERROR(cudaMemcpy(input.data(), input_d, sizeof(float) * NETWORK_T::INPUT_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(input.data(), input_d, sizeof(float) * model.getInputDim() * count, cudaMemcpyDeviceToHost));
   HANDLE_ERROR(
-      cudaMemcpy(output.data(), output_d, sizeof(float) * NETWORK_T::OUTPUT_DIM * count, cudaMemcpyDeviceToHost));
+      cudaMemcpy(output.data(), output_d, sizeof(float) * model.getOutputDim() * count, cudaMemcpyDeviceToHost));
   cudaDeviceSynchronize();
 
   cudaFree(input_d);
@@ -209,17 +235,16 @@ template <typename NETWORK_T, int BLOCKSIZE_X>
 __global__ void forwardTestKernelPreload(NETWORK_T* network, float* input, float* output, int num, int steps)
 {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  __shared__ float theta_s[NETWORK_T::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + 1 +
-                           NETWORK_T::SHARED_MEM_REQUEST_BLK_BYTES * BLOCKSIZE_X];
-  float* local_input = input + (tid * NETWORK_T::INPUT_DIM);
-  float* local_output = output + (tid * NETWORK_T::OUTPUT_DIM);
+  extern __shared__ float theta_s[];
+  float* local_input = input + (tid * network->getInputDim());
+  float* local_output = output + (tid * network->getOutputDim());
 
   network->initialize(theta_s);
 
   if (tid < num)
   {
     float* input_loc = network->getInputLocation(theta_s);
-    for (int i = threadIdx.y; i < NETWORK_T::INPUT_DIM; i += blockDim.y)
+    for (int i = threadIdx.y; i < network->getInputDim(); i += blockDim.y)
     {
       input_loc[i] = local_input[i];
     }
@@ -229,7 +254,7 @@ __global__ void forwardTestKernelPreload(NETWORK_T* network, float* input, float
     {
       curr_act = network->forward(nullptr, theta_s);
     }
-    for (uint i = threadIdx.y; i < NETWORK_T::OUTPUT_DIM; i += blockDim.y)
+    for (uint i = threadIdx.y; i < network->getOutputDim(); i += blockDim.y)
     {
       local_output[i] = curr_act[i];
     }
@@ -237,10 +262,9 @@ __global__ void forwardTestKernelPreload(NETWORK_T* network, float* input, float
   }
 }
 
-template <typename NETWORK_T, int BLOCKSIZE_X>
-void launchForwardTestKernelPreload(NETWORK_T& dynamics, std::vector<std::array<float, NETWORK_T::INPUT_DIM>>& input,
-                                    std::vector<std::array<float, NETWORK_T::OUTPUT_DIM>>& output, int dim_y,
-                                    int steps = 1)
+template <typename NETWORK_T, int INPUT_DIM, int OUTPUT_DIM, int BLOCKSIZE_X>
+void launchForwardTestKernelPreload(NETWORK_T& model, std::vector<std::array<float, INPUT_DIM>>& input,
+                                    std::vector<std::array<float, OUTPUT_DIM>>& output, int dim_y, int steps = 1)
 {
   if (input.size() != output.size())
   {
@@ -250,24 +274,25 @@ void launchForwardTestKernelPreload(NETWORK_T& dynamics, std::vector<std::array<
   int count = input.size();
   float* input_d;
   float* output_d;
-  HANDLE_ERROR(cudaMalloc((void**)&input_d, sizeof(float) * NETWORK_T::INPUT_DIM * count));
-  HANDLE_ERROR(cudaMalloc((void**)&output_d, sizeof(float) * NETWORK_T::OUTPUT_DIM * count));
+  HANDLE_ERROR(cudaMalloc((void**)&input_d, sizeof(float) * INPUT_DIM * count));
+  HANDLE_ERROR(cudaMalloc((void**)&output_d, sizeof(float) * OUTPUT_DIM * count));
 
-  HANDLE_ERROR(cudaMemcpy(input_d, input.data(), sizeof(float) * NETWORK_T::INPUT_DIM * count, cudaMemcpyHostToDevice));
-  HANDLE_ERROR(
-      cudaMemcpy(output_d, input.data(), sizeof(float) * NETWORK_T::OUTPUT_DIM * count, cudaMemcpyHostToDevice));
+  HANDLE_ERROR(cudaMemcpy(input_d, input.data(), sizeof(float) * INPUT_DIM * count, cudaMemcpyHostToDevice));
+  HANDLE_ERROR(cudaMemcpy(output_d, input.data(), sizeof(float) * OUTPUT_DIM * count, cudaMemcpyHostToDevice));
 
   const int gridsize_x = (count - 1) / BLOCKSIZE_X + 1;
   dim3 threadsPerBlock(BLOCKSIZE_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
+  const int num_shared = threadsPerBlock.x * threadsPerBlock.z;
+  unsigned shared_size = mppi::math::int_multiple_const(model.getGrdSharedSizeBytes(), sizeof(float4)) +
+                         num_shared * mppi::math::int_multiple_const(model.getBlkSharedSizeBytes(), sizeof(float4));
   forwardTestKernelPreload<NETWORK_T, BLOCKSIZE_X>
-      <<<numBlocks, threadsPerBlock>>>(dynamics.network_d_, input_d, output_d, count, steps);
+      <<<numBlocks, threadsPerBlock, shared_size>>>(model.network_d_, input_d, output_d, count, steps);
   CudaCheckError();
 
   // Copy the memory back to the host
-  HANDLE_ERROR(cudaMemcpy(input.data(), input_d, sizeof(float) * NETWORK_T::INPUT_DIM * count, cudaMemcpyDeviceToHost));
-  HANDLE_ERROR(
-      cudaMemcpy(output.data(), output_d, sizeof(float) * NETWORK_T::OUTPUT_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(input.data(), input_d, sizeof(float) * INPUT_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpy(output.data(), output_d, sizeof(float) * OUTPUT_DIM * count, cudaMemcpyDeviceToHost));
   cudaDeviceSynchronize();
 
   cudaFree(input_d);
