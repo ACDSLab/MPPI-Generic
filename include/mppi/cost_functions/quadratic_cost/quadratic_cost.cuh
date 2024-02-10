@@ -74,6 +74,11 @@ public:
   /**
    * Host Functions
    */
+  virtual std::string getCostFunctionName() const override
+  {
+    return "Quadratic Cost";
+  }
+
   float computeStateCost(const Eigen::Ref<const output_array> s, int timestep = 0, int* crash_status = nullptr);
 
   float terminalCost(const Eigen::Ref<const output_array> s);

@@ -21,6 +21,8 @@ enum class LOG_LEVEL : int
   NONE
 };
 
+static LOG_LEVEL GLOBAL_LOG_LEVEL = LOG_LEVEL::WARNING;
+
 const char BLACK[] = "\033[0;30m";
 const char RED[] = "\033[0;31m";
 const char GREEN[] = "\033[0;32m";
@@ -147,7 +149,7 @@ public:
   }
 
 protected:
-  LOG_LEVEL log_level_ = LOG_LEVEL::WARNING;
+  LOG_LEVEL log_level_ = GLOBAL_LOG_LEVEL;
   std::FILE* output_stream_ = stdout;
 
   /**

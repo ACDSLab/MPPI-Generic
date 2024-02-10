@@ -510,7 +510,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
       u_i = reinterpret_cast<const float4*>(u)[i];
       control_cost_coeff_i = reinterpret_cast<float4*>(control_cost_coeff)[i];
       // cost_i += control_cost_coeff_i * mean_i * (mean_i + 2 * (u_i - mean_i)) / (std_dev_i * std_dev_i);
-      cost_i += control_cost_coeff_i * mean_i * (mean_i + 2.0f * u_i) / (std_dev_i * std_dev_i);  // Proper way
+      cost_i += control_cost_coeff_i * mean_i * (mean_i - 2.0f * u_i) / (std_dev_i * std_dev_i);  // Proper way
     }
     cost += cost_i.x + cost_i.y + cost_i.z + cost_i.w;
   }
@@ -532,7 +532,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
       u_i = reinterpret_cast<const float2*>(u)[i];
       control_cost_coeff_i = reinterpret_cast<float2*>(control_cost_coeff)[i];
       // cost_i += control_cost_coeff_i * mean_i * (mean_i + 2 * (u_i - mean_i)) / (std_dev_i * std_dev_i);
-      cost_i += control_cost_coeff_i * mean_i * (mean_i + 2.0f * u_i) / (std_dev_i * std_dev_i);  // Proper way
+      cost_i += control_cost_coeff_i * mean_i * (mean_i - 2.0f * u_i) / (std_dev_i * std_dev_i);  // Proper way
     }
     cost += cost_i.x + cost_i.y;
   }
@@ -549,7 +549,7 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
       {
         mean_i = mean[i];  // read mean value from global memory only once
       }
-      cost += control_cost_coeff[i] * mean_i * (mean_i + 2.0f * u[i]) / (std_dev[i] * std_dev[i]);  // Proper way
+      cost += control_cost_coeff[i] * mean_i * (mean_i - 2.0f * u[i]) / (std_dev[i] * std_dev[i]);  // Proper way
       // float noise = u[i] - mean_i;
       // cost += control_cost_coeff[i] * mean_i * (u[i] + noise) / (std_dev[i] * std_dev[i]); // Way in cost kernel
     }
