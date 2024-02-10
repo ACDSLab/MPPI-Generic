@@ -39,7 +39,7 @@ void GPUFeedbackController<CLASS_T, DYN_T, FEEDBACK_STATE_T>::GPUSetup()
   }
   else
   {
-    std::cout << "Feedback Controller GPU Memory already set" << std::endl;
+    this->logger_->debug("Feedback Controller GPU Memory already set\n");
   }
   derived->copyToDevice();
 }

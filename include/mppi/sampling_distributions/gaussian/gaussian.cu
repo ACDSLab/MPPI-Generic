@@ -427,8 +427,9 @@ __host__ void GAUSSIAN_CLASS::updateDistributionParamsFromDevice(const float* tr
 {
   if (distribution_i >= this->getNumDistributions())
   {
-    std::cerr << "Updating distributional params for distribution " << distribution_i << " out of "
-              << this->getNumDistributions() << " total." << std::endl;
+    this->logger_->error(
+        "Updating distributional params for distribution %d out of %d total. Distribution out of bounds.\n",
+        distribution_i, this->getNumDistributions());
     return;
   }
   float* control_samples_i_d =
@@ -452,8 +453,9 @@ __host__ void GAUSSIAN_CLASS::setHostOptimalControlSequence(float* optimal_contr
 {
   if (distribution_i >= this->getNumDistributions())
   {
-    std::cerr << "Asking for optimal control sequence from distribution " << distribution_i << " out of "
-              << this->getNumDistributions() << " total." << std::endl;
+    this->logger_->error(
+        "Asking for optimal control sequence from distribution %d out of %d total. Distribution out of bounds.\n",
+        distribution_i, this->getNumDistributions());
     return;
   }
 
