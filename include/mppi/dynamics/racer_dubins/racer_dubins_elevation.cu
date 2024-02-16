@@ -876,7 +876,7 @@ RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::stateFromMap(const std::map<std::st
   state_array s = this->getZeroState();
   if (!found_all_keys)
   {
-    return s;
+    return state_array::Constant(NAN);
   }
   s(S_INDEX(POS_X)) = map.at("POS_X");
   s(S_INDEX(POS_Y)) = map.at("POS_Y");
