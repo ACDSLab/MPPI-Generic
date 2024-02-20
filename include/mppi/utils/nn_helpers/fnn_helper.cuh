@@ -2,6 +2,7 @@
 #define MPPIGENERIC_FNN_HELPER_CUH
 
 #include "meta_math.h"
+#include <mppi/utils/math_utils.h>
 #include <mppi/utils/managed.cuh>
 #include <mppi/utils/file_utils.h>
 #include <cnpy.h>

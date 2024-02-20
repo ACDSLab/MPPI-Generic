@@ -23,6 +23,7 @@ public:
   void loadParams(std::string prefix, const cnpy::npz_t& npz, bool add_slash = true);
 
   __device__ void initialize(float* theta_s);
+  __device__ void initialize(float* theta_s, int blk_size, int grd_size, int offset);
 
   void GPUSetup();
   void freeCudaMem();
@@ -43,6 +44,7 @@ public:
   __device__ float* forward(float* input, float* theta_s, float* block_ptr);
   __device__ float* forward(float* input, float* theta_s, float* hidden_cell, float* block_ptr);
   __device__ float* getInputLocation(float* theta_s);
+  __device__ float* getInputLocation(float* theta_s, const int grd_shift, int blk_bytes, int shift);
 
   void resetHiddenCPU();
   void resetCellCPU();

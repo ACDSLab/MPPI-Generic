@@ -36,8 +36,8 @@ TEST_F(LSTMHelperTest, ParamsConstructor1)
   LSTMHelper<> model(5, 25, vec);
 
   EXPECT_EQ(model.getLSTMGrdSharedSizeBytes(), 12400);
-  EXPECT_EQ(model.getGrdSharedSizeBytes(), 13800);
-  EXPECT_EQ(model.getBlkSharedSizeBytes(), (25 * 3 + 5 + 31 * 2) * sizeof(float));
+  EXPECT_EQ(model.getGrdSharedSizeBytes(), 13808);
+  EXPECT_EQ(model.getBlkSharedSizeBytes(), (25 * 3 + 5 + 31 * 2) * sizeof(float) + 8);
 
   EXPECT_EQ(model.getHiddenDim(), 25);
   EXPECT_EQ(model.getInputDim(), 5);
@@ -169,17 +169,22 @@ TEST_F(LSTMHelperTest, GPUSetupAndParamsCheck)
   launchParameterCheckTestKernel<LSTMHelper<>>(model, lstm_params, shared_lstm_params, fnn_params, shared_fnn_params,
                                                grid_dim);
 
+  EXPECT_EQ(model.getOutputGrdSharedSizeBytes(), 400);
+
   for (int grid = 0; grid < grid_dim; grid++)
   {
     // ensure that the output nn matches
     for (int i = 0; i < 93; i++)
     {
-      EXPECT_FLOAT_EQ(fnn_params[grid * 97 + i], theta_vec[i]) << "at grid " << grid << " at index " << i;
+      EXPECT_FLOAT_EQ(fnn_params[grid * 100 + i], theta_vec[i]) << "at grid " << grid << " at index " << i;
     }
-    // EXPECT_EQ((int)fnn_params[grid * 97 + 93], 0);
-    // EXPECT_EQ((int)fnn_params[grid * 97 + 94], 90);
-    // EXPECT_EQ((int)fnn_params[grid * 97 + 95], 30);
-    // EXPECT_EQ((int)fnn_params[grid * 97 + 96], 3);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 93], 0);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 94], 90);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 95], 30);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 96], 3);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 97], 0);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 98], 0);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 99], 0);
 
     const int hh = 25 * 25;
     const int ih = 5 * 25;
@@ -217,7 +222,7 @@ TEST_F(LSTMHelperTest, GPUSetupAndParamsCheck)
     // ensure that the output nn matches
     for (int i = 0; i < 93; i++)
     {
-      EXPECT_FLOAT_EQ(shared_fnn_params[grid * 97 + i], theta_vec[i]) << "at grid " << grid << " at index " << i;
+      EXPECT_FLOAT_EQ(shared_fnn_params[grid * 100 + i], theta_vec[i]) << "at grid " << grid << " at index " << i;
     }
     // EXPECT_EQ(static_cast<int>(fnn_params[grid * 97 + 93]), 0);
     // EXPECT_EQ(static_cast<int>(fnn_params[grid * 97 + 94]), 90);
@@ -294,17 +299,21 @@ TEST_F(LSTMHelperTest, UpdateModel)
   launchParameterCheckTestKernel<LSTMHelper<>>(model, lstm_params, shared_lstm_params, fnn_params, shared_fnn_params,
                                                grid_dim);
 
+  EXPECT_EQ(model.getOutputGrdSharedSizeBytes(), 400);
   for (int grid = 0; grid < grid_dim; grid++)
   {
     // ensure that the output nn matches
     for (int i = 0; i < theta_vec.size(); i++)
     {
-      EXPECT_FLOAT_EQ(fnn_params[grid * 97 + i], theta_vec[i]) << "at grid " << grid << " at index " << i;
+      EXPECT_FLOAT_EQ(fnn_params[grid * 100 + i], theta_vec[i]) << "at grid " << grid << " at index " << i;
     }
-    // EXPECT_EQ((int)fnn_params[grid * 97 + 93], 0);
-    // EXPECT_EQ((int)fnn_params[grid * 97 + 94], 90);
-    // EXPECT_EQ((int)fnn_params[grid * 97 + 95], 30);
-    // EXPECT_EQ((int)fnn_params[grid * 97 + 96], 3);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 93], 0);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 94], 90);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 95], 30);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 96], 3);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 97], 0);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 98], 0);
+    EXPECT_EQ(((int*)fnn_params.data())[grid * 100 + 99], 0);
 
     const int hh = 25 * 25;
     const int ih = 5 * 25;
@@ -393,9 +402,6 @@ TEST_F(LSTMHelperTest, LoadModelPathTest)
   LSTMHelper<> model(1, 1, vec);
   model.GPUSetup();
 
-  int num_points = 1;
-  int T = 100;
-
   std::string path = mppi::tests::test_lstm_lstm;
   if (!fileExists(path))
   {
@@ -405,10 +411,12 @@ TEST_F(LSTMHelperTest, LoadModelPathTest)
   model.loadParams(path);
 
   cnpy::npz_t input_outputs = cnpy::npz_load(path);
+  int num_points = input_outputs.at("num_points").data<int>()[0];
+  int T = std::round(input_outputs.at("T").data<float>()[0] / input_outputs.at("dt").data<float>()[0]);
   double* inputs = input_outputs.at("input").data<double>();
   double* outputs = input_outputs.at("output").data<double>();
-  double* init_hidden = input_outputs.at("init_hidden").data<double>();
-  double* init_cell = input_outputs.at("init_cell").data<double>();
+  double* init_hidden = input_outputs.at("init/hidden").data<double>();
+  double* init_cell = input_outputs.at("init/cell").data<double>();
   double* hidden = input_outputs.at("hidden").data<double>();
   double* cell = input_outputs.at("cell").data<double>();
 
@@ -461,9 +469,6 @@ TEST_F(LSTMHelperTest, LoadModelPathInitTest)
   LSTMHelper<> model(1, 1, vec);
   model.GPUSetup();
 
-  int num_points = 1;
-  int T = 6;
-
   std::string path = mppi::tests::test_lstm_lstm;
   if (!fileExists(path))
   {
@@ -474,11 +479,14 @@ TEST_F(LSTMHelperTest, LoadModelPathInitTest)
   model.loadParams("init_", param_dict, false);
 
   cnpy::npz_t input_outputs = cnpy::npz_load(path);
+  int num_points = input_outputs.at("num_points").data<int>()[0];
+  int T = std::round(input_outputs.at("tau").data<float>()[0] / input_outputs.at("dt").data<float>()[0]);
   double* init_inputs = input_outputs.at("init_input").data<double>();
-  double* init_hidden = input_outputs.at("init_hidden").data<double>();
-  double* init_cell = input_outputs.at("init_cell").data<double>();
-  double* init_step_hidden = input_outputs.at("init_step_hidden").data<double>();
-  double* init_step_cell = input_outputs.at("init_step_cell").data<double>();
+  double* init_hidden = input_outputs.at("init/hidden").data<double>();
+  double* init_cell = input_outputs.at("init/cell").data<double>();
+  // TODO not the right config to load this data essentially
+  // double* init_step_hidden = input_outputs.at("init_step_hidden").data<double>();
+  // double* init_step_cell = input_outputs.at("init_step_cell").data<double>();
 
   double tol = 1e-5;
 
@@ -495,24 +503,24 @@ TEST_F(LSTMHelperTest, LoadModelPathInitTest)
     model.resetHiddenCPU();
     for (int t = 0; t < T; t++)
     {
-      for (int i = 0; i < 3; i++)
+      for (int i = 0; i < input_dim; i++)
       {
-        input(i) = init_inputs[point * T * 3 + t * 3 + i];
+        input(i) = init_inputs[point * T * input_dim + t * input_dim + i];
       }
 
       model.forward(input, output);
-      for (int i = 0; i < 60; i++)
-      {
-        EXPECT_NEAR(model.getHiddenState()(i), init_step_hidden[60 * point * T + t * 60 + i], tol)
-            << "at t " << t << " dim " << i;
-        EXPECT_NEAR(model.getCellState()(i), init_step_cell[60 * point * T + t * 60 + i], tol)
-            << "at t " << t << " dim " << i;
-      }
+      // for (int i = 0; i < 60; i++)
+      // {
+      //   EXPECT_NEAR(model.getHiddenState()(i), init_step_hidden[60 * point * T + t * 60 + i], tol)
+      //       << "at t " << t << " dim " << i;
+      //   EXPECT_NEAR(model.getCellState()(i), init_step_cell[60 * point * T + t * 60 + i], tol)
+      //       << "at t " << t << " dim " << i;
+      // }
     }
-    for (int i = 0; i < 25; i++)
+    for (int i = 0; i < hidden_dim; i++)
     {
-      EXPECT_NEAR(output(i), init_hidden[25 * point + i], tol);
-      EXPECT_NEAR(output(i + 25), init_cell[25 * point + i], tol);
+      EXPECT_NEAR(output(i), init_hidden[hidden_dim * point + i], tol);
+      EXPECT_NEAR(output(i + hidden_dim), init_cell[hidden_dim * point + i], tol);
     }
   }
 }
@@ -522,9 +530,6 @@ TEST_F(LSTMHelperTest, LoadModelNPZTest)
   std::vector<int> vec = { 2, 1 };
   LSTMHelper<> model(1, 1, vec);
   model.GPUSetup();
-
-  int num_points = 100;
-  int T = 100;
 
   std::string path = mppi::tests::test_lstm_lstm;
   if (!fileExists(path))
@@ -536,10 +541,12 @@ TEST_F(LSTMHelperTest, LoadModelNPZTest)
   model.loadParams(param_dict);
 
   cnpy::npz_t input_outputs = cnpy::npz_load(path);
+  int num_points = input_outputs.at("num_points").data<int>()[0];
+  int T = std::round(input_outputs.at("T").data<float>()[0] / input_outputs.at("dt").data<float>()[0]);
   double* inputs = input_outputs.at("input").data<double>();
   double* outputs = input_outputs.at("output").data<double>();
-  double* init_hidden = input_outputs.at("init_hidden").data<double>();
-  double* init_cell = input_outputs.at("init_cell").data<double>();
+  double* init_hidden = input_outputs.at("init/hidden").data<double>();
+  double* init_cell = input_outputs.at("init/cell").data<double>();
   double* hidden = input_outputs.at("hidden").data<double>();
   double* cell = input_outputs.at("cell").data<double>();
 

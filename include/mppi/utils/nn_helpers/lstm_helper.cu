@@ -45,10 +45,12 @@ void LSTMHelper<USE_SHARED>::setupMemory(int input_dim, int hidden_dim)
 
   // The initial cell and hidden does not need to be stored in shared memory
   LSTM_PARAM_SIZE_BYTES = (HIDDEN_DIM * 4 + HIDDEN_HIDDEN_SIZE * 4 + INPUT_HIDDEN_SIZE * 4) * sizeof(float);
-  LSTM_SHARED_MEM_GRD_BYTES = LSTM_PARAM_SIZE_BYTES * USE_SHARED;
+  LSTM_SHARED_MEM_GRD_BYTES = mppi::math::int_multiple_const(LSTM_PARAM_SIZE_BYTES * USE_SHARED, sizeof(float4));
 
   SHARED_MEM_REQUEST_GRD_BYTES = output_nn_->getGrdSharedSizeBytes() + LSTM_SHARED_MEM_GRD_BYTES;
-  SHARED_MEM_REQUEST_BLK_BYTES = output_nn_->getBlkSharedSizeBytes() + (3 * HIDDEN_DIM + INPUT_DIM) * sizeof(float);
+  SHARED_MEM_REQUEST_BLK_BYTES =
+      output_nn_->getBlkSharedSizeBytes() +
+      mppi::math::int_multiple_const((3 * HIDDEN_DIM + INPUT_DIM) * sizeof(float), sizeof(float4));
 
   hidden_state_ = Eigen::VectorXf(HIDDEN_DIM);
   hidden_state_.setZero();
@@ -190,6 +192,12 @@ void LSTMHelper<USE_SHARED>::paramsToDevice()
 template <bool USE_SHARED>
 __device__ void LSTMHelper<USE_SHARED>::initialize(float* theta_s)
 {
+  this->initialize(theta_s, SHARED_MEM_REQUEST_BLK_BYTES, SHARED_MEM_REQUEST_GRD_BYTES, 0);
+}
+
+template <bool USE_SHARED>
+__device__ void LSTMHelper<USE_SHARED>::initialize(float* theta_s, int blk_size, int grd_size, int offset)
+{
   if (USE_SHARED)
   {
     // if (threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
@@ -207,7 +215,7 @@ __device__ void LSTMHelper<USE_SHARED>::initialize(float* theta_s)
 
   // copies the initial cell and hidden state to the correct place
   const int shift =
-      SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float) + SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) * threadIdx.x;
+      grd_size / sizeof(float) + blk_size * (threadIdx.x + blockDim.x * threadIdx.z) / sizeof(float) + offset;
   for (int i = threadIdx.y; i < HIDDEN_DIM; i += blockDim.y)
   {
     (theta_s + shift)[i] = (weights_ + LSTM_PARAM_SIZE_BYTES / sizeof(float))[i];
@@ -269,6 +277,10 @@ void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& in
 template <bool USE_SHARED>
 void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& input, Eigen::Ref<Eigen::VectorXf> output)
 {
+  // std::cout << "got lstm input CPU: " << input.transpose() << std::endl;
+  // std::cout << "got lstm hidden CPU: " << hidden_state_.transpose() << std::endl;
+  // std::cout << "got lstm cell CPU: " << cell_state_.transpose() << std::endl;
+
   forward(input);
   Eigen::VectorXf nn_input = output_nn_->getInputVector();
   for (int i = 0; i < HIDDEN_DIM; i++)
@@ -362,6 +374,23 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
     }
   }
   __syncthreads();
+  // if (threadIdx.y == 0)
+  // {
+  //   printf("in lstm got input loc %p\n", x);
+  //   printf("in lstm forward ptr for init cell and hidden %p %p\n", h, c);
+  //   for (i = 0; i < INPUT_DIM; i++)
+  //   {
+  //     printf("LSTM: %d %d got input %f\n", threadIdx.x, blockIdx.x, x[i]);
+  //   }
+  //   for (i = 0; i < INPUT_DIM; i++)
+  //   {
+  //     printf("LSTM: %d %d got hidden %f\n", threadIdx.x, blockIdx.x, h[i]);
+  //   }
+  //   for (i = 0; i < INPUT_DIM; i++)
+  //   {
+  //     printf("LSTM: %d %d got cell %f\n", threadIdx.x, blockIdx.x, c[i]);
+  //   }
+  // }
 
   int index = 0;
   // apply each gate in parallel
@@ -611,5 +640,14 @@ __device__ float* LSTMHelper<USE_SHARED>::getInputLocation(float* theta_s)
   const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) +
                         SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);
   float* x = theta_s + block_idx + 3 * HIDDEN_DIM;
+  return x;
+}
+
+template <bool USE_SHARED>
+__device__ float* LSTMHelper<USE_SHARED>::getInputLocation(float* theta_s, const int grd_shift, int blk_bytes,
+                                                           int shift)
+{
+  const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * blk_bytes / sizeof(float);
+  float* x = theta_s + grd_shift / sizeof(float) + block_idx + shift + 3 * HIDDEN_DIM;
   return x;
 }

@@ -4,19 +4,17 @@
 
 #include "racer_dubins_elevation_lstm_steering.cuh"
 
-RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(cudaStream_t stream)
+RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(int init_input_dim, int init_hidden_dim,
+                                                                   std::vector<int> init_output_layers, int input_dim,
+                                                                   int hidden_dim, std::vector<int> output_layers,
+                                                                   int init_len, cudaStream_t stream)
   : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>(stream)
 {
   this->requires_buffer_ = true;
-  lstm_lstm_helper_ = std::make_shared<NN>(stream);
-}
-
-RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(RacerDubinsElevationParams& params,
-                                                                   cudaStream_t stream)
-  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>(params, stream)
-{
-  this->requires_buffer_ = true;
-  lstm_lstm_helper_ = std::make_shared<NN>(stream);
+  lstm_lstm_helper_ = std::make_shared<LSTMLSTMHelper<>>(init_input_dim, init_hidden_dim, init_output_layers, input_dim,
+                                                         hidden_dim, output_layers, init_len, stream);
+  this->SHARED_MEM_REQUEST_GRD_BYTES = lstm_lstm_helper_->getLSTMModel()->getGrdSharedSizeBytes();
+  this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock) + lstm_lstm_helper_->getLSTMModel()->getBlkSharedSizeBytes();
 }
 
 RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream)
@@ -32,8 +30,10 @@ RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string p
   this->params_.steering_constant = param_dict.at("parameters/constant").data<float>()[0];
   this->params_.steer_accel_constant = param_dict.at("parameters/accel_constant").data<float>()[0];
   this->params_.steer_accel_drag_constant = param_dict.at("parameters/accel_drag_constant").data<float>()[0];
-  lstm_lstm_helper_ = std::make_shared<NN>(path, stream);
+  lstm_lstm_helper_ = std::make_shared<LSTMLSTMHelper<>>(path, stream);
   this->requires_buffer_ = true;
+  this->SHARED_MEM_REQUEST_GRD_BYTES = lstm_lstm_helper_->getLSTMModel()->getGrdSharedSizeBytes();
+  this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock) + lstm_lstm_helper_->getLSTMModel()->getBlkSharedSizeBytes();
 }
 
 void RacerDubinsElevationLSTMSteering::GPUSetup()
@@ -67,12 +67,12 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
       (parametric_accel - state(S_INDEX(STEER_ANGLE_RATE))) * this->params_.steer_accel_constant -
       state(S_INDEX(STEER_ANGLE_RATE)) * this->params_.steer_accel_drag_constant;
 
-  LSTM::input_array input;
+  Eigen::VectorXf input = lstm_lstm_helper_->getLSTMModel()->getInputVector();
   input(0) = state(S_INDEX(STEER_ANGLE)) * 0.2f;
   input(1) = state(S_INDEX(STEER_ANGLE_RATE)) * 0.2f;
   input(2) = control(C_INDEX(STEER_CMD));
   input(3) = state_der(S_INDEX(STEER_ANGLE_RATE)) * 0.2f;  // this is the parametric part as input
-  LSTM::output_array nn_output = LSTM::output_array::Zero();
+  Eigen::VectorXf nn_output = lstm_lstm_helper_->getLSTMModel()->getOutputVector();
   lstm_lstm_helper_->forward(input, nn_output);
   state_der(S_INDEX(STEER_ANGLE_RATE)) += nn_output(0) * 5.0f;
   state_der(S_INDEX(STEER_ANGLE)) = state(S_INDEX(STEER_ANGLE_RATE));
@@ -97,16 +97,14 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
 __device__ void RacerDubinsElevationLSTMSteering::initializeDynamics(float* state, float* control, float* output,
                                                                      float* theta_s, float t_0, float dt)
 {
-  const int shift = (mppi::math::int_multiple_const(PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-                     blockDim.x * blockDim.z *
-                         mppi::math::int_multiple_const(PARENT_CLASS::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4))) /
-                    sizeof(float);
-  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
-  {  // Allows us to turn on or off global or shared memory version of params
-    DYN_PARAMS_T* shared_params = (DYN_PARAMS_T*)theta_s;
-    *shared_params = this->params_;
-  }
-  network_d_->initialize(theta_s + shift);
+  // const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);
+  // if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
+  // {  // Allows us to turn on or off global or shared memory version of params
+  //   DYN_PARAMS_T* shared_params = (DYN_PARAMS_T*)theta_s;
+  //   *shared_params = this->params_;
+  // }
+  network_d_->initialize(theta_s, this->SHARED_MEM_REQUEST_BLK_BYTES, this->SHARED_MEM_REQUEST_GRD_BYTES,
+                         sizeof(SharedBlock) / sizeof(float));
   setOutputs(state, state, output);
 }
 
@@ -115,21 +113,22 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
                                                               const float t, const float dt)
 {
   DYN_PARAMS_T* params_p;
-  SharedBlock *sb_mem, *sb;
-  if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
-  {  // Allows us to turn on or off global or shared memory version of params
-    params_p = (DYN_PARAMS_T*)theta_s;
-  }
-  else
+  SharedBlock* sb;
+  // TODO below conficts in a bad way
+  // if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
+  // {  // Allows us to turn on or off global or shared memory version of params
+  //   params_p = (DYN_PARAMS_T*)theta_s;
+  // }
+  // else
+  // {
+  //   params_p = &(this->params_);
+  // }
+  params_p = &(this->params_);
+  if (this->SHARED_MEM_REQUEST_BLK_BYTES != 0)
   {
-    params_p = &(this->params_);
-  }
-  if (PARENT_CLASS::SHARED_MEM_REQUEST_BLK_BYTES != 0)
-  {
-    sb_mem = (SharedBlock*)&theta_s[mppi::math::int_multiple_const(PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES,
-                                                                   sizeof(float4)) /
-                                    sizeof(float)];
-    sb = &sb_mem[threadIdx.x + blockDim.x * threadIdx.z];
+    float* sb_mem = &theta_s[this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float)];  // does the grid shift
+    sb = (SharedBlock*)(sb_mem +
+                        this->SHARED_MEM_REQUEST_BLK_BYTES * (threadIdx.x + blockDim.x * threadIdx.z) / sizeof(float));
   }
   computeParametricDelayDeriv(state, control, state_der, params_p);
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
@@ -138,12 +137,11 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
 
   const uint tdy = threadIdx.y;
 
-  const int shift = (mppi::math::int_multiple_const(PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-                     blockDim.x * blockDim.z *
-                         mppi::math::int_multiple_const(PARENT_CLASS::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4))) /
-                    sizeof(float);
+  const int grd_shift = this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);
   // loads in the input to the network
-  float* input_loc = network_d_->getInputLocation(theta_s + shift);
+  float* input_loc =
+      network_d_->getInputLocation(theta_s, this->SHARED_MEM_REQUEST_GRD_BYTES, this->SHARED_MEM_REQUEST_BLK_BYTES,
+                                   sizeof(SharedBlock) / sizeof(float));
   if (tdy == 0)
   {
     const float parametric_accel =
@@ -162,7 +160,9 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   }
   __syncthreads();
   // runs the network
-  float* nn_output = network_d_->forward(nullptr, theta_s + shift);
+  const int block_ptr = (blockDim.x * threadIdx.z + threadIdx.x) * this->SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float);
+  float* nn_output =
+      network_d_->forward(nullptr, theta_s, theta_s + grd_shift + block_ptr + sizeof(SharedBlock) / sizeof(float));
   // copies the results of the network to state derivative
   if (tdy == 0)
   {
@@ -189,7 +189,7 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
 
 void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory& buffer)
 {
-  NN::init_buffer init_buffer;
+  Eigen::MatrixXf init_buffer = lstm_lstm_helper_->getBuffer();
   if (buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
       buffer.find("STEER_CMD") == buffer.end())
   {

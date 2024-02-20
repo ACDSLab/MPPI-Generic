@@ -70,6 +70,11 @@ public:
     lstm_->resetHiddenCellCPU();
   }
 
+  Eigen::MatrixXf getBuffer()
+  {
+    return Eigen::MatrixXf(init_model_->getInputDim(), init_len_);
+  }
+
   Eigen::MatrixXf getBuffer(int length)
   {
     return Eigen::MatrixXf(init_model_->getInputDim(), length);

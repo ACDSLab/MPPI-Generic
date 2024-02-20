@@ -58,7 +58,7 @@ TEST_F(FNNHelperTest, ParamsConstructor1)
   const int shared_mem_grd = helper.getGrdSharedSizeBytes();
   const int shared_mem_blk = helper.getBlkSharedSizeBytes();
   EXPECT_EQ(shared_mem_grd, 400);
-  EXPECT_EQ(shared_mem_blk, 22 * 4);
+  EXPECT_EQ(shared_mem_blk, 96);
 }
 
 TEST_F(FNNHelperTest, ParamsConstructor2)
@@ -95,7 +95,7 @@ TEST_F(FNNHelperTest, ParamsConstructor2)
   const int shared_mem_grd = helper.getGrdSharedSizeBytes();
   const int shared_mem_blk = helper.getBlkSharedSizeBytes();
   EXPECT_EQ(shared_mem_grd, 1472);
-  EXPECT_EQ(shared_mem_blk, 42 * 4);
+  EXPECT_EQ(shared_mem_blk, 176);
 }
 
 TEST_F(FNNHelperTest, ParamsConstructor3)
@@ -106,7 +106,7 @@ TEST_F(FNNHelperTest, ParamsConstructor3)
   EXPECT_EQ(helper.getNumLayers(), 2);
   EXPECT_EQ(helper.getLargestLayer(), 6);
   EXPECT_EQ(helper.getNumParams(), 18);
-  EXPECT_EQ(helper.getGrdSharedSizeBytes(), 88);
+  EXPECT_EQ(helper.getGrdSharedSizeBytes(), 96);
   EXPECT_EQ(helper.getBlkSharedSizeBytes(), 12 * 4);
   EXPECT_EQ(5, helper.getInputDim());
   EXPECT_EQ(3, helper.getOutputDim());

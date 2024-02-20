@@ -185,8 +185,9 @@ void FNNHelper<USE_SHARED>::setupMemory(std::vector<int> layers)
 
   PARAM_SIZE = (NUM_LAYERS + NUM_PARAMS + STRIDE_SIZE) * sizeof(float);
 
-  this->SHARED_MEM_REQUEST_GRD_BYTES = PARAM_SIZE * USE_SHARED;
-  this->SHARED_MEM_REQUEST_BLK_BYTES = 2 * LARGEST_LAYER * sizeof(float);
+  this->SHARED_MEM_REQUEST_GRD_BYTES = mppi::math::int_multiple_const(PARAM_SIZE * USE_SHARED, sizeof(float4));
+  this->SHARED_MEM_REQUEST_BLK_BYTES =
+      mppi::math::int_multiple_const(2 * LARGEST_LAYER * sizeof(float), sizeof(float4));
 
   weighted_in_.resize(NUM_LAYERS - 1);
   weights_.resize(NUM_LAYERS - 1);
@@ -355,6 +356,7 @@ bool FNNHelper<USE_SHARED>::computeGrad(Eigen::Ref<Eigen::MatrixXf> A)
 template <bool USE_SHARED>
 void FNNHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::MatrixXf>& input, Eigen::Ref<Eigen::MatrixXf> output)
 {
+  // std::cout << "FNN CPU got input: " << input.transpose() << std::endl;
   int i, j;
   Eigen::MatrixXf acts = input;
   for (i = 0; i < NUM_LAYERS - 1; i++)
@@ -447,6 +449,11 @@ __device__ float* FNNHelper<USE_SHARED>::forward(float* input, float* theta_s, f
     }
   }
   __syncthreads();
+  // if(threadIdx.y == 0) {
+  //   for(i = 0; i < INPUT_DIM; i++) {
+  //     printf("FNN: %d %d got input %f\n", threadIdx.x, blockIdx.x, curr_act[i]);
+  //   }
+  // }
   // iterate through each layer
   for (i = 0; i < NUM_LAYERS - 1; i++)
   {
