@@ -8,16 +8,37 @@
 #ifndef MPPIGENERIC_RACER_DUBINS_ELEVATION_LSTM_STEERING_CUH
 #define MPPIGENERIC_RACER_DUBINS_ELEVATION_LSTM_STEERING_CUH
 
-class RacerDubinsElevationLSTMSteering
-  : public RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>
+template <class CLASS_T, class PARAMS_T = RacerDubinsElevationParams>
+class RacerDubinsElevationLSTMSteeringImpl : public RacerDubinsElevationImpl<CLASS_T, PARAMS_T>
 {
-public:
-  using PARENT_CLASS = RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>;
+  static_assert(std::is_base_of<RacerDubinsElevationParams, PARAMS_T>::value,
+                "Params don't inherit from RacerDubinsElevationParams.");
 
-  RacerDubinsElevationLSTMSteering(int init_input_dim, int init_hidden_dim, std::vector<int>& init_output_layers,
-                                   int input_dim, int hidden_dim, std::vector<int>& output_layers, int init_len,
-                                   cudaStream_t stream = nullptr);
-  RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream = nullptr);
+public:
+  using PARENT_CLASS = RacerDubinsElevationImpl<CLASS_T, PARAMS_T>;
+  using DYN_PARAMS_T = typename PARENT_CLASS::DYN_PARAMS_T;
+  using SharedBlock = typename PARENT_CLASS::SharedBlock;
+  using state_array = typename PARENT_CLASS::state_array;
+  using control_array = typename PARENT_CLASS::control_array;
+  using output_array = typename PARENT_CLASS::output_array;
+  using buffer_trajectory = typename PARENT_CLASS::buffer_trajectory;
+  using PARENT_CLASS::computeParametricAccelDeriv;
+  using PARENT_CLASS::computeParametricDelayDeriv;
+  using PARENT_CLASS::computeUncertaintyPropagation;
+  using PARENT_CLASS::setOutputs;
+
+  RacerDubinsElevationLSTMSteeringImpl(LSTMLSTMConfig config, cudaStream_t stream = nullptr)
+    : RacerDubinsElevationLSTMSteeringImpl(config.init_config.input_dim, config.init_config.hidden_dim,
+                                           config.init_config.output_layers, config.pred_config.input_dim,
+                                           config.pred_config.hidden_dim, config.pred_config.output_layers,
+                                           config.init_len, stream)
+  {
+  }
+
+  RacerDubinsElevationLSTMSteeringImpl(int init_input_dim, int init_hidden_dim, std::vector<int>& init_output_layers,
+                                       int input_dim, int hidden_dim, std::vector<int>& output_layers, int init_len,
+                                       cudaStream_t stream = nullptr);
+  RacerDubinsElevationLSTMSteeringImpl(std::string path, cudaStream_t stream = nullptr);
 
   std::string getDynamicsModelName() const override
   {
@@ -58,6 +79,27 @@ public:
 
 protected:
   std::shared_ptr<LSTMLSTMHelper<>> lstm_lstm_helper_;
+};
+
+class RacerDubinsElevationLSTMSteering : public RacerDubinsElevationLSTMSteeringImpl<RacerDubinsElevationLSTMSteering>
+{
+public:
+  using PARENT_CLASS = RacerDubinsElevationLSTMSteeringImpl<RacerDubinsElevationLSTMSteering>;
+  RacerDubinsElevationLSTMSteering(int init_input_dim, int init_hidden_dim, std::vector<int>& init_output_layers,
+                                   int input_dim, int hidden_dim, std::vector<int>& output_layers, int init_len,
+                                   cudaStream_t stream = nullptr)
+    : PARENT_CLASS(init_input_dim, init_hidden_dim, init_output_layers, input_dim, hidden_dim, output_layers, init_len,
+                   stream)
+  {
+  }
+  RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream = nullptr) : PARENT_CLASS(path, stream)
+  {
+  }
+
+protected:
+  RacerDubinsElevationLSTMSteering(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
+  {
+  }
 };
 
 #if __CUDACC__

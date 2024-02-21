@@ -4,11 +4,14 @@
 
 #include "racer_dubins_elevation_lstm_steering.cuh"
 
-RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(int init_input_dim, int init_hidden_dim,
-                                                                   std::vector<int>& init_output_layers, int input_dim,
-                                                                   int hidden_dim, std::vector<int>& output_layers,
-                                                                   int init_len, cudaStream_t stream)
-  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>(stream)
+#define TEMPLATE_TYPE template <class CLASS_T, class PARAMS_T>
+#define TEMPLATE_NAME RacerDubinsElevationLSTMSteeringImpl<CLASS_T, PARAMS_T>
+
+TEMPLATE_TYPE
+TEMPLATE_NAME::RacerDubinsElevationLSTMSteeringImpl(int init_input_dim, int init_hidden_dim,
+                                                    std::vector<int>& init_output_layers, int input_dim, int hidden_dim,
+                                                    std::vector<int>& output_layers, int init_len, cudaStream_t stream)
+  : PARENT_CLASS(stream)
 {
   this->requires_buffer_ = true;
   lstm_lstm_helper_ = std::make_shared<LSTMLSTMHelper<>>(init_input_dim, init_hidden_dim, init_output_layers, input_dim,
@@ -17,8 +20,9 @@ RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(int init_inpu
   this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock) + lstm_lstm_helper_->getLSTMModel()->getBlkSharedSizeBytes();
 }
 
-RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream)
-  : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>(stream)
+TEMPLATE_TYPE
+TEMPLATE_NAME::RacerDubinsElevationLSTMSteeringImpl(std::string path, cudaStream_t stream)
+  : RacerDubinsElevationImpl<CLASS_T, PARAMS_T>(stream)
 {
   if (!fileExists(path))
   {
@@ -36,7 +40,8 @@ RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(std::string p
   this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock) + lstm_lstm_helper_->getLSTMModel()->getBlkSharedSizeBytes();
 }
 
-void RacerDubinsElevationLSTMSteering::GPUSetup()
+TEMPLATE_TYPE
+void TEMPLATE_NAME::GPUSetup()
 {
   lstm_lstm_helper_->GPUSetup();
   // makes sure that the device ptr sees the correct lstm model
@@ -44,22 +49,24 @@ void RacerDubinsElevationLSTMSteering::GPUSetup()
   PARENT_CLASS::GPUSetup();
 }
 
-void RacerDubinsElevationLSTMSteering::bindToStream(cudaStream_t stream)
+TEMPLATE_TYPE
+void TEMPLATE_NAME::bindToStream(cudaStream_t stream)
 {
-  this->PARENT_CLASS::bindToStream(stream);
-  this->lstm_lstm_helper_->getLSTMModel()->bindToStream(stream);
+  PARENT_CLASS::bindToStream(stream);
+  lstm_lstm_helper_->getLSTMModel()->bindToStream(stream);
 }
 
-void RacerDubinsElevationLSTMSteering::freeCudaMem()
+TEMPLATE_TYPE
+void TEMPLATE_NAME::freeCudaMem()
 {
   PARENT_CLASS::freeCudaMem();
   lstm_lstm_helper_->freeCudaMem();
 }
 
-void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
-                                            Eigen::Ref<state_array> state_der,
-                                            const Eigen::Ref<const control_array>& control,
-                                            Eigen::Ref<output_array> output, const float t, const float dt)
+TEMPLATE_TYPE
+void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                         Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
+                         Eigen::Ref<output_array> output, const float t, const float dt)
 {
   this->computeParametricDelayDeriv(state, control, state_der);
   this->computeParametricAccelDeriv(state, control, state_der, dt);
@@ -91,7 +98,7 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
 
   float roll = state(S_INDEX(ROLL));
   float pitch = state(S_INDEX(PITCH));
-  RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+  RACER::computeStaticSettling<typename DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
       this->tex_helper_, next_state(S_INDEX(YAW)), next_state(S_INDEX(POS_X)), next_state(S_INDEX(POS_Y)), roll, pitch,
       output.data());
   next_state[S_INDEX(PITCH)] = pitch;
@@ -100,8 +107,9 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
   setOutputs(state_der.data(), next_state.data(), output.data());
 }
 
-__device__ void RacerDubinsElevationLSTMSteering::initializeDynamics(float* state, float* control, float* output,
-                                                                     float* theta_s, float t_0, float dt)
+TEMPLATE_TYPE
+__device__ void TEMPLATE_NAME::initializeDynamics(float* state, float* control, float* output, float* theta_s,
+                                                  float t_0, float dt)
 {
   // const int shift = PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);
   // if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
@@ -114,9 +122,9 @@ __device__ void RacerDubinsElevationLSTMSteering::initializeDynamics(float* stat
   setOutputs(state, state, output);
 }
 
-__device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, float* next_state, float* state_der,
-                                                              float* control, float* output, float* theta_s,
-                                                              const float t, const float dt)
+TEMPLATE_TYPE
+__device__ inline void TEMPLATE_NAME::step(float* state, float* next_state, float* state_der, float* control,
+                                           float* output, float* theta_s, const float t, const float dt)
 {
   DYN_PARAMS_T* params_p;
   SharedBlock* sb;
@@ -192,7 +200,8 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   setOutputs(state_der, next_state, output);
 }
 
-void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory& buffer)
+TEMPLATE_TYPE
+void TEMPLATE_NAME::updateFromBuffer(const buffer_trajectory& buffer)
 {
   std::vector<std::string> keys = { "STEER_ANGLE", "STEER_ANGLE_RATE", "STEER_CMD" };
 
@@ -220,16 +229,17 @@ void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory&
   lstm_lstm_helper_->initializeLSTM(init_buffer);
 }
 
-void RacerDubinsElevationLSTMSteering::initializeDynamics(const Eigen::Ref<const state_array>& state,
-                                                          const Eigen::Ref<const control_array>& control,
-                                                          Eigen::Ref<output_array> output, float t_0, float dt)
+TEMPLATE_TYPE
+void TEMPLATE_NAME::initializeDynamics(const Eigen::Ref<const state_array>& state,
+                                       const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output,
+                                       float t_0, float dt)
 {
   this->lstm_lstm_helper_->resetLSTMHiddenCellCPU();
   PARENT_CLASS::initializeDynamics(state, control, output, t_0, dt);
 }
 
-__device__ void RacerDubinsElevationLSTMSteering::updateState(float* state, float* next_state, float* state_der,
-                                                              const float dt)
+TEMPLATE_TYPE
+__device__ void TEMPLATE_NAME::updateState(float* state, float* next_state, float* state_der, const float dt)
 {
   int i;
   int tdy = threadIdx.y;
@@ -254,9 +264,9 @@ __device__ void RacerDubinsElevationLSTMSteering::updateState(float* state, floa
   }
 }
 
-void RacerDubinsElevationLSTMSteering::updateState(const Eigen::Ref<const state_array> state,
-                                                   Eigen::Ref<state_array> next_state,
-                                                   Eigen::Ref<state_array> state_der, const float dt)
+TEMPLATE_TYPE
+void TEMPLATE_NAME::updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
+                                Eigen::Ref<state_array> state_der, const float dt)
 {
   // Segmented it to ensure that roll and pitch don't get overwritten
   for (int i = 0; i < 6; i++)
@@ -270,3 +280,6 @@ void RacerDubinsElevationLSTMSteering::updateState(const Eigen::Ref<const state_
   next_state(S_INDEX(BRAKE_STATE)) =
       fminf(fmaxf(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
 }
+
+#undef TEMPLATE_NAME
+#undef TEMPLATE_TYPE
