@@ -336,7 +336,7 @@ bool FNNHelper<USE_SHARED>::computeGrad(Eigen::Ref<Eigen::MatrixXf> A)
     Eigen::MatrixXf zp = weighted_in_[i - 1];
     for (int j = 0; j < net_structure_[i]; j++)
     {
-      zp(j) = TANH_DERIV(zp(j));
+      zp(j) = mppi::nn::tanh_deriv(zp(j));
     }
     ip_delta = ((weights_[i]).transpose() * ip_delta).eval();
     for (int j = 0; j < OUTPUT_DIM; j++)
@@ -367,7 +367,7 @@ void FNNHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::MatrixXf>& inp
     {  // Last layer doesn't apply any non-linearity
       for (j = 0; j < net_structure_[i + 1]; j++)
       {
-        acts(j) = TANH((weighted_in_[i])(j));  // Nonlinear component.
+        acts(j) = mppi::nn::tanh((weighted_in_[i])(j));  // Nonlinear component.
       }
     }
     else
@@ -475,7 +475,7 @@ __device__ float* FNNHelper<USE_SHARED>::forward(float* input, float* theta_s, f
       tmp += b[j];
       if (i < NUM_LAYERS - 2)
       {
-        tmp = TANH(tmp);
+        tmp = mppi::nn::tanh(tmp);
       }
       next_act[j] = tmp;
     }

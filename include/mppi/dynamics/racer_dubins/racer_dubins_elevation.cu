@@ -695,7 +695,7 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
 #endif
   for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
   {
-    uncertainty_data->Sigma_a[i] += uncertainty_data->Sigma_b[i] * powf(dt, 2);
+    uncertainty_data->Sigma_a[i] += uncertainty_data->Sigma_b[i] * SQ(dt);
   }
 #ifdef __CUDA_ARCH__
   __syncthreads();

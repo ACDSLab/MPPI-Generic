@@ -1,28 +1,58 @@
 #ifndef ACTIVATION_FUNCTIONS_CUH_
 #define ACTIVATION_FUNCTIONS_CUH_
 
-namespace act_func
+#include "math_utils.h"
+namespace mppi
 {
-/**
- *
- * @param input
- * @return
- */
-__host__ __device__ static inline double tanh_deriv(double x)
+namespace nn
 {
-  const double tanh_res = tanh(x);
-  return (1 - tanh_res * tanh_res);
+inline __host__ __device__ float tanh(float input)
+{
+  // There is hardware support for tanh starting in Turing (above 750+) that makes this approximation slower
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 750)
+  const float num = __expf(2.0f * input);
+  // return __fdiv_rz(num - 1.0f, num + 1.0f);
+  return (num - 1.0f) / (num + 1.0f);
+#else
+  return tanhf(input);
+#endif
 }
 
-/**
- *
- * @param x
- * @return
- */
-__host__ __device__ static inline float tanh_deriv(float x)
+inline __host__ __device__ float tanh_accurate(float input)
 {
-  const float tanh_res = tanhf(x);
-  return (1 - tanh_res * tanh_res);
+  return tanhf(input);
+}
+
+inline __host__ __device__ float tanh_deriv(float input)
+{
+#ifdef __CUDA_ARCH__
+  // TODO move to SQ instead here
+  return 1.0f - SQ(tanhf(input));
+#else
+  return 1.0f - SQ(tanhf(input));
+#endif
+}
+
+inline __host__ __device__ float relu(float input)
+{
+  return fmaxf(0.0f, input);
+}
+
+inline __host__ __device__ float sigmoid(float input)
+{
+#ifdef __CUDA_ARCH__
+  // these three are roughly equivalent on 3080
+  // return __fmul_rz(1.0f + tanhf(__fmul_rz(input, 0.5f)), 0.5f);
+  // return __fmaf_rz(tanhf(__fmul_rz(input, 0.5f)), 0.5f, 0.5f);
+  return (1.0f + tanh(input / 2.0f)) / 2.0f;
+#else
+  return (1.0f / (1.0f + expf(-input)));
+#endif
+}
+
+inline __host__ __device__ float sigmoid_accurate(float input)
+{
+  return (1.0f / (1.0f + expf(-input)));
 }
 
 /**
@@ -32,7 +62,7 @@ __host__ __device__ static inline float tanh_deriv(float x)
  */
 __host__ __device__ static inline float tanh_vel_scale(float state, float vel, float* constants)
 {
-  return state * constants[1] * tanhf(vel * constants[0]);
+  return state * constants[1] * tanh(vel * constants[0]);
 }
 
 /**
@@ -42,7 +72,7 @@ __host__ __device__ static inline float tanh_vel_scale(float state, float vel, f
  */
 __host__ __device__ static inline float tanh_scale(float state, float* constants)
 {
-  return constants[1] * tanhf(state * constants[0]);
+  return constants[1] * tanh(state * constants[0]);
 }
 
 /**
@@ -60,40 +90,12 @@ __host__ __device__ static inline float tanhshrink(float x)
  * @param x
  * @return
  */
-__host__ __device__ static inline double tanhshrink(double x)
-{
-  return x - tanh(x);
-}
-
-/**
- *
- * @param x
- * @return
- */
 __host__ __device__ static inline float tanhshrink_scale(float x, float scale)
 {
   return scale * tanhshrink(x / scale);
 }
 
-/**
- *
- * @param x
- * @return
- */
-__host__ __device__ static inline double tanhshrink_scale(double x, double scale)
-{
-  return scale * tanhshrink(x / scale);
-}
-
-/**
- *
- * @param x
- * @return
- */
-__host__ __device__ static inline float relu(float x)
-{
-  return fmaxf(x, 0.0f);
-}
-}  // namespace act_func
+}  // namespace nn
+}  // namespace mppi
 
 #endif  // ACTIVATION_FUNCTIONS_CUH_

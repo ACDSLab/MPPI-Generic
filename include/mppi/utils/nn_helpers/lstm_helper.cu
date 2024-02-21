@@ -262,13 +262,13 @@ void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& in
   Eigen::MatrixXf g_f = eig_W_fm_ * hidden_state_ + eig_W_fi_ * input + eig_b_f_;
   Eigen::MatrixXf g_o = eig_W_om_ * hidden_state_ + eig_W_oi_ * input + eig_b_o_;
   Eigen::MatrixXf g_c = eig_W_cm_ * hidden_state_ + eig_W_ci_ * input + eig_b_c_;
-  g_i = g_i.unaryExpr([](float x) { return SIGMOID(x); });
-  g_f = g_f.unaryExpr([](float x) { return SIGMOID(x); });
-  g_o = g_o.unaryExpr([](float x) { return SIGMOID(x); });
-  g_c = g_c.unaryExpr([](float x) { return TANH(x); });
+  g_i = g_i.unaryExpr([](float x) { return mppi::nn::sigmoid(x); });
+  g_f = g_f.unaryExpr([](float x) { return mppi::nn::sigmoid(x); });
+  g_o = g_o.unaryExpr([](float x) { return mppi::nn::sigmoid(x); });
+  g_c = g_c.unaryExpr([](float x) { return mppi::nn::tanh(x); });
 
   Eigen::MatrixXf c_next = g_i.cwiseProduct(g_c) + g_f.cwiseProduct(cell_state_);
-  Eigen::MatrixXf h_next = g_o.cwiseProduct(c_next.unaryExpr([](float x) { return tanhf(x); }));
+  Eigen::MatrixXf h_next = g_o.cwiseProduct(c_next.unaryExpr([](float x) { return mppi::nn::tanh(x); }));
 
   hidden_state_ = h_next;
   cell_state_ = c_next;
@@ -427,11 +427,11 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
     temp_g_o += b_o[i];
     temp_cell_update += b_c[i];
 
-    temp_g_i = SIGMOID(temp_g_i);
-    temp_g_f = SIGMOID(temp_g_f);
-    temp_cell_update = TANH(temp_cell_update);
+    temp_g_i = mppi::nn::sigmoid(temp_g_i);
+    temp_g_f = mppi::nn::sigmoid(temp_g_f);
+    temp_cell_update = mppi::nn::tanh(temp_cell_update);
 
-    g_o[i] = SIGMOID(temp_g_o);
+    g_o[i] = mppi::nn::sigmoid(temp_g_o);
 
     c[i] = temp_g_i * temp_cell_update + temp_g_f * c[i];
   }
@@ -440,7 +440,7 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
   // copy computed hidden/cell state to theta_s
   for (i = tdy; i < HIDDEN_DIM; i += blockDim.y)
   {
-    h[i] = TANH(c[i]) * g_o[i];  // actually using c_next intentionally
+    h[i] = mppi::nn::tanh(c[i]) * g_o[i];  // actually using c_next intentionally
     output_act[i] = h[i];
   }
 

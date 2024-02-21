@@ -7,6 +7,7 @@
 #include <mppi/utils/file_utils.h>
 #include <cnpy.h>
 #include <atomic>
+#include <mppi/utils/activation_functions.cuh>
 
 template <bool USE_SHARED = true>
 class FNNHelper : public Managed
