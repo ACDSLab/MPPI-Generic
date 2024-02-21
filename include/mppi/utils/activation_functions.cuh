@@ -25,12 +25,7 @@ inline __host__ __device__ float tanh_accurate(float input)
 
 inline __host__ __device__ float tanh_deriv(float input)
 {
-#ifdef __CUDA_ARCH__
-  // TODO move to SQ instead here
-  return 1.0f - SQ(tanhf(input));
-#else
-  return 1.0f - SQ(tanhf(input));
-#endif
+  return 1.0f - SQ(tanh(input));
 }
 
 inline __host__ __device__ float relu(float input)
