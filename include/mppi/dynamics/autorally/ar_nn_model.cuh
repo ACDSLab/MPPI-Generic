@@ -68,35 +68,24 @@ struct NNDynamicsParams : public DynamicsParams
 
 using namespace MPPI_internal;
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-class NeuralNetModel : public Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>,
+template <int S_DIM, int C_DIM, int K_DIM>
+class NeuralNetModel : public Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM>,
                                        NNDynamicsParams>
 {
 public:
   // TODO remove duplication of calculation of values, pull from the structure
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  using PARENT_CLASS = Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>,
+  using PARENT_CLASS = Dynamics<NeuralNetModel<S_DIM, C_DIM, K_DIM>,
                                 NNDynamicsParams>;
 
   // Define Eigen fixed size matrices
-  typedef FNNHelper<FNNParams<layer_args...>> NN;
   using state_array = typename PARENT_CLASS::state_array;
   using control_array = typename PARENT_CLASS::control_array;
   using output_array = typename PARENT_CLASS::output_array;
   using dfdx = typename PARENT_CLASS::dfdx;
   using dfdu = typename PARENT_CLASS::dfdu;
-  using nn_input_array = typename NN::input_array;
-  using nn_output_array = typename NN::output_array;
-  using nn_dfdx = typename NN::dfdx ;
-
 
   static const int DYNAMICS_DIM = S_DIM - K_DIM;               ///< number of inputs from state
-  static const int NUM_LAYERS = NN::NUM_LAYERS;  ///< Total number of layers (including in/out layer)
-  static const int PRIME_PADDING = 1;  ///< Extra padding to largest layer to avoid shared mem bank conflicts
-  static const int LARGEST_LAYER = NN::LARGEST_LAYER; ///< Number of neurons in the largest layer(including in/out neurons)
-  static const int NUM_PARAMS = NN::NUM_PARAMS;   ///< Total number of model parameters;
-  static const int SHARED_MEM_REQUEST_GRD_BYTES = NN::SHARED_MEM_REQUEST_GRD_BYTES;  ///< Amount of shared memory we need per BLOCK.
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = NN::SHARED_MEM_REQUEST_BLK_BYTES;  ///< Amount of shared memory we need per ROLLOUT.
 
   NeuralNetModel(cudaStream_t stream = 0);
   NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream = 0);
@@ -108,18 +97,6 @@ public:
     return "FCN Autorally Model";
   }
 
-  std::array<int, NUM_LAYERS> getNetStructure()
-  {
-    return helper_->getNetStructure();
-  }
-  std::array<int, (NUM_LAYERS - 1) * 2> getStideIdcs()
-  {
-    return helper_->getStideIdcs();
-  }
-  std::array<float, NUM_PARAMS> getTheta()
-  {
-    return helper_->getTheta();
-  }
   __device__ int* getNetStructurePtr()
   {
     return helper_->getNetStructurePtr();
@@ -133,7 +110,7 @@ public:
     return helper_->getThetaPtr();
   }
 
-  NN* getHelperPtr() {
+  FNNHelper<>* getHelperPtr() {
     return helper_;
   }
 
@@ -172,26 +149,11 @@ public:
   state_array stateFromMap(const std::map<std::string, float>& map) override;
 
 private:
-  NN* helper_ = nullptr;
+  FNNHelper<>* helper_ = nullptr;
 };
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::DYNAMICS_DIM;
-
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NUM_LAYERS;
-
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::LARGEST_LAYER;
-
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NUM_PARAMS;
-
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::SHARED_MEM_REQUEST_GRD_BYTES;
-
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-const int NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::SHARED_MEM_REQUEST_BLK_BYTES;
+template <int S_DIM, int C_DIM, int K_DIM>
+const int NeuralNetModel<S_DIM, C_DIM, K_DIM>::DYNAMICS_DIM;
 
 #if __CUDACC__
 #include "ar_nn_model.cu"

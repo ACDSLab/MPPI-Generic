@@ -4,7 +4,7 @@ RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(cudaStr
   : RacerDubinsElevationImpl<RacerDubinsElevationLSTMUncertainty, RacerDubinsElevationParams>(stream)
 {
   this->requires_buffer_ = true;
-  steer_helper_ = std::make_shared<STEER_NN>(stream);
+  // steer_helper_ = std::make_shared<LSTMLSTMHelper<>>(stream);
 }
 
 RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(RacerDubinsElevationParams& params,
@@ -12,9 +12,9 @@ RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(RacerDu
   : RacerDubinsElevationImpl<RacerDubinsElevationLSTMUncertainty, RacerDubinsElevationParams>(params, stream)
 {
   this->requires_buffer_ = true;
-  steer_helper_ = std::make_shared<STEER_NN>(stream);
-  uncertainty_helper_ = std::make_shared<UNC_NN>(stream);
-  mean_helper_ = std::make_shared<MEAN_NN>(stream);
+  // steer_helper_ = std::make_shared<LSTMLSTMHelper<>>(stream);
+  // uncertainty_helper_ = std::make_shared<LSTMLSTMHelper<>>(stream);
+  // mean_helper_ = std::make_shared<LSTMLSTMHelper<>>(stream);
 }
 
 RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(std::string path, cudaStream_t stream)
@@ -32,7 +32,7 @@ RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(std::st
   this->params_.steer_accel_constant = param_dict.at("steering/parameters/accel_constant").data<float>()[0];
   this->params_.steer_accel_drag_constant = param_dict.at("steering/parameters/accel_drag_constant").data<float>()[0];
 
-  steer_helper_->loadParams("steering/model")
-      uncertainty_helper_->loadParams("terra/uncertainty_network/model")
-          mean_helper_->loadParams("terra/mean_network/model")
+  // steer_helper_->loadParams("steering/model");
+  // uncertainty_helper_->loadParams("terra/uncertainty_network/model");
+  // mean_helper_->loadParams("terra/mean_network/model");
 }

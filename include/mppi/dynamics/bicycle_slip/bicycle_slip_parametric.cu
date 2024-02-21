@@ -2,7 +2,7 @@
 // Created by jason on 12/12/22.
 //
 
-#include "bicycle_slip_kinematic.cuh"
+#include "bicycle_slip_parametric.cuh"
 
 template <class CLASS_T, class PARAMS_T>
 BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::BicycleSlipParametricImpl(cudaStream_t stream) : PARENT_CLASS(stream)
@@ -323,10 +323,10 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(float* state,
     params_p = &(this->params_);
   }
 #ifdef BICYCLE_UNCERTAINTY
-  if (SHARED_MEM_REQUEST_BLK_BYTES != 0)
+  if (this->SHARED_MEM_REQUEST_BLK_BYTES != 0)
   {
-    sb_mem = (typename PARENT_CLASS::SharedBlock*)&theta_s[mppi::math::int_multiple_const(SHARED_MEM_REQUEST_GRD_BYTES,
-                                                                                          sizeof(float4)) /
+    sb_mem = (typename PARENT_CLASS::SharedBlock*)&theta_s[mppi::math::int_multiple_const(
+                                                               this->SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) /
                                                            sizeof(float)];
     sb = &sb_mem[threadIdx.x + blockDim.x * threadIdx.z];
   }

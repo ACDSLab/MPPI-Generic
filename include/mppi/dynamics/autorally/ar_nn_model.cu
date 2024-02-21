@@ -1,29 +1,34 @@
 
 #include "ar_nn_model.cuh"
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(std::array<float2, C_DIM> control_rngs,
-                                                                   cudaStream_t stream)
+template <int S_DIM, int C_DIM, int K_DIM>
+NeuralNetModel<S_DIM, C_DIM, K_DIM>::NeuralNetModel(std::array<float2, C_DIM> control_rngs, cudaStream_t stream)
   : PARENT_CLASS(control_rngs, stream)
 {
-  helper_ = new NN(stream);
+  std::vector<int> args{ 6, 32, 32, 4 };
+  helper_ = new FNNHelper<>(args, stream);
+  this->SHARED_MEM_REQUEST_GRD_BYTES = helper_->getGrdSharedSizeBytes();
+  this->SHARED_MEM_REQUEST_BLK_BYTES = helper_->getBlkSharedSizeBytes();
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t stream) : PARENT_CLASS(stream)
+template <int S_DIM, int C_DIM, int K_DIM>
+NeuralNetModel<S_DIM, C_DIM, K_DIM>::NeuralNetModel(cudaStream_t stream) : PARENT_CLASS(stream)
 {
-  helper_ = new NN(stream);
+  std::vector<int> args{ 6, 32, 32, 4 };
+  helper_ = new FNNHelper<>(args, stream);
+  this->SHARED_MEM_REQUEST_GRD_BYTES = helper_->getGrdSharedSizeBytes();
+  this->SHARED_MEM_REQUEST_BLK_BYTES = helper_->getBlkSharedSizeBytes();
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel()
+template <int S_DIM, int C_DIM, int K_DIM>
+NeuralNetModel<S_DIM, C_DIM, K_DIM>::~NeuralNetModel()
 {
   freeCudaMem();
   free(helper_);
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem()
+template <int S_DIM, int C_DIM, int K_DIM>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM>::freeCudaMem()
 {
   if (this->GPUMemStatus_)
   {
@@ -32,15 +37,14 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem()
   PARENT_CLASS::freeCudaMem();
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::updateModel(std::vector<int> description,
-                                                                     std::vector<float> data)
+template <int S_DIM, int C_DIM, int K_DIM>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM>::updateModel(std::vector<int> description, std::vector<float> data)
 {
   helper_->updateModel(description, data);
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice()
+template <int S_DIM, int C_DIM, int K_DIM>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM>::paramsToDevice()
 {
   if (this->GPUMemStatus_)
   {
@@ -49,16 +53,16 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::paramsToDevice()
   PARENT_CLASS::paramsToDevice();
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::loadParams(const std::string& model_path)
+template <int S_DIM, int C_DIM, int K_DIM>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM>::loadParams(const std::string& model_path)
 {
   helper_->loadParams(model_path);
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-bool NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const Eigen::Ref<const state_array>& state,
-                                                                     const Eigen::Ref<const control_array>& control,
-                                                                     Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B)
+template <int S_DIM, int C_DIM, int K_DIM>
+bool NeuralNetModel<S_DIM, C_DIM, K_DIM>::computeGrad(const Eigen::Ref<const state_array>& state,
+                                                      const Eigen::Ref<const control_array>& control,
+                                                      Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B)
 {
   Eigen::Matrix<float, S_DIM, S_DIM + C_DIM> jac;
   jac.setZero();
@@ -73,7 +77,7 @@ bool NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const Eigen
   // First do the forward pass
   computeDynamics(state, control, state_der);
 
-  nn_dfdx ip_delta;
+  Eigen::MatrixXf ip_delta = helper_->getJacobianMatrix();
   helper_->computeGrad(ip_delta);
 
   jac.bottomRightCorner(DYNAMICS_DIM, DYNAMICS_DIM + C_DIM) += ip_delta;
@@ -82,22 +86,22 @@ bool NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeGrad(const Eigen
   return true;
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(const Eigen::Ref<const state_array>& state,
-                                                                           Eigen::Ref<state_array> state_der)
+template <int S_DIM, int C_DIM, int K_DIM>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM>::computeKinematics(const Eigen::Ref<const state_array>& state,
+                                                            Eigen::Ref<state_array> state_der)
 {
   state_der(0) = cosf(state(2)) * state(4) - sinf(state(2)) * state(5);
   state_der(1) = sinf(state(2)) * state(4) + cosf(state(2)) * state(5);
   state_der(2) = -state(6);  // Pose estimate actually gives the negative yaw derivative
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(const Eigen::Ref<const state_array>& state,
-                                                                         const Eigen::Ref<const control_array>& control,
-                                                                         Eigen::Ref<state_array> state_der)
+template <int S_DIM, int C_DIM, int K_DIM>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM>::computeDynamics(const Eigen::Ref<const state_array>& state,
+                                                          const Eigen::Ref<const control_array>& control,
+                                                          Eigen::Ref<state_array> state_der)
 {
-  nn_input_array input;
-  nn_output_array output;
+  Eigen::VectorXf input = helper_->getInputVector();
+  Eigen::VectorXf output = helper_->getOutputVector();
   int i;
   for (i = 0; i < DYNAMICS_DIM; i++)
   {
@@ -114,17 +118,17 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(const E
   }
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeKinematics(float* state, float* state_der)
+template <int S_DIM, int C_DIM, int K_DIM>
+__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM>::computeKinematics(float* state, float* state_der)
 {
   state_der[0] = cosf(state[2]) * state[4] - sinf(state[2]) * state[5];
   state_der[1] = sinf(state[2]) * state[4] + cosf(state[2]) * state[5];
   state_der[2] = -state[6];  // Pose estimate actually gives the negative yaw derivative
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynamics(float* state, float* control,
-                                                                                    float* state_der, float* theta_s)
+template <int S_DIM, int C_DIM, int K_DIM>
+__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM>::computeDynamics(float* state, float* control, float* state_der,
+                                                                     float* theta_s)
 {
   float* curr_act;
   int tdy = threadIdx.y;
@@ -153,29 +157,28 @@ __device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::computeDynam
   }
   __syncthreads();
 }
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::GPUSetup()
+template <int S_DIM, int C_DIM, int K_DIM>
+void NeuralNetModel<S_DIM, C_DIM, K_DIM>::GPUSetup()
 {
   PARENT_CLASS* derived = static_cast<PARENT_CLASS*>(this);
   helper_->GPUSetup();
   derived->GPUSetup();
 
-  HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->helper_), &(this->helper_->network_d_), sizeof(NN*),
+  HANDLE_ERROR(cudaMemcpyAsync(&(this->model_d_->helper_), &(this->helper_->network_d_), sizeof(FNNHelper<>*),
                                cudaMemcpyHostToDevice, this->stream_));
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::initializeDynamics(float* state, float* control,
-                                                                                       float* output, float* theta_s,
-                                                                                       float t_0, float dt)
+template <int S_DIM, int C_DIM, int K_DIM>
+__device__ void NeuralNetModel<S_DIM, C_DIM, K_DIM>::initializeDynamics(float* state, float* control, float* output,
+                                                                        float* theta_s, float t_0, float dt)
 {
   PARENT_CLASS::initializeDynamics(state, control, output, theta_s, t_0, dt);
   helper_->initialize(theta_s);
 }
 
-template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::state_array
-NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::stateFromMap(const std::map<std::string, float>& map)
+template <int S_DIM, int C_DIM, int K_DIM>
+NeuralNetModel<S_DIM, C_DIM, K_DIM>::state_array
+NeuralNetModel<S_DIM, C_DIM, K_DIM>::stateFromMap(const std::map<std::string, float>& map)
 {
   state_array s;
   s(S_INDEX(POS_X)) = map.at("POS_X");

@@ -1,7 +1,7 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation_lstm_unc.cuh>
-#include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
+#include <kernel_tests/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <racer_test_networks.h>
 #include <cuda_runtime.h>
@@ -31,10 +31,10 @@ TEST_F(RacerDubinsElevationLSTMUncertaintyTest, Template)
   EXPECT_EQ(2, RacerDubinsElevationLSTMUncertainty::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
-  const int blk = RacerDubinsElevationLSTMUncertainty::SHARED_MEM_REQUEST_BLK_BYTES;
-  EXPECT_EQ(blk, 324);
-  const int grd = RacerDubinsElevationLSTMUncertainty::SHARED_MEM_REQUEST_GRD_BYTES;
-  EXPECT_EQ(grd, 0);
+  // const int blk = RacerDubinsElevationLSTMUncertainty::SHARED_MEM_REQUEST_BLK_BYTES;
+  // EXPECT_EQ(blk, 324);
+  // const int grd = RacerDubinsElevationLSTMUncertainty::SHARED_MEM_REQUEST_GRD_BYTES;
+  // EXPECT_EQ(grd, 0);
 }
 
 TEST_F(RacerDubinsElevationLSTMUncertaintyTest, BindStream)

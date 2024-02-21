@@ -87,8 +87,8 @@ public:
 
   typedef PARAMS_T DYN_PARAMS_T;
 
-  static const int SHARED_MEM_REQUEST_GRD_BYTES = sizeof(PARAMS_T);  // TODO set to one to prevent array of size 0 error
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = PARENT_CLASS::SHARED_MEM_REQUEST_BLK_BYTES;
+  // static const int SHARED_MEM_REQUEST_GRD_BYTES = sizeof(PARAMS_T);  // TODO set to one to prevent array of size 0 error
+  // static const int SHARED_MEM_REQUEST_BLK_BYTES = PARENT_CLASS::SHARED_MEM_REQUEST_BLK_BYTES;
 
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;

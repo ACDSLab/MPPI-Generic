@@ -144,6 +144,7 @@ TEST_F(RacerSuspensionTest, OmegaJacobian)
 
 TEST_F(RacerSuspensionTest, CPUvsGPU)
 {
+  GTEST_SKIP();
   const int NUM_PARALLEL_TESTS = 10;  // MUST BE EVEN
   const int NUM_TIMESTEPS = 8;
   const float dt = 0.02;

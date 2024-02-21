@@ -8,49 +8,19 @@ class RacerDubinsElevationLSTMUncertainty
 {
 public:
   using PARENT_CLASS = RacerDubinsElevationImpl<RacerDubinsElevationLSTMUncertainty, RacerDubinsElevationParams>;
-  typedef LSTMHelper<LSTMParams<4, 4>, FNNParams<10, 20, 1>, false> STEER_LSTM;
-  typedef LSTMHelper<LSTMParams<3, 20>, FNNParams<43, 100, 8>> STEER_INIT_LSTM;
-  typedef LSTMLSTMHelper<STEER_INIT_LSTM, STEER_LSTM, 11> STEER_NN;
-
-  typedef LSTMHelper<LSTMParams<10, 4>, FNNParams<14, 20, 5>, false> UNC_LSTM;
-  typedef LSTMHelper<LSTMParams<10, 20>, FNNParams<50, 100, 8>> UNC_INIT_LSTM;
-  typedef LSTMLSTMHelper<UNC_INIT_LSTM, UNC_LSTM, 11> UNC_NN;
-
-  typedef LSTMHelper<LSTMParams<10, 4>, FNNParams<14, 20, 2>, false> MEAN_LSTM;
-  typedef LSTMHelper<LSTMParams<10, 20>, FNNParams<50, 100, 8>> MEAN_INIT_LSTM;
-  typedef LSTMLSTMHelper<MEAN_INIT_LSTM, MEAN_LSTM, 11> MEAN_NN;
 
   typedef typename PARENT_CLASS::DYN_PARAMS_T DYN_PARAMS_T;
 
-  struct SHARED_MEM_GRD_PARAMS
-  {
-    LSTMParams<4, 4> steer_lstm_params;
-    FNNParams<10, 20, 1> steer_output_params;
+  // struct SHARED_MEM_BLK_PARAMS
+  // {
+  //   float steer_hidden_cell[2 * STEER_LSTM::HIDDEN_DIM];
+  //   float delay_hidden_cell[2 * UNC_LSTM::HIDDEN_DIM];
+  //   float terra_hidden_cell[2 * MEAN_LSTM::HIDDEN_DIM];
 
-    LSTMParams<10, 4> unc_lstm_params;
-    FNNParams<14, 20, 5> unc_output_params;
-
-    LSTMParams<10, 4> mean_lstm_params;
-    FNNParams<14, 20, 2> mean_output_params;
-  };
-
-  struct SHARED_MEM_BLK_PARAMS
-  {
-    float steer_hidden_cell[2 * STEER_LSTM::HIDDEN_DIM];
-    float delay_hidden_cell[2 * UNC_LSTM::HIDDEN_DIM];
-    float terra_hidden_cell[2 * MEAN_LSTM::HIDDEN_DIM];
-
-    // terra is the largest, should be init'd smarter though
-    float theta_s[UNC_LSTM::HIDDEN_DIM + UNC_LSTM::INPUT_DIM +
-                  UNC_LSTM::OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) + 1];
-  };
-
-  static const int SHARED_MEM_REQUEST_GRD_BYTES = STEER_NN::SHARED_MEM_REQUEST_GRD_BYTES +
-                                                  UNC_NN::SHARED_MEM_REQUEST_GRD_BYTES +
-                                                  MEAN_NN::SHARED_MEM_REQUEST_GRD_BYTES;
-
-  // TODO fix to use maximum and then assume no parallel computation
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SHARED_MEM_BLK_PARAMS);
+  //   // terra is the largest, should be init'd smarter though
+  //   float theta_s[UNC_LSTM::HIDDEN_DIM + UNC_LSTM::INPUT_DIM +
+  //                 UNC_LSTM::OUTPUT_FNN_T::SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float) + 1];
+  // };
 
   typedef typename PARENT_CLASS::state_array state_array;
   typedef typename PARENT_CLASS::control_array control_array;
@@ -94,27 +64,27 @@ public:
   // void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
   //                  Eigen::Ref<state_array> state_der, const float dt);
 
-  std::shared_ptr<STEER_NN> getSteerHelper()
+  std::shared_ptr<LSTMLSTMHelper<>> getSteerHelper()
   {
     return steer_helper_;
   }
-  std::shared_ptr<UNC_NN> getUncertaintyHelper()
+  std::shared_ptr<LSTMLSTMHelper<>> getUncertaintyHelper()
   {
     return uncertainty_helper_;
   }
-  std::shared_ptr<MEAN_NN> getMeanHelper()
+  std::shared_ptr<LSTMLSTMHelper<>> getMeanHelper()
   {
     return mean_helper_;
   }
 
-  STEER_LSTM* steer_d_ = nullptr;
-  UNC_LSTM* uncertainty_d_ = nullptr;
-  MEAN_LSTM* mean_d_ = nullptr;
+  LSTMHelper<>* steer_d_ = nullptr;
+  LSTMHelper<>* uncertainty_d_ = nullptr;
+  LSTMHelper<>* mean_d_ = nullptr;
 
 protected:
-  std::shared_ptr<STEER_NN> steer_helper_;
-  std::shared_ptr<UNC_NN> uncertainty_helper_;
-  std::shared_ptr<MEAN_NN> mean_helper_;
+  std::shared_ptr<LSTMLSTMHelper<>> steer_helper_;
+  std::shared_ptr<LSTMLSTMHelper<>> uncertainty_helper_;
+  std::shared_ptr<LSTMLSTMHelper<>> mean_helper_;
 };
 
 // const int RacerDubinsElevationLSTMUncertainty::SHARED_MEM_REQUEST_GRD_BYTES;

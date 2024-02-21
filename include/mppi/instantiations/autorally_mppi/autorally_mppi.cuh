@@ -11,7 +11,7 @@ const int MPPI_NUM_ROLLOUTS__ = 1920;
 const int BLOCKSIZE_X = 8;
 const int BLOCKSIZE_Y = 16;
 const int NUM_TIMESTEPS = 150;
-typedef NeuralNetModel<7, 2, 3, 6, 32, 32, 4> DynamicsModel;
+typedef NeuralNetModel<7, 2, 3> DynamicsModel;
 typedef ARStandardCost CostFunctionClass;
 
 typedef DDPFeedback<DynamicsModel, NUM_TIMESTEPS> FEEDBACK_T;
