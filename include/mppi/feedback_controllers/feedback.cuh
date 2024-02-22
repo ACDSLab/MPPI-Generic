@@ -13,8 +13,6 @@
 
 struct GPUState
 {
-  static const int SHARED_MEM_REQUEST_GRD_BYTES = 0;
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
 };
 
 /**
@@ -38,8 +36,6 @@ template <class GPU_FB_T, class TEMPLATED_DYNAMICS, class GPU_STATE_T>
 class GPUFeedbackController : public Managed
 {
 public:
-  static const int SHARED_MEM_REQUEST_GRD_BYTES = GPU_STATE_T::SHARED_MEM_REQUEST_GRD_BYTES;
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = GPU_STATE_T::SHARED_MEM_REQUEST_BLK_BYTES;
   /**
    * Type Aliasing
    */
@@ -56,6 +52,8 @@ public:
 
   GPUFeedbackController(cudaStream_t stream = 0) : Managed(stream)
   {
+    this->SHARED_MEM_REQUEST_GRD_BYTES = 0;
+    this->SHARED_MEM_REQUEST_BLK_BYTES = 0;
   }
 
   /**
@@ -317,9 +315,4 @@ protected:
 #include "feedback.cu"
 #endif
 
-template <class GPU_FB_T, class TEMPLATED_DYNAMICS, class GPU_STATE_T>
-const int GPUFeedbackController<GPU_FB_T, TEMPLATED_DYNAMICS, GPU_STATE_T>::SHARED_MEM_REQUEST_GRD_BYTES;
-
-template <class GPU_FB_T, class TEMPLATED_DYNAMICS, class GPU_STATE_T>
-const int GPUFeedbackController<GPU_FB_T, TEMPLATED_DYNAMICS, GPU_STATE_T>::SHARED_MEM_REQUEST_BLK_BYTES;
 #endif  // FEEDBACK_BASE_CUH_

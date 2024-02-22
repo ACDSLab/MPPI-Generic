@@ -67,11 +67,11 @@ protected:
   std::atomic<bool> enabled_{ false };
 
   // Values needed
-  s_array init_state_ = this->controller_->model_->getZeroState();
+  s_array init_state_ = s_array::Zero();
   c_array init_u_ = c_array::Zero();
 
   // Values updated at every time step
-  s_array state_ = this->controller_->model_->getZeroState();
+  s_array state_ = s_array::Zero();
   c_array u_ = c_array::Zero();
   // solution
   s_traj state_traj_;
@@ -130,6 +130,8 @@ public:
     state_traj_ = s_traj::Zero();
     dynamics_params_ = controller->model_->getParams();
     cost_params_ = controller_->cost_->getParams();
+    init_state_ = controller_->model_->getZeroState();
+    state_ = controller_->model_->getZeroState();
     auto logger = std::make_shared<mppi::util::MPPILogger>();
     setLogger(logger);
   };

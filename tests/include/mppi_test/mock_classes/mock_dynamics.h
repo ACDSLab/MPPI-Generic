@@ -24,7 +24,15 @@ struct mockDynamicsParams : public DynamicsParams
 class MockDynamics : public MPPI_internal::Dynamics<MockDynamics, mockDynamicsParams>
 {
 public:
-  typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;  // Control at a time t
+  typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;                 // Control at a time t
+  typedef Eigen::Matrix<float, STATE_DIM, 1> state_array;                     // State at a time t
+  typedef Eigen::Matrix<float, OUTPUT_DIM, 1> output_array;                   // Output at a time t
+  typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM> dfdx;                    // Jacobian wrt x
+  typedef Eigen::Matrix<float, STATE_DIM, CONTROL_DIM> dfdu;                  // Jacobian wrt u
+  typedef Eigen::Matrix<float, CONTROL_DIM, STATE_DIM> feedback_matrix;       // Feedback matrix
+  typedef Eigen::Matrix<float, STATE_DIM, STATE_DIM + CONTROL_DIM> Jacobian;  // Jacobian of x and u
+
+  typedef std::map<std::string, Eigen::VectorXf> buffer_trajectory;
 
   MOCK_METHOD1(bindToStream, void(cudaStream_t stream));
   MOCK_METHOD1(setParams, void(mockDynamicsParams params));
@@ -50,6 +58,7 @@ public:
                                  Eigen::Ref<dfdx>, Eigen::Ref<dfdu>));
   MOCK_METHOD1(updateFromBuffer, void(const buffer_trajectory& buffer));
   MOCK_METHOD1(stateFromMap, state_array(const std::map<std::string, float>&));
+  MOCK_METHOD0(freeCudaMem, void());
 };
 
 #endif  // MPPIGENERIC_MOCK_DYNAMICS_H

@@ -1134,8 +1134,8 @@ __host__ __device__ unsigned calcFeedbackSharedMemSize(const FB_T* fb_controller
 {
   const int fb_num_shared = dimBlock.x * dimBlock.z;
   unsigned fb_shared_size =
-      math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-      fb_num_shared * math::int_multiple_const(FB_T::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4));
+      math::int_multiple_const(fb_controller->getGrdSharedSizeBytes(), sizeof(float4)) +
+      fb_num_shared * math::int_multiple_const(fb_controller->getBlkSharedSizeBytes(), sizeof(float4));
   return fb_shared_size;
 }
 

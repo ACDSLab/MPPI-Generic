@@ -22,5 +22,6 @@ public:
   MOCK_METHOD1(setParams, void(mockCostParams params));
   MOCK_METHOD0(getParams, mockCostParams());
   MOCK_METHOD0(GPUSetup, void());
+  MOCK_METHOD0(freeCudaMem, void());
 };
 #endif  // MPPIGENERIC_MOCK_COSTS_H

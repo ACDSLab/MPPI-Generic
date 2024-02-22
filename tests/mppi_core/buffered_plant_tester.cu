@@ -13,6 +13,7 @@
 #include <mppi_test/mock_classes/mock_sampler.h>
 
 const double precision = 1e-6;
+const float DT = DT;
 
 template <class CONTROLLER_T>
 class TestPlant : public BufferedPlant<CONTROLLER_T>
@@ -63,7 +64,7 @@ public:
 
   void incrementTime()
   {
-    time_ += 0.05;
+    time_ += DT;
   }
 
   int checkStatus() override
@@ -130,16 +131,20 @@ protected:
   void SetUp() override
   {
     mockController = std::make_shared<MockController>();
-    EXPECT_CALL(*mockController, getDt()).Times(1);
-    mockFeedback = new FEEDBACK_T(&mockDynamics, mockController->getDt());
+    // EXPECT_CALL(*mockController, getDt()).Times(1);
+    EXPECT_CALL(*mockController, getDt()).WillRepeatedly(testing::Return(DT));
     mockController->cost_ = &mockCost;
     mockController->model_ = &mockDynamics;
-    mockController->fb_controller_ = mockFeedback;  // TODO want mock feedback
+    mockController->fb_controller_ = &mockFeedback;
     mockController->sampler_ = &mockSamplingDistribution;
-    // TODO need to fix this to have sampling dist setup as a mock
 
     EXPECT_CALL(*mockController->cost_, getParams()).Times(1);
     EXPECT_CALL(*mockController->model_, getParams()).Times(1);
+
+    EXPECT_CALL(mockDynamics, freeCudaMem()).Times(1);
+    EXPECT_CALL(mockCost, freeCudaMem()).Times(1);
+    EXPECT_CALL(mockSamplingDistribution, freeCudaMem()).Times(1);
+    EXPECT_CALL(mockFeedback, freeCudaMem()).Times(1);
 
     plant = std::make_shared<MockTestPlant>(mockController);
 
@@ -151,12 +156,12 @@ protected:
   {
     plant = nullptr;
     mockController = nullptr;
-    delete mockFeedback;
   }
+
   MockSamplingDistribution mockSamplingDistribution;
   MockDynamics mockDynamics;
   MockCost mockCost;
-  FEEDBACK_T* mockFeedback;
+  MockFeedback mockFeedback;
   std::shared_ptr<MockController> mockController;
   std::shared_ptr<MockTestPlant> plant;
 
