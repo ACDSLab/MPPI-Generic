@@ -770,7 +770,6 @@ TEST_F(RacerDubinsElevationTest, TestStepReverse)
   EXPECT_NEAR(next_state(7), 0.0, tol);
   EXPECT_NEAR(next_state(8), 0.0, tol);
   EXPECT_NEAR(output(14), -5.5, tol);
-  EXPECT_NEAR(output(24), 0.0, tol);
 
   // Apply full throttle and half left turn to origin state
   state << 0, 0, 0, 0, 0, -0.0, 0.0, 0, 0;

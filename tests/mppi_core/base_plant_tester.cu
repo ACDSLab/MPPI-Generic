@@ -142,6 +142,11 @@ protected:
     EXPECT_CALL(mockCost, getParams()).Times(1);
     EXPECT_CALL(mockDynamics, getParams()).Times(1);
 
+    EXPECT_CALL(mockDynamics, freeCudaMem()).Times(1);
+    EXPECT_CALL(mockCost, freeCudaMem()).Times(1);
+    EXPECT_CALL(mockSampler, freeCudaMem()).Times(1);
+    EXPECT_CALL(mockFeedback, freeCudaMem()).Times(1);
+
     mockController = std::make_shared<MockController>();
     mockController->setDt(DT);
     EXPECT_CALL(*mockController, getDt()).WillRepeatedly(testing::Return(DT));
