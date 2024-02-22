@@ -412,7 +412,13 @@ TEST_F(LSTMHelperTest, LoadModelPathTest)
 
   cnpy::npz_t input_outputs = cnpy::npz_load(path);
   int num_points = input_outputs.at("num_points").data<int>()[0];
-  int T = std::round(input_outputs.at("T").data<float>()[0] / input_outputs.at("dt").data<float>()[0]);
+  std::cout << "got T " << input_outputs.at("T").data<double>()[0] << " dt " << input_outputs.at("dt").data<double>()[0]
+            << std::endl;
+  std::cout << "num points " << num_points << std::endl;
+  int T = std::round(input_outputs.at("T").data<double>()[0] / input_outputs.at("dt").data<double>()[0]);
+  EXPECT_EQ(num_points, 3);
+  EXPECT_EQ(T, 5);
+
   double* inputs = input_outputs.at("input").data<double>();
   double* outputs = input_outputs.at("output").data<double>();
   double* init_hidden = input_outputs.at("init/hidden").data<double>();
@@ -480,13 +486,15 @@ TEST_F(LSTMHelperTest, LoadModelPathInitTest)
 
   cnpy::npz_t input_outputs = cnpy::npz_load(path);
   int num_points = input_outputs.at("num_points").data<int>()[0];
-  int T = std::round(input_outputs.at("tau").data<float>()[0] / input_outputs.at("dt").data<float>()[0]);
+  int T = std::round(input_outputs.at("tau").data<double>()[0] / input_outputs.at("dt").data<double>()[0]) + 1;
   double* init_inputs = input_outputs.at("init_input").data<double>();
   double* init_hidden = input_outputs.at("init/hidden").data<double>();
   double* init_cell = input_outputs.at("init/cell").data<double>();
   // TODO not the right config to load this data essentially
   // double* init_step_hidden = input_outputs.at("init_step_hidden").data<double>();
   // double* init_step_cell = input_outputs.at("init_step_cell").data<double>();
+  EXPECT_EQ(num_points, 3);
+  EXPECT_EQ(T, 6);
 
   double tol = 1e-5;
 
@@ -497,10 +505,14 @@ TEST_F(LSTMHelperTest, LoadModelPathInitTest)
   const int input_dim = model.getInputDim();
   const int output_dim = model.getOutputDim();
 
+  EXPECT_EQ(hidden_dim, 60);
+  EXPECT_EQ(input_dim, 3);
+  EXPECT_EQ(output_dim, 50);
+
   for (int point = 0; point < num_points; point++)
   {
     // run the init network and ensure initial hidden/cell match
-    model.resetHiddenCPU();
+    model.resetHiddenCellCPU();
     for (int t = 0; t < T; t++)
     {
       for (int i = 0; i < input_dim; i++)
@@ -517,10 +529,12 @@ TEST_F(LSTMHelperTest, LoadModelPathInitTest)
       //       << "at t " << t << " dim " << i;
       // }
     }
-    for (int i = 0; i < hidden_dim; i++)
+    for (int i = 0; i < 25; i++)
     {
-      EXPECT_NEAR(output(i), init_hidden[hidden_dim * point + i], tol);
-      EXPECT_NEAR(output(i + hidden_dim), init_cell[hidden_dim * point + i], tol);
+      EXPECT_NEAR(output(i), init_hidden[25 * point + i], tol)
+          << "incorrect hidden at point " << point << " index " << i;
+      EXPECT_NEAR(output(i + 25), init_cell[25 * point + i], tol)
+          << "incorrect cell at point " << point << " index " << i;
     }
   }
 }

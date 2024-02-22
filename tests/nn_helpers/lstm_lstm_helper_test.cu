@@ -147,13 +147,18 @@ TEST_F(LSTMLSTMHelperTest, GPUSetupAndParamsCheck)
   launchParameterCheckTestKernel<LSTMHelper<>>(*model.getLSTMModel(), lstm_params, shared_lstm_params, fnn_params,
                                                shared_fnn_params, grid_dim);
 
+  EXPECT_EQ(model.getLSTMModel()->getOutputModel()->getGrdSharedSizeBytes() / sizeof(float), 44);
+  EXPECT_EQ(model.getLSTMModel()->getOutputModel()->getBlkSharedSizeBytes() / sizeof(float), 40);
+  EXPECT_EQ(model.getLSTMModel()->getOutputModel()->getNumParams(), 38);
+
+  int grd_size = model.getLSTMModel()->getOutputModel()->getGrdSharedSizeBytes() / sizeof(float);
+
   for (int grid = 0; grid < grid_dim; grid++)
   {
     // ensure that the output nn matches
     for (int i = 0; i < theta_vec.size(); i++)
     {
-      EXPECT_FLOAT_EQ(fnn_params[grid * (theta_vec.size() + 4) + i], theta_vec[i])
-          << "at grid " << grid << " at index " << i;
+      EXPECT_FLOAT_EQ(fnn_params[grid * grd_size + i], theta_vec[i]) << "at grid " << grid << " at index " << i;
     }
 
     const int h = model.getLSTMModel()->getHiddenDim();
@@ -195,8 +200,7 @@ TEST_F(LSTMLSTMHelperTest, GPUSetupAndParamsCheck)
     // ensure that the output nn matches
     for (int i = 0; i < theta_vec.size(); i++)
     {
-      EXPECT_FLOAT_EQ(shared_fnn_params[grid * (theta_vec.size() + 4) + i], theta_vec[i])
-          << "at grid " << grid << " at index " << i;
+      EXPECT_FLOAT_EQ(shared_fnn_params[grid * grd_size + i], theta_vec[i]) << "at grid " << grid << " at index " << i;
     }
 
     const int h = model.getLSTMModel()->getHiddenDim();
@@ -284,6 +288,9 @@ TEST_F(LSTMLSTMHelperTest, LoadModelPathTest)
   int init_len = model.getInitLen();
   int num_points = input_outputs.at("num_points").data<int>()[0];
   int T = input_outputs.at("output").shape[0] / (num_points * output_dim);
+
+  EXPECT_EQ(num_points, 3);
+  EXPECT_EQ(input_dim, init_input_dim);
 
   double tol = 1e-5;
 
