@@ -39,6 +39,8 @@ public:
     {
       sampler_params.std_dev[i] = control_std_dev[i];
     }
+    EXPECT_EQ(model.getGrdSharedSizeBytes(), 0);
+    EXPECT_EQ(model.getBlkSharedSizeBytes(), 0);
     sampler = new SAMPLING_T(sampler_params);
     controller = new CONTROLLER_T(&model, &cost, fb_controller, sampler, dt, max_iter, lambda, alpha, NUM_TIMESTEPS,
                                   init_control, stream);
@@ -93,7 +95,7 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
   auto sampler_params = sampler->getParams();
   sampler_params.control_cost_coeff[0] = 1.0;
   sampler_params.pure_noise_trajectories_percentage = 0.01f;
-  sampler_params.rewrite_controls_block_dim = dim3(64, 16, 1);
+  sampler_params.rewrite_controls_block_dim = dim3(32, 16, 1);
   sampler->setParams(sampler_params);
 
   auto controller_params = controller->getParams();
@@ -230,7 +232,7 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
   // control_std_dev[3] = 2;
   auto sampler_params = sampler->getParams();
   sampler_params.std_dev[3] = 2.0f;
-  sampler_params.rewrite_controls_block_dim = dim3(64, 16, 1);
+  sampler_params.rewrite_controls_block_dim = dim3(32, 16, 1);
   sampler_params.sum_strides = 32;
   sampler->setParams(sampler_params);
 

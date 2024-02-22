@@ -1024,6 +1024,7 @@ TEST_F(LSTMHelperTest, forwardGPUSpeedTest)
 
   for (int y_dim = 1; y_dim < 16; y_dim++)
   {
+    // TODO the way of doing this timing is bad
     auto shared_start = std::chrono::steady_clock::now();
     launchForwardTestKernel<LSTMHelper<>, 8, 3, 32>(shared_model, input_arr, output_arr, y_dim, 500);
     auto shared_stop = std::chrono::steady_clock::now();

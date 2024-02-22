@@ -10,6 +10,7 @@
 #include <mppi_test/mock_classes/mock_dynamics.h>
 #include <mppi_test/mock_classes/mock_controller.h>
 #include <mppi_test/mock_classes/mock_costs.h>
+#include <mppi_test/mock_classes/mock_sampler.h>
 
 const double precision = 1e-6;
 
@@ -133,7 +134,9 @@ protected:
     mockFeedback = new FEEDBACK_T(&mockDynamics, mockController->getDt());
     mockController->cost_ = &mockCost;
     mockController->model_ = &mockDynamics;
-    mockController->fb_controller_ = mockFeedback;
+    mockController->fb_controller_ = mockFeedback;  // TODO want mock feedback
+    mockController->sampler_ = &mockSamplingDistribution;
+    // TODO need to fix this to have sampling dist setup as a mock
 
     EXPECT_CALL(*mockController->cost_, getParams()).Times(1);
     EXPECT_CALL(*mockController->model_, getParams()).Times(1);
@@ -150,6 +153,7 @@ protected:
     mockController = nullptr;
     delete mockFeedback;
   }
+  MockSamplingDistribution mockSamplingDistribution;
   MockDynamics mockDynamics;
   MockCost mockCost;
   FEEDBACK_T* mockFeedback;

@@ -235,7 +235,7 @@ TEST_F(RolloutKernelTests, CombinedRolloutKernelGPUvsCPU)
   HANDLE_ERROR(
       cudaMemcpyAsync(initial_x_d, x0.data(), sizeof(float) * DYN_T::STATE_DIM, cudaMemcpyHostToDevice, stream));
   std::vector<int> possible_thread_x;
-  for (int i = 128; i > 0; i /= 2)
+  for (int i = 64; i > 0; i /= 2)
   {
     possible_thread_x.push_back(i);
   }
@@ -248,9 +248,9 @@ TEST_F(RolloutKernelTests, CombinedRolloutKernelGPUvsCPU)
       dim3 threadsPerBlock(thread_x, thread_y, 1);
       logger->debug("Running GPU Combined Rollout on (%d, %d, %d)\n", threadsPerBlock.x, threadsPerBlock.y,
                     threadsPerBlock.z);
-      mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLER_T>(
-          model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
-          initial_x_d, trajectory_costs_d, threadsPerBlock, stream, false);
+      mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLER_T>(model, cost, sampler, dt, num_timesteps,
+                                                                   num_rollouts, lambda, alpha, initial_x_d,
+                                                                   trajectory_costs_d, threadsPerBlock, stream, false);
       HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_gpu.data(), trajectory_costs_d, sizeof(float) * num_rollouts,
                                    cudaMemcpyDeviceToHost, stream));
       HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -327,8 +327,8 @@ TEST_F(RolloutKernelTests, SplitRolloutKernelGPUvsCPU)
                         dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
                         costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLER_T, true>(
-              model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
-              initial_x_d, output_d, trajectory_costs_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
+              model, cost, sampler, dt, num_timesteps, num_rollouts, lambda, alpha, initial_x_d, output_d,
+              trajectory_costs_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
           HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_gpu.data(), trajectory_costs_d, sizeof(float) * num_rollouts,
                                        cudaMemcpyDeviceToHost, stream));
           HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -350,8 +350,8 @@ TEST_F(RolloutKernelTests, SplitRolloutKernelGPUvsCPU)
                         dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
                         costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLER_T, false>(
-              model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
-              initial_x_d, output_d, trajectory_costs_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
+              model, cost, sampler, dt, num_timesteps, num_rollouts, lambda, alpha, initial_x_d, output_d,
+              trajectory_costs_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
           HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_gpu.data(), trajectory_costs_d, sizeof(float) * num_rollouts,
                                        cudaMemcpyDeviceToHost, stream));
           HANDLE_ERROR(cudaStreamSynchronize(stream));

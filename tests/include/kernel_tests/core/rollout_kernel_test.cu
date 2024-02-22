@@ -254,7 +254,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs, SAMPLER_T* samp
   float* initial_state_d;
   float* trajectory_costs_d;
 
-  const int BLOCKSIZE_X = 32;
+  const int BLOCKSIZE_X = 16;
   const int BLOCKSIZE_Y = 8;
 
   /**
@@ -295,9 +295,9 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs, SAMPLER_T* samp
   sampler->generateSamples(1, 0, gen, true);
   dim3 threadsPerBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 2);
   // Launch rollout kernel
-  mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLER_T>(
-      dynamics->model_d_, costs->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
-      initial_state_d, trajectory_costs_d, threadsPerBlock, stream, false);
+  mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLER_T>(dynamics, costs, sampler, dt, num_timesteps,
+                                                               num_rollouts, lambda, alpha, initial_state_d,
+                                                               trajectory_costs_d, threadsPerBlock, stream, false);
 
   // Copy the costs back to the host
   HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_act.data(), trajectory_costs_d, num_rollouts * sizeof(float),
@@ -593,8 +593,8 @@ void launchFastRolloutKernelTest(
   HANDLE_ERROR(cudaMemcpyAsync(nu_d, sigma_u.data(), sizeof(float) * sigma_u.size(), cudaMemcpyHostToDevice, stream));
 
   mppi_common::launchFastRolloutKernel<DYNAMICS_T, COSTS_T, NUM_ROLLOUTS, BLOCKSIZE_X, BLOCKSIZE_Y>(
-      dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS, opt_delay, lambda, alpha, state_d, x_d, U_d, du_d, nu_d,
-      costs_d, stream, true);
+      dynamics, costs, dt, NUM_TIMESTEPS, opt_delay, lambda, alpha, state_d, x_d, U_d, du_d, nu_d, costs_d, stream,
+      true);
 
   // Copy data back
   HANDLE_ERROR(

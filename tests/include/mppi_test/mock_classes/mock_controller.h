@@ -12,13 +12,15 @@
 #include <mppi/sampling_distributions/gaussian/gaussian.cuh>
 #include <mppi_test/mock_classes/mock_costs.h>
 #include <mppi_test/mock_classes/mock_dynamics.h>
+#include <mppi_test/mock_classes/mock_sampler.h>
 
 const int NUM_TIMESTEPS = 100;
 typedef DDPFeedback<MockDynamics, NUM_TIMESTEPS> FEEDBACK_T;
 typedef mppi::sampling_distributions::GaussianDistribution<typename MockDynamics::DYN_PARAMS_T> SAMPLER;
 
 // ===== mock controller ====
-class MockController : public Controller<MockDynamics, MockCost, FEEDBACK_T, SAMPLER, NUM_TIMESTEPS, 512>
+class MockController
+  : public Controller<MockDynamics, MockCost, FEEDBACK_T, MockSamplingDistribution, NUM_TIMESTEPS, 512>
 {
 public:
   MOCK_METHOD0(calculateSampledStateTrajectories, void());

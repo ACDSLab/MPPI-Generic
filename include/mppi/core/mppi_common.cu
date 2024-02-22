@@ -1334,7 +1334,7 @@ void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, const int
   dim3 dimBlock(DYN_BLOCK_X, DYN_BLOCK_Y, BLOCKSIZE_Z);
   dim3 dimGrid(gridsize_x, 1, 1);
   rolloutDynamicsKernel<DYN_T, DYN_BLOCK_X, DYN_BLOCK_Y, NUM_ROLLOUTS, BLOCKSIZE_Z><<<dimGrid, dimBlock, 0, stream>>>(
-      dynamics, dt, num_timesteps, optimization_stride, init_x_d, u_d, du_d, sigma_u_d, x_d);
+      dynamics->model_d_, dt, num_timesteps, optimization_stride, init_x_d, u_d, du_d, sigma_u_d, x_d);
 
   // Run Costs
   dim3 dimCostBlock(COST_BLOCK_X, COST_BLOCK_Y, BLOCKSIZE_Z);
@@ -1349,7 +1349,8 @@ void launchFastRolloutKernel(DYN_T* dynamics, COST_T* costs, float dt, const int
   shared_mem_size += mppi::math::int_ceil(COST_BLOCK_X * BLOCKSIZE_Z, 4) * 4;
 #endif
   rolloutCostKernel<DYN_T, COST_T, NUM_ROLLOUTS, COST_BLOCK_X><<<dimCostGrid, dimCostBlock, shared_mem_size, stream>>>(
-      dynamics, costs, dt, num_timesteps, lambda, alpha, init_x_d, u_d, du_d, sigma_u_d, x_d, trajectory_costs);
+      dynamics->model_d_, costs->cost_d_, dt, num_timesteps, lambda, alpha, init_x_d, u_d, du_d, sigma_u_d, x_d,
+      trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {

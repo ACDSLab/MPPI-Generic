@@ -927,13 +927,13 @@ void launchSplitRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
   HANDLE_ERROR(cudaFuncSetAttribute(rolloutDynamicsKernel<DYN_T, SAMPLING_T>,
                                     cudaFuncAttributeMaxDynamicSharedMemorySize, dynamics_shared_size));
   rolloutDynamicsKernel<DYN_T, SAMPLING_T><<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(
-      dynamics, sampling, dt, num_timesteps, num_rollouts, init_x_d, y_d);
+      dynamics->model_d_, sampling->sampling_d_, dt, num_timesteps, num_rollouts, init_x_d, y_d);
   HANDLE_ERROR(cudaGetLastError());
   // Run Costs
   dim3 dimCostGrid(num_rollouts, 1, 1);
   unsigned cost_shared_size = calcRolloutCostKernelSharedMemSize(costs, sampling, dimCostBlock);
   rolloutCostKernel<COST_T, SAMPLING_T, COALESCE><<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
-      costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, y_d, trajectory_costs);
+      costs->cost_d_, sampling->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha, y_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {
@@ -960,7 +960,8 @@ void launchRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ cost
   HANDLE_ERROR(cudaFuncSetAttribute(rolloutKernel<DYN_T, COST_T, SAMPLING_T>,
                                     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem_size));
   rolloutKernel<DYN_T, COST_T, SAMPLING_T><<<dimGrid, dimBlock, shared_mem_size, stream>>>(
-      dynamics, sampling, costs, dt, num_timesteps, num_rollouts, init_x_d, lambda, alpha, trajectory_costs);
+      dynamics->model_d_, sampling->sampling_d_, costs->cost_d_, dt, num_timesteps, num_rollouts, init_x_d, lambda,
+      alpha, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {
@@ -992,8 +993,8 @@ void launchVisualizeKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ co
   HANDLE_ERROR(cudaFuncSetAttribute(rolloutKernel<DYN_T, COST_T, SAMPLING_T>,
                                     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem_size));
   visualizeKernel<DYN_T, COST_T, SAMPLING_T><<<dimGrid, dimVisBlock, shared_mem_size, stream>>>(
-      dynamics, sampling, costs, dt, num_timesteps, num_rollouts, init_x_d, lambda, alpha, y_d, trajectory_costs,
-      crash_status_d);
+      dynamics->model_d_, sampling->sampling_d_, costs->cost_d_, dt, num_timesteps, num_rollouts, init_x_d, lambda,
+      alpha, y_d, trajectory_costs, crash_status_d);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {
@@ -1017,7 +1018,8 @@ void launchVisualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __restric
   dim3 dimCostGrid(num_rollouts, 1, 1);
   unsigned shared_mem_size = calcVisCostKernelSharedMemSize(costs, sampling, num_timesteps, dimBlock);
   visualizeCostKernel<COST_T, SAMPLING_T, COALESCE><<<dimCostGrid, dimBlock, shared_mem_size, stream>>>(
-      costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, y_d, cost_traj_result, sampled_crash_status_d);
+      costs->cost_d_, sampling->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha, y_d, cost_traj_result,
+      sampled_crash_status_d);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {

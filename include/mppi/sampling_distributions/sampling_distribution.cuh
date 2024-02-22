@@ -50,19 +50,19 @@ public:
   static_assert(std::is_base_of<SamplingParams<CONTROL_DIM>, SAMPLING_PARAMS_T>::value,
                 "Sampling Distribution PARAMS_T does not inherit from SamplingParams");
 
-  // Shared memory requests in bytes
-  static const int SHARED_MEM_REQUEST_GRD_BYTES = sizeof(SAMPLING_PARAMS_T);
-  static const int SHARED_MEM_REQUEST_BLK_BYTES = 0;
-
   /*************************************
    * Constructors and Destructors
    *************************************/
 
   SamplingDistribution(cudaStream_t stream = 0) : Managed(stream)
   {
+    this->SHARED_MEM_REQUEST_GRD_BYTES = sizeof(SAMPLING_PARAMS_T);
+    this->SHARED_MEM_REQUEST_BLK_BYTES = 0;
   }
   SamplingDistribution(const SAMPLING_PARAMS_T& params, cudaStream_t stream = 0) : params_{ params }, Managed(stream)
   {
+    this->SHARED_MEM_REQUEST_GRD_BYTES = sizeof(SAMPLING_PARAMS_T);
+    this->SHARED_MEM_REQUEST_BLK_BYTES = 0;
   }
 
   virtual ~SamplingDistribution()
@@ -431,12 +431,6 @@ protected:
 
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::CONTROL_DIM;
-
-template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
-const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::SHARED_MEM_REQUEST_GRD_BYTES;
-
-template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
-const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::SHARED_MEM_REQUEST_BLK_BYTES;
 
 // template <int C_DIM>
 // const int SamplingParams<C_DIM>::CONTROL_DIM;
