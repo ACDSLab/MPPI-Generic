@@ -21,7 +21,7 @@
 #include <mppi/utils/risk_utils.cuh>
 
 #ifndef SQ
-#define SQ(a) a* a
+#define SQ(a) ((a) * (a))
 #endif  // SQ
 
 // For aligning parameters within structs such as a float array to 16 bytes

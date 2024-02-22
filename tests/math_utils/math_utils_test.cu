@@ -6,6 +6,15 @@
 #include <mppi/utils/gpu_err_chk.cuh>
 #include <mppi/utils/cuda_math_utils.cuh>
 
+TEST(MATH_UTILS, SQ)
+{
+  EXPECT_FLOAT_EQ(0.25, SQ(0.5));
+  EXPECT_FLOAT_EQ(0.25, SQ(0.5 - 1.0));
+  EXPECT_FLOAT_EQ(25, SQ(5));
+  EXPECT_FLOAT_EQ(25, SQ(5 - 10));
+  EXPECT_FLOAT_EQ(625, SQ(5 * 5));
+}
+
 TEST(MATH_UTILS, QuatInv)
 {
   // Create an unnormalized quaternion.
