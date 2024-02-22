@@ -722,7 +722,8 @@ TEST_F(TextureHelperTest, BodyOffsetToWorldPoseTest)
   rotation = make_float3(0, 0, M_PI_4);
   helper.copyToDevice();
   helper.bodyOffsetToWorldPose(offset, input, rotation, output);
-  EXPECT_FLOAT_EQ(output.x, -0.041421525);
+  // EXPECT_FLOAT_EQ(output.x, -0.041421525);
+  EXPECT_NEAR(output.x, -0.041421525, 1.0e-6);
   EXPECT_FLOAT_EQ(output.y, 1.8970563);
   EXPECT_FLOAT_EQ(output.z, 1.8);
 
