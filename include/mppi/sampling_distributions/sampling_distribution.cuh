@@ -42,8 +42,8 @@ public:
   using OutputIndex = typename DYN_PARAMS_T::OutputIndex;
   using TEMPLATED_DYN_PARAMS = DYN_PARAMS_T;
 
-  // static const int CONTROL_DIM = C_IND_CLASS(DYN_PARAMS_T, NUM_CONTROLS);
-  static const int CONTROL_DIM = E_INDEX(ControlIndex, NUM_CONTROLS);
+  static const int CONTROL_DIM = C_IND_CLASS(DYN_PARAMS_T, NUM_CONTROLS);
+  // static const int CONTROL_DIM = E_INDEX(ControlIndex, NUM_CONTROLS);
   typedef PARAMS_TEMPLATE<CONTROL_DIM> SAMPLING_PARAMS_T;
   typedef Eigen::Matrix<float, CONTROL_DIM, 1> control_array;
 
@@ -429,6 +429,10 @@ protected:
   SAMPLING_PARAMS_T params_;
 };
 
+#ifdef __CUDACC__
+#include "sampling_distribution.cu"
+#endif
+
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::CONTROL_DIM;
 
@@ -436,7 +440,3 @@ const int SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::CONTROL_
 // const int SamplingParams<C_DIM>::CONTROL_DIM;
 }  // namespace sampling_distributions
 }  // namespace mppi
-
-#ifdef __CUDACC__
-#include "sampling_distribution.cu"
-#endif

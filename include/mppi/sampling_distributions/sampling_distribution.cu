@@ -3,10 +3,6 @@ Created by Bogdan Vlahov on 3/22/2023
 */
 #include <mppi/sampling_distributions/sampling_distribution.cuh>
 
-namespace mppi
-{
-namespace sampling_distributions
-{
 template <class CLASS_T, template <int> class PARAMS_TEMPLATE, class DYN_PARAMS_T>
 void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::GPUSetup()
 {
@@ -287,6 +283,3 @@ __device__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::wr
     }
   }
 }
-
-}  // namespace sampling_distributions
-}  // namespace mppi

@@ -95,9 +95,9 @@ void RobustMPPI::chooseAppropriateKernel()
       this->model_, this->cost_, this->sampler_, this->fb_controller_->getHostPointer().get(),
       this->params_.dynamics_rollout_dim_);
   unsigned rollout_dyn_kernel_byte_size = mppi::kernels::rmppi::calcRMPPIDynKernelSharedMemSize(
-      this->model_, this->sampler_, this->fb_controller_->getDevicePointer(), this->params_.dynamics_rollout_dim_);
+      this->model_, this->sampler_, this->fb_controller_->getHostPointer().get(), this->params_.dynamics_rollout_dim_);
   unsigned rollout_cost_kernel_byte_size = mppi::kernels::rmppi::calcRMPPICostKernelSharedMemSize(
-      this->cost_, this->sampler_, this->fb_controller_->getDevicePointer(), this->params_.cost_rollout_dim_);
+      this->cost_, this->sampler_, this->fb_controller_->getHostPointer().get(), this->params_.cost_rollout_dim_);
 
   // Limit kernel choice to those that fit within shared memory constraints
   bool rollout_dyn_too_large = rollout_dyn_kernel_byte_size > deviceProp.sharedMemPerBlock;
@@ -156,7 +156,7 @@ void RobustMPPI::chooseAppropriateKernel()
   for (int i = 0; i < this->getNumKernelEvaluations() && !rollout_set; i++)
   {
     mppi::kernels::rmppi::launchRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
-        this->model_, this->cost_, this->sampler_, this->fb_controller_->getDevicePointer(), this->getDt(),
+        this->model_, this->cost_, this->sampler_, this->fb_controller_->getHostPointer().get(), this->getDt(),
         this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), getValueFunctionThreshold(),
         this->initial_state_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, true);
   }
@@ -166,11 +166,10 @@ void RobustMPPI::chooseAppropriateKernel()
   for (int i = 0; i < this->getNumKernelEvaluations() && !rollout_set; i++)
   {
     mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
-        this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
-        this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_, this->output_d_,
-        this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_,
-        true);
+        this->model_, this->cost_, this->sampler_, this->fb_controller_->getHostPointer().get(), this->getDt(),
+        this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), getValueFunctionThreshold(),
+        this->initial_state_d_, this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
+        this->params_.cost_rollout_dim_, this->stream_, true);
   }
   auto end_rollout_split_kernel_time = std::chrono::steady_clock::now();
 
@@ -270,21 +269,20 @@ void RobustMPPI::chooseAppropriateEvalKernel()
   for (int i = 0; i < this->getNumKernelEvaluations() && !eval_set; i++)
   {
     mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-        this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
-        getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
-        importance_sampling_outputs_d_, importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_,
-        this->params_.eval_cost_kernel_dim_, this->stream_, true);
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), getNumEvalRollouts(),
+        this->getLambda(), this->getAlpha(), getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_,
+        importance_sampling_states_d_, importance_sampling_outputs_d_, importance_sampling_costs_d_,
+        this->params_.eval_dyn_kernel_dim_, this->params_.eval_cost_kernel_dim_, this->stream_, true);
   }
   auto end_eval_split_kernel_time = std::chrono::steady_clock::now();
   auto start_eval_single_kernel_time = std::chrono::steady_clock::now();
   for (int i = 0; i < this->getNumKernelEvaluations() && !eval_set; i++)
   {
     mppi::kernels::rmppi::launchInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-        this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
-        getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
-        importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_, this->stream_, true);
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), getNumEvalRollouts(),
+        this->getLambda(), this->getAlpha(), getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_,
+        importance_sampling_states_d_, importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_, this->stream_,
+        true);
   }
   auto end_eval_single_kernel_time = std::chrono::steady_clock::now();
 
@@ -583,19 +581,18 @@ void RobustMPPI::computeNominalStateAndStride(const Eigen::Ref<const state_array
     if (this->getEvalKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
       mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
-          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-          this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
-          getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
-          importance_sampling_outputs_d_, importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_,
-          this->params_.eval_cost_kernel_dim_, this->stream_, false);
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), getNumEvalRollouts(),
+          this->getLambda(), this->getAlpha(), getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_,
+          importance_sampling_states_d_, importance_sampling_outputs_d_, importance_sampling_costs_d_,
+          this->params_.eval_dyn_kernel_dim_, this->params_.eval_cost_kernel_dim_, this->stream_, false);
     }
     else if (this->getEvalKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
     {
       mppi::kernels::rmppi::launchInitEvalKernel<DYN_T, COST_T, SAMPLING_T>(
-          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-          this->getNumTimesteps(), getNumEvalRollouts(), this->getLambda(), this->getAlpha(),
-          getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_, importance_sampling_states_d_,
-          importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_, this->stream_, false);
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), getNumEvalRollouts(),
+          this->getLambda(), this->getAlpha(), getNumEvalSamplesPerCandidate(), importance_sampling_strides_d_,
+          importance_sampling_states_d_, importance_sampling_costs_d_, this->params_.eval_dyn_kernel_dim_,
+          this->stream_, false);
     }
 
     HANDLE_ERROR(cudaMemcpyAsync(candidate_trajectory_costs_.data(), importance_sampling_costs_d_,
@@ -653,19 +650,17 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
     if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
       mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
-          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
-          this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
-          this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_, this->output_d_,
-          this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_,
-          this->stream_, false);
+          this->model_, this->cost_, this->sampler_, this->fb_controller_->getHostPointer().get(), this->getDt(),
+          this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), getValueFunctionThreshold(),
+          this->initial_state_d_, this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
+          this->params_.cost_rollout_dim_, this->stream_, false);
     }
     else
     {
       mppi::kernels::rmppi::launchRMPPIRolloutKernel<DYN_T, COST_T, SAMPLING_T, FEEDBACK_GPU>(
-          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_,
-          this->fb_controller_->getDevicePointer(), this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
-          this->getLambda(), this->getAlpha(), getValueFunctionThreshold(), this->initial_state_d_,
-          this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, false);
+          this->model_, this->cost_, this->sampler_, this->fb_controller_->getHostPointer().get(), this->getDt(),
+          this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), getValueFunctionThreshold(),
+          this->initial_state_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, false);
     }
 
     // Return the costs ->  nominal,  real costs
@@ -765,10 +760,9 @@ void RobustMPPI::calculateSampledStateTrajectories()
   else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
   {
     mppi::kernels::launchVisualizeKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-        this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(), this->getAlpha(),
-        this->vis_initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
-        this->params_.visualize_dim_, this->stream_, false);
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories,
+        this->getLambda(), this->getAlpha(), this->vis_initial_state_d_, this->sampled_outputs_d_,
+        this->sampled_costs_d_, this->sampled_crash_status_d_, this->params_.visualize_dim_, this->stream_, false);
   }
 
   // copy back results

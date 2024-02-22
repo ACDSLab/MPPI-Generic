@@ -98,19 +98,18 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::chooseAppropriateKernel()
   for (int i = 0; i < this->getNumKernelEvaluations() && !too_much_mem_single_kernel; i++)
   {
     mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-        this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
-        this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, true);
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->trajectory_costs_d_,
+        this->params_.dynamics_rollout_dim_, this->stream_, true);
   }
   auto end_single_kernel_time = std::chrono::steady_clock::now();
   auto start_split_kernel_time = std::chrono::steady_clock::now();
   for (int i = 0; i < this->getNumKernelEvaluations() && !too_much_mem_split_kernel; i++)
   {
     mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-        this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
-        this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
-        this->params_.cost_rollout_dim_, this->stream_, true);
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->trajectory_costs_d_,
+        this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_, true);
   }
   auto end_split_kernel_time = std::chrono::steady_clock::now();
 
@@ -171,17 +170,16 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::computeControl(const Eigen::Ref<const sta
     if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
       mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-          this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
-          this->output_d_, this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_,
-          this->params_.cost_rollout_dim_, this->stream_, false);
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->trajectory_costs_d_,
+          this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_, false);
     }
     else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
     {
       mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-          this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-          this->getNumTimesteps(), NUM_ROLLOUTS, this->getLambda(), this->getAlpha(), this->initial_state_d_,
-          this->trajectory_costs_d_, this->params_.dynamics_rollout_dim_, this->stream_, false);
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->getLambda(), this->getAlpha(), this->initial_state_d_, this->trajectory_costs_d_,
+          this->params_.dynamics_rollout_dim_, this->stream_, false);
     }
 
     // Copy the costs back to the host
@@ -283,27 +281,26 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::calculateSampledStateTrajectories()
   if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
   {
     mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
-        this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
-        num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
-        this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->stream_, false);
+        this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories,
+        this->getLambda(), this->getAlpha(), this->sampled_outputs_d_, this->sampled_crash_status_d_,
+        this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->stream_, false);
   }
   else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
   {
     mppi::kernels::launchVisualizeKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_->model_d_, this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(),
-        this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(), this->getAlpha(),
-        this->vis_initial_state_d_, this->sampled_outputs_d_, this->sampled_costs_d_, this->sampled_crash_status_d_,
-        this->params_.visualize_dim_, this->stream_, false);
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories,
+        this->getLambda(), this->getAlpha(), this->vis_initial_state_d_, this->sampled_outputs_d_,
+        this->sampled_costs_d_, this->sampled_crash_status_d_, this->params_.visualize_dim_, this->stream_, false);
   }
   // #if true
   //   mppi::kernels::launchVisualizeCostKernel<COST_T, SAMPLING_T>(
-  //       this->cost_->cost_d_, this->sampler_->sampling_d_, this->getDt(), this->getNumTimesteps(),
+  //       this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(),
   //       num_sampled_trajectories, this->getLambda(), this->getAlpha(), this->sampled_outputs_d_,
   //       this->sampled_crash_status_d_, this->sampled_costs_d_, this->params_.cost_rollout_dim_, this->vis_stream_,
   //       false);
   // #else
   //   mppi_common::launchVisualizeCostKernel<COST_T, 128, COST_B_Y, 1>(
-  //       this->cost_->cost_d_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(),
+  //       this->cost_, this->getDt(), this->getNumTimesteps(), num_sampled_trajectories, this->getLambda(),
   //       this->getAlpha(), this->sampled_outputs_d_, this->sampled_noise_d_, this->sampled_crash_status_d_,
   //       this->control_std_dev_d_, this->sampled_costs_d_, this->vis_stream_, false);
   // #endif

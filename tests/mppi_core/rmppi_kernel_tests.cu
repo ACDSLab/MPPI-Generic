@@ -172,8 +172,8 @@ TEST_F(RMPPIKernels, ValidateCombinedInitEvalKernelAgainstCPU)
       dim3 threadsPerBlock(thread_x, thread_y, 1);
       logger->info("Testing Combined Eval Kernel on (%d, %d, 1)\n", thread_x, thread_y);
       mppi::kernels::rmppi::launchInitEvalKernel<DYN_T, COST_T, SAMPLER_T>(
-          model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
-          num_samples, strides_d, initial_x_d, cost_trajectories_d, threadsPerBlock, stream, false);
+          model, cost, sampler, dt, num_timesteps, num_rollouts, lambda, alpha, num_samples, strides_d, initial_x_d,
+          cost_trajectories_d, threadsPerBlock, stream, false);
       HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_gpu.data(), cost_trajectories_d, sizeof(float) * num_rollouts,
                                    cudaMemcpyDeviceToHost, stream));
       HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -268,9 +268,8 @@ TEST_F(RMPPIKernels, ValidateSplitInitEvalKernelAgainstCPU)
                       dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
                       costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLER_T, true>(
-              model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
-              num_samples, strides_d, initial_x_d, output_d, cost_trajectories_d, dynThreadsPerBlock,
-              costThreadsPerBlock, stream, false);
+              model, cost, sampler, dt, num_timesteps, num_rollouts, lambda, alpha, num_samples, strides_d, initial_x_d,
+              output_d, cost_trajectories_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
           HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_gpu.data(), cost_trajectories_d, sizeof(float) * num_rollouts,
                                        cudaMemcpyDeviceToHost, stream));
           HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -290,9 +289,8 @@ TEST_F(RMPPIKernels, ValidateSplitInitEvalKernelAgainstCPU)
                       dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
                       costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLER_T, false>(
-              model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
-              num_samples, strides_d, initial_x_d, output_d, cost_trajectories_d, dynThreadsPerBlock,
-              costThreadsPerBlock, stream, false);
+              model, cost, sampler, dt, num_timesteps, num_rollouts, lambda, alpha, num_samples, strides_d, initial_x_d,
+              output_d, cost_trajectories_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
           HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_gpu.data(), cost_trajectories_d, sizeof(float) * num_rollouts,
                                        cudaMemcpyDeviceToHost, stream));
           HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -370,9 +368,8 @@ TEST_F(RMPPIKernels, ValidateCombinedRMPPIRolloutKernelAgainstCPU)
                   threadsPerBlock.z);
       mppi::kernels::rmppi::launchRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                      nominal_idx>(
-          model->model_d_, cost->cost_d_, sampler->sampling_d_, fb_controller->getDevicePointer(), dt, num_timesteps,
-          num_rollouts, lambda, alpha, value_func_threshold, initial_x_d, cost_trajectories_d, threadsPerBlock, stream,
-          false);
+          model, cost, sampler, fb_controller->getHostPointer().get(), dt, num_timesteps, num_rollouts, lambda, alpha,
+          value_func_threshold, initial_x_d, cost_trajectories_d, threadsPerBlock, stream, false);
       HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_gpu.data(), cost_trajectories_d, sizeof(float) * 2 * num_rollouts,
                                    cudaMemcpyDeviceToHost, stream));
       HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -457,9 +454,9 @@ TEST_F(RMPPIKernels, ValidateSplitRMPPIRolloutKernelAgainstCPU)
                       costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                               nominal_idx, true>(
-              model->model_d_, cost->cost_d_, sampler->sampling_d_, fb_controller->getDevicePointer(), dt,
-              num_timesteps, num_rollouts, lambda, alpha, value_func_threshold, initial_x_d, output_d,
-              cost_trajectories_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
+              model, cost, sampler, fb_controller->getHostPointer().get(), dt, num_timesteps, num_rollouts, lambda,
+              alpha, value_func_threshold, initial_x_d, output_d, cost_trajectories_d, dynThreadsPerBlock,
+              costThreadsPerBlock, stream, false);
           HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_gpu.data(), cost_trajectories_d,
                                        sizeof(float) * 2 * num_rollouts, cudaMemcpyDeviceToHost, stream));
           HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -480,9 +477,9 @@ TEST_F(RMPPIKernels, ValidateSplitRMPPIRolloutKernelAgainstCPU)
                       costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                               nominal_idx, false>(
-              model->model_d_, cost->cost_d_, sampler->sampling_d_, fb_controller->getDevicePointer(), dt,
-              num_timesteps, num_rollouts, lambda, alpha, value_func_threshold, initial_x_d, output_d,
-              cost_trajectories_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
+              model, cost, sampler, fb_controller->getHostPointer().get(), dt, num_timesteps, num_rollouts, lambda,
+              alpha, value_func_threshold, initial_x_d, output_d, cost_trajectories_d, dynThreadsPerBlock,
+              costThreadsPerBlock, stream, false);
           HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_gpu.data(), cost_trajectories_d,
                                        sizeof(float) * 2 * num_rollouts, cudaMemcpyDeviceToHost, stream));
           HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -560,9 +557,8 @@ TEST_F(RMPPIKernels, ValidateCombinedRMPPIRolloutKernelAgainstMPPIRollout)
       dim3 threadsPerBlock(thread_x, thread_y, 2);
       mppi::kernels::rmppi::launchRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                      nominal_idx>(
-          model->model_d_, cost->cost_d_, sampler->sampling_d_, fb_controller->getDevicePointer(), dt, num_timesteps,
-          num_rollouts, lambda, alpha, value_func_threshold, initial_x_d, cost_trajectories_d, threadsPerBlock, stream,
-          false);
+          model, cost, sampler, fb_controller->getHostPointer().get(), dt, num_timesteps, num_rollouts, lambda, alpha,
+          value_func_threshold, initial_x_d, cost_trajectories_d, threadsPerBlock, stream, false);
       HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_rmppi.data(), cost_trajectories_d, sizeof(float) * 2 * num_rollouts,
                                    cudaMemcpyDeviceToHost, stream));
       HANDLE_ERROR(cudaStreamSynchronize(stream));
@@ -570,9 +566,9 @@ TEST_F(RMPPIKernels, ValidateCombinedRMPPIRolloutKernelAgainstMPPIRollout)
       HANDLE_ERROR(cudaMemcpyAsync(sampler->getControlSample(0, 0, 0), control_noise.data(),
                                    sizeof(float) * 2 * num_rollouts * num_timesteps * DYN_T::CONTROL_DIM,
                                    cudaMemcpyHostToDevice, stream));
-      mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLER_T>(
-          model->model_d_, cost->cost_d_, sampler->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha,
-          initial_x_d, cost_trajectories_d, threadsPerBlock, stream, false);
+      mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLER_T>(model, cost, sampler, dt, num_timesteps,
+                                                                   num_rollouts, lambda, alpha, initial_x_d,
+                                                                   cost_trajectories_d, threadsPerBlock, stream, false);
       // Reset control samples
       HANDLE_ERROR(cudaMemcpyAsync(sampler->getControlSample(0, 0, 0), control_noise.data(),
                                    sizeof(float) * 2 * num_rollouts * num_timesteps * DYN_T::CONTROL_DIM,

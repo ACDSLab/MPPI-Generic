@@ -891,7 +891,8 @@ void launchSplitInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict_
   dim3 dimGrid(gridsize_x, 1, 1);
   unsigned dynamics_shared_size = calcEvalDynKernelSharedMemSize(dynamics, sampling, dimDynBlock);
   initEvalDynKernel<DYN_T, SAMPLING_T><<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(
-      dynamics, sampling, dt, num_timesteps, num_rollouts, samples_per_condition, strides_d, init_x_d, y_d);
+      dynamics->model_d_, sampling->sampling_d_, dt, num_timesteps, num_rollouts, samples_per_condition, strides_d,
+      init_x_d, y_d);
 
   // Run Costs
   dim3 dimCostGrid(num_rollouts, 1, 1);
@@ -899,8 +900,8 @@ void launchSplitInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict_
       calcEvalCostKernelSharedMemSize(costs, sampling, num_rollouts, samples_per_condition, dimCostBlock);
 
   initEvalCostKernel<COST_T, SAMPLING_T, COALESCE><<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
-      costs, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, samples_per_condition, strides_d, y_d,
-      trajectory_costs);
+      costs->cost_d_, sampling->sampling_d_, dt, num_timesteps, num_rollouts, lambda, alpha, samples_per_condition,
+      strides_d, y_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {
@@ -926,8 +927,8 @@ void launchInitEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ cos
   unsigned shared_size =
       calcEvalCombinedKernelSharedMemSize(dynamics, costs, sampling, num_rollouts, samples_per_condition, dimBlock);
   initEvalKernel<DYN_T, COST_T, SAMPLING_T><<<dimGrid, dimBlock, shared_size, stream>>>(
-      dynamics, costs, sampling, dt, num_timesteps, num_rollouts, samples_per_condition, lambda, alpha, strides_d,
-      init_x_d, trajectory_costs);
+      dynamics->model_d_, costs->cost_d_, sampling->sampling_d_, dt, num_timesteps, num_rollouts, samples_per_condition,
+      lambda, alpha, strides_d, init_x_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize)
   {
@@ -967,16 +968,18 @@ void launchSplitRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restr
   dim3 dimGrid(gridsize_x, 1, 1);
   unsigned dynamics_shared_size = calcRMPPIDynKernelSharedMemSize(dynamics, sampling, fb_controller, dimDynBlock);
   rolloutRMPPIDynamicsKernel<DYN_T, FB_T, SAMPLING_T, NOMINAL_STATE_IDX>
-      <<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(dynamics, fb_controller, sampling, dt, num_timesteps,
-                                                               num_rollouts, init_x_d, y_d);
+      <<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(dynamics->model_d_, fb_controller->feedback_d_,
+                                                               sampling->sampling_d_, dt, num_timesteps, num_rollouts,
+                                                               init_x_d, y_d);
+  HANDLE_ERROR(cudaGetLastError());
 
   // Run Costs
   dim3 dimCostGrid(num_rollouts, 1, 1);
   unsigned cost_shared_size = calcRMPPICostKernelSharedMemSize(costs, sampling, fb_controller, dimCostBlock);
   rolloutRMPPICostKernel<COST_T, DYN_T, SAMPLING_T, FB_T, NOMINAL_STATE_IDX, COALESCE>
-      <<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(costs, dynamics, fb_controller, sampling, dt,
-                                                                num_timesteps, num_rollouts, lambda, alpha,
-                                                                value_func_threshold, init_x_d, y_d, trajectory_costs);
+      <<<dimCostGrid, dimCostBlock, cost_shared_size, stream>>>(
+          costs->cost_d_, dynamics->model_d_, fb_controller->feedback_d_, sampling->sampling_d_, dt, num_timesteps,
+          num_rollouts, lambda, alpha, value_func_threshold, init_x_d, y_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize || true)
   {
@@ -1016,8 +1019,8 @@ void launchRMPPIRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
   dim3 dimGrid(gridsize_x, 1, 1);
   unsigned shared_size = calcRMPPICombinedKernelSharedMemSize(dynamics, costs, sampling, fb_controller, dimBlock);
   rolloutRMPPIKernel<DYN_T, COST_T, FB_T, SAMPLING_T, NOMINAL_STATE_IDX><<<dimGrid, dimBlock, shared_size, stream>>>(
-      dynamics, costs, fb_controller, sampling, dt, num_timesteps, num_rollouts, lambda, alpha, value_func_threshold,
-      init_x_d, trajectory_costs);
+      dynamics->model_d_, costs->cost_d_, fb_controller->feedback_d_, sampling->sampling_d_, dt, num_timesteps,
+      num_rollouts, lambda, alpha, value_func_threshold, init_x_d, trajectory_costs);
   HANDLE_ERROR(cudaGetLastError());
   if (synchronize || true)
   {
