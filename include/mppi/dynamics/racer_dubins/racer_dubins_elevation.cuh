@@ -88,7 +88,7 @@ public:
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
     this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock);
   }
-  RacerDubinsElevationImpl(RacerDubinsElevationParams& params, cudaStream_t stream = nullptr)
+  RacerDubinsElevationImpl(PARAMS_T& params, cudaStream_t stream = nullptr)
     : PARENT_CLASS(params, stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);

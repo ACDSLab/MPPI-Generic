@@ -34,6 +34,46 @@ TEST(MATH_UTILS, QuatInv)
   array_assert_float_near<4>(q_inv, correct_q_inv, tol);
 }
 
+TEST(MATH_UTILS, RotatePointByDCM)
+{
+  std::array<float, 4> q{ -0.4153485, 0.504014, -0.4532704, 0.6066313 };
+  Eigen::Quaternionf q_eig;
+  q_eig.w() = q[0];
+  q_eig.x() = q[1];
+  q_eig.y() = q[2];
+  q_eig.z() = q[3];
+  float3 point = make_float3(1, 2, 3);
+  Eigen::Vector3f point_eig;
+  point_eig << point.x, point.y, point.z;
+
+  float M[3][3];
+  Eigen::Matrix3f M_eig;
+  mppi::math::Quat2DCM(q.data(), M);
+  mppi::math::Quat2DCM(q_eig, M_eig);
+  for (int row = 0; row < 3; row++)
+  {
+    for (int col = 0; col < 3; col++)
+    {
+      ASSERT_NEAR(M[row][col], M_eig(row, col), 1e-6) << " failed at row: " << row << ", col: " << col;
+    }
+  }
+
+  float3 result, result_eig_rotation_matrix;
+  Eigen::Vector3f result_eig;
+  mppi::math::RotatePointByDCM(M, point, result);
+  mppi::math::RotatePointByDCM(M_eig, point, result_eig_rotation_matrix);
+  mppi::math::RotatePointByDCM(M_eig, point_eig, result_eig);
+  ASSERT_NEAR(result.x, result_eig_rotation_matrix.x, 1e-6) << " failed comparing R stored in 2d float array and R in "
+                                                               "Eigen matrix";
+  ASSERT_NEAR(result.y, result_eig_rotation_matrix.y, 1e-6) << " failed comparing R stored in 2d float array and R in "
+                                                               "Eigen matrix";
+  ASSERT_NEAR(result.z, result_eig_rotation_matrix.z, 1e-6) << " failed comparing R stored in 2d float array and R in "
+                                                               "Eigen matrix";
+  ASSERT_NEAR(result.x, result_eig.x(), 1e-6) << " failed comparing GPU and Eigen methods of rotating by DCM";
+  ASSERT_NEAR(result.y, result_eig.y(), 1e-6) << " failed comparing GPU and Eigen methods of rotating by DCM";
+  ASSERT_NEAR(result.z, result_eig.z(), 1e-6) << " failed comparing GPU and Eigen methods of rotating by DCM";
+}
+
 TEST(MATH_UTILS, QuatMultiply)
 {
   // Create an unnormalized quaternion.

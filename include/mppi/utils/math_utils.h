@@ -246,30 +246,31 @@ inline __host__ __device__ void RotatePointByQuat(const float q[4], float3& poin
 }
 
 /*
+ * rotates a point by the given DCM Matrix
+ */
+inline __host__ __device__ void RotatePointByDCM(const float M[3][3], const float3& point, float3& output)
+{
+  matrix_multiplication::gemm1<3, 3, 1, p1::Parallel1Dir::NONE>((float*)M, (const float*)&point, (float*)&output, 1.0f,
+                                                                0.0f, matrix_multiplication::MAT_OP::TRANSPOSE);
+}
+
+/*
  * The Euler rotation sequence is 3-2-1 (roll, pitch, yaw) from Body to World
  */
 inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, const float& y, float q[4])
 {
+  float sin_phi_2, cos_phi_2, sin_theta_2, cos_theta_2, sin_psi_2, cos_psi_2;
 #ifdef __CUDA_ARCH__
-  float phi_2 = angle_utils::normalizeAngle(r / 2.0f);
-  float theta_2 = angle_utils::normalizeAngle(p / 2.0f);
-  float psi_2 = angle_utils::normalizeAngle(y / 2.0f);
-  float cos_phi_2 = __cosf(phi_2);
-  float sin_phi_2 = __sinf(phi_2);
-  float cos_theta_2 = __cosf(theta_2);
-  float sin_theta_2 = __sinf(theta_2);
-  float cos_psi_2 = __cosf(psi_2);
-  float sin_psi_2 = __sinf(psi_2);
+  float r_norm = angle_utils::normalizeAngle(r * 0.5f);
+  float p_norm = angle_utils::normalizeAngle(p * 0.5f);
+  float y_norm = angle_utils::normalizeAngle(y * 0.5f);
+  __sincosf(r_norm, &sin_phi_2, &cos_phi_2);
+  __sincosf(p_norm, &sin_theta_2, &cos_theta_2);
+  __sincosf(y_norm, &sin_psi_2, &cos_psi_2);
 #else
-  float phi_2 = r / 2.0f;
-  float theta_2 = p / 2.0f;
-  float psi_2 = y / 2.0f;
-  float cos_phi_2 = cosf(phi_2);
-  float sin_phi_2 = sinf(phi_2);
-  float cos_theta_2 = cosf(theta_2);
-  float sin_theta_2 = sinf(theta_2);
-  float cos_psi_2 = cosf(psi_2);
-  float sin_psi_2 = sinf(psi_2);
+  sincosf(r * 0.5f, &sin_phi_2, &cos_phi_2);
+  sincosf(p * 0.5f, &sin_theta_2, &cos_theta_2);
+  sincosf(y * 0.5f, &sin_psi_2, &cos_psi_2);
 #endif
 
   q[0] = cos_phi_2 * cos_theta_2 * cos_psi_2 + sin_phi_2 * sin_theta_2 * sin_psi_2;
@@ -309,14 +310,58 @@ inline void QuatSubtract(const Eigen::Quaternionf& q_1, const Eigen::Quaternionf
   q_3 = q_2 * q_1.inverse();
 }
 
-inline void QuatMultiply(const Eigen::Quaternionf& q_1, const Eigen::Quaternionf& q_2, Eigen::Quaternionf& q_3)
+inline void QuatMultiply(const Eigen::Quaternionf& q_1, const Eigen::Quaternionf& q_2, Eigen::Quaternionf& q_3,
+                         bool normalize = true)
 {
   q_3 = q_1 * q_2;
+  if (normalize)
+  {
+    q_3.normalize();
+  }
 }
 
 inline void QuatInv(const Eigen::Quaternionf& q, Eigen::Quaternionf& q_f)
 {
   q_f = q.inverse();
+}
+
+/*
+ * rotates a point by the given quaternion
+ */
+inline __host__ __device__ void RotatePointByQuat(const Eigen::Quaternionf& q, float3& point)
+{
+  // converts the point into a quaternion format
+  Eigen::Quaternionf q_inv, temp, pq;
+  pq.w() = 0.0f;
+  pq.x() = point.x;
+  pq.y() = point.y;
+  pq.z() = point.z;
+  QuatInv(q, q_inv);
+  QuatMultiply(q, pq, temp, false);
+  QuatMultiply(temp, q_inv, pq, false);
+  // converts the quaternion back into a point
+  point = make_float3(pq.x(), pq.y(), pq.z());
+}
+
+/*
+ * rotates a point by the given DCM Matrix
+ */
+inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3f> M, const float3& point,
+                                                 float3& output)
+{
+  Eigen::Map<Eigen::Vector3f> point_eigen((float*)&point);
+  Eigen::Map<Eigen::Vector3f> output_eigen((float*)&output);
+  output_eigen = M * point_eigen;
+}
+
+/*
+ * rotates a point by the given DCM Matrix
+ */
+inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3f> M,
+                                                 const Eigen::Ref<Eigen::Vector3f>& point,
+                                                 Eigen::Ref<Eigen::Vector3f> output)
+{
+  output = M * point;
 }
 
 /*
@@ -327,15 +372,19 @@ inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, co
   // double psi = clamp_radians(euler.roll);
   // double theta = clamp_radians(euler.pitch);
   // double phi = clamp_radians(euler.yaw);
-  float phi_2 = r / 2.0f;
-  float theta_2 = p / 2.0f;
-  float psi_2 = y / 2.0f;
-  float cos_phi_2 = cosf(phi_2);
-  float sin_phi_2 = sinf(phi_2);
-  float cos_theta_2 = cosf(theta_2);
-  float sin_theta_2 = sinf(theta_2);
-  float cos_psi_2 = cosf(psi_2);
-  float sin_psi_2 = sinf(psi_2);
+  float sin_phi_2, cos_phi_2, sin_theta_2, cos_theta_2, sin_psi_2, cos_psi_2;
+#ifdef __CUDA_ARCH__
+  float r_norm = angle_utils::normalizeAngle(r * 0.5f);
+  float p_norm = angle_utils::normalizeAngle(p * 0.5f);
+  float y_norm = angle_utils::normalizeAngle(y * 0.5f);
+  __sincosf(r_norm, &sin_phi_2, &cos_phi_2);
+  __sincosf(p_norm, &sin_theta_2, &cos_theta_2);
+  __sincosf(y_norm, &sin_psi_2, &cos_psi_2);
+#else
+  sincosf(r * 0.5f, &sin_phi_2, &cos_phi_2);
+  sincosf(p * 0.5f, &sin_theta_2, &cos_theta_2);
+  sincosf(y * 0.5f, &sin_psi_2, &cos_psi_2);
+#endif
 
   q.w() = cos_phi_2 * cos_theta_2 * cos_psi_2 + sin_phi_2 * sin_theta_2 * sin_psi_2;
   q.x() = -cos_phi_2 * sin_theta_2 * sin_psi_2 + cos_theta_2 * cos_psi_2 * sin_phi_2;
@@ -348,23 +397,18 @@ inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, co
  */
 inline __host__ __device__ void Euler2DCM_NWU(const float& r, const float& p, const float& y, float M[3][3])
 {
+  float sin_phi, cos_phi, sin_theta, cos_theta, sin_psi, cos_psi;
 #ifdef __CUDA_ARCH__
   float r_norm = angle_utils::normalizeAngle(r);
   float p_norm = angle_utils::normalizeAngle(p);
   float y_norm = angle_utils::normalizeAngle(y);
-  float cos_phi = __cosf(r_norm);
-  float sin_phi = __sinf(r_norm);
-  float cos_theta = __cosf(p_norm);
-  float sin_theta = __sinf(p_norm);
-  float cos_psi = __cosf(y_norm);
-  float sin_psi = __sinf(y_norm);
+  __sincosf(r_norm, &sin_phi, &cos_phi);
+  __sincosf(p_norm, &sin_theta, &cos_theta);
+  __sincosf(y_norm, &sin_psi, &cos_psi);
 #else
-  float cos_phi = cosf(r);
-  float sin_phi = sinf(r);
-  float cos_theta = cosf(p);
-  float sin_theta = sinf(p);
-  float cos_psi = cosf(y);
-  float sin_psi = sinf(y);
+  sincosf(r, &sin_phi, &cos_phi);
+  sincosf(p, &sin_theta, &cos_theta);
+  sincosf(y, &sin_psi, &cos_psi);
 #endif
 
   M[0][0] = cos_theta * cos_psi;
@@ -376,6 +420,37 @@ inline __host__ __device__ void Euler2DCM_NWU(const float& r, const float& p, co
   M[2][0] = -sin_theta;
   M[2][1] = sin_phi * cos_theta;
   M[2][2] = cos_phi * cos_theta;
+}
+
+/*
+ * The Euler rotation sequence is 3-2-1 (roll, pitch, yaw) from Body to World
+ */
+inline __host__ __device__ void Euler2DCM_NWU(const float& r, const float& p, const float& y,
+                                              Eigen::Ref<Eigen::Matrix3f> M)
+{
+  float sin_phi, cos_phi, sin_theta, cos_theta, sin_psi, cos_psi;
+#ifdef __CUDA_ARCH__
+  float r_norm = angle_utils::normalizeAngle(r);
+  float p_norm = angle_utils::normalizeAngle(p);
+  float y_norm = angle_utils::normalizeAngle(y);
+  __sincosf(r_norm, &sin_phi, &cos_phi);
+  __sincosf(p_norm, &sin_theta, &cos_theta);
+  __sincosf(y_norm, &sin_psi, &cos_psi);
+#else
+  sincosf(r, &sin_phi, &cos_phi);
+  sincosf(p, &sin_theta, &cos_theta);
+  sincosf(y, &sin_psi, &cos_psi);
+#endif
+
+  M(0, 0) = cos_theta * cos_psi;
+  M(0, 1) = sin_phi * sin_theta * cos_psi - cos_phi * sin_psi;
+  M(0, 2) = cos_phi * sin_theta * cos_psi + sin_phi * sin_psi;
+  M(1, 0) = cos_theta * sin_psi;
+  M(1, 1) = sin_phi * sin_theta * sin_psi + cos_phi * cos_psi;
+  M(1, 2) = cos_phi * sin_theta * sin_psi - sin_phi * cos_psi;
+  M(2, 0) = -sin_theta;
+  M(2, 1) = sin_phi * cos_theta;
+  M(2, 2) = cos_phi * cos_theta;
 }
 
 // (RPY rotation sequence)
@@ -426,18 +501,76 @@ __host__ __device__ inline void bodyOffsetToWorldPoseQuat(const float3& offset, 
   output.z = body_pose.z + rotated_offset.z;
 }
 
+__host__ __device__ inline void bodyOffsetToWorldPoseQuat(const float3& offset, const float3& body_pose,
+                                                          const Eigen::Quaternionf& q, float3& output)
+{
+  // rotate body vector into world frame
+  float3 rotated_offset = make_float3(offset.x, offset.y, offset.z);
+  RotatePointByQuat(q, rotated_offset);
+  // add offset to body pose
+  output.x = body_pose.x + rotated_offset.x;
+  output.y = body_pose.y + rotated_offset.y;
+  output.z = body_pose.z + rotated_offset.z;
+}
+
 __host__ __device__ inline void bodyOffsetToWorldPoseEuler(const float3& offset, const float3& body_pose,
                                                            const float3& rotation, float3& output)
 {
-  // convert RPY to quaternion
+  // convert RPY to Rotation Matrix
   float M[3][3];
   math::Euler2DCM_NWU(rotation.x, rotation.y, rotation.z, M);
-  matrix_multiplication::gemm1<3, 3, 1, p1::Parallel1Dir::NONE>((float*)M, (const float*)&offset, (float*)&output, 1.0f,
-                                                                0.0f, matrix_multiplication::MAT_OP::TRANSPOSE);
+  RotatePointByDCM(M, offset, output);
+
   // add offset to body pose
   output.x += body_pose.x;
   output.y += body_pose.y;
   output.z += body_pose.z;
+}
+
+__host__ __device__ inline void bodyOffsetToWorldPoseEuler(const Eigen::Ref<Eigen::Vector3f>& offset,
+                                                           const Eigen::Ref<Eigen::Vector3f>& body_pose,
+                                                           const Eigen::Ref<Eigen::Vector3f>& rotation,
+                                                           Eigen::Ref<Eigen::Vector3f>& output)
+{
+  // convert RPY to Rotation Matrix
+  Eigen::Matrix3f M;
+  math::Euler2DCM_NWU(rotation.x(), rotation.y(), rotation.z(), M);
+  RotatePointByDCM(M, offset, output);
+  // add offset to body pose
+  output += body_pose;
+}
+
+__host__ __device__ inline void bodyOffsetToWorldPoseDCM(const float3& offset, const float3& body_pose,
+                                                         const float rotation[3][3], float3& output)
+{
+  RotatePointByDCM(rotation, offset, output);
+
+  // add offset to body pose
+  output.x += body_pose.x;
+  output.y += body_pose.y;
+  output.z += body_pose.z;
+}
+
+__host__ __device__ inline void bodyOffsetToWorldPoseDCM(const float3& offset, const float3& body_pose,
+                                                         const Eigen::Ref<Eigen::Matrix3f>& rotation, float3& output)
+{
+  RotatePointByDCM(rotation, offset, output);
+
+  // add offset to body pose
+  output.x += body_pose.x;
+  output.y += body_pose.y;
+  output.z += body_pose.z;
+}
+
+__host__ __device__ inline void bodyOffsetToWorldPoseDCM(const Eigen::Ref<Eigen::Vector3f>& offset,
+                                                         const Eigen::Ref<Eigen::Vector3f>& body_pose,
+                                                         const Eigen::Ref<Eigen::Matrix3f>& rotation,
+                                                         Eigen::Ref<Eigen::Vector3f>& output)
+{
+  RotatePointByDCM(rotation, offset, output);
+
+  // add offset to body pose
+  output += body_pose;
 }
 
 inline __device__ __host__ Eigen::Matrix3f skewSymmetricMatrix(Eigen::Vector3f& v)
