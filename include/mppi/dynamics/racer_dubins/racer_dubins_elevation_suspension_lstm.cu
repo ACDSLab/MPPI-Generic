@@ -107,6 +107,7 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
   const float& yaw = state(S_INDEX(YAW));
   float3 wheel_positions_body[W_INDEX(NUM_WHEELS)];
   float3 wheel_positions_world[W_INDEX(NUM_WHEELS)];
+  float3 wheel_positions_cg[W_INDEX(NUM_WHEELS)];
   wheel_positions_body[W_INDEX(FR)] = make_float3(2.981f, -0.737f, 0.f);
   wheel_positions_body[W_INDEX(FL)] = make_float3(2.981f, 0.737f, 0.0f);
   wheel_positions_body[W_INDEX(BR)] = make_float3(0.0f, 0.737f, 0.0f);
@@ -132,6 +133,8 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
   mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(pi, step);
   for (int i = pi; i < W_INDEX(NUM_WHEELS); i += step)
   {
+    // Calculate wheel position in different frames
+    wheel_positions_cg[i] = wheel_positions_body[i] - params_p->c_g;
     mppi::math::bodyOffsetToWorldPoseDCM(wheel_positions_body[i], body_pose, M, wheel_positions_world[i]);
     if (this->tex_helper_->checkTextureUse(0))
     {
@@ -143,27 +146,19 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
     }
 
     // get normals in body position
-    // wheel_normal_body = wheel_normal_world;
     mppi::math::RotatePointByDCM(M, *(float3*)(&wheel_normal_world), wheel_normal_body);
-    // mppi::math::RotatePointByDCM(M, static_cast<float3>(wheel_normal_world), wheel_normal_body);
 
-    wheel_pos_z = state(S_INDEX(POS_Z)) + roll * wheel_positions_world[i].y - pitch * wheel_positions_world[i].x;
-    wheel_vel_z = state(S_INDEX(VEL_Z)) + state(S_INDEX(ROLL_RATE)) * wheel_positions_world[i].y -
-                  state(S_INDEX(PITCH_RATE)) * wheel_positions_world[i].x;
-    float h_dot = -state(S_INDEX(VEL_X)) * wheel_normal_body.x - state(S_INDEX(VEL_Z)) * wheel_normal_body.z;
-    // if (i == 0)
-    // {
-    //   printf("CPU wheel_pos_z: %f, wheel_vel_z: %f, h_dot: %f\n", wheel_pos_z, wheel_vel_z, h_dot);
-    //   printf("wheel_pos_body: %f, %f, %f\n", wheel_positions_body[i].x, wheel_positions_body[i].y,
-    //   wheel_positions_body[i].z);
-    // }
+    // Calculate wheel heights, velocities, and forces
+    wheel_pos_z = state(S_INDEX(POS_Z)) + roll * wheel_positions_cg[i].y - pitch * wheel_positions_cg[i].x;
+    wheel_vel_z = state(S_INDEX(VEL_Z)) + state(S_INDEX(ROLL_RATE)) * wheel_positions_cg[i].y -
+                  state(S_INDEX(PITCH_RATE)) * wheel_positions_cg[i].x;
+    // V_x * N_x + V_y * N_y
+    float h_dot = -state(S_INDEX(VEL_X)) * wheel_normal_body.x;
     output(O_INDEX(WHEEL_FORCE_B_FL) + i) =
         -params_p->spring_k * (wheel_pos_z - wheel_height) - params_p->drag_c * (wheel_vel_z - h_dot);
     state_der(S_INDEX(VEL_Z)) += output(O_INDEX(WHEEL_FORCE_B_FL) + i) / params_p->mass;
-    state_der(S_INDEX(ROLL_RATE)) +=
-        output(O_INDEX(WHEEL_FORCE_B_FL) + i) * wheel_positions_world[i].y / params_p->I_xx;
-    state_der(S_INDEX(PITCH_RATE)) +=
-        -output(O_INDEX(WHEEL_FORCE_B_FL) + i) * wheel_positions_world[i].x / params_p->I_yy;
+    state_der(S_INDEX(ROLL_RATE)) += output(O_INDEX(WHEEL_FORCE_B_FL) + i) * wheel_positions_cg[i].y / params_p->I_xx;
+    state_der(S_INDEX(PITCH_RATE)) += -output(O_INDEX(WHEEL_FORCE_B_FL) + i) * wheel_positions_cg[i].x / params_p->I_yy;
   }
 
   // Integrate using Euler Integration
@@ -274,6 +269,7 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
   float h_dot = 0.0f;
   float4 wheel_normal_world = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
   float3 wheel_normal_body;
+  float3 wheel_positions_cg;
 
   for (int i = pi; i < W_INDEX(NUM_WHEELS); i += step)
   {
@@ -295,8 +291,10 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
       default:
         break;
     }
+
+    // Calculate wheel position in different frames
+    wheel_positions_cg = wheel_positions_body - params_p->c_g;
     mppi::math::bodyOffsetToWorldPoseDCM(wheel_positions_body, body_pose, M, wheel_positions_world);
-    // mppi::math::bodyOffsetToWorldPoseEuler(wheel_positions_body, body_pose, rotation, wheel_positions_world);
     if (this->tex_helper_->checkTextureUse(0))
     {
       wheel_height = this->tex_helper_->queryTextureAtWorldPose(0, wheel_positions_world);
@@ -307,29 +305,22 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
     }
 
     // get normals in body position
-    // mppi::math::RotatePointByDCM(M, *static_cast<float3*>(&wheel_normal_world), wheel_normal_body);
     mppi::math::RotatePointByDCM(M, *(float3*)(&wheel_normal_world), wheel_normal_body);
-    // mppi::matrix_multiplication::gemm1<3, 3, 1, p1::Parallel1Dir::NONE>((float*)M, (const float*)&wheel_normal_world,
-    // (float*)&wheel_normal_body, 1.0f,
-    //                                                               0.0f,
-    //                                                               mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
 
-    wheel_pos_z = state[S_INDEX(POS_Z)] + roll * wheel_positions_world.y - pitch * wheel_positions_world.x;
-    wheel_vel_z = state[S_INDEX(VEL_Z)] + state[S_INDEX(ROLL_RATE)] * wheel_positions_world.y -
-                  state[S_INDEX(PITCH_RATE)] * wheel_positions_world.x;
-    h_dot = -state[S_INDEX(VEL_X)] * wheel_normal_body.x - state[S_INDEX(VEL_Z)] * wheel_normal_body.z;
-    // if (threadIdx.x == 0 && blockIdx.x == 0 && i == 0)
-    // {
-    //   printf("GPU wheel_pos_z: %f, wheel_vel_z: %f, h_dot: %f\n", wheel_pos_z, wheel_vel_z, h_dot);
-    //   printf("wheel_pos_body: %f, %f, %f\n", wheel_positions_body.x, wheel_positions_body.y, wheel_positions_body.z);
-    // }
+    // Calculate wheel heights, velocities, and forces
+    wheel_pos_z = state[S_INDEX(POS_Z)] + roll * wheel_positions_cg.y - pitch * wheel_positions_cg.x;
+    wheel_vel_z = state[S_INDEX(VEL_Z)] + state[S_INDEX(ROLL_RATE)] * wheel_positions_cg.y -
+                  state[S_INDEX(PITCH_RATE)] * wheel_positions_cg.x;
+    // V_x * N_x + V_y * N_y
+    h_dot = -state[S_INDEX(VEL_X)] * wheel_normal_body.x;
+
     output[O_INDEX(WHEEL_FORCE_B_FL) + i] =
         -params_p->spring_k * (wheel_pos_z - wheel_height) - params_p->drag_c * (wheel_vel_z - h_dot);
     atomicAdd_block(&state_der[S_INDEX(VEL_Z)], output[O_INDEX(WHEEL_FORCE_B_FL) + i] / params_p->mass);
     atomicAdd_block(&state_der[S_INDEX(ROLL_RATE)],
-                    output[O_INDEX(WHEEL_FORCE_B_FL) + i] * wheel_positions_world.y / params_p->I_xx);
+                    output[O_INDEX(WHEEL_FORCE_B_FL) + i] * wheel_positions_cg.y / params_p->I_xx);
     atomicAdd_block(&state_der[S_INDEX(PITCH_RATE)],
-                    -output[O_INDEX(WHEEL_FORCE_B_FL) + i] * wheel_positions_world.x / params_p->I_yy);
+                    -output[O_INDEX(WHEEL_FORCE_B_FL) + i] * wheel_positions_cg.x / params_p->I_yy);
   }
 
   __syncthreads();

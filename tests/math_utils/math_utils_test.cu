@@ -36,15 +36,12 @@ TEST(MATH_UTILS, QuatInv)
 
 TEST(MATH_UTILS, RotatePointByDCM)
 {
-  std::array<float, 4> q{ -0.4153485, 0.504014, -0.4532704, 0.6066313 };
-  Eigen::Quaternionf q_eig;
-  q_eig.w() = q[0];
-  q_eig.x() = q[1];
-  q_eig.y() = q[2];
-  q_eig.z() = q[3];
-  float3 point = make_float3(1, 2, 3);
-  Eigen::Vector3f point_eig;
-  point_eig << point.x, point.y, point.z;
+  const float tol = 1e-6;
+  Eigen::Quaternionf q_eig = Eigen::Quaternionf::UnitRandom();
+  Eigen::Vector3f point_eig = Eigen::Vector3f::Random();
+
+  std::array<float, 4> q{ q_eig.w(), q_eig.x(), q_eig.y(), q_eig.z() };
+  float3 point = make_float3(point_eig.x(), point_eig.y(), point_eig.z());
 
   float M[3][3];
   Eigen::Matrix3f M_eig;
@@ -54,7 +51,7 @@ TEST(MATH_UTILS, RotatePointByDCM)
   {
     for (int col = 0; col < 3; col++)
     {
-      ASSERT_NEAR(M[row][col], M_eig(row, col), 1e-6) << " failed at row: " << row << ", col: " << col;
+      ASSERT_NEAR(M[row][col], M_eig(row, col), tol) << " failed at row: " << row << ", col: " << col;
     }
   }
 
@@ -63,15 +60,15 @@ TEST(MATH_UTILS, RotatePointByDCM)
   mppi::math::RotatePointByDCM(M, point, result);
   mppi::math::RotatePointByDCM(M_eig, point, result_eig_rotation_matrix);
   mppi::math::RotatePointByDCM(M_eig, point_eig, result_eig);
-  ASSERT_NEAR(result.x, result_eig_rotation_matrix.x, 1e-6) << " failed comparing R stored in 2d float array and R in "
-                                                               "Eigen matrix";
-  ASSERT_NEAR(result.y, result_eig_rotation_matrix.y, 1e-6) << " failed comparing R stored in 2d float array and R in "
-                                                               "Eigen matrix";
-  ASSERT_NEAR(result.z, result_eig_rotation_matrix.z, 1e-6) << " failed comparing R stored in 2d float array and R in "
-                                                               "Eigen matrix";
-  ASSERT_NEAR(result.x, result_eig.x(), 1e-6) << " failed comparing GPU and Eigen methods of rotating by DCM";
-  ASSERT_NEAR(result.y, result_eig.y(), 1e-6) << " failed comparing GPU and Eigen methods of rotating by DCM";
-  ASSERT_NEAR(result.z, result_eig.z(), 1e-6) << " failed comparing GPU and Eigen methods of rotating by DCM";
+  ASSERT_NEAR(result.x, result_eig_rotation_matrix.x, tol) << " failed comparing R stored in 2d float array and R in "
+                                                              "Eigen matrix";
+  ASSERT_NEAR(result.y, result_eig_rotation_matrix.y, tol) << " failed comparing R stored in 2d float array and R in "
+                                                              "Eigen matrix";
+  ASSERT_NEAR(result.z, result_eig_rotation_matrix.z, tol) << " failed comparing R stored in 2d float array and R in "
+                                                              "Eigen matrix";
+  ASSERT_NEAR(result.x, result_eig.x(), tol) << " failed comparing GPU and Eigen methods of rotating by DCM";
+  ASSERT_NEAR(result.y, result_eig.y(), tol) << " failed comparing GPU and Eigen methods of rotating by DCM";
+  ASSERT_NEAR(result.z, result_eig.z(), tol) << " failed comparing GPU and Eigen methods of rotating by DCM";
 }
 
 TEST(MATH_UTILS, QuatMultiply)
@@ -80,20 +77,36 @@ TEST(MATH_UTILS, QuatMultiply)
   std::array<float, 4> q1{ 1, 2, 3, 4 };
   std::array<float, 4> q2{ 8, 7, 6, 5 };
   std::array<float, 4> q3{};
-
-  mppi::math::QuatMultiply(q1.data(), q2.data(), q3.data());
+  std::array<float, 4> q3_norm{};
+  Eigen::Quaternionf eigen_result, eigen_result_norm;
 
   // Compare the multiplication using eigen.
   // Don't use the array constructor because eigen stores it as [x, y, z, w] internally.
   const Eigen::Quaternionf eigen_q1{ q1[0], q1[1], q1[2], q1[3] };
   const Eigen::Quaternionf eigen_q2{ q2[0], q2[1], q2[2], q2[3] };
-  const Eigen::Quaternionf eigen_q3 = (eigen_q1 * eigen_q2).normalized();
+
+  // Ground Truth
+  const Eigen::Quaternionf eigen_q3 = (eigen_q1 * eigen_q2);
+  const Eigen::Quaternionf eigen_q3_norm = eigen_q3.normalized();
+
+  // Our Methods
+  mppi::math::QuatMultiply(q1.data(), q2.data(), q3.data(), false);
+  mppi::math::QuatMultiply(q1.data(), q2.data(), q3_norm.data());
+  mppi::math::QuatMultiply(eigen_q1, eigen_q2, eigen_result, false);
+  mppi::math::QuatMultiply(eigen_q1, eigen_q2, eigen_result_norm);
 
   std::array<float, 4> correct_q3{ eigen_q3.w(), eigen_q3.x(), eigen_q3.y(), eigen_q3.z() };
+  std::array<float, 4> eigen_q3_array{ eigen_result.w(), eigen_result.x(), eigen_result.y(), eigen_result.z() };
+  std::array<float, 4> correct_q3_norm{ eigen_q3_norm.w(), eigen_q3_norm.x(), eigen_q3_norm.y(), eigen_q3_norm.z() };
+  std::array<float, 4> eigen_q3_norm_array{ eigen_result_norm.w(), eigen_result_norm.x(), eigen_result_norm.y(),
+                                            eigen_result_norm.z() };
 
   // q_inv should be normalized.
   constexpr auto tol = 1e-7;
   array_assert_float_near<4>(q3, correct_q3, tol);
+  array_assert_float_near<4>(eigen_q3_array, correct_q3, tol);
+  array_assert_float_near<4>(q3_norm, correct_q3_norm, tol);
+  array_assert_float_near<4>(eigen_q3_norm_array, correct_q3_norm, tol);
 }
 
 TEST(MATH_UTILS, RotatePointByQuat)
@@ -105,13 +118,44 @@ TEST(MATH_UTILS, RotatePointByQuat)
 
     float3 point = make_float3(translation.x(), translation.y(), translation.z());
     float q[4] = { rotation.w(), rotation.x(), rotation.y(), rotation.z() };
-    mppi::math::RotatePointByQuat(q, point);
 
+    float3 output, output_eig;
+    Eigen::Vector3f output_all_eig;
+
+    // Test method with 3 parameters, output going into the last
+    mppi::math::RotatePointByQuat(rotation, point, output_eig);
+    mppi::math::RotatePointByQuat(q, point, output);
+    mppi::math::RotatePointByQuat(rotation, translation, output_all_eig);
+
+    // Test method with 2 parameters, modifying the second
+    float3 output2 = point;
+    float3 output2_eig = point;
+    Eigen::Vector3f output2_all_eig = translation;
+    mppi::math::RotatePointByQuat(rotation, output2_eig);
+    mppi::math::RotatePointByQuat(q, output2);
+    mppi::math::RotatePointByQuat(rotation, output2_all_eig);
+
+    // Ground Truth
     auto result = rotation * translation;
 
-    EXPECT_NEAR(point.x, result.x(), 1.0e-5);
-    EXPECT_NEAR(point.y, result.y(), 1.0e-5);
-    EXPECT_NEAR(point.z, result.z(), 1.0e-5);
+    EXPECT_NEAR(output.x, result.x(), 1.0e-5);
+    EXPECT_NEAR(output.y, result.y(), 1.0e-5);
+    EXPECT_NEAR(output.z, result.z(), 1.0e-5);
+    EXPECT_NEAR(output_eig.x, result.x(), 1.0e-5);
+    EXPECT_NEAR(output_eig.y, result.y(), 1.0e-5);
+    EXPECT_NEAR(output_eig.z, result.z(), 1.0e-5);
+    EXPECT_NEAR(output_all_eig.x(), result.x(), 1.0e-5);
+    EXPECT_NEAR(output_all_eig.y(), result.y(), 1.0e-5);
+    EXPECT_NEAR(output_all_eig.z(), result.z(), 1.0e-5);
+    EXPECT_NEAR(output2.x, result.x(), 1.0e-5);
+    EXPECT_NEAR(output2.y, result.y(), 1.0e-5);
+    EXPECT_NEAR(output2.z, result.z(), 1.0e-5);
+    EXPECT_NEAR(output2_eig.x, result.x(), 1.0e-5);
+    EXPECT_NEAR(output2_eig.y, result.y(), 1.0e-5);
+    EXPECT_NEAR(output2_eig.z, result.z(), 1.0e-5);
+    EXPECT_NEAR(output2_all_eig.x(), result.x(), 1.0e-5);
+    EXPECT_NEAR(output2_all_eig.y(), result.y(), 1.0e-5);
+    EXPECT_NEAR(output2_all_eig.z(), result.z(), 1.0e-5);
   }
 }
 
@@ -142,19 +186,134 @@ TEST(MATH_UTILS, EulerDCM)
     Eigen::Quaternionf q_eig = Eigen::Quaternionf::UnitRandom();
     float r, p, y;
     float M[3][3];
-    Eigen::Matrix3f M_eig;
-    M_eig = q_eig.toRotationMatrix();
+    Eigen::Matrix3f M_eig, M_result;
+    M_result = q_eig.toRotationMatrix();
 
     mppi::math::Quat2EulerNWU(q_eig, r, p, y);
     mppi::math::Euler2DCM_NWU(r, p, y, M);
+    mppi::math::Euler2DCM_NWU(r, p, y, M_eig);
     for (int i = 0; i < 3; i++)
     {
       for (int j = 0; j < 3; j++)
       {
-        EXPECT_NEAR(M_eig(i, j), M[i][j], 1.0e-5);
+        EXPECT_NEAR(M_result(i, j), M[i][j], 1.0e-5);
+        EXPECT_NEAR(M_result(i, j), M_eig(i, j), 1.0e-5);
       }
     }
   }
+}
+
+TEST(MATH_UTILS, TranslateVectorByQuat)
+{
+  const float tol = 1e-6;
+  Eigen::Vector3f origin_eig = Eigen::Vector3f::Random();
+  Eigen::Vector3f body_pose_eig = Eigen::Vector3f::Random();
+  Eigen::Quaternionf rotation_eig = Eigen::Quaternionf::UnitRandom();
+
+  float3 origin_f3 = make_float3(origin_eig.x(), origin_eig.y(), origin_eig.z());
+  float3 body_pose_f3 = make_float3(body_pose_eig.x(), body_pose_eig.y(), body_pose_eig.z());
+  float rotation_array[4] = { rotation_eig.w(), rotation_eig.x(), rotation_eig.y(), rotation_eig.z() };
+  // Create output variables
+  float3 output_eig, output_array;
+  Eigen::Vector3f output_all_eig;
+
+  // Ground Truth
+  Eigen::Matrix3f R_eig = rotation_eig.toRotationMatrix();
+  Eigen::Vector3f correct_value = origin_eig + R_eig * body_pose_eig;
+
+  mppi::math::bodyOffsetToWorldPoseQuat(body_pose_f3, origin_f3, rotation_eig, output_eig);
+  mppi::math::bodyOffsetToWorldPoseQuat(body_pose_f3, origin_f3, rotation_array, output_array);
+  mppi::math::bodyOffsetToWorldPoseQuat(body_pose_eig, origin_eig, rotation_eig, output_all_eig);
+
+  EXPECT_NEAR(output_eig.x, correct_value.x(), tol);
+  EXPECT_NEAR(output_eig.y, correct_value.y(), tol);
+  EXPECT_NEAR(output_eig.z, correct_value.z(), tol);
+  EXPECT_NEAR(output_array.x, correct_value.x(), tol);
+  EXPECT_NEAR(output_array.y, correct_value.y(), tol);
+  EXPECT_NEAR(output_array.z, correct_value.z(), tol);
+  EXPECT_NEAR(output_all_eig.x(), correct_value.x(), tol);
+  EXPECT_NEAR(output_all_eig.y(), correct_value.y(), tol);
+  EXPECT_NEAR(output_all_eig.z(), correct_value.z(), tol);
+}
+
+TEST(MATH_UTILS, TranslateVectorByDCM)
+{
+  const float tol = 1e-6;
+  Eigen::Vector3f origin_eig = Eigen::Vector3f::Random();
+  Eigen::Vector3f body_pose_eig = Eigen::Vector3f::Random();
+  Eigen::Quaternionf rotation_eig = Eigen::Quaternionf::UnitRandom();
+
+  float3 origin_f3 = make_float3(origin_eig.x(), origin_eig.y(), origin_eig.z());
+  float3 body_pose_f3 = make_float3(body_pose_eig.x(), body_pose_eig.y(), body_pose_eig.z());
+  Eigen::Matrix3f R_eig = rotation_eig.toRotationMatrix();
+  float R_float[3][3];
+  for (int row = 0; row < 3; row++)
+  {
+    for (int col = 0; col < 3; col++)
+    {
+      R_float[row][col] = R_eig(row, col);
+    }
+  }
+  // Create output variables
+  float3 output_eig, output_array;
+  Eigen::Vector3f output_all_eig;
+
+  // Ground Truth
+  Eigen::Vector3f correct_value = origin_eig + R_eig * body_pose_eig;
+
+  // Our Methods
+  mppi::math::bodyOffsetToWorldPoseDCM(body_pose_f3, origin_f3, R_eig, output_eig);
+  mppi::math::bodyOffsetToWorldPoseDCM(body_pose_f3, origin_f3, R_float, output_array);
+  mppi::math::bodyOffsetToWorldPoseDCM(body_pose_eig, origin_eig, R_eig, output_all_eig);
+
+  EXPECT_NEAR(output_eig.x, correct_value.x(), tol);
+  EXPECT_NEAR(output_eig.y, correct_value.y(), tol);
+  EXPECT_NEAR(output_eig.z, correct_value.z(), tol);
+  EXPECT_NEAR(output_array.x, correct_value.x(), tol);
+  EXPECT_NEAR(output_array.y, correct_value.y(), tol);
+  EXPECT_NEAR(output_array.z, correct_value.z(), tol);
+  EXPECT_NEAR(output_all_eig.x(), correct_value.x(), tol);
+  EXPECT_NEAR(output_all_eig.y(), correct_value.y(), tol);
+  EXPECT_NEAR(output_all_eig.z(), correct_value.z(), tol);
+}
+
+TEST(MATH_UTILS, TranslateVectorByEuler)
+{
+  const float tol = 1e-6;
+  Eigen::Vector3f origin_eig = Eigen::Vector3f::Random();
+  Eigen::Vector3f body_pose_eig = Eigen::Vector3f::Random();
+  Eigen::Quaternionf q = Eigen::Quaternionf::UnitRandom();
+  Eigen::Matrix3f R_eig = q.toRotationMatrix();
+
+  float3 origin_f3 = make_float3(origin_eig.x(), origin_eig.y(), origin_eig.z());
+  float3 body_pose_f3 = make_float3(body_pose_eig.x(), body_pose_eig.y(), body_pose_eig.z());
+
+  float3 rotation;
+  Eigen::Vector3f rotation_eig;
+  mppi::math::Quat2EulerNWU(q, rotation.x, rotation.y, rotation.z);
+  rotation_eig << rotation.x, rotation.y, rotation.z;
+
+  // Create output variables
+  float3 output_eig, output_array;
+  Eigen::Vector3f output_all_eig;
+
+  // Ground Truth
+  Eigen::Vector3f correct_value = origin_eig + R_eig * body_pose_eig;
+
+  // Our Methods
+  mppi::math::bodyOffsetToWorldPoseEuler(body_pose_f3, origin_f3, rotation_eig, output_eig);
+  mppi::math::bodyOffsetToWorldPoseEuler(body_pose_f3, origin_f3, rotation, output_array);
+  mppi::math::bodyOffsetToWorldPoseEuler(body_pose_eig, origin_eig, rotation_eig, output_all_eig);
+
+  EXPECT_NEAR(output_eig.x, correct_value.x(), tol);
+  EXPECT_NEAR(output_eig.y, correct_value.y(), tol);
+  EXPECT_NEAR(output_eig.z, correct_value.z(), tol);
+  EXPECT_NEAR(output_array.x, correct_value.x(), tol);
+  EXPECT_NEAR(output_array.y, correct_value.y(), tol);
+  EXPECT_NEAR(output_array.z, correct_value.z(), tol);
+  EXPECT_NEAR(output_all_eig.x(), correct_value.x(), tol);
+  EXPECT_NEAR(output_all_eig.y(), correct_value.y(), tol);
+  EXPECT_NEAR(output_all_eig.z(), correct_value.z(), tol);
 }
 
 TEST(MATH_UTILS, SkewSymmetricMatrixSameAsCrossProd)

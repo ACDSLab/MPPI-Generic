@@ -52,11 +52,15 @@ struct RacerDubinsElevationSuspensionParams : public RacerDubinsElevationParams
     NUM_STATES
   };
 
-  float spring_k = 1.0f;
-  float drag_c = 1.0f;
-  float mass = 1.0f;
-  float I_xx = 1.0f;
-  float I_yy = 1.0f;
+  float spring_k = 14000.0f;                              // [N / m]
+  float drag_c = 1000.0f;                                 // [N * s / m]
+  float mass = 1447.0f;                                   // [kg]
+  float I_xx = 1.0f / 12 * mass * 2 * SQ(1.5f);           // [kg * m^2]
+  float I_yy = 1.0f / 12 * mass * (SQ(1.5f) + SQ(3.0f));  // [kg * m^2]
+
+  // Cost force threshold on the order of 3000 N
+  // TODO Figure out Center of Gravity
+  float3 c_g = make_float3(2.981f * 0.5f, 0.0f, 0.0f);
 };
 
 template <class CLASS_T, class PARAMS_T = RacerDubinsElevationSuspensionParams>

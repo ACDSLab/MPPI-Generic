@@ -230,31 +230,6 @@ inline __device__ void Euler2QuatNWU(const double& r, const double& p, const dou
 }
 
 /*
- * rotates a point by the given quaternion
- */
-inline __host__ __device__ void RotatePointByQuat(const float q[4], float3& point)
-{
-  // converts the point into a quaternion format
-  float pq[4] = { 0.0f, point.x, point.y, point.z };
-  float q_inv[4];
-  float temp[4];
-  QuatInv(q, q_inv);
-  QuatMultiply(q, pq, temp, false);
-  QuatMultiply(temp, q_inv, pq, false);
-  // converts the quaternion back into a point
-  point = make_float3(pq[1], pq[2], pq[3]);
-}
-
-/*
- * rotates a point by the given DCM Matrix
- */
-inline __host__ __device__ void RotatePointByDCM(const float M[3][3], const float3& point, float3& output)
-{
-  matrix_multiplication::gemm1<3, 3, 1, p1::Parallel1Dir::NONE>((float*)M, (const float*)&point, (float*)&output, 1.0f,
-                                                                0.0f, matrix_multiplication::MAT_OP::TRANSPOSE);
-}
-
-/*
  * The Euler rotation sequence is 3-2-1 (roll, pitch, yaw) from Body to World
  */
 inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, const float& y, float q[4])
@@ -328,7 +303,23 @@ inline void QuatInv(const Eigen::Quaternionf& q, Eigen::Quaternionf& q_f)
 /*
  * rotates a point by the given quaternion
  */
-inline __host__ __device__ void RotatePointByQuat(const Eigen::Quaternionf& q, float3& point)
+inline __host__ __device__ void RotatePointByQuat(const float q[4], const float3& point, float3& output)
+{
+  // converts the point into a quaternion format
+  float pq[4] = { 0.0f, point.x, point.y, point.z };
+  float q_inv[4];
+  float temp[4];
+  QuatInv(q, q_inv);
+  QuatMultiply(q, pq, temp, false);
+  QuatMultiply(temp, q_inv, pq, false);
+  // converts the quaternion back into a point
+  output = make_float3(pq[1], pq[2], pq[3]);
+}
+
+/*
+ * rotates a point by the given quaternion
+ */
+inline __host__ __device__ void RotatePointByQuat(const Eigen::Quaternionf& q, const float3& point, float3& output)
 {
   // converts the point into a quaternion format
   Eigen::Quaternionf q_inv, temp, pq;
@@ -340,13 +331,54 @@ inline __host__ __device__ void RotatePointByQuat(const Eigen::Quaternionf& q, f
   QuatMultiply(q, pq, temp, false);
   QuatMultiply(temp, q_inv, pq, false);
   // converts the quaternion back into a point
-  point = make_float3(pq.x(), pq.y(), pq.z());
+  output = make_float3(pq.x(), pq.y(), pq.z());
+}
+/*
+ * rotates a point by the given quaternion
+ */
+inline __host__ __device__ void RotatePointByQuat(const Eigen::Quaternionf& q, const Eigen::Ref<Eigen::Vector3f>& point,
+                                                  Eigen::Ref<Eigen::Vector3f> output)
+{
+  output = q * point;
+}
+
+/*
+ * rotates a point by the given quaternion
+ */
+inline __host__ __device__ void RotatePointByQuat(const float q[4], float3& point)
+{
+  RotatePointByQuat(q, point, point);
+}
+
+/*
+ * rotates a point by the given quaternion
+ */
+inline __host__ __device__ void RotatePointByQuat(const Eigen::Quaternionf& q, float3& point)
+{
+  RotatePointByQuat(q, point, point);
+}
+
+/*
+ * rotates a point by the given quaternion
+ */
+inline __host__ __device__ void RotatePointByQuat(const Eigen::Quaternionf& q, Eigen::Ref<Eigen::Vector3f> point)
+{
+  RotatePointByQuat(q, point, point);
+}
+
+/*
+ * rotates a point by the given DCM Matrix. Transpose is used as M stored in row-major
+ */
+inline __host__ __device__ void RotatePointByDCM(const float M[3][3], const float3& point, float3& output)
+{
+  matrix_multiplication::gemm1<3, 3, 1, p1::Parallel1Dir::NONE>((float*)M, (const float*)&point, (float*)&output, 1.0f,
+                                                                0.0f, matrix_multiplication::MAT_OP::TRANSPOSE);
 }
 
 /*
  * rotates a point by the given DCM Matrix
  */
-inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3f> M, const float3& point,
+inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3f>& M, const float3& point,
                                                  float3& output)
 {
   Eigen::Map<Eigen::Vector3f> point_eigen((float*)&point);
@@ -357,7 +389,7 @@ inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3
 /*
  * rotates a point by the given DCM Matrix
  */
-inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3f> M,
+inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3f>& M,
                                                  const Eigen::Ref<Eigen::Vector3f>& point,
                                                  Eigen::Ref<Eigen::Vector3f> output)
 {
@@ -513,6 +545,16 @@ __host__ __device__ inline void bodyOffsetToWorldPoseQuat(const float3& offset, 
   output.z = body_pose.z + rotated_offset.z;
 }
 
+__host__ __device__ inline void bodyOffsetToWorldPoseQuat(const Eigen::Ref<Eigen::Vector3f>& offset,
+                                                          const Eigen::Ref<Eigen::Vector3f>& body_pose,
+                                                          const Eigen::Quaternionf& q,
+                                                          Eigen::Ref<Eigen::Vector3f> output)
+{
+  RotatePointByQuat(q, offset, output);
+  // add offset to body pose
+  output += body_pose;
+}
+
 __host__ __device__ inline void bodyOffsetToWorldPoseEuler(const float3& offset, const float3& body_pose,
                                                            const float3& rotation, float3& output)
 {
@@ -527,10 +569,24 @@ __host__ __device__ inline void bodyOffsetToWorldPoseEuler(const float3& offset,
   output.z += body_pose.z;
 }
 
+__host__ __device__ inline void bodyOffsetToWorldPoseEuler(const float3& offset, const float3& body_pose,
+                                                           const Eigen::Ref<Eigen::Vector3f>& rotation, float3& output)
+{
+  // convert RPY to Rotation Matrix
+  float M[3][3];
+  math::Euler2DCM_NWU(rotation.x(), rotation.y(), rotation.z(), M);
+  RotatePointByDCM(M, offset, output);
+
+  // add offset to body pose
+  output.x += body_pose.x;
+  output.y += body_pose.y;
+  output.z += body_pose.z;
+}
+
 __host__ __device__ inline void bodyOffsetToWorldPoseEuler(const Eigen::Ref<Eigen::Vector3f>& offset,
                                                            const Eigen::Ref<Eigen::Vector3f>& body_pose,
                                                            const Eigen::Ref<Eigen::Vector3f>& rotation,
-                                                           Eigen::Ref<Eigen::Vector3f>& output)
+                                                           Eigen::Ref<Eigen::Vector3f> output)
 {
   // convert RPY to Rotation Matrix
   Eigen::Matrix3f M;
@@ -565,7 +621,7 @@ __host__ __device__ inline void bodyOffsetToWorldPoseDCM(const float3& offset, c
 __host__ __device__ inline void bodyOffsetToWorldPoseDCM(const Eigen::Ref<Eigen::Vector3f>& offset,
                                                          const Eigen::Ref<Eigen::Vector3f>& body_pose,
                                                          const Eigen::Ref<Eigen::Matrix3f>& rotation,
-                                                         Eigen::Ref<Eigen::Vector3f>& output)
+                                                         Eigen::Ref<Eigen::Vector3f> output)
 {
   RotatePointByDCM(rotation, offset, output);
 
