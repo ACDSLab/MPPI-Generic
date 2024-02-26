@@ -521,7 +521,7 @@ inline void omega2edot(const float p, const float q, const float r, const Eigen:
   ed.z() = 0.5f * (-p * e.y() + q * e.x() + r * e.w());
 }
 
-__host__ __device__ inline void bodyOffsetToWorldPoseQuat(const float3& offset, const float3& body_pose,
+inline __host__ __device__ void bodyOffsetToWorldPoseQuat(const float3& offset, const float3& body_pose,
                                                           const float q[4], float3& output)
 {
   // rotate body vector into world frame
@@ -533,7 +533,7 @@ __host__ __device__ inline void bodyOffsetToWorldPoseQuat(const float3& offset, 
   output.z = body_pose.z + rotated_offset.z;
 }
 
-__host__ __device__ inline void bodyOffsetToWorldPoseQuat(const float3& offset, const float3& body_pose,
+inline __host__ __device__ void bodyOffsetToWorldPoseQuat(const float3& offset, const float3& body_pose,
                                                           const Eigen::Quaternionf& q, float3& output)
 {
   // rotate body vector into world frame
@@ -545,7 +545,7 @@ __host__ __device__ inline void bodyOffsetToWorldPoseQuat(const float3& offset, 
   output.z = body_pose.z + rotated_offset.z;
 }
 
-__host__ __device__ inline void bodyOffsetToWorldPoseQuat(const Eigen::Ref<Eigen::Vector3f>& offset,
+inline __host__ __device__ void bodyOffsetToWorldPoseQuat(const Eigen::Ref<Eigen::Vector3f>& offset,
                                                           const Eigen::Ref<Eigen::Vector3f>& body_pose,
                                                           const Eigen::Quaternionf& q,
                                                           Eigen::Ref<Eigen::Vector3f> output)
@@ -555,7 +555,7 @@ __host__ __device__ inline void bodyOffsetToWorldPoseQuat(const Eigen::Ref<Eigen
   output += body_pose;
 }
 
-__host__ __device__ inline void bodyOffsetToWorldPoseEuler(const float3& offset, const float3& body_pose,
+inline __host__ __device__ void bodyOffsetToWorldPoseEuler(const float3& offset, const float3& body_pose,
                                                            const float3& rotation, float3& output)
 {
   // convert RPY to Rotation Matrix
@@ -569,7 +569,7 @@ __host__ __device__ inline void bodyOffsetToWorldPoseEuler(const float3& offset,
   output.z += body_pose.z;
 }
 
-__host__ __device__ inline void bodyOffsetToWorldPoseEuler(const float3& offset, const float3& body_pose,
+inline __host__ __device__ void bodyOffsetToWorldPoseEuler(const float3& offset, const float3& body_pose,
                                                            const Eigen::Ref<Eigen::Vector3f>& rotation, float3& output)
 {
   // convert RPY to Rotation Matrix
@@ -583,7 +583,7 @@ __host__ __device__ inline void bodyOffsetToWorldPoseEuler(const float3& offset,
   output.z += body_pose.z;
 }
 
-__host__ __device__ inline void bodyOffsetToWorldPoseEuler(const Eigen::Ref<Eigen::Vector3f>& offset,
+inline __host__ __device__ void bodyOffsetToWorldPoseEuler(const Eigen::Ref<Eigen::Vector3f>& offset,
                                                            const Eigen::Ref<Eigen::Vector3f>& body_pose,
                                                            const Eigen::Ref<Eigen::Vector3f>& rotation,
                                                            Eigen::Ref<Eigen::Vector3f> output)
@@ -596,7 +596,7 @@ __host__ __device__ inline void bodyOffsetToWorldPoseEuler(const Eigen::Ref<Eige
   output += body_pose;
 }
 
-__host__ __device__ inline void bodyOffsetToWorldPoseDCM(const float3& offset, const float3& body_pose,
+inline __host__ __device__ void bodyOffsetToWorldPoseDCM(const float3& offset, const float3& body_pose,
                                                          const float rotation[3][3], float3& output)
 {
   RotatePointByDCM(rotation, offset, output);
@@ -607,7 +607,7 @@ __host__ __device__ inline void bodyOffsetToWorldPoseDCM(const float3& offset, c
   output.z += body_pose.z;
 }
 
-__host__ __device__ inline void bodyOffsetToWorldPoseDCM(const float3& offset, const float3& body_pose,
+inline __host__ __device__ void bodyOffsetToWorldPoseDCM(const float3& offset, const float3& body_pose,
                                                          const Eigen::Ref<Eigen::Matrix3f>& rotation, float3& output)
 {
   RotatePointByDCM(rotation, offset, output);
@@ -618,7 +618,7 @@ __host__ __device__ inline void bodyOffsetToWorldPoseDCM(const float3& offset, c
   output.z += body_pose.z;
 }
 
-__host__ __device__ inline void bodyOffsetToWorldPoseDCM(const Eigen::Ref<Eigen::Vector3f>& offset,
+inline __host__ __device__ void bodyOffsetToWorldPoseDCM(const Eigen::Ref<Eigen::Vector3f>& offset,
                                                          const Eigen::Ref<Eigen::Vector3f>& body_pose,
                                                          const Eigen::Ref<Eigen::Matrix3f>& rotation,
                                                          Eigen::Ref<Eigen::Vector3f> output)
