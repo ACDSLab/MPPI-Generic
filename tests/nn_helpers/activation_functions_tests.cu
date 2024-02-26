@@ -61,7 +61,7 @@ __global__ void tanhStableTestKernel(float* input, int num, int times)
 }
 
 template <int BLOCKDIM_X = 128>
-void launchTanhTestKernel(std::vector<float>& input, int times = 100)
+float launchTanhTestKernel(std::vector<float>& input, int times = 100)
 {
   float* input_d;
   float* input_stable_d;
@@ -79,7 +79,7 @@ void launchTanhTestKernel(std::vector<float>& input, int times = 100)
   HANDLE_ERROR(cudaStreamCreate(&stream));
 
   cudaEvent_t start, stop;
-  float time;
+  float time_stable, time_fast;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
   std::cout << "\n===== TANH ======\n";
@@ -88,19 +88,23 @@ void launchTanhTestKernel(std::vector<float>& input, int times = 100)
   tanhTestKernel<<<numBlocks, threadsPerBlock, 0, stream>>>(input_d, count, times);
   cudaEventRecord(stop, stream);
   cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&time, start, stop);
-  std::cout << "time to compute fast " << time << std::endl;
+  cudaEventElapsedTime(&time_fast, start, stop);
+  std::cout << "time to compute fast " << time_fast << std::endl;
 
   cudaEventRecord(start, stream);
   tanhStableTestKernel<<<numBlocks, threadsPerBlock, 0, stream>>>(input_stable_d, count, times);
   cudaEventRecord(stop, stream);
   cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&time, start, stop);
-  std::cout << "time to compute stable " << time << std::endl;
+  cudaEventElapsedTime(&time_stable, start, stop);
+  std::cout << "time to compute stable " << time_stable << std::endl;
+
+  std::cout << "time difference: " << time_stable - time_fast << std::endl;
 
   HANDLE_ERROR(cudaMemcpy(input.data(), input_d, sizeof(float) * count, cudaMemcpyDeviceToHost));
   cudaFree(input_d);
   cudaFree(input_stable_d);
+
+  return time_stable - time_fast;
 }
 
 TEST_F(ActivationFunctionTest, TanhGPU)
@@ -117,10 +121,17 @@ TEST_F(ActivationFunctionTest, TanhGPU)
     EXPECT_NEAR(output_vec[i], std::tanh(vec[i]), 2.0e-7);
   }
 
+  float average = 0;
   for (int i = 0; i < 10; i++)
   {
-    launchTanhTestKernel(output_vec);
+    average += launchTanhTestKernel(output_vec);
   }
+  average /= 10.0f;
+  std::cout << "got average diff " << average << std::endl;
+  // below condition is kind of a janky hardcode, might change on different systems
+  EXPECT_LT(std::abs(average), 3);
+  EXPECT_LT(average, 3);  // in ms
+  EXPECT_GT(average, -3);
 }
 
 TEST_F(ActivationFunctionTest, SigmoidCPU)
@@ -157,7 +168,7 @@ __global__ void sigmoidStableTestKernel(float* input, int num, int times)
 }
 
 template <int BLOCKDIM_X = 128>
-void launchSigmoidTestKernel(std::vector<float>& input, int times = 100)
+float launchSigmoidTestKernel(std::vector<float>& input, int times = 100)
 {
   float* input_d;
   float* input_stable_d;
@@ -175,7 +186,7 @@ void launchSigmoidTestKernel(std::vector<float>& input, int times = 100)
   HANDLE_ERROR(cudaStreamCreate(&stream));
 
   cudaEvent_t start, stop;
-  float time;
+  float time_fast, time_stable;
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
   std::cout << "\n===== SIGMOID ======\n";
@@ -184,19 +195,23 @@ void launchSigmoidTestKernel(std::vector<float>& input, int times = 100)
   sigmoidTestKernel<<<numBlocks, threadsPerBlock, 0, stream>>>(input_d, count, times);
   cudaEventRecord(stop, stream);
   cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&time, start, stop);
-  std::cout << "time to compute fast " << time << std::endl;
+  cudaEventElapsedTime(&time_fast, start, stop);
+  std::cout << "time to compute fast " << time_fast << std::endl;
 
   cudaEventRecord(start, stream);
   sigmoidStableTestKernel<<<numBlocks, threadsPerBlock, 0, stream>>>(input_stable_d, count, times);
   cudaEventRecord(stop, stream);
   cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&time, start, stop);
-  std::cout << "time to compute stable " << time << std::endl;
+  cudaEventElapsedTime(&time_stable, start, stop);
+  std::cout << "time to compute stable " << time_stable << std::endl;
+
+  std::cout << "time difference: " << time_stable - time_fast << std::endl;
 
   HANDLE_ERROR(cudaMemcpy(input.data(), input_d, sizeof(float) * count, cudaMemcpyDeviceToHost));
   cudaFree(input_d);
   cudaFree(input_stable_d);
+
+  return time_stable - time_fast;
 }
 
 TEST_F(ActivationFunctionTest, SigmoidGPU)
@@ -212,8 +227,16 @@ TEST_F(ActivationFunctionTest, SigmoidGPU)
   {
     EXPECT_NEAR(output_vec[i], (1.0f / (1.0f + std::exp(-vec[i]))), 2.0e-7);
   }
+
+  float average = 0.0f;
   for (int i = 0; i < 10; i++)
   {
-    launchSigmoidTestKernel(output_vec);
+    average += launchSigmoidTestKernel(output_vec);
   }
+  average /= 10.0f;
+  std::cout << "got average difference " << average << std::endl;
+  EXPECT_GT(average, 0.0f);
+  // below condition is kind of a janky hardcode, might change on different systems
+  // if should still be faster to use the faster version, so number should be positive
+  EXPECT_GT(average, 10.0f);  // in ms
 }
