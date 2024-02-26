@@ -28,7 +28,7 @@ TEMPLATE_NAME::RacerDubinsElevationSuspensionImpl(PARAMS_T& params, cudaStream_t
 
 TEMPLATE_TYPE
 TEMPLATE_NAME::RacerDubinsElevationSuspensionImpl(std::string path, cudaStream_t stream)
-  : RacerDubinsElevationLSTMSteeringImpl<CLASS_T, PARAMS_T>(stream)
+  : RacerDubinsElevationLSTMSteeringImpl<CLASS_T, PARAMS_T>(path, stream)
 {
   if (!fileExists(path))
   {
@@ -139,10 +139,18 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
     if (this->tex_helper_->checkTextureUse(0))
     {
       wheel_height = this->tex_helper_->queryTextureAtWorldPose(0, wheel_positions_world[i]);
+      if (!isfinite(wheel_height))
+      {
+        wheel_height = 0.0f;
+      }
     }
     if (normals_tex_helper_->checkTextureUse(0))
     {
       wheel_normal_world = normals_tex_helper_->queryTextureAtWorldPose(0, wheel_positions_world[i]);
+      if (!isfinite(wheel_normal_world.x) || !isfinite(wheel_normal_world.y) || !isfinite(wheel_normal_body.z))
+      {
+        wheel_normal_world = make_float4(0.0, 0.0, 1.0, 0.0);
+      }
     }
 
     // get normals in body position
@@ -298,10 +306,18 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
     if (this->tex_helper_->checkTextureUse(0))
     {
       wheel_height = this->tex_helper_->queryTextureAtWorldPose(0, wheel_positions_world);
+      if (!isfinite(wheel_height))
+      {
+        wheel_height = 0.0f;
+      }
     }
     if (normals_tex_helper_->checkTextureUse(0))
     {
       wheel_normal_world = normals_tex_helper_->queryTextureAtWorldPose(0, wheel_positions_world);
+      if (!isfinite(wheel_normal_world.x) || !isfinite(wheel_normal_world.y) || !isfinite(wheel_normal_body.z))
+      {
+        wheel_normal_world = make_float4(0.0, 0.0, 1.0, 0.0);
+      }
     }
 
     // get normals in body position
@@ -417,6 +433,9 @@ __host__ __device__ void TEMPLATE_NAME::setOutputs(const float* state_der, const
       case O_INDEX(BASELINK_POS_I_Y):
         output[i] = next_state[S_INDEX(POS_Y)];
         break;
+      case O_INDEX(BASELINK_POS_I_Z):
+        output[i] = next_state[S_INDEX(POS_Z)];
+        break;
       case O_INDEX(PITCH):
         output[i] = next_state[S_INDEX(PITCH)];
         break;
@@ -476,6 +495,85 @@ __host__ __device__ void TEMPLATE_NAME::setOutputs(const float* state_der, const
         break;
     }
   }
+}
+
+TEMPLATE_TYPE
+TEMPLATE_NAME::state_array TEMPLATE_NAME::stateFromMap(const std::map<std::string, float>& map)
+{
+  std::vector<std::string> needed_keys = { "VEL_X",      "VEL_Z", "POS_X", "POS_Y", "POS_Z",       "OMEGA_X",
+                                           "OMEGA_Y",    "ROLL",  "PITCH", "YAW",   "STEER_ANGLE", "STEER_ANGLE_RATE",
+                                           "BRAKE_STATE" };
+  std::vector<std::string> uncertainty_keys = { "UNCERTAINTY_POS_X",       "UNCERTAINTY_POS_Y",
+                                                "UNCERTAINTY_YAW",         "UNCERTAINTY_VEL_X",
+                                                "UNCERTAINTY_POS_X_Y",     "UNCERTAINTY_POS_X_YAW",
+                                                "UNCERTAINTY_POS_X_VEL_X", "UNCERTAINTY_POS_Y_YAW",
+                                                "UNCERTAINTY_POS_Y_VEL_X", "UNCERTAINTY_YAW_VEL_X" };
+  const bool use_uncertainty = false;
+  if (use_uncertainty)
+  {
+    needed_keys.insert(needed_keys.end(), uncertainty_keys.begin(), uncertainty_keys.end());
+  }
+
+  bool missing_key = false;
+  state_array s = state_array::Zero();
+  for (const auto& key : needed_keys)
+  {
+    if (map.find(key) == map.end())
+    {  // Print out all missing keys
+      std::cout << "Could not find key " << key << " for elevation with simple suspension dynamics." << std::endl;
+      missing_key = true;
+    }
+  }
+  if (missing_key)
+  {
+    return state_array::Constant(NAN);
+  }
+
+  s(S_INDEX(POS_X)) = map.at("POS_X");
+  s(S_INDEX(POS_Y)) = map.at("POS_Y");
+  s(S_INDEX(POS_Z)) = map.at("POS_Z");
+  s(S_INDEX(VEL_X)) = map.at("VEL_X");
+  s(S_INDEX(VEL_Z)) = map.at("VEL_Z");
+  s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
+  s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
+  s(S_INDEX(ROLL)) = map.at("ROLL");
+  s(S_INDEX(PITCH)) = map.at("PITCH");
+  s(S_INDEX(YAW)) = map.at("YAW");
+  s(S_INDEX(ROLL_RATE)) = map.at("OMEGA_X");
+  s(S_INDEX(PITCH_RATE)) = map.at("OMEGA_Y");
+  s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");
+
+  if (use_uncertainty)
+  {
+    s(S_INDEX(UNCERTAINTY_POS_X)) = map.at("UNCERTAINTY_POS_X");
+    s(S_INDEX(UNCERTAINTY_POS_Y)) = map.at("UNCERTAINTY_POS_Y");
+    s(S_INDEX(UNCERTAINTY_YAW)) = map.at("UNCERTAINTY_YAW");
+    s(S_INDEX(UNCERTAINTY_VEL_X)) = map.at("UNCERTAINTY_VEL_X");
+    s(S_INDEX(UNCERTAINTY_POS_X_Y)) = map.at("UNCERTAINTY_POS_X_Y");
+    s(S_INDEX(UNCERTAINTY_POS_X_YAW)) = map.at("UNCERTAINTY_POS_X_YAW");
+    s(S_INDEX(UNCERTAINTY_POS_X_VEL_X)) = map.at("UNCERTAINTY_POS_X_VEL_X");
+    s(S_INDEX(UNCERTAINTY_POS_Y_YAW)) = map.at("UNCERTAINTY_POS_Y_YAW");
+    s(S_INDEX(UNCERTAINTY_POS_Y_VEL_X)) = map.at("UNCERTAINTY_POS_Y_VEL_X");
+    s(S_INDEX(UNCERTAINTY_YAW_VEL_X)) = map.at("UNCERTAINTY_YAW_VEL_X");
+  }
+  float eps = 1e-6f;
+  if (s(S_INDEX(UNCERTAINTY_POS_X)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_POS_X)) = eps;
+  }
+  if (s(S_INDEX(UNCERTAINTY_POS_Y)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_POS_Y)) = eps;
+  }
+  if (s(S_INDEX(UNCERTAINTY_YAW)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_YAW)) = eps;
+  }
+  if (s(S_INDEX(UNCERTAINTY_VEL_X)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_VEL_X)) = eps;
+  }
+  return s;
 }
 #undef TEMPLATE_NAME
 #undef TEMPLATE_TYPE

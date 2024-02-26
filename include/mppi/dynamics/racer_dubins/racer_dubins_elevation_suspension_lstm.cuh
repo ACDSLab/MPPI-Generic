@@ -123,6 +123,8 @@ public:
     this->normals_tex_helper_->updateRotation(2, rotation);
   }
 
+  state_array stateFromMap(const std::map<std::string, float>& map);
+
 protected:
   TwoDTextureHelper<float4>* normals_tex_helper_ = nullptr;
 };
@@ -139,7 +141,7 @@ public:
     : PARENT_CLASS(params, stream)
   {
   }
-  RacerDubinsElevationSuspension(std::string path, cudaStream_t stream) : PARENT_CLASS(path, stream = 0)
+  RacerDubinsElevationSuspension(std::string path, cudaStream_t stream = 0) : PARENT_CLASS(path, stream = 0)
   {
   }
 };

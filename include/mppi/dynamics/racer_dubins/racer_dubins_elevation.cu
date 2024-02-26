@@ -134,16 +134,16 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::setOutputs
         output[i] = next_state[S_INDEX(STEER_ANGLE_RATE)];
         break;
       case O_INDEX(WHEEL_FORCE_B_FL):
-        output[i] = 10000.0f;
+        output[i] = NAN;
         break;
       case O_INDEX(WHEEL_FORCE_B_FR):
-        output[i] = 10000.0f;
+        output[i] = NAN;
         break;
       case O_INDEX(WHEEL_FORCE_B_RL):
-        output[i] = 10000.0f;
+        output[i] = NAN;
         break;
       case O_INDEX(WHEEL_FORCE_B_RR):
-        output[i] = 10000.0f;
+        output[i] = NAN;
         break;
       case O_INDEX(ACCEL_X):
         output[i] = state_der[S_INDEX(VEL_X)];
