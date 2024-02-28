@@ -119,8 +119,6 @@ public:
   {
     this->tex_helper_->updateRotation(0, rotation);
     this->normals_tex_helper_->updateRotation(0, rotation);
-    this->normals_tex_helper_->updateRotation(1, rotation);
-    this->normals_tex_helper_->updateRotation(2, rotation);
   }
 
   state_array stateFromMap(const std::map<std::string, float>& map);
