@@ -159,7 +159,7 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
 
     // Calculate wheel heights, velocities, and forces
     wheel_pos_z = state(S_INDEX(POS_Z)) + roll * wheel_positions_cg[i].y - pitch * wheel_positions_cg[i].x -
-                  prams_p->wheel_radius;
+                  params_p->wheel_radius;
     wheel_vel_z = state(S_INDEX(VEL_Z)) + state(S_INDEX(ROLL_RATE)) * wheel_positions_cg[i].y -
                   state(S_INDEX(PITCH_RATE)) * wheel_positions_cg[i].x;
     // V_x * N_x + V_y * N_y
