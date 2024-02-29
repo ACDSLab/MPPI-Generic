@@ -57,6 +57,7 @@ struct RacerDubinsElevationSuspensionParams : public RacerDubinsElevationParams
   float mass = 1447.0f;                                   // [kg]
   float I_xx = 1.0f / 12 * mass * 2 * SQ(1.5f);           // [kg * m^2]
   float I_yy = 1.0f / 12 * mass * (SQ(1.5f) + SQ(3.0f));  // [kg * m^2]
+  float wheel_radius = 0.32f;                             // [m]
 
   // Cost force threshold on the order of 3000 N
   // TODO Figure out Center of Gravity

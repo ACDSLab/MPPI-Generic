@@ -158,7 +158,8 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
                                  mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
 
     // Calculate wheel heights, velocities, and forces
-    wheel_pos_z = state(S_INDEX(POS_Z)) + roll * wheel_positions_cg[i].y - pitch * wheel_positions_cg[i].x;
+    wheel_pos_z = state(S_INDEX(POS_Z)) + roll * wheel_positions_cg[i].y - pitch * wheel_positions_cg[i].x -
+                  prams_p->wheel_radius;
     wheel_vel_z = state(S_INDEX(VEL_Z)) + state(S_INDEX(ROLL_RATE)) * wheel_positions_cg[i].y -
                   state(S_INDEX(PITCH_RATE)) * wheel_positions_cg[i].x;
     // V_x * N_x + V_y * N_y
@@ -326,7 +327,8 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
                                  mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
 
     // Calculate wheel heights, velocities, and forces
-    wheel_pos_z = state[S_INDEX(POS_Z)] + roll * wheel_positions_cg.y - pitch * wheel_positions_cg.x;
+    wheel_pos_z =
+        state[S_INDEX(POS_Z)] + roll * wheel_positions_cg.y - pitch * wheel_positions_cg.x - params_p->wheel_radius;
     wheel_vel_z = state[S_INDEX(VEL_Z)] + state[S_INDEX(ROLL_RATE)] * wheel_positions_cg.y -
                   state[S_INDEX(PITCH_RATE)] * wheel_positions_cg.x;
     // V_x * N_x + V_y * N_y
@@ -436,7 +438,7 @@ __host__ __device__ void TEMPLATE_NAME::setOutputs(const float* state_der, const
         output[i] = next_state[S_INDEX(POS_Y)];
         break;
       case O_INDEX(BASELINK_POS_I_Z):
-        output[i] = next_state[S_INDEX(POS_Z)];
+        output[i] = next_state[S_INDEX(POS_Z)] - next_state[S_INDEX(PITCH)] * (-this->params_.c_g.x);
         break;
       case O_INDEX(PITCH):
         output[i] = next_state[S_INDEX(PITCH)];
