@@ -468,6 +468,12 @@ public:
     temp_last_state_time = state_time_;
     this->access_guard_.unlock();
 
+    // Check if there are nans in the initial state and don't continue
+    if (!isfinite(state.sum()))
+    {
+      return;
+    }
+
     if (this->controller_->model_->checkRequiresBuffer())
     {
       std::lock_guard<std::mutex> guard(dynamics_params_guard_);
