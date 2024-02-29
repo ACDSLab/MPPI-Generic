@@ -71,6 +71,44 @@ TEST(MATH_UTILS, RotatePointByDCM)
   ASSERT_NEAR(result.z, result_eig.z(), tol) << " failed comparing GPU and Eigen methods of rotating by DCM";
 }
 
+TEST(MATH_UTILS, RotatePointByDCMTranspose)
+{
+  const float tol = 1e-6;
+  Eigen::Quaternionf q_eig = Eigen::Quaternionf::UnitRandom();
+  Eigen::Vector3f point_eig = Eigen::Vector3f::Random();
+
+  std::array<float, 4> q{ q_eig.w(), q_eig.x(), q_eig.y(), q_eig.z() };
+  float3 point = make_float3(point_eig.x(), point_eig.y(), point_eig.z());
+
+  float M[3][3];
+  Eigen::Matrix3f M_eig;
+  mppi::math::Quat2DCM(q.data(), M);
+  mppi::math::Quat2DCM(q_eig, M_eig);
+  for (int row = 0; row < 3; row++)
+  {
+    for (int col = 0; col < 3; col++)
+    {
+      ASSERT_NEAR(M[row][col], M_eig(row, col), tol) << " failed at row: " << row << ", col: " << col;
+    }
+  }
+
+  float3 result, result_eig_rotation_matrix;
+  Eigen::Vector3f result_eig;
+  mppi::math::RotatePointByDCM(M, point, result, mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
+  mppi::math::RotatePointByDCM(M_eig, point, result_eig_rotation_matrix,
+                               mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
+  mppi::math::RotatePointByDCM(M_eig, point_eig, result_eig, mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
+  ASSERT_NEAR(result.x, result_eig_rotation_matrix.x, tol) << " failed comparing R stored in 2d float array and R in "
+                                                              "Eigen matrix";
+  ASSERT_NEAR(result.y, result_eig_rotation_matrix.y, tol) << " failed comparing R stored in 2d float array and R in "
+                                                              "Eigen matrix";
+  ASSERT_NEAR(result.z, result_eig_rotation_matrix.z, tol) << " failed comparing R stored in 2d float array and R in "
+                                                              "Eigen matrix";
+  ASSERT_NEAR(result.x, result_eig.x(), tol) << " failed comparing GPU and Eigen methods of rotating by DCM";
+  ASSERT_NEAR(result.y, result_eig.y(), tol) << " failed comparing GPU and Eigen methods of rotating by DCM";
+  ASSERT_NEAR(result.z, result_eig.z(), tol) << " failed comparing GPU and Eigen methods of rotating by DCM";
+}
+
 TEST(MATH_UTILS, QuatMultiply)
 {
   // Create an unnormalized quaternion.

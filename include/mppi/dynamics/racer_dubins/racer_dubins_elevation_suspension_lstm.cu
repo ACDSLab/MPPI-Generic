@@ -154,7 +154,8 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
     }
 
     // get normals in body position
-    mppi::math::RotatePointByDCM(M, *(float3*)(&wheel_normal_world), wheel_normal_body);
+    mppi::math::RotatePointByDCM(M, *(float3*)(&wheel_normal_world), wheel_normal_body,
+                                 mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
 
     // Calculate wheel heights, velocities, and forces
     wheel_pos_z = state(S_INDEX(POS_Z)) + roll * wheel_positions_cg[i].y - pitch * wheel_positions_cg[i].x;
@@ -321,7 +322,8 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
     }
 
     // get normals in body position
-    mppi::math::RotatePointByDCM(M, *(float3*)(&wheel_normal_world), wheel_normal_body);
+    mppi::math::RotatePointByDCM(M, *(float3*)(&wheel_normal_world), wheel_normal_body,
+                                 mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
 
     // Calculate wheel heights, velocities, and forces
     wheel_pos_z = state[S_INDEX(POS_Z)] + roll * wheel_positions_cg.y - pitch * wheel_positions_cg.x;
@@ -539,6 +541,12 @@ TEMPLATE_NAME::state_array TEMPLATE_NAME::stateFromMap(const std::map<std::strin
   s(S_INDEX(ROLL)) = map.at("ROLL");
   s(S_INDEX(PITCH)) = map.at("PITCH");
   s(S_INDEX(YAW)) = map.at("YAW");
+  // Set z position to cg's z position in world frame
+  float3 rotation = make_float3(s(S_INDEX(ROLL)), s(S_INDEX(PITCH)), s(S_INDEX(YAW)));
+  float3 world_pose = make_float3(s(S_INDEX(POS_X)), s(S_INDEX(POS_Y)), s(S_INDEX(POS_Z)));
+  float3 cg_in_world_frame;
+  mppi::math::bodyOffsetToWorldPoseEuler(this->params_.c_g, world_pose, rotation, cg_in_world_frame);
+  s(S_INDEX(POS_Z)) = cg_in_world_frame.z;
   s(S_INDEX(ROLL_RATE)) = map.at("OMEGA_X");
   s(S_INDEX(PITCH_RATE)) = map.at("OMEGA_Y");
   s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");

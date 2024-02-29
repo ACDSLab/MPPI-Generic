@@ -40,6 +40,8 @@ namespace mppi
 {
 namespace math
 {
+namespace matrix = ::mppi::matrix_multiplication;
+
 const float GRAVITY = 9.81f;
 // Based off of https://gormanalysis.com/blog/random-numbers-in-cpp
 inline std::vector<int> sample_without_replacement(const int k, const int N,
@@ -369,21 +371,37 @@ inline __host__ __device__ void RotatePointByQuat(const Eigen::Quaternionf& q, E
 /*
  * rotates a point by the given DCM Matrix. Transpose is used as M stored in row-major
  */
-inline __host__ __device__ void RotatePointByDCM(const float M[3][3], const float3& point, float3& output)
+inline __host__ __device__ void RotatePointByDCM(const float M[3][3], const float3& point, float3& output,
+                                                 matrix::MAT_OP operation = matrix::MAT_OP::NONE)
 {
-  matrix_multiplication::gemm1<3, 3, 1, p1::Parallel1Dir::NONE>((float*)M, (const float*)&point, (float*)&output, 1.0f,
-                                                                0.0f, matrix_multiplication::MAT_OP::TRANSPOSE);
+  if (operation == matrix::MAT_OP::NONE)
+  {
+    matrix::gemm1<3, 3, 1, p1::Parallel1Dir::NONE>((float*)M, (const float*)&point, (float*)&output, 1.0f, 0.0f,
+                                                   matrix::MAT_OP::TRANSPOSE);
+  }
+  else if (operation == matrix::MAT_OP::TRANSPOSE)
+  {
+    matrix::gemm1<3, 3, 1, p1::Parallel1Dir::NONE>((float*)M, (const float*)&point, (float*)&output, 1.0f, 0.0f,
+                                                   matrix::MAT_OP::NONE);
+  }
 }
 
 /*
  * rotates a point by the given DCM Matrix
  */
 inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3f>& M, const float3& point,
-                                                 float3& output)
+                                                 float3& output, matrix::MAT_OP operation = matrix::MAT_OP::NONE)
 {
   Eigen::Map<Eigen::Vector3f> point_eigen((float*)&point);
   Eigen::Map<Eigen::Vector3f> output_eigen((float*)&output);
-  output_eigen = M * point_eigen;
+  if (operation == matrix::MAT_OP::NONE)
+  {
+    output_eigen = M * point_eigen;
+  }
+  else if (operation == matrix::MAT_OP::TRANSPOSE)
+  {
+    output_eigen = M.transpose() * point_eigen;
+  }
 }
 
 /*
@@ -391,9 +409,17 @@ inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3
  */
 inline __host__ __device__ void RotatePointByDCM(const Eigen::Ref<Eigen::Matrix3f>& M,
                                                  const Eigen::Ref<Eigen::Vector3f>& point,
-                                                 Eigen::Ref<Eigen::Vector3f> output)
+                                                 Eigen::Ref<Eigen::Vector3f> output,
+                                                 matrix::MAT_OP operation = matrix::MAT_OP::NONE)
 {
-  output = M * point;
+  if (operation == matrix::MAT_OP::NONE)
+  {
+    output = M * point;
+  }
+  else if (operation == matrix::MAT_OP::TRANSPOSE)
+  {
+    output = M.transpose() * point;
+  }
 }
 
 /*
