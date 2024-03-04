@@ -292,11 +292,15 @@ public:
     CLASS_T* derived = static_cast<CLASS_T*>(this);
     derived->computeStateDeriv(state, control, state_der);
     derived->updateState(state, next_state, state_der, dt);
+    derived->stateToOutput(next_state, output);
+  }
 
+  void stateToOutput(const Eigen::Ref<const state_array>& state, Eigen::Ref<output_array> output)
+  {
     // TODO this is a hack
     for (int i = 0; i < OUTPUT_DIM && i < STATE_DIM; i++)
     {
-      output[i] = next_state[i];
+      output[i] = state[i];
     }
   }
 

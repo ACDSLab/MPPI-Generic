@@ -74,7 +74,7 @@ void Dynamics<CLASS_T, PARAMS_T>::freeCudaMem()
 {
   if (GPUMemStatus_)
   {
-    cudaFree(model_d_);
+    HANDLE_ERROR(cudaFree(model_d_));
     GPUMemStatus_ = false;
     model_d_ = nullptr;
   }
@@ -89,22 +89,19 @@ __device__ inline void Dynamics<CLASS_T, PARAMS_T>::computeStateDeriv(float* sta
   // find the change in x,y,theta based off of the rest of the state
   if (threadIdx.y == 0)
   {
-    // printf("state at 0 before kin: %f\n", state[0]);
     derived->computeKinematics(state, state_der);
-    // printf("state at 0 after kin: %f\n", state[0]);
   }
   derived->computeDynamics(state, control, state_der, theta_s);
-  // printf("state at 0 after dyn: %f\n", state[0]);
 }
 
 template <class CLASS_T, class PARAMS_T>
 __device__ void Dynamics<CLASS_T, PARAMS_T>::enforceConstraints(float* state, float* control)
 {
   // TODO should control_rngs_ be a constant memory parameter
-  int i;
-  int tdy = threadIdx.y;
+  int i, p_index, step;
+  mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(p_index, step);
   // parallelize setting the constraints with y dim
-  for (i = tdy; i < CONTROL_DIM; i += blockDim.y)
+  for (i = p_index; i < CONTROL_DIM; i += step)
   {
     if (fabsf(control[i]) < this->control_deadband_[i])
     {
@@ -122,11 +119,10 @@ template <class CLASS_T, class PARAMS_T>
 __device__ void Dynamics<CLASS_T, PARAMS_T>::updateState(float* state, float* next_state, float* state_der,
                                                          const float dt)
 {
-  int i;
-  int tdy = threadIdx.y;
+  int i, p_index, step;
+  mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(p_index, step);
   // Add the state derivative time dt to the current state.
-  // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
-  for (i = tdy; i < STATE_DIM; i += blockDim.y)
+  for (i = p_index; i < STATE_DIM; i += step)
   {
     next_state[i] = state[i] + state_der[i] * dt;
   }
@@ -142,7 +138,7 @@ __device__ inline void Dynamics<CLASS_T, PARAMS_T>::step(float* state, float* ne
   __syncthreads();
   derived->updateState(state, next_state, state_der, dt);
   __syncthreads();
-  stateToOutput(next_state, output);
+  derived->stateToOutput(next_state, output);
 }
 
 template <class CLASS_T, class PARAMS_T>
