@@ -56,16 +56,15 @@ public:
    */
   ARStandardCostImpl(cudaStream_t stream = 0);
 
-  std::string getCostFunctionName()
+  std::string getCostFunctionName() const override
   {
     return "AutoRally standard cost function";
   }
 
   /**
    * Deallocates the allocated cuda memory for an object
-   * TODO make a generic version of this
    */
-  // void freeCudaMem();
+  void freeCudaMem();
 
   inline __host__ __device__ int getHeight() const
   {

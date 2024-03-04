@@ -6,11 +6,14 @@ ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::ARStandardCostImpl(cudaStre
   this->bindToStream(stream);
 }
 
-// template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
-// void ARStandardCostImpl<CLASS_T, PARAMS_T,  DYN_PARAMS_T>::freeCudaMem() {
-//   // TODO free everything
-//   Cost<CLASS_T, PARAMS_T, this->STATE_DIM, this->CONTROL_DIM>::freeCudaMem();
-// }
+template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
+void ARStandardCostImpl<CLASS_T, PARAMS_T,  DYN_PARAMS_T>::freeCudaMem() {
+  if (this->GPUMemStatus_)
+  {
+    HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
+  }
+  PARENT_CLASS::freeCudaMem();
+}
 
 template <class CLASS_T, class PARAMS_T, class DYN_PARAMS_T>
 void ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::paramsToDevice()

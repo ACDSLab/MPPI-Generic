@@ -18,14 +18,17 @@ NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::NeuralNetModel(cudaStream_t 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::~NeuralNetModel()
 {
-  free(helper_);
   freeCudaMem();
+  free(helper_);
 }
 
 template <int S_DIM, int C_DIM, int K_DIM, int... layer_args>
 void NeuralNetModel<S_DIM, C_DIM, K_DIM, layer_args...>::freeCudaMem()
 {
-  helper_->freeCudaMem();
+  if (this->GPUMemStatus_)
+  {
+    helper_->freeCudaMem();
+  }
   PARENT_CLASS::freeCudaMem();
 }
 
