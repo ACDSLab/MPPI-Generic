@@ -129,7 +129,7 @@ void FNNHelper<USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& pa
 }
 
 template <bool USE_SHARED>
-void FNNHelper<USE_SHARED>::setupMemory(std::vector<int> layers)
+void FNNHelper<USE_SHARED>::setupMemory(const std::vector<int>& layers)
 {
   assert(layers.size() >= 2);
 

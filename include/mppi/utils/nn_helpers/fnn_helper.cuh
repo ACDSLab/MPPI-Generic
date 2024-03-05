@@ -138,7 +138,7 @@ private:
   std::vector<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> weights_;
   std::vector<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> biases_;
 
-  void setupMemory(std::vector<int> layers);
+  void setupMemory(const std::vector<int>& layers);
 };
 
 #if __CUDACC__

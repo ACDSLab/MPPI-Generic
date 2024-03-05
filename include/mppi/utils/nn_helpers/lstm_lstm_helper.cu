@@ -1,9 +1,9 @@
 #include "lstm_lstm_helper.cuh"
 
 template <bool USE_SHARED>
-LSTMLSTMHelper<USE_SHARED>::LSTMLSTMHelper(int init_input_dim, int init_hidden_dim, std::vector<int> init_output_layers,
-                                           int input_dim, int hidden_dim, std::vector<int> output_layers, int init_len,
-                                           cudaStream_t stream)
+LSTMLSTMHelper<USE_SHARED>::LSTMLSTMHelper(int init_input_dim, int init_hidden_dim,
+                                           std::vector<int>& init_output_layers, int input_dim, int hidden_dim,
+                                           std::vector<int>& output_layers, int init_len, cudaStream_t stream)
 {
   init_len_ = init_len;
   init_model_ = std::make_shared<LSTMHelper<false>>(init_input_dim, init_hidden_dim, init_output_layers);

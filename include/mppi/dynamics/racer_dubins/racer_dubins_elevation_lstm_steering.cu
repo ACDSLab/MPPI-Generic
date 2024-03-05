@@ -5,8 +5,8 @@
 #include "racer_dubins_elevation_lstm_steering.cuh"
 
 RacerDubinsElevationLSTMSteering::RacerDubinsElevationLSTMSteering(int init_input_dim, int init_hidden_dim,
-                                                                   std::vector<int> init_output_layers, int input_dim,
-                                                                   int hidden_dim, std::vector<int> output_layers,
+                                                                   std::vector<int>& init_output_layers, int input_dim,
+                                                                   int hidden_dim, std::vector<int>& output_layers,
                                                                    int init_len, cudaStream_t stream)
   : RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>(stream)
 {
@@ -42,6 +42,12 @@ void RacerDubinsElevationLSTMSteering::GPUSetup()
   // makes sure that the device ptr sees the correct lstm model
   this->network_d_ = lstm_lstm_helper_->getLSTMDevicePtr();
   PARENT_CLASS::GPUSetup();
+}
+
+void RacerDubinsElevationLSTMSteering::bindToStream(cudaStream_t stream)
+{
+  this->PARENT_CLASS::bindToStream(stream);
+  this->lstm_lstm_helper_->getLSTMModel()->bindToStream(stream);
 }
 
 void RacerDubinsElevationLSTMSteering::freeCudaMem()

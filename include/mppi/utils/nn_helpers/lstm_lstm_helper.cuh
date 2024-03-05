@@ -28,8 +28,8 @@ public:
   // typedef Eigen::Matrix<float, LSTM_T::INPUT_DIM, 1> input_array;
   // typedef Eigen::Matrix<float, LSTM_T::OUTPUT_DIM, 1> output_array;
 
-  LSTMLSTMHelper<USE_SHARED>(int init_input_dim, int init_hidden_dim, std::vector<int> init_output_layers,
-                             int input_dim, int hidden_dim, std::vector<int> output_layers, int init_len,
+  LSTMLSTMHelper<USE_SHARED>(int init_input_dim, int init_hidden_dim, std::vector<int>& init_output_layers,
+                             int input_dim, int hidden_dim, std::vector<int>& output_layers, int init_len,
                              cudaStream_t = 0);
   // LSTMLSTMHelper<USE_SHARED>(std::string init_path, std::string lstm_path, cudaStream_t = 0);
   LSTMLSTMHelper<USE_SHARED>(std::string path, std::string prefix, cudaStream_t = 0);

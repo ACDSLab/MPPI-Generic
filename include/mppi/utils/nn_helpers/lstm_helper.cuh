@@ -13,7 +13,7 @@ public:
 
   // TODO create destructor that deallocates memory
 
-  LSTMHelper<USE_SHARED>(int input_dim, int hidden_dim, std::vector<int> output_layers, cudaStream_t stream = 0);
+  LSTMHelper<USE_SHARED>(int input_dim, int hidden_dim, std::vector<int>& output_layers, cudaStream_t stream = 0);
   LSTMHelper<USE_SHARED>(std::string, cudaStream_t stream = 0);
   LSTMHelper<USE_SHARED>(const cnpy::npz_t& param_dict, std::string prefix, bool add_slash = true,
                          cudaStream_t stream = 0);
@@ -50,7 +50,7 @@ public:
   void resetCellCPU();
   void resetHiddenCellCPU();
 
-  void setAllValues(std::vector<float> lstm, std::vector<float> output)
+  void setAllValues(std::vector<float>& lstm, std::vector<float>& output)
   {
     assert(lstm.size() == getNumParams());
     memcpy(this->weights_, lstm.data(), LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float));

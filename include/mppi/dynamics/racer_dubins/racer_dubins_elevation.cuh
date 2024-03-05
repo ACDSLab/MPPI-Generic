@@ -102,6 +102,7 @@ public:
 
   ~RacerDubinsElevationImpl()
   {
+    freeCudaMem();
     delete tex_helper_;
   }
 
@@ -114,6 +115,11 @@ public:
   void updateRotation(std::array<float3, 3>& rotation)
   {
       this->tex_helper_->updateRotation(0, rotation);
+  }
+
+  void bindToStream(cudaStream_t stream) {
+    this->tex_helper_->bindToStream(stream);
+    this->PARENT_CLASS::bindToStream(stream);
   }
 
   void GPUSetup();

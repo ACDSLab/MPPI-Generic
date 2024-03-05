@@ -5,7 +5,7 @@
 #include "lstm_helper.cuh"
 
 template <bool USE_SHARED>
-LSTMHelper<USE_SHARED>::LSTMHelper(int input_dim, int hidden_dim, std::vector<int> output_layers, cudaStream_t stream)
+LSTMHelper<USE_SHARED>::LSTMHelper(int input_dim, int hidden_dim, std::vector<int>& output_layers, cudaStream_t stream)
   : Managed(stream)
 {
   output_nn_ = new FNNHelper<USE_SHARED>(output_layers, this->stream_);

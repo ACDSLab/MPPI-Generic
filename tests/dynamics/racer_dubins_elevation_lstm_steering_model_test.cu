@@ -22,11 +22,14 @@ public:
     CudaCheckError();
     HANDLE_ERROR(cudaStreamDestroy(stream));
   }
+
+  std::vector<int> init_output_layers = { 23, 100, 8 };
+  std::vector<int> output_layers = { 8, 20, 1 };
 };
 
 TEST_F(RacerDubinsElevationLSTMSteeringTest, Template)
 {
-  auto dynamics = RacerDubinsElevationLSTMSteering(3, 20, { 23, 100, 8 }, 4, 4, { 8, 20, 1 }, 11);
+  auto dynamics = RacerDubinsElevationLSTMSteering(3, 20, init_output_layers, 4, 4, output_layers, 11);
   EXPECT_EQ(19, RacerDubinsElevationLSTMSteering::STATE_DIM);
   EXPECT_EQ(2, RacerDubinsElevationLSTMSteering::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
@@ -37,11 +40,24 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, Template)
 
 TEST_F(RacerDubinsElevationLSTMSteeringTest, BindStream)
 {
-  auto dynamics = RacerDubinsElevationLSTMSteering(3, 20, { 23, 100, 8 }, 4, 4, { 8, 20, 1 }, 11, stream);
+  std::vector<int> init_output_layers = { 23, 100, 8 };
+  std::vector<int> output_layers = { 8, 20, 1 };
+  auto dynamics = RacerDubinsElevationLSTMSteering(3, 20, init_output_layers, 4, 4, output_layers, 11);
+  dynamics.bindToStream(stream);
 
   EXPECT_EQ(dynamics.stream_, stream) << "Stream binding failure.";
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
   EXPECT_EQ(dynamics.getTextureHelper()->stream_, stream);
+  EXPECT_NE(dynamics.getHelper(), nullptr);
+  EXPECT_EQ(dynamics.getHelper()->getLSTMModel()->stream_, stream);
+
+  auto dynamics2 = RacerDubinsElevationLSTMSteering(3, 20, init_output_layers, 4, 4, output_layers, 11, stream);
+
+  EXPECT_EQ(dynamics.stream_, stream) << "Stream binding failure.";
+  EXPECT_NE(dynamics.getTextureHelper(), nullptr);
+  EXPECT_EQ(dynamics.getTextureHelper()->stream_, stream);
+  EXPECT_NE(dynamics.getHelper(), nullptr);
+  EXPECT_EQ(dynamics.getHelper()->getLSTMModel()->stream_, stream);
 }
 
 /*
@@ -311,7 +327,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   CudaCheckError();
   using DYN = RacerDubinsElevationLSTMSteering;
   const float tol = 1e-6;
-  auto dynamics = RacerDubinsElevationLSTMSteering(3, 20, { 23, 100, 8 }, 4, 4, { 8, 20, 1 }, 11);
+  auto dynamics = RacerDubinsElevationLSTMSteering(3, 20, init_output_layers, 4, 4, output_layers, 11);
   auto params = dynamics.getParams();
   params.c_0 = 0;
   params.c_b[0] = 1;
@@ -552,7 +568,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPUNoNetwork)
   CudaCheckError();
   using DYN = RacerDubinsElevationLSTMSteering;
   RacerDubinsElevationLSTMSteering dynamics =
-      RacerDubinsElevationLSTMSteering(3, 20, { 23, 100, 8 }, 4, 4, { 8, 20, 1 }, 11);
+      RacerDubinsElevationLSTMSteering(3, 20, init_output_layers, 4, 4, output_layers, 11);
 
   cudaExtent extent = make_cudaExtent(10, 20, 0);
   TwoDTextureHelper<float>* helper = dynamics.getTextureHelper();
@@ -873,7 +889,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, compareToElevationWithoutSteering)
   const int num_rollouts = 1000;
   const float dt = 0.1f;
   CudaCheckError();
-  auto dynamics = RacerDubinsElevationLSTMSteering(3, 20, { 23, 100, 8 }, 4, 4, { 8, 20, 1 }, 11);
+  auto dynamics = RacerDubinsElevationLSTMSteering(3, 20, init_output_layers, 4, 4, output_layers, 11);
   RacerDubinsElevation dynamics2 = RacerDubinsElevation();
   auto params = dynamics.getParams();
   dynamics.setParams(params);

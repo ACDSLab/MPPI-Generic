@@ -14,8 +14,8 @@ class RacerDubinsElevationLSTMSteering
 public:
   using PARENT_CLASS = RacerDubinsElevationImpl<RacerDubinsElevationLSTMSteering, RacerDubinsElevationParams>;
 
-  RacerDubinsElevationLSTMSteering(int init_input_dim, int init_hidden_dim, std::vector<int> init_output_layers,
-                                   int input_dim, int hidden_dim, std::vector<int> output_layers, int init_len,
+  RacerDubinsElevationLSTMSteering(int init_input_dim, int init_hidden_dim, std::vector<int>& init_output_layers,
+                                   int input_dim, int hidden_dim, std::vector<int>& output_layers, int init_len,
                                    cudaStream_t stream = nullptr);
   RacerDubinsElevationLSTMSteering(std::string path, cudaStream_t stream = nullptr);
 
@@ -23,6 +23,8 @@ public:
   {
     return "RACER Dubins LSTM Steering Model";
   }
+
+  void bindToStream(cudaStream_t stream);
 
   void GPUSetup();
 
