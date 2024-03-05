@@ -136,14 +136,9 @@ template <class COST_T, class SAMPLER_T>
 unsigned calcVisCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sampler, const int& num_timesteps,
                                         dim3& dimBlock);
 
-template <class DYN_T>
-__host__ __device__ inline unsigned calcDynamicsSharedMemSize(const DYN_T* dynamics, const dim3& dimBlock);
+template <class T>
+__host__ __device__ inline unsigned calcClassSharedMemSize(const T* class_ptr, const dim3& dimBlock);
 
-template <class SAMPLER_T>
-__host__ __device__ inline unsigned calcSamplerSharedMemSize(const SAMPLER_T* sampler, const dim3& dimBlock);
-
-template <class COST_T>
-__host__ __device__ inline unsigned calcCostSharedMemSize(const COST_T* cost, const dim3& dimBlock);
 }  // namespace kernels
 }  // namespace mppi
 

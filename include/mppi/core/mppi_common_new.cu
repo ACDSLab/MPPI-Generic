@@ -36,9 +36,9 @@ __global__ void rolloutKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __restri
   const int sample_dim = blockDim.x;
   // Ensure that there is enough room for the SHARED_MEM_REQUEST_GRD_BYTES and SHARED_MEM_REQUEST_BLK_BYTES portions to
   // be aligned to the float4 boundary.
-  const int size_of_theta_s_bytes = calcDynamicsSharedMemSize(dynamics, blockDim);
-  const int size_of_theta_d_bytes = calcSamplerSharedMemSize(sampling, blockDim);
-  const int size_of_theta_c_bytes = calcCostSharedMemSize(costs, blockDim);
+  const int size_of_theta_s_bytes = calcClassSharedMemSize(dynamics, blockDim);
+  const int size_of_theta_d_bytes = calcClassSharedMemSize(sampling, blockDim);
+  const int size_of_theta_c_bytes = calcClassSharedMemSize(costs, blockDim);
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -155,8 +155,8 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
   const int thread_idz = threadIdx.z;
   const int global_idx = blockIdx.x;
   const int distribution_idx = threadIdx.z;
-  const int size_of_theta_d_bytes = calcSamplerSharedMemSize(sampling, blockDim);
-  const int size_of_theta_c_bytes = calcCostSharedMemSize(costs, blockDim);
+  const int size_of_theta_d_bytes = calcClassSharedMemSize(sampling, blockDim);
+  const int size_of_theta_c_bytes = calcClassSharedMemSize(costs, blockDim);
 
   int running_cost_index = thread_idx + blockDim.x * (thread_idy + blockDim.y * thread_idz);
   // Create shared state and control arrays
@@ -282,8 +282,8 @@ __global__ void rolloutDynamicsKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* 
   const int sample_dim = blockDim.x;
   // Ensure that there is enough room for the SHARED_MEM_REQUEST_GRD_BYTES and SHARED_MEM_REQUEST_BLK_BYTES portions to
   // be aligned to the float4 boundary.
-  const int size_of_theta_s_bytes = calcDynamicsSharedMemSize(dynamics, blockDim);
-  const int size_of_theta_d_bytes = calcSamplerSharedMemSize(sampling, blockDim);
+  const int size_of_theta_s_bytes = calcClassSharedMemSize(dynamics, blockDim);
+  const int size_of_theta_d_bytes = calcClassSharedMemSize(sampling, blockDim);
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -378,9 +378,9 @@ __global__ void visualizeKernel(DYN_T* __restrict__ dynamics, SAMPLING_T* __rest
   const int sample_dim = blockDim.x;
   // Ensure that there is enough room for the SHARED_MEM_REQUEST_GRD_BYTES and SHARED_MEM_REQUEST_BLK_BYTES portions to
   // be aligned to the float4 boundary.
-  const int size_of_theta_s_bytes = calcDynamicsSharedMemSize(dynamics, blockDim);
-  const int size_of_theta_d_bytes = calcSamplerSharedMemSize(sampling, blockDim);
-  const int size_of_theta_c_bytes = calcCostSharedMemSize(costs, blockDim);
+  const int size_of_theta_s_bytes = calcClassSharedMemSize(dynamics, blockDim);
+  const int size_of_theta_d_bytes = calcClassSharedMemSize(sampling, blockDim);
+  const int size_of_theta_c_bytes = calcClassSharedMemSize(costs, blockDim);
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -537,7 +537,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   const int shared_idx = blockDim.x * thread_idz + thread_idx;
   const int distribution_idx = threadIdx.z;
 
-  const int size_of_theta_c_bytes = calcCostSharedMemSize(costs, blockDim);
+  const int size_of_theta_c_bytes = calcClassSharedMemSize(costs, blockDim);
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -550,7 +550,7 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
   float* theta_c = (float*)&crash_status_shared[math::nearest_multiple_4(blockDim.x * blockDim.z)];
   float* theta_d = &theta_c[size_of_theta_c_bytes / sizeof(float)];
 #ifdef USE_CUDA_BARRIERS_COST
-  const int size_of_theta_d_bytes = calcSamplerSharedMemSize(sampling, blockDim);
+  const int size_of_theta_d_bytes = calcClassSharedMemSize(sampling, blockDim);
   barrier* barrier_shared = (barrier*)&theta_d[size_of_theta_d_bytes / sizeof(float)];
 #endif
   // Create local state, state dot and controls
@@ -1081,7 +1081,7 @@ unsigned calcRolloutDynamicsKernelSharedMemSize(const DYN_T* dynamics, const SAM
       sizeof(float) * (3 * math::nearest_multiple_4(dynamics_num_shared * DYN_T::STATE_DIM) +
                        math::nearest_multiple_4(dynamics_num_shared * DYN_T::OUTPUT_DIM) +
                        math::nearest_multiple_4(dynamics_num_shared * DYN_T::CONTROL_DIM)) +
-      calcDynamicsSharedMemSize<DYN_T>(dynamics, dimBlock) + calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
+      calcClassSharedMemSize<DYN_T>(dynamics, dimBlock) + calcClassSharedMemSize<SAMPLER_T>(sampler, dimBlock);
 #ifdef USE_CUDA_BARRIERS_DYN
   dynamics_shared_size += math::int_multiple_const(dynamics_num_shared * sizeof(barrier), 16);
 #endif
@@ -1096,8 +1096,8 @@ unsigned calcRolloutCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T*
                                                math::nearest_multiple_4(cost_num_shared * COST_T::CONTROL_DIM) +
                                                math::nearest_multiple_4(cost_num_shared * dimBlock.y)) +
                               sizeof(int) * math::nearest_multiple_4(cost_num_shared) +
-                              calcCostSharedMemSize(cost, dimBlock) +
-                              calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
+                              calcClassSharedMemSize(cost, dimBlock) +
+                              calcClassSharedMemSize<SAMPLER_T>(sampler, dimBlock);
 #ifdef USE_CUDA_BARRIERS_COST
   cost_shared_size += math::int_multiple_const(cost_num_shared * sizeof(barrier), 16);
 #endif
@@ -1114,8 +1114,8 @@ unsigned calcRolloutCombinedKernelSharedMemSize(const DYN_T* dynamics, const COS
                                               math::nearest_multiple_4(num_shared * DYN_T::CONTROL_DIM) +
                                               math::nearest_multiple_4(num_shared * dimBlock.y)) +
                              sizeof(int) * math::nearest_multiple_4(num_shared) +
-                             calcDynamicsSharedMemSize(dynamics, dimBlock) + calcCostSharedMemSize(cost, dimBlock) +
-                             calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
+                             calcClassSharedMemSize(dynamics, dimBlock) + calcClassSharedMemSize(cost, dimBlock) +
+                             calcClassSharedMemSize<SAMPLER_T>(sampler, dimBlock);
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
   shared_mem_size += math::int_multiple_const(num_shared * sizeof(barrier), 16);
 #endif
@@ -1132,8 +1132,8 @@ unsigned calcVisualizeKernelSharedMemSize(const DYN_T* dynamics, const COST_T* c
                                               math::nearest_multiple_4(num_shared * DYN_T::CONTROL_DIM) +
                                               math::nearest_multiple_4(num_timesteps * dimBlock.y * dimBlock.z)) +
                              sizeof(int) * math::nearest_multiple_4(num_shared) +
-                             calcDynamicsSharedMemSize(dynamics, dimBlock) + calcCostSharedMemSize(cost, dimBlock) +
-                             calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
+                             calcClassSharedMemSize(dynamics, dimBlock) + calcClassSharedMemSize(cost, dimBlock) +
+                             calcClassSharedMemSize<SAMPLER_T>(sampler, dimBlock);
 #ifdef USE_CUDA_BARRIERS_ROLLOUT
   shared_mem_size += math::int_multiple_const(num_shared * sizeof(barrier), 16);
 #endif
@@ -1149,41 +1149,21 @@ unsigned calcVisCostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* sam
                                               math::nearest_multiple_4(shared_num * COST_T::CONTROL_DIM) +
                                               math::nearest_multiple_4(dimBlock.z * num_timesteps * dimBlock.y)) +
                              sizeof(int) * math::nearest_multiple_4(dimBlock.z * num_timesteps) +
-                             calcCostSharedMemSize(cost, dimBlock) +
-                             calcSamplerSharedMemSize<SAMPLER_T>(sampler, dimBlock);
+                             calcClassSharedMemSize(cost, dimBlock) +
+                             calcClassSharedMemSize<SAMPLER_T>(sampler, dimBlock);
 #ifdef USE_CUDA_BARRIERS_COST
   shared_mem_size += math::int_multiple_const(shared_num * sizeof(barrier), 16);
 #endif
   return shared_mem_size;
 }
 
-template <class DYN_T>
-__host__ __device__ unsigned calcDynamicsSharedMemSize(const DYN_T* dynamics, const dim3& dimBlock)
+template <class T>
+__host__ __device__ unsigned calcClassSharedMemSize(const T* class_ptr, const dim3& dimBlock)
 {
-  const int dynamics_num_shared = dimBlock.x * dimBlock.z;
-  unsigned dynamics_shared_size =
-      math::int_multiple_const(dynamics->getGrdSharedSizeBytes(), sizeof(float4)) +
-      dynamics_num_shared * math::int_multiple_const(dynamics->getBlkSharedSizeBytes(), sizeof(float4));
-  return dynamics_shared_size;
-}
-
-template <class SAMPLER_T>
-__host__ __device__ unsigned calcSamplerSharedMemSize(const SAMPLER_T* sampler, const dim3& dimBlock)
-{
-  const int sampler_num_shared = dimBlock.x * dimBlock.z;
-  unsigned sampler_shared_size =
-      math::int_multiple_const(sampler->getGrdSharedSizeBytes(), sizeof(float4)) +
-      sampler_num_shared * math::int_multiple_const(sampler->getBlkSharedSizeBytes(), sizeof(float4));
-  return sampler_shared_size;
-}
-
-template <class COST_T>
-__host__ __device__ unsigned calcCostSharedMemSize(const COST_T* cost, const dim3& dimBlock)
-{
-  const int cost_num_shared = dimBlock.x * dimBlock.z;
-  unsigned cost_shared_size = math::int_multiple_const(cost->getGrdSharedSizeBytes(), sizeof(float4)) +
-                              cost_num_shared * math::int_multiple_const(cost->getBlkSharedSizeBytes(), sizeof(float4));
-  return cost_shared_size;
+  const int num_shared = dimBlock.x * dimBlock.z;
+  unsigned shared_size = math::int_multiple_const(class_ptr->getGrdSharedSizeBytes(), sizeof(float4)) +
+                         num_shared * math::int_multiple_const(class_ptr->getBlkSharedSizeBytes(), sizeof(float4));
+  return shared_size;
 }
 }  // namespace kernels
 }  // namespace mppi

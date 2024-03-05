@@ -212,7 +212,7 @@ void launchComputeDynamicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::arra
   const int gridsize_x = (count - 1) / BLOCKDIM_X + 1;
   dim3 threadsPerBlock(BLOCKDIM_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
-  unsigned shared_mem = mppi::kernels::calcDynamicsSharedMemSize(&dynamics, threadsPerBlock) +
+  unsigned shared_mem = mppi::kernels::calcClassSharedMemSize(&dynamics, threadsPerBlock) +
                         mppi::math::nearest_multiple_4(threadsPerBlock.x * DYNAMICS_T::OUTPUT_DIM);
   // launch kernel
   computeDynamicsTestKernel<DYNAMICS_T, S_DIM, C_DIM, BLOCKDIM_X>
@@ -269,7 +269,7 @@ void launchComputeStateDerivTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
   dim3 threadsPerBlock(BLOCKDIM_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
 
-  unsigned shared_mem = mppi::kernels::calcDynamicsSharedMemSize(&dynamics, threadsPerBlock) +
+  unsigned shared_mem = mppi::kernels::calcClassSharedMemSize(&dynamics, threadsPerBlock) +
                         mppi::math::nearest_multiple_4(threadsPerBlock.x * DYNAMICS_T::OUTPUT_DIM);
   computeStateDerivTestKernel<DYNAMICS_T, S_DIM, C_DIM, BLOCKDIM_X><<<numBlocks, threadsPerBlock, shared_mem>>>(
       static_cast<DYNAMICS_T*>(dynamics.model_d_), state_d, control_d, state_der_d, count);
@@ -368,7 +368,7 @@ void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DY
   dim3 threadsPerBlock(BLOCKDIM_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
 
-  unsigned shared_mem = mppi::kernels::calcDynamicsSharedMemSize(&dynamics, threadsPerBlock);
+  unsigned shared_mem = mppi::kernels::calcClassSharedMemSize(&dynamics, threadsPerBlock);
   stepTestKernel<DYNAMICS_T, BLOCKDIM_X><<<numBlocks, threadsPerBlock, shared_mem>>>(
       dynamics.model_d_, state_d, control_d, state_der_d, next_state_d, output_d, t, dt, count);
   CudaCheckError();

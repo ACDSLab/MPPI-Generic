@@ -356,7 +356,7 @@ void launchComputeCostTestKernel(const COST_T& cost, std::vector<std::array<floa
   // TODO amount should depend on the number of query points
   dim3 threadsPerBlock(num_test_points, 1);
   dim3 numBlocks(1, 1);
-  unsigned shared_mem_size = mppi::kernels::calcCostSharedMemSize<COST_T>(&cost, threadsPerBlock);
+  unsigned shared_mem_size = mppi::kernels::calcClassSharedMemSize<COST_T>(&cost, threadsPerBlock);
   computeCostTestKernel<<<numBlocks, threadsPerBlock, shared_mem_size>>>(cost.cost_d_, test_xu_d, cost_results_d,
                                                                          timestep_d, crash_d, num_test_points);
   CudaCheckError();

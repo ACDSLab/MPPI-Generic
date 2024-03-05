@@ -248,7 +248,7 @@ TEST_F(RacerSuspensionTest, CPUvsGPU)
   static_assert(NUM_PARALLEL_TESTS % BLOCKSIZE_X == 0);
 
   int num_shared = block_dim.x * block_dim.z;
-  unsigned shared_mem = mppi::kernels::calcDynamicsSharedMemSize(&dynamics, block_dim) +
+  unsigned shared_mem = mppi::kernels::calcClassSharedMemSize(&dynamics, block_dim) +
                         sizeof(float) * (3 * mppi::math::nearest_multiple_4(num_shared * DYN::STATE_DIM) +
                                          mppi::math::nearest_multiple_4(num_shared * DYN::OUTPUT_DIM) +
                                          mppi::math::nearest_multiple_4(num_shared * DYN::CONTROL_DIM));

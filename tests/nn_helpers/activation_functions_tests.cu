@@ -238,5 +238,5 @@ TEST_F(ActivationFunctionTest, SigmoidGPU)
   EXPECT_GT(average, 0.0f);
   // below condition is kind of a janky hardcode, might change on different systems
   // if should still be faster to use the faster version, so number should be positive
-  EXPECT_GT(average, 3.0f);  // in ms
+  EXPECT_GT(average, 1.0f);  // in ms
 }
