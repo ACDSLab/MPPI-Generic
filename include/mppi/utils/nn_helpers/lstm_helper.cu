@@ -83,7 +83,6 @@ void LSTMHelper<USE_SHARED>::setupMemory(int input_dim, int hidden_dim)
   initial_cell_ = weights_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 5 * HIDDEN_DIM;
 
   memset(weights_, 0.0f, LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float));
-  copyWeightsToEigen();
 
   if (setupGPU)
   {
@@ -255,10 +254,33 @@ void LSTMHelper<USE_SHARED>::updateOutputModel(const std::vector<float>& data)
 template <bool USE_SHARED>
 void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& input)
 {
-  Eigen::VectorXf g_i = eig_W_im_ * hidden_state_ + eig_W_ii_ * input + eig_b_i_;
-  Eigen::VectorXf g_f = eig_W_fm_ * hidden_state_ + eig_W_fi_ * input + eig_b_f_;
-  Eigen::VectorXf g_o = eig_W_om_ * hidden_state_ + eig_W_oi_ * input + eig_b_o_;
-  Eigen::VectorXf g_c = eig_W_cm_ * hidden_state_ + eig_W_ci_ * input + eig_b_c_;
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_W_im(W_im_, HIDDEN_DIM,
+                                                                                             HIDDEN_DIM);
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_W_fm(W_fm_, HIDDEN_DIM,
+                                                                                             HIDDEN_DIM);
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_W_om(W_om_, HIDDEN_DIM,
+                                                                                             HIDDEN_DIM);
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_W_cm(W_cm_, HIDDEN_DIM,
+                                                                                             HIDDEN_DIM);
+
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_W_ii(W_ii_, HIDDEN_DIM,
+                                                                                             INPUT_DIM);
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_W_fi(W_fi_, HIDDEN_DIM,
+                                                                                             INPUT_DIM);
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_W_oi(W_oi_, HIDDEN_DIM,
+                                                                                             INPUT_DIM);
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_W_ci(W_ci_, HIDDEN_DIM,
+                                                                                             INPUT_DIM);
+
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_b_i(b_i_, HIDDEN_DIM, 1);
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_b_f(b_f_, HIDDEN_DIM, 1);
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_b_o(b_o_, HIDDEN_DIM, 1);
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> eig_b_c(b_c_, HIDDEN_DIM, 1);
+
+  Eigen::VectorXf g_i = eig_W_im * hidden_state_ + eig_W_ii * input + eig_b_i;
+  Eigen::VectorXf g_f = eig_W_fm * hidden_state_ + eig_W_fi * input + eig_b_f;
+  Eigen::VectorXf g_o = eig_W_om * hidden_state_ + eig_W_oi * input + eig_b_o;
+  Eigen::VectorXf g_c = eig_W_cm * hidden_state_ + eig_W_ci * input + eig_b_c;
   g_i = g_i.unaryExpr(&mppi::nn::sigmoid);
   g_f = g_f.unaryExpr(&mppi::nn::sigmoid);
   g_o = g_o.unaryExpr(&mppi::nn::sigmoid);
@@ -496,44 +518,6 @@ void LSTMHelper<USE_SHARED>::loadParams(const cnpy::npz_t& param_dict)
 }
 
 template <bool USE_SHARED>
-void LSTMHelper<USE_SHARED>::copyWeightsToEigen()
-{
-  eig_W_im_.resize(HIDDEN_DIM, HIDDEN_DIM);
-  eig_W_fm_.resize(HIDDEN_DIM, HIDDEN_DIM);
-  eig_W_cm_.resize(HIDDEN_DIM, HIDDEN_DIM);
-  eig_W_om_.resize(HIDDEN_DIM, HIDDEN_DIM);
-  for (int i = 0; i < HIDDEN_HIDDEN_SIZE; i++)
-  {
-    eig_W_im_(i) = W_im_[i];
-    eig_W_fm_(i) = W_fm_[i];
-    eig_W_cm_(i) = W_cm_[i];
-    eig_W_om_(i) = W_om_[i];
-  }
-  eig_W_ii_.resize(HIDDEN_DIM, INPUT_DIM);
-  eig_W_fi_.resize(HIDDEN_DIM, INPUT_DIM);
-  eig_W_ci_.resize(HIDDEN_DIM, INPUT_DIM);
-  eig_W_oi_.resize(HIDDEN_DIM, INPUT_DIM);
-  for (int i = 0; i < INPUT_HIDDEN_SIZE; i++)
-  {
-    eig_W_ii_(i) = W_ii_[i];
-    eig_W_fi_(i) = W_fi_[i];
-    eig_W_ci_(i) = W_ci_[i];
-    eig_W_oi_(i) = W_oi_[i];
-  }
-  eig_b_i_.resize(HIDDEN_DIM);
-  eig_b_f_.resize(HIDDEN_DIM);
-  eig_b_c_.resize(HIDDEN_DIM);
-  eig_b_o_.resize(HIDDEN_DIM);
-  for (int i = 0; i < HIDDEN_DIM; i++)
-  {
-    eig_b_i_(i) = b_i_[i];
-    eig_b_f_(i) = b_f_[i];
-    eig_b_c_(i) = b_c_[i];
-    eig_b_o_(i) = b_o_[i];
-  }
-}
-
-template <bool USE_SHARED>
 void LSTMHelper<USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& param_dict, bool add_slash)
 {
   if (add_slash && !prefix.empty() && *prefix.rbegin() != '/')
@@ -602,7 +586,6 @@ void LSTMHelper<USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& p
     assert(isfinite(b_c_[i]));
     assert(isfinite(b_o_[i]));
   }
-  copyWeightsToEigen();
 
   // Save parameters to GPU memory
   paramsToDevice();

@@ -134,7 +134,7 @@ public:
 
   void loadParams(const std::string& model_path);
 
-  void updateModel(std::vector<int> description, std::vector<float> data);
+  void updateModel(const std::vector<int>& description, const std::vector<float>& data);
 
   bool computeGrad(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                    Eigen::Ref<dfdx> A, Eigen::Ref<dfdu> B);

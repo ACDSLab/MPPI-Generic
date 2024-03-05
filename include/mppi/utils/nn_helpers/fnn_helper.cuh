@@ -134,9 +134,7 @@ private:
 
   std::atomic<bool> changed_weights_ = { false };
 
-  std::vector<Eigen::MatrixXf> weighted_in_;
-  std::vector<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> weights_;
-  std::vector<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> biases_;
+  std::vector<Eigen::MatrixXf> weighted_in_; /// eigen aligned does not matter here since we have a variable size eigen matrix
 
   void setupMemory(const std::vector<int>& layers);
 };

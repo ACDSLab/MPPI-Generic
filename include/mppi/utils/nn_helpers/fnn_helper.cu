@@ -109,14 +109,12 @@ void FNNHelper<USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& pa
       for (k = 0; k < net_structure_[i]; k++)
       {
         theta_[stride_idcs_[2 * i] + j * net_structure_[i] + k] = weight_i[j * net_structure_[i] + k];
-        weights_[i](j, k) = weight_i[j * net_structure_[i] + k];
       }
     }
     // copy over the bias
     for (j = 0; j < net_structure_[i + 1]; j++)
     {
       theta_[stride_idcs_[2 * i + 1] + j] = bias_i[j];
-      biases_[i](j, 0) = bias_i[j];
     }
   }
   for (int i = 0; i < NUM_PARAMS; i++)
@@ -190,15 +188,11 @@ void FNNHelper<USE_SHARED>::setupMemory(const std::vector<int>& layers)
       mppi::math::int_multiple_const(2 * LARGEST_LAYER * sizeof(float), sizeof(float4));
 
   weighted_in_.resize(NUM_LAYERS - 1);
-  weights_.resize(NUM_LAYERS - 1);
-  biases_.resize(NUM_LAYERS - 1);
 
   // zeros out every matrix
   for (int i = 1; i < NUM_LAYERS; i++)
   {
     weighted_in_[i - 1] = Eigen::MatrixXf::Zero(net_structure_[i], 1);
-    weights_[i - 1] = Eigen::MatrixXf::Zero(net_structure_[i], net_structure_[i - 1]);
-    biases_[i - 1] = Eigen::MatrixXf::Zero(net_structure_[i], 1);
   }
 
   if (setupGPU)
@@ -236,7 +230,6 @@ void FNNHelper<USE_SHARED>::updateModel(const std::vector<int>& description, con
     {
       for (int k = 0; k < net_structure_[i]; k++)
       {
-        weights_[i](j, k) = data[stride_idcs_[2 * i] + j * net_structure_[i] + k];
         theta_[stride_idcs_[2 * i] + j * net_structure_[i] + k] = data[stride_idcs_[2 * i] + j * net_structure_[i] + k];
       }
     }
@@ -245,7 +238,6 @@ void FNNHelper<USE_SHARED>::updateModel(const std::vector<int>& description, con
   {
     for (int j = 0; j < net_structure_[i + 1]; j++)
     {
-      biases_[i](j, 0) = data[stride_idcs_[2 * i + 1] + j];
       theta_[stride_idcs_[2 * i + 1] + j] = data[stride_idcs_[2 * i + 1] + j];
     }
   }
@@ -338,14 +330,18 @@ bool FNNHelper<USE_SHARED>::computeGrad(Eigen::Ref<Eigen::MatrixXf> A)
     {
       zp(j) = mppi::nn::tanh_deriv(zp(j));
     }
-    ip_delta = ((weights_[i]).transpose() * ip_delta).eval();
+    Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> cur_weights(
+        theta_ + stride_idcs_[2 * i], net_structure_[i + 1], net_structure_[i]);
+    ip_delta = ((cur_weights).transpose() * ip_delta).eval();
     for (int j = 0; j < OUTPUT_DIM; j++)
     {
       ip_delta.col(j) = ip_delta.col(j).array() * zp.array();
     }
   }
+  Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> cur_weights(
+      theta_ + stride_idcs_[0], net_structure_[1], net_structure_[0]);
 
-  ip_delta = (((weights_[0]).transpose()) * ip_delta).transpose().eval();
+  ip_delta = (((cur_weights).transpose()) * ip_delta).transpose().eval();
   for (int i = 0; i < INPUT_DIM; i++)
   {
     A.col(i) = ip_delta.col(i);
@@ -360,7 +356,11 @@ void FNNHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::MatrixXf>& inp
   Eigen::MatrixXf acts = input;
   for (i = 0; i < NUM_LAYERS - 1; i++)
   {
-    weighted_in_[i] = (weights_[i] * acts + biases_[i]).eval();
+    Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> cur_weights(
+        theta_ + stride_idcs_[2 * i], net_structure_[i + 1], net_structure_[i]);
+    Eigen::Map<Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> cur_bias(
+        theta_ + stride_idcs_[2 * i + 1], net_structure_[i + 1], 1);
+    weighted_in_[i] = (cur_weights * acts + cur_bias).eval();
     acts = Eigen::MatrixXf::Zero(net_structure_[i + 1], 1);
     if (i < NUM_LAYERS - 2)
     {  // Last layer doesn't apply any non-linearity

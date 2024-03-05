@@ -624,7 +624,6 @@ TEST_F(LSTMHelperTest, forwardCPU)
     weights_d[i] = 1.0f;
   }
   model.resetHiddenCellCPU();
-  model.copyWeightsToEigen();
 
   auto input = model.getInputVector();
   auto output = model.getOutputVector();
@@ -673,7 +672,6 @@ TEST_F(LSTMHelperTest, forwardGPU)
     weights_d[i] = 1.0f;
   }
   model.resetHiddenCellCPU();
-  model.copyWeightsToEigen();
 
   model.GPUSetup();
 
@@ -743,7 +741,6 @@ TEST_F(LSTMHelperTest, forwardGPUCompareNoShared)
     weights_d[i] = distribution(generator);
   }
   model.resetHiddenCellCPU();
-  model.copyWeightsToEigen();
 
   model.GPUSetup();
 
@@ -809,7 +806,6 @@ TEST_F(LSTMHelperTest, forwardGPUCompareShared)
     weights_d[i] = distribution(generator);
   }
   model.resetHiddenCellCPU();
-  model.copyWeightsToEigen();
 
   model.GPUSetup();
 
@@ -875,7 +871,6 @@ TEST_F(LSTMHelperTest, forwardGPUComparePreloadNoShared)
     weights_d[i] = distribution(generator);
   }
   model.resetHiddenCellCPU();
-  model.copyWeightsToEigen();
 
   model.GPUSetup();
 
@@ -941,7 +936,6 @@ TEST_F(LSTMHelperTest, forwardGPUComparePreloadShared)
     weights_d[i] = distribution(generator);
   }
   model.resetHiddenCellCPU();
-  model.copyWeightsToEigen();
 
   model.GPUSetup();
 
@@ -1011,12 +1005,10 @@ TEST_F(LSTMHelperTest, forwardGPUSpeedTest)
     global_weights_d[i] = shared_weights_d[i];
   }
   shared_model.resetHiddenCellCPU();
-  shared_model.copyWeightsToEigen();
 
   shared_model.GPUSetup();
 
   global_model.resetHiddenCellCPU();
-  global_model.copyWeightsToEigen();
 
   global_model.GPUSetup();
 

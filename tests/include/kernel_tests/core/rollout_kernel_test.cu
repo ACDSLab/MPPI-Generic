@@ -254,7 +254,7 @@ void launchRolloutKernel_nom_act(DYN_T* dynamics, COST_T* costs, SAMPLER_T* samp
   float* initial_state_d;
   float* trajectory_costs_d;
 
-  const int BLOCKSIZE_X = 16;
+  const int BLOCKSIZE_X = 32;  // TODO we should change this parameter to be passed in to test multiple of them
   const int BLOCKSIZE_Y = 8;
 
   /**

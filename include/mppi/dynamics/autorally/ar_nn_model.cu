@@ -38,7 +38,8 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM>::freeCudaMem()
 }
 
 template <int S_DIM, int C_DIM, int K_DIM>
-void NeuralNetModel<S_DIM, C_DIM, K_DIM>::updateModel(std::vector<int> description, std::vector<float> data)
+void NeuralNetModel<S_DIM, C_DIM, K_DIM>::updateModel(const std::vector<int>& description,
+                                                      const std::vector<float>& data)
 {
   helper_->updateModel(description, data);
 }

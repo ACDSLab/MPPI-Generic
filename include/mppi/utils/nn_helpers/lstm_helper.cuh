@@ -58,7 +58,6 @@ public:
   {
     assert(lstm.size() == getNumParams());
     memcpy(this->weights_, lstm.data(), LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float));
-    copyWeightsToEigen();
     resetHiddenCellCPU();
     output_nn_->updateModel(output);
   }
@@ -69,7 +68,6 @@ public:
     {
       weights_[i] = input;
     }
-    copyWeightsToEigen();
     resetHiddenCellCPU();
     output_nn_->setAllWeights(input);
   }
@@ -144,8 +142,6 @@ public:
     return Eigen::VectorXf::Zero(OUTPUT_DIM);
   }
 
-  void copyWeightsToEigen();
-
   void setHiddenState(const Eigen::Ref<const Eigen::VectorXf> hidden_state);
   void setCellState(const Eigen::Ref<const Eigen::VectorXf> hidden_state);
 
@@ -191,21 +187,6 @@ private:
 
   Eigen::VectorXf hidden_state_;
   Eigen::VectorXf cell_state_;
-
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eig_W_im_;  ///< HIDDEN_HIDDEN_SIZE
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eig_W_fm_;  ///< HIDDEN_HIDDEN_SIZE
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eig_W_om_;  ///< HIDDEN_HIDDEN_SIZE
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eig_W_cm_;  ///< HIDDEN_HIDDEN_SIZE
-
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eig_W_ii_;  ///< INPUT_HIDDEN_SIZE
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eig_W_fi_;  ///< INPUT_HIDDEN_SIZE
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eig_W_oi_;  ///< INPUT_HIDDEN_SIZE
-  Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eig_W_ci_;  ///< INPUT_HIDDEN_SIZE
-
-  Eigen::VectorXf eig_b_i_;                                                         ///< HIDDEN_SIZE
-  Eigen::VectorXf eig_b_f_;                                                         ///< HIDDEN_SIZE
-  Eigen::VectorXf eig_b_o_;                                                         ///< HIDDEN_SIZE
-  Eigen::VectorXf eig_b_c_;                                                         ///< HIDDEN_SIZE
 
   void setupMemory(int input_dim, int hidden_dim);
 };
