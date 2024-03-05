@@ -184,6 +184,8 @@ __global__ void computeDynamicsTestKernel(DYNAMICS_T* model, float* state, float
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
   model->initializeDynamics(state, control, output, theta, 0.0f, 0.0f);
+  __syncthreads();
+
   if (tid < count)
   {
     model->computeDynamics(state + (tid * S_DIM), control + (tid * C_DIM), state_der + (tid * S_DIM), theta);
@@ -239,11 +241,11 @@ __global__ void computeStateDerivTestKernel(DYNAMICS_T* dynamics, float* state, 
   float* theta = &output[mppi::math::nearest_multiple_4(blockDim.x * DYNAMICS_T::OUTPUT_DIM)];
 
   dynamics->initializeDynamics(state, control, output, theta, 0.0f, 0.0f);
+  __syncthreads();
 
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid < num)
   {
-    // printf("calling on thread %d, %d\n", tid, threadIdx.y);
     dynamics->computeStateDeriv(state + (tid * S_DIM), control + (tid * C_DIM), state_der + (tid * S_DIM), theta);
   }
 }
@@ -304,6 +306,7 @@ __global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* contro
   float* y = output + (tid * DYNAMICS_T::OUTPUT_DIM);
 
   dynamics->initializeDynamics(state, control, output, theta, 0.0f, dt);
+  __syncthreads();
 
   if (tid < num)
   {
@@ -313,12 +316,8 @@ __global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* contro
     float* u = control + (tid * DYNAMICS_T::CONTROL_DIM);
     float* y = output + (tid * DYNAMICS_T::OUTPUT_DIM);
 
-    // dynamics->initializeDynamics(state, control, output, theta, 0.0f, dt);
-
-    // printf("calling on thread %d, %d\n", tid, threadIdx.y);
     dynamics->enforceConstraints(x, u);
     dynamics->step(x, x_next, x_dot, u, y, theta, t, dt);
-    // dynamics->computeStateDeriv(state + (tid * S_DIM), control + (tid * C_DIM), state_der + (tid * S_DIM), theta);
   }
 }
 

@@ -6,6 +6,7 @@
 #define MPPIGENERIC_NETWORK_HELPER_KERNEL_TEST_CUH
 
 #include <mppi/utils/math_utils.h>
+#include <mppi/core/mppi_common_new.cuh>
 
 // TODO check on multiple different blocks
 
@@ -61,9 +62,7 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::array<float, THETA_SI
 
   dim3 threadsPerBlock(3, 1);
   dim3 numBlocks(10, 1);
-  const int num_shared = threadsPerBlock.x * threadsPerBlock.z;
-  unsigned shared_size = mppi::math::int_multiple_const(model.getGrdSharedSizeBytes(), sizeof(float4)) +
-                         num_shared * mppi::math::int_multiple_const(model.getBlkSharedSizeBytes(), sizeof(float4));
+  unsigned shared_size = mppi::kernels::calcClassSharedMemSize(&model, threadsPerBlock);
   parameterCheckTestKernel<NETWORK_T><<<numBlocks, threadsPerBlock, shared_size>>>(
       model.network_d_, theta_d, stride_d, net_structure_d, shared_theta_d, shared_stride_d, shared_net_structure_d);
   CudaCheckError();
@@ -142,9 +141,7 @@ void launchParameterCheckTestKernel(NETWORK_T& model, std::vector<float>& lstm_p
 
   dim3 threadsPerBlock(1, 1);
   dim3 numBlocks(num, 1);
-  const int num_shared = threadsPerBlock.x * threadsPerBlock.z;
-  unsigned shared_size = mppi::math::int_multiple_const(model.getGrdSharedSizeBytes(), sizeof(float4)) +
-                         num_shared * mppi::math::int_multiple_const(model.getBlkSharedSizeBytes(), sizeof(float4));
+  unsigned shared_size = mppi::kernels::calcClassSharedMemSize(&model, threadsPerBlock);
   parameterCheckTestKernel<NETWORK_T><<<numBlocks, threadsPerBlock, shared_size>>>(
       model.network_d_, lstm_params_d, shared_lstm_params_d, fnn_params_d, shared_fnn_params_d);
   CudaCheckError();
@@ -214,9 +211,7 @@ void launchForwardTestKernel(NETWORK_T& model, std::vector<std::array<float, INP
   const int gridsize_x = (count - 1) / BLOCKSIZE_X + 1;
   dim3 threadsPerBlock(BLOCKSIZE_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
-  const int num_shared = threadsPerBlock.x * threadsPerBlock.z;
-  unsigned shared_size = mppi::math::int_multiple_const(model.getGrdSharedSizeBytes(), sizeof(float4)) +
-                         num_shared * mppi::math::int_multiple_const(model.getBlkSharedSizeBytes(), sizeof(float4));
+  unsigned shared_size = mppi::kernels::calcClassSharedMemSize(&model, threadsPerBlock);
   forwardTestKernel<NETWORK_T, BLOCKSIZE_X>
       <<<numBlocks, threadsPerBlock, shared_size>>>(model.network_d_, input_d, output_d, count, steps);
   CudaCheckError();
@@ -283,9 +278,7 @@ void launchForwardTestKernelPreload(NETWORK_T& model, std::vector<std::array<flo
   const int gridsize_x = (count - 1) / BLOCKSIZE_X + 1;
   dim3 threadsPerBlock(BLOCKSIZE_X, dim_y);
   dim3 numBlocks(gridsize_x, 1);
-  const int num_shared = threadsPerBlock.x * threadsPerBlock.z;
-  unsigned shared_size = mppi::math::int_multiple_const(model.getGrdSharedSizeBytes(), sizeof(float4)) +
-                         num_shared * mppi::math::int_multiple_const(model.getBlkSharedSizeBytes(), sizeof(float4));
+  unsigned shared_size = mppi::kernels::calcClassSharedMemSize(&model, threadsPerBlock);
   forwardTestKernelPreload<NETWORK_T, BLOCKSIZE_X>
       <<<numBlocks, threadsPerBlock, shared_size>>>(model.network_d_, input_d, output_d, count, steps);
   CudaCheckError();

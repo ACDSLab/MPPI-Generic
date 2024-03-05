@@ -448,11 +448,6 @@ __device__ float* FNNHelper<USE_SHARED>::forward(float* input, float* theta_s, f
     }
   }
   __syncthreads();
-  // if(threadIdx.y == 0) {
-  //   for(i = 0; i < INPUT_DIM; i++) {
-  //     printf("FNN: %d %d got input %f\n", threadIdx.x, blockIdx.x, curr_act[i]);
-  //   }
-  // }
   // iterate through each layer
   for (i = 0; i < NUM_LAYERS - 1; i++)
   {

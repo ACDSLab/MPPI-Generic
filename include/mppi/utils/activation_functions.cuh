@@ -68,7 +68,7 @@ inline __host__ __device__ float sigmoid_accurate(float input)
  * @param input
  * @return
  */
-__host__ __device__ static inline float tanh_vel_scale(float state, float vel, float* constants)
+__host__ __device__ static inline float tanh_vel_scale(float state, float vel, const float constants[2])
 {
   return state * constants[1] * mppi::nn::tanh(vel * constants[0]);
 }
@@ -78,7 +78,7 @@ __host__ __device__ static inline float tanh_vel_scale(float state, float vel, f
  * @param input
  * @return
  */
-__host__ __device__ static inline float tanh_scale(float state, float* constants)
+__host__ __device__ static inline float tanh_scale(float state, const float constants[2])
 {
   return constants[1] * mppi::nn::tanh(state * constants[0]);
 }
