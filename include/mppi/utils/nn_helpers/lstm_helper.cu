@@ -108,7 +108,7 @@ void LSTMHelper<USE_SHARED>::GPUSetup()
     network_d_ = Managed::GPUSetup<LSTMHelper<USE_SHARED>>(this);
     HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->output_nn_), &(this->output_nn_->network_d_),
                                  sizeof(OUTPUT_FNN_T*), cudaMemcpyHostToDevice, this->stream_));
-    cudaMalloc((void**)&(this->weights_d_), LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float));
+    HANDLE_ERROR(cudaMalloc((void**)&(this->weights_d_), LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float)));
 
     // copies all pointers to be right on the GPU side
     float* incr_ptr = weights_d_;
@@ -171,8 +171,8 @@ void LSTMHelper<USE_SHARED>::freeCudaMem()
   output_nn_->freeCudaMem();
   if (this->GPUMemStatus_)
   {
-    cudaFree(network_d_);
-    cudaFree(weights_d_);
+    HANDLE_ERROR(cudaFree(network_d_));
+    HANDLE_ERROR(cudaFree(weights_d_));
     this->GPUMemStatus_ = false;
   }
 }
@@ -234,9 +234,6 @@ void LSTMHelper<USE_SHARED>::copyHiddenCellToDevice()
 {
   if (this->GPUMemStatus_)
   {
-    // HANDLE_ERROR(cudaMemcpyAsync(this->weights_d_, this->weights_,
-    //                              LSTM_PARAM_SIZE_BYTES + HIDDEN_DIM * 2 * sizeof(float), cudaMemcpyHostToDevice,
-    //                              stream_));
     HANDLE_ERROR(cudaMemcpyAsync(this->weights_d_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 4 * HIDDEN_DIM,
                                  this->weights_ + 4 * HIDDEN_HIDDEN_SIZE + 4 * INPUT_HIDDEN_SIZE + 4 * HIDDEN_DIM,
                                  2 * HIDDEN_DIM * sizeof(float), cudaMemcpyHostToDevice, stream_));
@@ -258,17 +255,17 @@ void LSTMHelper<USE_SHARED>::updateOutputModel(const std::vector<float>& data)
 template <bool USE_SHARED>
 void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& input)
 {
-  Eigen::MatrixXf g_i = eig_W_im_ * hidden_state_ + eig_W_ii_ * input + eig_b_i_;
-  Eigen::MatrixXf g_f = eig_W_fm_ * hidden_state_ + eig_W_fi_ * input + eig_b_f_;
-  Eigen::MatrixXf g_o = eig_W_om_ * hidden_state_ + eig_W_oi_ * input + eig_b_o_;
-  Eigen::MatrixXf g_c = eig_W_cm_ * hidden_state_ + eig_W_ci_ * input + eig_b_c_;
-  g_i = g_i.unaryExpr([](float x) { return mppi::nn::sigmoid(x); });
-  g_f = g_f.unaryExpr([](float x) { return mppi::nn::sigmoid(x); });
-  g_o = g_o.unaryExpr([](float x) { return mppi::nn::sigmoid(x); });
-  g_c = g_c.unaryExpr([](float x) { return mppi::nn::tanh(x); });
+  Eigen::VectorXf g_i = eig_W_im_ * hidden_state_ + eig_W_ii_ * input + eig_b_i_;
+  Eigen::VectorXf g_f = eig_W_fm_ * hidden_state_ + eig_W_fi_ * input + eig_b_f_;
+  Eigen::VectorXf g_o = eig_W_om_ * hidden_state_ + eig_W_oi_ * input + eig_b_o_;
+  Eigen::VectorXf g_c = eig_W_cm_ * hidden_state_ + eig_W_ci_ * input + eig_b_c_;
+  g_i = g_i.unaryExpr(&mppi::nn::sigmoid);
+  g_f = g_f.unaryExpr(&mppi::nn::sigmoid);
+  g_o = g_o.unaryExpr(&mppi::nn::sigmoid);
+  g_c = g_c.unaryExpr(&mppi::nn::tanh);
 
-  Eigen::MatrixXf c_next = g_i.cwiseProduct(g_c) + g_f.cwiseProduct(cell_state_);
-  Eigen::MatrixXf h_next = g_o.cwiseProduct(c_next.unaryExpr([](float x) { return mppi::nn::tanh(x); }));
+  Eigen::VectorXf c_next = g_i.cwiseProduct(g_c) + g_f.cwiseProduct(cell_state_);
+  Eigen::VectorXf h_next = g_o.cwiseProduct(c_next.unaryExpr(&mppi::nn::tanh));
 
   hidden_state_ = h_next;
   cell_state_ = c_next;
@@ -277,10 +274,6 @@ void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& in
 template <bool USE_SHARED>
 void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& input, Eigen::Ref<Eigen::VectorXf> output)
 {
-  // std::cout << "got lstm input CPU: " << input.transpose() << std::endl;
-  // std::cout << "got lstm hidden CPU: " << hidden_state_.transpose() << std::endl;
-  // std::cout << "got lstm cell CPU: " << cell_state_.transpose() << std::endl;
-
   forward(input);
   Eigen::VectorXf nn_input = output_nn_->getInputVector();
   for (int i = 0; i < HIDDEN_DIM; i++)
@@ -374,23 +367,6 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
     }
   }
   __syncthreads();
-  // if (threadIdx.y == 0)
-  // {
-  //   printf("in lstm got input loc %p\n", x);
-  //   printf("in lstm forward ptr for init cell and hidden %p %p\n", h, c);
-  //   for (i = 0; i < INPUT_DIM; i++)
-  //   {
-  //     printf("LSTM: %d %d got input %f\n", threadIdx.x, blockIdx.x, x[i]);
-  //   }
-  //   for (i = 0; i < INPUT_DIM; i++)
-  //   {
-  //     printf("LSTM: %d %d got hidden %f\n", threadIdx.x, blockIdx.x, h[i]);
-  //   }
-  //   for (i = 0; i < INPUT_DIM; i++)
-  //   {
-  //     printf("LSTM: %d %d got cell %f\n", threadIdx.x, blockIdx.x, c[i]);
-  //   }
-  // }
 
   int index = 0;
   // apply each gate in parallel
@@ -589,8 +565,6 @@ void LSTMHelper<USE_SHARED>::loadParams(std::string prefix, const cnpy::npz_t& p
   double* weight_ih = weight_ih_raw.data<double>();
   double* bias_ih = bias_ih_raw.data<double>();
 
-  // TODO compute the correct values to use here
-  // TODO more asserts to make sure size makes sense
   int input_dim = weight_ih_raw.shape[1];
   int hidden_dim = bias_hh_raw.shape[0] / 4;
   setupMemory(input_dim, hidden_dim);

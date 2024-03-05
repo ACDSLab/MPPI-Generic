@@ -17,6 +17,10 @@ public:
   LSTMHelper<USE_SHARED>(std::string, cudaStream_t stream = 0);
   LSTMHelper<USE_SHARED>(const cnpy::npz_t& param_dict, std::string prefix, bool add_slash = true,
                          cudaStream_t stream = 0);
+  ~LSTMHelper()
+  {
+    freeCudaMem();
+  }
 
   void loadParams(const std::string& model_path);
   void loadParams(const cnpy::npz_t& npz);
@@ -70,54 +74,54 @@ public:
     output_nn_->setAllWeights(input);
   }
 
-  Eigen::MatrixXf getHiddenState()
+  Eigen::VectorXf getHiddenState()
   {
     return hidden_state_;
   }
-  Eigen::MatrixXf getCellState()
+  Eigen::VectorXf getCellState()
   {
     return cell_state_;
   }
 
-  __host__ __device__ OUTPUT_FNN_T* getOutputModel()
+  __host__ __device__ OUTPUT_FNN_T* getOutputModel() const
   {
     return output_nn_;
   }
 
-  __host__ __device__ float* getOutputWeights()
+  __host__ __device__ float* getOutputWeights() const
   {
     return output_nn_->weights_d_;
   }
 
-  __host__ __device__ int getHiddenDim()
+  __host__ __device__ int getHiddenDim() const
   {
     return HIDDEN_DIM;
   }
-  __host__ __device__ int getInputDim()
+  __host__ __device__ int getInputDim() const
   {
     return INPUT_DIM;
   }
-  __host__ __device__ int getOutputDim()
+  __host__ __device__ int getOutputDim() const
   {
     return OUTPUT_DIM;
   }
-  __host__ __device__ int getHiddenHiddenSize()
+  __host__ __device__ int getHiddenHiddenSize() const
   {
     return HIDDEN_HIDDEN_SIZE;
   }
-  __host__ __device__ int getInputHiddenSize()
+  __host__ __device__ int getInputHiddenSize() const
   {
     return INPUT_HIDDEN_SIZE;
   }
-  __host__ __device__ int getOutputGrdSharedSizeBytes()
+  __host__ __device__ int getOutputGrdSharedSizeBytes() const
   {
     return output_nn_->getGrdSharedSizeBytes();
   }
-  __host__ __device__ int getLSTMGrdSharedSizeBytes()
+  __host__ __device__ int getLSTMGrdSharedSizeBytes() const
   {
     return LSTM_SHARED_MEM_GRD_BYTES;
   }
-  __host__ __device__ int getBlkLSTMSharedSizeBytes()
+  __host__ __device__ int getBlkLSTMSharedSizeBytes() const
   {
     return (3 * HIDDEN_DIM + INPUT_DIM) * sizeof(float);
   }
@@ -126,18 +130,18 @@ public:
     return weights_;
   }
 
-  int getNumParams()
+  int getNumParams() const
   {
     return LSTM_PARAM_SIZE_BYTES / sizeof(float) + 2 * HIDDEN_DIM;
   }
 
   Eigen::VectorXf getInputVector()
   {
-    return Eigen::VectorXf(INPUT_DIM, 1);
+    return Eigen::VectorXf::Zero(INPUT_DIM);
   }
   Eigen::VectorXf getOutputVector()
   {
-    return Eigen::VectorXf(OUTPUT_DIM, 1);
+    return Eigen::VectorXf::Zero(OUTPUT_DIM);
   }
 
   void copyWeightsToEigen();

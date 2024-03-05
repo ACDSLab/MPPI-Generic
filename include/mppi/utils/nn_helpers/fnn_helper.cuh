@@ -45,54 +45,54 @@ public:
   __device__ float* forward(float* input, float* theta_s);
   __device__ float* forward(float* input, float* theta_s, float* curr_act);
 
-  __host__ __device__ int* getNetStructurePtr()
+  __host__ __device__ int* getNetStructurePtr() const
   {
     return net_structure_;
   }
-  __host__ __device__ int* getStrideIdcsPtr()
+  __host__ __device__ int* getStrideIdcsPtr() const
   {
     return stride_idcs_;
   }
-  __host__ __device__ float* getThetaPtr()
+  __host__ __device__ float* getThetaPtr() const
   {
     return theta_;
   }
 
-  __host__ __device__ int getNumLayers()
+  __host__ __device__ int getNumLayers() const
   {
     return this->NUM_LAYERS;
   }
-  __host__ __device__ int getNumParams()
+  __host__ __device__ int getNumParams() const
   {
     return this->NUM_PARAMS;
   }
-  __host__ __device__ int getLargestLayer()
+  __host__ __device__ int getLargestLayer() const
   {
     return this->LARGEST_LAYER;
   }
-  __host__ __device__ int getStrideSize()
+  __host__ __device__ int getStrideSize() const
   {
     return this->STRIDE_SIZE;
   }
 
   Eigen::VectorXf getInputVector()
   {
-    return Eigen::VectorXf(INPUT_DIM);
+    return Eigen::VectorXf::Zero(INPUT_DIM);
   }
   Eigen::VectorXf getOutputVector()
   {
-    return Eigen::VectorXf(OUTPUT_DIM);
+    return Eigen::VectorXf::Zero(OUTPUT_DIM);
   }
   Eigen::MatrixXf getJacobianMatrix()
   {
-    return Eigen::MatrixXf(OUTPUT_DIM, INPUT_DIM);
+    return Eigen::MatrixXf::Zero(OUTPUT_DIM, INPUT_DIM);
   }
 
-  __device__ __host__ int getInputDim()
+  __device__ __host__ int getInputDim() const
   {
     return INPUT_DIM;
   }
-  __host__ __device__ int getOutputDim()
+  __host__ __device__ int getOutputDim() const
   {
     return OUTPUT_DIM;
   }

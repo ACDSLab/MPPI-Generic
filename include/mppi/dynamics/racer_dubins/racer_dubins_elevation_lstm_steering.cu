@@ -228,7 +228,6 @@ __device__ void RacerDubinsElevationLSTMSteering::updateState(float* state, floa
   int i;
   int tdy = threadIdx.y;
   // Add the state derivative time dt to the current state.
-  // printf("updateState thread %d, %d = %f, %f\n", threadIdx.x, threadIdx.y, state[0], state_der[0]);
   for (i = tdy; i < 6; i += blockDim.y)
   {
     next_state[i] = state[i] + state_der[i] * dt;

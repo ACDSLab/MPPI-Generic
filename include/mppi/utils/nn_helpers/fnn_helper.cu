@@ -265,8 +265,8 @@ void FNNHelper<USE_SHARED>::freeCudaMem()
 {
   if (this->GPUMemStatus_)
   {
-    cudaFree(weights_d_);
-    cudaFree(network_d_);
+    HANDLE_ERROR(cudaFree(weights_d_));
+    HANDLE_ERROR(cudaFree(network_d_));
     this->GPUMemStatus_ = false;
   }
 }
@@ -277,7 +277,7 @@ void FNNHelper<USE_SHARED>::GPUSetup()
   if (!this->GPUMemStatus_)
   {
     network_d_ = Managed::GPUSetup<FNNHelper<USE_SHARED>>(this);
-    cudaMalloc((void**)&(this->weights_d_), PARAM_SIZE);
+    HANDLE_ERROR(cudaMalloc((void**)&(this->weights_d_), PARAM_SIZE));
 
     HANDLE_ERROR(cudaMemcpyAsync(&(this->network_d_->weights_d_), &(weights_d_), sizeof(float*), cudaMemcpyHostToDevice,
                                  this->stream_));
@@ -356,7 +356,6 @@ bool FNNHelper<USE_SHARED>::computeGrad(Eigen::Ref<Eigen::MatrixXf> A)
 template <bool USE_SHARED>
 void FNNHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::MatrixXf>& input, Eigen::Ref<Eigen::MatrixXf> output)
 {
-  // std::cout << "FNN CPU got input: " << input.transpose() << std::endl;
   int i, j;
   Eigen::MatrixXf acts = input;
   for (i = 0; i < NUM_LAYERS - 1; i++)

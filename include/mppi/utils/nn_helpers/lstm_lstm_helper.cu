@@ -11,14 +11,6 @@ LSTMLSTMHelper<USE_SHARED>::LSTMLSTMHelper(int init_input_dim, int init_hidden_d
   assert(init_model_->getOutputDim() == lstm_->getHiddenDim() * 2);
 }
 
-// template <bool USE_SHARED>
-// LSTMLSTMHelper<USE_SHARED>::LSTMLSTMHelper(std::string init_path, std::string lstm_path, cudaStream_t stream)
-// {
-//   init_model_ = std::make_shared<LSTMHelper<false>>(init_path);
-//   lstm_ = std::make_shared<LSTMHelper<USE_SHARED>>(lstm_path, stream);
-//   // TODO do init len from the init_path using size of inputs
-// }
-
 template <bool USE_SHARED>
 LSTMLSTMHelper<USE_SHARED>::LSTMLSTMHelper(std::string path, cudaStream_t stream)
   : LSTMLSTMHelper<USE_SHARED>::LSTMLSTMHelper(path, "", stream)
@@ -167,15 +159,3 @@ std::shared_ptr<LSTMHelper<USE_SHARED>> LSTMLSTMHelper<USE_SHARED>::getLSTMModel
 {
   return lstm_;
 }
-
-// template <bool USE_SHARED>
-// void LSTMLSTMHelper<USE_SHARED>::setInitParams(INIT_PARAMS_T& params)
-// {
-//   init_model_->setLSTMParams(params);
-// }
-//
-// template <bool USE_SHARED>
-// void LSTMLSTMHelper<USE_SHARED>::setLSTMParams(LSTM_PARAMS_T& params)
-// {
-//   lstm_->setLSTMParams(params);
-// }
