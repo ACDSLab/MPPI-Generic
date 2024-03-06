@@ -84,6 +84,11 @@ public:
     return time_;
   }
 
+  void setStateTimeToPoseTime()
+  {
+    this->state_time_ = time_;
+  }
+
   // accessors for protected members
   std::list<BufferMessage<Eigen::Vector3f>> getPrevPositionList()
   {
@@ -120,6 +125,10 @@ public:
   double getBufferDt()
   {
     return this->buffer_dt_;
+  }
+  void setLastUsedUpdateTime(double time)
+  {
+    this->last_used_state_update_time_ = time;
   }
 };
 
@@ -201,6 +210,7 @@ TEST_F(BufferedPlantTest, interpNew)
   EXPECT_CALL(mockDynamics, stateFromMap(testing::_)).Times(2).WillRepeatedly(testing::Return(state));
   EXPECT_CALL(*mockController, getDt()).Times(2);
 
+  plant->setLastUsedUpdateTime(0);
   plant->updateOdometry(pos, quat, vel, omega, 0.0);
   plant->updateOdometry(pos, quat, vel, omega, 1.0);
 
@@ -243,6 +253,7 @@ TEST_F(BufferedPlantTest, updateControls)
   }
 
   plant->time_ = 4.0;
+  plant->setStateTimeToPoseTime();
   plant->updateParameters();
   prev_control = plant->getPrevControlList();
   EXPECT_EQ(prev_control.size(), 20);
@@ -371,6 +382,7 @@ TEST_F(BufferedPlantTest, updateOdometry)
   EXPECT_CALL(mockDynamics, stateFromMap(testing::_)).Times(2).WillRepeatedly(testing::Return(state));
   EXPECT_CALL(*mockController, getDt()).Times(2);
 
+  plant->setLastUsedUpdateTime(0.0);
   plant->updateOdometry(pos, quat, vel, omega, 0.0);
 
   auto prev_pos = plant->getPrevPositionList();
@@ -434,6 +446,7 @@ TEST_F(BufferedPlantTest, getInterpState)
 
   MockDynamics::state_array state = MockDynamics::state_array::Random();
 
+  plant->setLastUsedUpdateTime(0.0);
   EXPECT_CALL(mockDynamics, stateFromMap(testing::_)).Times(2).WillRepeatedly(testing::Return(state));
   EXPECT_CALL(*mockController, getDt()).Times(2);
 
@@ -494,6 +507,7 @@ TEST_F(BufferedPlantTest, getInterpBuffer)
 
   MockDynamics::state_array state = MockDynamics::state_array::Random();
 
+  plant->setLastUsedUpdateTime(0.0);
   EXPECT_CALL(mockDynamics, stateFromMap(testing::_)).Times(2).WillRepeatedly(testing::Return(state));
   EXPECT_CALL(*mockController, getDt()).Times(2);
 

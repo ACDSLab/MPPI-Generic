@@ -106,7 +106,7 @@ public:
   {
     return this->avg_optimize_time_ms_;
   }
-  double getLoopDuration()
+  double getOptimizeLoopDuration()
   {
     return this->optimize_loop_duration_;
   }
@@ -125,6 +125,10 @@ public:
   void setLastTime(double time)
   {
     time_ = time;
+  }
+  void setLastUsedTime(double time)
+  {
+    this->last_used_state_update_time_ = time;
   }
   double getSleepTimeAvg()
   {
@@ -293,17 +297,20 @@ TEST_F(BasePlantTest, updateStateTest)
   plant->setLastTime(0);
 
   MockController::state_array state = MockController::state_array::Zero();
-  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(1);
-  plant->updateState(state, mockController->getDt());
-  EXPECT_EQ(plant->getState(), state);
+  // EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_,
+  // testing::_)).Times(0);
+  plant->updateState(state, 12);
+  EXPECT_EQ(plant->pubControlCalled, 0);
+  EXPECT_EQ(plant->pubNominalStateCalled, 0);
 
+  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_)).Times(1);
+  plant->setLastUsedTime(11);
+  plant->updateState(state, 12);
+  EXPECT_EQ(plant->getState(), state);
   EXPECT_EQ(plant->pubControlCalled, 1);
   EXPECT_EQ(plant->pubNominalStateCalled, 0);
 
-  // EXPECT_CALL(*mockController, getCurrentControl(state, mockController->getDt()+100)).Times(1);
-  // plant->setLastTime(100);
-  // plant->updateState(state, 100+mockController->getDt());
-  // EXPECT_EQ(plant->getState(), state);
+  // TODO in debug should pub nominal state
 }
 
 TEST_F(BasePlantTest, runControlIterationStoppedTest)
@@ -329,6 +336,21 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
                                    int optimization_stride = 0) { usleep(wait_ms * 1e3); };
 
     int expect_opt_stride = i > 0 ? 1 : 0;
+
+    MockDynamics::control_array control = MockDynamics::control_array::Zero();
+    if (i > 0)
+    {
+      EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_))
+          .Times(1)
+          .WillRepeatedly(testing::Return(control));  // called by update state should not be called since time since
+                                                      // last
+      // opt should be zero on first iteration, should be called on second
+    }
+    else
+    {
+      EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_))
+          .Times(0);
+    }
 
     EXPECT_CALL(*mockController, slideControlSequence(expect_opt_stride)).Times(i > 0 ? 1 : 0);
     EXPECT_CALL(*mockController, computeControl(testing::_, testing::_))
@@ -372,7 +394,8 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
     EXPECT_THAT(plant->getOptimizationDuration(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
     EXPECT_LT(plant->getOptimizationAvg(), wait_ms + SMALL_TIME_MS);
-    EXPECT_THAT(plant->getLoopDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
+    EXPECT_THAT(plant->getOptimizeLoopDuration(),
+                testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
     EXPECT_LT(plant->getLoopAvg(), wait_ms + SMALL_TIME_MS);
     EXPECT_LE(plant->getFeedbackDuration(), SMALL_TIME_MS);
     EXPECT_LE(plant->getFeedbackAvg(), SMALL_TIME_MS);
@@ -381,6 +404,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseNoFeedbackTest)
 
 TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
 {
+  EXPECT_CALL(mockFeedback, initTrackingController()).Times(1);
   mockController->initFeedback();
 
   double init_time = 51789;
@@ -395,6 +419,21 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
                                    int optimization_stride = 0) { usleep(wait_ms * 1e3); };
 
     int expect_opt_stride = i > 0 ? 1 : 0;
+
+    MockDynamics::control_array control = MockDynamics::control_array::Zero();
+    if (i > 0)
+    {
+      EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_))
+          .Times(1)
+          .WillRepeatedly(testing::Return(control));  // called by update state should not be called since time since
+                                                      // last
+      // opt should be zero on first iteration, should be called on rest
+    }
+    else
+    {
+      EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_))
+          .Times(0);
+    }
 
     EXPECT_CALL(*mockController, slideControlSequence(expect_opt_stride)).Times(i > 0 ? 1 : 0);
     EXPECT_CALL(*mockController, computeControl(testing::_, testing::_))
@@ -435,7 +474,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
                 testing::AllOf(testing::Ge(wait_ms), testing::Le((wait_ms + SMALL_TIME_MS) * 2)));
     // TODO should be range as well
     EXPECT_LT(plant->getFeedbackAvg(), wait_ms + SMALL_TIME_MS);
-    EXPECT_THAT(plant->getLoopDuration(),
+    EXPECT_THAT(plant->getOptimizeLoopDuration(),
                 testing::AllOf(testing::Ge(wait_ms * 2), testing::Le((wait_ms + SMALL_TIME_MS) * 2)));
     EXPECT_LT(plant->getLoopAvg(), (wait_ms + SMALL_TIME_MS) * 2);
   }
@@ -443,6 +482,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackTest)
 
 TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
 {
+  EXPECT_CALL(mockFeedback, initTrackingController()).Times(1);
   mockController->initFeedback();
 
   double init_time = 51531;
@@ -457,6 +497,21 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
                                    int optimization_stride = 0) { usleep(wait_ms * 1e3); };
 
     int expect_opt_stride = i > 0 ? 1 : 0;
+
+    MockDynamics::control_array control = MockDynamics::control_array::Zero();
+    if (i > 0)
+    {
+      EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_))
+          .Times(1)
+          .WillRepeatedly(testing::Return(control));  // called by update state should not be called since time since
+                                                      // last
+      // opt should be zero on first iteration, should be called on rest
+    }
+    else
+    {
+      EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_))
+          .Times(0);
+    }
 
     EXPECT_CALL(*mockController, slideControlSequence(expect_opt_stride)).Times(i > 0 ? 1 : 0);
     EXPECT_CALL(*mockController, computeControl(testing::_, testing::_))
@@ -494,7 +549,7 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
     EXPECT_THAT(plant->getOptimizationAvg(),
                 testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-    EXPECT_THAT(plant->getLoopDuration(),
+    EXPECT_THAT(plant->getOptimizeLoopDuration(),
                 testing::AllOf(testing::Ge(wait_ms * 2), testing::Le((wait_ms + SMALL_TIME_MS) * 2)));
     EXPECT_THAT(plant->getLoopAvg(),
                 testing::AllOf(testing::Ge((wait_ms)*2), testing::Le((wait_ms + SMALL_TIME_MS) * 2)));
@@ -506,13 +561,11 @@ TEST_F(BasePlantTest, runControlIterationDebugFalseFeedbackAvgTest)
 
 TEST_F(BasePlantTest, runControlLoopRegular)
 {
+  EXPECT_CALL(mockFeedback, initTrackingController()).Times(1);
   mockController->initFeedback();
 
   int hz = plant->getHz();
   double test_duration = 1.0;  // in seconds for how long to run the test
-
-  int init_time = 78;
-  plant->setLastTime(init_time);
 
   // setup mock expected calls
   EXPECT_CALL(mockCost, setParams(testing::_)).Times(0);
@@ -525,6 +578,11 @@ TEST_F(BasePlantTest, runControlLoopRegular)
   auto wait_function = [wait_s](const Eigen::Ref<const MockController::state_array>& state,
                                 int optimization_stride = 0) { usleep(wait_s * 1e6); };
   int iterations = int(std::round((hz * 1.0) / (test_duration)));  // number of times the method will be called
+
+  MockDynamics::control_array control = MockDynamics::control_array::Zero();
+  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_))
+      .Times(46)
+      .WillRepeatedly(testing::Return(control));  // called by update state should not be called since time since last
   // slide control sequence is skipped on the first iteration
   EXPECT_CALL(*mockController, slideControlSequence(1)).Times(iterations / 2 - 1);
   EXPECT_CALL(*mockController, computeControl(testing::_, testing::_))
@@ -541,6 +599,11 @@ TEST_F(BasePlantTest, runControlLoopRegular)
   EXPECT_CALL(*mockController, getFeedbackState()).Times(iterations / 2).WillRepeatedly(testing::Return(feedback));
   EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(iterations / 2);
   EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
+
+  int init_time = 78;
+  plant->setLastTime(init_time);
+  MockDynamics::state_array state = MockDynamics::state_array::Zero();
+  plant->updateState(state, init_time);
 
   std::atomic<bool> is_alive(true);
   std::thread optimizer(&MockTestPlant::runControlLoop, plant.get(), &is_alive);
@@ -560,6 +623,7 @@ TEST_F(BasePlantTest, runControlLoopRegular)
     if (counter / 5 > iterations / 2)
     {  // this forces it to block
       plant->incrementTime(0.01);
+      plant->updateState(state, plant->getPoseTime());
     }
   }
   is_alive.store(false);
@@ -580,7 +644,7 @@ TEST_F(BasePlantTest, runControlLoopRegular)
   EXPECT_THAT(plant->getOptimizationDuration(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getLoopDuration(),
+  EXPECT_THAT(plant->getOptimizeLoopDuration(),
               testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
   EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
   EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
@@ -598,31 +662,31 @@ TEST_F(BasePlantTest, runControlLoopSlowed)
   int hz = plant->getHz();
   double test_duration = 1.0;  // in seconds for how long to run the test
 
-  int init_time = 78;
-  plant->setLastTime(init_time);
-
   MockTestPlant::COST_PARAMS_T cost_params;
   MockTestPlant::DYN_PARAMS_T dyn_params;
 
-  double wait_s =
-      (1.0 / hz) / 2;  // divide by 3 since wait is evenly split across computeFeedback, computeControl, and waiting
+  double wait_s = (1.0 / hz);
 
   auto wait_function = [wait_s](const Eigen::Ref<const MockController::state_array>& state,
                                 int optimization_stride = 0) { usleep(wait_s * 1e6); };
-  auto wait_function2 = [wait_s](MockTestPlant::COST_PARAMS_T) { usleep(wait_s * 1e6); };
-  auto wait_function3 = [wait_s](MockTestPlant::DYN_PARAMS_T) { usleep(wait_s * 1e6); };
 
   int iterations = int(std::round((hz * 1.0) / (test_duration)));  // number of times the method will be called
 
   // setup mock expected calls
-  EXPECT_CALL(mockCost, setParams(testing::_)).Times(16).WillRepeatedly(testing::Invoke(wait_function2));
-  EXPECT_CALL(mockDynamics, setParams(testing::_)).Times(16).WillRepeatedly(testing::Invoke(wait_function3));
+  EXPECT_CALL(mockCost, setParams(testing::_)).Times(testing::AtLeast(54));  // 50 from waiting, 5 from run control
+                                                                             // iteration
+  EXPECT_CALL(mockDynamics, setParams(testing::_)).Times(testing::AtLeast(54));
   EXPECT_CALL(*mockController, resetControls()).Times(1);
 
+  int expected_iters = iterations / 4 + 1;  // half do not count because of waiting, other half since we are slowed,
+                                            // plus one for init call
+  MockDynamics::control_array control = MockDynamics::control_array::Zero();
+  EXPECT_CALL(*mockController, getCurrentControl(testing::_, testing::_, testing::_, testing::_, testing::_))
+      .Times(46)
+      .WillRepeatedly(testing::Return(control));  // called by update state should not be called since time since last
   // slide control sequence is skipped on the first iteration
-  int expected_iters = iterations / 4;
-  // EXPECT_CALL(*mockController, slideControlSequence(1)).Times(1);
-  EXPECT_CALL(*mockController, slideControlSequence(testing::_)).Times(expected_iters - 1);
+  EXPECT_CALL(*mockController, slideControlSequence(1)).Times(1);
+  EXPECT_CALL(*mockController, slideControlSequence(2)).Times(expected_iters - 2);
   EXPECT_CALL(*mockController, computeControl(testing::_, testing::_))
       .Times(expected_iters)
       .WillRepeatedly(testing::Invoke(wait_function));
@@ -637,6 +701,11 @@ TEST_F(BasePlantTest, runControlLoopSlowed)
   EXPECT_CALL(*mockController, getFeedbackState()).Times(expected_iters).WillRepeatedly(testing::Return(feedback));
   EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(expected_iters);
   EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
+
+  int init_time = 78;
+  plant->setLastTime(init_time);
+  MockDynamics::state_array state = MockDynamics::state_array::Zero();
+  plant->updateState(state, init_time);
 
   std::atomic<bool> is_alive(true);
   std::thread optimizer(&MockTestPlant::runControlLoop, plant.get(), &is_alive);
@@ -656,6 +725,7 @@ TEST_F(BasePlantTest, runControlLoopSlowed)
     if (counter / 5 > iterations / 2)
     {  // this forces it to block
       plant->incrementTime(0.01);
+      plant->updateState(state, plant->getPoseTime());
     }
 
     plant->setCostParams(cost_params);
@@ -679,190 +749,13 @@ TEST_F(BasePlantTest, runControlLoopSlowed)
   EXPECT_THAT(plant->getOptimizationDuration(),
               testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getLoopDuration(),
-              testing::AllOf(testing::Ge(wait_ms * 4), testing::Le(wait_ms * 4 + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 4), testing::Le(wait_ms * 4 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getOptimizeLoopDuration(),
+              testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
+  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
   EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
   // 10 iters of just waiting
   double expected_avg_wait = ((wait_ms * 2 * 10)) / 6;
   // EXPECT_THAT(plant->getSleepTimeAvg(), testing::AllOf(testing::Gt(expected_avg_wait - SMALL_TIME_MS),
   //                                                     testing::Le(expected_avg_wait + SMALL_TIME_MS * 4)));
-}
-
-TEST_F(BasePlantTest, runControlLoopRegularRealTime)
-{
-  mockController->initFeedback();
-
-  int hz = plant->getHz();
-  double test_duration = 1.0;  // in seconds for how long to run the test
-
-  int init_time = 78;
-  plant->setLastTime(init_time);
-  plant->setUseRealTimeTiming(true);
-
-  // setup mock expected calls
-  EXPECT_CALL(mockCost, setParams(testing::_)).Times(0);
-  EXPECT_CALL(mockDynamics, setParams(testing::_)).Times(0);
-  EXPECT_CALL(*mockController, resetControls()).Times(1);
-
-  double wait_s =
-      (1.0 / hz) / 3;  // divide by 3 since wait is evenly split across computeFeedback, computeControl, and waiting
-
-  auto wait_function = [wait_s](const Eigen::Ref<const MockController::state_array>& state,
-                                int optimization_stride = 0) { usleep(wait_s * 1e6); };
-  int iterations = int(std::round((hz * 1.0) / (test_duration)));  // number of times the method will be called
-  // slide control sequence is skipped on the first iteration
-  EXPECT_CALL(*mockController, slideControlSequence(1)).Times(iterations / 2 - 1);
-  EXPECT_CALL(*mockController, computeControl(testing::_, testing::_))
-      .Times(iterations / 2)
-      .WillRepeatedly(testing::Invoke(wait_function));
-  MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
-  EXPECT_CALL(*mockController, getControlSeq()).Times(iterations / 2).WillRepeatedly(testing::Return(control_seq));
-  MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-  EXPECT_CALL(*mockController, getTargetStateSeq()).Times(iterations / 2).WillRepeatedly(testing::Return(state_seq));
-  EXPECT_CALL(*mockController, computeFeedback(testing::_))
-      .Times(iterations / 2)
-      .WillRepeatedly(testing::Invoke(wait_function));
-  MockController::TEMPLATED_FEEDBACK_STATE feedback;
-  EXPECT_CALL(*mockController, getFeedbackState()).Times(iterations / 2).WillRepeatedly(testing::Return(feedback));
-  EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(iterations / 2);
-  EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
-
-  std::atomic<bool> is_alive(true);
-  std::thread optimizer(&MockTestPlant::runControlLoop, plant.get(), &is_alive);
-
-  std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
-  std::chrono::duration<double, std::milli> loop_duration = std::chrono::steady_clock::now() - loop_start;
-  // counter is number of dts
-  for (int counter = 0; loop_duration.count() < test_duration * 1e3; counter++)
-  {
-    // wait until the correct hz has passed to tick the time
-    // state at 100 Hz
-    while (loop_duration.count() < (test_duration / 100) * 1e3 * counter)
-    {
-      usleep(50);
-      loop_duration = std::chrono::steady_clock::now() - loop_start;
-    }
-    if (counter / 5 > iterations / 2)
-    {  // this forces it to block
-      plant->incrementTime(0.01);
-    }
-  }
-  is_alive.store(false);
-  optimizer.join();
-
-  // check all the things
-  EXPECT_EQ(plant->checkStatus(), 1);
-  EXPECT_EQ(plant->getStateTraj(), state_seq);
-  EXPECT_EQ(plant->getControlTraj(), control_seq);
-  // EXPECT_EQ(plant->getFeedbackState(), feedback);
-
-  // check last pose update
-  EXPECT_NE(plant->getLastUsedPoseUpdateTime(), 0.0);
-  EXPECT_EQ(plant->getNumIter(), iterations / 2);
-  EXPECT_EQ(plant->getLastOptimizationStride(), 1);
-
-  double wait_ms = wait_s * 1e3;
-  EXPECT_THAT(plant->getOptimizationDuration(),
-              testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getLoopDuration(),
-              testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  // 10 iters of just waiting, 10 iters of waiting for correct time
-  double expected_avg_wait = ((wait_ms * 3 * 10) + wait_ms * 10) / 10;
-  EXPECT_THAT(plant->getSleepTimeAvg(),
-              testing::AllOf(testing::Gt(expected_avg_wait), testing::Le(expected_avg_wait + SMALL_TIME_MS * 4)));
-}
-
-TEST_F(BasePlantTest, runControlLoopRegularDelayed)
-{
-  EXPECT_CALL(*mockController, getDt()).WillRepeatedly(testing::Return(0.025));
-  mockController->initFeedback();
-
-  int hz = plant->getHz();
-  double test_duration = 1.0;  // in seconds for how long to run the test
-
-  int init_time = 78;
-  plant->setLastTime(init_time);
-  plant->setUseRealTimeTiming(true);
-
-  // setup mock expected calls
-  EXPECT_CALL(mockCost, setParams(testing::_)).Times(0);
-  EXPECT_CALL(mockDynamics, setParams(testing::_)).Times(0);
-  EXPECT_CALL(*mockController, resetControls()).Times(1);
-
-  double wait_s =
-      (1.0 / hz) / 3;  // divide by 3 since wait is evenly split across computeFeedback, computeControl, and waiting
-
-  auto wait_function = [wait_s](const Eigen::Ref<const MockController::state_array>& state,
-                                int optimization_stride = 0) { usleep(wait_s * 1e6); };
-  int iterations = int(std::round((hz * 1.0) / (test_duration)));  // number of times the method will be called
-  // slide control sequence is skipped on the first iteration
-  EXPECT_CALL(*mockController, slideControlSequence(2)).Times(iterations / 2 - 1);
-  EXPECT_CALL(*mockController, computeControl(testing::_, testing::_))
-      .Times(iterations / 2)
-      .WillRepeatedly(testing::Invoke(wait_function));
-  MockController::control_trajectory control_seq = MockController::control_trajectory::Zero();
-  EXPECT_CALL(*mockController, getControlSeq()).Times(iterations / 2).WillRepeatedly(testing::Return(control_seq));
-  MockController::state_trajectory state_seq = MockController::state_trajectory::Zero();
-  EXPECT_CALL(*mockController, getTargetStateSeq()).Times(iterations / 2).WillRepeatedly(testing::Return(state_seq));
-  EXPECT_CALL(*mockController, computeFeedback(testing::_))
-      .Times(iterations / 2)
-      .WillRepeatedly(testing::Invoke(wait_function));
-  MockController::TEMPLATED_FEEDBACK_STATE feedback;
-  EXPECT_CALL(*mockController, getFeedbackState()).Times(iterations / 2).WillRepeatedly(testing::Return(feedback));
-  EXPECT_CALL(*mockController, computeFeedbackPropagatedStateSeq()).Times(iterations / 2);
-  EXPECT_CALL(*mockController, calculateSampledStateTrajectories()).Times(0);
-
-  std::atomic<bool> is_alive(true);
-  std::thread optimizer(&MockTestPlant::runControlLoop, plant.get(), &is_alive);
-
-  std::chrono::steady_clock::time_point loop_start = std::chrono::steady_clock::now();
-  std::chrono::duration<double, std::milli> loop_duration = std::chrono::steady_clock::now() - loop_start;
-  // counter is number of dts
-  for (int counter = 0; loop_duration.count() < test_duration * 1e3; counter++)
-  {
-    // wait until the correct hz has passed to tick the time
-    // state at 100 Hz
-    while (loop_duration.count() < (test_duration / 100) * 1e3 * counter)
-    {
-      usleep(50);
-      loop_duration = std::chrono::steady_clock::now() - loop_start;
-    }
-    if (counter / 5 > iterations / 2)
-    {  // this forces it to block
-      plant->incrementTime(0.01);
-    }
-  }
-  is_alive.store(false);
-  optimizer.join();
-
-  // check all the things
-  EXPECT_EQ(plant->checkStatus(), 1);
-  EXPECT_EQ(plant->getStateTraj(), state_seq);
-  EXPECT_EQ(plant->getControlTraj(), control_seq);
-  // EXPECT_EQ(plant->getFeedbackState(), feedback);
-
-  // check last pose update
-  EXPECT_NE(plant->getLastUsedPoseUpdateTime(), 0.0);
-  EXPECT_EQ(plant->getNumIter(), iterations / 2);
-  EXPECT_EQ(plant->getLastOptimizationStride(), 2);
-
-  double wait_ms = wait_s * 1e3;
-  EXPECT_THAT(plant->getOptimizationDuration(),
-              testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getOptimizationAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getLoopDuration(),
-              testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getLoopAvg(), testing::AllOf(testing::Ge(wait_ms * 2), testing::Le(wait_ms * 2 + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getFeedbackDuration(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  EXPECT_THAT(plant->getFeedbackAvg(), testing::AllOf(testing::Ge(wait_ms), testing::Le(wait_ms + SMALL_TIME_MS)));
-  // 10 iters of just waiting, 10 iters of waiting for correct time
-  double expected_avg_wait = ((wait_ms * 3 * 10) + wait_ms * 10) / 10;
-  EXPECT_THAT(plant->getSleepTimeAvg(),
-              testing::AllOf(testing::Gt(expected_avg_wait), testing::Le(expected_avg_wait + SMALL_TIME_MS * 4)));
 }

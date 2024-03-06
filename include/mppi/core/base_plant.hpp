@@ -98,7 +98,6 @@ protected:
                                                              // optimization
   std::atomic<double> state_time_{ -1.0 };
 
-  std::atomic<bool> use_real_time_timing_{ false };
   // Wall Clock: always real time
   double optimize_loop_duration_ = 0;  // duration of the entire controller run loop
   double optimization_duration_ = 0;   // Most recent time it took to run MPPI iteration
@@ -175,17 +174,12 @@ public:
   virtual double getPoseTime() = 0;
 
   /**
-   * gets the correct time for the state message
+   * gets the correct time for the state message that has been updated through updateState
    * @return
    */
   virtual double getStateTime()
   {
-    return getPoseTime();
-  }
-
-  void setUseRealTimeTiming(bool use_real_time)
-  {
-    use_real_time_timing_ = use_real_time;
+    return state_time_;
   }
 
   // ======== PURE VIRTUAL END ====
@@ -274,10 +268,8 @@ public:
     throw std::logic_error("Invalid dynamics with current plant, it requires the buffered plant");
   }
 
-  virtual void setSolution(const Eigen::Ref<const s_traj>& state_seq,
-                           const Eigen::Ref<const c_traj>& control_seq,
-                           const Eigen::Ref<const o_traj>& output_seq,
-                           const FB_STATE_T& fb_state, double timestamp)
+  virtual void setSolution(const Eigen::Ref<const s_traj>& state_seq, const Eigen::Ref<const c_traj>& control_seq,
+                           const Eigen::Ref<const o_traj>& output_seq, const FB_STATE_T& fb_state, double timestamp)
   {
     last_used_state_update_time_ = timestamp;
     std::lock_guard<std::mutex> guard(access_guard_);
@@ -303,12 +295,18 @@ public:
     state_ = state;
     state_time_ = time;
 
+    if (last_used_state_update_time_ < 0)
+    {
+      // we have not optimized yet so no reason to publish controls
+      return;
+    }
+
     // check if the requested time is in the calculated trajectory
     bool t_within_trajectory =
         time >= temp_last_state_update_time &&
         time < temp_last_state_update_time + controller_->getDt() * controller_->getNumTimesteps();
 
-    // TODO check that we haven't been waiting too long
+    // time_since_last_opt checks if we have a new state or not essentially, only publish control on new state time
     if (time_since_last_opt > 0 && t_within_trajectory)
     {
       s_array target_nominal_state = this->controller_->interpolateState(state_traj_, time_since_last_opt);
@@ -455,7 +453,16 @@ public:
       temp_last_state_time = getStateTime();
       counter++;
     }
-    // TODO could this cause misalignment
+    if (!is_alive->load())
+    {
+      // if we have been stopped, exit
+      return;
+    }
+
+    // updates the parameters if needed to ensure most up to date information
+    updateParameters();
+
+    // gets the most recent possible state and time locked together so that we can ensure they are synced and up to date
     this->access_guard_.lock();
     s_array state = state_;
     temp_last_state_time = state_time_;
@@ -470,8 +477,6 @@ public:
 
     // Check the robots status for this optimization
     int temp_status = checkStatus();
-
-    updateParameters();
 
     // calculate how much we should slide the control sequence
     double dt = temp_last_state_time - temp_last_used_state_update_time;
@@ -573,8 +578,7 @@ public:
       // last_optimization_stride_); printf("wait until time %f current time %f\n", wait_until_time, getCurrentTime());
 
       std::chrono::steady_clock::time_point sleep_start = std::chrono::steady_clock::now();
-      while (is_alive->load() && (wait_until_state_time > getStateTime() ||
-                                  (wait_until_real_time > getCurrentTime() && use_real_time_timing_)))
+      while (is_alive->load() && wait_until_state_time > getStateTime())
       {
         updateParameters();
         usleep(50);
