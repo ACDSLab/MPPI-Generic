@@ -383,7 +383,8 @@ TEST_F(LSTMLSTMHelperTest, LoadModelPathTestLongBuffer)
   const int init_input_dim = model.getInitModel()->getInputDim();
 
   // TOOD figure out the number of points from the input
-  const int init_len = 6;
+  const int init_len = model.getInitLen();
+  EXPECT_EQ(model.getInitLen(), 6);
   int num_points = input_outputs.at("num_points").data<int>()[0];
   int T = input_outputs.at("output").shape[0] / (num_points * output_dim);
 
