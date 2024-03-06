@@ -3,8 +3,49 @@
 #include <mppi/controllers/Tube-MPPI/tube_mppi_controller.cuh>
 #include <mppi/controllers/R-MPPI/robust_mppi_controller.cuh>
 #include <mppi/dynamics/double_integrator/di_dynamics.cuh>
+#include <mppi/cost_functions/cost.cuh>
 #include <mppi/cost_functions/double_integrator/double_integrator_circle_cost.cuh>
 #include <mppi/feedback_controllers/DDP/ddp.cuh>
+
+class DoubleIntegratorDummyCost
+  : public Cost<DoubleIntegratorDummyCost, DoubleIntegratorCircleCostParams, DoubleIntegratorParams>
+{
+public:
+  DoubleIntegratorDummyCost(cudaStream_t stream = 0)
+  {
+    bindToStream(stream);
+  }
+
+  __device__ float computeStateCost(float* s, int timestep, float* theta_c, int* crash_status)
+  {
+    float cost = SQ(s[0]);
+    for (int i = 0; i < 100; i++)
+    {
+      cost = abs(cos(cost));
+    }
+    return cost;
+  }
+
+  float computeStateCost(const Eigen::Ref<const output_array> s, int timestep, int* crash_status)
+  {
+    float cost = SQ(s[0]);
+    for (int i = 0; i < 100; i++)
+    {
+      cost = abs(cos(cost));
+    }
+    return cost;
+  }
+
+  float terminalCost(const Eigen::Ref<const output_array> s)
+  {
+    return 0;
+  }
+
+  __device__ float terminalCost(float* s, float* theta_c)
+  {
+    return 0;
+  }
+};
 
 #include <gtest/gtest.h>
 
@@ -12,19 +53,19 @@ const int MAX_TIMESTEPS = 200;
 using DI_FEEDBACK_T = DDPFeedback<DoubleIntegratorDynamics, MAX_TIMESTEPS>;
 
 template <int NUM_ROLLOUTS>
-using DI_Vanilla = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, DI_FEEDBACK_T,
+using DI_Vanilla = VanillaMPPIController<DoubleIntegratorDynamics, DoubleIntegratorDummyCost, DI_FEEDBACK_T,
                                          MAX_TIMESTEPS, NUM_ROLLOUTS>;
 
 template <int NUM_ROLLOUTS>
-using DI_Colored = ColoredMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, DI_FEEDBACK_T,
+using DI_Colored = ColoredMPPIController<DoubleIntegratorDynamics, DoubleIntegratorDummyCost, DI_FEEDBACK_T,
                                          MAX_TIMESTEPS, NUM_ROLLOUTS>;
 
 template <int NUM_ROLLOUTS>
-using DI_Tube = TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, DI_FEEDBACK_T, MAX_TIMESTEPS,
-                                   NUM_ROLLOUTS>;
+using DI_Tube =
+    TubeMPPIController<DoubleIntegratorDynamics, DoubleIntegratorDummyCost, DI_FEEDBACK_T, MAX_TIMESTEPS, NUM_ROLLOUTS>;
 
 template <int NUM_ROLLOUTS>
-using DI_Robust = RobustMPPIController<DoubleIntegratorDynamics, DoubleIntegratorCircleCost, DI_FEEDBACK_T,
+using DI_Robust = RobustMPPIController<DoubleIntegratorDynamics, DoubleIntegratorDummyCost, DI_FEEDBACK_T,
                                        MAX_TIMESTEPS, NUM_ROLLOUTS>;
 
 // TODO: Add more dynamics/cost function specializations
@@ -60,7 +101,6 @@ public:
     }
     sampler = new SAMPLER_T(sampler_params);
 
-    cudaStream_t stream;
     HANDLE_ERROR(cudaStreamCreate(&stream));
 
     CONTROLLER_PARAMS_T controller_params;
@@ -85,7 +125,10 @@ public:
     delete sampler;
     delete model;
     delete cost;
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
   }
+
+  cudaStream_t stream;
 
 protected:
   const int num_timesteps = 150;
@@ -112,9 +155,11 @@ TYPED_TEST_SUITE(ControllerKernelChoiceTest, DIFFERENT_CONTROLLERS<128>);
 
 TYPED_TEST(ControllerKernelChoiceTest, CheckAppropriateKernelSelection)
 {
-  const int further_evaluations = 3;
+  const int further_evaluations = 20;
 
   auto empty_state = this->model->getZeroState();
+  this->controller->setLogLevel(mppi::util::LOG_LEVEL::DEBUG);
+  this->controller->chooseAppropriateKernel();
   auto auto_kernel_choice = this->controller->getKernelChoiceAsEnum();
 
   // Start testing single kernel
@@ -173,23 +218,26 @@ TYPED_TEST(ControllerKernelChoiceTest, NoUsableKernelCheck)
 
 TYPED_TEST(ControllerKernelChoiceTest, MoreEvaluationsDoNotAdjustChoice)
 {
-  const int num_evaluations = 10;
+  int num_evaluations = this->controller->getNumKernelEvaluations();
+  this->controller->setLogLevel(mppi::util::LOG_LEVEL::DEBUG);
+  this->controller->chooseAppropriateKernel();
   auto curr_select_kernel = this->controller->getKernelChoiceAsEnum();
 
-  this->controller->setNumKernelEvaluations(num_evaluations);
-  auto start_num_eval_time = std::chrono::steady_clock::now();
-  this->controller->chooseAppropriateKernel();
-  auto end_num_eval_time = std::chrono::steady_clock::now();
-  float num_eval_time = mppi::math::timeDiffms(end_num_eval_time, start_num_eval_time);
-  ASSERT_EQ(this->controller->getKernelChoiceAsEnum(), curr_select_kernel);
+  float prev_num_eval_time = 0;
 
-  // Now evaluate twice as many times
-  this->controller->setNumKernelEvaluations(2 * num_evaluations);
-  auto start_twice_num_eval_time = std::chrono::steady_clock::now();
-  this->controller->chooseAppropriateKernel();
-  auto end_twice_num_eval_time = std::chrono::steady_clock::now();
-  float twice_num_eval_time = mppi::math::timeDiffms(end_twice_num_eval_time, start_twice_num_eval_time);
-  ASSERT_EQ(this->controller->getKernelChoiceAsEnum(), curr_select_kernel);
-
-  ASSERT_TRUE(num_eval_time < twice_num_eval_time);
+  for (int i = 0; i < 5; i++)
+  {
+    this->controller->setNumKernelEvaluations(num_evaluations);
+    auto start_num_eval_time = std::chrono::steady_clock::now();
+    this->controller->chooseAppropriateKernel();
+    auto end_num_eval_time = std::chrono::steady_clock::now();
+    float num_eval_time = mppi::math::timeDiffms(end_num_eval_time, start_num_eval_time);
+    ASSERT_EQ(this->controller->getKernelChoiceAsEnum(), curr_select_kernel);
+    if (i != 0)
+    {
+      ASSERT_TRUE(prev_num_eval_time < num_eval_time);
+    }
+    prev_num_eval_time = num_eval_time;
+    num_evaluations *= 2;
+  }
 }

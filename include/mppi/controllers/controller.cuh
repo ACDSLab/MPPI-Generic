@@ -932,7 +932,7 @@ protected:
 
   // TODO get raw pointers for different things
   bool debug_ = false;
-  int num_kernel_evaluations_ = 5;  // number of kernel calls to do to determine which kernel to use
+  int num_kernel_evaluations_ = 10;  // number of kernel calls to do to determine which kernel to use
   kernelType use_kernel_ = kernelType::USE_SPLIT_KERNELS;  // default is to use the split kernels
 
   // Free energy variables

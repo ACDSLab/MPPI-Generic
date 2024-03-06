@@ -192,10 +192,21 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
     this->params_.dynamics_rollout_dim_.z = max(2, this->params_.dynamics_rollout_dim_.z);
     this->params_.cost_rollout_dim_.z = max(2, this->params_.cost_rollout_dim_.z);
 
-    mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
-        this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->trajectory_costs_d_,
-        this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_, false);
+    // Launch the rollout kernel
+    if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
+    {
+      mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->trajectory_costs_d_,
+          this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_, false);
+    }
+    else
+    {
+      mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->getLambda(), this->getAlpha(), this->initial_state_d_, this->trajectory_costs_d_,
+          this->params_.dynamics_rollout_dim_, this->stream_, false);
+    }
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
