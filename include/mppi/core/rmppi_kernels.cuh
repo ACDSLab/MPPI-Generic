@@ -118,9 +118,6 @@ unsigned calcRMPPICostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* s
 template <class DYN_T, class COST_T, class SAMPLER_T, class FB_T>
 unsigned calcRMPPICombinedKernelSharedMemSize(const DYN_T* dynamics, const COST_T* cost, const SAMPLER_T* sampler,
                                               const FB_T* fb_controller, dim3& dimBlock);
-
-template <class FB_T>
-__host__ __device__ unsigned calcFeedbackSharedMemSize(const FB_T* fb_controller, const dim3& dimBlock);
 }  // namespace rmppi
 }  // namespace kernels
 }  // namespace mppi

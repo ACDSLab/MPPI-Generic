@@ -374,7 +374,7 @@ __global__ void rolloutRMPPIDynamicsKernel(DYN_T* __restrict__ dynamics, FB_T* _
   const int sample_dim = blockDim.x;
   const int size_of_theta_s_bytes = calcClassSharedMemSize(dynamics, blockDim);
   const int size_of_theta_d_bytes = calcClassSharedMemSize(sampling, blockDim);
-  const int size_of_theta_fb_bytes = calcFeedbackSharedMemSize(fb_controller, blockDim);
+  const int size_of_theta_fb_bytes = calcClassSharedMemSize(fb_controller, blockDim);
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -501,7 +501,7 @@ __global__ void rolloutRMPPICostKernel(COST_T* __restrict__ costs, DYN_T* __rest
   const int size_of_theta_s_bytes = calcClassSharedMemSize(dynamics, blockDim);
   const int size_of_theta_d_bytes = calcClassSharedMemSize(sampling, blockDim);
   const int size_of_theta_c_bytes = calcClassSharedMemSize(costs, blockDim);
-  const int size_of_theta_fb_bytes = calcFeedbackSharedMemSize(fb_controller, blockDim);
+  const int size_of_theta_fb_bytes = calcClassSharedMemSize(fb_controller, blockDim);
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -682,7 +682,7 @@ __global__ void rolloutRMPPIKernel(DYN_T* __restrict__ dynamics, COST_T* __restr
   const int size_of_theta_s_bytes = calcClassSharedMemSize(dynamics, blockDim);
   const int size_of_theta_d_bytes = calcClassSharedMemSize(sampling, blockDim);
   const int size_of_theta_c_bytes = calcClassSharedMemSize(costs, blockDim);
-  const int size_of_theta_fb_bytes = calcFeedbackSharedMemSize(fb_controller, blockDim);
+  const int size_of_theta_fb_bytes = calcClassSharedMemSize(fb_controller, blockDim);
 
   // Create shared state and control arrays
   extern __shared__ float entire_buffer[];
@@ -1090,7 +1090,7 @@ unsigned calcRMPPIDynKernelSharedMemSize(const DYN_T* dynamics, const SAMPLER_T*
                        math::nearest_multiple_4(dynamics_num_shared * DYN_T::OUTPUT_DIM) +
                        math::nearest_multiple_4(dynamics_num_shared * DYN_T::CONTROL_DIM)) +
       calcClassSharedMemSize(dynamics, dimBlock) + calcClassSharedMemSize(sampler, dimBlock) +
-      calcFeedbackSharedMemSize(fb_controller, dimBlock);
+      calcClassSharedMemSize(fb_controller, dimBlock);
 #ifdef USE_CUDA_BARRIERS_DYN
   dynamics_shared_size += math::int_multiple_const(dynamics_num_shared * sizeof(barrier), 16);
 #endif
@@ -1107,7 +1107,7 @@ unsigned calcRMPPICostKernelSharedMemSize(const COST_T* cost, const SAMPLER_T* s
                                                math::nearest_multiple_4(cost_num_shared * dimBlock.y * 2)) +
                               sizeof(int) * math::nearest_multiple_4(cost_num_shared) +
                               calcClassSharedMemSize(cost, dimBlock) + calcClassSharedMemSize(sampler, dimBlock) +
-                              calcFeedbackSharedMemSize(fb_controller, dimBlock);
+                              calcClassSharedMemSize(fb_controller, dimBlock);
 #ifdef USE_CUDA_BARRIERS_COST
   cost_shared_size += math::int_multiple_const(cost_num_shared * sizeof(barrier), 16);
 #endif
@@ -1125,21 +1125,11 @@ unsigned calcRMPPICombinedKernelSharedMemSize(const DYN_T* dynamics, const COST_
                                           math::nearest_multiple_4(num_shared * dimBlock.y * 2)) +
                          sizeof(int) * math::nearest_multiple_4(num_shared) +
                          calcClassSharedMemSize(dynamics, dimBlock) + calcClassSharedMemSize(sampler, dimBlock) +
-                         calcFeedbackSharedMemSize(fb_controller, dimBlock) + calcClassSharedMemSize(cost, dimBlock);
+                         calcClassSharedMemSize(fb_controller, dimBlock) + calcClassSharedMemSize(cost, dimBlock);
 #ifdef USE_CUDA_BARRIERS_DYN
   shared_size += math::int_multiple_const(num_shared * sizeof(barrier), 16);
 #endif
   return shared_size;
-}
-
-template <class FB_T>
-__host__ __device__ unsigned calcFeedbackSharedMemSize(const FB_T* fb_controller, const dim3& dimBlock)
-{
-  const int fb_num_shared = dimBlock.x * dimBlock.z;
-  unsigned fb_shared_size =
-      math::int_multiple_const(fb_controller->getGrdSharedSizeBytes(), sizeof(float4)) +
-      fb_num_shared * math::int_multiple_const(fb_controller->getBlkSharedSizeBytes(), sizeof(float4));
-  return fb_shared_size;
 }
 
 __device__ void multiCostArrayReduction(float* running_cost, float* running_cost_extra, const int start_size,
