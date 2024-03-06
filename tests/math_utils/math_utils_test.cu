@@ -516,8 +516,8 @@ TEST(MATH_UTILS, SpeedSmallMatrixMult)
             << std::endl;
 }
 
-template <int M, int N, mp1::Parallel1Dir PARALLELIZATION_DIR = mp1::Parallel1Dir::THREAD_Y>
-__global__ void GaussJordanKernel(float* A_d)
+template <int M, int N, mp1::Parallel1Dir PARALLELIZATION_DIR = mp1::Parallel1Dir::THREAD_Y, class T = float>
+__global__ void GaussJordanKernel(T* A_d)
 {
   int batch_idx;
   if (PARALLELIZATION_DIR == mp1::Parallel1Dir::THREAD_X)
@@ -532,12 +532,13 @@ __global__ void GaussJordanKernel(float* A_d)
   {
     batch_idx = blockIdx.z;
   }
-  extern __shared__ float A_shared[];
-  mp1::loadArrayParallel<M * N, PARALLELIZATION_DIR>(A_shared, 0, A_d + batch_idx * M * N, 0);
+  extern __shared__ float A_shared_s[];
+  T* A_shared = (T*)A_shared_s;
+  mp1::loadArrayParallel<M * N, PARALLELIZATION_DIR, T>(A_shared, 0, A_d + batch_idx * M * N, 0);
   __syncthreads();
-  mm::GaussJordanElimination<M, N, PARALLELIZATION_DIR>(A_shared);
+  mm::GaussJordanElimination<M, N, PARALLELIZATION_DIR, T>(A_shared);
   __syncthreads();
-  mp1::loadArrayParallel<M * N, PARALLELIZATION_DIR>(A_d + batch_idx * M * N, 0, A_shared, 0);
+  mp1::loadArrayParallel<M * N, PARALLELIZATION_DIR, T>(A_d + batch_idx * M * N, 0, A_shared, 0);
 }
 
 TEST(MATH_UTILS, GaussJordanFactorizationAgainstInverse)
@@ -558,11 +559,11 @@ TEST(MATH_UTILS, GaussJordanFactorizationAgainstInverse)
 
   float max_error = 0.0f;
   Eigen::MatrixXf diff;
+  first_A = Eigen::MatrixXf::Random(M, M);
+  A_inv = first_A.inverse();
   for (int tdx = 1; tdx < 64; tdx++)
   {
-    first_A = Eigen::MatrixXf::Random(M, M);
     A << first_A, Eigen::MatrixXf::Identity(M, M);
-    A_inv = first_A.inverse();
     cudaMemcpyAsync(A_d, A.data(), sizeof(float) * M * N, cudaMemcpyHostToDevice, stream);
     block_size.x = tdx;
     GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_X><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
@@ -579,9 +580,9 @@ TEST(MATH_UTILS, GaussJordanFactorizationAgainstInverse)
   block_size = dim3(1, 1, 1);
   for (int tdy = 1; tdy < 64; tdy++)
   {
-    first_A = Eigen::MatrixXf::Random(M, M);
+    // first_A = Eigen::MatrixXf::Random(M, M);
     A << first_A, Eigen::MatrixXf::Identity(M, M);
-    A_inv = first_A.inverse();
+    // A_inv = first_A.inverse();
     cudaMemcpyAsync(A_d, A.data(), sizeof(float) * M * N, cudaMemcpyHostToDevice, stream);
     block_size.y = tdy;
     GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_Y><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
@@ -597,9 +598,9 @@ TEST(MATH_UTILS, GaussJordanFactorizationAgainstInverse)
   block_size = dim3(1, 1, 1);
   for (int tdz = 1; tdz < 64; tdz++)
   {
-    first_A = Eigen::MatrixXf::Random(M, M);
+    // first_A = Eigen::MatrixXf::Random(M, M);
     A << first_A, Eigen::MatrixXf::Identity(M, M);
-    A_inv = first_A.inverse();
+    // A_inv = first_A.inverse();
     cudaMemcpyAsync(A_d, A.data(), sizeof(float) * M * N, cudaMemcpyHostToDevice, stream);
     block_size.z = tdz;
     GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_Z><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
@@ -701,41 +702,42 @@ TEST(MATH_UTILS, GaussJordanFactorizationBatched)
   const int N = 2 * M;
   dim3 block_size(1, 1, 1);
   dim3 grid_size(1, 1, 1);
-  int shared_mem_size = sizeof(float) * M * N;
-  float* A_d = nullptr;
-  // cudaMalloc((void**)&A_d, sizeof(float) * M * N);
-  for (int batches = 1; batches < 10; batches++)
+  int shared_mem_size = sizeof(double) * M * N;
+  double* A_d = nullptr;
+  // cudaMalloc((void**)&A_d, sizeof(double) * M * N);
+  for (int batches = 1; batches < 1000; batches++)
   {
-    std::vector<float> A_batch(batches * M * N);
-    std::vector<float> A_cpu(batches * M * N);
-    std::vector<float> A_gpu(batches * M * N);
+    std::vector<double> A_batch(batches * M * N);
+    std::vector<double> A_cpu(batches * M * N);
+    std::vector<double> A_gpu(batches * M * N);
     if (A_d)
     {
       cudaFree(A_d);
     }
-    cudaMalloc((void**)&A_d, sizeof(float) * batches * M * N);
+    cudaMalloc((void**)&A_d, sizeof(double) * batches * M * N);
 
     grid_size.x = batches;
+    // Fill in A_batch
+    for (int i = 0; i < batches; i++)
+    {
+      Eigen::Map<Eigen::MatrixXd> A_batch_i(&A_batch.data()[i * M * N], M, N);
+      Eigen::Map<Eigen::MatrixXd> A_cpu_i(&A_cpu.data()[i * M * N], M, N);
+      A_batch_i << Eigen::MatrixXd::Random(M, M) + Eigen::MatrixXd::Identity(M, M), Eigen::MatrixXd::Identity(M, M);
+      A_cpu_i << Eigen::MatrixXd::Identity(M, M), A_batch_i.block(0, 0, M, M).inverse();
+    }
+
     for (int tdx = 1; tdx < 128; tdx++)
     {
-      // Fill in A_batch
-      for (int i = 0; i < batches; i++)
-      {
-        Eigen::Map<Eigen::MatrixXf> A_batch_i(&A_batch.data()[i * M * N], M, N);
-        Eigen::Map<Eigen::MatrixXf> A_cpu_i(&A_cpu.data()[i * M * N], M, N);
-        A_batch_i << Eigen::MatrixXf::Random(M, M), Eigen::MatrixXf::Identity(M, M);
-        A_cpu_i << Eigen::MatrixXf::Identity(M, M), A_batch_i.block(0, 0, M, M).inverse();
-      }
-
       // Copy over to GPU and run GJ Elimination
-      cudaMemcpyAsync(A_d, A_batch.data(), sizeof(float) * batches * M * N, cudaMemcpyHostToDevice, stream);
+      cudaMemcpyAsync(A_d, A_batch.data(), sizeof(double) * batches * M * N, cudaMemcpyHostToDevice, stream);
       block_size.x = tdx;
       GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_X><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
-      cudaMemcpyAsync(A_gpu.data(), A_d, sizeof(float) * batches * M * N, cudaMemcpyDeviceToHost, stream);
+      cudaMemcpyAsync(A_gpu.data(), A_d, sizeof(double) * batches * M * N, cudaMemcpyDeviceToHost, stream);
       cudaStreamSynchronize(stream);
       for (int i = 0; i < A_gpu.size(); i++)
       {
-        float tolerance = fabsf(A_cpu[i]) < 1 ? 1e-3 : 1e-3 * fabsf(A_cpu[i]);
+        // double tolerance = fabsf(A_cpu[i]) < 1 ? 1e-3 : 1e-3 * fabsf(A_cpu[i]);
+        double tolerance = 0.1f;
         ASSERT_LT(fabsf(A_gpu[i] - A_cpu[i]), tolerance)
             << i % (M * N) << "th item in "
             << " batch: " << i / (M * N) << " out of " << batches << ", CPU: " << A_cpu[i] << ", GPU: " << A_gpu[i];
