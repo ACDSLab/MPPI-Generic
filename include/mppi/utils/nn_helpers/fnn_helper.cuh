@@ -75,15 +75,15 @@ public:
     return this->STRIDE_SIZE;
   }
 
-  Eigen::VectorXf getInputVector()
+  Eigen::VectorXf getZeroInputVector()
   {
     return Eigen::VectorXf::Zero(INPUT_DIM);
   }
-  Eigen::VectorXf getOutputVector()
+  Eigen::VectorXf getZeroOutputVector()
   {
     return Eigen::VectorXf::Zero(OUTPUT_DIM);
   }
-  Eigen::MatrixXf getJacobianMatrix()
+  Eigen::MatrixXf getZeroJacobianMatrix()
   {
     return Eigen::MatrixXf::Zero(OUTPUT_DIM, INPUT_DIM);
   }

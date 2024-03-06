@@ -294,8 +294,8 @@ TEST_F(LSTMLSTMHelperTest, LoadModelPathTest)
 
   double tol = 1e-5;
 
-  auto input = model.getLSTMModel()->getInputVector();
-  auto output = model.getLSTMModel()->getOutputVector();
+  auto input = model.getLSTMModel()->getZeroInputVector();
+  auto output = model.getLSTMModel()->getZeroOutputVector();
 
   for (int point = 0; point < num_points; point++)
   {
@@ -389,8 +389,8 @@ TEST_F(LSTMLSTMHelperTest, LoadModelPathTestLongBuffer)
 
   double tol = 1e-5;
 
-  auto input = model.getLSTMModel()->getInputVector();
-  auto output = model.getLSTMModel()->getOutputVector();
+  auto input = model.getLSTMModel()->getZeroInputVector();
+  auto output = model.getLSTMModel()->getZeroOutputVector();
 
   for (int point = 0; point < num_points; point++)
   {
@@ -456,8 +456,8 @@ TEST_F(LSTMLSTMHelperTest, forwardCPU)
     EXPECT_FLOAT_EQ(model.getLSTMModel()->getCellState()(i), 1.0);
   }
 
-  auto input = model.getLSTMModel()->getInputVector();
-  auto output = model.getLSTMModel()->getOutputVector();
+  auto input = model.getLSTMModel()->getZeroInputVector();
+  auto output = model.getLSTMModel()->getZeroOutputVector();
   input.setOnes();
 
   model.forward(input, output);
@@ -480,7 +480,7 @@ TEST_F(LSTMLSTMHelperTest, forwardCPU)
   EXPECT_FLOAT_EQ(output[0], 18.999878);
   EXPECT_FLOAT_EQ(output[1], 18.999878);
 
-  auto buffer = model.getBuffer(10);
+  auto buffer = model.getEmptyBufferMatrix(10);
   buffer.setOnes();
   buffer = buffer * 0.1;
 
@@ -537,8 +537,8 @@ TEST_F(LSTMLSTMHelperTest, forwardGPU)
   std::vector<std::array<float, 8>> input_arr(num_rollouts);
   std::vector<std::array<float, 2>> output_arr(num_rollouts);
 
-  auto input = model.getLSTMModel()->getInputVector();
-  auto output = model.getLSTMModel()->getOutputVector();
+  auto input = model.getLSTMModel()->getZeroInputVector();
+  auto output = model.getLSTMModel()->getZeroOutputVector();
   input.setOnes();
   input = input * 0.1;
 
@@ -554,7 +554,7 @@ TEST_F(LSTMLSTMHelperTest, forwardGPU)
     EXPECT_FLOAT_EQ(model.getLSTMModel()->getCellState()(i), 1.0);
   }
 
-  auto buffer = model.getBuffer(10);
+  auto buffer = model.getEmptyBufferMatrix(10);
   buffer.setOnes();
   buffer = buffer * 0.1;
 
@@ -643,14 +643,14 @@ TEST_F(LSTMLSTMHelperTest, forwardGPUCompareShared)
 
   model.GPUSetup();
 
-  auto buffer = model.getBuffer(10);
+  auto buffer = model.getEmptyBufferMatrix(10);
 
   std::vector<std::array<float, 8>> input_arr(num_rollouts);
   std::vector<std::array<float, 2>> output_arr(num_rollouts);
 
   Eigen::Matrix<float, 8, num_rollouts> inputs = Eigen::Matrix<float, 8, num_rollouts>::Random();
-  auto input = model.getLSTMModel()->getInputVector();
-  auto output = model.getLSTMModel()->getOutputVector();
+  auto input = model.getLSTMModel()->getZeroInputVector();
+  auto output = model.getLSTMModel()->getZeroOutputVector();
 
   for (int state_index = 0; state_index < num_rollouts; state_index++)
   {
@@ -726,14 +726,14 @@ TEST_F(LSTMLSTMHelperTest, forwardGPUCompareNoShared)
 
   model.GPUSetup();
 
-  auto buffer = model.getBuffer(10);
+  auto buffer = model.getEmptyBufferMatrix(10);
 
   std::vector<std::array<float, 8>> input_arr(num_rollouts);
   std::vector<std::array<float, 2>> output_arr(num_rollouts);
 
   Eigen::Matrix<float, 8, num_rollouts> inputs = Eigen::Matrix<float, 8, num_rollouts>::Random();
-  auto input = model.getLSTMModel()->getInputVector();
-  auto output = model.getLSTMModel()->getOutputVector();
+  auto input = model.getLSTMModel()->getZeroInputVector();
+  auto output = model.getLSTMModel()->getZeroOutputVector();
 
   for (int state_index = 0; state_index < num_rollouts; state_index++)
   {

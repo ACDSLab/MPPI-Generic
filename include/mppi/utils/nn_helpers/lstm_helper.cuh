@@ -48,10 +48,9 @@ public:
   __device__ float* forward(float* input, float* theta_s, float* block_ptr);
   __device__ float* forward(float* input, float* theta_s, float* hidden_cell, float* block_ptr);
   __device__ float* getInputLocation(float* theta_s);
-  __device__ float* getInputLocation(float* theta_s, const int grd_shift, int blk_bytes, int shift);
+  __device__ float* getInputLocation(float* theta_s, const int grd_shift, const int blk_shift, const int shift);
+  __device__ float* getHiddenCellLocation(float* theta_s, const int grd_shift, const int blk_shift, const int shift);
 
-  void resetHiddenCPU();
-  void resetCellCPU();
   void resetHiddenCellCPU();
 
   void setAllValues(std::vector<float>& lstm, std::vector<float>& output)
@@ -133,11 +132,11 @@ public:
     return LSTM_PARAM_SIZE_BYTES / sizeof(float) + 2 * HIDDEN_DIM;
   }
 
-  Eigen::VectorXf getInputVector()
+  Eigen::VectorXf getZeroInputVector()
   {
     return Eigen::VectorXf::Zero(INPUT_DIM);
   }
-  Eigen::VectorXf getOutputVector()
+  Eigen::VectorXf getZeroOutputVector()
   {
     return Eigen::VectorXf::Zero(OUTPUT_DIM);
   }

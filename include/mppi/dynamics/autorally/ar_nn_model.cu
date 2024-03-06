@@ -78,7 +78,7 @@ bool NeuralNetModel<S_DIM, C_DIM, K_DIM>::computeGrad(const Eigen::Ref<const sta
   // First do the forward pass
   computeDynamics(state, control, state_der);
 
-  Eigen::MatrixXf ip_delta = helper_->getJacobianMatrix();
+  Eigen::MatrixXf ip_delta = helper_->getZeroJacobianMatrix();
   helper_->computeGrad(ip_delta);
 
   jac.bottomRightCorner(DYNAMICS_DIM, DYNAMICS_DIM + C_DIM) += ip_delta;
@@ -101,8 +101,8 @@ void NeuralNetModel<S_DIM, C_DIM, K_DIM>::computeDynamics(const Eigen::Ref<const
                                                           const Eigen::Ref<const control_array>& control,
                                                           Eigen::Ref<state_array> state_der)
 {
-  Eigen::VectorXf input = helper_->getInputVector();
-  Eigen::VectorXf output = helper_->getOutputVector();
+  Eigen::VectorXf input = helper_->getZeroInputVector();
+  Eigen::VectorXf output = helper_->getZeroOutputVector();
   int i;
   for (i = 0; i < DYNAMICS_DIM; i++)
   {

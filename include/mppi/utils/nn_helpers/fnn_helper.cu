@@ -311,7 +311,7 @@ template <bool USE_SHARED>
 bool FNNHelper<USE_SHARED>::computeGrad(const Eigen::Ref<const Eigen::MatrixXf>& input, Eigen::Ref<Eigen::MatrixXf> A)
 {
   // compute forward to see gradient values
-  Eigen::VectorXf output = getOutputVector();
+  Eigen::VectorXf output = getZeroOutputVector();
   forward(input, output);
   return computeGrad(A);
 }

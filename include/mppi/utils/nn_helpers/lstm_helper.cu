@@ -297,7 +297,7 @@ template <bool USE_SHARED>
 void LSTMHelper<USE_SHARED>::forward(const Eigen::Ref<const Eigen::VectorXf>& input, Eigen::Ref<Eigen::VectorXf> output)
 {
   forward(input);
-  Eigen::VectorXf nn_input = output_nn_->getInputVector();
+  Eigen::VectorXf nn_input = output_nn_->getZeroInputVector();
   for (int i = 0; i < HIDDEN_DIM; i++)
   {
     nn_input(i) = hidden_state_(i);
@@ -452,24 +452,6 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
 }
 
 template <bool USE_SHARED>
-void LSTMHelper<USE_SHARED>::resetHiddenCPU()
-{
-  for (int i = 0; i < HIDDEN_DIM; i++)
-  {
-    hidden_state_[i] = initial_hidden_[i];
-  }
-}
-
-template <bool USE_SHARED>
-void LSTMHelper<USE_SHARED>::resetCellCPU()
-{
-  for (int i = 0; i < HIDDEN_DIM; i++)
-  {
-    cell_state_[i] = initial_cell_[i];
-  }
-}
-
-template <bool USE_SHARED>
 void LSTMHelper<USE_SHARED>::resetHiddenCellCPU()
 {
   for (int i = 0; i < HIDDEN_DIM; i++)
@@ -601,10 +583,17 @@ __device__ float* LSTMHelper<USE_SHARED>::getInputLocation(float* theta_s)
 }
 
 template <bool USE_SHARED>
-__device__ float* LSTMHelper<USE_SHARED>::getInputLocation(float* theta_s, const int grd_shift, int blk_bytes,
-                                                           int shift)
+__device__ float* LSTMHelper<USE_SHARED>::getInputLocation(float* theta_s, const int grd_shift, const int blk_shift,
+                                                           const int shift)
 {
-  const int block_idx = (blockDim.x * threadIdx.z + threadIdx.x) * blk_bytes / sizeof(float);
-  float* x = theta_s + grd_shift / sizeof(float) + block_idx + shift + 3 * HIDDEN_DIM;
+  float* x = theta_s + grd_shift + blk_shift + shift + 3 * HIDDEN_DIM;
+  return x;
+}
+
+template <bool USE_SHARED>
+__device__ float* LSTMHelper<USE_SHARED>::getHiddenCellLocation(float* theta_s, const int grd_shift,
+                                                                const int blk_shift, const int shift)
+{
+  float* x = theta_s + grd_shift + blk_shift + shift;
   return x;
 }

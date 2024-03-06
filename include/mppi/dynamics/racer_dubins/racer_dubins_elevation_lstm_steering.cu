@@ -73,12 +73,12 @@ void RacerDubinsElevationLSTMSteering::step(Eigen::Ref<state_array> state, Eigen
       (parametric_accel - state(S_INDEX(STEER_ANGLE_RATE))) * this->params_.steer_accel_constant -
       state(S_INDEX(STEER_ANGLE_RATE)) * this->params_.steer_accel_drag_constant;
 
-  Eigen::VectorXf input = lstm_lstm_helper_->getLSTMModel()->getInputVector();
+  Eigen::VectorXf input = lstm_lstm_helper_->getLSTMModel()->getZeroInputVector();
   input(0) = state(S_INDEX(STEER_ANGLE)) * 0.2f;
   input(1) = state(S_INDEX(STEER_ANGLE_RATE)) * 0.2f;
   input(2) = control(C_INDEX(STEER_CMD));
   input(3) = state_der(S_INDEX(STEER_ANGLE_RATE)) * 0.2f;  // this is the parametric part as input
-  Eigen::VectorXf nn_output = lstm_lstm_helper_->getLSTMModel()->getOutputVector();
+  Eigen::VectorXf nn_output = lstm_lstm_helper_->getLSTMModel()->getZeroOutputVector();
   lstm_lstm_helper_->forward(input, nn_output);
   state_der(S_INDEX(STEER_ANGLE_RATE)) += nn_output(0) * 5.0f;
   state_der(S_INDEX(STEER_ANGLE)) = state(S_INDEX(STEER_ANGLE_RATE));
@@ -130,11 +130,14 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   //   params_p = &(this->params_);
   // }
   params_p = &(this->params_);
+  const int grd_shift = this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);  // grid size to shift by
+  const int blk_shift = this->SHARED_MEM_REQUEST_BLK_BYTES * (threadIdx.x + blockDim.x * threadIdx.z) /
+                        sizeof(float);                       // blk size to shift by
+  const int sb_shift = sizeof(SharedBlock) / sizeof(float);  // how much to shift inside a block to lstm values
   if (this->SHARED_MEM_REQUEST_BLK_BYTES != 0)
   {
-    float* sb_mem = &theta_s[this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float)];  // does the grid shift
-    sb = (SharedBlock*)(sb_mem +
-                        this->SHARED_MEM_REQUEST_BLK_BYTES * (threadIdx.x + blockDim.x * threadIdx.z) / sizeof(float));
+    float* sb_mem = &theta_s[grd_shift];  // does the grid shift
+    sb = (SharedBlock*)(sb_mem + blk_shift);
   }
   computeParametricDelayDeriv(state, control, state_der, params_p);
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
@@ -143,11 +146,8 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
 
   const uint tdy = threadIdx.y;
 
-  const int grd_shift = this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);
   // loads in the input to the network
-  float* input_loc =
-      network_d_->getInputLocation(theta_s, this->SHARED_MEM_REQUEST_GRD_BYTES, this->SHARED_MEM_REQUEST_BLK_BYTES,
-                                   sizeof(SharedBlock) / sizeof(float));
+  float* input_loc = network_d_->getInputLocation(theta_s, grd_shift, blk_shift, sb_shift);
   if (tdy == 0)
   {
     const float parametric_accel =
@@ -166,9 +166,8 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
   }
   __syncthreads();
   // runs the network
-  const int block_ptr = (blockDim.x * threadIdx.z + threadIdx.x) * this->SHARED_MEM_REQUEST_BLK_BYTES / sizeof(float);
-  float* nn_output =
-      network_d_->forward(nullptr, theta_s, theta_s + grd_shift + block_ptr + sizeof(SharedBlock) / sizeof(float));
+  float* cur_hidden_cell = network_d_->getHiddenCellLocation(theta_s, grd_shift, blk_shift, sb_shift);
+  float* nn_output = network_d_->forward(nullptr, theta_s, cur_hidden_cell);
   // copies the results of the network to state derivative
   if (tdy == 0)
   {
@@ -195,17 +194,24 @@ __device__ inline void RacerDubinsElevationLSTMSteering::step(float* state, floa
 
 void RacerDubinsElevationLSTMSteering::updateFromBuffer(const buffer_trajectory& buffer)
 {
-  Eigen::MatrixXf init_buffer = lstm_lstm_helper_->getBuffer();
-  if (buffer.find("STEER_ANGLE") == buffer.end() || buffer.find("STEER_ANGLE_RATE") == buffer.end() ||
-      buffer.find("STEER_CMD") == buffer.end())
+  std::vector<std::string> keys = { "STEER_ANGLE", "STEER_ANGLE_RATE", "STEER_CMD" };
+
+  bool found_all_keys = true;
+  for (const auto& key : keys)
   {
-    std::cout << "WARNING: not using init buffer" << std::endl;
-    for (const auto& it : buffer)
+    if (buffer.find(key) == buffer.end())
     {
-      std::cout << "got key " << it.first << std::endl;
+      this->logger_->warning("WARNING: not using init buffer\n", key.c_str());
+      std::cout << "WARNING: not using init buffer" << std::endl;
+      found_all_keys = false;
     }
+  }
+
+  if (!found_all_keys)
+  {
     return;
   }
+  Eigen::MatrixXf init_buffer = lstm_lstm_helper_->getEmptyBufferMatrix();
 
   init_buffer.row(0) = buffer.at("STEER_ANGLE");
   init_buffer.row(1) = buffer.at("STEER_ANGLE_RATE");

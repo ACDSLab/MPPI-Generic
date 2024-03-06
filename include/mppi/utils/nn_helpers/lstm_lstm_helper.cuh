@@ -35,13 +35,13 @@ public:
   void GPUSetup();
   void freeCudaMem();
 
-  Eigen::VectorXf getInputVector()
+  Eigen::VectorXf getZeroInputVector()
   {
-    return lstm_->getInputVector();
+    return lstm_->getZeroInputVector();
   }
-  Eigen::VectorXf getOutputVector()
+  Eigen::VectorXf getZeroOutputVector()
   {
-    return lstm_->getOutputVector();
+    return lstm_->getZeroOutputVector();
   }
 
   void resetInitHiddenCPU()
@@ -53,12 +53,12 @@ public:
     lstm_->resetHiddenCellCPU();
   }
 
-  Eigen::MatrixXf getBuffer()
+  Eigen::MatrixXf getEmptyBufferMatrix()
   {
     return Eigen::MatrixXf(init_model_->getInputDim(), init_len_);
   }
 
-  Eigen::MatrixXf getBuffer(int length)
+  Eigen::MatrixXf getEmptyBufferMatrix(int length)
   {
     return Eigen::MatrixXf(init_model_->getInputDim(), length);
   }

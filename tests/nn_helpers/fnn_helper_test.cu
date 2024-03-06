@@ -404,9 +404,9 @@ TEST_F(FNNHelperTest, forwardCPU)
 {
   std::vector<int> layers{ 6, 32, 32, 4 };
   FNNHelper<> model(layers);
-  Eigen::MatrixXf input = model.getInputVector();
+  Eigen::MatrixXf input = model.getZeroInputVector();
   input.setZero();
-  Eigen::MatrixXf output = model.getOutputVector();
+  Eigen::MatrixXf output = model.getZeroOutputVector();
 
   std::vector<float> theta(1412);
   std::fill(theta.begin(), theta.end(), 1);
@@ -477,7 +477,7 @@ TEST_F(FNNHelperTest, forwardGPU)
     for (int point = 0; point < num_rollouts; point++)
     {
       Eigen::MatrixXf input = inputs.col(point);
-      Eigen::MatrixXf output = model.getOutputVector();
+      Eigen::MatrixXf output = model.getZeroOutputVector();
 
       model.forward(input, output);
       for (int dim = 0; dim < 6; dim++)
@@ -529,7 +529,7 @@ TEST_F(FNNHelperTest, forwardGPUCompare)
     for (int point = 0; point < num_rollouts; point++)
     {
       Eigen::MatrixXf input = inputs.col(point);
-      Eigen::MatrixXf output = model.getOutputVector();
+      Eigen::MatrixXf output = model.getZeroOutputVector();
 
       model.forward(input, output);
       for (int dim = 0; dim < 6; dim++)
@@ -580,7 +580,7 @@ TEST_F(FNNHelperTest, forwardGPUCompareNoShared)
     for (int point = 0; point < num_rollouts; point++)
     {
       Eigen::MatrixXf input = inputs.col(point);
-      Eigen::MatrixXf output = model.getOutputVector();
+      Eigen::MatrixXf output = model.getZeroOutputVector();
 
       model.forward(input, output);
       for (int dim = 0; dim < 6; dim++)
@@ -633,7 +633,7 @@ TEST_F(FNNHelperTest, forwardGPUComparePreload)
     for (int point = 0; point < num_rollouts; point++)
     {
       Eigen::MatrixXf input = inputs.col(point);
-      Eigen::MatrixXf output = model.getOutputVector();
+      Eigen::MatrixXf output = model.getZeroOutputVector();
 
       model.forward(input, output);
       for (int dim = 0; dim < 6; dim++)
@@ -684,7 +684,7 @@ TEST_F(FNNHelperTest, forwardGPUComparePreloadNoShared)
     for (int point = 0; point < num_rollouts; point++)
     {
       Eigen::MatrixXf input = inputs.col(point);
-      Eigen::MatrixXf output = model.getOutputVector();
+      Eigen::MatrixXf output = model.getZeroOutputVector();
 
       model.forward(input, output);
       for (int dim = 0; dim < 6; dim++)
@@ -711,12 +711,12 @@ TEST_F(FNNHelperTest, TestComputeGradComputationFinite)
   }
   model.updateModel({ 6, 32, 32, 4 }, theta);
 
-  Eigen::MatrixXf numeric_jac = model.getJacobianMatrix();
-  Eigen::MatrixXf analytic_jac = model.getJacobianMatrix();
+  Eigen::MatrixXf numeric_jac = model.getZeroJacobianMatrix();
+  Eigen::MatrixXf analytic_jac = model.getZeroJacobianMatrix();
 
   for (int i = 0; i < 1000; i++)
   {
-    Eigen::MatrixXf input = model.getInputVector();
+    Eigen::MatrixXf input = model.getZeroInputVector();
     input.Random();
 
     model.computeGrad(input, analytic_jac);

@@ -51,7 +51,7 @@ void LSTMLSTMHelper<USE_SHARED>::initializeLSTM(const Eigen::Ref<const Eigen::Ma
   }
 
   // run full model with output at end
-  Eigen::VectorXf output = init_model_->getOutputVector();
+  Eigen::VectorXf output = init_model_->getZeroOutputVector();
   init_model_->forward(buffer.col(t), output);
 
   // set the lstm initial hidden/cell to output

@@ -360,7 +360,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStep)
   model->getLSTMModel()->setAllValues(0.3f);
   model->getInitModel()->setAllValues(0.01f);
 
-  Eigen::MatrixXf buffer = model->getBuffer();
+  Eigen::MatrixXf buffer = model->getEmptyBufferMatrix();
   buffer.setOnes();
   buffer = buffer * 0.01f;
 

@@ -428,8 +428,8 @@ TEST_F(LSTMHelperTest, LoadModelPathTest)
 
   double tol = 1e-5;
 
-  auto input = model.getInputVector();
-  auto output = model.getOutputVector();
+  auto input = model.getZeroInputVector();
+  auto output = model.getZeroOutputVector();
 
   const int hidden_dim = model.getHiddenDim();
   const int input_dim = model.getInputDim();
@@ -498,8 +498,8 @@ TEST_F(LSTMHelperTest, LoadModelPathInitTest)
 
   double tol = 1e-5;
 
-  auto input = model.getInputVector();
-  auto output = model.getOutputVector();
+  auto input = model.getZeroInputVector();
+  auto output = model.getZeroOutputVector();
 
   const int hidden_dim = model.getHiddenDim();
   const int input_dim = model.getInputDim();
@@ -566,8 +566,8 @@ TEST_F(LSTMHelperTest, LoadModelNPZTest)
 
   double tol = 1e-5;
 
-  auto input = model.getInputVector();
-  auto output = model.getOutputVector();
+  auto input = model.getZeroInputVector();
+  auto output = model.getZeroOutputVector();
 
   const int hidden_dim = model.getHiddenDim();
   const int input_dim = model.getInputDim();
@@ -625,8 +625,8 @@ TEST_F(LSTMHelperTest, forwardCPU)
   }
   model.resetHiddenCellCPU();
 
-  auto input = model.getInputVector();
-  auto output = model.getOutputVector();
+  auto input = model.getZeroInputVector();
+  auto output = model.getZeroOutputVector();
   input.setOnes();
 
   model.forward(input, output);
@@ -677,8 +677,8 @@ TEST_F(LSTMHelperTest, forwardGPU)
 
   Eigen::Matrix<float, 8, num_rollouts> inputs;
   inputs = Eigen::Matrix<float, 8, num_rollouts>::Ones();
-  Eigen::VectorXf output = model.getOutputVector();
-  Eigen::VectorXf input = model.getInputVector();
+  Eigen::VectorXf output = model.getZeroOutputVector();
+  Eigen::VectorXf input = model.getZeroInputVector();
 
   std::array<float, 5> true_vals = { 28.28055, 28.901096, 28.986588, 28.998184, 28.999756 };
 
@@ -746,8 +746,8 @@ TEST_F(LSTMHelperTest, forwardGPUCompareNoShared)
 
   Eigen::Matrix<float, 8, num_rollouts> inputs;
   inputs = Eigen::Matrix<float, 8, num_rollouts>::Random();
-  Eigen::VectorXf output = model.getOutputVector();
-  Eigen::VectorXf input = model.getInputVector();
+  Eigen::VectorXf output = model.getZeroOutputVector();
+  Eigen::VectorXf input = model.getZeroInputVector();
 
   std::vector<std::array<float, 8>> input_arr(num_rollouts);
   std::vector<std::array<float, 3>> output_arr(num_rollouts);
@@ -811,8 +811,8 @@ TEST_F(LSTMHelperTest, forwardGPUCompareShared)
 
   Eigen::Matrix<float, 8, num_rollouts> inputs;
   inputs = Eigen::Matrix<float, 8, num_rollouts>::Random();
-  Eigen::VectorXf output = model.getOutputVector();
-  Eigen::VectorXf input = model.getInputVector();
+  Eigen::VectorXf output = model.getZeroOutputVector();
+  Eigen::VectorXf input = model.getZeroInputVector();
 
   std::vector<std::array<float, 8>> input_arr(num_rollouts);
   std::vector<std::array<float, 3>> output_arr(num_rollouts);
@@ -876,8 +876,8 @@ TEST_F(LSTMHelperTest, forwardGPUComparePreloadNoShared)
 
   Eigen::Matrix<float, 8, num_rollouts> inputs;
   inputs = Eigen::Matrix<float, 8, num_rollouts>::Random();
-  Eigen::VectorXf output = model.getOutputVector();
-  Eigen::VectorXf input = model.getInputVector();
+  Eigen::VectorXf output = model.getZeroOutputVector();
+  Eigen::VectorXf input = model.getZeroInputVector();
 
   std::vector<std::array<float, 8>> input_arr(num_rollouts);
   std::vector<std::array<float, 3>> output_arr(num_rollouts);
@@ -941,8 +941,8 @@ TEST_F(LSTMHelperTest, forwardGPUComparePreloadShared)
 
   Eigen::Matrix<float, 8, num_rollouts> inputs;
   inputs = Eigen::Matrix<float, 8, num_rollouts>::Random();
-  Eigen::VectorXf output = model.getOutputVector();
-  Eigen::VectorXf input = model.getInputVector();
+  Eigen::VectorXf output = model.getZeroOutputVector();
+  Eigen::VectorXf input = model.getZeroInputVector();
 
   std::vector<std::array<float, 8>> input_arr(num_rollouts);
   std::vector<std::array<float, 3>> output_arr(num_rollouts);
@@ -1014,8 +1014,8 @@ TEST_F(LSTMHelperTest, forwardGPUSpeedTest)
 
   Eigen::Matrix<float, 8, 1000> inputs;
   inputs = Eigen::Matrix<float, 8, 1000>::Random();
-  Eigen::VectorXf output = shared_model.getOutputVector();
-  Eigen::VectorXf input = shared_model.getInputVector();
+  Eigen::VectorXf output = shared_model.getZeroOutputVector();
+  Eigen::VectorXf input = shared_model.getZeroInputVector();
 
   std::vector<std::array<float, 8>> input_arr(num_rollouts);
   std::vector<std::array<float, 3>> output_arr(num_rollouts);
