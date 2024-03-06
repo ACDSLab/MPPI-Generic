@@ -232,6 +232,77 @@ inline __device__ void gemm2(const float* A, const float* B, float* C, const flo
   }
 }
 
+/**
+ * @brief Perform Guass Jordan Elimination in place on columan-major MxN matrix A.
+ * Useful for solving Cx = b where A = [C | b] as well as inverting matrices.
+ *
+ * @tparam M - number of rows
+ * @tparam N - number of cols
+ * @tparam P_DIR - Parallelization axes for on the GPU
+ * @tparam T - type of data in A
+ * @param A - column-major matrix of type T with M rows and N cols
+ *
+ * @return reduced row echelon form of A is returned in A.
+ */
+template <int M, int N, p1::Parallel1Dir P_DIR = p1::Parallel1Dir::THREAD_Y, class T = float>
+inline __host__ __device__ void GaussJordanElimination(T* A)
+{
+  int p_index, step;
+  p1::getParallel1DIndex<P_DIR>(p_index, step);
+  int row, col, offset = 0;
+  T accumulator;
+  for (int i = 0; i < M; i++)
+  {
+    // Check if row-swap is needed
+    row = i;
+    while (A[columnMajorIndex(row, i + offset, M)] == 0)
+    {
+      row++;
+      if (row == M)
+      {  // column is all zeros, need to move on to the next column
+        offset++;
+        if (i + offset >= N)
+        {  // Ran out of columns to check.
+          return;
+        }
+        row = i;
+      }
+    }
+    // swap rows if needed (row != i)
+    for (col = i + p_index; row != i && col < N; col += step)
+    {
+      accumulator = A[columnMajorIndex(row, col, M)];
+      A[columnMajorIndex(row, col, M)] = A[columnMajorIndex(i, col, M)];
+      A[columnMajorIndex(i, col, M)] = accumulator;
+    }
+    // normalize the current row
+    accumulator = 1.0f / A[columnMajorIndex(i, i + offset, M)];
+    for (col = i + offset + p_index; col < N; col += step)
+    {
+      A[columnMajorIndex(i, col, M)] *= accumulator;
+    }
+#ifdef __CUDA_ARCH__
+    __syncthreads();
+#endif
+    // Now eliminate pivot from both rows above and below
+    for (row = p_index; row < M; row += step)
+    {
+      if (row == i)
+      {
+        continue;
+      }
+      accumulator = -A[columnMajorIndex(row, i + offset, M)];
+      for (col = i + offset; col < N; col++)
+      {
+        A[columnMajorIndex(row, col, M)] += accumulator * A[columnMajorIndex(i, col, M)];
+      }
+    }
+#ifdef __CUDA_ARCH__
+    __syncthreads();
+#endif
+  }
+}
+
 template <p1::Parallel1Dir P_DIR = p1::Parallel1Dir::NONE, int M = 1, int K = 1, int N = 1, class T = float>
 void matMult1(const devMatrix<M, K, T>& A, const devMatrix<K, N, T>& B, devMatrix<M, N, T>& C)
 {

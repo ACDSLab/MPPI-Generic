@@ -516,6 +516,235 @@ TEST(MATH_UTILS, SpeedSmallMatrixMult)
             << std::endl;
 }
 
+template <int M, int N, mp1::Parallel1Dir PARALLELIZATION_DIR = mp1::Parallel1Dir::THREAD_Y>
+__global__ void GaussJordanKernel(float* A_d)
+{
+  int batch_idx;
+  if (PARALLELIZATION_DIR == mp1::Parallel1Dir::THREAD_X)
+  {
+    batch_idx = blockIdx.x;
+  }
+  else if (PARALLELIZATION_DIR == mp1::Parallel1Dir::THREAD_Y)
+  {
+    batch_idx = blockIdx.y;
+  }
+  else if (PARALLELIZATION_DIR == mp1::Parallel1Dir::THREAD_Z)
+  {
+    batch_idx = blockIdx.z;
+  }
+  extern __shared__ float A_shared[];
+  mp1::loadArrayParallel<M * N, PARALLELIZATION_DIR>(A_shared, 0, A_d + batch_idx * M * N, 0);
+  __syncthreads();
+  mm::GaussJordanElimination<M, N, PARALLELIZATION_DIR>(A_shared);
+  __syncthreads();
+  mp1::loadArrayParallel<M * N, PARALLELIZATION_DIR>(A_d + batch_idx * M * N, 0, A_shared, 0);
+}
+
+TEST(MATH_UTILS, GaussJordanFactorizationAgainstInverse)
+{
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+  const int M = 3;
+  const int N = 2 * M;
+  Eigen::MatrixXf A = Eigen::MatrixXf::Zero(M, N);
+  Eigen::MatrixXf A_result = A;
+  Eigen::MatrixXf first_A;
+  Eigen::MatrixXf A_inv;
+  dim3 block_size(1, 1, 1);
+  dim3 grid_size(1, 1, 1);
+  int shared_mem_size = sizeof(float) * M * N;
+  float* A_d;
+  cudaMalloc((void**)&A_d, sizeof(float) * M * N);
+
+  float max_error = 0.0f;
+  Eigen::MatrixXf diff;
+  for (int tdx = 1; tdx < 64; tdx++)
+  {
+    first_A = Eigen::MatrixXf::Random(M, M);
+    A << first_A, Eigen::MatrixXf::Identity(M, M);
+    A_inv = first_A.inverse();
+    cudaMemcpyAsync(A_d, A.data(), sizeof(float) * M * N, cudaMemcpyHostToDevice, stream);
+    block_size.x = tdx;
+    GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_X><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
+    cudaMemcpyAsync(A_result.data(), A_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
+
+    diff = A_result.block(0, M, M, N - M) - A_inv;
+    max_error = diff.norm();
+    ASSERT_NEAR(max_error, 0.0f, sqrtf(1e-4 * M * N)) << "failed for " << tdx << " parallel x threads.\nDiff:\n"
+                                                      << diff << "\nCPU:\n"
+                                                      << A_inv << "\nGPU:\n"
+                                                      << A_result.block(0, M, M, N - M);
+  }
+  block_size = dim3(1, 1, 1);
+  for (int tdy = 1; tdy < 64; tdy++)
+  {
+    first_A = Eigen::MatrixXf::Random(M, M);
+    A << first_A, Eigen::MatrixXf::Identity(M, M);
+    A_inv = first_A.inverse();
+    cudaMemcpyAsync(A_d, A.data(), sizeof(float) * M * N, cudaMemcpyHostToDevice, stream);
+    block_size.y = tdy;
+    GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_Y><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
+    cudaMemcpyAsync(A_result.data(), A_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
+    diff = A_result.block(0, M, M, N - M) - A_inv;
+    max_error = diff.lpNorm<Eigen::Infinity>();
+    ASSERT_NEAR(max_error, 0.0f, 1e-4 * A_inv.norm()) << "failed for " << tdy << " parallel y threads.\nDiff:\n"
+                                                      << diff << "\nCPU:\n"
+                                                      << A_inv << "\nGPU:\n"
+                                                      << A_result.block(0, M, M, N - M);
+  }
+  block_size = dim3(1, 1, 1);
+  for (int tdz = 1; tdz < 64; tdz++)
+  {
+    first_A = Eigen::MatrixXf::Random(M, M);
+    A << first_A, Eigen::MatrixXf::Identity(M, M);
+    A_inv = first_A.inverse();
+    cudaMemcpyAsync(A_d, A.data(), sizeof(float) * M * N, cudaMemcpyHostToDevice, stream);
+    block_size.z = tdz;
+    GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_Z><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
+    cudaMemcpyAsync(A_result.data(), A_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
+    diff = A_result.block(0, M, M, N - M) - A_inv;
+    max_error = diff.lpNorm<Eigen::Infinity>();
+    ASSERT_NEAR(max_error, 0.0f, 1e-4 * A_inv.norm()) << "failed for " << tdz << " parallel z threads.\nDiff:\n"
+                                                      << diff << "\nCPU:\n"
+                                                      << A_inv << "\nGPU:\n"
+                                                      << A_result.block(0, M, M, N - M);
+  }
+  cudaFree(A_d);
+}
+
+TEST(MATH_UTILS, GaussJordanEliminationColumnSkip)
+{
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+  const int M = 2;
+  const int N = 5;
+  Eigen::MatrixXf A = Eigen::MatrixXf::Zero(M, N);
+  Eigen::MatrixXf A_result = A;
+  // A << 0, 2, 3, 1, 1, 4;
+  A << 1, 2, 2, 3, 4, 2, 4, 4, 1, 8;
+
+  Eigen::MatrixXf b_d = Eigen::MatrixXf::Zero(M, N - M);
+  // b_d << 2.5, 1.5;
+  b_d << 2, 0, 4, 0, 1, 0;
+  dim3 block_size(1, 1, 1);
+  dim3 grid_size(1, 1, 1);
+  int shared_mem_size = sizeof(float) * M * N;
+  float* A_d;
+  cudaMalloc((void**)&A_d, sizeof(float) * M * N);
+
+  float max_error = 0.0f;
+  Eigen::MatrixXf diff;
+  for (int tdx = 1; tdx < 65; tdx++)
+  {
+    cudaMemcpyAsync(A_d, A.data(), sizeof(float) * M * N, cudaMemcpyHostToDevice, stream);
+    block_size.x = tdx;
+    GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_X><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
+    cudaMemcpyAsync(A_result.data(), A_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
+
+    diff = A_result.block(0, M, M, N - M) - b_d;
+    max_error = diff.norm();
+    ASSERT_NEAR(max_error, 0.0f, 1e-4 * M * N) << "failed for " << tdx << " parallel x threads.\nDiff:\n"
+                                               << diff << "\nCPU:\n"
+                                               << b_d << "\nGPU:\n"
+                                               << A_result.block(0, M, M, N - M);
+  }
+  cudaFree(A_d);
+}
+
+TEST(MATH_UTILS, GaussJordanEliminationRowSwap)
+{
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+  const int M = 2;
+  const int N = 3;
+  Eigen::MatrixXf A = Eigen::MatrixXf::Zero(M, N);
+  Eigen::MatrixXf A_result = A;
+  A << 0, 2, 3, 1, 1, 4;
+
+  Eigen::MatrixXf b_d = Eigen::MatrixXf::Zero(M, N - M);
+  b_d << 2.5, 1.5;
+  dim3 block_size(1, 1, 1);
+  dim3 grid_size(1, 1, 1);
+  int shared_mem_size = sizeof(float) * M * N;
+  float* A_d;
+  cudaMalloc((void**)&A_d, sizeof(float) * M * N);
+
+  float max_error = 0.0f;
+  Eigen::MatrixXf diff;
+  for (int tdx = 1; tdx < 65; tdx++)
+  {
+    cudaMemcpyAsync(A_d, A.data(), sizeof(float) * M * N, cudaMemcpyHostToDevice, stream);
+    block_size.x = tdx;
+    GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_X><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
+    cudaMemcpyAsync(A_result.data(), A_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost, stream);
+    cudaStreamSynchronize(stream);
+
+    diff = A_result.block(0, M, M, N - M) - b_d;
+    max_error = diff.norm();
+    ASSERT_NEAR(max_error, 0.0f, 1e-4 * M * N) << "failed for " << tdx << " parallel x threads.\nDiff:\n"
+                                               << diff << "\nCPU:\n"
+                                               << b_d << "\nGPU:\n"
+                                               << A_result.block(0, M, M, N - M);
+  }
+  cudaFree(A_d);
+}
+
+TEST(MATH_UTILS, GaussJordanFactorizationBatched)
+{
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+  const int M = 3;
+  const int N = 2 * M;
+  dim3 block_size(1, 1, 1);
+  dim3 grid_size(1, 1, 1);
+  int shared_mem_size = sizeof(float) * M * N;
+  float* A_d = nullptr;
+  // cudaMalloc((void**)&A_d, sizeof(float) * M * N);
+  for (int batches = 1; batches < 10; batches++)
+  {
+    std::vector<float> A_batch(batches * M * N);
+    std::vector<float> A_cpu(batches * M * N);
+    std::vector<float> A_gpu(batches * M * N);
+    if (A_d)
+    {
+      cudaFree(A_d);
+    }
+    cudaMalloc((void**)&A_d, sizeof(float) * batches * M * N);
+
+    grid_size.x = batches;
+    for (int tdx = 1; tdx < 128; tdx++)
+    {
+      // Fill in A_batch
+      for (int i = 0; i < batches; i++)
+      {
+        Eigen::Map<Eigen::MatrixXf> A_batch_i(&A_batch.data()[i * M * N], M, N);
+        Eigen::Map<Eigen::MatrixXf> A_cpu_i(&A_cpu.data()[i * M * N], M, N);
+        A_batch_i << Eigen::MatrixXf::Random(M, M), Eigen::MatrixXf::Identity(M, M);
+        A_cpu_i << Eigen::MatrixXf::Identity(M, M), A_batch_i.block(0, 0, M, M).inverse();
+      }
+
+      // Copy over to GPU and run GJ Elimination
+      cudaMemcpyAsync(A_d, A_batch.data(), sizeof(float) * batches * M * N, cudaMemcpyHostToDevice, stream);
+      block_size.x = tdx;
+      GaussJordanKernel<M, N, mp1::Parallel1Dir::THREAD_X><<<grid_size, block_size, shared_mem_size, stream>>>(A_d);
+      cudaMemcpyAsync(A_gpu.data(), A_d, sizeof(float) * batches * M * N, cudaMemcpyDeviceToHost, stream);
+      cudaStreamSynchronize(stream);
+      for (int i = 0; i < A_gpu.size(); i++)
+      {
+        float tolerance = fabsf(A_cpu[i]) < 1 ? 1e-3 : 1e-3 * fabsf(A_cpu[i]);
+        ASSERT_LT(fabsf(A_gpu[i] - A_cpu[i]), tolerance)
+            << i % (M * N) << "th item in "
+            << " batch: " << i / (M * N) << " out of " << batches << ", CPU: " << A_cpu[i] << ", GPU: " << A_gpu[i];
+      }
+    }
+  }
+  cudaFree(A_d);
+}
+
 /** 2 Dimensional Parallelization Tests **/
 
 template <int M, int K, int N, mp2::Parallel2Dir PARALLELIZATION_DIR>
