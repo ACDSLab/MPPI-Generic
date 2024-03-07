@@ -121,13 +121,12 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
   float wheel_pos_z, wheel_vel_z;
   float wheel_height = 0.0f;
   float4 wheel_normal_world = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
-  float3 wheel_normal_body;
   int pi, step;
 
   state_der(S_INDEX(ROLL)) = state(S_INDEX(ROLL_RATE));
   state_der(S_INDEX(PITCH)) = state(S_INDEX(PITCH_RATE));
-  state_der(S_INDEX(POS_Z)) = state(S_INDEX(VEL_Z));
-  state_der(S_INDEX(VEL_Z)) = 0.0f;
+  state_der(S_INDEX(CG_POS_Z)) = state(S_INDEX(CG_VEL_I_Z));
+  state_der(S_INDEX(CG_VEL_I_Z)) = 0.0f;
   state_der(S_INDEX(ROLL_RATE)) = 0.0f;
   state_der(S_INDEX(PITCH_RATE)) = 0.0f;
   mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(pi, step);
@@ -147,28 +146,27 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
     if (normals_tex_helper_->checkTextureUse(0))
     {
       wheel_normal_world = normals_tex_helper_->queryTextureAtWorldPose(0, wheel_positions_world[i]);
-      if (!isfinite(wheel_normal_world.x) || !isfinite(wheel_normal_world.y) || !isfinite(wheel_normal_body.z))
+      if (!isfinite(wheel_normal_world.x) || !isfinite(wheel_normal_world.y) || !isfinite(wheel_normal_world.z))
       {
         wheel_normal_world = make_float4(0.0, 0.0, 1.0, 0.0);
       }
     }
 
-    // get normals in body position
-    mppi::math::RotatePointByDCM(M, *(float3*)(&wheel_normal_world), wheel_normal_body,
-                                 mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
-
     // Calculate wheel heights, velocities, and forces
-    wheel_pos_z = state(S_INDEX(POS_Z)) + roll * wheel_positions_cg[i].y - pitch * wheel_positions_cg[i].x -
+    wheel_pos_z = state(S_INDEX(CG_POS_Z)) + roll * wheel_positions_cg[i].y - pitch * wheel_positions_cg[i].x -
                   params_p->wheel_radius;
-    wheel_vel_z = state(S_INDEX(VEL_Z)) + state(S_INDEX(ROLL_RATE)) * wheel_positions_cg[i].y -
+    wheel_vel_z = state(S_INDEX(CG_VEL_I_Z)) + state(S_INDEX(ROLL_RATE)) * wheel_positions_cg[i].y -
                   state(S_INDEX(PITCH_RATE)) * wheel_positions_cg[i].x;
-    // V_x * N_x + V_y * N_y
-    float h_dot = -state(S_INDEX(VEL_X)) * wheel_normal_body.x;
-    output(O_INDEX(WHEEL_FORCE_B_FL) + i) =
-        -params_p->spring_k * (wheel_pos_z - wheel_height) - params_p->drag_c * (wheel_vel_z - h_dot);
-    state_der(S_INDEX(VEL_Z)) += output(O_INDEX(WHEEL_FORCE_B_FL) + i) / params_p->mass;
-    state_der(S_INDEX(ROLL_RATE)) += output(O_INDEX(WHEEL_FORCE_B_FL) + i) * wheel_positions_cg[i].y / params_p->I_xx;
-    state_der(S_INDEX(PITCH_RATE)) += -output(O_INDEX(WHEEL_FORCE_B_FL) + i) * wheel_positions_cg[i].x / params_p->I_yy;
+
+    // h_dot = - V_I * N_I
+    float h_dot = -(state[S_INDEX(VEL_X)] * cosf(yaw) * wheel_normal_world.x +
+                    state[S_INDEX(VEL_X)] * sinf(yaw) * wheel_normal_world.y);
+
+    float wheel_force = -params_p->spring_k * (wheel_pos_z - wheel_height) - params_p->drag_c * (wheel_vel_z - h_dot);
+    output(O_INDEX(WHEEL_FORCE_B_FL) + i) = wheel_force;
+    state_der(S_INDEX(CG_VEL_I_Z)) += wheel_force / params_p->mass;
+    state_der(S_INDEX(ROLL_RATE)) += wheel_force * wheel_positions_cg[i].y / params_p->I_xx;
+    state_der(S_INDEX(PITCH_RATE)) += -wheel_force * wheel_positions_cg[i].x / params_p->I_yy;
   }
 
   // Integrate using Euler Integration
@@ -186,9 +184,9 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
   // next_state[S_INDEX(ROLL)] = roll;
 
   this->setOutputs(state_der.data(), next_state.data(), output.data());
-  // printf("CPU t: %3.0f, VEL_Z(t + 1): %f, VEL_Z(t): %f, VEl_Z'(t): %f\n", t, next_state(S_INDEX(VEL_Z)),
-  // state(S_INDEX(VEL_Z)),
-  //     state_der(S_INDEX(VEL_Z)));
+  // printf("CPU t: %3.0f, VEL_Z(t + 1): %f, VEL_Z(t): %f, VEl_Z'(t): %f\n", t, next_state(S_INDEX(CG_VEL_I_Z)),
+  // state(S_INDEX(CG_VEL_I_Z)),
+  //     state_der(S_INDEX(CG_VEL_I_Z)));
 }
 
 TEMPLATE_TYPE
@@ -249,12 +247,12 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
   {
     state_der[S_INDEX(STEER_ANGLE_RATE)] += nn_output[0] * 5.0f;
     state_der[S_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE_RATE)];
-    state_der[S_INDEX(VEL_Z)] = 0.0f;
+    state_der[S_INDEX(CG_VEL_I_Z)] = 0.0f;
     state_der[S_INDEX(ROLL_RATE)] = 0.0f;
     state_der[S_INDEX(PITCH_RATE)] = 0.0f;
     state_der[S_INDEX(ROLL)] = state[S_INDEX(ROLL_RATE)];
     state_der[S_INDEX(PITCH)] = state[S_INDEX(PITCH_RATE)];
-    state_der[S_INDEX(POS_Z)] = state[S_INDEX(VEL_Z)];
+    state_der[S_INDEX(CG_POS_Z)] = state[S_INDEX(CG_VEL_I_Z)];
   }
   __syncthreads();
   // Calculate suspension-based state derivatives
@@ -277,7 +275,6 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
   float wheel_height = 0.0f;
   float h_dot = 0.0f;
   float4 wheel_normal_world = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
-  float3 wheel_normal_body;
   float3 wheel_positions_cg;
 
   for (int i = pi; i < W_INDEX(NUM_WHEELS); i += step)
@@ -315,31 +312,27 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
     if (normals_tex_helper_->checkTextureUse(0))
     {
       wheel_normal_world = normals_tex_helper_->queryTextureAtWorldPose(0, wheel_positions_world);
-      if (!isfinite(wheel_normal_world.x) || !isfinite(wheel_normal_world.y) || !isfinite(wheel_normal_body.z))
+      if (!isfinite(wheel_normal_world.x) || !isfinite(wheel_normal_world.y) || !isfinite(wheel_normal_world.z))
       {
         wheel_normal_world = make_float4(0.0, 0.0, 1.0, 0.0);
       }
     }
 
-    // get normals in body position
-    mppi::math::RotatePointByDCM(M, *(float3*)(&wheel_normal_world), wheel_normal_body,
-                                 mppi::matrix_multiplication::MAT_OP::TRANSPOSE);
-
     // Calculate wheel heights, velocities, and forces
     wheel_pos_z =
-        state[S_INDEX(POS_Z)] + roll * wheel_positions_cg.y - pitch * wheel_positions_cg.x - params_p->wheel_radius;
-    wheel_vel_z = state[S_INDEX(VEL_Z)] + state[S_INDEX(ROLL_RATE)] * wheel_positions_cg.y -
+        state[S_INDEX(CG_POS_Z)] + roll * wheel_positions_cg.y - pitch * wheel_positions_cg.x - params_p->wheel_radius;
+    wheel_vel_z = state[S_INDEX(CG_VEL_I_Z)] + state[S_INDEX(ROLL_RATE)] * wheel_positions_cg.y -
                   state[S_INDEX(PITCH_RATE)] * wheel_positions_cg.x;
-    // V_x * N_x + V_y * N_y
-    h_dot = -state[S_INDEX(VEL_X)] * wheel_normal_body.x;
 
-    output[O_INDEX(WHEEL_FORCE_B_FL) + i] =
-        -params_p->spring_k * (wheel_pos_z - wheel_height) - params_p->drag_c * (wheel_vel_z - h_dot);
-    atomicAdd_block(&state_der[S_INDEX(VEL_Z)], output[O_INDEX(WHEEL_FORCE_B_FL) + i] / params_p->mass);
-    atomicAdd_block(&state_der[S_INDEX(ROLL_RATE)],
-                    output[O_INDEX(WHEEL_FORCE_B_FL) + i] * wheel_positions_cg.y / params_p->I_xx);
-    atomicAdd_block(&state_der[S_INDEX(PITCH_RATE)],
-                    -output[O_INDEX(WHEEL_FORCE_B_FL) + i] * wheel_positions_cg.x / params_p->I_yy);
+    // h_dot = - V_I * N_I
+    h_dot = -(state[S_INDEX(VEL_X)] * cosf(yaw) * wheel_normal_world.x +
+              state[S_INDEX(VEL_X)] * sinf(yaw) * wheel_normal_world.y);
+
+    float wheel_force = -params_p->spring_k * (wheel_pos_z - wheel_height) - params_p->drag_c * (wheel_vel_z - h_dot);
+    output[O_INDEX(WHEEL_FORCE_B_FL) + i] = wheel_force;
+    atomicAdd_block(&state_der[S_INDEX(CG_VEL_I_Z)], wheel_force / params_p->mass);
+    atomicAdd_block(&state_der[S_INDEX(ROLL_RATE)], wheel_force * wheel_positions_cg.y / params_p->I_xx);
+    atomicAdd_block(&state_der[S_INDEX(PITCH_RATE)], -wheel_force * wheel_positions_cg.x / params_p->I_yy);
   }
 
   __syncthreads();
@@ -359,9 +352,9 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
   __syncthreads();
   // if (threadIdx.x == 0 && blockIdx.x == 0 && threadIdx.y == 0)
   // {
-  //   printf("GPU t: %3d, VEL_Z(t + 1): %f, VEL_Z(t): %f, VEl_Z'(t): %f\n", t, next_state[S_INDEX(VEL_Z)],
-  //   state[S_INDEX(VEL_Z)],
-  //       state_der[S_INDEX(VEL_Z)]);
+  //   printf("GPU t: %3d, VEL_Z(t + 1): %f, VEL_Z(t): %f, VEl_Z'(t): %f\n", t, next_state[S_INDEX(CG_VEL_I_Z)],
+  //   state[S_INDEX(CG_VEL_I_Z)],
+  //       state_der[S_INDEX(CG_VEL_I_Z)]);
   // }
   this->setOutputs(state_der, next_state, output);
 }
@@ -437,7 +430,7 @@ __host__ __device__ void TEMPLATE_NAME::setOutputs(const float* state_der, const
         output[i] = next_state[S_INDEX(POS_Y)];
         break;
       case O_INDEX(BASELINK_POS_I_Z):
-        output[i] = next_state[S_INDEX(POS_Z)] - next_state[S_INDEX(PITCH)] * (-this->params_.c_g.x);
+        output[i] = next_state[S_INDEX(CG_POS_Z)] - next_state[S_INDEX(PITCH)] * (-this->params_.c_g.x);
         break;
       case O_INDEX(PITCH):
         output[i] = next_state[S_INDEX(PITCH)];
@@ -534,9 +527,10 @@ TEMPLATE_NAME::state_array TEMPLATE_NAME::stateFromMap(const std::map<std::strin
 
   s(S_INDEX(POS_X)) = map.at("POS_X");
   s(S_INDEX(POS_Y)) = map.at("POS_Y");
-  s(S_INDEX(POS_Z)) = map.at("POS_Z");
+  s(S_INDEX(CG_POS_Z)) = map.at("POS_Z");
   s(S_INDEX(VEL_X)) = map.at("VEL_X");
-  s(S_INDEX(VEL_Z)) = map.at("VEL_Z");
+  float bl_v_I_z = map.at("VEL_Z") * cosf(map.at("PITCH")) - map.at("VEL_X") * sinf(map.at("PITCH"));
+  s(S_INDEX(CG_VEL_I_Z)) = bl_v_I_z - map.at("OMEGA_Y") * this->params_.c_g.x;
   s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
   s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
   s(S_INDEX(ROLL)) = map.at("ROLL");
@@ -544,10 +538,10 @@ TEMPLATE_NAME::state_array TEMPLATE_NAME::stateFromMap(const std::map<std::strin
   s(S_INDEX(YAW)) = map.at("YAW");
   // Set z position to cg's z position in world frame
   float3 rotation = make_float3(s(S_INDEX(ROLL)), s(S_INDEX(PITCH)), s(S_INDEX(YAW)));
-  float3 world_pose = make_float3(s(S_INDEX(POS_X)), s(S_INDEX(POS_Y)), s(S_INDEX(POS_Z)));
+  float3 world_pose = make_float3(s(S_INDEX(POS_X)), s(S_INDEX(POS_Y)), s(S_INDEX(CG_POS_Z)));
   float3 cg_in_world_frame;
   mppi::math::bodyOffsetToWorldPoseEuler(this->params_.c_g, world_pose, rotation, cg_in_world_frame);
-  s(S_INDEX(POS_Z)) = cg_in_world_frame.z;
+  s(S_INDEX(CG_POS_Z)) = cg_in_world_frame.z;
   s(S_INDEX(ROLL_RATE)) = map.at("OMEGA_X");
   s(S_INDEX(PITCH_RATE)) = map.at("OMEGA_Y");
   s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");
