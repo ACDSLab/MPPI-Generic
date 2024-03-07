@@ -129,6 +129,9 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
   state_der(S_INDEX(CG_VEL_I_Z)) = 0.0f;
   state_der(S_INDEX(ROLL_RATE)) = 0.0f;
   state_der(S_INDEX(PITCH_RATE)) = 0.0f;
+  output(O_INDEX(WHEEL_FORCE_UP_MAX)) = 0.0f;
+  output(O_INDEX(WHEEL_FORCE_FWD_MAX)) = 0.0f;
+  output(O_INDEX(WHEEL_FORCE_SIDE_MAX)) = 0.0f;
   mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(pi, step);
   for (int i = pi; i < W_INDEX(NUM_WHEELS); i += step)
   {
@@ -152,6 +155,16 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
       }
     }
 
+    float wheel_yaw;
+    if (i == W_INDEX(FR) || i == W_INDEX(FL))
+    {
+      wheel_yaw = yaw + S_INDEX(STEER_ANGLE) / -9.1f;
+    }
+    else
+    {
+      wheel_yaw = yaw;
+    }
+
     // Calculate wheel heights, velocities, and forces
     wheel_pos_z = state(S_INDEX(CG_POS_Z)) + roll * wheel_positions_cg[i].y - pitch * wheel_positions_cg[i].x -
                   params_p->wheel_radius;
@@ -159,11 +172,23 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
                   state(S_INDEX(PITCH_RATE)) * wheel_positions_cg[i].x;
 
     // h_dot = - V_I * N_I
-    float h_dot = -(state[S_INDEX(VEL_X)] * cosf(yaw) * wheel_normal_world.x +
-                    state[S_INDEX(VEL_X)] * sinf(yaw) * wheel_normal_world.y);
+    float h_dot = -(state[S_INDEX(VEL_X)] * cosf(wheel_yaw) * wheel_normal_world.x +
+                    state[S_INDEX(VEL_X)] * sinf(wheel_yaw) * wheel_normal_world.y);
 
     float wheel_force = -params_p->spring_k * (wheel_pos_z - wheel_height) - params_p->drag_c * (wheel_vel_z - h_dot);
-    output(O_INDEX(WHEEL_FORCE_B_FL) + i) = wheel_force;
+    float up_wheel_force = wheel_force;  // + params_p->mass * (9.81f / 4.0f);
+    float fwd_wheel_force = wheel_force / wheel_normal_world.z *
+                            (wheel_normal_world.x * cosf(wheel_yaw) + wheel_normal_world.y * sinf(wheel_yaw) +
+                             wheel_normal_world.z * (-pitch));
+    float side_wheel_force = wheel_force / wheel_normal_world.z *
+                             (-wheel_normal_world.x * sinf(wheel_yaw) + wheel_normal_world.y * cosf(wheel_yaw) +
+                              wheel_normal_world.z * roll);
+    output(O_INDEX(WHEEL_FORCE_UP_MAX)) = fmaxf(output(O_INDEX(WHEEL_FORCE_UP_MAX)), up_wheel_force);
+    output(O_INDEX(WHEEL_FORCE_FWD_MAX)) = fmaxf(output(O_INDEX(WHEEL_FORCE_FWD_MAX)), fabsf(fwd_wheel_force));
+    output(O_INDEX(WHEEL_FORCE_SIDE_MAX)) = fmaxf(output(O_INDEX(WHEEL_FORCE_SIDE_MAX)), fabsf(side_wheel_force));
+    // output(O_INDEX(WHEEL_FORCE_UP_FL) + i) = up_wheel_force;
+    // output(O_INDEX(WHEEL_FORCE_FWD_FL) + i) = fwd_wheel_force;
+    // output(O_INDEX(WHEEL_FORCE_SIDE_FL) + i) = side_wheel_force;
     state_der(S_INDEX(CG_VEL_I_Z)) += wheel_force / params_p->mass;
     state_der(S_INDEX(ROLL_RATE)) += wheel_force * wheel_positions_cg[i].y / params_p->I_xx;
     state_der(S_INDEX(PITCH_RATE)) += -wheel_force * wheel_positions_cg[i].x / params_p->I_yy;
@@ -253,6 +278,9 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
     state_der[S_INDEX(ROLL)] = state[S_INDEX(ROLL_RATE)];
     state_der[S_INDEX(PITCH)] = state[S_INDEX(PITCH_RATE)];
     state_der[S_INDEX(CG_POS_Z)] = state[S_INDEX(CG_VEL_I_Z)];
+    output[O_INDEX(WHEEL_FORCE_UP_MAX)] = 0.0f;
+    output[O_INDEX(WHEEL_FORCE_FWD_MAX)] = 0.0f;
+    output[O_INDEX(WHEEL_FORCE_SIDE_MAX)] = 0.0f;
   }
   __syncthreads();
   // Calculate suspension-based state derivatives
@@ -276,17 +304,21 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
   float h_dot = 0.0f;
   float4 wheel_normal_world = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
   float3 wheel_positions_cg;
+  float wheel_force_up[4], wheel_force_fwd[4], wheel_force_side[4];
 
   for (int i = pi; i < W_INDEX(NUM_WHEELS); i += step)
   {
+    float wheel_yaw = yaw;
     // get body frame wheel positions
     switch (i)
     {
       case W_INDEX(FR):
         wheel_positions_body = make_float3(2.981f, -0.737f, 0.f);
+        wheel_yaw += S_INDEX(STEER_ANGLE) / -9.1f;
         break;
       case W_INDEX(FL):
         wheel_positions_body = make_float3(2.981f, 0.737f, 0.0f);
+        wheel_yaw += S_INDEX(STEER_ANGLE) / -9.1f;
         break;
       case W_INDEX(BR):
         wheel_positions_body = make_float3(0.0f, 0.737f, 0.0f);
@@ -325,17 +357,35 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
                   state[S_INDEX(PITCH_RATE)] * wheel_positions_cg.x;
 
     // h_dot = - V_I * N_I
-    h_dot = -(state[S_INDEX(VEL_X)] * cosf(yaw) * wheel_normal_world.x +
-              state[S_INDEX(VEL_X)] * sinf(yaw) * wheel_normal_world.y);
+    h_dot = -(state[S_INDEX(VEL_X)] * cosf(wheel_yaw) * wheel_normal_world.x +
+              state[S_INDEX(VEL_X)] * sinf(wheel_yaw) * wheel_normal_world.y);
 
     float wheel_force = -params_p->spring_k * (wheel_pos_z - wheel_height) - params_p->drag_c * (wheel_vel_z - h_dot);
-    output[O_INDEX(WHEEL_FORCE_B_FL) + i] = wheel_force;
+    float up_wheel_force = wheel_force;  // + params_p->mass * (9.81f / 4.0f);
+    float fwd_wheel_force = wheel_force / wheel_normal_world.z *
+                            (wheel_normal_world.x * cosf(wheel_yaw) + wheel_normal_world.y * sinf(wheel_yaw) +
+                             wheel_normal_world.z * (-pitch));
+    float side_wheel_force = wheel_force / wheel_normal_world.z *
+                             (-wheel_normal_world.x * sinf(wheel_yaw) + wheel_normal_world.y * cosf(wheel_yaw) +
+                              wheel_normal_world.z * roll);
+    wheel_force_up[i] = up_wheel_force;
+    wheel_force_fwd[i] = fabsf(fwd_wheel_force);
+    wheel_force_side[i] = fabsf(side_wheel_force);
+    // output[O_INDEX(WHEEL_FORCE_UP_FL) + i] = up_wheel_force;
+    // output[O_INDEX(WHEEL_FORCE_FWD_FL) + i] = fwd_wheel_force;
+    // output[O_INDEX(WHEEL_FORCE_SIDE_FL) + i] = side_wheel_force;
     atomicAdd_block(&state_der[S_INDEX(CG_VEL_I_Z)], wheel_force / params_p->mass);
     atomicAdd_block(&state_der[S_INDEX(ROLL_RATE)], wheel_force * wheel_positions_cg.y / params_p->I_xx);
     atomicAdd_block(&state_der[S_INDEX(PITCH_RATE)], -wheel_force * wheel_positions_cg.x / params_p->I_yy);
   }
 
   __syncthreads();
+  output[O_INDEX(WHEEL_FORCE_UP_MAX)] =
+      fmaxf(wheel_force_up[0], fmaxf(wheel_force_up[1], fmaxf(wheel_force_up[2], wheel_force_up[3])));
+  output[O_INDEX(WHEEL_FORCE_FWD_MAX)] =
+      fmaxf(wheel_force_fwd[0], fmaxf(wheel_force_fwd[1], fmaxf(wheel_force_fwd[2], wheel_force_fwd[3])));
+  output[O_INDEX(WHEEL_FORCE_SIDE_MAX)] =
+      fmaxf(wheel_force_side[0], fmaxf(wheel_force_side[1], fmaxf(wheel_force_side[2], wheel_force_side[3])));
 
   updateState(state, next_state, state_der, dt);
   computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb);

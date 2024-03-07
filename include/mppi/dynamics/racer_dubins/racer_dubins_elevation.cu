@@ -133,18 +133,51 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::setOutputs
       case O_INDEX(STEER_ANGLE_RATE):
         output[i] = next_state[S_INDEX(STEER_ANGLE_RATE)];
         break;
-      case O_INDEX(WHEEL_FORCE_B_FL):
+      case O_INDEX(WHEEL_FORCE_UP_MAX):
         output[i] = NAN;
         break;
-      case O_INDEX(WHEEL_FORCE_B_FR):
+      case O_INDEX(WHEEL_FORCE_FWD_MAX):
         output[i] = NAN;
         break;
-      case O_INDEX(WHEEL_FORCE_B_RL):
+      case O_INDEX(WHEEL_FORCE_SIDE_MAX):
         output[i] = NAN;
         break;
-      case O_INDEX(WHEEL_FORCE_B_RR):
-        output[i] = NAN;
-        break;
+      // case O_INDEX(WHEEL_FORCE_UP_FL):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_UP_FR):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_UP_RL):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_UP_RR):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_FWD_FL):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_FWD_FR):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_FWD_RL):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_FWD_RR):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_SIDE_FL):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_SIDE_FR):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_SIDE_RL):
+      //   output[i] = NAN;
+      //   break;
+      // case O_INDEX(WHEEL_FORCE_SIDE_RR):
+      //   output[i] = NAN;
+      //   break;
       case O_INDEX(ACCEL_X):
         output[i] = state_der[S_INDEX(VEL_X)];
         break;
