@@ -32,7 +32,7 @@ void LSTMHelper<PARAMS_T, FNN_PARAMS_T, USE_SHARED>::GPUSetup()
   }
   else
   {
-    std::cout << "GPU Memory already set" << std::endl;
+    this->logger_->debug("LSTM GPU Memory already set\n");
   }
 }
 template <class PARAMS_T, class FNN_PARAMS_T, bool USE_SHARED>

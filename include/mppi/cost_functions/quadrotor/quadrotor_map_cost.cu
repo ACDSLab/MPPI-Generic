@@ -397,7 +397,6 @@ __device__ float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::computeCostmapCost(flo
 template <class CLASS_T, class PARAMS_T>
 float QuadrotorMapCostImpl<CLASS_T, PARAMS_T>::terminalCost(const Eigen::Ref<const output_array> s)
 {
-  std::cout << "It is a cost function" << std::endl;
   return 0;
 }
 

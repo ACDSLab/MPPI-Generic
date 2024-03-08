@@ -11,6 +11,7 @@ void ARStandardCostImpl<CLASS_T, PARAMS_T,  DYN_PARAMS_T>::freeCudaMem() {
   if (this->GPUMemStatus_)
   {
     HANDLE_ERROR(cudaFreeArray(costmapArray_d_));
+    costmapArray_d_ = nullptr;
   }
   PARENT_CLASS::freeCudaMem();
 }
@@ -35,7 +36,7 @@ bool ARStandardCostImpl<CLASS_T, PARAMS_T, DYN_PARAMS_T>::changeCostmapSize(int 
     std::cerr << "ERROR: cannot resize costmap to size less than 1" << std::endl;
     return false;
   }
-  if (height != height_ || width != width_)
+  if (height != height_ || width != width_ || costmapArray_d_ == nullptr)
   {
     track_costs_.resize(width * height);
 

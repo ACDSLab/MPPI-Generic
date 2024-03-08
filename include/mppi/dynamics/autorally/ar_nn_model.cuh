@@ -47,6 +47,7 @@ struct NNDynamicsParams : public DynamicsParams
     BODY_VEL_X,
     BODY_VEL_Y,
     YAW_RATE,
+    FILLER_1,
     NUM_OUTPUTS
   };
 };

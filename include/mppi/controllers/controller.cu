@@ -8,19 +8,22 @@
 CONTROLLER_TEMPLATE
 void CONTROLLER::deallocateCUDAMemory()
 {
-  HANDLE_ERROR(cudaFree(initial_state_d_));
-  HANDLE_ERROR(cudaFree(vis_initial_state_d_));
-  HANDLE_ERROR(cudaFree(control_d_));
-  HANDLE_ERROR(cudaFree(output_d_));
-  HANDLE_ERROR(cudaFree(trajectory_costs_d_));
-  HANDLE_ERROR(cudaFree(cost_baseline_and_norm_d_));
+  if (CUDA_mem_init_)
+  {
+    HANDLE_ERROR(cudaFree(initial_state_d_));
+    HANDLE_ERROR(cudaFree(vis_initial_state_d_));
+    HANDLE_ERROR(cudaFree(control_d_));
+    HANDLE_ERROR(cudaFree(output_d_));
+    HANDLE_ERROR(cudaFree(trajectory_costs_d_));
+    HANDLE_ERROR(cudaFree(cost_baseline_and_norm_d_));
+    CUDA_mem_init_ = false;
+  }
   if (sampled_states_CUDA_mem_init_)
   {
     HANDLE_ERROR(cudaFree(sampled_outputs_d_));
     HANDLE_ERROR(cudaFree(sampled_costs_d_));
     sampled_states_CUDA_mem_init_ = false;
   }
-  CUDA_mem_init_ = false;
 }
 
 // CONTROLLER_TEMPLATE

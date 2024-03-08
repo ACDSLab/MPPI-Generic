@@ -162,7 +162,7 @@ void FNNHelper<PARAMS_T, USE_SHARED>::GPUSetup()
   }
   else
   {
-    std::cout << "GPU Memory already set" << std::endl;
+    this->logger_->debug("FNN GPU Memory Already set\n");
   }
 }
 
