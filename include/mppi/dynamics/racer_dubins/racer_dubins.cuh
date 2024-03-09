@@ -62,6 +62,7 @@ struct RacerDubinsParams : public DynamicsParams
     ACCEL_X,
     ACCEL_Y,
     OMEGA_Z,
+    TOTAL_VELOCITY,
     UNCERTAINTY_POS_X,
     UNCERTAINTY_POS_Y,
     UNCERTAINTY_YAW,
@@ -73,7 +74,6 @@ struct RacerDubinsParams : public DynamicsParams
     UNCERTAINTY_POS_Y_VEL_X,
     UNCERTAINTY_YAW_VEL_X,
     FILLER_1,
-    TOTAL_VELOCITY,
     NUM_OUTPUTS
   };
 
