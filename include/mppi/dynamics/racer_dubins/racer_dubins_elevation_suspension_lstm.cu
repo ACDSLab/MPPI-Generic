@@ -197,20 +197,23 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
 {
   DYN_PARAMS_T* params_p;
   SharedBlock *sb_mem, *sb;
-  if (GRANDPARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
-  {  // Allows us to turn on or off global or shared memory version of params
-    params_p = (DYN_PARAMS_T*)theta_s;
-  }
-  else
+  // if (GRANDPARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
+  // {  // Allows us to turn on or off global or shared memory version of params
+  //   params_p = (DYN_PARAMS_T*)theta_s;
+  // }
+  // else
+  // {
+  //   params_p = &(this->params_);
+  // }
+  params_p = &(this->params_);
+  const int grd_shift = this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);  // grid size to shift by
+  const int blk_shift = this->SHARED_MEM_REQUEST_BLK_BYTES * (threadIdx.x + blockDim.x * threadIdx.z) /
+                        sizeof(float);                       // blk size to shift by
+  const int sb_shift = sizeof(SharedBlock) / sizeof(float);  // how much to shift inside a block to lstm values
+  if (this->SHARED_MEM_REQUEST_BLK_BYTES != 0)
   {
-    params_p = &(this->params_);
-  }
-  if (GRANDPARENT_CLASS::SHARED_MEM_REQUEST_BLK_BYTES != 0)
-  {
-    sb_mem = (SharedBlock*)&theta_s[mppi::math::int_multiple_const(GRANDPARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES,
-                                                                   sizeof(float4)) /
-                                    sizeof(float)];
-    sb = &sb_mem[threadIdx.x + blockDim.x * threadIdx.z];
+    float* sb_mem = &theta_s[grd_shift];  // does the grid shift
+    sb = (SharedBlock*)(sb_mem + blk_shift);
   }
   computeParametricDelayDeriv(state, control, state_der, params_p);
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
@@ -219,13 +222,8 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
   int pi, step;
   mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(pi, step);
 
-  const int shift =
-      (mppi::math::int_multiple_const(GRANDPARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES, sizeof(float4)) +
-       blockDim.x * blockDim.z *
-           mppi::math::int_multiple_const(GRANDPARENT_CLASS::SHARED_MEM_REQUEST_BLK_BYTES, sizeof(float4))) /
-      sizeof(float);
   // loads in the input to the network
-  float* input_loc = this->network_d_->getInputLocation(theta_s + shift);
+  float* input_loc = this->network_d_->getInputLocation(theta_s, grd_shift, blk_shift, sb_shift);
   if (pi == 0)
   {
     const float parametric_accel =
@@ -244,7 +242,8 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
   }
   __syncthreads();
   // runs the network
-  float* nn_output = this->network_d_->forward(nullptr, theta_s + shift);
+  float* cur_hidden_cell = this->network_d_->getHiddenCellLocation(theta_s, grd_shift, blk_shift, sb_shift);
+  float* nn_output = this->network_d_->forward(nullptr, theta_s, cur_hidden_cell);
   // copies the results of the network to state derivative
   if (pi == 0)
   {
