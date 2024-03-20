@@ -9,39 +9,18 @@
 #define TEMPLATE_NAME RacerDubinsElevationSuspensionImpl<CLASS_T, PARAMS_T>
 
 TEMPLATE_TYPE
-TEMPLATE_NAME::RacerDubinsElevationSuspensionImpl(cudaStream_t stream)
-  : RacerDubinsElevationLSTMSteeringImpl<CLASS_T, PARAMS_T>(stream)
+TEMPLATE_NAME::RacerDubinsElevationSuspensionImpl(int init_input_dim, int init_hidden_dim,
+                                                  std::vector<int>& init_output_layers, int input_dim, int hidden_dim,
+                                                  std::vector<int>& output_layers, int init_len, cudaStream_t stream)
+  : PARENT_CLASS(init_input_dim, init_hidden_dim, init_output_layers, input_dim, hidden_dim, output_layers, init_len,
+                 stream)
 {
-  this->requires_buffer_ = true;
-  this->lstm_lstm_helper_ = std::make_shared<NN>(stream);
   normals_tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
 }
 
 TEMPLATE_TYPE
-TEMPLATE_NAME::RacerDubinsElevationSuspensionImpl(PARAMS_T& params, cudaStream_t stream)
-  : RacerDubinsElevationLSTMSteeringImpl<CLASS_T, PARAMS_T>(params, stream)
+TEMPLATE_NAME::RacerDubinsElevationSuspensionImpl(std::string path, cudaStream_t stream) : PARENT_CLASS(path, stream)
 {
-  this->requires_buffer_ = true;
-  this->lstm_lstm_helper_ = std::make_shared<NN>(stream);
-  normals_tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
-}
-
-TEMPLATE_TYPE
-TEMPLATE_NAME::RacerDubinsElevationSuspensionImpl(std::string path, cudaStream_t stream)
-  : RacerDubinsElevationLSTMSteeringImpl<CLASS_T, PARAMS_T>(path, stream)
-{
-  if (!fileExists(path))
-  {
-    std::cerr << "Could not load neural net model at path: " << path.c_str();
-    exit(-1);
-  }
-  cnpy::npz_t param_dict = cnpy::npz_load(path);
-  this->params_.max_steer_rate = param_dict.at("parameters/max_rate_pos").data<float>()[0];
-  this->params_.steering_constant = param_dict.at("parameters/constant").data<float>()[0];
-  this->params_.steer_accel_constant = param_dict.at("parameters/accel_constant").data<float>()[0];
-  this->params_.steer_accel_drag_constant = param_dict.at("parameters/accel_drag_constant").data<float>()[0];
-  this->lstm_lstm_helper_ = std::make_shared<NN>(path, stream);
-  this->requires_buffer_ = true;
   normals_tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
 }
 
