@@ -1,7 +1,7 @@
 #include <Eigen/Dense>
 #include <gtest/gtest.h>
 #include <mppi/dynamics/racer_dubins/racer_dubins_elevation_suspension_lstm.cuh>
-#include <mppi/dynamics/dynamics_generic_kernel_tests.cuh>
+#include <kernel_tests/dynamics/dynamics_generic_kernel_tests.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <racer_test_networks.h>
 #include <cuda_runtime.h>
@@ -41,7 +41,7 @@ public:
 TEST_F(RacerDubinsElevationSuspensionTest, Template)
 {
   using DYNAMICS = RacerDubinsElevationSuspension;
-  auto dynamics = DYNAMICS();
+  DYNAMICS dynamics = DYNAMICS(mppi::tests::steering_lstm, stream);
   EXPECT_EQ(24, DYNAMICS::STATE_DIM);
   EXPECT_EQ(2, DYNAMICS::CONTROL_DIM);
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);

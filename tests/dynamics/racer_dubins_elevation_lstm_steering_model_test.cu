@@ -40,8 +40,6 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, Template)
 
 TEST_F(RacerDubinsElevationLSTMSteeringTest, BindStream)
 {
-  std::vector<int> init_output_layers = { 23, 100, 8 };
-  std::vector<int> output_layers = { 8, 20, 1 };
   auto dynamics = RacerDubinsElevationLSTMSteering(3, 20, init_output_layers, 4, 4, output_layers, 11);
   dynamics.bindToStream(stream);
 
@@ -53,11 +51,11 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, BindStream)
 
   auto dynamics2 = RacerDubinsElevationLSTMSteering(3, 20, init_output_layers, 4, 4, output_layers, 11, stream);
 
-  EXPECT_EQ(dynamics.stream_, stream) << "Stream binding failure.";
-  EXPECT_NE(dynamics.getTextureHelper(), nullptr);
-  EXPECT_EQ(dynamics.getTextureHelper()->stream_, stream);
-  EXPECT_NE(dynamics.getHelper(), nullptr);
-  EXPECT_EQ(dynamics.getHelper()->getLSTMModel()->stream_, stream);
+  EXPECT_EQ(dynamics2.stream_, stream) << "Stream binding failure.";
+  EXPECT_NE(dynamics2.getTextureHelper(), nullptr);
+  EXPECT_EQ(dynamics2.getTextureHelper()->stream_, stream);
+  EXPECT_NE(dynamics2.getHelper(), nullptr);
+  EXPECT_EQ(dynamics2.getHelper()->getLSTMModel()->stream_, stream);
 }
 
 /*
