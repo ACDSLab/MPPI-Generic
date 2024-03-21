@@ -5,6 +5,12 @@
 #include "lstm_helper.cuh"
 
 template <bool USE_SHARED>
+LSTMHelper<USE_SHARED>::LSTMHelper(LSTMConfig& config, cudaStream_t stream)
+  : LSTMHelper<USE_SHARED>(config.input_dim, config.hidden_dim, config.output_layers, stream)
+{
+}
+
+template <bool USE_SHARED>
 LSTMHelper<USE_SHARED>::LSTMHelper(int input_dim, int hidden_dim, std::vector<int>& output_layers, cudaStream_t stream)
   : Managed(stream)
 {

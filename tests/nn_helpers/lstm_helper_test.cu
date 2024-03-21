@@ -95,6 +95,74 @@ TEST_F(LSTMHelperTest, ParamsConstructor1)
   }
 }
 
+TEST_F(LSTMHelperTest, ConfigConstructor)
+{
+  LSTMConfig config;
+  config.input_dim = 5;
+  config.hidden_dim = 25;
+  config.output_layers = { 30, 10, 3 };
+  LSTMHelper<> model(config);
+
+  EXPECT_EQ(model.getLSTMGrdSharedSizeBytes(), 12400);
+  EXPECT_EQ(model.getGrdSharedSizeBytes(), 13808);
+  EXPECT_EQ(model.getBlkSharedSizeBytes(), (25 * 3 + 5 + 31 * 2) * sizeof(float) + 8);
+
+  EXPECT_EQ(model.getHiddenDim(), 25);
+  EXPECT_EQ(model.getInputDim(), 5);
+  EXPECT_EQ(model.getOutputDim(), 3);
+  EXPECT_EQ(model.getHiddenHiddenSize(), 25 * 25);
+  EXPECT_EQ(model.getInputHiddenSize(), 5 * 25);
+
+  float* W_im = model.getWeights();
+  float* W_fm = model.getWeights() + model.getHiddenHiddenSize();
+  float* W_om = model.getWeights() + 2 * model.getHiddenHiddenSize();
+  float* W_cm = model.getWeights() + 3 * model.getHiddenHiddenSize();
+  for (int i = 0; i < 25 * 25; i++)
+  {
+    EXPECT_FLOAT_EQ(W_im[i], 0.0f);
+    EXPECT_FLOAT_EQ(W_fm[i], 0.0f);
+    EXPECT_FLOAT_EQ(W_cm[i], 0.0f);
+    EXPECT_FLOAT_EQ(W_om[i], 0.0f);
+  }
+
+  float* W_ii = model.getWeights() + 4 * model.getHiddenHiddenSize();
+  float* W_fi = model.getWeights() + 4 * model.getHiddenHiddenSize() + model.getInputHiddenSize();
+  float* W_oi = model.getWeights() + 4 * model.getHiddenHiddenSize() + 2 * model.getInputHiddenSize();
+  float* W_ci = model.getWeights() + 4 * model.getHiddenHiddenSize() + 3 * model.getInputHiddenSize();
+  for (int i = 0; i < 5 * 25; i++)
+  {
+    EXPECT_FLOAT_EQ(W_ii[i], 0.0f);
+    EXPECT_FLOAT_EQ(W_fi[i], 0.0f);
+    EXPECT_FLOAT_EQ(W_oi[i], 0.0f);
+    EXPECT_FLOAT_EQ(W_ci[i], 0.0f);
+  }
+
+  float* b_i = model.getWeights() + 4 * model.getHiddenHiddenSize() + 4 * model.getInputHiddenSize();
+  float* b_f =
+      model.getWeights() + 4 * model.getHiddenHiddenSize() + 4 * model.getInputHiddenSize() + model.getHiddenDim();
+  float* b_o =
+      model.getWeights() + 4 * model.getHiddenHiddenSize() + 4 * model.getInputHiddenSize() + 2 * model.getHiddenDim();
+  float* b_c =
+      model.getWeights() + 4 * model.getHiddenHiddenSize() + 4 * model.getInputHiddenSize() + 3 * model.getHiddenDim();
+  for (int i = 0; i < 25; i++)
+  {
+    EXPECT_FLOAT_EQ(b_i[i], 0.0f);
+    EXPECT_FLOAT_EQ(b_f[i], 0.0f);
+    EXPECT_FLOAT_EQ(b_o[i], 0.0f);
+    EXPECT_FLOAT_EQ(b_c[i], 0.0f);
+  }
+
+  float* init_hidden =
+      model.getWeights() + 4 * model.getHiddenHiddenSize() + 4 * model.getInputHiddenSize() + 4 * model.getHiddenDim();
+  float* init_cell =
+      model.getWeights() + 4 * model.getHiddenHiddenSize() + 4 * model.getInputHiddenSize() + 5 * model.getHiddenDim();
+  for (int i = 0; i < 25; i++)
+  {
+    EXPECT_FLOAT_EQ(init_hidden[i], 0.0f);
+    EXPECT_FLOAT_EQ(init_cell[i], 0.0f);
+  }
+}
+
 TEST_F(LSTMHelperTest, ParamsConstructor2)
 {
   int total_amount = 0;

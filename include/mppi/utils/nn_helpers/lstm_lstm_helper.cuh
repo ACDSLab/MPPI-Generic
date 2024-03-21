@@ -11,6 +11,11 @@ template <bool USE_SHARED = true>
 class LSTMLSTMHelper
 {
 public:
+  LSTMLSTMHelper<USE_SHARED>(LSTMConfig init_config, LSTMConfig pred_config, int init_len, cudaStream_t stream = 0)
+    : LSTMLSTMHelper<USE_SHARED>(init_config.input_dim, init_config.hidden_dim, init_config.output_layers,
+                                 pred_config.input_dim, pred_config.hidden_dim, pred_config.output_layers, init_len, stream)
+  {
+  }
   LSTMLSTMHelper<USE_SHARED>(int init_input_dim, int init_hidden_dim, std::vector<int>& init_output_layers,
                              int input_dim, int hidden_dim, std::vector<int>& output_layers, int init_len,
                              cudaStream_t = 0);

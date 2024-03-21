@@ -3,6 +3,13 @@
 
 #include "fnn_helper.cuh"
 
+struct LSTMConfig {
+  int input_dim = -1;
+  int hidden_dim = -1;
+  std::vector<int> output_layers = {-1};
+
+};
+
 template <bool USE_SHARED = true>
 class LSTMHelper : public Managed
 {
@@ -13,6 +20,7 @@ public:
 
   // TODO create destructor that deallocates memory
 
+  LSTMHelper<USE_SHARED>(LSTMConfig& config, cudaStream_t stream = 0);
   LSTMHelper<USE_SHARED>(int input_dim, int hidden_dim, std::vector<int>& output_layers, cudaStream_t stream = 0);
   LSTMHelper<USE_SHARED>(std::string, cudaStream_t stream = 0);
   LSTMHelper<USE_SHARED>(const cnpy::npz_t& param_dict, std::string prefix, bool add_slash = true,
