@@ -476,6 +476,34 @@ public:
   {
   }
 
+  bool checkIfKeysInBuffer(const buffer_trajectory& buffer, std::vector<std::string>& needed_keys)
+  {
+    bool missing_key = false;
+    for (const auto& key : needed_keys)
+    {
+      if (buffer.find(key) == buffer.end())
+      {  // Print out all missing keys
+        std::cout << "Could not find key " << key << " in init buffer for " << this->getDynamicsModelName() << std::endl;
+        missing_key = true;
+      }
+    }
+    return missing_key;
+  }
+
+  bool checkIfKeysInMap(const std::map<std::string, float>& map, std::vector<std::string>& needed_keys)
+  {
+    bool missing_key = false;
+    for (const auto& key : needed_keys)
+    {
+      if (map.find(key) == map.end())
+      {  // Print out all missing keys
+        std::cout << "Could not find key " << key << " in state map for " << this->getDynamicsModelName() << std::endl;
+        missing_key = true;
+      }
+    }
+    return missing_key;
+  }
+
   virtual state_array stateFromMap(const std::map<std::string, float>& map) = 0;
 
   // control ranges [.x, .y]
