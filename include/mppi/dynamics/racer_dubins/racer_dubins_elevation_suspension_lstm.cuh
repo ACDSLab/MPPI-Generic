@@ -82,8 +82,16 @@ public:
   using PARENT_CLASS::computeParametricDelayDeriv;
   using PARENT_CLASS::computeUncertaintyPropagation;
 
-  RacerDubinsElevationSuspensionImpl(cudaStream_t stream = nullptr);
-  RacerDubinsElevationSuspensionImpl(PARAMS_T& params, cudaStream_t stream = nullptr);
+  RacerDubinsElevationSuspensionImpl(LSTMLSTMConfig config, cudaStream_t stream)
+    : RacerDubinsElevationSuspensionImpl(config.init_config.input_dim, config.init_config.hidden_dim, config.init_config.output_layers,
+                                         config.pred_config.input_dim, config.pred_config.hidden_dim, config.pred_config.output_layers,
+                                         config.init_len, stream)
+  {
+  }
+
+  RacerDubinsElevationSuspensionImpl(int init_input_dim, int init_hidden_dim, std::vector<int>& init_output_layers,
+                                     int input_dim, int hidden_dim, std::vector<int>& output_layers, int init_len,
+                                     cudaStream_t stream);
   RacerDubinsElevationSuspensionImpl(std::string path, cudaStream_t stream = nullptr);
 
   std::string getDynamicsModelName() const override

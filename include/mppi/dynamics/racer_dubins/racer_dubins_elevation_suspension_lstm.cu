@@ -59,24 +59,7 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
 
   DYN_PARAMS_T* params_p = &(this->params_);
 
-  const float parametric_accel =
-      fmaxf(fminf((control(C_INDEX(STEER_CMD)) * params_p->steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
-                      params_p->steering_constant,
-                  params_p->max_steer_rate),
-            -params_p->max_steer_rate);
-  state_der(S_INDEX(STEER_ANGLE_RATE)) =
-      (parametric_accel - state(S_INDEX(STEER_ANGLE_RATE))) * params_p->steer_accel_constant -
-      state(S_INDEX(STEER_ANGLE_RATE)) * params_p->steer_accel_drag_constant;
-
-  typename LSTM::input_array input;
-  input(0) = state(S_INDEX(STEER_ANGLE)) * 0.2f;
-  input(1) = state(S_INDEX(STEER_ANGLE_RATE)) * 0.2f;
-  input(2) = control(C_INDEX(STEER_CMD));
-  input(3) = state_der(S_INDEX(STEER_ANGLE_RATE)) * 0.2f;  // this is the parametric part as input
-  typename LSTM::output_array nn_output = LSTM::output_array::Zero();
-  this->lstm_lstm_helper_->forward(input, nn_output);
-  state_der(S_INDEX(STEER_ANGLE_RATE)) += nn_output(0) * 5.0f;
-  state_der(S_INDEX(STEER_ANGLE)) = state(S_INDEX(STEER_ANGLE_RATE));
+  this->computeLSTMSteering(state, control, state_der);
 
   // Calculate suspension-based state derivatives
   const float& x = state(S_INDEX(POS_X));
@@ -226,33 +209,9 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
   int pi, step;
   mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(pi, step);
 
-  // loads in the input to the network
-  float* input_loc = this->network_d_->getInputLocation(theta_s, grd_shift, blk_shift, sb_shift);
-  if (pi == 0)
-  {
-    const float parametric_accel =
-        fmaxf(fminf((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
-                        params_p->steering_constant,
-                    params_p->max_steer_rate),
-              -params_p->max_steer_rate);
-    state_der[S_INDEX(STEER_ANGLE_RATE)] =
-        (parametric_accel - state[S_INDEX(STEER_ANGLE_RATE)]) * params_p->steer_accel_constant -
-        state[S_INDEX(STEER_ANGLE_RATE)] * params_p->steer_accel_drag_constant;
 
-    input_loc[0] = state[S_INDEX(STEER_ANGLE)] * 0.2f;
-    input_loc[1] = state[S_INDEX(STEER_ANGLE_RATE)] * 0.2f;
-    input_loc[2] = control[C_INDEX(STEER_CMD)];
-    input_loc[3] = state_der[S_INDEX(STEER_ANGLE_RATE)] * 0.2f;  // this is the parametric part as input
-  }
-  __syncthreads();
-  // runs the network
-  float* cur_hidden_cell = this->network_d_->getHiddenCellLocation(theta_s, grd_shift, blk_shift, sb_shift);
-  float* nn_output = this->network_d_->forward(nullptr, theta_s, cur_hidden_cell);
-  // copies the results of the network to state derivative
   if (pi == 0)
   {
-    state_der[S_INDEX(STEER_ANGLE_RATE)] += nn_output[0] * 5.0f;
-    state_der[S_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE_RATE)];
     state_der[S_INDEX(CG_VEL_I_Z)] = 0.0f;
     state_der[S_INDEX(ROLL_RATE)] = 0.0f;
     state_der[S_INDEX(PITCH_RATE)] = 0.0f;
@@ -262,8 +221,9 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
     output[O_INDEX(WHEEL_FORCE_UP_MAX)] = 0.0f;
     output[O_INDEX(WHEEL_FORCE_FWD_MAX)] = 0.0f;
     output[O_INDEX(WHEEL_FORCE_SIDE_MAX)] = 0.0f;
-  }
-  __syncthreads();
+  }  // sync threads happening internally to computeLSTMSteering call
+  computeLSTMSteering(state, control, state_der, params_p, theta_s, grd_shift, blk_shift, sb_shift);
+
   // Calculate suspension-based state derivatives
   const float& x = state[S_INDEX(POS_X)];
   const float& y = state[S_INDEX(POS_Y)];

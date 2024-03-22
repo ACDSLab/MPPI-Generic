@@ -53,6 +53,9 @@ public:
 
   void updateFromBuffer(const buffer_trajectory& buffer);
 
+  void computeLSTMSteering(Eigen::Ref<state_array> state, const Eigen::Ref<const control_array>& control,
+                           Eigen::Ref<state_array> state_der);
+
   void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
             const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,
             const float dt);
@@ -66,6 +69,10 @@ public:
   __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
+
+  __device__ void computeLSTMSteering(float* state, float* control, float* state_der,
+                                      DYN_PARAMS_T* params_p, float* theta_s, const int grd_shift, const int blk_shift,
+                                      const int sb_shift);
 
   void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
                    Eigen::Ref<state_array> state_der, const float dt);

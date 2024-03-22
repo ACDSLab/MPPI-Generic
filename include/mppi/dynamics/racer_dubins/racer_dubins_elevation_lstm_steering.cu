@@ -64,13 +64,9 @@ void TEMPLATE_NAME::freeCudaMem()
 }
 
 TEMPLATE_TYPE
-void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
-                         Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
-                         Eigen::Ref<output_array> output, const float t, const float dt)
+void TEMPLATE_NAME::computeLSTMSteering(Eigen::Ref<state_array> state, const Eigen::Ref<const control_array>& control,
+                                        Eigen::Ref<state_array> state_der)
 {
-  this->computeParametricDelayDeriv(state, control, state_der);
-  this->computeParametricAccelDeriv(state, control, state_der, dt);
-
   const float parametric_accel = fmaxf(
       fminf((control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
                 this->params_.steering_constant,
@@ -89,6 +85,16 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
   lstm_lstm_helper_->forward(input, nn_output);
   state_der(S_INDEX(STEER_ANGLE_RATE)) += nn_output(0) * 5.0f;
   state_der(S_INDEX(STEER_ANGLE)) = state(S_INDEX(STEER_ANGLE_RATE));
+}
+
+TEMPLATE_TYPE
+void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                         Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
+                         Eigen::Ref<output_array> output, const float t, const float dt)
+{
+  this->computeParametricDelayDeriv(state, control, state_der);
+  this->computeParametricAccelDeriv(state, control, state_der, dt);
+  this->computeLSTMSteering(state, control, state_der);
 
   // Integrate using racer_dubins updateState
   updateState(state, next_state, state_der, dt);
@@ -122,36 +128,11 @@ __device__ void TEMPLATE_NAME::initializeDynamics(float* state, float* control, 
   setOutputs(state, state, output);
 }
 
-TEMPLATE_TYPE
-__device__ inline void TEMPLATE_NAME::step(float* state, float* next_state, float* state_der, float* control,
-                                           float* output, float* theta_s, const float t, const float dt)
+template <class CLASS_T, class PARAMS_T>
+__device__ void RacerDubinsElevationLSTMSteeringImpl<CLASS_T, PARAMS_T>::computeLSTMSteering(
+    float* state, float* control, float* state_der, DYN_PARAMS_T* params_p, float* theta_s, const int grd_shift,
+    const int blk_shift, const int sb_shift)
 {
-  DYN_PARAMS_T* params_p;
-  SharedBlock* sb;
-  // TODO below conficts in a bad way
-  // if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
-  // {  // Allows us to turn on or off global or shared memory version of params
-  //   params_p = (DYN_PARAMS_T*)theta_s;
-  // }
-  // else
-  // {
-  //   params_p = &(this->params_);
-  // }
-  params_p = &(this->params_);
-  const int grd_shift = this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);  // grid size to shift by
-  const int blk_shift = this->SHARED_MEM_REQUEST_BLK_BYTES * (threadIdx.x + blockDim.x * threadIdx.z) /
-                        sizeof(float);                       // blk size to shift by
-  const int sb_shift = sizeof(SharedBlock) / sizeof(float);  // how much to shift inside a block to lstm values
-  if (this->SHARED_MEM_REQUEST_BLK_BYTES != 0)
-  {
-    float* sb_mem = &theta_s[grd_shift];  // does the grid shift
-    sb = (SharedBlock*)(sb_mem + blk_shift);
-  }
-  computeParametricDelayDeriv(state, control, state_der, params_p);
-  computeParametricAccelDeriv(state, control, state_der, dt, params_p);
-
-  // computes the velocity dot
-
   const uint tdy = threadIdx.y;
 
   // loads in the input to the network
@@ -183,10 +164,41 @@ __device__ inline void TEMPLATE_NAME::step(float* state, float* next_state, floa
     state_der[S_INDEX(STEER_ANGLE)] = state[S_INDEX(STEER_ANGLE_RATE)];
   }
   __syncthreads();
+}
+
+TEMPLATE_TYPE
+__device__ inline void TEMPLATE_NAME::step(float* state, float* next_state, float* state_der, float* control,
+                                           float* output, float* theta_s, const float t, const float dt)
+{
+  DYN_PARAMS_T* params_p;
+  SharedBlock* sb;
+  // TODO below conficts in a bad way
+  // if (PARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
+  // {  // Allows us to turn on or off global or shared memory version of params
+  //   params_p = (DYN_PARAMS_T*)theta_s;
+  // }
+  // else
+  // {
+  //   params_p = &(this->params_);
+  // }
+  params_p = &(this->params_);
+  const int grd_shift = this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);  // grid size to shift by
+  const int blk_shift = this->SHARED_MEM_REQUEST_BLK_BYTES * (threadIdx.x + blockDim.x * threadIdx.z) /
+                        sizeof(float);                       // blk size to shift by
+  const int sb_shift = sizeof(SharedBlock) / sizeof(float);  // how much to shift inside a block to lstm values
+  if (this->SHARED_MEM_REQUEST_BLK_BYTES != 0)
+  {
+    float* sb_mem = &theta_s[grd_shift];  // does the grid shift
+    sb = (SharedBlock*)(sb_mem + blk_shift);
+  }
+  computeParametricDelayDeriv(state, control, state_der, params_p);
+  computeParametricAccelDeriv(state, control, state_der, dt, params_p);
+
+  computeLSTMSteering(state, control, state_der, params_p, theta_s, grd_shift, blk_shift, sb_shift);
 
   updateState(state, next_state, state_der, dt);
   computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb);
-  if (tdy == 0)
+  if (threadIdx.y == 0)
   {
     float roll = state[S_INDEX(ROLL)];
     float pitch = state[S_INDEX(PITCH)];

@@ -81,7 +81,7 @@ TEST_F(LSTMLSTMHelperTest, BindStreamAndConstructor)
   }
 }
 
-TEST_F(LSTMLSTMHelperTest, BindStreamAndConstructorConfig)
+TEST_F(LSTMLSTMHelperTest, BindStreamAndConstructorConfigLSTM)
 {
   cudaStream_t stream;
   HANDLE_ERROR(cudaStreamCreate(&stream));
@@ -118,6 +118,46 @@ TEST_F(LSTMLSTMHelperTest, BindStreamAndConstructorConfig)
     EXPECT_FLOAT_EQ(cell(i), 0.0f);
   }
 }
+
+TEST_F(LSTMLSTMHelperTest, BindStreamAndConstructorConfigLSTMLSTM)
+{
+  cudaStream_t stream;
+  HANDLE_ERROR(cudaStreamCreate(&stream));
+  LSTMLSTMConfig config;
+  config.init_config.input_dim = init_input_dim;
+  config.init_config.hidden_dim = init_hidden_dim;
+  config.init_config.output_layers = init_output_layers;
+  config.pred_config.input_dim = input_dim;
+  config.pred_config.hidden_dim = hidden_dim;
+  config.pred_config.output_layers = output_layers;
+  config.init_len = init_len;
+
+  LSTMLSTMHelper<> helper(config, stream);
+
+  EXPECT_EQ(helper.getLSTMModel()->stream_, stream);
+  EXPECT_NE(helper.getLSTMModel(), nullptr);
+
+  EXPECT_EQ(helper.getLSTMModel()->getInputDim(), input_dim);
+  EXPECT_EQ(helper.getLSTMModel()->getOutputDim(), output_dim);
+  EXPECT_EQ(helper.getLSTMModel()->getHiddenDim(), hidden_dim);
+
+  EXPECT_EQ(helper.getInitModel()->getInputDim(), init_input_dim);
+  EXPECT_EQ(helper.getInitModel()->getOutputDim(), 2 * hidden_dim);
+  EXPECT_EQ(helper.getInitModel()->getHiddenDim(), init_hidden_dim);
+
+  auto init_lstm = helper.getInitModel();
+  EXPECT_NE(init_lstm, nullptr);
+
+  auto hidden = init_lstm->getHiddenState();
+  auto cell = init_lstm->getCellState();
+  for (int i = 0; i < init_lstm->getHiddenDim(); i++)
+
+  {
+    EXPECT_FLOAT_EQ(hidden(i), 0.0f);
+    EXPECT_FLOAT_EQ(cell(i), 0.0f);
+  }
+}
+
 TEST_F(LSTMLSTMHelperTest, initializeLSTMLSTMTest)
 {
   LSTMLSTMHelper<> helper(init_input_dim, init_hidden_dim, init_output_layers, input_dim, hidden_dim, output_layers,
