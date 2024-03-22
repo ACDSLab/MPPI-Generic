@@ -34,7 +34,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, Template)
   EXPECT_EQ(2, RacerDubinsElevationLSTMSteering::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
-  EXPECT_EQ(dynamics.getBlkSharedSizeBytes(), 432);
+  EXPECT_EQ(dynamics.getBlkSharedSizeBytes(), 384);
   EXPECT_EQ(dynamics.getGrdSharedSizeBytes(), 1408);
 }
 

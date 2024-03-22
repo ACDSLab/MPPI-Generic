@@ -343,12 +343,12 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
   float delta = state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale;
   __sincosf(yaw_norm, &sin_yaw, &cos_yaw);
   tan_steer_angle = __tanf(delta);
-  cos_2_delta = __cosf(delta) * __cosf(delta);
+  cos_2_delta = SQ(__cosf(delta));
 #else
   sincosf(state[S_INDEX(YAW)], &sin_yaw, &cos_yaw);
   float delta = state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale;
   tan_steer_angle = tanf(delta);
-  cos_2_delta = cosf(delta) * cosf(delta);
+  cos_2_delta = SQ(cosf(delta));
 #endif
   // const float cos_2_delta = cos_yaw * cos_yaw;
 

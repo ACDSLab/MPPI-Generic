@@ -37,7 +37,7 @@ TEST_F(LSTMHelperTest, ParamsConstructor1)
 
   EXPECT_EQ(model.getLSTMGrdSharedSizeBytes(), 12400);
   EXPECT_EQ(model.getGrdSharedSizeBytes(), 13808);
-  EXPECT_EQ(model.getBlkSharedSizeBytes(), (25 * 3 + 5 + 31 * 2) * sizeof(float) + 8);
+  EXPECT_EQ(model.getBlkSharedSizeBytes(), (25 * 2 + 30 * 2) * sizeof(float) + 8);
 
   EXPECT_EQ(model.getHiddenDim(), 25);
   EXPECT_EQ(model.getInputDim(), 5);
@@ -105,7 +105,7 @@ TEST_F(LSTMHelperTest, ConfigConstructor)
 
   EXPECT_EQ(model.getLSTMGrdSharedSizeBytes(), 12400);
   EXPECT_EQ(model.getGrdSharedSizeBytes(), 13808);
-  EXPECT_EQ(model.getBlkSharedSizeBytes(), (25 * 3 + 5 + 31 * 2) * sizeof(float) + 8);
+  EXPECT_EQ(model.getBlkSharedSizeBytes(), (25 * 2 + 30 * 2) * sizeof(float) + 8);
 
   EXPECT_EQ(model.getHiddenDim(), 25);
   EXPECT_EQ(model.getInputDim(), 5);

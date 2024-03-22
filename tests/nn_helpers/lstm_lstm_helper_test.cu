@@ -225,7 +225,7 @@ TEST_F(LSTMLSTMHelperTest, GPUSetupAndParamsCheck)
                                                shared_fnn_params, grid_dim);
 
   EXPECT_EQ(model.getLSTMModel()->getOutputModel()->getGrdSharedSizeBytes() / sizeof(float), 44);
-  EXPECT_EQ(model.getLSTMModel()->getOutputModel()->getBlkSharedSizeBytes() / sizeof(float), 40);
+  EXPECT_EQ(model.getLSTMModel()->getOutputModel()->getBlkSharedSizeBytes() / sizeof(float), 36);
   EXPECT_EQ(model.getLSTMModel()->getOutputModel()->getNumParams(), 38);
 
   int grd_size = model.getLSTMModel()->getOutputModel()->getGrdSharedSizeBytes() / sizeof(float);

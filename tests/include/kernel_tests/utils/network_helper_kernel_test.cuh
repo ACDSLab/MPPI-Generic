@@ -243,6 +243,7 @@ __global__ void forwardTestKernelPreload(NETWORK_T* network, float* input, float
     {
       input_loc[i] = local_input[i];
     }
+    __syncthreads();
 
     float* curr_act = nullptr;
     for (uint step = 0; step < steps; step++)

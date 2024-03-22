@@ -35,11 +35,11 @@ TEST(ARNeuralNetDynamics, verifyTemplateParamters)
   EXPECT_EQ(net_structure[2], 32);
   EXPECT_EQ(net_structure[3], 4);
 
-  EXPECT_EQ(model.getHelperPtr()->getLargestLayer(), 33);
+  EXPECT_EQ(model.getHelperPtr()->getLargestLayer(), 32);
   EXPECT_EQ(model.getHelperPtr()->getNumParams(), (6 + 1) * 32 + (32 + 1) * 32 + (32 + 1) * 4);
-  EXPECT_EQ(model.getBlkSharedSizeBytes(), 272);
+  EXPECT_EQ(model.getBlkSharedSizeBytes(), 256);
   EXPECT_EQ(model.getGrdSharedSizeBytes(), 5696);
-  EXPECT_EQ(model.getHelperPtr()->getBlkSharedSizeBytes(), 272);
+  EXPECT_EQ(model.getHelperPtr()->getBlkSharedSizeBytes(), 256);
   EXPECT_EQ(model.getHelperPtr()->getGrdSharedSizeBytes(), 5696);
 }
 

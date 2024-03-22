@@ -54,9 +54,8 @@ void LSTMHelper<USE_SHARED>::setupMemory(int input_dim, int hidden_dim)
   LSTM_SHARED_MEM_GRD_BYTES = mppi::math::int_multiple_const(LSTM_PARAM_SIZE_BYTES * USE_SHARED, sizeof(float4));
 
   SHARED_MEM_REQUEST_GRD_BYTES = output_nn_->getGrdSharedSizeBytes() + LSTM_SHARED_MEM_GRD_BYTES;
-  SHARED_MEM_REQUEST_BLK_BYTES =
-      output_nn_->getBlkSharedSizeBytes() +
-      mppi::math::int_multiple_const((3 * HIDDEN_DIM + INPUT_DIM) * sizeof(float), sizeof(float4));
+  SHARED_MEM_REQUEST_BLK_BYTES = output_nn_->getBlkSharedSizeBytes() +
+                                 mppi::math::int_multiple_const((2 * HIDDEN_DIM) * sizeof(float), sizeof(float4));
 
   hidden_state_ = Eigen::VectorXf(HIDDEN_DIM);
   hidden_state_.setZero();
@@ -374,15 +373,15 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
 
   // Intermediate outputs
   // for each block we have prior cell/hidden state
-  float* h = &hidden_cell[0];
-  float* c = &hidden_cell[HIDDEN_DIM];
+  float* const h = &hidden_cell[0];
+  float* const c = &hidden_cell[HIDDEN_DIM];
 
   // each block has place to compute g_o, and input
-  float* g_o = &block_ptr[0];  // output gate
-  float* x = &block_ptr[HIDDEN_DIM];
+  float* const g_o = &block_ptr[0];  // output gate
+  float* const x = &block_ptr[HIDDEN_DIM];
 
   // FNN needs space for input and activations
-  float* output_act = &block_ptr[HIDDEN_DIM + INPUT_DIM];
+  float* const output_act = g_o;
 
   uint tdy = threadIdx.y;
 
@@ -393,17 +392,16 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
     {
       x[i] = input[i];
     }
+    __syncthreads();
   }
-  __syncthreads();
 
-  int index = 0;
-  // apply each gate in parallel
 
   float temp_g_i = 0;
   float temp_g_f = 0;
   float temp_g_o = 0;
   float temp_cell_update = 0;
 
+  // apply each gate in parallel
   for (i = tdy; i < HIDDEN_DIM; i += blockDim.y)
   {
     temp_g_i = 0;
@@ -412,7 +410,7 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
     temp_cell_update = 0;
     for (j = 0; j < INPUT_DIM; j++)
     {
-      index = i * INPUT_DIM + j;
+      int index = i * INPUT_DIM + j;
       temp_g_i += W_ii[index] * x[j];
       temp_g_f += W_fi[index] * x[j];
       temp_g_o += W_oi[index] * x[j];
@@ -420,7 +418,7 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
     }
     for (j = 0; j < HIDDEN_DIM; j++)
     {
-      index = i * HIDDEN_DIM + j;
+      int index = i * HIDDEN_DIM + j;
       temp_g_i += W_im[index] * h[j];
       temp_g_f += W_fm[index] * h[j];
       temp_g_o += W_om[index] * h[j];
@@ -449,10 +447,10 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
   }
 
   // copy input to activation
-  for (i = tdy; i < INPUT_DIM; i += blockDim.y)
-  {
-    output_act[i + HIDDEN_DIM] = x[i];
-  }
+  // for (i = tdy; i < INPUT_DIM; i += blockDim.y)
+  // {
+  //   output_act[i + HIDDEN_DIM] = x[i];
+  // }
 
   return output_nn_->forward(nullptr, theta_s + LSTM_SHARED_MEM_GRD_BYTES / sizeof(float), output_act);
 }

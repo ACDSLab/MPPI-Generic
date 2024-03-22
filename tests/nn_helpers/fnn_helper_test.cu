@@ -35,7 +35,7 @@ TEST_F(FNNHelperTest, ParamsConstructor1)
   FNNHelper<> helper(vec);
 
   EXPECT_EQ(helper.getNumLayers(), 3);
-  EXPECT_EQ(helper.getLargestLayer(), 11);
+  EXPECT_EQ(helper.getLargestLayer(), 10);
   EXPECT_EQ(helper.getNumParams(), 93);
 
   auto stride = helper.getStrideIdcsPtr();
@@ -58,7 +58,7 @@ TEST_F(FNNHelperTest, ParamsConstructor1)
   const int shared_mem_grd = helper.getGrdSharedSizeBytes();
   const int shared_mem_blk = helper.getBlkSharedSizeBytes();
   EXPECT_EQ(shared_mem_grd, 400);
-  EXPECT_EQ(shared_mem_blk, 96);
+  EXPECT_EQ(shared_mem_blk, 80);
 }
 
 TEST_F(FNNHelperTest, ParamsConstructor2)
@@ -67,7 +67,7 @@ TEST_F(FNNHelperTest, ParamsConstructor2)
   FNNHelper<> helper(layers);
   EXPECT_EQ(helper.getNumLayers(), 5);
   EXPECT_EQ(helper.getNumParams(), 355);
-  EXPECT_EQ(helper.getLargestLayer(), 21);
+  EXPECT_EQ(helper.getLargestLayer(), 20);
 
   auto stride = helper.getStrideIdcsPtr();
   EXPECT_EQ(stride[0], 0);
@@ -95,7 +95,7 @@ TEST_F(FNNHelperTest, ParamsConstructor2)
   const int shared_mem_grd = helper.getGrdSharedSizeBytes();
   const int shared_mem_blk = helper.getBlkSharedSizeBytes();
   EXPECT_EQ(shared_mem_grd, 1472);
-  EXPECT_EQ(shared_mem_blk, 176);
+  EXPECT_EQ(shared_mem_blk, 160);
 }
 
 TEST_F(FNNHelperTest, ParamsConstructor3)
@@ -104,7 +104,7 @@ TEST_F(FNNHelperTest, ParamsConstructor3)
   FNNHelper<> helper(layers);
 
   EXPECT_EQ(helper.getNumLayers(), 2);
-  EXPECT_EQ(helper.getLargestLayer(), 6);
+  EXPECT_EQ(helper.getLargestLayer(), 5);
   EXPECT_EQ(helper.getNumParams(), 18);
   EXPECT_EQ(helper.getGrdSharedSizeBytes(), 96);
   EXPECT_EQ(helper.getBlkSharedSizeBytes(), 12 * 4);

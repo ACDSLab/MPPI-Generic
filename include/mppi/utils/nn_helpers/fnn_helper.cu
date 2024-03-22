@@ -139,14 +139,15 @@ void FNNHelper<USE_SHARED>::setupMemory(const std::vector<int>& layers)
   }
 
   NUM_LAYERS = layers.size();
-  LARGEST_LAYER = layers[0] + 1;
+  LARGEST_LAYER = layers[0];
   STRIDE_SIZE = (NUM_LAYERS - 1) * 2;
   for (int i = 1; i < layers.size(); i++)
   {
+    // the +1 here is from the bias
     NUM_PARAMS += (layers[i - 1] + 1) * layers[i];
     if (layers[i] > LARGEST_LAYER)
     {
-      LARGEST_LAYER = layers[i] + 1;
+      LARGEST_LAYER = layers[i];
     }
   }
   INPUT_DIM = layers.front();
