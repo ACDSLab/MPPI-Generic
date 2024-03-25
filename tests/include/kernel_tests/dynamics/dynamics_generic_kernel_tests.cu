@@ -289,7 +289,7 @@ void launchComputeStateDerivTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
   cudaFree(control_d);
 }
 
-template <typename DYNAMICS_T, int BLOCKDIM_X>
+template <typename DYNAMICS_T>
 __global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* control, float* state_der, float* next_state,
                                float* output, int t, float dt, int num)
 {
@@ -321,11 +321,24 @@ __global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* contro
   }
 }
 
-template <typename DYNAMICS_T, int BLOCKDIM_X = 32>
+template <typename DYNAMICS_T, int BLOCKDIM_X = 32>  // here for compatability
 void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& state,
                           std::vector<std::array<float, DYNAMICS_T::CONTROL_DIM>>& control,
                           std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& state_der,
-                          std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& next_state, int t, float dt, int dim_y)
+                          std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& next_state, int t, float dt, int dim_y,
+                          int dim_x = 32)
+{
+  std::vector<std::array<float, DYNAMICS_T::OUTPUT_DIM>> output(state.size());
+  launchStepTestKernel(dynamics, state, control, state_der, next_state, output, t, dt, dim_y, dim_x);
+}
+
+template <typename DYNAMICS_T>
+void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& state,
+                          std::vector<std::array<float, DYNAMICS_T::CONTROL_DIM>>& control,
+                          std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& state_der,
+                          std::vector<std::array<float, DYNAMICS_T::STATE_DIM>>& next_state,
+                          std::vector<std::array<float, DYNAMICS_T::OUTPUT_DIM>>& output, int t, float dt, int dim_y,
+                          int dim_x)
 {
   if (state.size() != control.size())
   {
@@ -356,19 +369,20 @@ void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DY
 
   HANDLE_ERROR(
       cudaMemcpy(state_d, state.data(), sizeof(float) * DYNAMICS_T::STATE_DIM * count, cudaMemcpyHostToDevice));
-  HANDLE_ERROR(
-      cudaMemcpy(state_der_d, state_der.data(), sizeof(float) * DYNAMICS_T::STATE_DIM * count, cudaMemcpyHostToDevice));
-  HANDLE_ERROR(cudaMemcpy(next_state_d, next_state.data(), sizeof(float) * DYNAMICS_T::STATE_DIM * count,
-                          cudaMemcpyHostToDevice));
+  // HANDLE_ERROR(
+  //     cudaMemcpy(state_der_d, state_der.data(), sizeof(float) * DYNAMICS_T::STATE_DIM * count,
+  //     cudaMemcpyHostToDevice));
+  // HANDLE_ERROR(cudaMemcpy(next_state_d, next_state.data(), sizeof(float) * DYNAMICS_T::STATE_DIM * count,
+  //                         cudaMemcpyHostToDevice));
   HANDLE_ERROR(
       cudaMemcpy(control_d, control.data(), sizeof(float) * DYNAMICS_T::CONTROL_DIM * count, cudaMemcpyHostToDevice));
 
-  const int gridsize_x = (count - 1) / BLOCKDIM_X + 1;
-  dim3 threadsPerBlock(BLOCKDIM_X, dim_y);
+  const int gridsize_x = (count - 1) / dim_x + 1;
+  dim3 threadsPerBlock(dim_x, dim_y);
   dim3 numBlocks(gridsize_x, 1);
 
   unsigned shared_mem = mppi::kernels::calcClassSharedMemSize(&dynamics, threadsPerBlock);
-  stepTestKernel<DYNAMICS_T, BLOCKDIM_X><<<numBlocks, threadsPerBlock, shared_mem>>>(
+  stepTestKernel<DYNAMICS_T><<<numBlocks, threadsPerBlock, shared_mem>>>(
       dynamics.model_d_, state_d, control_d, state_der_d, next_state_d, output_d, t, dt, count);
   CudaCheckError();
 
@@ -381,6 +395,8 @@ void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DY
                           cudaMemcpyDeviceToHost));
   HANDLE_ERROR(
       cudaMemcpy(control.data(), control_d, sizeof(float) * DYNAMICS_T::CONTROL_DIM * count, cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(
+      cudaMemcpy(output.data(), output_d, sizeof(float) * DYNAMICS_T::OUTPUT_DIM * count, cudaMemcpyDeviceToHost));
   cudaDeviceSynchronize();
 
   cudaFree(state_d);
@@ -388,4 +404,95 @@ void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DY
   cudaFree(control_d);
   cudaFree(next_state_d);
   cudaFree(output_d);
+}
+
+template <class DYN_T>
+void checkGPUComputationStep(DYN_T& dynamics, float dt, int max_y_dim, int x_dim,
+                             typename DYN_T::buffer_trajectory buffer, double tol = 1.0e-5)
+{
+  CudaCheckError();
+  dynamics.GPUSetup();
+  CudaCheckError();
+
+  const int num_points = 1000;
+  Eigen::Matrix<float, DYN_T::CONTROL_DIM, num_points> control_trajectory;
+  control_trajectory = Eigen::Matrix<float, DYN_T::CONTROL_DIM, num_points>::Random();
+  Eigen::Matrix<float, DYN_T::STATE_DIM, num_points> state_trajectory;
+  state_trajectory = Eigen::Matrix<float, DYN_T::STATE_DIM, num_points>::Random();
+
+  std::vector<std::array<float, DYN_T::STATE_DIM>> s(num_points);
+  std::vector<std::array<float, DYN_T::STATE_DIM>> s_der(num_points);
+  std::vector<std::array<float, DYN_T::STATE_DIM>> s_next(num_points);
+  std::vector<std::array<float, DYN_T::OUTPUT_DIM>> output(num_points);
+  // steering, throttle
+  std::vector<std::array<float, DYN_T::CONTROL_DIM>> u(num_points);
+  for (int state_index = 0; state_index < s.size(); state_index++)
+  {
+    for (int dim = 0; dim < s[0].size(); dim++)
+    {
+      s[state_index][dim] = state_trajectory.col(state_index)(dim);
+    }
+    for (int dim = 0; dim < u[0].size(); dim++)
+    {
+      u[state_index][dim] = control_trajectory.col(state_index)(dim);
+    }
+  }
+
+  // Run dynamics on GPU
+  for (int y_dim = 1; y_dim <= max_y_dim; y_dim++)
+  {
+    if (dynamics.checkRequiresBuffer())
+    {
+      dynamics.updateFromBuffer(buffer);
+    }
+    launchStepTestKernel<DYN_T>(dynamics, s, u, s_der, s_next, output, 0, dt, y_dim, x_dim);
+    for (int point = 0; point < num_points; point++)
+    {
+      typename DYN_T::state_array state = state_trajectory.col(point);
+      typename DYN_T::state_array next_state = DYN_T::state_array::Zero();
+      typename DYN_T::control_array control = control_trajectory.col(point);
+      typename DYN_T::state_array state_der_cpu = DYN_T::state_array::Zero();
+      typename DYN_T::output_array output_array_cpu = DYN_T::output_array::Zero();
+      dynamics.initializeDynamics(state, control, output_array_cpu, 0, dt);
+
+      dynamics.step(state, next_state, state_der_cpu, control, output_array_cpu, 0.0f, dt);
+
+      for (int dim = 0; dim < DYN_T::STATE_DIM; dim++)
+      {
+        EXPECT_NEAR(state(dim), s[point][dim], tol)
+            << "at sample " << point << ", state dim: " << dim << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s[point][dim]));
+      }
+      for (int dim = 0; dim < DYN_T::CONTROL_DIM; dim++)
+      {
+        EXPECT_NEAR(control(dim), u[point][dim], tol)
+            << "at sample " << point << ", control dim: " << dim << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(u[point][dim]));
+      }
+      for (int dim = 0; dim < DYN_T::STATE_DIM; dim++)
+      {
+        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], tol)
+            << "at sample " << point << ", state deriv dim: " << dim << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s_der[point][dim]));
+      }
+      for (int dim = 0; dim < DYN_T::STATE_DIM; dim++)
+      {
+        EXPECT_NEAR(next_state(dim), s_next[point][dim], tol)
+            << "at sample " << point << ", next state dim: " << dim << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s[point][dim]));
+      }
+      for (int dim = 0; dim < DYN_T::OUTPUT_DIM; dim++)
+      {
+        if (isnan(output_array_cpu(dim)) && isnan(output[point][dim]))
+        {
+          continue;
+        }
+        EXPECT_NEAR(output_array_cpu(dim), output[point][dim], tol * 1000)  // TODO this is a stupid hack
+            << "at sample " << point << ", output dim: " << dim << " with y_dim " << y_dim;
+        EXPECT_TRUE(isfinite(s_der[point][dim]));
+      }
+    }
+  }
+
+  dynamics.freeCudaMem();
 }

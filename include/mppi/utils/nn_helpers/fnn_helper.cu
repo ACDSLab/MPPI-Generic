@@ -447,8 +447,8 @@ __device__ float* FNNHelper<USE_SHARED>::forward(float* input, float* theta_s, f
     {
       curr_act[i] = input[i];
     }
+    __syncthreads();
   }
-  __syncthreads();
   // iterate through each layer
   for (i = 0; i < NUM_LAYERS - 1; i++)
   {

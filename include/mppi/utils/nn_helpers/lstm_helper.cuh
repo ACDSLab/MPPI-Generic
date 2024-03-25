@@ -35,7 +35,8 @@ public:
   void loadParams(std::string prefix, const cnpy::npz_t& npz, bool add_slash = true);
 
   __device__ void initialize(float* theta_s);
-  __device__ void initialize(float* theta_s, int blk_size, int grd_size, int offset);
+  __device__ void initialize(float* theta_s, int blk_size, int grd_size, int blk_offset);
+  __device__ void initialize(float* theta_s, int blk_size, int grd_size, int blk_offset, int grd_offset);
 
   void GPUSetup();
   void freeCudaMem();

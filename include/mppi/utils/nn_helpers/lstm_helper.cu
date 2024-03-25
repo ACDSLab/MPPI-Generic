@@ -200,7 +200,14 @@ __device__ void LSTMHelper<USE_SHARED>::initialize(float* theta_s)
 }
 
 template <bool USE_SHARED>
-__device__ void LSTMHelper<USE_SHARED>::initialize(float* theta_s, int blk_size, int grd_size, int offset)
+__device__ void LSTMHelper<USE_SHARED>::initialize(float* theta_s, int blk_size, int grd_size, int blk_offset)
+{
+  this->initialize(theta_s, blk_size, grd_size, blk_offset, 0);
+}
+
+template <bool USE_SHARED>
+__device__ void LSTMHelper<USE_SHARED>::initialize(float* theta_s, int blk_size, int grd_size, int blk_offset,
+                                                   int grd_offset)
 {
   if (USE_SHARED)
   {
@@ -211,15 +218,15 @@ __device__ void LSTMHelper<USE_SHARED>::initialize(float* theta_s, int blk_size,
     for (int i = blockDim.x * threadIdx.y + threadIdx.x; i < LSTM_PARAM_SIZE_BYTES / sizeof(float);
          i += blockDim.x * blockDim.y)
     {
-      theta_s[i] = weights_[i];
+      theta_s[i + grd_offset / sizeof(float)] = weights_[i];
     }
-    output_nn_->initialize(theta_s + LSTM_SHARED_MEM_GRD_BYTES / sizeof(float));
+    output_nn_->initialize(theta_s + grd_offset / sizeof(float) + LSTM_SHARED_MEM_GRD_BYTES / sizeof(float));
     __syncthreads();
   }
 
   // copies the initial cell and hidden state to the correct place
   const int shift =
-      grd_size / sizeof(float) + blk_size * (threadIdx.x + blockDim.x * threadIdx.z) / sizeof(float) + offset;
+      grd_size / sizeof(float) + blk_size * (threadIdx.x + blockDim.x * threadIdx.z) / sizeof(float) + blk_offset;
   for (int i = threadIdx.y; i < HIDDEN_DIM; i += blockDim.y)
   {
     (theta_s + shift)[i] = (weights_ + LSTM_PARAM_SIZE_BYTES / sizeof(float))[i];
@@ -395,7 +402,6 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
     __syncthreads();
   }
 
-
   float temp_g_i = 0;
   float temp_g_f = 0;
   float temp_g_o = 0;
@@ -451,6 +457,7 @@ __device__ float* LSTMHelper<USE_SHARED>::forward(float* input, float* theta_s, 
   // {
   //   output_act[i + HIDDEN_DIM] = x[i];
   // }
+  __syncthreads();
 
   return output_nn_->forward(nullptr, theta_s + LSTM_SHARED_MEM_GRD_BYTES / sizeof(float), output_act);
 }

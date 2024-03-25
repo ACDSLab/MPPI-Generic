@@ -30,10 +30,20 @@ LSTMLSTMHelper<USE_SHARED>::LSTMLSTMHelper(std::string path, std::string prefix,
   init_model_ = std::make_shared<LSTMHelper<false>>(param_dict, prefix + "init_", false);
   lstm_ = std::make_shared<LSTMHelper<USE_SHARED>>(param_dict, prefix, true, stream);
 
-  assert(param_dict.find("num_points") != param_dict.end());
-  int num_points = param_dict.at("num_points").data<int>()[0];
-  assert(param_dict.find("init_input") != param_dict.end());
-  init_len_ = param_dict.at("init_input").shape[0] / (num_points * init_model_->getInputDim());
+  if (param_dict.find("init_length") != param_dict.end())  // this is the new api but assert is meaningless right now
+  {
+    // TODO remove once all models are updated to the lastest export API
+    assert(param_dict.find("init_length") != param_dict.end());
+    init_len_ = static_cast<int>(param_dict.at("init_length").data<double>()[0]) + 1;
+  }
+  else
+  {
+    // old api here
+    assert(param_dict.find("num_points") != param_dict.end());
+    int num_points = param_dict.at("num_points").data<int>()[0];
+    assert(param_dict.find("init_input") != param_dict.end());
+    init_len_ = param_dict.at("init_input").shape[0] / (num_points * init_model_->getInputDim());
+  }
 }
 
 template <bool USE_SHARED>
