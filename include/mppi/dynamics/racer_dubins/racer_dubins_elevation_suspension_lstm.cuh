@@ -83,8 +83,9 @@ public:
   using PARENT_CLASS::computeUncertaintyPropagation;
 
   RacerDubinsElevationSuspensionImpl(LSTMLSTMConfig config, cudaStream_t stream)
-    : RacerDubinsElevationSuspensionImpl(config.init_config.input_dim, config.init_config.hidden_dim, config.init_config.output_layers,
-                                         config.pred_config.input_dim, config.pred_config.hidden_dim, config.pred_config.output_layers,
+    : RacerDubinsElevationSuspensionImpl(config.init_config.input_dim, config.init_config.hidden_dim,
+                                         config.init_config.output_layers, config.pred_config.input_dim,
+                                         config.pred_config.hidden_dim, config.pred_config.output_layers,
                                          config.init_len, stream)
   {
   }
@@ -105,9 +106,15 @@ public:
 
   void freeCudaMem();
 
+  void computeSimpleSuspensionStep(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der,
+                                   Eigen::Ref<output_array> output);
+
   void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
             const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,
             const float dt);
+
+  __device__ void computeSimpleSuspensionStep(float* state, float* state_der, float* output, DYN_PARAMS_T* params_p,
+                                              float* theta_s);
 
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
@@ -134,6 +141,10 @@ public:
 
 protected:
   TwoDTextureHelper<float4>* normals_tex_helper_ = nullptr;
+  RacerDubinsElevationSuspensionImpl(cudaStream_t stream = nullptr) : PARENT_CLASS(stream)
+  {
+    normals_tex_helper_ = new TwoDTextureHelper<float4>(1, stream);
+  }
 };
 
 class RacerDubinsElevationSuspension : public RacerDubinsElevationSuspensionImpl<RacerDubinsElevationSuspension>
@@ -149,6 +160,12 @@ public:
   {
   }
   RacerDubinsElevationSuspension(std::string path, cudaStream_t stream = 0) : PARENT_CLASS(path, stream = 0)
+  {
+  }
+
+protected:
+  // protected constructor so you cannot init without a network setup properly
+  RacerDubinsElevationSuspension(cudaStream_t stream = 0) : PARENT_CLASS(stream = 0)
   {
   }
 };

@@ -35,6 +35,7 @@ TEMPLATE_NAME::RacerDubinsElevationLSTMSteeringImpl(std::string path, cudaStream
   this->params_.steer_accel_constant = param_dict.at("parameters/accel_constant").data<float>()[0];
   this->params_.steer_accel_drag_constant = param_dict.at("parameters/accel_drag_constant").data<float>()[0];
   lstm_lstm_helper_ = std::make_shared<LSTMLSTMHelper<>>(path, stream);
+
   this->requires_buffer_ = true;
   this->SHARED_MEM_REQUEST_GRD_BYTES = lstm_lstm_helper_->getLSTMModel()->getGrdSharedSizeBytes();
   this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock) + lstm_lstm_helper_->getLSTMModel()->getBlkSharedSizeBytes();
@@ -100,7 +101,7 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
   updateState(state, next_state, state_der, dt);
   SharedBlock sb;
   computeUncertaintyPropagation(state.data(), control.data(), state_der.data(), next_state.data(), dt, &this->params_,
-                                &sb);
+                                &sb, nullptr);
 
   float roll = state(S_INDEX(ROLL));
   float pitch = state(S_INDEX(PITCH));
@@ -197,7 +198,7 @@ __device__ inline void TEMPLATE_NAME::step(float* state, float* next_state, floa
   computeLSTMSteering(state, control, state_der, params_p, theta_s, grd_shift, blk_shift, sb_shift);
 
   updateState(state, next_state, state_der, dt);
-  computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb);
+  computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb, theta_s);
   if (threadIdx.y == 0)
   {
     float roll = state[S_INDEX(ROLL)];

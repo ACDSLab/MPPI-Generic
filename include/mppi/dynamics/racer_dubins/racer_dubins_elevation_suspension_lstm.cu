@@ -50,16 +50,10 @@ void TEMPLATE_NAME::freeCudaMem()
 }
 
 TEMPLATE_TYPE
-void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
-                         Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
-                         Eigen::Ref<output_array> output, const float t, const float dt)
+void TEMPLATE_NAME::computeSimpleSuspensionStep(Eigen::Ref<state_array> state, Eigen::Ref<state_array> state_der,
+                                                Eigen::Ref<output_array> output)
 {
-  this->computeParametricDelayDeriv(state, control, state_der);
-  this->computeParametricAccelDeriv(state, control, state_der, dt);
-
   DYN_PARAMS_T* params_p = &(this->params_);
-
-  this->computeLSTMSteering(state, control, state_der);
 
   // Calculate suspension-based state derivatives
   const float& x = state(S_INDEX(POS_X));
@@ -91,9 +85,9 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
   state_der(S_INDEX(CG_VEL_I_Z)) = 0.0f;
   state_der(S_INDEX(ROLL_RATE)) = 0.0f;
   state_der(S_INDEX(PITCH_RATE)) = 0.0f;
-  output(O_INDEX(WHEEL_FORCE_UP_MAX)) = 0.0f;
-  output(O_INDEX(WHEEL_FORCE_FWD_MAX)) = 0.0f;
-  output(O_INDEX(WHEEL_FORCE_SIDE_MAX)) = 0.0f;
+  output(O_INDEX(WHEEL_FORCE_UP_MAX)) = -std::numeric_limits<float>::max();
+  output(O_INDEX(WHEEL_FORCE_FWD_MAX)) = -std::numeric_limits<float>::max();
+  output(O_INDEX(WHEEL_FORCE_SIDE_MAX)) = -std::numeric_limits<float>::max();
   mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(pi, step);
 
   float wheel_yaw, sin_wheel_yaw, cos_wheel_yaw;
@@ -158,11 +152,28 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
     state_der(S_INDEX(PITCH_RATE)) += -wheel_force * wheel_positions_cg[i].x / params_p->I_yy;
   }
 
+  if (output(O_INDEX(WHEEL_FORCE_UP_MAX)) == 0.0f)
+  {
+    std::cout << "got state: " << state.transpose() << std::endl;
+  }
+}
+
+TEMPLATE_TYPE
+void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state,
+                         Eigen::Ref<state_array> state_der, const Eigen::Ref<const control_array>& control,
+                         Eigen::Ref<output_array> output, const float t, const float dt)
+{
+  this->computeParametricDelayDeriv(state, control, state_der);
+  this->computeParametricAccelDeriv(state, control, state_der, dt);
+  this->computeLSTMSteering(state, control, state_der);
+
+  computeSimpleSuspensionStep(state, state_der, output);
+
   // Integrate using Euler Integration
   updateState(state, next_state, state_der, dt);
   SharedBlock sb;
   computeUncertaintyPropagation(state.data(), control.data(), state_der.data(), next_state.data(), dt, &this->params_,
-                                &sb);
+                                &sb, nullptr);
 
   // float roll = state(S_INDEX(ROLL));
   // float pitch = state(S_INDEX(PITCH));
@@ -179,36 +190,12 @@ void TEMPLATE_NAME::step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> 
 }
 
 TEMPLATE_TYPE
-__device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* state_der, float* control, float* output,
-                                    float* theta_s, const float t, const float dt)
+__device__ void TEMPLATE_NAME::computeSimpleSuspensionStep(float* state, float* state_der, float* output,
+                                                           DYN_PARAMS_T* params_p, float* theta_s)
 {
-  DYN_PARAMS_T* params_p;
-  SharedBlock *sb_mem, *sb;
-  // if (GRANDPARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
-  // {  // Allows us to turn on or off global or shared memory version of params
-  //   params_p = (DYN_PARAMS_T*)theta_s;
-  // }
-  // else
-  // {
-  //   params_p = &(this->params_);
-  // }
-  params_p = &(this->params_);
-  const int grd_shift = this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);  // grid size to shift by
-  const int blk_shift = this->SHARED_MEM_REQUEST_BLK_BYTES * (threadIdx.x + blockDim.x * threadIdx.z) /
-                        sizeof(float);                       // blk size to shift by
-  const int sb_shift = sizeof(SharedBlock) / sizeof(float);  // how much to shift inside a block to lstm values
-  if (this->SHARED_MEM_REQUEST_BLK_BYTES != 0)
-  {
-    float* sb_mem = &theta_s[grd_shift];  // does the grid shift
-    sb = (SharedBlock*)(sb_mem + blk_shift);
-  }
-  computeParametricDelayDeriv(state, control, state_der, params_p);
-  computeParametricAccelDeriv(state, control, state_der, dt, params_p);
-
   // computes the velocity dot
   int pi, step;
   mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(pi, step);
-
 
   if (pi == 0)
   {
@@ -221,8 +208,15 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
     output[O_INDEX(WHEEL_FORCE_UP_MAX)] = 0.0f;
     output[O_INDEX(WHEEL_FORCE_FWD_MAX)] = 0.0f;
     output[O_INDEX(WHEEL_FORCE_SIDE_MAX)] = 0.0f;
-  }  // sync threads happening internally to computeLSTMSteering call
-  computeLSTMSteering(state, control, state_der, params_p, theta_s, grd_shift, blk_shift, sb_shift);
+  }
+  const int grd_shift = this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);  // grid size to shift by
+  const int blk_shift = this->SHARED_MEM_REQUEST_BLK_BYTES * (threadIdx.x + blockDim.x * threadIdx.z) /
+                        sizeof(float);  // blk size to shift by
+  // uses same memory as compute space for the uncertainty
+  float* wheel_force_up = theta_s + grd_shift + blk_shift;
+  float* wheel_force_fwd = theta_s + grd_shift + blk_shift + 4;
+  float* wheel_force_side = theta_s + grd_shift + blk_shift + 8;
+  __syncthreads();
 
   // Calculate suspension-based state derivatives
   const float& x = state[S_INDEX(POS_X)];
@@ -245,9 +239,9 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
   float h_dot = 0.0f;
   float4 wheel_normal_world = make_float4(0.0f, 0.0f, 1.0f, 0.0f);
   float3 wheel_positions_cg;
-  float wheel_force_up[4], wheel_force_fwd[4], wheel_force_side[4];
   float wheel_yaw, cos_wheel_yaw, sin_wheel_yaw;
 
+  __syncthreads();
   for (int i = pi; i < W_INDEX(NUM_WHEELS); i += step)
   {
     wheel_yaw = yaw;
@@ -271,11 +265,7 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
       default:
         break;
     }
-#ifdef __CUDA_ARCH__
     __sincosf(wheel_yaw, &sin_wheel_yaw, &cos_wheel_yaw);
-#else
-    sincosf(wheel_yaw, &sin_wheel_yaw, &cos_wheel_yaw);
-#endif
 
     // Calculate wheel position in different frames
     wheel_positions_cg = wheel_positions_body - params_p->c_g;
@@ -325,17 +315,47 @@ __device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* stat
     atomicAdd_block(&state_der[S_INDEX(ROLL_RATE)], wheel_force * wheel_positions_cg.y / params_p->I_xx);
     atomicAdd_block(&state_der[S_INDEX(PITCH_RATE)], -wheel_force * wheel_positions_cg.x / params_p->I_yy);
   }
-
   __syncthreads();
+
   output[O_INDEX(WHEEL_FORCE_UP_MAX)] =
       fmaxf(wheel_force_up[0], fmaxf(wheel_force_up[1], fmaxf(wheel_force_up[2], wheel_force_up[3])));
   output[O_INDEX(WHEEL_FORCE_FWD_MAX)] =
       fmaxf(wheel_force_fwd[0], fmaxf(wheel_force_fwd[1], fmaxf(wheel_force_fwd[2], wheel_force_fwd[3])));
   output[O_INDEX(WHEEL_FORCE_SIDE_MAX)] =
       fmaxf(wheel_force_side[0], fmaxf(wheel_force_side[1], fmaxf(wheel_force_side[2], wheel_force_side[3])));
+}
+
+TEMPLATE_TYPE
+__device__ void TEMPLATE_NAME::step(float* state, float* next_state, float* state_der, float* control, float* output,
+                                    float* theta_s, const float t, const float dt)
+{
+  DYN_PARAMS_T* params_p;
+  SharedBlock* sb;
+  // if (GRANDPARENT_CLASS::SHARED_MEM_REQUEST_GRD_BYTES != 0)
+  // {  // Allows us to turn on or off global or shared memory version of params
+  //   params_p = (DYN_PARAMS_T*)theta_s;
+  // }
+  // else
+  // {
+  //   params_p = &(this->params_);
+  // }
+  params_p = &(this->params_);
+  const int grd_shift = this->SHARED_MEM_REQUEST_GRD_BYTES / sizeof(float);  // grid size to shift by
+  const int blk_shift = this->SHARED_MEM_REQUEST_BLK_BYTES * (threadIdx.x + blockDim.x * threadIdx.z) /
+                        sizeof(float);                       // blk size to shift by
+  const int sb_shift = sizeof(SharedBlock) / sizeof(float);  // how much to shift inside a block to lstm values
+  if (this->SHARED_MEM_REQUEST_BLK_BYTES != 0)
+  {
+    float* sb_mem = &theta_s[grd_shift];  // does the grid shift
+    sb = (SharedBlock*)(sb_mem + blk_shift);
+  }
+  computeParametricDelayDeriv(state, control, state_der, params_p);
+  computeParametricAccelDeriv(state, control, state_der, dt, params_p);
+  computeLSTMSteering(state, control, state_der, params_p, theta_s, grd_shift, blk_shift, sb_shift);
+  computeSimpleSuspensionStep(state, state_der, output, params_p, theta_s);
 
   updateState(state, next_state, state_der, dt);
-  computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb);
+  computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb, theta_s);
   // if (pi == 0)
   // {
   //   float roll = state[S_INDEX(ROLL)];

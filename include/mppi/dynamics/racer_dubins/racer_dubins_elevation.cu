@@ -240,7 +240,7 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> s
   this->PARENT_CLASS::updateState(state, next_state, state_der, dt);
 
   computeUncertaintyPropagation(state.data(), control.data(), state_der.data(), next_state.data(), dt, &this->params_,
-                                &sb);
+                                &sb, nullptr);
   float roll = state(S_INDEX(ROLL));
   float pitch = state(S_INDEX(PITCH));
   RACER::computeStaticSettling<typename DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
@@ -424,7 +424,7 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
 template <class CLASS_T, class PARAMS_T>
 __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeQ(const float* state, const float* control,
                                                                                const float* state_der, float* Q,
-                                                                               DYN_PARAMS_T* params_p)
+                                                                               DYN_PARAMS_T* params_p, float* theta_s)
 {
   const float abs_vx = fabsf(state[S_INDEX(VEL_X)]);
   const float abs_acc_x = fabsf(state_der[S_INDEX(VEL_X)]);
@@ -445,8 +445,8 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeQ(c
   const float Q_11 = fabsf(params_p->Q_y_f * fabsf(side_force) * fmaxf(abs_vx - 2, 0.0f));
 
   const float linear_brake_slope = 0.2f;
-  int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
-              (fabsf(state[S_INDEX(VEL_X)]) > 3.0f) * 2;
+  const int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
+                    (fabsf(state[S_INDEX(VEL_X)]) > 3.0f) * 2;
 
   int step, pi;
   mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
@@ -668,7 +668,7 @@ RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::uncertaintyMatrixToOutput(const flo
 template <class CLASS_T, class PARAMS_T>
 __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUncertaintyPropagation(
     const float* state, const float* control, const float* state_der, float* next_state, float dt,
-    DYN_PARAMS_T* params_p, SharedBlock* uncertainty_data)
+    DYN_PARAMS_T* params_p, SharedBlock* uncertainty_data, float* theta_s)
 {
   CLASS_T* derived = static_cast<CLASS_T*>(this);
   int step, pi;
@@ -722,7 +722,7 @@ __host__ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
   //   0.0f, 0.0f, 1.0f, 0.0f,
   //   0.0f, 0.0f, 0.0f, 0.25f,
   // };
-  derived->computeQ(state, control, state_der, uncertainty_data->Sigma_b, params_p);
+  derived->computeQ(state, control, state_der, uncertainty_data->Sigma_b, params_p, theta_s);
 #ifdef __CUDA_ARCH__
   __syncthreads();  // TODO: Check if this syncthreads is even needed
 #endif
@@ -858,7 +858,7 @@ __device__ inline void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::step(float* 
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
 
   updateState(state, next_state, state_der, dt, params_p);
-  computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb);
+  computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb, theta_s);
 
   if (threadIdx.y == 0)
   {

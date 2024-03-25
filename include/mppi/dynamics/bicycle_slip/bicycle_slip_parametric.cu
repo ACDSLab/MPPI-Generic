@@ -183,7 +183,7 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(Eigen::Ref<state_array> 
 
 #ifdef BICYCLE_UNCERTAINTY
   PARENT_CLASS::computeUncertaintyPropagation(state.data(), control.data(), state_der.data(), next_state.data(), dt,
-                                              &this->params_, &sb);
+                                              &this->params_, &sb, nullptr);
 #endif
 
   float roll = state(S_INDEX(ROLL));
@@ -336,7 +336,7 @@ __device__ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::step(float* state,
   computeDynamics(state, control, state_der, theta_s);
   updateState(state, next_state, state_der, dt, params_p);
 #ifdef BICYCLE_UNCERTAINTY
-  PARENT_CLASS::computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb);
+  PARENT_CLASS::computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb, theta_s);
 #endif
 
   if (tdy == 0)

@@ -705,66 +705,13 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPU)
   EXPECT_NE(dynamics.network_d_, nullptr);
   EXPECT_EQ(dynamics.network_d_, dynamics.getHelper()->getLSTMDevicePtr());
 
-  Eigen::Matrix<float, RacerDubinsElevationLSTMSteering::CONTROL_DIM, num_rollouts> control_trajectory;
-  control_trajectory = Eigen::Matrix<float, RacerDubinsElevationLSTMSteering::CONTROL_DIM, num_rollouts>::Random();
-  Eigen::Matrix<float, RacerDubinsElevationLSTMSteering::STATE_DIM, num_rollouts> state_trajectory;
-  state_trajectory = Eigen::Matrix<float, RacerDubinsElevationLSTMSteering::STATE_DIM, num_rollouts>::Random();
+  DYN::buffer_trajectory buffer;
+  buffer["VEL_X"] = Eigen::VectorXf::Random(51);
+  buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
+  buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
+  buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
 
-  std::vector<std::array<float, RacerDubinsElevationLSTMSteering::STATE_DIM>> s(num_rollouts);
-  std::vector<std::array<float, RacerDubinsElevationLSTMSteering::STATE_DIM>> s_next(num_rollouts);
-  std::vector<std::array<float, RacerDubinsElevationLSTMSteering::STATE_DIM>> s_der(num_rollouts);
-  // steering, throttle
-  std::vector<std::array<float, RacerDubinsElevationLSTMSteering::CONTROL_DIM>> u(num_rollouts);
-
-  RacerDubinsElevationLSTMSteering::state_array state;
-  RacerDubinsElevationLSTMSteering::state_array next_state_cpu;
-  RacerDubinsElevationLSTMSteering::control_array control;
-  RacerDubinsElevationLSTMSteering::output_array output;
-  RacerDubinsElevationLSTMSteering::state_array state_der_cpu = RacerDubinsElevationLSTMSteering::state_array::Zero();
-
-  // Run dynamics on dynamicsU
-  // Run dynamics on GPU
-  for (int y_dim = 1; y_dim <= 16; y_dim++)
-  {
-    DYN::buffer_trajectory buffer;
-    buffer["VEL_X"] = Eigen::VectorXf::Random(51);
-    buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
-    buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
-    buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
-
-    for (int state_index = 0; state_index < num_rollouts; state_index++)
-    {
-      for (int dim = 0; dim < s[0].size(); dim++)
-      {
-        s[state_index][dim] = state_trajectory.col(state_index)(dim);
-      }
-      for (int dim = 0; dim < u[0].size(); dim++)
-      {
-        u[state_index][dim] = control_trajectory.col(state_index)(dim);
-      }
-    }
-    dynamics.updateFromBuffer(buffer);
-    launchStepTestKernel<RacerDubinsElevationLSTMSteering, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
-    for (int point = 0; point < num_rollouts; point++)
-    {
-      dynamics.initializeDynamics(state, control, output, 0, 0);
-      state = state_trajectory.col(point);
-      control = control_trajectory.col(point);
-      state_der_cpu = RacerDubinsElevationLSTMSteering::state_array::Zero();
-
-      dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-      for (int dim = 0; dim < RacerDubinsElevationLSTMSteering::STATE_DIM; dim++)
-      {
-        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
-            << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
-        // EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-        EXPECT_NEAR(next_state_cpu(dim), s_next[point][dim], 1e-4)
-            << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
-        EXPECT_TRUE(isfinite(s_next[point][dim]));
-      }
-    }
-  }
-  dynamics.freeCudaMem();
+  checkGPUComputationStep<RacerDubinsElevationLSTMSteering>(dynamics, dt, 16, 32, buffer, 1.0e-4);
 }
 
 // TODO assert they are different when a network is loaded, check params are the same
@@ -816,67 +763,13 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, TestStepGPUvsCPUReverse)
   EXPECT_NE(dynamics.network_d_, nullptr);
   EXPECT_EQ(dynamics.network_d_, dynamics.getHelper()->getLSTMDevicePtr());
 
-  Eigen::Matrix<float, RacerDubinsElevationLSTMSteering::CONTROL_DIM, num_rollouts> control_trajectory;
-  control_trajectory = Eigen::Matrix<float, RacerDubinsElevationLSTMSteering::CONTROL_DIM, num_rollouts>::Random();
-  Eigen::Matrix<float, RacerDubinsElevationLSTMSteering::STATE_DIM, num_rollouts> state_trajectory;
-  state_trajectory = Eigen::Matrix<float, RacerDubinsElevationLSTMSteering::STATE_DIM, num_rollouts>::Random();
+  DYN::buffer_trajectory buffer;
+  buffer["VEL_X"] = Eigen::VectorXf::Random(51);
+  buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
+  buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
+  buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
 
-  std::vector<std::array<float, RacerDubinsElevationLSTMSteering::STATE_DIM>> s(num_rollouts);
-  std::vector<std::array<float, RacerDubinsElevationLSTMSteering::STATE_DIM>> s_next(num_rollouts);
-  std::vector<std::array<float, RacerDubinsElevationLSTMSteering::STATE_DIM>> s_der(num_rollouts);
-  // steering, throttle
-  std::vector<std::array<float, RacerDubinsElevationLSTMSteering::CONTROL_DIM>> u(num_rollouts);
-
-  RacerDubinsElevationLSTMSteering::state_array state;
-  RacerDubinsElevationLSTMSteering::state_array next_state_cpu;
-  RacerDubinsElevationLSTMSteering::control_array control;
-  RacerDubinsElevationLSTMSteering::output_array output;
-  RacerDubinsElevationLSTMSteering::state_array state_der_cpu = RacerDubinsElevationLSTMSteering::state_array::Zero();
-
-  // Run dynamics on dynamicsU
-  // Run dynamics on GPU
-  for (int y_dim = 1; y_dim <= 16; y_dim++)
-  {
-    DYN::buffer_trajectory buffer;
-    buffer["VEL_X"] = Eigen::VectorXf::Random(51);
-    buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
-    buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
-    buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
-
-    for (int state_index = 0; state_index < num_rollouts; state_index++)
-    {
-      for (int dim = 0; dim < s[0].size(); dim++)
-      {
-        s[state_index][dim] = state_trajectory.col(state_index)(dim);
-      }
-      for (int dim = 0; dim < u[0].size(); dim++)
-      {
-        u[state_index][dim] = control_trajectory.col(state_index)(dim);
-      }
-    }
-    dynamics.updateFromBuffer(buffer);
-    launchStepTestKernel<RacerDubinsElevationLSTMSteering, 16>(dynamics, s, u, s_der, s_next, 0, dt, y_dim);
-    for (int point = 0; point < num_rollouts; point++)
-    {
-      dynamics.initializeDynamics(state, control, output, 0, 0);
-      state = state_trajectory.col(point);
-      control = control_trajectory.col(point);
-      state_der_cpu = RacerDubinsElevationLSTMSteering::state_array::Zero();
-
-      dynamics.step(state, next_state_cpu, state_der_cpu, control, output, 0, dt);
-      // for (int dim = 0; dim < RacerDubinsElevationLSTMSteering::STATE_DIM; dim++)
-      for (int dim = 0; dim < RacerDubinsElevationLSTMSteering::STATE_DIM; dim++)
-      {
-        EXPECT_NEAR(state_der_cpu(dim), s_der[point][dim], 1e-4)
-            << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
-        // EXPECT_NEAR(state(dim), s[point][dim], 1e-4) << "at index " << point << " with y_dim " << y_dim;
-        EXPECT_NEAR(next_state_cpu(dim), s_next[point][dim], 1e-4)
-            << "at index " << point << " with y_dim " << y_dim << " dim " << dim;
-        EXPECT_TRUE(isfinite(s_next[point][dim]));
-      }
-    }
-  }
-  dynamics.freeCudaMem();
+  checkGPUComputationStep<RacerDubinsElevationLSTMSteering>(dynamics, dt, 16, 32, buffer, 1.0e-4);
 }
 
 TEST_F(RacerDubinsElevationLSTMSteeringTest, compareToElevationWithoutSteering)

@@ -139,6 +139,19 @@ public:
                    const Eigen::Ref<const control_array>& control = control_array(), Eigen::Ref<dfdx> A = dfdx(),
                    Eigen::Ref<dfdu> B = dfdu());
 
+  __host__ __device__ void computeUncertaintyPropagation(const float* state, const float* control,
+                                                         const float* state_der, float* next_state,
+                                                         float dt, DYN_PARAMS_T* params_p,
+                                                         SharedBlock* uncertainty_data, float* theta_s);
+
+  __host__ __device__ void uncertaintyMatrixToOutput(const float* uncertainty_matrix, float* output);
+  __host__ __device__ void uncertaintyMatrixToState(const float* uncertainty_matrix, float* state);
+  __host__ __device__ void uncertaintyStateToMatrix(const float* state, float* uncertainty_matrix);
+  __host__ __device__ bool computeUncertaintyJacobian(const float* state, const float* control, float* A,
+                                                      DYN_PARAMS_T* params_p);
+  __host__ __device__ bool computeQ(const float* state, const float* control, const float* state_der, float* Q,
+                                                        DYN_PARAMS_T* params_p, float* theta_s);
+
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt,
                               DYN_PARAMS_T* params_p);
 

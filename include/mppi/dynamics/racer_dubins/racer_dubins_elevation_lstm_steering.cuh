@@ -70,9 +70,8 @@ public:
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
 
-  __device__ void computeLSTMSteering(float* state, float* control, float* state_der,
-                                      DYN_PARAMS_T* params_p, float* theta_s, const int grd_shift, const int blk_shift,
-                                      const int sb_shift);
+  __device__ void computeLSTMSteering(float* state, float* control, float* state_der, DYN_PARAMS_T* params_p,
+                                      float* theta_s, const int grd_shift, const int blk_shift, const int sb_shift);
 
   void updateState(const Eigen::Ref<const state_array> state, Eigen::Ref<state_array> next_state,
                    Eigen::Ref<state_array> state_der, const float dt);
@@ -86,6 +85,10 @@ public:
 
 protected:
   std::shared_ptr<LSTMLSTMHelper<>> lstm_lstm_helper_;
+
+  RacerDubinsElevationLSTMSteeringImpl(cudaStream_t stream = 0)
+  {
+  }
 };
 
 class RacerDubinsElevationLSTMSteering : public RacerDubinsElevationLSTMSteeringImpl<RacerDubinsElevationLSTMSteering>
