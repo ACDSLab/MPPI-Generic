@@ -146,24 +146,28 @@ void RacerDubinsElevationLSTMUncertainty::step(Eigen::Ref<state_array> state, Ei
   this->computeLSTMSteering(state, control, state_der);
   this->computeSimpleSuspensionStep(state, state_der, output);
 
-  // compute the mean LSTM
-  Eigen::VectorXf input = mean_helper_->getLSTMModel()->getZeroInputVector();
-  input(0) = state(S_INDEX(VEL_X));
-  input(1) = state(S_INDEX(OMEGA_Z));  // TODO make sure this is correct here with the learning side stuff
-  input(2) = state(S_INDEX(BRAKE_STATE));
-  input(3) = state(S_INDEX(STEER_ANGLE));
-  input(4) = state(S_INDEX(STEER_ANGLE_RATE));
-  input(5) = control(C_INDEX(THROTTLE_BRAKE)) >= 0.0f ? control(C_INDEX(THROTTLE_BRAKE)) : 0.0f;
-  input(6) = control(C_INDEX(THROTTLE_BRAKE)) <= 0.0f ? -control(C_INDEX(THROTTLE_BRAKE)) : 0.0f;
-  input(7) = control(C_INDEX(STEER_CMD));
-  input(8) = sinf(state(S_INDEX(PITCH)));
-  input(9) = state_der(S_INDEX(VEL_X));
-  input(10) = state_der(S_INDEX(YAW));
-  Eigen::VectorXf mean_output = mean_helper_->getLSTMModel()->getZeroOutputVector();
-  mean_helper_->forward(input, mean_output);
-  state_der(S_INDEX(VEL_X)) += mean_output(0);
-  state_der(S_INDEX(YAW)) += mean_output(1);
-  next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+  // only on in reverse, default back to parametric in reverse
+  if (this->params_.gear_sign == 1)
+  {
+    // compute the mean LSTM
+    Eigen::VectorXf input = mean_helper_->getLSTMModel()->getZeroInputVector();
+    input(0) = state(S_INDEX(VEL_X));
+    input(1) = state(S_INDEX(OMEGA_Z));  // TODO make sure this is correct here with the learning side stuff
+    input(2) = state(S_INDEX(BRAKE_STATE));
+    input(3) = state(S_INDEX(STEER_ANGLE));
+    input(4) = state(S_INDEX(STEER_ANGLE_RATE));
+    input(5) = control(C_INDEX(THROTTLE_BRAKE)) >= 0.0f ? control(C_INDEX(THROTTLE_BRAKE)) : 0.0f;
+    input(6) = control(C_INDEX(THROTTLE_BRAKE)) <= 0.0f ? -control(C_INDEX(THROTTLE_BRAKE)) : 0.0f;
+    input(7) = control(C_INDEX(STEER_CMD));
+    input(8) = sinf(state(S_INDEX(PITCH)));
+    input(9) = state_der(S_INDEX(VEL_X));
+    input(10) = state_der(S_INDEX(YAW));
+    Eigen::VectorXf mean_output = mean_helper_->getLSTMModel()->getZeroOutputVector();
+    mean_helper_->forward(input, mean_output);
+    state_der(S_INDEX(VEL_X)) += mean_output(0);
+    state_der(S_INDEX(YAW)) += mean_output(1);
+    next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+  }
 
   // Integrate using racer_dubins updateState
   updateState(state, next_state, state_der, dt);
@@ -178,6 +182,11 @@ __device__ __host__ bool RacerDubinsElevationLSTMUncertainty::computeQ(const flo
                                                                        RacerDubinsElevationUncertaintyParams* params_p,
                                                                        float* theta_s)
 {
+  // in reverse just use base level implementation
+  if (params_p->gear_sign == -1)
+  {
+    PARENT_CLASS::computeQ(state, control, state_der, Q, params_p, theta_s);
+  }
   // TODO make the roll and pitch the ones from static settling, not the ones calculated online
   float sin_yaw, cos_yaw;
   float* uncertainty_output;
@@ -376,67 +385,70 @@ __device__ void RacerDubinsElevationLSTMUncertainty::step(float* state, float* n
   computeSimpleSuspensionStep(state, state_der, output, params_p, theta_s);
 
   // TODO use the settling pitch and roll not the state based one
-
-  // computes the mean compensation LSTM
-  float* input_loc = mean_d_->getInputLocation(theta_s, grd_shift, blk_shift, sb_shift);
-  int pi, step;
-  mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(pi, step);
-  for (int i = pi; i < mean_d_->getInputDim(); i += step)
+  // only on in reverse, default back to parametric in reverse
+  if (params_p->gear_sign == 1)
   {
-    switch (i)
+    // computes the mean compensation LSTM
+    float* input_loc = mean_d_->getInputLocation(theta_s, grd_shift, blk_shift, sb_shift);
+    int pi, step;
+    mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(pi, step);
+    for (int i = pi; i < mean_d_->getInputDim(); i += step)
     {
-      case 0:  // vx
-        input_loc[i] = state[S_INDEX(VEL_X)];
-        break;
-      case 1:  // omega
-        input_loc[i] = state[S_INDEX(OMEGA_Z)];
-        break;
-      case 2:  // brake state
-        input_loc[i] = state[S_INDEX(BRAKE_STATE)];
-        break;
-      case 3:  // shaft angle
-        input_loc[i] = state[S_INDEX(STEER_ANGLE)];
-        break;
-      case 4:  // shaft velocity
-        input_loc[i] = state[S_INDEX(STEER_ANGLE_RATE)];
-        break;
-      case 5:  // throttle_cmd
-        input_loc[i] = control[C_INDEX(THROTTLE_BRAKE)] >= 0.0f ? control[C_INDEX(THROTTLE_BRAKE)] : 0.0f;
-        break;
-      case 6:  // brake_cmd
-        input_loc[i] = control[C_INDEX(THROTTLE_BRAKE)] <= 0.0f ? -control[C_INDEX(THROTTLE_BRAKE)] : 0.0f;
-        break;
-      case 7:  // steering cmd
-        input_loc[i] = control[C_INDEX(STEER_CMD)];
-        break;
-      case 8:  // sin pitch
+      switch (i)
+      {
+        case 0:  // vx
+          input_loc[i] = state[S_INDEX(VEL_X)];
+          break;
+        case 1:  // omega
+          input_loc[i] = state[S_INDEX(OMEGA_Z)];
+          break;
+        case 2:  // brake state
+          input_loc[i] = state[S_INDEX(BRAKE_STATE)];
+          break;
+        case 3:  // shaft angle
+          input_loc[i] = state[S_INDEX(STEER_ANGLE)];
+          break;
+        case 4:  // shaft velocity
+          input_loc[i] = state[S_INDEX(STEER_ANGLE_RATE)];
+          break;
+        case 5:  // throttle_cmd
+          input_loc[i] = control[C_INDEX(THROTTLE_BRAKE)] >= 0.0f ? control[C_INDEX(THROTTLE_BRAKE)] : 0.0f;
+          break;
+        case 6:  // brake_cmd
+          input_loc[i] = control[C_INDEX(THROTTLE_BRAKE)] <= 0.0f ? -control[C_INDEX(THROTTLE_BRAKE)] : 0.0f;
+          break;
+        case 7:  // steering cmd
+          input_loc[i] = control[C_INDEX(STEER_CMD)];
+          break;
+        case 8:  // sin pitch
 #ifdef __CUDA_ARCH__
-        input_loc[i] = __sinf(state[S_INDEX(PITCH)]);
+          input_loc[i] = __sinf(state[S_INDEX(PITCH)]);
 #else
-        input_loc[i] = sinf(state[S_INDEX(PITCH)]);
+          input_loc[i] = sinf(state[S_INDEX(PITCH)]);
 #endif
-        break;
-      case 9:  // accel x
-        input_loc[i] = state_der[S_INDEX(VEL_X)];
-        break;
-      case 10:  // yaw rate calculation
-        input_loc[i] = state_der[S_INDEX(YAW)];
-        break;
+          break;
+        case 9:  // accel x
+          input_loc[i] = state_der[S_INDEX(VEL_X)];
+          break;
+        case 10:  // yaw rate calculation
+          input_loc[i] = state_der[S_INDEX(YAW)];
+          break;
+      }
     }
-  }
-  __syncthreads();
+    __syncthreads();
 
-  float* cur_hidden_cell = mean_d_->getHiddenCellLocation(theta_s, grd_shift, blk_shift, sb_shift);
-  float* mean_output =
-      mean_d_->forward(nullptr, theta_s + network_d_->getGrdSharedSizeBytes() / sizeof(float), cur_hidden_cell);
+    float* cur_hidden_cell = mean_d_->getHiddenCellLocation(theta_s, grd_shift, blk_shift, sb_shift);
+    float* mean_output =
+        mean_d_->forward(nullptr, theta_s + network_d_->getGrdSharedSizeBytes() / sizeof(float), cur_hidden_cell);
 
-  if (threadIdx.y == 0)
-  {
-    state_der[S_INDEX(VEL_X)] += mean_output[0];
-    state_der[S_INDEX(YAW)] += mean_output[1];
-    next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+    if (threadIdx.y == 0)
+    {
+      state_der[S_INDEX(VEL_X)] += mean_output[0];
+      state_der[S_INDEX(YAW)] += mean_output[1];
+      next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
+    }
+    __syncthreads();
   }
-  __syncthreads();
 
   updateState(state, next_state, state_der, dt);
   computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb, theta_s);
