@@ -47,6 +47,7 @@ struct RacerDubinsElevationParams : public RacerDubinsParams
     POS_Y,
     NUM_UNCERTAINTIES
   };
+  float clamp_ax = 5.5f;
   // Uncertainty feedback and Noise coefficients
   float K_x = 1.0f; // feedback for pos_x
   float K_y = 1.0f; // feedback for pos_y

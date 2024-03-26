@@ -16,9 +16,9 @@ RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(LSTMLST
                                        lstm_lstm_helper_->getLSTMModel()->getBlkSharedSizeBytes() +
                                        mean_helper_->getLSTMModel()->getBlkSharedSizeBytes() +
                                        uncertainty_helper_->getLSTMModel()->getBlkSharedSizeBytes();
+  this->requires_buffer_ = true;
 }
 
-// TODO need lower level constructor that takes in an npz item
 RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(std::string path, cudaStream_t stream)
   : PARENT_CLASS(stream)
 {
@@ -40,12 +40,22 @@ RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(std::st
   this->params_.steer_accel_constant = param_dict.at("steering/parameters/accel_constant").data<double>()[0];
   this->params_.steer_accel_drag_constant = param_dict.at("steering/parameters/accel_drag_constant").data<double>()[0];
 
+  this->params_.max_brake_rate_pos = param_dict.at("brake/parameters/max_rate_pos").data<double>()[0];
+  this->params_.max_brake_rate_neg = param_dict.at("brake/parameters/max_rate_neg").data<double>()[0];
   for (int i = 0; i < 3; i++)
   {
     this->params_.c_t[i] = param_dict.at("terra/parameters/c_t").data<double>()[i];
     this->params_.c_b[i] = param_dict.at("terra/parameters/c_b").data<double>()[i];
     this->params_.c_v[i] = param_dict.at("terra/parameters/c_v").data<double>()[i];
+
+    this->params_.pos_quad_brake_c[i] = param_dict.at("brake/parameters/constant").data<double>()[i];
+    this->params_.neg_quad_brake_c[i] = param_dict.at("brake/parameters/negative_constant").data<double>()[i];
   }
+  this->params_.clamp_ax = 1000.0f;
+  this->params_.wheel_base = 3.0f;
+  this->params_.c_0 = 0.0f;
+  this->params_.max_steer_angle = 5.0f;
+  this->params_.low_min_throttle = 0.0f;
   this->params_.gravity = param_dict.at("terra/parameters/gravity").data<double>()[0];
   this->params_.steer_angle_scale = param_dict.at("terra/parameters/steer_angle_scale").data<double>()[0];
   for (int i = 0; i < uncertainty_helper_->getLSTMModel()->getOutputDim(); i++)
@@ -60,6 +70,7 @@ RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(std::st
                                        lstm_lstm_helper_->getLSTMModel()->getBlkSharedSizeBytes() +
                                        mean_helper_->getLSTMModel()->getBlkSharedSizeBytes() +
                                        uncertainty_helper_->getLSTMModel()->getBlkSharedSizeBytes();
+  this->requires_buffer_ = true;
 }
 
 void RacerDubinsElevationLSTMUncertainty::GPUSetup()
@@ -89,10 +100,8 @@ void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajecto
 {
   PARENT_CLASS::updateFromBuffer(buffer);
 
-  std::vector<std::string> keys = {
-    "STEER_ANGLE", "STEER_ANGLE_RATE", "STEER_CMD", "ROLL", "PITCH", "THROTTLE_CMD",
-    "VEL_X",       "BRAKE_STATE",      "BRAKE_CMD",
-  };
+  std::vector<std::string> keys = { "STEER_ANGLE", "STEER_ANGLE_RATE", "STEER_CMD", "ROLL",   "PITCH", "THROTTLE_CMD",
+                                    "VEL_X",       "BRAKE_STATE",      "BRAKE_CMD", "OMEGA_Z" };
 
   bool missing_key = this->checkIfKeysInBuffer(buffer, keys);
   if (missing_key)
@@ -100,7 +109,7 @@ void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajecto
     return;
   }
 
-  Eigen::MatrixXf mean_init_buffer = mean_helper_->getEmptyBufferMatrix();
+  Eigen::MatrixXf mean_init_buffer = mean_helper_->getEmptyBufferMatrix(buffer.at("VEL_X").rows());
   mean_init_buffer.row(0) = buffer.at("VEL_X");
   mean_init_buffer.row(1) = buffer.at("OMEGA_Z");
   mean_init_buffer.row(2) = buffer.at("BRAKE_STATE");
@@ -108,12 +117,13 @@ void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajecto
   mean_init_buffer.row(4) = buffer.at("STEER_ANGLE_RATE");
   mean_init_buffer.row(5) = buffer.at("THROTTLE_CMD");
   mean_init_buffer.row(6) = buffer.at("BRAKE_CMD");
-  mean_init_buffer.row(7) = buffer.at("STEERING_CMD");
+  mean_init_buffer.row(7) = buffer.at("STEER_CMD");
   mean_init_buffer.row(8) = buffer.at("PITCH").unaryExpr(&sinf);
-  mean_init_buffer.row(9) = buffer.at("ROLL").unaryExpr(&sinf);
+  // TODO option here if problem
+  // mean_init_buffer.row(9) = buffer.at("ROLL").unaryExpr(&sinf);
   mean_helper_->initializeLSTM(mean_init_buffer);
 
-  Eigen::MatrixXf unc_init_buffer = uncertainty_helper_->getEmptyBufferMatrix();
+  Eigen::MatrixXf unc_init_buffer = uncertainty_helper_->getEmptyBufferMatrix(buffer.at("VEL_X").rows());
   unc_init_buffer.row(0) = buffer.at("VEL_X");
   unc_init_buffer.row(1) = buffer.at("OMEGA_Z");
   unc_init_buffer.row(2) = buffer.at("BRAKE_STATE");
@@ -121,7 +131,7 @@ void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajecto
   unc_init_buffer.row(4) = buffer.at("STEER_ANGLE_RATE");
   unc_init_buffer.row(5) = buffer.at("THROTTLE_CMD");
   unc_init_buffer.row(6) = buffer.at("BRAKE_CMD");
-  unc_init_buffer.row(7) = buffer.at("STEERING_CMD");
+  unc_init_buffer.row(7) = buffer.at("STEER_CMD");
   unc_init_buffer.row(8) = buffer.at("PITCH").unaryExpr(&sinf);
   unc_init_buffer.row(9) = buffer.at("ROLL").unaryExpr(&sinf);
   uncertainty_helper_->initializeLSTM(unc_init_buffer);
@@ -141,7 +151,17 @@ void RacerDubinsElevationLSTMUncertainty::step(Eigen::Ref<state_array> state, Ei
                                                const Eigen::Ref<const control_array>& control,
                                                Eigen::Ref<output_array> output, const float t, const float dt)
 {
-  this->computeParametricDelayDeriv(state, control, state_der);
+  // this is the new brake model with quadratics
+  bool enable_brake = control(C_INDEX(THROTTLE_BRAKE)) < 0.0f;
+  const float brake_error = (enable_brake * -control(C_INDEX(THROTTLE_BRAKE)) - state(S_INDEX(BRAKE_STATE)));
+
+  state_der(S_INDEX(BRAKE_STATE)) =
+      fminf(fmaxf((brake_error > 0) * (brake_error * this->params_.pos_quad_brake_c[0] +
+                                       brake_error * fabsf(brake_error) * this->params_.pos_quad_brake_c[1]) +
+                      (brake_error < 0) * (brake_error * this->params_.neg_quad_brake_c[0] +
+                                           brake_error * fabsf(brake_error) * this->params_.neg_quad_brake_c[1]),
+                  -this->params_.max_brake_rate_neg),
+            this->params_.max_brake_rate_pos);
   this->computeParametricAccelDeriv(state, control, state_der, dt);
   this->computeLSTMSteering(state, control, state_der);
   this->computeSimpleSuspensionStep(state, state_der, output);
@@ -152,7 +172,7 @@ void RacerDubinsElevationLSTMUncertainty::step(Eigen::Ref<state_array> state, Ei
     // compute the mean LSTM
     Eigen::VectorXf input = mean_helper_->getLSTMModel()->getZeroInputVector();
     input(0) = state(S_INDEX(VEL_X));
-    input(1) = state(S_INDEX(OMEGA_Z));  // TODO make sure this is correct here with the learning side stuff
+    input(1) = state(S_INDEX(OMEGA_Z));
     input(2) = state(S_INDEX(BRAKE_STATE));
     input(3) = state(S_INDEX(STEER_ANGLE));
     input(4) = state(S_INDEX(STEER_ANGLE_RATE));
@@ -166,8 +186,8 @@ void RacerDubinsElevationLSTMUncertainty::step(Eigen::Ref<state_array> state, Ei
     mean_helper_->forward(input, mean_output);
     state_der(S_INDEX(VEL_X)) += mean_output(0);
     state_der(S_INDEX(YAW)) += mean_output(1);
-    next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
   }
+  next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 
   // Integrate using racer_dubins updateState
   updateState(state, next_state, state_der, dt);
@@ -282,7 +302,7 @@ __device__ __host__ bool RacerDubinsElevationLSTMUncertainty::computeQ(const flo
 
   for (int i = pi; i < output_dim; i += step)
   {
-    uncertainty_output[i] = mppi::nn::sigmoid(uncertainty_output[i]) * params_p->unc_scale[i];
+    uncertainty_output[i] = fabsf(mppi::nn::sigmoid(uncertainty_output[i]) * params_p->unc_scale[i]);
   }
 #ifdef __CUDA_ARCH__
   __syncthreads();
@@ -298,7 +318,8 @@ __device__ __host__ bool RacerDubinsElevationLSTMUncertainty::computeQ(const flo
     {
       // vel_x
       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), UNCERTAINTY_DIM):
-        Q[i] = uncertainty_output[0] + SQ(params_p->c_b[index]) * uncertainty_output[4];
+        Q[i] = uncertainty_output[0] +
+               SQ(params_p->c_b[index] * (index == 0 ? state[S_INDEX(VEL_X)] : 1.0f)) * uncertainty_output[4];
         if (output_dim == 7)
         {
           Q[i] += uncertainty_output[5];  // additional Q_vx
@@ -318,10 +339,18 @@ __device__ __host__ bool RacerDubinsElevationLSTMUncertainty::computeQ(const flo
         Q[i] = 0.0f;
         break;
       case mm::columnMajorIndex(U_INDEX(YAW), U_INDEX(YAW), UNCERTAINTY_DIM):
+#ifdef __CUDA_ARCH__
         Q[i] =
-            uncertainty_output[1] + SQ((state[S_INDEX(VEL_X)] / params_p->wheel_base) *
-                                       (1.0f / SQ(cosf(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale)))) *
-                                        uncertainty_output[3];
+            uncertainty_output[1] +
+            SQ((state[S_INDEX(VEL_X)] / params_p->wheel_base) * 1.0f /
+               (SQ(__cosf(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale)) * params_p->steer_angle_scale)) *
+                uncertainty_output[3];
+#else
+        Q[i] = uncertainty_output[1] +
+               SQ((state[S_INDEX(VEL_X)] / params_p->wheel_base) * 1.0f /
+                  (SQ(cosf(state[S_INDEX(STEER_ANGLE)] / params_p->steer_angle_scale)) * params_p->steer_angle_scale)) *
+                   uncertainty_output[3];
+#endif
         if (output_dim == 7)
         {
           Q[i] += uncertainty_output[6];  // additional Q_yaw
@@ -378,7 +407,17 @@ __device__ void RacerDubinsElevationLSTMUncertainty::step(float* state, float* n
       sizeof(SharedBlock) / sizeof(float) +
       network_d_->getBlkSharedSizeBytes() / sizeof(float);  // how much to shift inside a block to lstm values
 
-  computeParametricDelayDeriv(state, control, state_der, params_p);
+  // this is the new brake model with quadratics
+  bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
+  const float brake_error = (enable_brake * -control[C_INDEX(THROTTLE_BRAKE)] - state[S_INDEX(BRAKE_STATE)]);
+
+  state_der[S_INDEX(BRAKE_STATE)] =
+      fminf(fmaxf((brake_error > 0) * (brake_error * params_p->pos_quad_brake_c[0] +
+                                       brake_error * fabsf(brake_error) * params_p->pos_quad_brake_c[1]) +
+                      (brake_error < 0) * (brake_error * params_p->neg_quad_brake_c[0] +
+                                           brake_error * fabsf(brake_error) * params_p->neg_quad_brake_c[1]),
+                  -params_p->max_brake_rate_neg),
+            params_p->max_brake_rate_pos);
   computeParametricAccelDeriv(state, control, state_der, dt, params_p);
   computeLSTMSteering(state, control, state_der, params_p, theta_s, grd_shift, blk_shift,
                       sizeof(SharedBlock) / sizeof(float));
@@ -449,6 +488,7 @@ __device__ void RacerDubinsElevationLSTMUncertainty::step(float* state, float* n
     }
     __syncthreads();
   }
+  next_state[S_INDEX(OMEGA_Z)] = state_der[S_INDEX(YAW)];
 
   updateState(state, next_state, state_der, dt);
   computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb, theta_s);

@@ -68,14 +68,14 @@ TEMPLATE_TYPE
 void TEMPLATE_NAME::computeLSTMSteering(Eigen::Ref<state_array> state, const Eigen::Ref<const control_array>& control,
                                         Eigen::Ref<state_array> state_der)
 {
-  const float parametric_accel = fmaxf(
-      fminf((control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
-                this->params_.steering_constant,
-            this->params_.max_steer_rate),
-      -this->params_.max_steer_rate);
+  const float parametric_accel =
+      (control(C_INDEX(STEER_CMD)) * this->params_.steer_command_angle_scale - state(S_INDEX(STEER_ANGLE))) *
+      this->params_.steering_constant;
   state_der(S_INDEX(STEER_ANGLE_RATE)) =
-      (parametric_accel - state(S_INDEX(STEER_ANGLE_RATE))) * this->params_.steer_accel_constant -
-      state(S_INDEX(STEER_ANGLE_RATE)) * this->params_.steer_accel_drag_constant;
+      fmaxf(fminf((parametric_accel - state(S_INDEX(STEER_ANGLE_RATE))) * this->params_.steer_accel_constant -
+                      state(S_INDEX(STEER_ANGLE_RATE)) * this->params_.steer_accel_drag_constant,
+                  this->params_.max_steer_rate),
+            -this->params_.max_steer_rate);
 
   Eigen::VectorXf input = lstm_lstm_helper_->getLSTMModel()->getZeroInputVector();
   input(0) = state(S_INDEX(STEER_ANGLE)) * 0.2f;
@@ -141,13 +141,13 @@ __device__ void RacerDubinsElevationLSTMSteeringImpl<CLASS_T, PARAMS_T>::compute
   if (tdy == 0)
   {
     const float parametric_accel =
-        fmaxf(fminf((control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
-                        params_p->steering_constant,
+        (control[C_INDEX(STEER_CMD)] * params_p->steer_command_angle_scale - state[S_INDEX(STEER_ANGLE)]) *
+        params_p->steering_constant;
+    state_der[S_INDEX(STEER_ANGLE_RATE)] =
+        fmaxf(fminf((parametric_accel - state[S_INDEX(STEER_ANGLE_RATE)]) * params_p->steer_accel_constant -
+                        state[S_INDEX(STEER_ANGLE_RATE)] * params_p->steer_accel_drag_constant,
                     params_p->max_steer_rate),
               -params_p->max_steer_rate);
-    state_der[S_INDEX(STEER_ANGLE_RATE)] =
-        (parametric_accel - state[S_INDEX(STEER_ANGLE_RATE)]) * params_p->steer_accel_constant -
-        state[S_INDEX(STEER_ANGLE_RATE)] * params_p->steer_accel_drag_constant;
 
     input_loc[0] = state[S_INDEX(STEER_ANGLE)] * 0.2f;
     input_loc[1] = state[S_INDEX(STEER_ANGLE_RATE)] * 0.2f;
@@ -233,10 +233,10 @@ void TEMPLATE_NAME::updateFromBuffer(const buffer_trajectory& buffer)
   {
     return;
   }
-  Eigen::MatrixXf init_buffer = lstm_lstm_helper_->getEmptyBufferMatrix();
+  Eigen::MatrixXf init_buffer = lstm_lstm_helper_->getEmptyBufferMatrix(buffer.at("STEER_ANGLE").rows());
 
-  init_buffer.row(0) = buffer.at("STEER_ANGLE");
-  init_buffer.row(1) = buffer.at("STEER_ANGLE_RATE");
+  init_buffer.row(0) = buffer.at("STEER_ANGLE") * 0.2f;
+  init_buffer.row(1) = buffer.at("STEER_ANGLE_RATE") * 0.2f;
   init_buffer.row(2) = buffer.at("STEER_CMD");
 
   lstm_lstm_helper_->initializeLSTM(init_buffer);
