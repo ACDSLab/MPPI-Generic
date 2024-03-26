@@ -1,5 +1,8 @@
 #include "racer_dubins_elevation_lstm_unc.cuh"
 
+// TODO fix the clamping of the brake value
+// TODO look into replacing roll/pitch values with static settled values
+
 RacerDubinsElevationLSTMUncertainty::RacerDubinsElevationLSTMUncertainty(LSTMLSTMConfig& steer_config,
                                                                          LSTMLSTMConfig& mean_config,
                                                                          LSTMLSTMConfig& unc_config,
@@ -100,8 +103,9 @@ void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajecto
 {
   PARENT_CLASS::updateFromBuffer(buffer);
 
-  std::vector<std::string> keys = { "STEER_ANGLE", "STEER_ANGLE_RATE", "STEER_CMD", "ROLL",   "PITCH", "THROTTLE_CMD",
-                                    "VEL_X",       "BRAKE_STATE",      "BRAKE_CMD", "OMEGA_Z" };
+  std::vector<std::string> keys = { "STEER_ANGLE",   "STEER_ANGLE_RATE", "CAN_STEER_CMD", "ROLL",
+                                    "PITCH",         "CAN_THROTTLE_CMD", "VEL_X",         "BRAKE_STATE",
+                                    "CAN_BRAKE_CMD", "OMEGA_Z" };
 
   bool missing_key = this->checkIfKeysInBuffer(buffer, keys);
   if (missing_key)
@@ -115,9 +119,9 @@ void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajecto
   mean_init_buffer.row(2) = buffer.at("BRAKE_STATE");
   mean_init_buffer.row(3) = buffer.at("STEER_ANGLE");
   mean_init_buffer.row(4) = buffer.at("STEER_ANGLE_RATE");
-  mean_init_buffer.row(5) = buffer.at("THROTTLE_CMD");
-  mean_init_buffer.row(6) = buffer.at("BRAKE_CMD");
-  mean_init_buffer.row(7) = buffer.at("STEER_CMD");
+  mean_init_buffer.row(5) = buffer.at("CAN_THROTTLE_CMD");
+  mean_init_buffer.row(6) = buffer.at("CAN_BRAKE_CMD");
+  mean_init_buffer.row(7) = buffer.at("CAN_STEER_CMD");
   mean_init_buffer.row(8) = buffer.at("PITCH").unaryExpr(&sinf);
   // TODO option here if problem
   // mean_init_buffer.row(9) = buffer.at("ROLL").unaryExpr(&sinf);
@@ -129,9 +133,9 @@ void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajecto
   unc_init_buffer.row(2) = buffer.at("BRAKE_STATE");
   unc_init_buffer.row(3) = buffer.at("STEER_ANGLE");
   unc_init_buffer.row(4) = buffer.at("STEER_ANGLE_RATE");
-  unc_init_buffer.row(5) = buffer.at("THROTTLE_CMD");
-  unc_init_buffer.row(6) = buffer.at("BRAKE_CMD");
-  unc_init_buffer.row(7) = buffer.at("STEER_CMD");
+  unc_init_buffer.row(5) = buffer.at("CAN_THROTTLE_CMD");
+  unc_init_buffer.row(6) = buffer.at("CAN_BRAKE_CMD");
+  unc_init_buffer.row(7) = buffer.at("CAN_STEER_CMD");
   unc_init_buffer.row(8) = buffer.at("PITCH").unaryExpr(&sinf);
   unc_init_buffer.row(9) = buffer.at("ROLL").unaryExpr(&sinf);
   uncertainty_helper_->initializeLSTM(unc_init_buffer);
@@ -179,7 +183,7 @@ void RacerDubinsElevationLSTMUncertainty::step(Eigen::Ref<state_array> state, Ei
     input(5) = control(C_INDEX(THROTTLE_BRAKE)) >= 0.0f ? control(C_INDEX(THROTTLE_BRAKE)) : 0.0f;
     input(6) = control(C_INDEX(THROTTLE_BRAKE)) <= 0.0f ? -control(C_INDEX(THROTTLE_BRAKE)) : 0.0f;
     input(7) = control(C_INDEX(STEER_CMD));
-    input(8) = sinf(state(S_INDEX(PITCH)));
+    input(8) = sinf(state(S_INDEX(STATIC_PITCH)));
     input(9) = state_der(S_INDEX(VEL_X));
     input(10) = state_der(S_INDEX(YAW));
     Eigen::VectorXf mean_output = mean_helper_->getLSTMModel()->getZeroOutputVector();
@@ -194,6 +198,14 @@ void RacerDubinsElevationLSTMUncertainty::step(Eigen::Ref<state_array> state, Ei
   SharedBlock sb;
   computeUncertaintyPropagation(state.data(), control.data(), state_der.data(), next_state.data(), dt, &this->params_,
                                 &sb, nullptr);
+  float roll = state(S_INDEX(STATIC_ROLL));
+  float pitch = state(S_INDEX(STATIC_PITCH));
+  RACER::computeStaticSettling<typename DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+      this->tex_helper_, next_state(S_INDEX(YAW)), next_state(S_INDEX(POS_X)), next_state(S_INDEX(POS_Y)), roll, pitch,
+      output.data());
+  next_state[S_INDEX(STATIC_PITCH)] = pitch;
+  next_state[S_INDEX(STATIC_ROLL)] = roll;
+
   this->setOutputs(state_der.data(), next_state.data(), output.data());
 }
 
@@ -255,10 +267,10 @@ __device__ __host__ bool RacerDubinsElevationLSTMUncertainty::computeQ(const flo
         input_loc[i] = control[C_INDEX(STEER_CMD)];
         break;
       case 8:  // sin roll
-        input_loc[i] = __sinf(state[S_INDEX(ROLL)]);
+        input_loc[i] = __sinf(state[S_INDEX(STATIC_ROLL)]);
         break;
       case 9:  // sin pitch
-        input_loc[i] = __sinf(state[S_INDEX(PITCH)]);
+        input_loc[i] = __sinf(state[S_INDEX(STATIC_PITCH)]);
         break;
       case 10:  // accel x
         input_loc[i] = state_der[S_INDEX(VEL_X)];
@@ -287,8 +299,8 @@ __device__ __host__ bool RacerDubinsElevationLSTMUncertainty::computeQ(const flo
   input(5) = control[C_INDEX(THROTTLE_BRAKE)] >= 0.0f ? control[C_INDEX(THROTTLE_BRAKE)] : 0.0f;
   input(6) = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f ? -control[C_INDEX(THROTTLE_BRAKE)] : 0.0f;
   input(7) = control[C_INDEX(STEER_CMD)];
-  input(8) = sinf(state[S_INDEX(ROLL)]);
-  input(9) = sinf(state[S_INDEX(PITCH)]);
+  input(8) = sinf(state[S_INDEX(STATIC_ROLL)]);
+  input(9) = sinf(state[S_INDEX(STATIC_PITCH)]);
   input(10) = state_der[S_INDEX(VEL_X)];  // these should be using the modified means
   input(11) = state_der[S_INDEX(YAW)];
   Eigen::VectorXf uncertainty_output_eig = uncertainty_helper_->getLSTMModel()->getZeroOutputVector();
@@ -461,9 +473,9 @@ __device__ void RacerDubinsElevationLSTMUncertainty::step(float* state, float* n
           break;
         case 8:  // sin pitch
 #ifdef __CUDA_ARCH__
-          input_loc[i] = __sinf(state[S_INDEX(PITCH)]);
+          input_loc[i] = __sinf(state[S_INDEX(STATIC_PITCH)]);
 #else
-          input_loc[i] = sinf(state[S_INDEX(PITCH)]);
+          input_loc[i] = sinf(state[S_INDEX(STATIC_PITCH)]);
 #endif
           break;
         case 9:  // accel x
@@ -492,7 +504,15 @@ __device__ void RacerDubinsElevationLSTMUncertainty::step(float* state, float* n
 
   updateState(state, next_state, state_der, dt);
   computeUncertaintyPropagation(state, control, state_der, next_state, dt, params_p, sb, theta_s);
-  __syncthreads();
+
+  float roll = state[S_INDEX(STATIC_ROLL)];
+  float pitch = state[S_INDEX(STATIC_PITCH)];
+  RACER::computeStaticSettling<DYN_PARAMS_T::OutputIndex, TwoDTextureHelper<float>>(
+      this->tex_helper_, next_state[S_INDEX(YAW)], next_state[S_INDEX(POS_X)], next_state[S_INDEX(POS_Y)], roll, pitch,
+      output);
+  next_state[S_INDEX(STATIC_PITCH)] = pitch;
+  next_state[S_INDEX(STATIC_ROLL)] = roll;
+  //__syncthreads();
   this->setOutputs(state_der, next_state, output);
 }
 

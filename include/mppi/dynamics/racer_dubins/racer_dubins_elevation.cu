@@ -39,13 +39,15 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricAccelDeriv(
   int index = (abs(state(S_INDEX(VEL_X))) > linear_brake_slope && abs(state(S_INDEX(VEL_X))) <= 3.0f) +
               (abs(state(S_INDEX(VEL_X))) > 3.0f) * 2;
 
+  const float brake_state = fmin(fmax(state(S_INDEX(BRAKE_STATE)), 0.0f), 0.25f);
+
   // applying position throttle
   float throttle = this->params_.c_t[index] * control(C_INDEX(THROTTLE_BRAKE));
-  float brake = this->params_.c_b[index] * state(S_INDEX(BRAKE_STATE)) * (state(S_INDEX(VEL_X)) >= 0.0f ? -1.0f : 1.0f);
+  float brake = this->params_.c_b[index] * brake_state * (state(S_INDEX(VEL_X)) >= 0.0f ? -1.0f : 1.0f);
   if (abs(state(S_INDEX(VEL_X))) <= linear_brake_slope)
   {
     throttle = this->params_.c_t[index] * max(control(C_INDEX(THROTTLE_BRAKE)) - this->params_.low_min_throttle, 0.0f);
-    brake = this->params_.c_b[index] * state(S_INDEX(BRAKE_STATE)) * -state(S_INDEX(VEL_X));
+    brake = this->params_.c_b[index] * brake_state * -state(S_INDEX(VEL_X));
   }
 
   state_der(S_INDEX(VEL_X)) = (!enable_brake) * throttle * this->params_.gear_sign + brake -
@@ -359,14 +361,14 @@ __host__ __device__ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeUnc
 
   int step, pi;
   mp1::getParallel1DIndex<mp1::Parallel1Dir::THREAD_Y>(pi, step);
+  const float brake_state = fmin(fmax(state[S_INDEX(BRAKE_STATE)], 0.0f), 0.25f);
   // A = df/dx + df/du * K
   for (int i = pi; i < UNCERTAINTY_DIM * UNCERTAINTY_DIM; i += step)
   {
     switch (i)
     {
       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(VEL_X), UNCERTAINTY_DIM):
-        A[i] = -params_p->c_v[index] - params_p->K_vel_x -
-               (index == 0 ? 1.0f : 0.0f) * params_p->c_b[0] * state[S_INDEX(BRAKE_STATE)];
+        A[i] = -params_p->c_v[index] - params_p->K_vel_x - (index == 0 ? 1.0f : 0.0f) * params_p->c_b[0] * brake_state;
         break;
       case mm::columnMajorIndex(U_INDEX(VEL_X), U_INDEX(YAW), UNCERTAINTY_DIM):
         A[i] = 0.0f;
@@ -766,20 +768,21 @@ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricAc
   bool enable_brake = control[C_INDEX(THROTTLE_BRAKE)] < 0.0f;
   int index = (fabsf(state[S_INDEX(VEL_X)]) > linear_brake_slope && fabsf(state[S_INDEX(VEL_X)]) <= 3.0f) +
               (fabsf(state[S_INDEX(VEL_X)]) > 3.0f) * 2;
+  const float brake_state = fminf(fmaxf(state[S_INDEX(BRAKE_STATE)], 0.0f), 0.25f);
   // applying position throttle
   float throttle = params_p->c_t[index] * control[C_INDEX(THROTTLE_BRAKE)];
-  float brake = params_p->c_b[index] * state[S_INDEX(BRAKE_STATE)] * (state[S_INDEX(VEL_X)] >= 0.0f ? -1.0f : 1.0f);
+  float brake = params_p->c_b[index] * brake_state * (state[S_INDEX(VEL_X)] >= 0.0f ? -1.0f : 1.0f);
   if (fabsf(state[S_INDEX(VEL_X)]) <= linear_brake_slope)
   {
-    throttle = params_p->c_t[index] * max(control[C_INDEX(THROTTLE_BRAKE)] - params_p->low_min_throttle, 0.0f);
-    brake = params_p->c_b[index] * state[S_INDEX(BRAKE_STATE)] * -state[S_INDEX(VEL_X)];
+    throttle = params_p->c_t[index] * fmaxf(control[C_INDEX(THROTTLE_BRAKE)] - params_p->low_min_throttle, 0.0f);
+    brake = params_p->c_b[index] * brake_state * -state[S_INDEX(VEL_X)];
   }
 
   if (tdy == 0)
   {
     state_der[S_INDEX(VEL_X)] = (!enable_brake) * throttle * params_p->gear_sign + brake -
                                 params_p->c_v[index] * state[S_INDEX(VEL_X)] + params_p->c_0;
-    state_der[S_INDEX(VEL_X)] = min(max(state_der[S_INDEX(VEL_X)], -params_p->clamp_ax), params_p->clamp_ax);
+    state_der[S_INDEX(VEL_X)] = fminf(fmaxf(state_der[S_INDEX(VEL_X)], -params_p->clamp_ax), params_p->clamp_ax);
     if (fabsf(state[S_INDEX(PITCH)]) < M_PI_2f32)
     {
       state_der[S_INDEX(VEL_X)] -= params_p->gravity * __sinf(angle_utils::normalizeAngle(state[S_INDEX(PITCH)]));
@@ -821,8 +824,7 @@ __device__ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::updateState(float* 
         next_state[S_INDEX(STEER_ANGLE_RATE)] = state_der[S_INDEX(STEER_ANGLE)];
         break;
       case S_INDEX(BRAKE_STATE):
-        next_state[S_INDEX(BRAKE_STATE)] =
-            fminf(fmaxf(next_state[S_INDEX(BRAKE_STATE)], 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
+        next_state[S_INDEX(BRAKE_STATE)] = fminf(fmaxf(next_state[S_INDEX(BRAKE_STATE)], 0.0f), 1.0f);
         break;
     }
   }

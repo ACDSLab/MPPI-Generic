@@ -216,7 +216,7 @@ __device__ inline void TEMPLATE_NAME::step(float* state, float* next_state, floa
 TEMPLATE_TYPE
 void TEMPLATE_NAME::updateFromBuffer(const buffer_trajectory& buffer)
 {
-  std::vector<std::string> keys = { "STEER_ANGLE", "STEER_ANGLE_RATE", "STEER_CMD" };
+  std::vector<std::string> keys = { "STEER_ANGLE", "STEER_ANGLE_RATE", "CAN_STEER_CMD" };
 
   bool found_all_keys = true;
   for (const auto& key : keys)
@@ -237,7 +237,7 @@ void TEMPLATE_NAME::updateFromBuffer(const buffer_trajectory& buffer)
 
   init_buffer.row(0) = buffer.at("STEER_ANGLE") * 0.2f;
   init_buffer.row(1) = buffer.at("STEER_ANGLE_RATE") * 0.2f;
-  init_buffer.row(2) = buffer.at("STEER_CMD");
+  init_buffer.row(2) = buffer.at("CAN_STEER_CMD");
 
   lstm_lstm_helper_->initializeLSTM(init_buffer);
 }

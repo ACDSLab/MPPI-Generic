@@ -71,7 +71,7 @@ public:
 TEST_F(RacerDubinsElevationLSTMUncertaintyTest, Template)
 {
   auto dynamics = RacerDubinsElevationLSTMUncertainty(steer_config, mean_config, unc_config);
-  EXPECT_EQ(24, RacerDubinsElevationLSTMUncertainty::STATE_DIM);
+  EXPECT_EQ(26, RacerDubinsElevationLSTMUncertainty::STATE_DIM);
   EXPECT_EQ(2, RacerDubinsElevationLSTMUncertainty::CONTROL_DIM);
   EXPECT_TRUE(dynamics.checkRequiresBuffer());
   EXPECT_NE(dynamics.getTextureHelper(), nullptr);
@@ -263,12 +263,12 @@ TEST_F(RacerDubinsElevationLSTMUncertaintyTest, TestGPUvsCPU)
   buffer["VEL_X"] = Eigen::VectorXf::Random(51);
   buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
   buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
-  buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["CAN_STEER_CMD"] = Eigen::VectorXf::Random(51);
   buffer["ROLL"] = Eigen::VectorXf::Random(51);
   buffer["PITCH"] = Eigen::VectorXf::Random(51);
-  buffer["THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["CAN_THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
   buffer["BRAKE_STATE"] = Eigen::VectorXf::Random(51);
-  buffer["BRAKE_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["CAN_BRAKE_CMD"] = Eigen::VectorXf::Random(51);
   buffer["OMEGA_Z"] = Eigen::VectorXf::Random(51);
 
   checkGPUComputationStep<RacerDubinsElevationLSTMUncertainty>(dynamics, 0.02f, 16, 32, buffer, 1.0e-4);
@@ -310,12 +310,12 @@ TEST_F(RacerDubinsElevationLSTMUncertaintyTest, TestStepGPUvsCPUReverse)
   buffer["VEL_X"] = Eigen::VectorXf::Random(51);
   buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
   buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
-  buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["CAN_STEER_CMD"] = Eigen::VectorXf::Random(51);
   buffer["ROLL"] = Eigen::VectorXf::Random(51);
   buffer["PITCH"] = Eigen::VectorXf::Random(51);
-  buffer["THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["CAN_THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
   buffer["BRAKE_STATE"] = Eigen::VectorXf::Random(51);
-  buffer["BRAKE_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["CAN_BRAKE_CMD"] = Eigen::VectorXf::Random(51);
   buffer["OMEGA_Z"] = Eigen::VectorXf::Random(51);
 
   checkGPUComputationStep<RacerDubinsElevationLSTMUncertainty>(dynamics, 0.02f, 16, 32, buffer, 1.0e-2);
@@ -361,12 +361,12 @@ TEST_F(RacerDubinsElevationLSTMUncertaintyTest, TestMatchesPython)
   buffer["VEL_X"] = Eigen::VectorXf::Random(51);
   buffer["STEER_ANGLE"] = Eigen::VectorXf::Random(51);
   buffer["STEER_ANGLE_RATE"] = Eigen::VectorXf::Random(51);
-  buffer["STEER_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["CAN_STEER_CMD"] = Eigen::VectorXf::Random(51);
   buffer["ROLL"] = Eigen::VectorXf::Random(51);
   buffer["PITCH"] = Eigen::VectorXf::Random(51);
-  buffer["THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["CAN_THROTTLE_CMD"] = Eigen::VectorXf::Random(51);
   buffer["BRAKE_STATE"] = Eigen::VectorXf::Random(51);
-  buffer["BRAKE_CMD"] = Eigen::VectorXf::Random(51);
+  buffer["CAN_BRAKE_CMD"] = Eigen::VectorXf::Random(51);
   buffer["OMEGA_Z"] = Eigen::VectorXf::Random(51);
 
   EXPECT_TRUE(fileExists(mppi::tests::racer_dubins_elevation_uncertainty_test));
@@ -410,9 +410,9 @@ TEST_F(RacerDubinsElevationLSTMUncertaintyTest, TestMatchesPython)
     {
       int buffer_index = (51 - init_length) + t;
       int init_input_shift = point * init_length * input_dim + t * input_dim;
-      buffer["THROTTLE_CMD"](buffer_index) = init_inputs[init_input_shift + 0];
-      buffer["BRAKE_CMD"](buffer_index) = init_inputs[init_input_shift + 1];
-      buffer["STEER_CMD"](buffer_index) = init_inputs[init_input_shift + 2];
+      buffer["CAN_THROTTLE_CMD"](buffer_index) = init_inputs[init_input_shift + 0];
+      buffer["CAN_BRAKE_CMD"](buffer_index) = init_inputs[init_input_shift + 1];
+      buffer["CAN_STEER_CMD"](buffer_index) = init_inputs[init_input_shift + 2];
       buffer["PITCH"](buffer_index) = init_inputs[init_input_shift + 3];
       buffer["ROLL"](buffer_index) = init_inputs[init_input_shift + 4];
 
@@ -500,6 +500,8 @@ TEST_F(RacerDubinsElevationLSTMUncertaintyTest, TestMatchesPython)
       int input_shift = point * traj_length * input_dim + (t - 1) * input_dim;
       control(C_IND_CLASS(DYN::DYN_PARAMS_T, THROTTLE_BRAKE)) = inputs[input_shift + 0] - inputs[input_shift + 1];
       control(C_IND_CLASS(DYN::DYN_PARAMS_T, STEER_CMD)) = inputs[input_shift + 2];
+      state(S_IND_CLASS(DYN::DYN_PARAMS_T, STATIC_PITCH)) = inputs[input_shift + 3];
+      state(S_IND_CLASS(DYN::DYN_PARAMS_T, STATIC_ROLL)) = inputs[input_shift + 4];
       state(S_IND_CLASS(DYN::DYN_PARAMS_T, PITCH)) = inputs[input_shift + 3];
       state(S_IND_CLASS(DYN::DYN_PARAMS_T, ROLL)) = inputs[input_shift + 4];
 

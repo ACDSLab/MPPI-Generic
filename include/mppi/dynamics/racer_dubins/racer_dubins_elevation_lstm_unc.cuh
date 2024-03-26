@@ -21,6 +21,8 @@ struct RacerDubinsElevationUncertaintyParams : public RacerDubinsElevationSuspen
     PITCH_RATE,
     STEER_ANGLE_RATE,
     OMEGA_Z,
+    STATIC_ROLL,
+    STATIC_PITCH,
     UNCERTAINTY_POS_X,
     UNCERTAINTY_POS_Y,
     UNCERTAINTY_YAW,
@@ -37,6 +39,7 @@ struct RacerDubinsElevationUncertaintyParams : public RacerDubinsElevationSuspen
   float unc_scale[7] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
   float pos_quad_brake_c[3] = {2.0f, 0.5f, 0.3};
   float neg_quad_brake_c[3] = {5.84f, 0.15f, 1.7f};
+  bool use_static_settling = true;
 };
 
 class RacerDubinsElevationLSTMUncertainty
