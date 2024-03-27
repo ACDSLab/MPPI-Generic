@@ -80,6 +80,8 @@ public:
 
   void initializeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                           Eigen::Ref<output_array> output, float t_0, float dt);
+  state_array stateFromMap(const std::map<std::string, float>& map);
+
 
   __host__ __device__ bool computeQ(const float* state, const float* control, const float* state_der, float* Q,
                                     DYN_PARAMS_T* params_p, float* theta_s);

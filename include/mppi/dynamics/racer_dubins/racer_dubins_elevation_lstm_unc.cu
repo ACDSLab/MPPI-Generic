@@ -141,6 +141,93 @@ void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajecto
   uncertainty_helper_->initializeLSTM(unc_init_buffer);
 }
 
+RacerDubinsElevationLSTMUncertainty::state_array
+RacerDubinsElevationLSTMUncertainty::stateFromMap(const std::map<std::string, float>& map)
+{
+  std::vector<std::string> needed_keys = { "VEL_X",       "VEL_Z",  "POS_X", "POS_Y", "POS_Z",       "OMEGA_X",
+                                           "OMEGA_Y",     "ROLL",   "PITCH", "YAW",   "STEER_ANGLE", "STEER_ANGLE_RATE",
+                                           "BRAKE_STATE", "OMEGA_Z" };
+  std::vector<std::string> uncertainty_keys = { "UNCERTAINTY_POS_X",       "UNCERTAINTY_POS_Y",
+                                                "UNCERTAINTY_YAW",         "UNCERTAINTY_VEL_X",
+                                                "UNCERTAINTY_POS_X_Y",     "UNCERTAINTY_POS_X_YAW",
+                                                "UNCERTAINTY_POS_X_VEL_X", "UNCERTAINTY_POS_Y_YAW",
+                                                "UNCERTAINTY_POS_Y_VEL_X", "UNCERTAINTY_YAW_VEL_X" };
+  const bool use_uncertainty = false;
+  if (use_uncertainty)
+  {
+    needed_keys.insert(needed_keys.end(), uncertainty_keys.begin(), uncertainty_keys.end());
+  }
+
+  bool missing_key = false;
+  state_array s = state_array::Zero();
+  for (const auto& key : needed_keys)
+  {
+    if (map.find(key) == map.end())
+    {  // Print out all missing keys
+      std::cout << "Could not find key " << key << " for elevation with simple suspension dynamics." << std::endl;
+      missing_key = true;
+    }
+  }
+  if (missing_key)
+  {
+    return state_array::Constant(NAN);
+  }
+
+  s(S_INDEX(POS_X)) = map.at("POS_X");
+  s(S_INDEX(POS_Y)) = map.at("POS_Y");
+  s(S_INDEX(CG_POS_Z)) = map.at("POS_Z");
+  s(S_INDEX(VEL_X)) = map.at("VEL_X");
+  float bl_v_I_z = map.at("VEL_Z") * cosf(map.at("PITCH")) - map.at("VEL_X") * sinf(map.at("PITCH"));
+  s(S_INDEX(CG_VEL_I_Z)) = bl_v_I_z - map.at("OMEGA_Y") * this->params_.c_g.x;
+  s(S_INDEX(STEER_ANGLE)) = map.at("STEER_ANGLE");
+  s(S_INDEX(STEER_ANGLE_RATE)) = map.at("STEER_ANGLE_RATE");
+  s(S_INDEX(ROLL)) = map.at("ROLL");
+  s(S_INDEX(PITCH)) = map.at("PITCH");
+  s(S_INDEX(YAW)) = map.at("YAW");
+  s(S_INDEX(OMEGA_Z)) = map.at("OMEGA_Z");
+  // Set z position to cg's z position in world frame
+  float3 rotation = make_float3(s(S_INDEX(ROLL)), s(S_INDEX(PITCH)), s(S_INDEX(YAW)));
+  float3 world_pose = make_float3(s(S_INDEX(POS_X)), s(S_INDEX(POS_Y)), s(S_INDEX(CG_POS_Z)));
+  float3 cg_in_world_frame;
+  mppi::math::bodyOffsetToWorldPoseEuler(this->params_.c_g, world_pose, rotation, cg_in_world_frame);
+  s(S_INDEX(CG_POS_Z)) = cg_in_world_frame.z;
+  s(S_INDEX(ROLL_RATE)) = map.at("OMEGA_X");
+  s(S_INDEX(PITCH_RATE)) = map.at("OMEGA_Y");
+  s(S_INDEX(BRAKE_STATE)) = map.at("BRAKE_STATE");
+
+  if (use_uncertainty)
+  {
+    s(S_INDEX(UNCERTAINTY_POS_X)) = map.at("UNCERTAINTY_POS_X");
+    s(S_INDEX(UNCERTAINTY_POS_Y)) = map.at("UNCERTAINTY_POS_Y");
+    s(S_INDEX(UNCERTAINTY_YAW)) = map.at("UNCERTAINTY_YAW");
+    s(S_INDEX(UNCERTAINTY_VEL_X)) = map.at("UNCERTAINTY_VEL_X");
+    s(S_INDEX(UNCERTAINTY_POS_X_Y)) = map.at("UNCERTAINTY_POS_X_Y");
+    s(S_INDEX(UNCERTAINTY_POS_X_YAW)) = map.at("UNCERTAINTY_POS_X_YAW");
+    s(S_INDEX(UNCERTAINTY_POS_X_VEL_X)) = map.at("UNCERTAINTY_POS_X_VEL_X");
+    s(S_INDEX(UNCERTAINTY_POS_Y_YAW)) = map.at("UNCERTAINTY_POS_Y_YAW");
+    s(S_INDEX(UNCERTAINTY_POS_Y_VEL_X)) = map.at("UNCERTAINTY_POS_Y_VEL_X");
+    s(S_INDEX(UNCERTAINTY_YAW_VEL_X)) = map.at("UNCERTAINTY_YAW_VEL_X");
+  }
+  float eps = 1e-6f;
+  if (s(S_INDEX(UNCERTAINTY_POS_X)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_POS_X)) = eps;
+  }
+  if (s(S_INDEX(UNCERTAINTY_POS_Y)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_POS_Y)) = eps;
+  }
+  if (s(S_INDEX(UNCERTAINTY_YAW)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_YAW)) = eps;
+  }
+  if (s(S_INDEX(UNCERTAINTY_VEL_X)) < eps)
+  {
+    s(S_INDEX(UNCERTAINTY_VEL_X)) = eps;
+  }
+  return s;
+}
+
 void RacerDubinsElevationLSTMUncertainty::initializeDynamics(const Eigen::Ref<const state_array>& state,
                                                              const Eigen::Ref<const control_array>& control,
                                                              Eigen::Ref<output_array> output, float t_0, float dt)
