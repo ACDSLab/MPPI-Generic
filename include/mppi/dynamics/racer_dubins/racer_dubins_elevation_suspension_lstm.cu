@@ -25,6 +25,13 @@ TEMPLATE_NAME::RacerDubinsElevationSuspensionImpl(std::string path, cudaStream_t
 }
 
 TEMPLATE_TYPE
+void TEMPLATE_NAME::bindToStream(cudaStream_t stream)
+{
+  normals_tex_helper_->bindToStream(stream);
+  PARENT_CLASS::bindToStream(stream);
+}
+
+TEMPLATE_TYPE
 void TEMPLATE_NAME::paramsToDevice()
 {
   normals_tex_helper_->copyToDevice();

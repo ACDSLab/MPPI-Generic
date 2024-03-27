@@ -100,6 +100,8 @@ public:
     return "RACER Dubins LSTM Steering and Suspension Model";
   }
 
+  void bindToStream(cudaStream_t stream);
+
   void paramsToDevice();
 
   void GPUSetup();
@@ -159,7 +161,7 @@ public:
     : PARENT_CLASS(params, stream)
   {
   }
-  RacerDubinsElevationSuspension(std::string path, cudaStream_t stream = 0) : PARENT_CLASS(path, stream = 0)
+  RacerDubinsElevationSuspension(std::string path, cudaStream_t stream = 0) : PARENT_CLASS(path, stream)
   {
   }
 
