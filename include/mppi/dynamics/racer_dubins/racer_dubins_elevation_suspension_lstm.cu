@@ -108,7 +108,7 @@ void TEMPLATE_NAME::computeSimpleSuspensionStep(Eigen::Ref<state_array> state, E
       wheel_height = this->tex_helper_->queryTextureAtWorldPose(0, wheel_positions_world[i]);
       if (!isfinite(wheel_height))
       {
-        wheel_height = 0.0f;
+        wheel_height = state(S_INDEX(CG_POS_Z)) - params_p->wheel_radius;
       }
     }
     if (normals_tex_helper_->checkTextureUse(0))
@@ -282,7 +282,7 @@ __device__ void TEMPLATE_NAME::computeSimpleSuspensionStep(float* state, float* 
       wheel_height = this->tex_helper_->queryTextureAtWorldPose(0, wheel_positions_world);
       if (!isfinite(wheel_height))
       {
-        wheel_height = 0.0f;
+        wheel_height = state[S_INDEX(CG_POS_Z)] - params_p->wheel_radius;
       }
     }
     if (normals_tex_helper_->checkTextureUse(0))
