@@ -122,10 +122,17 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   // HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * freq_size, stream));
   // HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * sample_num_timesteps,
   // stream));
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
   HANDLE_ERROR(cudaMallocAsync((void**)&freq_coeffs_d, sizeof(float) * freq_size * control_dim, stream));
   HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_complex_d, sizeof(cufftComplex) * batch * freq_size, stream));
   HANDLE_ERROR(cudaMallocAsync((void**)&noise_in_time_d, sizeof(float) * batch * sample_num_timesteps, stream));
   HANDLE_ERROR(cudaMallocAsync((void**)&sigma_d, sizeof(float) * control_dim, stream));
+#else
+  HANDLE_ERROR(cudaMalloc((void**)&freq_coeffs_d, sizeof(float) * freq_size * control_dim));
+  HANDLE_ERROR(cudaMalloc((void**)&samples_in_freq_complex_d, sizeof(cufftComplex) * batch * freq_size));
+  HANDLE_ERROR(cudaMalloc((void**)&noise_in_time_d, sizeof(float) * batch * sample_num_timesteps));
+  HANDLE_ERROR(cudaMalloc((void**)&sigma_d, sizeof(float) * control_dim));
+#endif
   // curandSetStream(gen, stream);
   HANDLE_CURAND_ERROR(curandGenerateNormal(gen, (float*)samples_in_freq_complex_d, 2 * batch * freq_size, 0.0, 1.0));
   HANDLE_ERROR(cudaMemcpyAsync(freq_coeffs_d, sample_freqs.data(), sizeof(float) * freq_size * control_dim,
@@ -159,11 +166,19 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   HANDLE_ERROR(cudaGetLastError());
   HANDLE_ERROR(cudaStreamSynchronize(stream));
   HANDLE_CUFFT_ERROR(cufftDestroy(plan));
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
   // HANDLE_ERROR(cudaFreeAsync(samples_in_freq_d, stream));
   HANDLE_ERROR(cudaFreeAsync(freq_coeffs_d, stream));
   HANDLE_ERROR(cudaFreeAsync(sigma_d, stream));
   HANDLE_ERROR(cudaFreeAsync(samples_in_freq_complex_d, stream));
   HANDLE_ERROR(cudaFreeAsync(noise_in_time_d, stream));
+#else
+  // HANDLE_ERROR(cudaFree(samples_in_freq_d));
+  HANDLE_ERROR(cudaFree(freq_coeffs_d));
+  HANDLE_ERROR(cudaFree(sigma_d));
+  HANDLE_ERROR(cudaFree(samples_in_freq_complex_d));
+  HANDLE_ERROR(cudaFree(noise_in_time_d));
+#endif
 }
 
 namespace mppi
@@ -205,6 +220,9 @@ __host__ void COLORED_NOISE::allocateCUDAMemoryHelper()
   PARENT_CLASS::allocateCUDAMemoryHelper();
   if (this->GPUMemStatus_)
   {
+    const int sample_num_timesteps = 2 * this->getNumTimesteps();
+    const int freq_size = sample_num_timesteps / 2 + 1;
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
     if (frequency_sigma_d_)
     {
       HANDLE_ERROR(cudaFreeAsync(frequency_sigma_d_, this->stream_));
@@ -221,8 +239,6 @@ __host__ void COLORED_NOISE::allocateCUDAMemoryHelper()
     {
       HANDLE_ERROR(cudaFreeAsync(freq_coeffs_d_, this->stream_));
     }
-    const int sample_num_timesteps = 2 * this->getNumTimesteps();
-    const int freq_size = sample_num_timesteps / 2 + 1;
     HANDLE_ERROR(
         cudaMallocAsync((void**)&freq_coeffs_d_, sizeof(float) * freq_size * this->CONTROL_DIM, this->stream_));
     HANDLE_ERROR(cudaMallocAsync((void**)&frequency_sigma_d_, sizeof(float) * this->CONTROL_DIM, this->stream_));
@@ -234,6 +250,31 @@ __host__ void COLORED_NOISE::allocateCUDAMemoryHelper()
                                  sizeof(float) * this->getNumRollouts() * this->CONTROL_DIM * sample_num_timesteps *
                                      this->getNumDistributions(),
                                  this->stream_));
+#else
+    if (frequency_sigma_d_)
+    {
+      HANDLE_ERROR(cudaFree(frequency_sigma_d_));
+    }
+    if (samples_in_freq_complex_d_)
+    {
+      HANDLE_ERROR(cudaFree(samples_in_freq_complex_d_));
+    }
+    if (noise_in_time_d_)
+    {
+      HANDLE_ERROR(cudaFree(noise_in_time_d_));
+    }
+    if (freq_coeffs_d_)
+    {
+      HANDLE_ERROR(cudaFree(freq_coeffs_d_));
+    }
+    HANDLE_ERROR(cudaMalloc((void**)&freq_coeffs_d_, sizeof(float) * freq_size * this->CONTROL_DIM));
+    HANDLE_ERROR(cudaMalloc((void**)&frequency_sigma_d_, sizeof(float) * this->CONTROL_DIM));
+    HANDLE_ERROR(cudaMalloc((void**)&samples_in_freq_complex_d_, sizeof(cufftComplex) * this->getNumRollouts() *
+                                                                     this->CONTROL_DIM * freq_size *
+                                                                     this->getNumDistributions()));
+    HANDLE_ERROR(cudaMalloc((void**)&noise_in_time_d_, sizeof(float) * this->getNumRollouts() * this->CONTROL_DIM *
+                                                           sample_num_timesteps * this->getNumDistributions()));
+#endif
     // Recreate FFT Plan
     HANDLE_CUFFT_ERROR(cufftPlan1d(&plan_, sample_num_timesteps, CUFFT_C2R,
                                    this->getNumRollouts() * this->getNumDistributions() * this->CONTROL_DIM));
@@ -298,7 +339,6 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
   // Sample the noise in frequency domain and reutrn to time domain
   const int batch = num_trajectories * this->CONTROL_DIM;
   // Need 2 * (sample_num_timesteps / 2 + 1) * batch of randomly sampled values
-  // float* samples_in_freq_d;
   HANDLE_CURAND_ERROR(curandGenerateNormal(gen, (float*)samples_in_freq_complex_d_, 2 * batch * freq_size, 0.0, 1.0));
   HANDLE_ERROR(cudaMemcpyAsync(freq_coeffs_d_, sample_freqs.data(), sizeof(float) * freq_size * this->CONTROL_DIM,
                                cudaMemcpyHostToDevice, this->stream_));

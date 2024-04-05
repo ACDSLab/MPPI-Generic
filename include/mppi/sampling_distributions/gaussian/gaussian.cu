@@ -294,27 +294,36 @@ __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
   {
     if (std_dev_d_)
     {
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
       HANDLE_ERROR(cudaFreeAsync(std_dev_d_, this->stream_));
+#else
+      HANDLE_ERROR(cudaFree(std_dev_d_));
+#endif
     }
     if (control_means_d_)
     {  // deallocate previous memory control trajectory means
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
       HANDLE_ERROR(cudaFreeAsync(control_means_d_, this->stream_));
+#else
+      HANDLE_ERROR(cudaFree(controle_means_d_);)
+#endif
     }
 
+    int std_dev_size = CONTROL_DIM * this->getNumDistributions();
     if (this->params_.time_specific_std_dev)
     {
-      HANDLE_ERROR(cudaMallocAsync((void**)&std_dev_d_,
-                                   sizeof(float) * CONTROL_DIM * this->getNumTimesteps() * this->getNumDistributions(),
-                                   this->stream_));
+      std_dev_size *= this->getNumTimesteps();
     }
-    else
-    {
-      HANDLE_ERROR(cudaMallocAsync((void**)&std_dev_d_, sizeof(float) * CONTROL_DIM * this->getNumDistributions(),
-                                   this->stream_));
-    }
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
+    HANDLE_ERROR(cudaMallocAsync((void**)&std_dev_d_, sizeof(float) * std_dev_size, this->stream_));
     HANDLE_ERROR(cudaMallocAsync((void**)&control_means_d_,
                                  sizeof(float) * this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM,
                                  this->stream_));
+#else
+    HANDLE_ERROR(cudaMalloc((void**)&std_dev_d_, sizeof(float) * std_dev_size));
+    HANDLE_ERROR(cudaMalloc((void**)&control_means_d_,
+                            sizeof(float) * this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM));
+#endif
     means_.resize(this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM);
     // Ensure that the device side point knows where the the standard deviation memory is located
     HANDLE_ERROR(cudaMemcpyAsync(&this->sampling_d_->std_dev_d_, &std_dev_d_, sizeof(float*), cudaMemcpyHostToDevice,

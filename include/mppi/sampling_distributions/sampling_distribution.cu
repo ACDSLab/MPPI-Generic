@@ -70,11 +70,20 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::upda
     bool synchronize)
 {
   float* trajectory_weights_d;
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
   HANDLE_ERROR(cudaMallocAsync((void**)&trajectory_weights_d, sizeof(float) * this->getNumRollouts(), this->stream_));
+#else
+  HANDLE_ERROR(cudaMalloc((void**)&trajectory_weights_d, sizeof(float) * this->getNumRollouts()));
+#endif
   HANDLE_ERROR(cudaMemcpyAsync(trajectory_weights_d, trajectory_weights.data(), sizeof(float) * this->getNumRollouts(),
                                cudaMemcpyHostToDevice, this->stream_));
   updateDistributionParamsFromDevice(trajectory_weights_d, normalizer, distribution_i, false);
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
   HANDLE_ERROR(cudaFreeAsync(trajectory_weights_d, this->stream_));
+#else
+  HANDLE_ERROR(cudaFree(trajectory_weights_d));
+#endif
+
   if (synchronize)
   {
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
@@ -88,13 +97,23 @@ __host__ void SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::allo
   {
     if (control_samples_d_)
     {  // deallocate previous memory for control samples
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
       HANDLE_ERROR(cudaFreeAsync(control_samples_d_, stream_));
+#else
+      HANDLE_ERROR(cudaFree(control_samples_d_));
+#endif
       // control_samples_d_ = nullptr;
     }
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
     HANDLE_ERROR(cudaMallocAsync((void**)&control_samples_d_,
                                  sizeof(float) * this->getNumDistributions() * this->getNumRollouts() *
                                      this->getNumTimesteps() * CONTROL_DIM,
                                  stream_));
+#else
+    HANDLE_ERROR(cudaMalloc((void**)&control_samples_d_, sizeof(float) * this->getNumDistributions() *
+                                                             this->getNumRollouts() * this->getNumTimesteps() *
+                                                             CONTROL_DIM));
+#endif
     HANDLE_ERROR(cudaMemcpyAsync(&sampling_d_->control_samples_d_, &control_samples_d_, sizeof(float*),
                                  cudaMemcpyHostToDevice, stream_));
   }
@@ -114,7 +133,11 @@ SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::resizeVisualizatio
   {
     if (vis_control_samples_d_)
     {  // deallocate previous memory for control samples
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
       HANDLE_ERROR(cudaFreeAsync(vis_control_samples_d_, vis_stream_));
+#else
+      HANDLE_ERROR(cudaFree(vis_control_samples_d_));
+#endif
       // vis_control_samples_d_ = nullptr;
     }
     if (this->getNumVisRollouts() == 0)
@@ -123,10 +146,16 @@ SamplingDistribution<CLASS_T, PARAMS_TEMPLATE, DYN_PARAMS_T>::resizeVisualizatio
     }
     else
     {
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
       HANDLE_ERROR(cudaMallocAsync((void**)&vis_control_samples_d_,
                                    sizeof(float) * this->getNumDistributions() * this->getNumVisRollouts() *
                                        this->getNumTimesteps() * CONTROL_DIM,
                                    vis_stream_));
+#else
+      HANDLE_ERROR(cudaMalloc((void**)&vis_control_samples_d_, sizeof(float) * this->getNumDistributions() *
+                                                                   this->getNumVisRollouts() * this->getNumTimesteps() *
+                                                                   CONTROL_DIM));
+#endif
     }
     HANDLE_ERROR(cudaMemcpyAsync(&sampling_d_->vis_control_samples_d_, &vis_control_samples_d_, sizeof(float*),
                                  cudaMemcpyHostToDevice, vis_stream_));
