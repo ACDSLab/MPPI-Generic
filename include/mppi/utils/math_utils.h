@@ -282,13 +282,14 @@ inline __host__ __device__ void Quat2DCM(const float q[4], float M[3][3])
   M[2][2] = SQ(q[0]) - SQ(q[1]) - SQ(q[2]) + SQ(q[3]);
 }
 
-inline void QuatSubtract(const Eigen::Quaternionf& q_1, const Eigen::Quaternionf& q_2, Eigen::Quaternionf& q_3)
+inline __host__ __device__ void QuatSubtract(const Eigen::Quaternionf& q_1, const Eigen::Quaternionf& q_2,
+                                             Eigen::Quaternionf& q_3)
 {
   q_3 = q_2 * q_1.inverse();
 }
 
-inline void QuatMultiply(const Eigen::Quaternionf& q_1, const Eigen::Quaternionf& q_2, Eigen::Quaternionf& q_3,
-                         bool normalize = true)
+inline __host__ __device__ void QuatMultiply(const Eigen::Quaternionf& q_1, const Eigen::Quaternionf& q_2,
+                                             Eigen::Quaternionf& q_3, bool normalize = true)
 {
   q_3 = q_1 * q_2;
   if (normalize)
@@ -297,7 +298,7 @@ inline void QuatMultiply(const Eigen::Quaternionf& q_1, const Eigen::Quaternionf
   }
 }
 
-inline void QuatInv(const Eigen::Quaternionf& q, Eigen::Quaternionf& q_f)
+inline __host__ __device__ void QuatInv(const Eigen::Quaternionf& q, Eigen::Quaternionf& q_f)
 {
   q_f = q.inverse();
 }
