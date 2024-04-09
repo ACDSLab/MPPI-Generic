@@ -17,10 +17,7 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w")
 option(BUILD_TESTS "BUILD_TESTS" ON)
 option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
 option(MPPI_USE_CUDA_BARRIERS "Compile MPPI-Generic with cuda barrier support" ON)
-# set(BUILD_TESTS OFF)
-# set(BUILD_EXAMPLES OFF)
-# add_subdirectory(submodules/cnpy)
-# include_directories(submodules/cnpy)
+
 
 # Allow the lib location to be overwritten from command line
 if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
@@ -30,13 +27,21 @@ else()
     get_filename_component(PROJECT_LIBS_DIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} ABSOLUTE)
 endif()
 
+# set up cnpy
+# Don't install cnpy to user package registry
+set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
+set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
+add_subdirectory(submodules/cnpy)
+# Set the no package registry back to default
+set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
+
 # Find Eigen
 find_package(Eigen3 REQUIRED)
 # include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
 
 # REQUIRED for CUDA to correctly align Eigen member variables inside structures/classes
 # https://listengine.tuxfamily.org/lists.tuxfamily.org/eigen/2016/06/msg00006.html
-add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=0)
+# add_definitions(-DEIGEN_MAX_STATIC_ALIGN_BYTES=0)
 
 # Create a Header-only MPPI Library
 add_library(${MPPI_HEADER_LIBRARY_NAME} INTERFACE)
@@ -50,6 +55,7 @@ target_link_libraries(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
   cnpy
   Eigen3::Eigen
 )
+target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE submodules/cnpy)
 
 # Allow the ability to turn off cuda barriers through CMake. Necessary for GPUs older than
 # the 20 series
@@ -62,15 +68,6 @@ if (BUILD_TESTS OR BUILD_EXAMPLES)
     # find yaml-cpp
     find_package(yaml-cpp REQUIRED)
     include_directories(${YAML_CPP_INCLUDE_DIR})
-
-    # set up cnpy
-    # Don't install cnpy to user package registry
-    set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
-    set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
-    add_subdirectory(submodules/cnpy)
-    target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE submodules/cnpy)
-    # Set the no package registry back to default
-    set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 endif()
 
 # Install all library header files

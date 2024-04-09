@@ -226,12 +226,6 @@ public:
   virtual void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride) = 0;
 
   /**
-   * @param steps dt's to slide control sequence forward
-   * Slide the control sequence forwards steps steps
-   */
-  virtual void slideControlSequence(int optimization_stride) = 0;
-
-  /**
    * Call a kernel to evaluate the sampled state trajectories for visualization
    * and debugging.
    */
@@ -240,27 +234,27 @@ public:
   // ================ END OF METHODS WITH NO DEFAULT =============
   // ======== PURE VIRTUAL END =====
 
-  virtual std::string getControllerName()
+  virtual std::string getControllerName() const
   {
     return "name not set";
   };
 
-  virtual std::string getCostFunctionName()
+  virtual std::string getCostFunctionName() const
   {
     return cost_->getCostFunctionName();
   }
 
-  virtual std::string getDynamicsModelName()
+  virtual std::string getDynamicsModelName() const
   {
     return model_->getDynamicsModelName();
   }
 
-  virtual std::string getSamplingDistributionName()
+  virtual std::string getSamplingDistributionName() const
   {
     return sampler_->getSamplingDistributionName();
   }
 
-  virtual std::string getFullName()
+  virtual std::string getFullName() const
   {
     return getControllerName() + "(" + getDynamicsModelName() + ", " + getCostFunctionName() + ", " +
            getSamplingDistributionName() + ")";
@@ -348,6 +342,17 @@ public:
     model_->enforceConstraints(empty_state, result);
 
     return result;
+  }
+
+  /**
+   * @param steps - number of dt's to slide control sequence forward
+   * Slide the control sequence forwards by 'steps'
+   */
+  virtual void slideControlSequence(int steps) {
+    // Save the control history
+    this->saveControlHistoryHelper(steps, this->control_, this->control_history_);
+
+    this->slideControlSequenceHelper(steps, this->control_);
   }
 
   /**
@@ -725,7 +730,7 @@ public:
    * back from the GPU. Multiplier is an integer in case the nominal
    * control trajectories also need to be saved.
    */
-  void setPercentageSampledControlTrajectoriesHelper(float new_perc, int multiplier)
+  void setPercentageSampledControlTrajectoriesHelper(float new_perc, int multiplier = 1)
   {
     perc_sampled_control_trajectories_ = new_perc;
     sample_multiplier_ = multiplier;

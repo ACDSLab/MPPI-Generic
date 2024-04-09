@@ -71,7 +71,7 @@ public:
   // Destructor
   ~ColoredMPPIController();
 
-  std::string getControllerName()
+  std::string getControllerName() const override
   {
     return "Colored MPPI";
   };

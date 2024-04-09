@@ -254,17 +254,6 @@ void VanillaMPPI::computeStateTrajectory(const Eigen::Ref<const state_array>& x0
 }
 
 VANILLA_MPPI_TEMPLATE
-void VanillaMPPI::slideControlSequence(int steps)
-{
-  // TODO does the logic of handling control history reasonable?
-
-  // Save the control history
-  this->saveControlHistoryHelper(steps, this->control_, this->control_history_);
-
-  this->slideControlSequenceHelper(steps, this->control_);
-}
-
-VANILLA_MPPI_TEMPLATE
 void VanillaMPPI::smoothControlTrajectory()
 {
   this->smoothControlTrajectoryHelper(this->control_, this->control_history_);

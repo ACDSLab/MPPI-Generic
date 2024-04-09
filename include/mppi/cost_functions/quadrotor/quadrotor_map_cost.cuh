@@ -114,7 +114,7 @@ public:
 
   void paramsToDevice();
 
-  std::string getCostFunctionName()
+  std::string getCostFunctionName() const override
   {
     return std::string("Quadrotor Map Cost");
   }

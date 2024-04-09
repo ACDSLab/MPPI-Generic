@@ -43,7 +43,7 @@ public:
   // Destructor
   ~VanillaMPPIController();
 
-  std::string getControllerName()
+  std::string getControllerName() const override
   {
     return "Vanilla MPPI";
   };
@@ -53,11 +53,6 @@ public:
    * @param state starting position
    */
   void computeControl(const Eigen::Ref<const state_array>& state, int optimization_stride = 1) override;
-
-  /**
-   * Slide the control sequence back n steps
-   */
-  void slideControlSequence(int optimization_stride) override;
 
   void setPercentageSampledControlTrajectories(float new_perc)
   {
