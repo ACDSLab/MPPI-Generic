@@ -10,6 +10,7 @@
 #include <mppi/ddp/ddp_tracking_costs.h>
 #include <mppi/ddp/ddp.h>
 #include <mppi/ddp/util.h>
+#include <mppi/utils/math_utils.h>
 
 template <class DYN_T>
 struct DDPParams
