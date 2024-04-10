@@ -294,7 +294,7 @@ __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
   {
     if (std_dev_d_)
     {
-#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11200
       HANDLE_ERROR(cudaFreeAsync(std_dev_d_, this->stream_));
 #else
       HANDLE_ERROR(cudaFree(std_dev_d_));
@@ -302,7 +302,7 @@ __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
     }
     if (control_means_d_)
     {  // deallocate previous memory control trajectory means
-#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11200
       HANDLE_ERROR(cudaFreeAsync(control_means_d_, this->stream_));
 #else
       HANDLE_ERROR(cudaFree(controle_means_d_);)
@@ -314,7 +314,7 @@ __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
     {
       std_dev_size *= this->getNumTimesteps();
     }
-#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11200
     HANDLE_ERROR(cudaMallocAsync((void**)&std_dev_d_, sizeof(float) * std_dev_size, this->stream_));
     HANDLE_ERROR(cudaMallocAsync((void**)&control_means_d_,
                                  sizeof(float) * this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM,

@@ -122,7 +122,7 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   // HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * freq_size, stream));
   // HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_d, sizeof(float) * 2 * batch * sample_num_timesteps,
   // stream));
-#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11200
   HANDLE_ERROR(cudaMallocAsync((void**)&freq_coeffs_d, sizeof(float) * freq_size * control_dim, stream));
   HANDLE_ERROR(cudaMallocAsync((void**)&samples_in_freq_complex_d, sizeof(cufftComplex) * batch * freq_size, stream));
   HANDLE_ERROR(cudaMallocAsync((void**)&noise_in_time_d, sizeof(float) * batch * sample_num_timesteps, stream));
@@ -166,7 +166,7 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
   HANDLE_ERROR(cudaGetLastError());
   HANDLE_ERROR(cudaStreamSynchronize(stream));
   HANDLE_CUFFT_ERROR(cufftDestroy(plan));
-#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11200
   // HANDLE_ERROR(cudaFreeAsync(samples_in_freq_d, stream));
   HANDLE_ERROR(cudaFreeAsync(freq_coeffs_d, stream));
   HANDLE_ERROR(cudaFreeAsync(sigma_d, stream));
@@ -222,7 +222,7 @@ __host__ void COLORED_NOISE::allocateCUDAMemoryHelper()
   {
     const int sample_num_timesteps = 2 * this->getNumTimesteps();
     const int freq_size = sample_num_timesteps / 2 + 1;
-#if defined(CUDART_VERSION) && CUDART_VERSION > 11000
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11200
     if (frequency_sigma_d_)
     {
       HANDLE_ERROR(cudaFreeAsync(frequency_sigma_d_, this->stream_));
