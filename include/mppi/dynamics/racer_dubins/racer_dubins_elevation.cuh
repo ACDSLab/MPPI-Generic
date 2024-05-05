@@ -161,6 +161,18 @@ public:
   {
   }
 
+  state_array computeStateError(const Eigen::Ref<const state_array>& pred_state,
+                                const Eigen::Ref<const state_array>& true_state)
+  {
+    state_array state_diff = pred_state - true_state;
+    state_diff(S_INDEX(YAW)) = angle_utils::shortestAngularDistance(true_state(S_INDEX(YAW)), pred_state(S_INDEX(YAW)));
+    state_diff(S_INDEX(ROLL)) =
+        angle_utils::shortestAngularDistance(true_state(S_INDEX(ROLL)), pred_state(S_INDEX(ROLL)));
+    state_diff(S_INDEX(PITCH)) =
+        angle_utils::shortestAngularDistance(true_state(S_INDEX(PITCH)), pred_state(S_INDEX(PITCH)));
+    return state_diff;
+  }
+
   void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
             const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,
             const float dt);

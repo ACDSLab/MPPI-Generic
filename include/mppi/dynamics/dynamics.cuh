@@ -317,8 +317,8 @@ public:
    * @param alpha
    * @return
    */
-  state_array interpolateState(const Eigen::Ref<state_array> state_1, const Eigen::Ref<state_array> state_2,
-                               const float alpha)
+  state_array interpolateState(const Eigen::Ref<const state_array>& state_1,
+                               const Eigen::Ref<const state_array>& state_2, const float alpha)
   {
     return (1 - alpha) * state_1 + alpha * state_2;
   }
@@ -329,7 +329,8 @@ public:
    * @param true_state
    * @return
    */
-  state_array computeStateError(const Eigen::Ref<state_array> pred_state, const Eigen::Ref<state_array> true_state)
+  state_array computeStateError(const Eigen::Ref<const state_array>& pred_state,
+                                const Eigen::Ref<const state_array>& true_state)
   {
     return pred_state - true_state;
   }
