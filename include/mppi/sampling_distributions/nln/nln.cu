@@ -167,3 +167,5 @@ __host__ void NLN_NOISE::generateSamples(const int& optimization_stride, const i
 }
 }  // namespace sampling_distributions
 }  // namespace mppi
+#undef NLN_NOISE
+#undef NLN_TEMPLATE
