@@ -305,7 +305,7 @@ __host__ void GAUSSIAN_CLASS::allocateCUDAMemoryHelper()
 #if defined(CUDART_VERSION) && CUDART_VERSION > 11200
       HANDLE_ERROR(cudaFreeAsync(control_means_d_, this->stream_));
 #else
-      HANDLE_ERROR(cudaFree(controle_means_d_);)
+      HANDLE_ERROR(cudaFree(control_means_d_));
 #endif
     }
 
