@@ -99,18 +99,18 @@ void RacerDubinsElevationLSTMUncertainty::freeCudaMem()
   PARENT_CLASS::freeCudaMem();
 }
 
-void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajectory& buffer)
+bool RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajectory& buffer)
 {
-  PARENT_CLASS::updateFromBuffer(buffer);
+  bool parent_success = PARENT_CLASS::updateFromBuffer(buffer);
 
   std::vector<std::string> keys = { "STEER_ANGLE",   "STEER_ANGLE_RATE", "CAN_STEER_CMD", "ROLL",
                                     "PITCH",         "CAN_THROTTLE_CMD", "VEL_X",         "BRAKE_STATE",
                                     "CAN_BRAKE_CMD", "OMEGA_Z" };
 
   bool missing_key = this->checkIfKeysInBuffer(buffer, keys);
-  if (missing_key)
+  if (missing_key || !parent_success)
   {
-    return;
+    return false;
   }
 
   Eigen::MatrixXf mean_init_buffer = mean_helper_->getEmptyBufferMatrix(buffer.at("VEL_X").rows());
@@ -139,6 +139,7 @@ void RacerDubinsElevationLSTMUncertainty::updateFromBuffer(const buffer_trajecto
   unc_init_buffer.row(8) = buffer.at("PITCH").unaryExpr(&sinf);
   unc_init_buffer.row(9) = buffer.at("ROLL").unaryExpr(&sinf);
   uncertainty_helper_->initializeLSTM(unc_init_buffer);
+  return true;
 }
 
 RacerDubinsElevationLSTMUncertainty::state_array

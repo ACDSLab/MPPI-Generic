@@ -36,9 +36,9 @@ struct RacerDubinsElevationUncertaintyParams : public RacerDubinsElevationSuspen
     NUM_STATES
   };
 
-  float unc_scale[7] = {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-  float pos_quad_brake_c[3] = {2.0f, 0.5f, 0.3};
-  float neg_quad_brake_c[3] = {5.84f, 0.15f, 1.7f};
+  float unc_scale[7] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
+  float pos_quad_brake_c[3] = { 2.0f, 0.5f, 0.3 };
+  float neg_quad_brake_c[3] = { 5.84f, 0.15f, 1.7f };
   bool use_static_settling = true;
 };
 
@@ -72,7 +72,7 @@ public:
   void bindToStream(cudaStream_t stream);
   void freeCudaMem();
 
-  void updateFromBuffer(const buffer_trajectory& buffer);
+  bool updateFromBuffer(const buffer_trajectory& buffer);
 
   void step(Eigen::Ref<state_array> state, Eigen::Ref<state_array> next_state, Eigen::Ref<state_array> state_der,
             const Eigen::Ref<const control_array>& control, Eigen::Ref<output_array> output, const float t,
@@ -82,15 +82,13 @@ public:
                           Eigen::Ref<output_array> output, float t_0, float dt);
   state_array stateFromMap(const std::map<std::string, float>& map);
 
-
   __host__ __device__ bool computeQ(const float* state, const float* control, const float* state_der, float* Q,
                                     DYN_PARAMS_T* params_p, float* theta_s);
 
   __device__ inline void step(float* state, float* next_state, float* state_der, float* control, float* output,
                               float* theta_s, const float t, const float dt);
 
-  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float
-  dt);
+  __device__ void initializeDynamics(float* state, float* control, float* output, float* theta_s, float t_0, float dt);
 
   // __device__ void updateState(float* state, float* next_state, float* state_der, const float dt);
 

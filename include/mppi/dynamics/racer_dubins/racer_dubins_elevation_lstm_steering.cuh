@@ -51,7 +51,7 @@ public:
 
   void freeCudaMem();
 
-  void updateFromBuffer(const buffer_trajectory& buffer);
+  bool updateFromBuffer(const buffer_trajectory& buffer);
 
   void computeLSTMSteering(Eigen::Ref<state_array> state, const Eigen::Ref<const control_array>& control,
                            Eigen::Ref<state_array> state_der);

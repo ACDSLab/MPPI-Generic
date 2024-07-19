@@ -472,8 +472,9 @@ public:
     return requires_buffer_;
   }
 
-  void updateFromBuffer(const buffer_trajectory& buffer)
+  bool updateFromBuffer(const buffer_trajectory& buffer)
   {
+    return true;
   }
 
   bool checkIfKeysInBuffer(const buffer_trajectory& buffer, std::vector<std::string>& needed_keys)
@@ -483,7 +484,8 @@ public:
     {
       if (buffer.find(key) == buffer.end())
       {  // Print out all missing keys
-        std::cout << "Could not find key " << key << " in init buffer for " << this->getDynamicsModelName() << std::endl;
+        this->logger_->warning("Could not find key %s in init buffer for %s\n", key.c_str(),
+                               this->getDynamicsModelName().c_str());
         missing_key = true;
       }
     }
@@ -497,7 +499,8 @@ public:
     {
       if (map.find(key) == map.end())
       {  // Print out all missing keys
-        std::cout << "Could not find key " << key << " in state map for " << this->getDynamicsModelName() << std::endl;
+        this->logger_->warning("Could not find key %s in state map for %s\n", key.c_str(),
+                               this->getDynamicsModelName().c_str());
         missing_key = true;
       }
     }

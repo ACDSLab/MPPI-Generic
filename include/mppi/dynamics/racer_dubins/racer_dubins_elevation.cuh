@@ -49,15 +49,15 @@ struct RacerDubinsElevationParams : public RacerDubinsParams
   };
   float clamp_ax = 5.5f;
   // Uncertainty feedback and Noise coefficients
-  float K_x = 1.0f; // feedback for pos_x
-  float K_y = 1.0f; // feedback for pos_y
-  float K_yaw = 1.0f; // feedback for yaw
-  float K_vel_x = 1.0f; // feedback for vel x
-  float Q_x_acc = 1.0f; // Add noise to vel x based on accel_x
-  float Q_x_v[3] = {41.74219  , -0.8187027, -2.2131343}; // Add noise to vel x based on vel x
-  float Q_y_f = 0.1f; // Add noise to pos x and y based on side force
-  float Q_omega_v = 0.001f; // Add noise to yaw based on vel x
-  float Q_omega_steering = 0.0f; // Add noise to yaw based on steering
+  float K_x = 1.0f;                                       // feedback for pos_x
+  float K_y = 1.0f;                                       // feedback for pos_y
+  float K_yaw = 1.0f;                                     // feedback for yaw
+  float K_vel_x = 1.0f;                                   // feedback for vel x
+  float Q_x_acc = 1.0f;                                   // Add noise to vel x based on accel_x
+  float Q_x_v[3] = { 41.74219, -0.8187027, -2.2131343 };  // Add noise to vel x based on vel x
+  float Q_y_f = 0.1f;                                     // Add noise to pos x and y based on side force
+  float Q_omega_v = 0.001f;                               // Add noise to yaw based on vel x
+  float Q_omega_steering = 0.0f;                          // Add noise to yaw based on steering
 };
 
 template <class CLASS_T, class PARAMS_T>
@@ -89,8 +89,7 @@ public:
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
     this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock);
   }
-  RacerDubinsElevationImpl(PARAMS_T& params, cudaStream_t stream = nullptr)
-    : PARENT_CLASS(params, stream)
+  RacerDubinsElevationImpl(PARAMS_T& params, cudaStream_t stream = nullptr) : PARENT_CLASS(params, stream)
   {
     tex_helper_ = new TwoDTextureHelper<float>(1, stream);
     this->SHARED_MEM_REQUEST_BLK_BYTES = sizeof(SharedBlock);
@@ -115,10 +114,11 @@ public:
 
   void updateRotation(std::array<float3, 3>& rotation)
   {
-      this->tex_helper_->updateRotation(0, rotation);
+    this->tex_helper_->updateRotation(0, rotation);
   }
 
-  void bindToStream(cudaStream_t stream) {
+  void bindToStream(cudaStream_t stream)
+  {
     this->tex_helper_->bindToStream(stream);
     this->PARENT_CLASS::bindToStream(stream);
   }
@@ -141,9 +141,9 @@ public:
                    Eigen::Ref<dfdu> B = dfdu());
 
   __host__ __device__ void computeUncertaintyPropagation(const float* state, const float* control,
-                                                         const float* state_der, float* next_state,
-                                                         float dt, DYN_PARAMS_T* params_p,
-                                                         SharedBlock* uncertainty_data, float* theta_s);
+                                                         const float* state_der, float* next_state, float dt,
+                                                         DYN_PARAMS_T* params_p, SharedBlock* uncertainty_data,
+                                                         float* theta_s);
 
   __host__ __device__ void uncertaintyMatrixToOutput(const float* uncertainty_matrix, float* output);
   __host__ __device__ void uncertaintyMatrixToState(const float* uncertainty_matrix, float* state);
@@ -151,7 +151,7 @@ public:
   __host__ __device__ bool computeUncertaintyJacobian(const float* state, const float* control, float* A,
                                                       DYN_PARAMS_T* params_p);
   __host__ __device__ bool computeQ(const float* state, const float* control, const float* state_der, float* Q,
-                                                        DYN_PARAMS_T* params_p, float* theta_s);
+                                    DYN_PARAMS_T* params_p, float* theta_s);
 
   __device__ void updateState(float* state, float* next_state, float* state_der, const float dt,
                               DYN_PARAMS_T* params_p);

@@ -214,24 +214,14 @@ __device__ inline void TEMPLATE_NAME::step(float* state, float* next_state, floa
 }
 
 TEMPLATE_TYPE
-void TEMPLATE_NAME::updateFromBuffer(const buffer_trajectory& buffer)
+bool TEMPLATE_NAME::updateFromBuffer(const buffer_trajectory& buffer)
 {
   std::vector<std::string> keys = { "STEER_ANGLE", "STEER_ANGLE_RATE", "CAN_STEER_CMD" };
 
-  bool found_all_keys = true;
-  for (const auto& key : keys)
+  bool missing_key = this->checkIfKeysInBuffer(buffer, keys);
+  if (missing_key)
   {
-    if (buffer.find(key) == buffer.end())
-    {
-      this->logger_->warning("WARNING: not using init buffer\n", key.c_str());
-      std::cout << "WARNING: not using init buffer" << std::endl;
-      found_all_keys = false;
-    }
-  }
-
-  if (!found_all_keys)
-  {
-    return;
+    return false;
   }
   Eigen::MatrixXf init_buffer = lstm_lstm_helper_->getEmptyBufferMatrix(buffer.at("STEER_ANGLE").rows());
 
@@ -240,6 +230,7 @@ void TEMPLATE_NAME::updateFromBuffer(const buffer_trajectory& buffer)
   init_buffer.row(2) = buffer.at("CAN_STEER_CMD");
 
   lstm_lstm_helper_->initializeLSTM(init_buffer);
+  return true;
 }
 
 TEMPLATE_TYPE
