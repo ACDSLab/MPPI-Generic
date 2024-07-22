@@ -298,7 +298,8 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
   const int freq_size = sample_freq.size();
 
   int smaller_index = 0;
-  Eigen::MatrixXf sample_freqs(freq_size, this->CONTROL_DIM);
+  const int local_control_dim = this->CONTROL_DIM; // Needed for methods which use pass by reference
+  Eigen::MatrixXf sample_freqs(freq_size, local_control_dim);
 
   // Adjust the weighting of each frequency by the exponents
   for (int i = 0; i < freq_size; i++)
@@ -346,7 +347,7 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
                                this->stream_));
   const int num_trajectories_grid_x = mppi::math::int_ceil(num_trajectories, BLOCKSIZE_X);
   const int variance_grid_y = (freq_size - 1) / BLOCKSIZE_Y + 1;
-  const int control_grid_z = mppi::math::int_ceil(this->CONTROL_DIM, BLOCKSIZE_Z);
+  const int control_grid_z = mppi::math::int_ceil(local_control_dim, BLOCKSIZE_Z);
   dim3 grid(num_trajectories_grid_x, variance_grid_y, control_grid_z);
   dim3 block(BLOCKSIZE_X, BLOCKSIZE_Y, BLOCKSIZE_Z);
   configureFrequencyNoise<<<grid, block, 0, this->stream_>>>(samples_in_freq_complex_d_, freq_coeffs_d_,
@@ -368,14 +369,14 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
   control_writing_grid.x = mppi::math::int_ceil(this->getNumRollouts(), BLOCKSIZE_X);
   control_writing_grid.y = mppi::math::int_ceil(this->getNumTimesteps(), BLOCKSIZE_Y);
   control_writing_grid.z = mppi::math::int_ceil(this->getNumDistributions(), BLOCKSIZE_Z);
-  unsigned int std_dev_mem_size = this->getNumDistributions() * CONTROL_DIM;
+  unsigned int std_dev_mem_size = this->getNumDistributions() * this->CONTROL_DIM;
   // Allocate shared memory for std_deviations per timestep or constant across the trajectory
   std_dev_mem_size = mppi::math::nearest_multiple_4(
       this->params_.time_specific_std_dev ? std_dev_mem_size * this->getNumTimesteps() : std_dev_mem_size);
   unsigned int shared_mem_size =
       std_dev_mem_size +
-      mppi::math::nearest_multiple_4(this->getNumDistributions() * this->getNumTimesteps() * CONTROL_DIM) +
-      mppi::math::nearest_multiple_4(BLOCKSIZE_X * BLOCKSIZE_Y * BLOCKSIZE_Z * CONTROL_DIM);
+      mppi::math::nearest_multiple_4(this->getNumDistributions() * this->getNumTimesteps() * this->CONTROL_DIM) +
+      mppi::math::nearest_multiple_4(BLOCKSIZE_X * BLOCKSIZE_Y * BLOCKSIZE_Z * this->CONTROL_DIM);
   shared_mem_size *= sizeof(float);
   setGaussianControls<<<control_writing_grid, this->params_.rewrite_controls_block_dim, shared_mem_size,
                         this->stream_>>>(
