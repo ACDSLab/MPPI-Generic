@@ -1,10 +1,19 @@
 cmake_minimum_required(VERSION 3.8)
-project(MPPIGeneric LANGUAGES C CXX CUDA)
+project(MPPI-Generic VERSION 0.9.0 LANGUAGES C CXX CUDA)
 
 # https://cmake.org/cmake/help/latest/policy/CMP0104.html
 if (POLICY CMP0104)
     cmake_policy(SET CMP0104 OLD)
 endif()
+
+####################################
+# Set up options for configuration #
+####################################
+option(BUILD_TESTS "BUILD_TESTS" ON)
+option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
+option(MPPI_USE_CUDA_BARRIERS "Compile MPPI-Generic with cuda barrier support. Turn off for GPUs older than the 20 series." ON)
+option(MPPI_EXPORT_PACKAGE "Export this folder as the MPPI installation to the global CMake package repository" OFF)
+set(MPPI_CUDA_ARCH_LIST "" CACHE STRING "Specific CUDA Architectures to build for. Leave empty for automatic selection.")
 
 # Configure CMake Cuda Flags for MPPI
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -13,11 +22,6 @@ include(MPPIGenericToolsConfig)
 set(BUILD_FLAGS "-Wuninitialized -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w")
-
-option(BUILD_TESTS "BUILD_TESTS" ON)
-option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
-option(MPPI_USE_CUDA_BARRIERS "Compile MPPI-Generic with cuda barrier support" ON)
-
 
 # Allow the lib location to be overwritten from command line
 if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
@@ -37,7 +41,6 @@ set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 
 # Find Eigen
 find_package(Eigen3 REQUIRED)
-# include_directories(SYSTEM ${EIGEN3_INCLUDE_DIR})
 
 # REQUIRED for CUDA to correctly align Eigen member variables inside structures/classes
 # https://listengine.tuxfamily.org/lists.tuxfamily.org/eigen/2016/06/msg00006.html
@@ -45,9 +48,10 @@ find_package(Eigen3 REQUIRED)
 
 # Create a Header-only MPPI Library
 add_library(${MPPI_HEADER_LIBRARY_NAME} INTERFACE)
+add_library(MPPI::MPPI ALIAS ${MPPI_HEADER_LIBRARY_NAME})
 target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
   "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include"
+  "$<INSTALL_INTERFACE:include>"
 )
 target_link_libraries(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
   ${MPPI_GENERIC_CUDA_EXTRA_LIBS}
@@ -55,7 +59,14 @@ target_link_libraries(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
   cnpy
   Eigen3::Eigen
 )
-target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE submodules/cnpy)
+target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/submodules/cnpy>"
+  "$<INSTALL_INTERFACE:include/cnpy>"
+)
+
+target_compile_options(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
+  $<$<COMPILE_LANGUAGE:CUDA>:--display-error-number>
+)
 
 # Allow the ability to turn off cuda barriers through CMake. Necessary for GPUs older than
 # the 20 series
@@ -74,6 +85,85 @@ endif()
 install(
         DIRECTORY ${PROJECT_SOURCE_DIR}/include/mppi
         DESTINATION include
+)
+
+###########################################
+# Set up CMake configuration installation #
+###########################################
+set(CMAKE_CONFIG_DEST "lib/cmake/${PROJECT_NAME}")
+install(
+  TARGETS ${MPPI_HEADER_LIBRARY_NAME}
+  EXPORT ${PROJECT_NAME}-targets
+)
+
+install(
+  EXPORT ${PROJECT_NAME}-targets
+  NAMESPACE MPPI::
+  DESTINATION ${CMAKE_CONFIG_DEST}
+  FILE ${PROJECT_NAME}Targets.cmake
+)
+
+install(
+  EXPORT ${PROJECT_NAME}-targets
+  DESTINATION ${CMAKE_CONFIG_DEST}
+  FILE ${PROJECT_NAME}TargetsNoNamespace.cmake
+)
+
+# Set up MPPI to export the header library as MPPI in the MPPI namespace
+set_target_properties (${MPPI_HEADER_LIBRARY_NAME} PROPERTIES EXPORT_NAME MPPI)
+export (TARGETS ${MPPI_HEADER_LIBRARY_NAME}
+        NAMESPACE MPPI::
+        FILE ${PROJECT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake
+)
+
+# Export the package for use from the build-tree
+# (this registers the build-tree with a global CMake-registry ~/.cmake)
+if (MPPI_EXPORT_PACKAGE)
+  export(PACKAGE ${PROJECT_NAME})
+endif()
+
+#################################################################################
+# Create CMake Config and Version files and install in the appropriate location #
+#################################################################################
+
+# Create a CMake variable of the appropriate include directory depending on
+# whether it is consider from the build tree or the install tree
+set(TMP_MPPI_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/include")
+set(TMP_MPPI_TARGET_CMAKE_FILE "${PROJECT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake")
+# Set up build tree config file
+configure_package_config_file(
+  ${PROJECT_SOURCE_DIR}/cmake/Config.cmake.in
+  ${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION ${PROJECT_BINARY_DIR}
+  PATH_VARS TMP_MPPI_INCLUDE_DIRS TMP_MPPI_TARGET_CMAKE_FILE
+)
+
+# Set up install tree config file
+set(TMP_MPPI_INCLUDE_DIRS "include/")
+set(TMP_MPPI_TARGET_CMAKE_FILE "${CMAKE_CONFIG_DEST}/${PROJECT_NAME}Targets.cmake")
+configure_package_config_file(
+  ${PROJECT_SOURCE_DIR}/cmake/Config.cmake.in
+  ${PROJECT_BINARY_DIR}/${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake
+  INSTALL_DESTINATION ${CMAKE_CONFIG_DEST}
+  PATH_VARS TMP_MPPI_INCLUDE_DIRS TMP_MPPI_TARGET_CMAKE_FILE
+)
+
+write_basic_package_version_file(
+  ${PROJECT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+  VERSION ${PROJECT_VERSION}
+  COMPATIBILITY SameMajorVersion
+)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/MPPIGenericToolsConfig.cmake
+  ${PROJECT_BINARY_DIR}/MPPIGenericToolsConfig.cmake
+  COPYONLY
+)
+
+install(FILES
+  ${PROJECT_BINARY_DIR}/${CMAKE_FILES_DIRECTORY}/${PROJECT_NAME}Config.cmake
+  ${PROJECT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MPPIGenericToolsConfig.cmake
+  DESTINATION ${CMAKE_CONFIG_DEST}
 )
 
 if (BUILD_TESTS OR BUILD_EXAMPLES)
@@ -101,7 +191,7 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
   if (NOT TARGET gtest_main)
     list(GET CMAKE_MODULE_PATH -1 MPPI_GENERIC_MODULES)
     configure_file(${MPPI_GENERIC_MODULES}/CMakeLists.txt.gtest.in
-	${PROJECT_BINARY_DIR}/googletest-download/CMakeLists.txt)
+                   ${PROJECT_BINARY_DIR}/googletest-download/CMakeLists.txt)
     execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
       RESULT_VARIABLE result
       WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/googletest-download )
@@ -118,6 +208,9 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE AND BUILD_TESTS)
     # Prevent overriding the parent project's compiler/linker
     # settings on Windows
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+    # Prevent googletest installation
+    set(INSTALL_GTEST OFF)
 
     # Add googletest directly to our build. This defines
     # the gtest and gtest_main targets.
