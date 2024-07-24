@@ -1,11 +1,11 @@
 # MPPI-Generic
-Generic implementation of Model Predictive Path Integral Control
+MPPI-Generic is a C++/CUDA header-only library implementation of Model Predictive Path Integral Control (MPPI) by [Williams et al.](https://ieeexplore.ieee.org/document/8558663)
 
 ## Requirements
 MPPI-Generic relies on the following:
 * An NVIDIA GPU
 * GCC/G++
-* CUDA 10 or newer [(Installation instructions)](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
+* CUDA 10 or newer (CUDA 11.7+ is recommended but our library is compatible back to CUDA 10)
 * [Eigen](https://eigen.tuxfamily.org/index.php?title=Main_Page)
 * [CMake](https://cmake.org/) 3.10 or newer
 * git and git-lfs
@@ -42,7 +42,7 @@ If you would like to turn on the tests when building, pass the flag `-DBUILD_TES
 ```bash
 mkdir build
 cd build
-cmake .. -DBUILD_TESTS=ON
+cmake -DBUILD_TESTS=ON ..
 make
 make test
 ```
