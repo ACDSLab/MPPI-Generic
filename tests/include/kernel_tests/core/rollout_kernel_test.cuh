@@ -3,8 +3,7 @@
 #ifndef KERNEL_TESTS_MPPI_CORE_MPPI_CORE_KERNEL_TEST_CUH_
 #define KERNEL_TESTS_MPPI_CORE_MPPI_CORE_KERNEL_TEST_CUH_
 
-// #include <mppi/core/mppi_common.cuh>
-#include <mppi/core/mppi_common_new.cuh>
+#include <mppi/core/mppi_common.cuh>
 #include <curand.h>
 #include <vector>
 #include <array>
@@ -47,16 +46,6 @@ __global__ void autorallyRolloutKernel(int num_timesteps, float* state_d, float*
 
 template <class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
 void launchAutorallyRolloutKernelTest(
-    DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
-    std::array<float, DYNAMICS_T::STATE_DIM> state_array,
-    std::array<float, NUM_TIMESTEPS * DYNAMICS_T::CONTROL_DIM> control_array,
-    std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::CONTROL_DIM> control_noise_array,
-    std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u, std::array<float, NUM_ROLLOUTS>& costs_out,
-    std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::CONTROL_DIM>& control_noise_out, int opt_delay,
-    cudaStream_t stream);
-
-template <class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
-void launchGenericRolloutKernelTest(
     DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
     std::array<float, DYNAMICS_T::STATE_DIM> state_array,
     std::array<float, NUM_TIMESTEPS * DYNAMICS_T::CONTROL_DIM> control_array,

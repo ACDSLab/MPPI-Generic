@@ -1,6 +1,5 @@
 #include <atomic>
 #include <mppi/controllers/MPPI/mppi_controller.cuh>
-#include <mppi/core/mppi_common_new.cuh>
 #include <mppi/core/mppi_common.cuh>
 #include <algorithm>
 #include <iostream>
@@ -189,7 +188,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
-    this->setBaseline(mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS));
+    this->setBaseline(mppi::kernels::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS));
 
     if (this->getBaselineCost() > baseline_prev + 1)
     {
@@ -199,20 +198,20 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     baseline_prev = this->getBaselineCost();
 
     // Launch the norm exponential kernel
-    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), this->trajectory_costs_d_,
-                                     1.0 / this->getLambda(), this->getBaselineCost(), this->stream_, false);
+    mppi::kernels::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), this->trajectory_costs_d_,
+                                       1.0 / this->getLambda(), this->getBaselineCost(), this->stream_, false);
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Compute the normalizer
-    this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS));
+    this->setNormalizer(mppi::kernels::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS));
 
-    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
-                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
-                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(),
-                                   this->getLambda());
+    mppi::kernels::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                     this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                     this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
+                                     this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(),
+                                     this->getLambda());
 
     this->sampler_->updateDistributionParamsFromDevice(this->trajectory_costs_d_, this->getNormalizerCost(), 0, false);
 

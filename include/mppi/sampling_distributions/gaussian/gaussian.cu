@@ -3,7 +3,7 @@
  **/
 
 #include <mppi/sampling_distributions/gaussian/gaussian.cuh>
-#include <mppi/core/mppi_common_new.cuh>
+#include <mppi/core/mppi_common.cuh>
 #include <mppi/utils/cuda_math_utils.cuh>
 #include <mppi/utils/math_utils.h>
 

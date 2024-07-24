@@ -11,7 +11,7 @@ void launchNormExp_KernelTest(std::array<float, NUM_ROLLOUTS>& trajectory_costs_
   HANDLE_ERROR(cudaMemcpy(trajectory_costs_d, trajectory_costs_host.data(),
                           sizeof(float) * trajectory_costs_host.size(), cudaMemcpyHostToDevice))
 
-  mppi_common::normExpKernel<<<1, NUM_ROLLOUTS>>>(NUM_ROLLOUTS, trajectory_costs_d, gamma, baseline);
+  mppi::kernels::normExpKernel<<<1, NUM_ROLLOUTS>>>(NUM_ROLLOUTS, trajectory_costs_d, gamma, baseline);
   CudaCheckError();
 
   HANDLE_ERROR(cudaMemcpy(normalized_compute.data(), trajectory_costs_d, sizeof(float) * trajectory_costs_host.size(),
@@ -34,7 +34,7 @@ void launchGenericNormExpKernelTest(std::array<float, NUM_ROLLOUTS> trajectory_c
   dim3 dimBlock(BLOCKSIZE_X, 1, 1);
   dim3 dimGrid((NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1, 1, 1);
 
-  mppi_common::normExpKernel<<<dimGrid, dimBlock>>>(NUM_ROLLOUTS, trajectory_costs_d, gamma, baseline);
+  mppi::kernels::normExpKernel<<<dimGrid, dimBlock>>>(NUM_ROLLOUTS, trajectory_costs_d, gamma, baseline);
   CudaCheckError();
 
   HANDLE_ERROR(cudaMemcpy(normalized_compute.data(), trajectory_costs_d, sizeof(float) * trajectory_costs_host.size(),

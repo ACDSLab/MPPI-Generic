@@ -1,4 +1,4 @@
-#include <mppi/core/mppi_common_new.cuh>
+#include <mppi/core/mppi_common.cuh>
 
 template <typename COST_T, typename PARAMS_T>
 __global__ void parameterTestKernel(const COST_T* cost, PARAMS_T& params, int& width, int& height)

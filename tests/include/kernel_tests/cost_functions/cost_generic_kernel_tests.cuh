@@ -1,7 +1,7 @@
 #pragma once
 
 #include <mppi/utils/math_utils.h>
-#include <mppi/core/mppi_common_new.cuh>
+#include <mppi/core/mppi_common.cuh>
 #include <mppi/sampling_distributions/gaussian/gaussian.cuh>
 
 #include <array>

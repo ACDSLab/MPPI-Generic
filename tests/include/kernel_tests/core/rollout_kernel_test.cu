@@ -197,8 +197,8 @@ __global__ void computeAndSaveCostAllRollouts_KernelTest(COST_T* cost, int state
   //               terminal_state[state_dim * tid + 3]);
   //        printf("Current cost [%f]\n", running_costs[tid]);
   //    }
-  mppi_common::computeAndSaveCost(num_rollouts, 2, tid, cost, &terminal_state[state_dim * tid], running_costs[tid],
-                                  nullptr, cost_rollout_device);
+  mppi::kernels::computeAndSaveCost(num_rollouts, 2, tid, cost, &terminal_state[state_dim * tid], running_costs[tid],
+                                    nullptr, cost_rollout_device);
   //    if (tid == 0) {
   //        printf("Total cost [%f]\n", cost_rollout_device[tid]);
   //    }
@@ -495,122 +495,6 @@ void launchAutorallyRolloutKernelTest(
 
   // Deallocate CUDA Memory
   HANDLE_ERROR(cudaFree(state_d));
-  HANDLE_ERROR(cudaFree(U_d));
-  HANDLE_ERROR(cudaFree(du_d));
-  HANDLE_ERROR(cudaFree(nu_d));
-  HANDLE_ERROR(cudaFree(costs_d));
-}
-
-template <class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
-void launchGenericRolloutKernelTest(
-    DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
-    std::array<float, DYNAMICS_T::STATE_DIM> state_array,
-    std::array<float, NUM_TIMESTEPS * DYNAMICS_T::CONTROL_DIM> control_array,
-    std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::CONTROL_DIM> control_noise_array,
-    std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u, std::array<float, NUM_ROLLOUTS>& costs_out,
-    std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::CONTROL_DIM>& control_noise_out, int opt_delay,
-    cudaStream_t stream)
-{
-  float* state_d;
-  float* U_d;
-  float* du_d;
-  float* nu_d;
-  float* costs_d;
-
-  // Allocate CUDA memory for the rollout
-  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float) * state_array.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&U_d, sizeof(float) * control_array.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float) * control_noise_array.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&nu_d, sizeof(float) * sigma_u.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float) * costs_out.size()));
-
-  // Copy the initial values
-  HANDLE_ERROR(
-      cudaMemcpyAsync(state_d, state_array.data(), sizeof(float) * state_array.size(), cudaMemcpyHostToDevice, stream));
-  HANDLE_ERROR(
-      cudaMemcpyAsync(U_d, control_array.data(), sizeof(float) * control_array.size(), cudaMemcpyHostToDevice, stream));
-  HANDLE_ERROR(cudaMemcpyAsync(du_d, control_noise_array.data(), sizeof(float) * control_noise_array.size(),
-                               cudaMemcpyHostToDevice, stream));
-  HANDLE_ERROR(cudaMemcpyAsync(nu_d, sigma_u.data(), sizeof(float) * sigma_u.size(), cudaMemcpyHostToDevice, stream));
-
-  const int gridsize_x = (NUM_ROLLOUTS - 1) / BLOCKSIZE_X + 1;
-  dim3 dimBlock(BLOCKSIZE_X, BLOCKSIZE_Y, 1);
-  dim3 dimGrid(gridsize_x, 1, 1);
-  mppi_common::rolloutKernel<DYNAMICS_T, COSTS_T, BLOCKSIZE_X, BLOCKSIZE_Y, NUM_ROLLOUTS, 1>
-      <<<dimGrid, dimBlock, 0, stream>>>(dynamics->model_d_, costs->cost_d_, dt, NUM_TIMESTEPS, opt_delay, lambda,
-                                         alpha, state_d, U_d, du_d, nu_d, costs_d);
-  CudaCheckError();
-
-  // Copy data back
-  HANDLE_ERROR(
-      cudaMemcpyAsync(costs_out.data(), costs_d, sizeof(float) * costs_out.size(), cudaMemcpyDeviceToHost, stream));
-
-  // Copy the noise back
-  HANDLE_ERROR(cudaMemcpyAsync(control_noise_out.data(), du_d, sizeof(float) * control_noise_out.size(),
-                               cudaMemcpyDeviceToHost, stream));
-  HANDLE_ERROR(cudaStreamSynchronize(stream));
-
-  // Deallocate CUDA Memory
-  HANDLE_ERROR(cudaFree(state_d));
-  HANDLE_ERROR(cudaFree(U_d));
-  HANDLE_ERROR(cudaFree(du_d));
-  HANDLE_ERROR(cudaFree(nu_d));
-  HANDLE_ERROR(cudaFree(costs_d));
-}
-
-template <class DYNAMICS_T, class COSTS_T, int NUM_ROLLOUTS, int NUM_TIMESTEPS, int BLOCKSIZE_X, int BLOCKSIZE_Y>
-void launchFastRolloutKernelTest(
-    DYNAMICS_T* dynamics, COSTS_T* costs, float dt, float lambda, float alpha,
-    std::array<float, DYNAMICS_T::STATE_DIM>& state_array,
-    std::array<float, NUM_TIMESTEPS * DYNAMICS_T::CONTROL_DIM>& control_array,
-    std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::CONTROL_DIM>& control_noise_array,
-    std::array<float, DYNAMICS_T::CONTROL_DIM> sigma_u, std::array<float, NUM_ROLLOUTS>& costs_out,
-    std::array<float, NUM_TIMESTEPS * NUM_ROLLOUTS * DYNAMICS_T::CONTROL_DIM>& control_noise_out, int opt_delay,
-    int state_traj_array_size, cudaStream_t stream)
-{
-  float* state_d;
-  float* U_d;
-  float* du_d;
-  float* nu_d;
-  float* costs_d;
-  float* x_d;
-
-  // Allocate CUDA memory for the rollout
-  HANDLE_ERROR(cudaMalloc((void**)&state_d, sizeof(float) * state_array.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&U_d, sizeof(float) * control_array.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&du_d, sizeof(float) * control_noise_array.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&nu_d, sizeof(float) * sigma_u.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float) * costs_out.size()));
-  HANDLE_ERROR(cudaMalloc((void**)&x_d, sizeof(float) * state_traj_array_size));
-
-  // Copy the initial values
-  HANDLE_ERROR(
-      cudaMemcpyAsync(state_d, state_array.data(), sizeof(float) * state_array.size(), cudaMemcpyHostToDevice, stream));
-  HANDLE_ERROR(
-      cudaMemcpyAsync(U_d, control_array.data(), sizeof(float) * control_array.size(), cudaMemcpyHostToDevice, stream));
-  HANDLE_ERROR(cudaMemcpyAsync(du_d, control_noise_array.data(), sizeof(float) * control_noise_array.size(),
-                               cudaMemcpyHostToDevice, stream));
-  HANDLE_ERROR(cudaMemcpyAsync(nu_d, sigma_u.data(), sizeof(float) * sigma_u.size(), cudaMemcpyHostToDevice, stream));
-
-  mppi_common::launchFastRolloutKernel<DYNAMICS_T, COSTS_T, NUM_ROLLOUTS, BLOCKSIZE_X, BLOCKSIZE_Y>(
-      dynamics, costs, dt, NUM_TIMESTEPS, opt_delay, lambda, alpha, state_d, x_d, U_d, du_d, nu_d, costs_d, stream,
-      true);
-
-  // Copy data back
-  HANDLE_ERROR(
-      cudaMemcpyAsync(costs_out.data(), costs_d, sizeof(float) * costs_out.size(), cudaMemcpyDeviceToHost, stream));
-
-  // Copy the noise back
-  HANDLE_ERROR(cudaMemcpyAsync(control_noise_out.data(), du_d, sizeof(float) * control_noise_out.size(),
-                               cudaMemcpyDeviceToHost, stream));
-  // HANDLE_ERROR(cudaMemcpyAsync(state_traj_array.data(), x_d, sizeof(float) * state_traj_array.size(),
-  //                              cudaMemcpyDeviceToHost, stream));
-
-  HANDLE_ERROR(cudaStreamSynchronize(stream));
-
-  // Deallocate CUDA Memory
-  HANDLE_ERROR(cudaFree(state_d));
-  HANDLE_ERROR(cudaFree(x_d));
   HANDLE_ERROR(cudaFree(U_d));
   HANDLE_ERROR(cudaFree(du_d));
   HANDLE_ERROR(cudaFree(nu_d));

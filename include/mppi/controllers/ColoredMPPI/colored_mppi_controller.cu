@@ -1,5 +1,4 @@
 #include <mppi/controllers/ColoredMPPI/colored_mppi_controller.cuh>
-#include <mppi/core/mppi_common_new.cuh>
 #include <mppi/core/mppi_common.cuh>
 #include <algorithm>
 #include <iostream>
@@ -187,7 +186,7 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::computeControl(const Eigen::Ref<const sta
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
-    this->setBaseline(mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS));
+    this->setBaseline(mppi::kernels::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS));
 
     if (this->getBaselineCost() > baseline_prev + 1)
     {
@@ -199,25 +198,25 @@ ColoredMPPI_TEMPLATE void ColoredMPPI::computeControl(const Eigen::Ref<const sta
     // Launch the norm exponential kernel
     if (getGamma() == 0 || getRExp() == 0)
     {
-      mppi_common::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), this->trajectory_costs_d_,
-                                       1.0 / this->getLambda(), this->getBaselineCost(), this->stream_, false);
+      mppi::kernels::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), this->trajectory_costs_d_,
+                                         1.0 / this->getLambda(), this->getBaselineCost(), this->stream_, false);
     }
     else
     {
-      mppi_common::launchTsallisKernel(NUM_ROLLOUTS, this->getNormExpThreads(), this->trajectory_costs_d_, getGamma(),
-                                       getRExp(), this->getBaselineCost(), this->stream_, false);
+      mppi::kernels::launchTsallisKernel(NUM_ROLLOUTS, this->getNormExpThreads(), this->trajectory_costs_d_, getGamma(),
+                                         getRExp(), this->getBaselineCost(), this->stream_, false);
     }
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
                                  NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
     // Compute the normalizer
-    this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS));
+    this->setNormalizer(mppi::kernels::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS));
 
-    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
-                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
-                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(),
-                                   this->getLambda());
+    mppi::kernels::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                     this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                     this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
+                                     this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(),
+                                     this->getLambda());
 
     // Compute the cost weighted average //TODO SUM_STRIDE is BDIM_X, but should it be its own parameter?
     this->sampler_->updateDistributionParamsFromDevice(this->trajectory_costs_d_, this->getNormalizerCost(), 0, false);

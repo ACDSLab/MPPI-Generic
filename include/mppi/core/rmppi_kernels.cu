@@ -1,4 +1,4 @@
-#include <mppi/core/mppi_common_new.cuh>
+#include <mppi/core/mppi_common.cuh>
 
 namespace mp1 = mppi::p1;
 
@@ -223,8 +223,8 @@ __global__ void initEvalCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __res
   const int last_y_index = (num_timesteps - 1) % blockDim.x;
   y = &y_shared[(blockDim.x * thread_idz + last_y_index) * COST_T::OUTPUT_DIM];
   // Compute terminal cost and the final cost for each thread
-  mppi_common::computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y, running_cost[0] / (num_timesteps),
-                                  theta_c, trajectory_costs_d);
+  computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y, running_cost[0] / (num_timesteps), theta_c,
+                     trajectory_costs_d);
 }
 
 template <class DYN_T, class COST_T, class SAMPLING_T>
@@ -351,8 +351,8 @@ __global__ void initEvalKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict_
   costArrayReduction(running_cost, blockDim.y, tdy, blockDim.y, tdy == 0, blockDim.x);
 
   // Compute terminal cost and the final cost for each thread
-  mppi_common::computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y, running_cost[0] / (num_timesteps),
-                                  theta_c_shared, trajectory_costs_d);
+  computeAndSaveCost(num_rollouts, num_timesteps, global_idx, costs, y, running_cost[0] / (num_timesteps),
+                     theta_c_shared, trajectory_costs_d);
 }
 
 template <class DYN_T, class FB_T, class SAMPLING_T, int NOMINAL_STATE_IDX>

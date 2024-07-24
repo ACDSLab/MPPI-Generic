@@ -6,7 +6,7 @@
 #define MPPIGENERIC_NETWORK_HELPER_KERNEL_TEST_CUH
 
 #include <mppi/utils/math_utils.h>
-#include <mppi/core/mppi_common_new.cuh>
+#include <mppi/core/mppi_common.cuh>
 
 // TODO check on multiple different blocks
 

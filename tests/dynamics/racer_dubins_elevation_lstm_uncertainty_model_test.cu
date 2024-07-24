@@ -5,7 +5,7 @@
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <racer_test_networks.h>
 #include <cuda_runtime.h>
-#include <mppi/core/mppi_common_new.cuh>
+#include <mppi/core/mppi_common.cuh>
 
 class RacerDubinsElevationLSTMUncertaintyTest : public ::testing::Test
 {

@@ -671,14 +671,14 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Launch the norm exponential kernels for the nominal costs and the real costs
-    this->setBaseline(mppi_common::computeBaselineCost(trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 0);
-    this->setBaseline(mppi_common::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS), 1);
+    this->setBaseline(mppi::kernels::computeBaselineCost(trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 0);
+    this->setBaseline(mppi::kernels::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS), 1);
 
     // In this case this->gamma = 1 / lambda
-    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), trajectory_costs_nominal_d,
-                                     1.0 / this->getLambda(), this->getBaselineCost(0), this->stream_, false);
-    mppi_common::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), trajectory_costs_real_d,
-                                     1.0 / this->getLambda(), this->getBaselineCost(1), this->stream_, false);
+    mppi::kernels::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), trajectory_costs_nominal_d,
+                                       1.0 / this->getLambda(), this->getBaselineCost(0), this->stream_, false);
+    mppi::kernels::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), trajectory_costs_real_d,
+                                       1.0 / this->getLambda(), this->getBaselineCost(1), this->stream_, false);
 
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), trajectory_costs_real_d, NUM_ROLLOUTS * sizeof(float),
                                  cudaMemcpyDeviceToHost, this->stream_));
@@ -687,22 +687,22 @@ void RobustMPPI::computeControl(const Eigen::Ref<const state_array>& state, int 
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Launch the weighted reduction kernel for the nominal costs and the real costs
-    this->setNormalizer(mppi_common::computeNormalizer(trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 0);
-    this->setNormalizer(mppi_common::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS), 1);
+    this->setNormalizer(mppi::kernels::computeNormalizer(trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 0);
+    this->setNormalizer(mppi::kernels::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS), 1);
 
     // Compute real free energy
-    mppi_common::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
-                                   this->free_energy_statistics_.real_sys.freeEnergyVariance,
-                                   this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                   this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(1),
-                                   this->getLambda());
+    mppi::kernels::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
+                                     this->free_energy_statistics_.real_sys.freeEnergyVariance,
+                                     this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
+                                     this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(1),
+                                     this->getLambda());
 
     // Compute Nominal State free Energy
-    mppi_common::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
-                                   this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
-                                   this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
-                                   this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS, this->getBaselineCost(0),
-                                   this->getLambda());
+    mppi::kernels::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
+                                     this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
+                                     this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
+                                     this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS, this->getBaselineCost(0),
+                                     this->getLambda());
 
     // Calculate new optimal trajectories
     this->sampler_->updateDistributionParamsFromDevice(trajectory_costs_nominal_d, this->getNormalizerCost(0), 0,

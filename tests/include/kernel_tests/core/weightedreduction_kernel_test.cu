@@ -3,7 +3,7 @@
 __global__ void setInitialControlToZero_KernelTest(int control_dim, float* u_d, float* u_intermediate)
 {
   int thread_idx = blockDim.x * blockIdx.x + threadIdx.x;
-  mppi_common::setInitialControlToZero(control_dim, thread_idx, u_d, u_intermediate);
+  mppi::kernels::setInitialControlToZero(control_dim, thread_idx, u_d, u_intermediate);
 }
 
 template <int num_threads, int control_dim>
@@ -39,8 +39,9 @@ __global__ void strideControlWeightReduction_KernelTest(int num_rollouts, int nu
   float u_thread[control_dim];
   float* u_intermediate_thread = &u_intermediate[block_idx * control_dim * ((num_rollouts - 1) / sum_stride + 1)];
 
-  mppi_common::strideControlWeightReduction(num_rollouts, num_timesteps, sum_stride, thread_idx, block_idx, control_dim,
-                                            exp_costs_d, normalizer, du_d, u_thread, u_intermediate_thread);
+  mppi::kernels::strideControlWeightReduction(num_rollouts, num_timesteps, sum_stride, thread_idx, block_idx,
+                                              control_dim, exp_costs_d, normalizer, du_d, u_thread,
+                                              u_intermediate_thread);
 }
 
 template <int control_dim, int num_rollouts, int num_timesteps, int sum_stride>
@@ -86,8 +87,8 @@ __global__ void rolloutWeightReductionAndSaveControl_KernelTest(int num_rollouts
 
   float u[control_dim];
   float* u_intermediate_thread = &u_intermediate[block_idx * control_dim * ((num_rollouts - 1) / sum_stride + 1)];
-  mppi_common::rolloutWeightReductionAndSaveControl(thread_idx, block_idx, num_rollouts, num_timesteps, control_dim,
-                                                    sum_stride, u, u_intermediate_thread, du_new_d);
+  mppi::kernels::rolloutWeightReductionAndSaveControl(thread_idx, block_idx, num_rollouts, num_timesteps, control_dim,
+                                                      sum_stride, u, u_intermediate_thread, du_new_d);
 }
 
 template <int control_dim, int num_rollouts, int num_timesteps, int sum_stride>
@@ -240,8 +241,8 @@ void launchWeightedReductionKernelTest(std::array<float, NUM_ROLLOUTS> exp_costs
   dim3 dimBlock((NUM_ROLLOUTS - 1) / SUM_STRIDE + 1, 1, 1);
   dim3 dimGrid(NUM_TIMESTEPS, 1, 1);
 
-  mppi_common::weightedReductionKernel<CONTROL_DIM, NUM_ROLLOUTS, SUM_STRIDE><<<dimGrid, dimBlock, 0, stream>>>(
-      exp_costs_d_, perturbed_controls_d_, optimal_controls_d_, normalizer, NUM_TIMESTEPS);
+  mppi::kernels::weightedReductionKernel<CONTROL_DIM><<<dimGrid, dimBlock, 0, stream>>>(
+      exp_costs_d_, perturbed_controls_d_, optimal_controls_d_, normalizer, NUM_TIMESTEPS, NUM_ROLLOUTS, SUM_STRIDE);
   CudaCheckError();
 
   // Copy the result back to the GPU

@@ -2,7 +2,7 @@
 #include <gtest/gtest.h>
 #include <mppi/dynamics/racer_suspension/racer_suspension.cuh>
 #include <kernel_tests/dynamics/dynamics_generic_kernel_tests.cuh>
-#include <mppi/core/mppi_common_new.cuh>
+#include <mppi/core/mppi_common.cuh>
 #include <mppi/ddp/ddp_model_wrapper.h>
 #include <cuda_runtime.h>
 
