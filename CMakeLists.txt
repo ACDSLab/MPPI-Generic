@@ -9,8 +9,8 @@ endif()
 ####################################
 # Set up options for configuration #
 ####################################
-option(BUILD_TESTS "BUILD_TESTS" ON)
-option(BUILD_EXAMPLES "BUILD_EXAMPLES" ON)
+option(BUILD_TESTS "BUILD_TESTS" OFF)
+option(BUILD_EXAMPLES "BUILD_EXAMPLES" OFF)
 option(MPPI_USE_CUDA_BARRIERS "Compile MPPI-Generic with cuda barrier support. Turn off for GPUs older than the 20 series." ON)
 option(MPPI_EXPORT_PACKAGE "Export this folder as the MPPI installation to the global CMake package repository" OFF)
 set(MPPI_CUDA_ARCH_LIST "" CACHE STRING "Specific CUDA Architectures to build for. Leave empty for automatic selection.")
@@ -151,7 +151,7 @@ configure_package_config_file(
 write_basic_package_version_file(
   ${PROJECT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
   VERSION ${PROJECT_VERSION}
-  COMPATIBILITY SameMajorVersion
+  COMPATIBILITY SameMinorVersion
 )
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/MPPIGenericToolsConfig.cmake
