@@ -21,8 +21,7 @@ TEMPLATE_NAME::RacerDubinsElevationLSTMSteeringImpl(int init_input_dim, int init
 }
 
 TEMPLATE_TYPE
-TEMPLATE_NAME::RacerDubinsElevationLSTMSteeringImpl(std::string path, cudaStream_t stream)
-  : RacerDubinsElevationImpl<CLASS_T, PARAMS_T>(stream)
+TEMPLATE_NAME::RacerDubinsElevationLSTMSteeringImpl(std::string path, cudaStream_t stream) : PARENT_CLASS(stream)
 {
   if (!fileExists(path))
   {

@@ -133,6 +133,8 @@ public:
                                    const Eigen::Ref<const control_array>& control, Eigen::Ref<state_array> state_der,
                                    const float dt);
 
+  __host__ __device__ void setOutputs(const float* state_der, const float* next_state, float* output);
+
   __device__ void computeParametricAccelDeriv(float* state, float* control, float* state_der, const float dt,
                                               DYN_PARAMS_T* params_p);
 

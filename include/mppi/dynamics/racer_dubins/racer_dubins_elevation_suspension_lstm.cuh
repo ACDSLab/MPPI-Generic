@@ -69,8 +69,6 @@ class RacerDubinsElevationSuspensionImpl : public RacerDubinsElevationLSTMSteeri
 {
 public:
   using PARENT_CLASS = RacerDubinsElevationLSTMSteeringImpl<CLASS_T, PARAMS_T>;
-  using NN = typename PARENT_CLASS::NN;
-  using LSTM = typename PARENT_CLASS::LSTM;
   using GRANDPARENT_CLASS = typename PARENT_CLASS::PARENT_CLASS;
   using DYN_PARAMS_T = typename PARENT_CLASS::DYN_PARAMS_T;
   using SharedBlock = typename PARENT_CLASS::SharedBlock;
@@ -154,11 +152,11 @@ class RacerDubinsElevationSuspension : public RacerDubinsElevationSuspensionImpl
 public:
   using PARENT_CLASS = RacerDubinsElevationSuspensionImpl<RacerDubinsElevationSuspension>;
 
-  RacerDubinsElevationSuspension(cudaStream_t stream = 0) : PARENT_CLASS(stream)
-  {
-  }
-  RacerDubinsElevationSuspension(RacerDubinsElevationSuspensionParams params, cudaStream_t stream = 0)
-    : PARENT_CLASS(params, stream)
+  RacerDubinsElevationSuspension(int init_input_dim, int init_hidden_dim, std::vector<int>& init_output_layers,
+                                 int input_dim, int hidden_dim, std::vector<int>& output_layers, int init_len,
+                                 cudaStream_t stream = nullptr)
+    : PARENT_CLASS(init_input_dim, init_hidden_dim, init_output_layers, input_dim, hidden_dim, output_layers, init_len,
+                   stream)
   {
   }
   RacerDubinsElevationSuspension(std::string path, cudaStream_t stream = 0) : PARENT_CLASS(path, stream)

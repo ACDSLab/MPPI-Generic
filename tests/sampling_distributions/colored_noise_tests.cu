@@ -214,7 +214,6 @@ TEST(ColoredNoise, DISABLED_checkWhiteNoise)
   int NUM_ROLLOUTS = 1;
   int CONTROL_DIM = 1;
   std::vector<float> exponents(CONTROL_DIM, 0.0);
-  float offset_decay_rate = 1.0;
   int full_buffer_size = NUM_ROLLOUTS * NUM_TIMESTEPS * CONTROL_DIM;
   float* colored_noise_d;
   float colored_noise_output[full_buffer_size] = { 0 };
@@ -262,7 +261,6 @@ TEST(ColoredNoise, DISABLED_checkPinkNoise)
   int NUM_ROLLOUTS = 1;
   int CONTROL_DIM = 1;
   std::vector<float> exponents(CONTROL_DIM, 1.0);
-  float offset_decay_rate = 1.0;
   int full_buffer_size = NUM_ROLLOUTS * NUM_TIMESTEPS * CONTROL_DIM;
   float* colored_noise_d;
   float colored_noise_output[full_buffer_size] = { 0 };
@@ -305,7 +303,6 @@ TEST(ColoredNoise, DISABLED_checkRedNoise)
   int NUM_ROLLOUTS = 1;
   int CONTROL_DIM = 1;
   std::vector<float> exponents(CONTROL_DIM, 2.0);
-  float offset_decay_rate = 1.0;
   int full_buffer_size = NUM_ROLLOUTS * NUM_TIMESTEPS * CONTROL_DIM;
   float* colored_noise_d;
   float colored_noise_output[full_buffer_size] = { 0 };
@@ -358,7 +355,6 @@ TEST(ColoredNoise, DISABLED_checkMultiNoise)
   exponents[2] = 2.0;
   // exponents[3] = 1.25;
   // exponents[4] = 0.75;
-  float offset_decay_rate = 1.0;
   int full_buffer_size = NUM_ROLLOUTS * NUM_TIMESTEPS * CONTROL_DIM;
   float* colored_noise_d;
   float colored_noise_output[full_buffer_size] = { 0 };
