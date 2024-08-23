@@ -26,6 +26,28 @@ void launchParameterTestKernel(CLASS_T& class_t, PARAMS_T& params)
   cudaFree(params_d);
 }
 
+template <class DYN_T>
+__global__ void getSharedMemorySizesKernel(DYN_T* __restrict__ dynamics, int* __restrict__ output_d)
+{
+  output_d[0] = dynamics->getGrdSharedSizeBytes();
+  output_d[1] = dynamics->getBlkSharedSizeBytes();
+}
+
+template <typename DYNAMICS_T>
+void launchGetSharedMemorySizesKernel(DYNAMICS_T& dynamics, int shared_mem_sizes[2])
+{
+  int* shared_mem_sizes_d;
+  HANDLE_ERROR(cudaMalloc((void**)&shared_mem_sizes_d, sizeof(int) * 2));
+
+  getSharedMemorySizesKernel<DYNAMICS_T><<<1, 1>>>(dynamics.model_d_, shared_mem_sizes_d);
+  HANDLE_ERROR(cudaGetLastError());
+
+  // Copy the memory back to the host
+  HANDLE_ERROR(cudaMemcpy(shared_mem_sizes, shared_mem_sizes_d, sizeof(int) * 2, cudaMemcpyDeviceToHost));
+
+  HANDLE_ERROR(cudaFree(shared_mem_sizes_d));
+}
+
 template <typename DYNAMICS_T, int C_DIM>
 __global__ void controlRangesTestKernel(DYNAMICS_T* dynamics, float2* control_rngs)
 {
@@ -305,17 +327,14 @@ __global__ void stepTestKernel(DYNAMICS_T* dynamics, float* state, float* contro
   float* u = control + (tid * DYNAMICS_T::CONTROL_DIM);
   float* y = output + (tid * DYNAMICS_T::OUTPUT_DIM);
 
-  dynamics->initializeDynamics(state, control, output, theta, 0.0f, dt);
+  if (tid < num)
+  {
+    dynamics->initializeDynamics(state, control, output, theta, 0.0f, dt);
+  }
   __syncthreads();
 
   if (tid < num)
   {
-    float* x = state + (tid * DYNAMICS_T::STATE_DIM);
-    float* x_dot = state_der + (tid * DYNAMICS_T::STATE_DIM);
-    float* x_next = next_state + (tid * DYNAMICS_T::STATE_DIM);
-    float* u = control + (tid * DYNAMICS_T::CONTROL_DIM);
-    float* y = output + (tid * DYNAMICS_T::OUTPUT_DIM);
-
     dynamics->enforceConstraints(x, u);
     dynamics->step(x, x_next, x_dot, u, y, theta, t, dt);
   }
@@ -408,7 +427,7 @@ void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DY
 
 template <class DYN_T>
 void checkGPUComputationStep(DYN_T& dynamics, float dt, int max_y_dim, int x_dim,
-                             typename DYN_T::buffer_trajectory buffer, double tol = 1.0e-5)
+                             typename DYN_T::buffer_trajectory buffer, double tol)
 {
   CudaCheckError();
   dynamics.GPUSetup();
