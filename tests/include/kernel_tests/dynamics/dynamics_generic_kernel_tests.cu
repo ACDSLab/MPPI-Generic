@@ -17,7 +17,7 @@ void launchParameterTestKernel(CLASS_T& class_t, PARAMS_T& params)
   HANDLE_ERROR(cudaMalloc((void**)&params_d, sizeof(PARAMS_T)))
 
   parameterTestKernel<CLASS_T, PARAMS_T><<<1, 1>>>(static_cast<CLASS_T*>(class_t.model_d_), *params_d);
-  CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
 
   // Copy the memory back to the host
   HANDLE_ERROR(cudaMemcpy(&params, params_d, sizeof(PARAMS_T), cudaMemcpyDeviceToHost));
@@ -70,7 +70,7 @@ void launchControlRangesTestKernel(DYNAMICS_T& dynamics, std::array<float2, C_DI
   HANDLE_ERROR(cudaMalloc((void**)&ranges_d, sizeof(float2) * control_rngs.size()))
 
   controlRangesTestKernel<DYNAMICS_T, C_DIM><<<1, 1>>>(static_cast<DYNAMICS_T*>(dynamics.model_d_), ranges_d);
-  CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
 
   // Copy the memory back to the host
   HANDLE_ERROR(cudaMemcpy(control_rngs.data(), ranges_d, sizeof(float2) * control_rngs.size(), cudaMemcpyDeviceToHost));
@@ -106,7 +106,7 @@ void launchEnforceConstraintTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
   dim3 numBlocks(1, 1);
   enforceConstraintTestKernel<DYNAMICS_T, S_DIM, C_DIM>
       <<<numBlocks, threadsPerBlock>>>(static_cast<DYNAMICS_T*>(dynamics.model_d_), state_d, control_d, count);
-  CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
 
   // Copy the memory back to the host
   HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float) * S_DIM * state.size(), cudaMemcpyDeviceToHost));
@@ -144,7 +144,7 @@ void launchUpdateStateTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<fl
   dim3 numBlocks(1, 1);
   updateStateTestKernel<DYNAMICS_T, S_DIM>
       <<<numBlocks, threadsPerBlock>>>(static_cast<DYNAMICS_T*>(dynamics.model_d_), state_d, state_der_d, dt, count);
-  CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
 
   // Copy the memory back to the host
   HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float) * S_DIM * state.size(), cudaMemcpyDeviceToHost));
@@ -183,7 +183,7 @@ void launchComputeKinematicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
   dim3 numBlocks(1, 1);
   computeKinematicsTestKernel<DYNAMICS_T, S_DIM>
       <<<numBlocks, threadsPerBlock>>>(static_cast<DYNAMICS_T*>(dynamics.model_d_), state_d, state_der_d, count);
-  CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
 
   // Copy the memory back to the host
   HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float) * S_DIM * state.size(), cudaMemcpyDeviceToHost));
@@ -241,7 +241,7 @@ void launchComputeDynamicsTestKernel(DYNAMICS_T& dynamics, std::vector<std::arra
   // launch kernel
   computeDynamicsTestKernel<DYNAMICS_T, S_DIM, C_DIM, BLOCKDIM_X>
       <<<numBlocks, threadsPerBlock, shared_mem>>>(dynamics.model_d_, state_d, control_d, state_der_d, count);
-  CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
 
   HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float) * S_DIM * count, cudaMemcpyDeviceToHost));
   HANDLE_ERROR(cudaMemcpy(state_der.data(), state_der_d, sizeof(float) * S_DIM * count, cudaMemcpyDeviceToHost));
@@ -297,7 +297,7 @@ void launchComputeStateDerivTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
                         mppi::math::nearest_multiple_4(threadsPerBlock.x * DYNAMICS_T::OUTPUT_DIM);
   computeStateDerivTestKernel<DYNAMICS_T, S_DIM, C_DIM, BLOCKDIM_X><<<numBlocks, threadsPerBlock, shared_mem>>>(
       static_cast<DYNAMICS_T*>(dynamics.model_d_), state_d, control_d, state_der_d, count);
-  CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
 
   // Copy the memory back to the host
   HANDLE_ERROR(cudaMemcpy(state.data(), state_d, sizeof(float) * S_DIM * state.size(), cudaMemcpyDeviceToHost));
@@ -403,7 +403,7 @@ void launchStepTestKernel(DYNAMICS_T& dynamics, std::vector<std::array<float, DY
   unsigned shared_mem = mppi::kernels::calcClassSharedMemSize(&dynamics, threadsPerBlock);
   stepTestKernel<DYNAMICS_T><<<numBlocks, threadsPerBlock, shared_mem>>>(
       dynamics.model_d_, state_d, control_d, state_der_d, next_state_d, output_d, t, dt, count);
-  CudaCheckError();
+  HANDLE_ERROR(cudaGetLastError());
 
   // Copy the memory back to the host
   HANDLE_ERROR(
