@@ -125,12 +125,15 @@ public:
                                                 const int t, const int distribution_idx, const float lambda = 1.0,
                                                 const float alpha = 0.0);
 
+  __host__ float computeFeedbackCost(const Eigen::Ref<const control_array>& u_fb, const int t,
+                                     const int distribution_idx, const float lambda = 1.0, const float alpha = 0.0);
+
   __host__ __device__ float computeLikelihoodRatioCost(const float* __restrict__ u, float* __restrict__ theta_d,
                                                        const int sample_index, const int t, const int distribution_idx,
                                                        const float lambda = 1.0, const float alpha = 0.0);
 
-  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int t,
-                                            const int distribution_idx, const float lambda = 1.0,
+  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int sample_index,
+                                            const int t, const int distribution_idx, const float lambda = 1.0,
                                             const float alpha = 0.0);
 
   __host__ void copyImportanceSamplerToDevice(const float* importance_sampler, const int& distribution_idx,
@@ -145,6 +148,17 @@ public:
 
   __host__ void setHostOptimalControlSequence(float* optimal_control_trajectory, const int& distribution_idx,
                                               bool synchronize = true);
+
+  __host__ void setNumDistributions(const int num_distributions, bool synchronize = false)
+  {
+    if (num_distributions > SAMPLING_PARAMS_T::MAX_DISTRIBUTIONS)
+    {
+      this->logger_->error("GaussianParams can't handle more than %d distributions but %d were requested\n",
+                           SAMPLING_PARAMS_T::MAX_DISTRIBUTIONS, num_distributions);
+      throw std::out_of_range("Can't set num distributions higher than allowed in params");
+    }
+    PARENT_CLASS::setNumDistributions(num_distributions, synchronize);
+  }
 
   __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
                                                    const int& distribution_i, bool synchronize = false) override;

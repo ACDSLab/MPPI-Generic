@@ -495,13 +495,8 @@ __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float
   float* control_cost_coeff = params_p->control_cost_coeff;
 
   float cost = 0.0f;
-#ifdef __CUDA_ARCH__
-  int i = threadIdx.y;
-  int step = blockDim.y;
-#else
-  int i = 0;
-  int step = 1;
-#endif
+  int i, step;
+  mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(i, step);
 
   if (CONTROL_DIM % 4 == 0)
   {
@@ -584,13 +579,8 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
   float* control_cost_coeff = params_p->control_cost_coeff;
 
   float cost = 0.0f;
-#ifdef __CUDA_ARCH__
-  int i = threadIdx.y;
-  int step = blockDim.y;
-#else
-  int i = 0;
-  int step = 1;
-#endif
+  int i, step;
+  mppi::p1::getParallel1DIndex<mppi::p1::Parallel1Dir::THREAD_Y>(i, step);
 
   if (CONTROL_DIM % 4 == 0)
   {
@@ -629,7 +619,26 @@ __host__ __device__ float GAUSSIAN_CLASS::computeFeedbackCost(const float* __res
 }
 
 GAUSSIAN_TEMPLATE
-__host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int t,
+__host__ float GAUSSIAN_CLASS::computeFeedbackCost(const Eigen::Ref<const control_array>& u_fb, const int t,
+                                                   const int distribution_idx, const float lambda, const float alpha)
+{
+  float cost = 0.0f;
+  const int distribution_i = distribution_idx >= this->params_.num_distributions ? 0 : distribution_idx;
+  float* std_dev = &(this->params_.std_dev[CONTROL_DIM * distribution_i]);
+  if (this->params_.time_specific_std_dev)
+  {
+    std_dev = &(this->params_.std_dev[(distribution_i * this->getNumTimesteps() + t) * CONTROL_DIM]);
+  }
+  for (int i = 0; i < CONTROL_DIM; i++)
+  {
+    cost += this->params_.control_cost_coeff[i] * u_fb(i) * u_fb(i) / (std_dev[i] * std_dev[i]);
+  }
+  return 0.5f * lambda * (1.0f - alpha) * cost;
+}
+
+GAUSSIAN_TEMPLATE
+__host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u,
+                                                          const int sample_index, const int t,
                                                           const int distribution_idx, const float lambda,
                                                           const float alpha)
 {
@@ -638,16 +647,21 @@ __host__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const Eigen::Ref<const
   const int mean_index = (distribution_i * this->getNumTimesteps() + t) * CONTROL_DIM;
   float* mean = &(this->means_[mean_index]);
   float* std_dev = &(this->params_.std_dev[CONTROL_DIM * distribution_i]);
+  control_array zero_mean = control_array::Zero();
+  if (sample_index >= (1.0f - this->params_.pure_noise_trajectories_percentage) * this->params_.num_rollouts)
+  {
+    mean = zero_mean.data();
+  }
   if (this->params_.time_specific_std_dev)
   {
     std_dev = &(this->params_.std_dev[(distribution_i * this->getNumTimesteps() + t) * CONTROL_DIM]);
   }
   for (int i = 0; i < CONTROL_DIM; i++)
   {
-    cost += this->params_.control_cost_coeff[i] * mean[i] * (mean[i] + 2.0f * u(i)) /
+    cost += this->params_.control_cost_coeff[i] * mean[i] * (mean[i] - 2.0f * u(i)) /
             (std_dev[i] * std_dev[i]);  // Proper way
   }
-  return cost;
+  return 0.5f * lambda * (1.0f - alpha) * cost;
 }
 
 GAUSSIAN_TEMPLATE

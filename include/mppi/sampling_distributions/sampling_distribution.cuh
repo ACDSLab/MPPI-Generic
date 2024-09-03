@@ -326,6 +326,20 @@ public:
                                                 const float alpha = 0.0);
 
   /**
+   * @brief host method to calculate the cost for feedback based on the sampling distribution in RMPPI
+   *
+   * @param u_fb - feedback control
+   * @param t - timestep
+   * @param distribution_idx - distribution index
+   * @param lambda - MPPI temperature parameter
+   * @param alpha - coeff to turn off the likelihood cost (set to 1 -> no likelihood cost, set to 0 -> all likelihood
+   *
+   * @return feedback cost
+   */
+  __host__ float computeFeedbackCost(const Eigen::Ref<const control_array>& u_fb, const int t,
+                                     const int distribution_idx, const float lambda = 1.0, const float alpha = 0.0);
+
+  /**
    * @brief Device method to calculate the likelihood ratio cost for a given sample u
    *
    * @param u - sampled control
@@ -352,8 +366,8 @@ public:
    * @param alpha - coeff to turn off the likelihood cost (set to 1 -> no likelihood cost, set to 0 -> all likelihood
    * cost)
    */
-  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int t,
-                                            const int distribution_idx, const float lambda = 1.0,
+  __host__ float computeLikelihoodRatioCost(const Eigen::Ref<const control_array>& u, const int sample_index,
+                                            const int t, const int distribution_idx, const float lambda = 1.0,
                                             const float alpha = 0.0);
 
   /**
