@@ -1,6 +1,20 @@
 # MPPI-Generic
 MPPI-Generic is a C++/CUDA header-only library implementation of Model Predictive Path Integral Control (MPPI) by [Williams et al.](https://ieeexplore.ieee.org/document/8558663)
 
+## Citation
+If you use this library for research purposes, please cite the following paper:
+```
+@misc{vlahov2024mppigenericcudalibrarystochastic,
+      title={MPPI-Generic: A CUDA Library for Stochastic Optimization},
+      author={Bogdan Vlahov and Jason Gibson and Manan Gandhi and Evangelos A. Theodorou},
+      year={2024},
+      eprint={2409.07563},
+      archivePrefix={arXiv},
+      primaryClass={cs.MS},
+      url={https://arxiv.org/abs/2409.07563},
+}
+```
+
 ## Requirements
 MPPI-Generic relies on the following:
 * An NVIDIA GPU
