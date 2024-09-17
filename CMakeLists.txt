@@ -64,9 +64,12 @@ target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
   "$<INSTALL_INTERFACE:include/cnpy>"
 )
 
+# --display-error-number was added as a compilation flag in CUDA 11.2
+if (${CUDA_VERSION} VERSION_GREATER_EQUAL "11.2")
 target_compile_options(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
   $<$<COMPILE_LANGUAGE:CUDA>:--display-error-number>
 )
+endif()
 
 # Allow the ability to turn off cuda barriers through CMake. Necessary for GPUs older than
 # the 20 series
