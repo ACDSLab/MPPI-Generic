@@ -318,9 +318,16 @@ __device__ void TEMPLATE_NAME::computeSimpleSuspensionStep(float* state, float* 
     // output[O_INDEX(WHEEL_FORCE_UP_FL) + i] = up_wheel_force;
     // output[O_INDEX(WHEEL_FORCE_FWD_FL) + i] = fwd_wheel_force;
     // output[O_INDEX(WHEEL_FORCE_SIDE_FL) + i] = side_wheel_force;
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ > 600
+    // block-specific atomicAdd is only available on compute capabilities 6.x and greater
     atomicAdd_block(&state_der[S_INDEX(CG_VEL_I_Z)], wheel_force / params_p->mass);
     atomicAdd_block(&state_der[S_INDEX(ROLL_RATE)], wheel_force * wheel_positions_cg.y / params_p->I_xx);
     atomicAdd_block(&state_der[S_INDEX(PITCH_RATE)], -wheel_force * wheel_positions_cg.x / params_p->I_yy);
+#elif defined(__CUDA_ARCH__)
+    atomicAdd(&state_der[S_INDEX(CG_VEL_I_Z)], wheel_force / params_p->mass);
+    atomicAdd(&state_der[S_INDEX(ROLL_RATE)], wheel_force * wheel_positions_cg.y / params_p->I_xx);
+    atomicAdd(&state_der[S_INDEX(PITCH_RATE)], -wheel_force * wheel_positions_cg.x / params_p->I_yy);
+#endif
   }
   __syncthreads();
 

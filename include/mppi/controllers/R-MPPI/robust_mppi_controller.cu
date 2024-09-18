@@ -365,6 +365,8 @@ ROBUST_MPPI_TEMPLATE
 void RobustMPPI::resetCandidateCudaMem()
 {
   deallocateNominalStateCandidateMemory();
+
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11200
   HANDLE_ERROR(
       cudaMallocAsync((void**)&importance_sampling_costs_d_, sizeof(float) * getNumEvalRollouts(), this->stream_));
   HANDLE_ERROR(cudaMallocAsync((void**)&importance_sampling_outputs_d_,
@@ -374,6 +376,14 @@ void RobustMPPI::resetCandidateCudaMem()
                                sizeof(float) * DYN_T::STATE_DIM * getNumCandidates(), this->stream_));
   HANDLE_ERROR(
       cudaMallocAsync((void**)&importance_sampling_strides_d_, sizeof(int) * getNumCandidates(), this->stream_));
+#else
+  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_costs_d_, sizeof(float) * getNumEvalRollouts()));
+  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_outputs_d_,
+                          sizeof(float) * getNumEvalRollouts() * this->getNumTimesteps() * DYN_T::OUTPUT_DIM));
+  HANDLE_ERROR(
+      cudaMalloc((void**)&importance_sampling_states_d_, sizeof(float) * DYN_T::STATE_DIM * getNumCandidates()));
+  HANDLE_ERROR(cudaMalloc((void**)&importance_sampling_strides_d_, sizeof(int) * getNumCandidates()));
+#endif
   // Set flag so that the we know cudamemory is allocated
   importance_sampling_cuda_mem_init_ = true;
 }
@@ -383,10 +393,17 @@ void RobustMPPI::deallocateNominalStateCandidateMemory()
 {
   if (importance_sampling_cuda_mem_init_)
   {
+#if defined(CUDART_VERSION) && CUDART_VERSION > 11200
     HANDLE_ERROR(cudaFreeAsync(importance_sampling_costs_d_, this->stream_));
     HANDLE_ERROR(cudaFreeAsync(importance_sampling_outputs_d_, this->stream_));
     HANDLE_ERROR(cudaFreeAsync(importance_sampling_states_d_, this->stream_));
     HANDLE_ERROR(cudaFreeAsync(importance_sampling_strides_d_, this->stream_));
+#else
+    HANDLE_ERROR(cudaFree(importance_sampling_costs_d_));
+    HANDLE_ERROR(cudaFree(importance_sampling_outputs_d_));
+    HANDLE_ERROR(cudaFree(importance_sampling_states_d_));
+    HANDLE_ERROR(cudaFree(importance_sampling_strides_d_));
+#endif
     importance_sampling_costs_d_ = nullptr;
     importance_sampling_outputs_d_ = nullptr;
     importance_sampling_states_d_ = nullptr;

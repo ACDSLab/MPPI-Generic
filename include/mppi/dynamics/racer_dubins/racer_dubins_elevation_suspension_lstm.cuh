@@ -7,8 +7,7 @@
 
 #ifndef W_INDEX
 #define W_IND_CLASS(CLASS, enum_val) E_INDEX(CLASS::WheelIndex, enum_val)
-#define W_IND(param, enum_val) W_IND_CLASS(decltype(param), enum_val)
-#define W_INDEX(enum_val) W_IND(this->params_, enum_val)
+#define W_INDEX(enum_val) W_IND_CLASS(PARENT_CLASS::DYN_PARAMS_T, enum_val)
 #define W_INDEX_NEWLY_CREATED true
 #endif
 

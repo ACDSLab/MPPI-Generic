@@ -10,8 +10,7 @@ using namespace MPPI_internal;
 
 #ifndef U_INDEX
 #define U_IND_CLASS(CLASS, enum_val) E_INDEX(CLASS::UncertaintyIndex, enum_val)
-#define U_IND(param, enum_val) U_IND_CLASS(decltype(param), enum_val)
-#define U_INDEX(enum_val) U_IND(this->params_, enum_val)
+#define U_INDEX(enum_val) U_IND_CLASS(PARENT_CLASS::DYN_PARAMS_T, enum_val)
 #endif
 
 struct RacerDubinsElevationParams : public RacerDubinsParams

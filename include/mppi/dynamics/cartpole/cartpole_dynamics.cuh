@@ -40,6 +40,7 @@ class CartpoleDynamics : public Dynamics<CartpoleDynamics, CartpoleDynamicsParam
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+  using PARENT_CLASS = Dynamics<CartpoleDynamics, CartpoleDynamicsParams>;
   CartpoleDynamics(float cart_mass = 1.0f, float pole_mass = 1.0f, float pole_length = 1.0f, cudaStream_t stream = 0);
 
   std::string getDynamicsModelName() const override
