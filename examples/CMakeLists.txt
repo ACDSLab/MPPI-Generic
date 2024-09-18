@@ -1,8 +1,8 @@
-add_executable(cartpole_example cartpole_example.cpp)
-target_include_directories(cartpole_example PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
-target_link_libraries(cartpole_example
-                      cnpy
-                      cartpole_mppi)
+# add_executable(cartpole_example cartpole_example.cpp)
+# target_include_directories(cartpole_example PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+# target_link_libraries(cartpole_example
+#                       cnpy
+#                       cartpole_mppi)
 
 file(GLOB CUDA_TARGET_SRCS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cu)
 

@@ -189,11 +189,9 @@ void launchRunningCostTestKernel(COST_T& cost, std::vector<std::array<float, COS
   float* y_d;
   float* u_d;
   float* output_costs_d;
-  HANDLE_ERROR(
-      cudaMallocAsync((void**)&y_d, sizeof(float) * num_rollouts * num_timesteps * COST_T::OUTPUT_DIM, stream));
-  HANDLE_ERROR(
-      cudaMallocAsync((void**)&u_d, sizeof(float) * num_rollouts * num_timesteps * COST_T::CONTROL_DIM, stream));
-  HANDLE_ERROR(cudaMallocAsync((void**)&output_costs_d, sizeof(float) * num_rollouts * num_timesteps, stream));
+  HANDLE_ERROR(cudaMalloc((void**)&y_d, sizeof(float) * num_rollouts * num_timesteps * COST_T::OUTPUT_DIM));
+  HANDLE_ERROR(cudaMalloc((void**)&u_d, sizeof(float) * num_rollouts * num_timesteps * COST_T::CONTROL_DIM));
+  HANDLE_ERROR(cudaMalloc((void**)&output_costs_d, sizeof(float) * num_rollouts * num_timesteps));
 
   // Copy data to GPU
   for (int k = 0; k < num_rollouts; k++)
@@ -229,9 +227,9 @@ void launchRunningCostTestKernel(COST_T& cost, std::vector<std::array<float, COS
                                cudaMemcpyDeviceToHost, stream));
 
   // Free memory
-  HANDLE_ERROR(cudaFreeAsync(y_d, stream));
-  HANDLE_ERROR(cudaFreeAsync(u_d, stream));
-  HANDLE_ERROR(cudaFreeAsync(output_costs_d, stream));
+  HANDLE_ERROR(cudaFree(y_d));
+  HANDLE_ERROR(cudaFree(u_d));
+  HANDLE_ERROR(cudaFree(output_costs_d));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
 }
 
@@ -254,9 +252,8 @@ void launchRolloutCostKernel(COST_T& cost, SAMPLING_T& sampler, std::vector<std:
   // Global Memory setup
   float* y_d;
   float* output_costs_d;
-  HANDLE_ERROR(
-      cudaMallocAsync((void**)&y_d, sizeof(float) * num_rollouts * num_timesteps * COST_T::OUTPUT_DIM, stream));
-  HANDLE_ERROR(cudaMallocAsync((void**)&output_costs_d, sizeof(float) * num_rollouts * num_timesteps, stream));
+  HANDLE_ERROR(cudaMalloc((void**)&y_d, sizeof(float) * num_rollouts * num_timesteps * COST_T::OUTPUT_DIM));
+  HANDLE_ERROR(cudaMalloc((void**)&output_costs_d, sizeof(float) * num_rollouts * num_timesteps));
 
   // Copy data to GPU
   for (int k = 0; k < num_rollouts; k++)
@@ -293,8 +290,8 @@ void launchRolloutCostKernel(COST_T& cost, SAMPLING_T& sampler, std::vector<std:
                                cudaMemcpyDeviceToHost, stream));
 
   // Free memory
-  HANDLE_ERROR(cudaFreeAsync(y_d, stream));
-  HANDLE_ERROR(cudaFreeAsync(output_costs_d, stream));
+  HANDLE_ERROR(cudaFree(y_d));
+  HANDLE_ERROR(cudaFree(output_costs_d));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
 }
 
@@ -311,8 +308,8 @@ void launchTerminalCostTestKernel(COST_T& cost, std::vector<std::array<float, CO
   // Global Memory setup
   float* y_d;
   float* output_costs_d;
-  HANDLE_ERROR(cudaMallocAsync((void**)&y_d, sizeof(float) * num_rollouts * COST_T::OUTPUT_DIM, stream));
-  HANDLE_ERROR(cudaMallocAsync((void**)&output_costs_d, sizeof(float) * num_rollouts, stream));
+  HANDLE_ERROR(cudaMalloc((void**)&y_d, sizeof(float) * num_rollouts * COST_T::OUTPUT_DIM));
+  HANDLE_ERROR(cudaMalloc((void**)&output_costs_d, sizeof(float) * num_rollouts));
 
   // Copy data to GPU
   for (int k = 0; k < num_rollouts; k++)
@@ -339,8 +336,8 @@ void launchTerminalCostTestKernel(COST_T& cost, std::vector<std::array<float, CO
                                cudaMemcpyDeviceToHost, stream));
 
   // Free memory
-  HANDLE_ERROR(cudaFreeAsync(y_d, stream));
-  HANDLE_ERROR(cudaFreeAsync(output_costs_d, stream));
+  HANDLE_ERROR(cudaFree(y_d));
+  HANDLE_ERROR(cudaFree(output_costs_d));
   HANDLE_ERROR(cudaStreamSynchronize(stream));
 }
 

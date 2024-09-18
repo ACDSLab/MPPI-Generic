@@ -265,8 +265,8 @@ TEST_F(RMPPIKernels, ValidateSplitInitEvalKernelAgainstCPU)
         {
           dim3 costThreadsPerBlock(cost_thread_x, cost_thread_y, 1);
           logger->info("Testing coalesced Split Eval Kernel with dyn(%d, %d, %d), cost(%d %d, %d)\n",
-                      dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
-                      costThreadsPerBlock.y, costThreadsPerBlock.z);
+                       dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
+                       costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLER_T, true>(
               model, cost, sampler, dt, num_timesteps, num_rollouts, lambda, alpha, num_samples, strides_d, initial_x_d,
               output_d, cost_trajectories_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
@@ -286,8 +286,8 @@ TEST_F(RMPPIKernels, ValidateSplitInitEvalKernelAgainstCPU)
                 << std::endl;
           }
           logger->info("Testing non-coalesced Split Eval Kernel with dyn(%d, %d, %d), cost(%d %d, %d)\n",
-                      dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
-                      costThreadsPerBlock.y, costThreadsPerBlock.z);
+                       dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
+                       costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitInitEvalKernel<DYN_T, COST_T, SAMPLER_T, false>(
               model, cost, sampler, dt, num_timesteps, num_rollouts, lambda, alpha, num_samples, strides_d, initial_x_d,
               output_d, cost_trajectories_d, dynThreadsPerBlock, costThreadsPerBlock, stream, false);
@@ -365,7 +365,7 @@ TEST_F(RMPPIKernels, ValidateCombinedRMPPIRolloutKernelAgainstCPU)
     {
       dim3 threadsPerBlock(thread_x, thread_y, 2);
       logger->info("Testing RMPPI Rollout Kernel with (%d, %d, %d)\n", threadsPerBlock.x, threadsPerBlock.y,
-                  threadsPerBlock.z);
+                   threadsPerBlock.z);
       mppi::kernels::rmppi::launchRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                      nominal_idx>(
           model, cost, sampler, fb_controller->getHostPointer().get(), dt, num_timesteps, num_rollouts, lambda, alpha,
@@ -450,8 +450,8 @@ TEST_F(RMPPIKernels, ValidateSplitRMPPIRolloutKernelAgainstCPU)
         {
           dim3 costThreadsPerBlock(cost_thread_x, cost_thread_y, 2);
           logger->info("Testing coalesced RMPPI Rollout Kernel with dyn(%d, %d, %d), cost(%d %d, %d)\n",
-                      dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
-                      costThreadsPerBlock.y, costThreadsPerBlock.z);
+                       dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
+                       costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                               nominal_idx, true>(
               model, cost, sampler, fb_controller->getHostPointer().get(), dt, num_timesteps, num_rollouts, lambda,
@@ -473,8 +473,8 @@ TEST_F(RMPPIKernels, ValidateSplitRMPPIRolloutKernelAgainstCPU)
                 << std::endl;
           }
           logger->info("Testing non-coalesced RMPPI Rollout Kernel with dyn(%d, %d, %d), cost(%d %d, %d)\n",
-                      dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
-                      costThreadsPerBlock.y, costThreadsPerBlock.z);
+                       dynThreadsPerBlock.x, dynThreadsPerBlock.y, dynThreadsPerBlock.z, costThreadsPerBlock.x,
+                       costThreadsPerBlock.y, costThreadsPerBlock.z);
           mppi::kernels::rmppi::launchSplitRMPPIRolloutKernel<DYN_T, COST_T, SAMPLER_T, FB_T::TEMPLATED_GPU_FEEDBACK,
                                                               nominal_idx, false>(
               model, cost, sampler, fb_controller->getHostPointer().get(), dt, num_timesteps, num_rollouts, lambda,

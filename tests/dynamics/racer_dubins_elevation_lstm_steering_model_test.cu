@@ -776,6 +776,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, compareToElevationWithoutSteering)
 {
   // by default the network will output zeros and not effect any states
   using DYN = RacerDubinsElevationLSTMSteering;
+  using DYN_PARAMS = DYN::DYN_PARAMS_T;
 
   const int num_rollouts = 1000;
   const float dt = 0.1f;
@@ -871,7 +872,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, compareToElevationWithoutSteering)
 
     for (int dim = 0; dim < RacerDubinsElevationLSTMSteering::STATE_DIM; dim++)
     {
-      if (dim == S_IND(params, STEER_ANGLE) or dim == S_IND(params, STEER_ANGLE_RATE))
+      if (dim == S_IND_CLASS(DYN_PARAMS, STEER_ANGLE) or dim == S_IND_CLASS(DYN_PARAMS, STEER_ANGLE_RATE))
       {  // this is done since the steering wheel setup is different, accel version
         continue;
       }
@@ -880,9 +881,9 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, compareToElevationWithoutSteering)
     }
     for (int dim = 0; dim < RacerDubinsElevationLSTMSteering::OUTPUT_DIM; dim++)
     {
-      if (dim == O_IND(params, STEER_ANGLE) or dim == O_IND(params, STEER_ANGLE_RATE) or
-          dim == O_IND(params, WHEEL_FORCE_UP_MAX) or dim == O_IND(params, WHEEL_FORCE_FWD_MAX) or
-          dim == O_IND(params, WHEEL_FORCE_SIDE_MAX) or dim == O_IND(params, FILLER_1))
+      if (dim == O_IND_CLASS(DYN_PARAMS, STEER_ANGLE) or dim == O_IND_CLASS(DYN_PARAMS, STEER_ANGLE_RATE) or
+          dim == O_IND_CLASS(DYN_PARAMS, WHEEL_FORCE_UP_MAX) or dim == O_IND_CLASS(DYN_PARAMS, WHEEL_FORCE_FWD_MAX) or
+          dim == O_IND_CLASS(DYN_PARAMS, WHEEL_FORCE_SIDE_MAX) or dim == O_IND_CLASS(DYN_PARAMS, FILLER_1))
       {  // this is done since the steering wheel setup is different, accel version
         continue;
       }
@@ -912,7 +913,7 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, compareToElevationWithoutSteering)
 
     for (int dim = 0; dim < RacerDubinsElevationLSTMSteering::STATE_DIM; dim++)
     {
-      if (dim == S_IND(params, STEER_ANGLE) or dim == S_IND(params, STEER_ANGLE_RATE))
+      if (dim == S_IND_CLASS(DYN_PARAMS, STEER_ANGLE) or dim == S_IND_CLASS(DYN_PARAMS, STEER_ANGLE_RATE))
       {  // this is done since the steering wheel setup is different, accel version
         continue;
       }
@@ -921,9 +922,9 @@ TEST_F(RacerDubinsElevationLSTMSteeringTest, compareToElevationWithoutSteering)
     }
     for (int dim = 0; dim < RacerDubinsElevationLSTMSteering::OUTPUT_DIM; dim++)
     {
-      if (dim == O_IND(params, STEER_ANGLE) or dim == O_IND(params, STEER_ANGLE_RATE) or
-          dim == O_IND(params, WHEEL_FORCE_UP_MAX) or dim == O_IND(params, WHEEL_FORCE_FWD_MAX) or
-          dim == O_IND(params, WHEEL_FORCE_SIDE_MAX) or dim == O_IND(params, FILLER_1))
+      if (dim == O_IND_CLASS(DYN_PARAMS, STEER_ANGLE) or dim == O_IND_CLASS(DYN_PARAMS, STEER_ANGLE_RATE) or
+          dim == O_IND_CLASS(DYN_PARAMS, WHEEL_FORCE_UP_MAX) or dim == O_IND_CLASS(DYN_PARAMS, WHEEL_FORCE_FWD_MAX) or
+          dim == O_IND_CLASS(DYN_PARAMS, WHEEL_FORCE_SIDE_MAX) or dim == O_IND_CLASS(DYN_PARAMS, FILLER_1))
       {  // this is done since the steering wheel setup is different, accel version
         continue;
       }
