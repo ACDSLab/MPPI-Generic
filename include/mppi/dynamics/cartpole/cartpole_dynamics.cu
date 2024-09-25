@@ -49,23 +49,21 @@ void CartpoleDynamics::computeDynamics(const Eigen::Ref<const state_array>& stat
                                        const Eigen::Ref<const control_array>& control,
                                        Eigen::Ref<state_array> state_der)
 {
-  const float theta = state(2);
-  const float sin_theta = sinf(theta);
-  const float cos_theta = cosf(theta);
-  float theta_dot = state(3);
-  float force = control(0);
-  float m_c = this->params_.cart_mass;
-  float m_p = this->params_.pole_mass;
-  float l_p = this->params_.pole_length;
+  const float sin_theta = sinf(state(S_INDEX(THETA)));
+  const float cos_theta = cosf(state(S_INDEX(THETA)));
+  float theta_dot = state[S_INDEX(THETA_DOT)];
+  float force = control[C_INDEX(FORCE)];
+  const float m_c = this->params_.cart_mass;
+  const float m_p = this->params_.pole_mass;
+  const float l_p = this->params_.pole_length;
 
-  // TODO WAT?
-  state_der(0) = state(S_INDEX(VEL_X));
-  state_der(1) =
-      1.0f / (m_c + m_p * SQ(sin_theta)) * (force + m_p * sin_theta * (l_p * SQ(theta_dot) + gravity_ * cos_theta));
-  state_der(2) = theta_dot;
-  state_der(3) =
-      1.0f / (l_p * (m_c + m_p * SQ(sin_theta))) *
-      (-force * cos_theta - m_p * l_p * SQ(theta_dot) * cos_theta * sin_theta - (m_c + m_p) * gravity_ * sin_theta);
+  state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X));
+  state_der(S_INDEX(VEL_X)) =
+      (force + m_p * sin_theta * (l_p * SQ(theta_dot) + gravity_ * cos_theta)) / (m_c + m_p * SQ(sin_theta));
+  state_der(S_INDEX(THETA)) = theta_dot;
+  state_der(S_INDEX(THETA_DOT)) =
+      (-force * cos_theta - m_p * l_p * SQ(theta_dot) * cos_theta * sin_theta - (m_c + m_p) * gravity_ * sin_theta) /
+      (l_p * (m_c + m_p * SQ(sin_theta)));
 }
 
 void CartpoleDynamics::printState(const Eigen::Ref<const state_array>& state)
@@ -88,22 +86,22 @@ void CartpoleDynamics::printParams()
 
 __device__ void CartpoleDynamics::computeDynamics(float* state, float* control, float* state_der, float* theta_s)
 {
-  float theta = angle_utils::normalizeAngle(state[2]);
+  float theta = angle_utils::normalizeAngle(state[S_INDEX(THETA)]);
   const float sin_theta = __sinf(theta);
   const float cos_theta = __cosf(theta);
-  float theta_dot = state[3];
-  float force = control[0];
-  float m_c = this->params_.cart_mass;
-  float m_p = this->params_.pole_mass;
-  float l_p = this->params_.pole_length;
+  float theta_dot = state[S_INDEX(THETA_DOT)];
+  float force = control[C_INDEX(FORCE)];
+  const float m_c = this->params_.cart_mass;
+  const float m_p = this->params_.pole_mass;
+  const float l_p = this->params_.pole_length;
 
-  state_der[0] = state[1];
-  state_der[1] =
-      1.0f / (m_c + m_p * SQ(sin_theta)) * (force + m_p * sin_theta * (l_p * SQ(theta_dot) + gravity_ * cos_theta));
-  state_der[2] = theta_dot;
-  state_der[3] =
-      1.0f / (l_p * (m_c + m_p * SQ(sin_theta))) *
-      (-force * cos_theta - m_p * l_p * SQ(theta_dot) * cos_theta * sin_theta - (m_c + m_p) * gravity_ * sin_theta);
+  state_der[S_INDEX(POS_X)] = state[S_INDEX(VEL_X)];
+  state_der[S_INDEX(VEL_X)] =
+      (force + m_p * sin_theta * (l_p * SQ(theta_dot) + gravity_ * cos_theta)) / (m_c + m_p * SQ(sin_theta));
+  state_der[S_INDEX(THETA)] = theta_dot;
+  state_der[S_INDEX(THETA_DOT)] =
+      (-force * cos_theta - m_p * l_p * SQ(theta_dot) * cos_theta * sin_theta - (m_c + m_p) * gravity_ * sin_theta) /
+      (l_p * (m_c + m_p * SQ(sin_theta)));
 }
 
 Dynamics<CartpoleDynamics, CartpoleDynamicsParams>::state_array

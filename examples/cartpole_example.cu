@@ -51,13 +51,13 @@ int main(int argc, char** argv)
   controller_params.cost_rollout_dim_ = dim3(64, 4, 1);
   CartpoleController->setParams(controller_params);
 
-  CartpoleDynamics::state_array current_state = CartpoleDynamics::state_array::Zero();
-  CartpoleDynamics::state_array next_state = CartpoleDynamics::state_array::Zero();
+  CartpoleDynamics::state_array current_state = model->getZeroState();
+  CartpoleDynamics::state_array next_state = model->getZeroState();
   CartpoleDynamics::output_array output = CartpoleDynamics::output_array::Zero();
 
   int time_horizon = 5000;
 
-  CartpoleDynamics::state_array xdot = CartpoleDynamics::state_array::Zero();
+  CartpoleDynamics::state_array xdot = model->getZeroState();
 
   auto time_start = std::chrono::system_clock::now();
   for (int i = 0; i < time_horizon; ++i)
