@@ -439,7 +439,7 @@ void checkGPURolloutCost(COST_T& cost, float dt)
         int crash = 0;
         float cpu_cost = cost.computeRunningCost(y_index, u_index, t, &crash);
 #ifdef USE_ROLLOUT_COST_KERNEL
-        cpu_cost += sampler.computeLikelihoodRatioCost(u_index, t, 0);
+        cpu_cost += sampler.computeLikelihoodRatioCost(u_index, n, t, 0);
         total_cost += cpu_cost;
 #else
         ASSERT_NEAR(cpu_cost, output_cost_gpu[index], cpu_cost * 0.0015)

@@ -298,7 +298,7 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
   const int freq_size = sample_freq.size();
 
   int smaller_index = 0;
-  const int local_control_dim = this->CONTROL_DIM; // Needed for methods which use pass by reference
+  const int local_control_dim = this->CONTROL_DIM;  // Needed for methods which use pass by reference
   Eigen::MatrixXf sample_freqs(freq_size, local_control_dim);
 
   // Adjust the weighting of each frequency by the exponents

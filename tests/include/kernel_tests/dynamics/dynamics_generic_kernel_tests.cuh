@@ -48,6 +48,15 @@ void launchComputeStateDerivTestKernel(DYNAMICS_T& dynamics, std::vector<std::ar
                                        std::vector<std::array<float, C_DIM>>& control,
                                        std::vector<std::array<float, S_DIM>>& state_der, int dim_y);
 
+template <class DYN_T>
+__global__ void getSharedMemorySizesKernel(DYN_T* __restrict__ dynamics, int* __restrict__ output_d);
+template <typename DYN_T>
+void launchGetSharedMemorySizesKernel(DYN_T& dynamics, int shared_mem_sizes[2]);
+
+template <class DYN_T>
+void checkGPUComputationStep(DYN_T& dynamics, float dt, int max_y_dim, int x_dim,
+                             typename DYN_T::buffer_trajectory buffer, double tol = 1.0e-5);
+
 #if __CUDACC__
 #include "dynamics_generic_kernel_tests.cu"
 #endif

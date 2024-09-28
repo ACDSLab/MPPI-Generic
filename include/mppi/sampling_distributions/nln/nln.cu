@@ -74,7 +74,7 @@ void NLN_NOISE::setParams(const SAMPLING_PARAMS_T& params, bool synchronize)
   bool adjusted_variance = false;
   for (int i = 0; i < this->CONTROL_DIM * this->getNumDistributions(); i++)
   {
-    if (this->params.std_dev[i] != params.std_dev[i])
+    if (this->params_.std_dev[i] != params.std_dev[i])
     {
       adjusted_variance = true;
       break;
