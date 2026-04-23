@@ -5,13 +5,13 @@
 class Cartpole_VanillaMPPI : public ::testing::Test
 {
 public:
-  static const int NUM_TIMESTEPS = 100;
+  const int NUM_TIMESTEPS = 100;
   static const int NUM_ROLLOUTS = 2048;
   using DYN_T = CartpoleDynamics;
   using COST_T = CartpoleQuadraticCost;
-  using FB_T = DDPFeedback<DYN_T, NUM_TIMESTEPS>;
+  using FB_T = DDPFeedback<DYN_T>;
   using SAMPLING_T = mppi::sampling_distributions::GaussianDistribution<DYN_T::DYN_PARAMS_T>;
-  using CONTROLLER_T = VanillaMPPIController<DYN_T, COST_T, FB_T, NUM_TIMESTEPS, NUM_ROLLOUTS, SAMPLING_T>;
+  using CONTROLLER_T = VanillaMPPIController<DYN_T, COST_T, FB_T, SAMPLING_T>;
   using control_trajectory = CONTROLLER_T::control_trajectory;
   using control_array = CONTROLLER_T::control_array;
 
@@ -26,12 +26,13 @@ public:
   float gamma = 0.5;
   float lambda = 0.25;
   float alpha = 0.01;
-  control_trajectory init_control = control_trajectory::Constant(0);
+  control_trajectory init_control;
   control_array control_std_dev = control_array::Constant(5.0);
   cudaStream_t stream;
 
   void SetUp() override
   {
+    init_control = control_trajectory::Zero(DYN_T::CONTROL_DIM, NUM_TIMESTEPS);
     fb_controller = new FB_T(&model, dt);
     HANDLE_ERROR(cudaStreamCreate(&stream));
     auto sampler_params = SAMPLING_T::SAMPLING_PARAMS_T();
@@ -43,7 +44,7 @@ public:
     EXPECT_EQ(model.getBlkSharedSizeBytes(), 0);
     sampler = new SAMPLING_T(sampler_params);
     controller = new CONTROLLER_T(&model, &cost, fb_controller, sampler, dt, max_iter, lambda, alpha, NUM_TIMESTEPS,
-                                  init_control, stream);
+                                  NUM_ROLLOUTS, init_control, stream);
   }
 
   void TearDown() override
@@ -125,7 +126,7 @@ TEST_F(Cartpole_VanillaMPPI, SwingUpTest)
     controller->computeControl(current_state, 1);
 
     DYN_T::control_array control;
-    control = controller->getControlSeq().block(0, 0, DYN_T::CONTROL_DIM, 1);
+    control = controller->getControlSeq().col(0);
     // Increment the state
     model.computeStateDeriv(current_state, control, xdot);
     model.updateState(current_state, xdot, dt);
@@ -155,6 +156,7 @@ TEST_F(Cartpole_VanillaMPPI, getSampledStateTrajectoriesTest)
   controller->calculateSampledStateTrajectories();
   const auto outputs = controller->getSampledOutputTrajectories();
   EXPECT_EQ(outputs.size(), 0.25 * NUM_ROLLOUTS);
+  EXPECT_EQ(outputs[0].cols(), NUM_TIMESTEPS);
 }
 
 class Quadrotor_VanillaMPPI : public ::testing::Test
@@ -164,9 +166,9 @@ public:
   static const int NUM_ROLLOUTS = 2048;
   using DYN_T = QuadrotorDynamics;
   using COST_T = QuadrotorQuadraticCost;
-  using FB_T = DDPFeedback<DYN_T, NUM_TIMESTEPS>;
+  using FB_T = DDPFeedback<DYN_T>;
   using SAMPLING_T = mppi::sampling_distributions::GaussianDistribution<DYN_T::DYN_PARAMS_T>;
-  using CONTROLLER_T = VanillaMPPIController<DYN_T, COST_T, FB_T, NUM_TIMESTEPS, NUM_ROLLOUTS, SAMPLING_T>;
+  using CONTROLLER_T = VanillaMPPIController<DYN_T, COST_T, FB_T, SAMPLING_T>;
   using control_trajectory = CONTROLLER_T::control_trajectory;
   using control_array = CONTROLLER_T::control_array;
 
@@ -176,7 +178,7 @@ public:
   float alpha = 0.9;
   cudaStream_t stream;
   control_array control_std_dev = control_array::Constant(0.5);
-  control_trajectory init_control = control_trajectory::Constant(0.0);
+  control_trajectory init_control = control_trajectory::Zero(DYN_T::CONTROL_DIM, NUM_TIMESTEPS);
 
   DYN_T model;
   COST_T cost;
@@ -197,7 +199,7 @@ public:
     }
     sampler = new SAMPLING_T(sampler_params);
     controller = new CONTROLLER_T(&model, &cost, &fb_controller, sampler, dt, max_iter, lambda, alpha, NUM_TIMESTEPS,
-                                  init_control, stream);
+                                  NUM_ROLLOUTS, init_control, stream);
   }
 
   void TearDown() override
@@ -258,7 +260,7 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
   // float xdot[DYN_T::STATE_DIM];
   DYN_T::state_array xdot(4, 1);
   DYN_T::control_array control;
-  control = controller->getControlSeq().block(0, 0, DYN_T::CONTROL_DIM, 1);
+  control = controller->getControlSeq().col(0);
 
   int far_away_cnt = 0;
   Eigen::Vector3f goal_pos = new_params.getDesiredState().block<3, 1>(0, 0);
@@ -291,7 +293,7 @@ TEST_F(Quadrotor_VanillaMPPI, HoverTest)
     controller->computeControl(current_state, 1);
     loop_end = std::chrono::steady_clock::now();
 
-    control = controller->getControlSeq().block(0, 0, DYN_T::CONTROL_DIM, 1);
+    control = controller->getControlSeq().col(0);  // block(0, 0, DYN_T::CONTROL_DIM, 1);
     // Increment the state
     model.computeStateDeriv(current_state, control, xdot);
     model.updateState(current_state, xdot, dt);

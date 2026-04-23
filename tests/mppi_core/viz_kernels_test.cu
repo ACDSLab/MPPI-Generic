@@ -80,8 +80,8 @@ protected:
 
   CartpoleDynamics dynamics = CartpoleDynamics(1, 1, 1);
   CartpoleQuadraticCost cost;
-  DDPFeedback<CartpoleDynamics, MAX_TIMESTEPS> fb_controller =
-      DDPFeedback<CartpoleDynamics, MAX_TIMESTEPS>(&dynamics, dt);
+  DDPFeedback<CartpoleDynamics> fb_controller =
+      DDPFeedback<CartpoleDynamics>(&dynamics, dt);
 
   float dt = 0.02;
   int num_rollouts = 20;

@@ -25,84 +25,159 @@ bool tubeFailure(float* s)
 class DoubleIntegratorTubeMPPI : public ::testing::Test
 {
 public:
-  static const int num_timesteps = 100;
-  static const int num_rollouts = 512;
+  const int num_timesteps = 100;
+  const int num_rollouts = 512;
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
-  using FB_CONTROLLER = DDPFeedback<DYN, num_timesteps>;
+  using FB_CONTROLLER = DDPFeedback<DYN>;
   using SAMPLING = mppi::sampling_distributions::GaussianDistribution<DYN::DYN_PARAMS_T>;
-  using VANILLA_CONTROLLER = VanillaMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, num_rollouts>;
-  using TUBE_CONTROLLER = TubeMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, num_rollouts>;
+  using TUBE_CONTROLLER = TubeMPPIController<DYN, COST, FB_CONTROLLER, SAMPLING>;
 
   void SetUp() override
   {
-  }
-};
+    model = std::make_shared<DYN>();
+    cost = std::make_shared<COST>();
+    sampler = std::make_shared<SAMPLING>();
+    fb_controller = std::make_shared<FB_CONTROLLER>(model.get(), dt);
+    auto fb_params = fb_controller->getParams();
 
-TEST_F(DoubleIntegratorTubeMPPI, Construction)
-{
-  // Define the model and cost
-  DYN model;
-  COST cost;
+    // DDP cost parameters
+    Eigen::MatrixXf Q;
+    Eigen::MatrixXf R;
+    fb_params.Q = 100 * FB_CONTROLLER::square_state_matrix::Identity();
+    fb_params.Q_f = fb_params.Q;
+    fb_params.R = FB_CONTROLLER::square_control_matrix::Identity();
+    fb_controller->setParams(fb_params);
+  }
+
+  void TearDown() override
+  {
+  }
+
   float dt = 0.01;
-  auto fb_controller = FB_CONTROLLER(&model, dt);
-  auto fb_params = fb_controller.getParams();
   int max_iter = 10;
   float lambda = 0.5;
   float alpha = 0.0;
 
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf R;
-  fb_params.Q = 100 * FB_CONTROLLER::square_state_matrix::Identity();
-  fb_params.Q_f = fb_params.Q;
-  fb_params.R = FB_CONTROLLER::square_control_matrix::Identity();
-  fb_controller.setParams(fb_params);
+  std::shared_ptr<DYN> model;
+  std::shared_ptr<COST> cost;
+  std::shared_ptr<SAMPLING> sampler;
+  std::shared_ptr<FB_CONTROLLER> fb_controller;
+};
 
-  // Sampling Distribution setup
-  SAMPLING sampler = SAMPLING();
-
-  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
-
-  auto controller = TUBE_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+TEST_F(DoubleIntegratorTubeMPPI, Construction)
+{
+  auto controller = std::make_shared<TUBE_CONTROLLER>(model.get(), cost.get(), fb_controller.get(), sampler.get(), dt,
+                                                      max_iter, lambda, alpha, num_timesteps, num_rollouts);
   // This controller needs the ancillary controller running separately for base plant reasons.
+  auto nominal_control_trajectory = controller->getControlSeq();
+  auto real_control_trajectory = controller->getActualControlSeq();
+  auto nominal_state_trajectory = controller->getTargetStateSeq();
+  auto real_state_trajectory = controller->getActualStateSeq();
+
+  EXPECT_EQ(controller->getFeedbackEnabled(), true);
+  EXPECT_EQ(controller->getDt(), dt);
+  EXPECT_EQ(controller->getNumIters(), max_iter);
+  EXPECT_EQ(controller->getLambda(), lambda);
+  EXPECT_EQ(controller->getAlpha(), alpha);
+  EXPECT_EQ(controller->getNumTimesteps(), num_timesteps);
+  EXPECT_EQ(nominal_control_trajectory.cols(), controller->getNumTimesteps());
+  EXPECT_EQ(real_control_trajectory.cols(), controller->getNumTimesteps());
+  EXPECT_EQ(nominal_state_trajectory.cols(), controller->getNumTimesteps());
+  EXPECT_EQ(real_state_trajectory.cols(), controller->getNumTimesteps());
+  EXPECT_EQ(controller->getNumRollouts(), num_rollouts);
 }
 
 TEST_F(DoubleIntegratorTubeMPPI, ConstructionUsingParams)
 {
-  // Define the model and cost
-  DYN model;
-  COST cost;
   TUBE_CONTROLLER::TEMPLATED_PARAMS controller_params;
-  controller_params.dt_ = 0.01;
-  controller_params.num_iters_ = 10;
-  controller_params.lambda_ = 0.5;
-  controller_params.alpha_ = 0.0;
-  // control std dev
-  // controller_params.control_std_dev_ << 1, 1;
-  auto fb_controller = FB_CONTROLLER(&model, controller_params.dt_);
-  auto fb_params = fb_controller.getParams();
+  controller_params.dt_ = dt;
+  controller_params.num_iters_ = max_iter;
+  controller_params.lambda_ = lambda;
+  controller_params.alpha_ = alpha;
+  controller_params.num_timesteps_ = num_timesteps;
+  controller_params.num_rollouts_ = num_rollouts;
+  controller_params.init_control_traj_ = TUBE_CONTROLLER::control_trajectory::Random(DYN::CONTROL_DIM, 1);
+  controller_params.nominal_threshold_ = 31.0f;
 
-  // DDP cost parameters
-  Eigen::MatrixXf Q;
-  Eigen::MatrixXf R;
-  fb_params.Q = 100 * FB_CONTROLLER::square_state_matrix::Identity();
-  fb_params.Q_f = fb_params.Q;
-  fb_params.R = FB_CONTROLLER::square_control_matrix::Identity();
-  fb_controller.setParams(fb_params);
-
-  // Sampling Distribution setup
-  SAMPLING::SAMPLING_PARAMS_T sampler_params;
-  for (int i = 0; i < DYN::CONTROL_DIM; i++)
-  {
-    sampler_params.std_dev[i] = 1;
-  }
-  SAMPLING sampler = SAMPLING(sampler_params);
-
-  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, controller_params);
-  auto controller = TUBE_CONTROLLER(&model, &cost, &fb_controller, &sampler, controller_params);
-
+  auto controller =
+      std::make_shared<TUBE_CONTROLLER>(model.get(), cost.get(), fb_controller.get(), sampler.get(), controller_params);
   // This controller needs the ancillary controller running separately for base plant reasons.
+  auto nominal_control_trajectory = controller->getControlSeq();
+  auto real_control_trajectory = controller->getActualControlSeq();
+  auto nominal_state_trajectory = controller->getTargetStateSeq();
+  auto real_state_trajectory = controller->getActualStateSeq();
+  auto new_controller_params = controller->getParams();
+
+  EXPECT_EQ(controller->getFeedbackEnabled(), true);
+  EXPECT_EQ(controller->getDt(), dt);
+  EXPECT_EQ(controller->getNumIters(), max_iter);
+  EXPECT_EQ(controller->getLambda(), lambda);
+  EXPECT_EQ(controller->getAlpha(), alpha);
+  EXPECT_EQ(controller->getNumTimesteps(), num_timesteps);
+  EXPECT_EQ(nominal_control_trajectory.cols(), controller->getNumTimesteps());
+  EXPECT_EQ(real_control_trajectory.cols(), controller->getNumTimesteps());
+  EXPECT_EQ(nominal_state_trajectory.cols(), controller->getNumTimesteps());
+  EXPECT_EQ(real_state_trajectory.cols(), controller->getNumTimesteps());
+  EXPECT_EQ(controller->getNumRollouts(), num_rollouts);
+  EXPECT_FLOAT_EQ(controller->getNominalThreshold(), 31.0f);
+
+  for (int t = 0; t < controller->getNumTimesteps(); t++)
+  {
+    EXPECT_FLOAT_EQ(fabsf((nominal_control_trajectory.col(t) - new_controller_params.init_control_traj_.col(t)).sum()),
+                    0.0f);
+    EXPECT_FLOAT_EQ(fabsf((real_control_trajectory.col(t) - new_controller_params.init_control_traj_.col(t)).sum()),
+                    0.0f);
+  }
+}
+
+TEST_F(DoubleIntegratorTubeMPPI, UpdateNominalThreshold)
+{
+  auto controller = std::make_shared<TUBE_CONTROLLER>(model.get(), cost.get(), fb_controller.get(), sampler.get(), dt,
+                                                      max_iter, lambda, alpha, num_timesteps, num_rollouts);
+  float orig_nominal_threshold = controller->getNominalThreshold();
+  float new_nominal_threshold = orig_nominal_threshold + 3.14f;
+  controller->setNominalThreshold(new_nominal_threshold);
+  EXPECT_NE(controller->getNominalThreshold(), orig_nominal_threshold);
+  EXPECT_FLOAT_EQ(controller->getNominalThreshold(), new_nominal_threshold);
+}
+
+TEST_F(DoubleIntegratorTubeMPPI, UpdateLengthOfNominalTrajectories)
+{
+  TUBE_CONTROLLER::TEMPLATED_PARAMS controller_params;
+  controller_params.dt_ = dt;
+  controller_params.num_iters_ = max_iter;
+  controller_params.lambda_ = lambda;
+  controller_params.alpha_ = alpha;
+  controller_params.num_timesteps_ = num_timesteps;
+  controller_params.num_rollouts_ = num_rollouts;
+  controller_params.init_control_traj_ = TUBE_CONTROLLER::control_trajectory::Random(DYN::CONTROL_DIM, 1);
+  controller_params.slide_control_scale_ = TUBE_CONTROLLER::control_array::Ones();
+
+  auto controller =
+      std::make_shared<TUBE_CONTROLLER>(model.get(), cost.get(), fb_controller.get(), sampler.get(), controller_params);
+  int new_num_timesteps = controller->getNumTimesteps() + 5;
+  controller->setNumTimesteps(new_num_timesteps);
+  // This controller needs the ancillary controller running separately for base plant reasons.
+  auto nominal_control_trajectory = controller->getControlSeq();
+  auto real_control_trajectory = controller->getActualControlSeq();
+  auto nominal_state_trajectory = controller->getTargetStateSeq();
+  auto real_state_trajectory = controller->getActualStateSeq();
+  auto new_controller_params = controller->getParams();
+
+  EXPECT_EQ(controller->getNumTimesteps(), new_num_timesteps);
+  EXPECT_EQ(nominal_control_trajectory.cols(), new_num_timesteps);
+  EXPECT_EQ(real_control_trajectory.cols(), new_num_timesteps);
+  EXPECT_EQ(nominal_state_trajectory.cols(), new_num_timesteps);
+  EXPECT_EQ(real_state_trajectory.cols(), new_num_timesteps);
+
+  for (int t = 0; t < controller->getNumTimesteps(); t++)
+  {
+    EXPECT_FLOAT_EQ(fabsf((nominal_control_trajectory.col(t) - new_controller_params.init_control_traj_.col(t)).sum()),
+                    0.0f);
+    EXPECT_FLOAT_EQ(fabsf((real_control_trajectory.col(t) - new_controller_params.init_control_traj_.col(t)).sum()),
+                    0.0f);
+  }
 }
 
 class DoubleIntegratorTracking : public ::testing::Test
@@ -113,10 +188,10 @@ public:
   const unsigned int total_time_horizon = 500;
   using DYN = DoubleIntegratorDynamics;
   using COST = DoubleIntegratorCircleCost;
-  using FB_CONTROLLER = DDPFeedback<DYN, num_timesteps>;
+  using FB_CONTROLLER = DDPFeedback<DYN>;
   using SAMPLING = mppi::sampling_distributions::GaussianDistribution<DYN::DYN_PARAMS_T>;
-  using VANILLA_CONTROLLER = VanillaMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, num_rollouts>;
-  using TUBE_CONTROLLER = TubeMPPIController<DYN, COST, FB_CONTROLLER, num_timesteps, num_rollouts>;
+  using VANILLA_CONTROLLER = VanillaMPPIController<DYN, COST, FB_CONTROLLER>;
+  using TUBE_CONTROLLER = TubeMPPIController<DYN, COST, FB_CONTROLLER>;
 
   DYN model;
   COST cost;
@@ -152,7 +227,8 @@ TEST_F(DoubleIntegratorTracking, VanillaMPPINominalVariance)
   std::vector<float> nominal_trajectory_save(num_timesteps * total_time_horizon * DYN::STATE_DIM);
 
   // Initialize the vanilla MPPI controller
-  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha,
+                                               num_timesteps, num_rollouts);
   auto controller_params = vanilla_controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 4, 1);
   controller_params.cost_rollout_dim_ = dim3(50, 1, 1);
@@ -211,7 +287,8 @@ TEST_F(DoubleIntegratorTracking, VanillaMPPILargeVariance)
   std::vector<float> nominal_trajectory_save(num_timesteps * total_time_horizon * DYN::STATE_DIM);
   model.setStateVariance(100);
   // Initialize the vanilla MPPI controller
-  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha,
+                                               num_timesteps, num_rollouts);
   auto controller_params = vanilla_controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 4, 1);
   controller_params.cost_rollout_dim_ = dim3(50, 1, 1);
@@ -274,7 +351,8 @@ TEST_F(DoubleIntegratorTracking, VanillaMPPILargeVarianceTracking)
   model.setStateVariance(100);
 
   // Initialize the vanilla MPPI controller
-  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto vanilla_controller = VANILLA_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha,
+                                               num_timesteps, num_rollouts);
   auto controller_params = vanilla_controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 4, 1);
   controller_params.cost_rollout_dim_ = dim3(50, 1, 1);
@@ -379,7 +457,8 @@ TEST_F(DoubleIntegratorTracking, TubeMPPILargeVariance)
   std::vector<float> feedback_trajectory_save(num_timesteps * total_time_horizon * DYN::STATE_DIM);
 
   // Initialize the tube MPPI controller
-  auto controller = TUBE_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto controller = TUBE_CONTROLLER(&model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, num_timesteps,
+                                    num_rollouts);
   auto controller_params = controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);
   controller_params.cost_rollout_dim_ = dim3(50, 1, 1);

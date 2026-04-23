@@ -38,15 +38,7 @@ public:
       MPPI_internal::Dynamics<DynamicsTester<STATE_DIM, CONTROL_DIM>, DynamicsTesterParams<STATE_DIM, CONTROL_DIM>>;
   using state_array = typename PARENT_CLASS::state_array;
   using control_array = typename PARENT_CLASS::control_array;
-
-  DynamicsTester(cudaStream_t stream = 0) : PARENT_CLASS(stream)
-  {
-  }
-
-  DynamicsTester(std::array<float2, CONTROL_DIM> control_rngs, cudaStream_t stream = 0)
-    : PARENT_CLASS(control_rngs, stream)
-  {
-  }
+  using PARENT_CLASS::Dynamics;
 
   void computeDynamics(const Eigen::Ref<const state_array>& state, const Eigen::Ref<const control_array>& control,
                        Eigen::Ref<state_array> state_der)
@@ -105,10 +97,10 @@ public:
   }
 };
 
-class TestFeedbackController : public FeedbackController<TestGPUFeedbackController, FeedbackParams, 10>
+class TestFeedbackController : public FeedbackController<TestGPUFeedbackController, FeedbackParams>
 {
 public:
-  typedef FeedbackController<TestGPUFeedbackController, FeedbackParams, 10> PARENT_CLASS;
+  typedef FeedbackController<TestGPUFeedbackController, FeedbackParams> PARENT_CLASS;
   using INTERNAL_STATE_T = typename PARENT_CLASS::TEMPLATED_FEEDBACK_STATE;
 
   TestFeedbackController(float dt = 0.01, int num_timesteps = 10, cudaStream_t stream = 0)

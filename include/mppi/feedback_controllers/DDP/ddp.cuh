@@ -25,38 +25,57 @@ struct DDPParams
   int num_iterations = 1;
 };
 
-template <class DYN_T, int N_TIMESTEPS>
+template <class DYN_T>
 struct DDPFeedbackState : GPUState
 {
-  static const int FEEDBACK_SIZE = DYN_T::CONTROL_DIM * DYN_T::STATE_DIM * N_TIMESTEPS;
-  static const int NUM_TIMESTEPS = N_TIMESTEPS;
-
   /**
    * Variables
    **/
-  float fb_gain_traj_[FEEDBACK_SIZE] MPPI_ALIGN(16) = { 0.0 }; // ensure it is aligned to 16 bytes
+  float* fb_gain_traj_ = nullptr;
+  float* fb_gain_traj_d_ = nullptr;
+  int num_timesteps_ = 0;
+  cudaStream_t stream_ = 0;
+  DDPFeedbackState(int num_timesteps = 1, cudaStream_t stream = 0);
+
+  DDPFeedbackState(const DDPFeedbackState<DYN_T>& other);  // deep copy constructor
+
+  ~DDPFeedbackState();
+
+  DDPFeedbackState<DYN_T>& operator=(DDPFeedbackState<DYN_T> other);
+
+  template <typename D_T>
+  friend void swap(DDPFeedbackState<D_T>& first, DDPFeedbackState<D_T>& second);
 
   /**
    * Methods
    **/
-  bool isEqual(const DDPFeedbackState<DYN_T, N_TIMESTEPS>& other) const
-  {
-    for (int i = 0; i < FEEDBACK_SIZE; i++)
-    {
-      if (this->fb_gain_traj_[i] != other.fb_gain_traj_[i])
-      {
-        return false;
-      }
-    }
-    return true;
-  }
+
+  __host__ void allocateCUDAMemory();
+
+  __host__ void copyToDevice(bool synchronize = true);
+
+  __host__ void deallocateCUDAMemory();
+
+  __host__ __device__ int getNumTimesteps() const;
+
+  __host__ __device__ float* getFeedbackGainPtr() const;
+
+  __host__ __device__ const float* getConstFeedbackGainPtr() const;
+
+  bool isEqual(const DDPFeedbackState<DYN_T>& other) const;
+
+  void setNumTimesteps(const int num_timesteps);
+
+  void setCUDAStream(const cudaStream_t stream);
+
+  __host__ __device__ std::size_t size() const;
 };
 
 /**
  * Needed for Test in base_plant_tester.cu
  **/
-template <class DYN_T, int N_TIMESTEPS>
-bool operator==(const DDPFeedbackState<DYN_T, N_TIMESTEPS>& lhs, const DDPFeedbackState<DYN_T, N_TIMESTEPS>& rhs)
+template <class DYN_T>
+inline bool operator==(const DDPFeedbackState<DYN_T>& lhs, const DDPFeedbackState<DYN_T>& rhs)
 {
   return lhs.isEqual(rhs);
 };
@@ -66,52 +85,57 @@ bool operator==(const DDPFeedbackState<DYN_T, N_TIMESTEPS>& lhs, const DDPFeedba
  * methods for DDP on the GPU are implemented but it is not used directly since
  * setting up the GPU_FB_T value would be painful
  */
-template <class GPU_FB_T, class DYN_T, int NUM_TIMESTEPS = 1>
-class DeviceDDPImpl : public GPUFeedbackController<GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>>
+template <class GPU_FB_T, class DYN_T>
+class DeviceDDPImpl : public GPUFeedbackController<GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T>>
 {
 public:
-  using PARAMS_T = DDPFeedbackState<DYN_T, NUM_TIMESTEPS>;
+  using PARAMS_T = DDPFeedbackState<DYN_T>;
+  using PARENT_CLASS = GPUFeedbackController<GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T>>;
   // static const int SHARED_MEM_REQUEST_BLK_BYTES = DYN_T::CONTROL_DIM * DYN_T::STATE_DIM;
   DeviceDDPImpl(int num_timesteps, cudaStream_t stream = 0);
-  DeviceDDPImpl(cudaStream_t stream = 0)
-    : GPUFeedbackController<GPU_FB_T, DYN_T, DDPFeedbackState<DYN_T, NUM_TIMESTEPS>>(stream){};
+  DeviceDDPImpl(cudaStream_t stream = 0) : PARENT_CLASS(stream)
+  {
+    this->state_.setNumTimesteps(1);
+  };
 
-  void allocateCUDAMemory(){};
-  void deallocateCUDAMemory(){};
+  void allocateCUDAMemory();
+  void deallocateCUDAMemory();
+  void copyToDevice(bool synchronize = true);
 
-  __device__ void k(const float* __restrict__ x_act, const float* __restrict__  x_goal, const int t, float* __restrict__  theta, float* __restrict__  control_output);
+  void setNumTimesteps(const int num_timesteps);
 
-protected:
-  // Needed for allocating memory for feedback gains
-  int num_timesteps_ = 1;
+  __host__ __device__ int getNumTimesteps() const;
+
+  __device__ void k(const float* __restrict__ x_act, const float* __restrict__ x_goal, const int t,
+                    float* __restrict__ theta, float* __restrict__ control_output);
 };
 
 /**
  * Alias class for DDP GPU Controller. This sets up the class derivation correctly and is
  * used inside of the CPU version of DDP
  */
-template <class DYN_T, int NUM_TIMESTEPS>
-class DeviceDDP : public DeviceDDPImpl<DeviceDDP<DYN_T, NUM_TIMESTEPS>, DYN_T, NUM_TIMESTEPS>
+template <class DYN_T>
+class DeviceDDP : public DeviceDDPImpl<DeviceDDP<DYN_T>, DYN_T>
 {
 public:
   DeviceDDP(int num_timesteps, cudaStream_t stream = 0)
-    : DeviceDDPImpl<DeviceDDP<DYN_T, NUM_TIMESTEPS>, DYN_T, NUM_TIMESTEPS>(num_timesteps, stream){};
+    : DeviceDDPImpl<DeviceDDP<DYN_T>, DYN_T>(num_timesteps, stream){};
 
-  DeviceDDP(cudaStream_t stream = 0) : DeviceDDPImpl<DeviceDDP<DYN_T, NUM_TIMESTEPS>, DYN_T, NUM_TIMESTEPS>(stream){};
+  DeviceDDP(cudaStream_t stream = 0) : DeviceDDPImpl<DeviceDDP<DYN_T>, DYN_T>(stream){};
 };
 
 /**
  * CPU Class for DDP. This is what the user should interact with
  */
-template <class DYN_T, int NUM_TIMESTEPS>
-class DDPFeedback : public FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>, DDPParams<DYN_T>, NUM_TIMESTEPS>
+template <class DYN_T>
+class DDPFeedback : public FeedbackController<DeviceDDP<DYN_T>, DDPParams<DYN_T>>
 {
 public:
   /**
    * Aliases
    **/
   typedef util::EigenAlignedVector<float, DYN_T::CONTROL_DIM, DYN_T::STATE_DIM> feedback_gain_trajectory;
-  typedef FeedbackController<DeviceDDP<DYN_T, NUM_TIMESTEPS>, DDPParams<DYN_T>, NUM_TIMESTEPS> PARENT_CLASS;
+  typedef FeedbackController<DeviceDDP<DYN_T>, DDPParams<DYN_T>> PARENT_CLASS;
 
   using control_array = typename PARENT_CLASS::control_array;
   using state_array = typename PARENT_CLASS::state_array;
@@ -135,7 +159,7 @@ public:
   control_array control_max_;
   DYN_T* model_;
 
-  DDPFeedback(DYN_T* model, float dt, int num_timesteps = NUM_TIMESTEPS, cudaStream_t stream = 0);
+  DDPFeedback(DYN_T* model, float dt, int num_timesteps = 1, cudaStream_t stream = 0);
 
   void setParams(const DDPParams<DYN_T>& params) override;
 
@@ -145,7 +169,7 @@ public:
                    INTERNAL_STATE_T& fb_state)
   {
     int index = DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * t;
-    Eigen::Map<feedback_gain_matrix> fb_gain(&(fb_state.fb_gain_traj_[index]));
+    Eigen::Map<const feedback_gain_matrix> fb_gain(&(fb_state.getConstFeedbackGainPtr()[index]));
     control_array u_output = fb_gain * (x_act - x_goal);
     return u_output;
   }
@@ -154,6 +178,8 @@ public:
   {
     return result_.feedback_gain;
   }
+
+  void setNumTimesteps(const int num_timesteps);
 
   void computeFeedback(const Eigen::Ref<const state_array>& init_state,
                        const Eigen::Ref<const state_trajectory>& goal_traj,

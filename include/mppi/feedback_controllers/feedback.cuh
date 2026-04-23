@@ -91,7 +91,8 @@ public:
   /**
    * ==================== NECESSARY METHODS TO OVERWRITE =====================
    */
-  __device__ void k(const float* __restrict__ x_act, const float* __restrict__  x_goal, const int t, float* __restrict__  theta, float* __restrict__  control_output)
+  __device__ void k(const float* __restrict__ x_act, const float* __restrict__ x_goal, const int t,
+                    float* __restrict__ theta, float* __restrict__ control_output)
   {
   }
   /**
@@ -108,8 +109,10 @@ public:
   {
   }
 
-  __device__ void initializeFeedback(const float* __restrict__ x, const float* __restrict__ u, float* __restrict__ theta, const float t, const float dt)
-  {}
+  __device__ void initializeFeedback(const float* __restrict__ x, const float* __restrict__ u,
+                                     float* __restrict__ theta, const float t, const float dt)
+  {
+  }
 
   // Abstract method to copy information to GPU
   // void copyToDevice() {}
@@ -132,7 +135,7 @@ protected:
  * Write the feedback controller to use the GPUFeedback_act as thee GPU_FEEDBACK_T template option
  * It will then automatically create the right pointer
  */
-template <class GPU_FB_T, class PARAMS_T, int NUM_TIMESTEPS>
+template <class GPU_FB_T, class PARAMS_T>
 class FeedbackController
 {
 public:
@@ -142,19 +145,20 @@ public:
   typedef PARAMS_T TEMPLATED_PARAMS;
   typedef GPU_FB_T TEMPLATED_GPU_FEEDBACK;
   typedef typename GPU_FB_T::FEEDBACK_STATE_T TEMPLATED_FEEDBACK_STATE;
-  static const int FB_TIMESTEPS = NUM_TIMESTEPS;
+  // static const int FB_TIMESTEPS = NUM_TIMESTEPS;
 
   using state_array = typename DYN_T::state_array;
   using control_array = typename DYN_T::control_array;
   typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM,
-                        NUM_TIMESTEPS> control_trajectory;  // A control trajectory
+                        Eigen::Dynamic> control_trajectory;  // A control trajectory
   typedef Eigen::Matrix<float, DYN_T::STATE_DIM,
-                        NUM_TIMESTEPS> state_trajectory;  // A state trajectory
+                        Eigen::Dynamic> state_trajectory;  // A state trajectory
 
   // Constructors and Generators
-  FeedbackController(float dt = 0.01, int num_timesteps = NUM_TIMESTEPS, cudaStream_t stream = 0)
-    : dt_(dt), num_timesteps_(num_timesteps)
+  FeedbackController(float dt = 0.01, int num_timesteps = 1, cudaStream_t stream = 0)
   {
+    setDt(dt);
+    setNumTimesteps(num_timesteps);
     gpu_controller_ = std::make_shared<GPU_FB_T>(stream);
     auto logger = std::make_shared<mppi::util::MPPILogger>();
     setLogger(logger);
@@ -195,8 +199,8 @@ public:
    *  - x_goal: the state we want to be at
    *  - index: the number of timesteps from the initial time we are
    */
-  virtual __host__ control_array k(const Eigen::Ref<const state_array>& x_act, const Eigen::Ref<const state_array>& x_goal,
-                          int t)
+  virtual __host__ control_array k(const Eigen::Ref<const state_array>& x_act,
+                                   const Eigen::Ref<const state_array>& x_goal, int t)
   {
     TEMPLATED_FEEDBACK_STATE* gpu_feedback_state = getFeedbackStatePointer();
     return k_(x_act, x_goal, t, *gpu_feedback_state);
@@ -204,18 +208,19 @@ public:
   /**
    * Feeback Control Method to overwrite.
    */
-  virtual __host__ control_array k_(const Eigen::Ref<const state_array>& x_act, const Eigen::Ref<const state_array>& x_goal,
-                           int t, TEMPLATED_FEEDBACK_STATE& fb_state) = 0;
+  virtual __host__ control_array k_(const Eigen::Ref<const state_array>& x_act,
+                                    const Eigen::Ref<const state_array>& x_goal, int t,
+                                    TEMPLATED_FEEDBACK_STATE& fb_state) = 0;
 
   // might not be a needed method
   virtual __host__ void computeFeedback(const Eigen::Ref<const state_array>& init_state,
-                               const Eigen::Ref<const state_trajectory>& goal_traj,
-                               const Eigen::Ref<const control_trajectory>& control_traj) = 0;
+                                        const Eigen::Ref<const state_trajectory>& goal_traj,
+                                        const Eigen::Ref<const control_trajectory>& control_traj) = 0;
 
   // TODO Construct a default version of this method that uses the state_ variable automatically
   virtual __host__ control_array interpolateFeedback_(const Eigen::Ref<const state_array>& state,
-                                             const Eigen::Ref<const state_array>& goal_state, double rel_time,
-                                             TEMPLATED_FEEDBACK_STATE& fb_state)
+                                                      const Eigen::Ref<const state_array>& goal_state, double rel_time,
+                                                      TEMPLATED_FEEDBACK_STATE& fb_state)
   {
     int lower_idx = (int)(rel_time / dt_);
     int upper_idx = lower_idx + 1;
@@ -228,7 +233,7 @@ public:
   }
 
   virtual __host__ control_array interpolateFeedback(const Eigen::Ref<const state_array>& state,
-                                            const Eigen::Ref<const state_array>& goal_state, double rel_time)
+                                                     const Eigen::Ref<const state_array>& goal_state, double rel_time)
   {
     TEMPLATED_FEEDBACK_STATE* fb_state = getFeedbackStatePointer();
     return interpolateFeedback_(state, goal_state, rel_time, *fb_state);
@@ -272,13 +277,23 @@ public:
     this->gpu_controller_->setFeedbackState(gpu_fb_state);
   }
 
-  float getDt()
+  float getDt() const
   {
     return dt_;
   }
-  void setDt(float dt)
+  void setDt(const float dt)
   {
     dt_ = dt;
+  }
+
+  int getNumTimesteps() const
+  {
+    return num_timesteps_;
+  }
+
+  void setNumTimesteps(const int num_timesteps)
+  {
+    num_timesteps_ = num_timesteps;
   }
 
   __host__ void setLogger(const mppi::util::MPPILoggerPtr& logger)
@@ -306,7 +321,7 @@ public:
 protected:
   std::shared_ptr<GPU_FB_T> gpu_controller_;
   float dt_;
-  int num_timesteps_;
+  int num_timesteps_ = 0;
   PARAMS_T params_;
   mppi::util::MPPILoggerPtr logger_ = nullptr;
 };

@@ -43,18 +43,19 @@ enum class kernelType : int
   USE_SPLIT_KERNELS,      // separate kernels for dynamics and cost calls
 };
 
-template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
+template <int S_DIM, int C_DIM>
 struct ControllerParams
 {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   static const int TEMPLATED_STATE_DIM = S_DIM;
   static const int TEMPLATED_CONTROL_DIM = C_DIM;
-  static const int TEMPLATED_MAX_TIMESTEPS = MAX_TIMESTEPS;
   float dt_;
   float lambda_ = 1.0;  // Value of the temperature in the softmax.
   float alpha_ = 0.0;   //
   // MAX_TIMESTEPS is defined as an upper bound, if lower that region is just ignored when calculating control
   // does not reallocate cuda memory
-  int num_timesteps_ = MAX_TIMESTEPS;
+  int num_timesteps_ = 1;
+  int num_rollouts_ = 1;
   int num_iters_ = 1;  // Number of optimization iterations
   unsigned seed_ = std::chrono::system_clock::now().time_since_epoch().count();
 
@@ -63,12 +64,12 @@ struct ControllerParams
   dim3 visualize_dim_ = dim3(32, 1, 1);
   int norm_exp_kernel_parallelization_ = 64;
 
-  Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS> init_control_traj_ = Eigen::Matrix<float, C_DIM, MAX_TIMESTEPS>::Zero();
   Eigen::Matrix<float, C_DIM, 1> slide_control_scale_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
+  Eigen::Matrix<float, C_DIM, Eigen::Dynamic> init_control_traj_ = Eigen::Matrix<float, C_DIM, 1>::Zero();
 };
 
-template <class DYN_T, class COST_T, class FB_T, class SAMPLING_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
-          class PARAMS_T = ControllerParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
+template <class DYN_T, class COST_T, class FB_T, class SAMPLING_T,
+          class PARAMS_T = ControllerParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>>
 class Controller
 {
 public:
@@ -86,32 +87,32 @@ public:
   using TEMPLATED_FEEDBACK_PARAMS = typename FB_T::TEMPLATED_PARAMS;
   using TEMPLATED_FEEDBACK_GPU = typename FB_T::TEMPLATED_GPU_FEEDBACK;
   using TEMPLATED_SAMPLING_PARAMS = typename SAMPLING_T::SAMPLING_PARAMS_T;
-  static const int TEMPLATED_FEEDBACK_TIMESTEPS = FB_T::FB_TIMESTEPS;
 
   /**
    * Aliases
    */
   // Control typedefs
   using control_array = typename DYN_T::control_array;
-  typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, MAX_TIMESTEPS> control_trajectory;  // A control trajectory
+  typedef Eigen::Matrix<float, DYN_T::CONTROL_DIM, Eigen::Dynamic> control_trajectory;  // A control trajectory
 
   // State typedefs
   using state_array = typename DYN_T::state_array;
-  typedef Eigen::Matrix<float, DYN_T::STATE_DIM, MAX_TIMESTEPS> state_trajectory;  // A state trajectory
+  typedef Eigen::Matrix<float, DYN_T::STATE_DIM, Eigen::Dynamic> state_trajectory;  // A state trajectory
 
   // Output typedefs
   using output_array = typename DYN_T::output_array;
-  typedef Eigen::Matrix<float, DYN_T::OUTPUT_DIM, MAX_TIMESTEPS> output_trajectory;  // An output trajectory
+  typedef Eigen::Matrix<float, DYN_T::OUTPUT_DIM, Eigen::Dynamic> output_trajectory;  // An output trajectory
 
   // Cost typedefs
-  typedef Eigen::Matrix<float, MAX_TIMESTEPS + 1, 1> cost_trajectory;  // +1 for terminal cost
-  typedef Eigen::Matrix<float, NUM_ROLLOUTS, 1> sampled_cost_traj;
-  typedef Eigen::Matrix<int, MAX_TIMESTEPS, 1> crash_status_trajectory;
+  typedef Eigen::Matrix<float, 1, Eigen::Dynamic> cost_trajectory;  // +1 for terminal cost
+  typedef Eigen::Matrix<float, Eigen::Dynamic, 1> sampled_cost_traj;
+  typedef Eigen::Matrix<int, 1, Eigen::Dynamic> crash_status_trajectory;
 
-  Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter, float lambda,
-             float alpha, int num_timesteps = MAX_TIMESTEPS,
-             const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
-             cudaStream_t stream = nullptr)
+  Controller(
+      DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter, float lambda,
+      float alpha, int num_timesteps, int num_rollouts,
+      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(DYN_T::CONTROL_DIM, 1),
+      cudaStream_t stream = nullptr)
   {
     // Create the random number generator
     createAndSeedCUDARandomNumberGen();
@@ -119,7 +120,9 @@ public:
     cost_ = cost;
     fb_controller_ = fb_controller;
     sampler_ = sampler;
-    sampler_->setNumRollouts(NUM_ROLLOUTS);
+    auto logger = std::make_shared<mppi::util::MPPILogger>();
+    setLogger(logger);
+
     sampler_->setNumDistributions(1);
     TEMPLATED_PARAMS params;
     params.dt_ = dt;
@@ -127,11 +130,14 @@ public:
     params.lambda_ = lambda;
     params.alpha_ = alpha;
     params.num_timesteps_ = num_timesteps;
-    params.init_control_traj_ = init_control_traj;
-    setNumTimesteps(params.num_timesteps_);
-    setParams(params);
+    params.num_rollouts_ = num_rollouts;
 
-    control_ = init_control_traj;
+    // Set initial control in temp params
+    params.init_control_traj_ = init_control_traj;
+    setParams(params);
+    setTrajectoriesToZero();
+
+    control_ = params_.init_control_traj_;
     control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
 
     // Bind the model and control to the given stream
@@ -140,9 +146,6 @@ public:
     HANDLE_ERROR(cudaStreamCreate(&vis_stream_));
 
     GPUSetup();
-
-    auto logger = std::make_shared<mppi::util::MPPILogger>();
-    setLogger(logger);
 
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the
@@ -154,16 +157,18 @@ public:
   Controller(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, PARAMS_T& params,
              cudaStream_t stream = nullptr)
   {
+    // Create the random number generator
+    createAndSeedCUDARandomNumberGen();
     model_ = model;
     cost_ = cost;
     fb_controller_ = fb_controller;
     sampler_ = sampler;
-    sampler_->setNumRollouts(NUM_ROLLOUTS);
+    auto logger = std::make_shared<mppi::util::MPPILogger>();
+    setLogger(logger);
+
     sampler_->setNumDistributions(1);
-    setNumTimesteps(params_.num_timesteps_);
-    // Create the random number generator
-    createAndSeedCUDARandomNumberGen();
     setParams(params);
+    setTrajectoriesToZero();
     control_ = params_.init_control_traj_;
     control_history_ = Eigen::Matrix<float, DYN_T::CONTROL_DIM, 2>::Zero();
 
@@ -173,9 +178,6 @@ public:
     HANDLE_ERROR(cudaStreamCreate(&vis_stream_));
 
     GPUSetup();
-
-    auto logger = std::make_shared<mppi::util::MPPILogger>();
-    setLogger(logger);
 
     /**
      * When implementing your own version make sure to write your own allocateCUDAMemory and call it from the
@@ -466,7 +468,7 @@ public:
   // Indicator for algorithm health, should be between 0.01 and 0.1 anecdotally
   float getNormalizerPercent() const
   {
-    return this->getNormalizerCost() / (float)NUM_ROLLOUTS;
+    return this->getNormalizerCost() / (float)getNumRollouts();
   }
 
   /**
@@ -585,14 +587,15 @@ public:
 
   virtual void slideControlSequenceHelper(int steps, Eigen::Ref<control_trajectory> u)
   {
+    control_array zero_control = model_->getZeroControl();
     for (int i = 0; i < getNumTimesteps(); ++i)
     {
       int ind = std::min(i + steps, getNumTimesteps() - 1);
       u.col(i) = u.col(ind);
       if (i + steps > getNumTimesteps() - 1)
       {
-        u.col(i) = (u.col(ind).array() - model_->zero_control_.array()) * params_.slide_control_scale_.array() +
-                   model_->zero_control_.array();
+        u.col(i) =
+            (u.col(ind).array() - zero_control.array()) * params_.slide_control_scale_.array() + zero_control.array();
       }
     }
   }
@@ -660,19 +663,114 @@ public:
     }
   }
 
-  void setNumTimesteps(int num_timesteps)
+  virtual void setNumRolloutsHelper(const int num_rollouts, const bool update_gpu_mem = true)
   {
-    // TODO fix the tracking controller as well
-    if ((num_timesteps <= MAX_TIMESTEPS) && (num_timesteps > 0))
+    if (num_rollouts <= 0)
     {
-      params_.num_timesteps_ = num_timesteps;
+      this->logger_->error(
+          "Attempted to change number of samples to %d. The number of samples must be greater than 0.\n");
+      return;
     }
-    else
+
+    params_.num_rollouts_ = num_rollouts;
+    Eigen::NoChange_t same_col = Eigen::NoChange_t::NoChange;
+    trajectory_costs_.conservativeResize(num_rollouts, same_col);
+    sampler_->setNumRollouts(num_rollouts);
+    if (CUDA_mem_init_ && update_gpu_mem)
     {
-      params_.num_timesteps_ = MAX_TIMESTEPS;
-      printf("You must give a number of timesteps between [0, %d]\n", MAX_TIMESTEPS);
+      allocateCUDAMemory();
+      resizeSampledControlTrajectories(perc_sampled_control_trajectories_, sample_multiplier_,
+                                       num_top_control_trajectories_);
+    }
+  }
+
+  virtual void setNumRollouts(const int num_rollouts)
+  {
+    setNumRolloutsHelper(num_rollouts, true);
+  }
+
+  virtual void setNumTimestepsHelper(const int num_timesteps, const bool update_gpu_mem = true)
+  {
+    if (num_timesteps <= 0)
+    {
+      this->logger_->error("You must give a number of timesteps greater than 0. Attempted timestep change: %d\n",
+                           num_timesteps);
+      return;
+    }
+    bool require_fill_in = num_timesteps > params_.init_control_traj_.cols();
+    int prev_size = params_.init_control_traj_.cols();
+    params_.num_timesteps_ = num_timesteps;
+    resizeTimeTrajectory<DYN_T::CONTROL_DIM>(control_, num_timesteps);
+    resizeTimeTrajectory<DYN_T::STATE_DIM>(state_, num_timesteps);
+    resizeTimeTrajectory<DYN_T::OUTPUT_DIM>(output_, num_timesteps);
+    resizeTimeTrajectory<DYN_T::STATE_DIM>(propagated_feedback_state_trajectory_, num_timesteps);
+    resizeTimeTrajectory<DYN_T::CONTROL_DIM>(params_.init_control_traj_, num_timesteps);
+    for (std::size_t i = 0; i < sampled_trajectories_.size(); i++)
+    {
+      resizeTimeTrajectory<DYN_T::OUTPUT_DIM>(sampled_trajectories_[i], num_timesteps);
+      resizeTimeTrajectory<1>(sampled_costs_[i], num_timesteps + 1);
+      resizeTimeTrajectory<1, int>(sampled_crash_status_[i], num_timesteps);
+    }
+    if (require_fill_in)
+    {
+      control_array zero_control = model_->getZeroControl();
+      for (int i = prev_size; i < num_timesteps; i++)
+      {  // Fill time horizon with linear interpolation between last control and zero control
+        params_.init_control_traj_.col(i) =
+            (params_.init_control_traj_.col(prev_size - 1).array() - zero_control.array()) *
+                params_.slide_control_scale_.array() +
+            zero_control.array();
+      }
+      // Reinitialize control_ to init_control_trajectory
+      control_ = params_.init_control_traj_;
     }
     sampler_->setNumTimesteps(params_.num_timesteps_);
+    fb_controller_->setNumTimesteps(params_.num_timesteps_);
+    if (CUDA_mem_init_ && update_gpu_mem)
+    {
+      allocateCUDAMemory();
+      resizeSampledControlTrajectories(perc_sampled_control_trajectories_, sample_multiplier_,
+                                       num_top_control_trajectories_);
+    }
+  }
+
+  virtual void setNumTimesteps(const int num_timesteps)
+  {
+    setNumTimestepsHelper(num_timesteps, true);
+  }
+
+  template <int DIM = 1, class T = float>
+  void resizeTimeTrajectory(Eigen::Matrix<T, DIM, Eigen::Dynamic>& trajectory, int num_timesteps = -1)
+  {
+    if (num_timesteps == -1)
+    {
+      num_timesteps = getNumTimesteps();
+    }
+    Eigen::NoChange_t same_row = Eigen::NoChange_t::NoChange;
+    trajectory.conservativeResize(same_row, num_timesteps);
+  }
+
+  void setTrajectoriesToZero()
+  {
+    // control_.conservativeResize(Eigen::NoChange_t, num_timesteps);
+    // state_.conservativeResize(Eigen::NoChange_t, num_timesteps);
+    // output_.conservativeResize(Eigen::NoChange_t, num_timesteps);
+    // propagated_feedback_state_trajectory_.conservativeResize(Eigen::NoChange_t, num_timesteps);
+    // trajectory_costs_.conservativeResize(Eigen::NoChange_t, num_timesteps);
+    const int num_timesteps = getNumTimesteps();
+    for (int i = 0; i < num_timesteps; i++)
+    {
+      control_.col(i) = model_->getZeroControl();
+      state_.col(i) = model_->getZeroState();
+      output_.col(i) = output_array::Zero();
+      propagated_feedback_state_trajectory_.col(i) = model_->getZeroState();
+      for (std::size_t j = 0; j < sampled_trajectories_.size(); j++)
+      {
+        sampled_trajectories_[j].col(i) = output_array::Zero();
+        sampled_costs_[j](0, i) = 0.0f;
+        sampled_crash_status_[j](0, i) = 0;
+      }
+    }
   }
 
   void setBaseline(float baseline, int index = 0)
@@ -684,6 +782,11 @@ public:
   {
     cost_baseline_and_norm_[index].y = normalizer;
   };
+
+  int getNumRollouts() const
+  {
+    return this->params_.num_rollouts_;
+  }
 
   int getNumTimesteps() const
   {
@@ -747,7 +850,7 @@ public:
 
   int getNumberSampledTrajectories() const
   {
-    return perc_sampled_control_trajectories_ * NUM_ROLLOUTS;
+    return perc_sampled_control_trajectories_ * getNumRollouts();
   }
 
   int getNumberTopControlTrajectories() const
@@ -835,16 +938,27 @@ public:
   {
     bool change_seed = p.seed_ != params_.seed_;
     bool change_num_timesteps = p.num_timesteps_ != params_.num_timesteps_;
+    bool change_num_rollouts = p.num_rollouts_ != params_.num_rollouts_;
     bool change_dt = p.dt_ != params_.dt_;
-    // bool change_std_dev = p.control_std_dev_ != params_.control_std_dev_;
     params_ = p;
     if (change_num_timesteps)
     {
-      setNumTimesteps(p.num_timesteps_);
+      setNumTimestepsHelper(p.num_timesteps_, false);
     }
     if (change_seed)
     {
-      setSeedCUDARandomNumberGen(params_.seed_);
+      setSeedCUDARandomNumberGen(p.seed_);
+    }
+    if (change_num_rollouts)
+    {
+      setNumRolloutsHelper(p.num_rollouts_, false);
+    }
+
+    if ((change_num_rollouts || change_num_timesteps) && CUDA_mem_init_)
+    {
+      allocateCUDAMemory();
+      resizeSampledControlTrajectories(perc_sampled_control_trajectories_, sample_multiplier_,
+                                       num_top_control_trajectories_);
     }
     if (change_dt)
     {
@@ -963,15 +1077,15 @@ protected:
   // one array of this size is allocated for each state we care about,
   // so it can be the size*N for N nominal states
   // [actual, nominal]
-  float* control_d_;           // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*N
+  // float* control_d_;           // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*N
   float* output_d_;            // Array of size DYN_T::OUTPUT_DIM*NUM_ROLLOUTS*N
   float* trajectory_costs_d_;  // Array of size NUM_ROLLOUTS*N
   // float* control_noise_d_;            // Array of size DYN_T::CONTROL_DIM*NUM_TIMESTEPS*NUM_ROLLOUTS*N
   float2* cost_baseline_and_norm_d_;  // Array of size number of systems
-  control_trajectory control_ = control_trajectory::Zero();
-  state_trajectory state_ = state_trajectory::Zero();
-  output_trajectory output_ = output_trajectory::Zero();
-  sampled_cost_traj trajectory_costs_ = sampled_cost_traj::Zero();
+  control_trajectory control_;
+  state_trajectory state_;
+  output_trajectory output_;
+  sampled_cost_traj trajectory_costs_;
   std::vector<float2> cost_baseline_and_norm_ = { make_float2(0.0, 0.0) };
   bool CUDA_mem_init_ = false;
 
@@ -985,7 +1099,7 @@ protected:
   std::vector<crash_status_trajectory> sampled_crash_status_;
 
   // Propagated real state trajectory
-  state_trajectory propagated_feedback_state_trajectory_ = state_trajectory::Zero();
+  state_trajectory propagated_feedback_state_trajectory_;
 
   // tracking controller variables
   bool enable_feedback_ = false;
@@ -1009,17 +1123,18 @@ protected:
   void setSeedCUDARandomNumberGen(unsigned seed);
 
   /**
-   * Allocates CUDA memory for actual states and nominal states if needed
-   * @param nominal_size if only actual this should be 0
+   * @brief Allocates CUDA memory for actual states and nominal states if needed
+   *
+   * @param num_systems - Number of systems to allocate memory for
    */
-  void allocateCUDAMemoryHelper(int nominal_size = 0, bool allocate_double_noise = true);
+  void allocateCUDAMemoryHelper(const int num_systems = 1);
 
   // TODO all the copy to device functions to streamline process
 private:
   // ======== MUST BE OVERWRITTEN =========
-  void allocateCUDAMemory()
+  virtual void allocateCUDAMemory()
   {
-    allocateCUDAMemoryHelper();
+    allocateCUDAMemoryHelper(this->sampler_->getNumDistributions());
   };
   /**
    * TODO all copy to device and back functions implemented for specific controller

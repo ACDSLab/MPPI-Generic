@@ -6,18 +6,16 @@
 #include <stdexcept>
 #include <string>
 
-#define VANILLA_MPPI_TEMPLATE                                                                                          \
-  template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, class SAMPLING_T,              \
-            class PARAMS_T>
+#define VANILLA_MPPI_TEMPLATE template <class DYN_T, class COST_T, class FB_T, class SAMPLING_T, class PARAMS_T>
 
-#define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, SAMPLING_T, PARAMS_T>
+#define VanillaMPPI VanillaMPPIController<DYN_T, COST_T, FB_T, SAMPLING_T, PARAMS_T>
 
 VANILLA_MPPI_TEMPLATE
 VanillaMPPI::VanillaMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt,
-                                   int max_iter, float lambda, float alpha, int num_timesteps,
+                                   int max_iter, float lambda, float alpha, int num_timesteps, int num_rollouts,
                                    const Eigen::Ref<const control_trajectory>& init_control_traj, cudaStream_t stream)
-  : PARENT_CLASS(model, cost, fb_controller, sampler, dt, max_iter, lambda, alpha, num_timesteps, init_control_traj,
-                 stream)
+  : PARENT_CLASS(model, cost, fb_controller, sampler, dt, max_iter, lambda, alpha, num_timesteps, num_rollouts,
+                 init_control_traj, stream)
 {
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
@@ -102,7 +100,7 @@ void VanillaMPPI::chooseAppropriateKernel()
   for (int i = 0; i < this->getNumKernelEvaluations() && !too_much_mem_single_kernel; i++)
   {
     mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), this->getNumRollouts(),
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->trajectory_costs_d_,
         this->params_.dynamics_rollout_dim_, this->stream_, true);
   }
@@ -111,7 +109,7 @@ void VanillaMPPI::chooseAppropriateKernel()
   for (int i = 0; i < this->getNumKernelEvaluations() && !too_much_mem_split_kernel; i++)
   {
     mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), this->getNumRollouts(),
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->trajectory_costs_d_,
         this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_, true);
   }
@@ -138,8 +136,8 @@ void VanillaMPPI::chooseAppropriateKernel()
     kernel_choice = "single";
   }
   this->logger_->info("Choosing %s kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
-                     kernel_choice.c_str(), split_kernel_time_ms, single_kernel_time_ms,
-                     this->getNumKernelEvaluations());
+                      kernel_choice.c_str(), split_kernel_time_ms, single_kernel_time_ms,
+                      this->getNumKernelEvaluations());
 }
 
 VANILLA_MPPI_TEMPLATE
@@ -171,24 +169,24 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
       mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), this->getNumRollouts(),
           this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->trajectory_costs_d_,
           this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_, false);
     }
     else if (this->getKernelChoiceAsEnum() == kernelType::USE_SINGLE_KERNEL)
     {
       mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), this->getNumRollouts(),
           this->getLambda(), this->getAlpha(), this->initial_state_d_, this->trajectory_costs_d_,
           this->params_.dynamics_rollout_dim_, this->stream_, false);
     }
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+                                 this->getNumRollouts() * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
-    this->setBaseline(mppi::kernels::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS));
+    this->setBaseline(mppi::kernels::computeBaselineCost(this->trajectory_costs_.data(), this->getNumRollouts()));
 
     if (this->getBaselineCost() > baseline_prev + 1)
     {
@@ -198,19 +196,19 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     baseline_prev = this->getBaselineCost();
 
     // Launch the norm exponential kernel
-    mppi::kernels::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), this->trajectory_costs_d_,
+    mppi::kernels::launchNormExpKernel(this->getNumRollouts(), this->getNormExpThreads(), this->trajectory_costs_d_,
                                        1.0 / this->getLambda(), this->getBaselineCost(), this->stream_, false);
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+                                 this->getNumRollouts() * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Compute the normalizer
-    this->setNormalizer(mppi::kernels::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS));
+    this->setNormalizer(mppi::kernels::computeNormalizer(this->trajectory_costs_.data(), this->getNumRollouts()));
 
     mppi::kernels::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
                                      this->free_energy_statistics_.real_sys.freeEnergyVariance,
                                      this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                     this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(),
+                                     this->trajectory_costs_.data(), this->getNumRollouts(), this->getBaselineCost(),
                                      this->getLambda());
 
     this->sampler_->updateDistributionParamsFromDevice(this->trajectory_costs_d_, this->getNormalizerCost(), 0, false);
@@ -219,7 +217,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
     this->sampler_->setHostOptimalControlSequence(this->control_.data(), 0, true);
   }
 
-  this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerCost() / NUM_ROLLOUTS;
+  this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerPercent();
   this->free_energy_statistics_.real_sys.increase =
       this->getBaselineCost() - this->free_energy_statistics_.real_sys.previousBaseline;
   smoothControlTrajectory();
@@ -243,7 +241,7 @@ void VanillaMPPI::computeControl(const Eigen::Ref<const state_array>& state, int
 VANILLA_MPPI_TEMPLATE
 void VanillaMPPI::allocateCUDAMemory()
 {
-  PARENT_CLASS::allocateCUDAMemoryHelper();
+  PARENT_CLASS::allocateCUDAMemoryHelper(1);
 }
 
 VANILLA_MPPI_TEMPLATE

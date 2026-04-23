@@ -40,7 +40,7 @@ public:
 
   using buffer_trajectory = typename BufferedPlant<CONTROLLER_T>::buffer_trajectory;
 
-  TestPlant(std::shared_ptr<MockController> controller, double buffer_time_horizon = 2.0, int hz = 20,
+  TestPlant(std::shared_ptr<CONTROLLER_T> controller, double buffer_time_horizon = 2.0, int hz = 20,
             int opt_stride = 1)
     : BufferedPlant<CONTROLLER_T>(controller, hz, opt_stride)
   {
@@ -142,6 +142,7 @@ protected:
     mockController->model_ = &mockDynamics;
     mockController->fb_controller_ = &mockFeedback;
     mockController->sampler_ = &mockSamplingDistribution;
+    mockController->setNumRollouts(512);
 
     EXPECT_CALL(*mockController->cost_, getParams()).Times(1);
     EXPECT_CALL(*mockController->model_, getParams()).Times(1);

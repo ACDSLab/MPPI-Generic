@@ -403,6 +403,14 @@ public:
                                               bool synchronize = true);
 
   /**
+   * @brief Get the Device Optimal Control Sequence
+   *
+   * @param distribution_idx which distribution we are wanting the optimal control from (Useful for Tube and R-MPPI)
+   * @return device-side pointer to the optimal control sequence
+   */
+  __host__ __device__ float* getDeviceOptimalControlSequence(const int& distribution_idx);
+
+  /**
    * @brief takes in the cost of each sample generated and conducts an update of the distribution (For Gaussians, mean
    * update)
    *

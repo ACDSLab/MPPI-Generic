@@ -40,7 +40,6 @@ public:
   MOCK_METHOD0(getControlRanges, std::array<float2, 1>());
   MOCK_METHOD0(getControlRangesRaw, void());
   MOCK_METHOD0(getParams, mockDynamicsParams());
-  // MOCK_METHOD0(freeCudaMem, void());
   MOCK_METHOD0(paramsToDevice, void());
   MOCK_METHOD3(computeDynamics, void(const Eigen::Ref<const state_array>&, const Eigen::Ref<const control_array>&,
                                      Eigen::Ref<state_array>));

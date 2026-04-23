@@ -158,7 +158,8 @@ TEST(DDPSolver_Test, Cartpole_Tracking)
   float lambda = 0.25;
   float alpha = 0.001;
   const int num_timesteps = 100;
-  auto fb_controller = DDPFeedback<CartpoleDynamics, num_timesteps>(&model, dt);
+  const int num_rollouts = 2048;
+  auto fb_controller = DDPFeedback<CartpoleDynamics>(&model, dt, num_timesteps);
 
   auto sampler = SAMPLER_T();
   auto sampler_params = sampler.getParams();
@@ -180,8 +181,8 @@ TEST(DDPSolver_Test, Cartpole_Tracking)
   fb_controller.initTrackingController();
 
   auto controller = VanillaMPPIController<CartpoleDynamics, CartpoleQuadraticCost,
-                                          DDPFeedback<CartpoleDynamics, num_timesteps>, num_timesteps, 2048, SAMPLER_T>(
-      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+                                          DDPFeedback<CartpoleDynamics>, SAMPLER_T>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, num_timesteps, num_rollouts);
 
   auto controller_params = controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 8, 1);
@@ -249,7 +250,7 @@ TEST(DDPSolver_Test, Quadrotor_Tracking)
 
   using DYN = QuadrotorDynamics;
   using COST = QuadrotorQuadraticCost;
-  using CONTROLLER = VanillaMPPIController<DYN, COST, DDPFeedback<DYN, num_timesteps>, num_timesteps, 2048>;
+  using CONTROLLER = VanillaMPPIController<DYN, COST, DDPFeedback<DYN>>;
 
   std::array<float2, DYN::CONTROL_DIM> control_ranges;
   for (int i = 0; i < 3; i++)
@@ -283,15 +284,15 @@ TEST(DDPSolver_Test, Quadrotor_Tracking)
   fb_params.R.diagonal() << 550, 550, 550, 1;
   fb_params.num_iterations = 100;
 
-  Eigen::MatrixXf control_traj = CONTROLLER::control_trajectory::Zero();
-  CONTROLLER::state_trajectory ddp_state_traj = CONTROLLER::state_trajectory::Zero();
+  Eigen::MatrixXf control_traj = CONTROLLER::control_trajectory::Zero(DYN::CONTROL_DIM, num_timesteps);
+  CONTROLLER::state_trajectory ddp_state_traj = CONTROLLER::state_trajectory::Zero(DYN::STATE_DIM, num_timesteps);
   for (int i = 0; i < num_timesteps; i++)
   {
     ddp_state_traj.col(i) = x_goal;
     control_traj.col(i) = model.zero_control_;
   }
 
-  auto fb_controller = DDPFeedback<DYN, num_timesteps>(&model, dt);
+  auto fb_controller = DDPFeedback<DYN>(&model, dt, num_timesteps);
   fb_controller.setParams(fb_params);
   fb_controller.initTrackingController();
 
