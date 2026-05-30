@@ -253,7 +253,7 @@ inline __host__ __device__ void getParallel2DIndex(int& p1_index, int& p2_index,
 }
 
 template <>
-inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XY>(int& p1_index, int& p2_index, int& p1_step,
+inline __host__ __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XY>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
 #ifdef __CUDA_ARCH__
@@ -270,7 +270,7 @@ inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XY>(int& p1_index
 }
 
 template <>
-inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YZ>(int& p1_index, int& p2_index, int& p1_step,
+inline __host__ __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YZ>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
 #ifdef __CUDA_ARCH__
@@ -287,7 +287,7 @@ inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YZ>(int& p1_index
 }
 
 template <>
-inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XZ>(int& p1_index, int& p2_index, int& p1_step,
+inline __host__ __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XZ>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
 #ifdef __CUDA_ARCH__
@@ -304,7 +304,7 @@ inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_XZ>(int& p1_index
 }
 
 template <>
-inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YX>(int& p1_index, int& p2_index, int& p1_step,
+inline __host__ __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YX>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
 #ifdef __CUDA_ARCH__
@@ -321,7 +321,7 @@ inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_YX>(int& p1_index
 }
 
 template <>
-inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZY>(int& p1_index, int& p2_index, int& p1_step,
+inline __host__ __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZY>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
 #ifdef __CUDA_ARCH__
@@ -338,7 +338,7 @@ inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZY>(int& p1_index
 }
 
 template <>
-inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZX>(int& p1_index, int& p2_index, int& p1_step,
+inline __host__ __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZX>(int& p1_index, int& p2_index, int& p1_step,
                                                                    int& p2_step)
 {
 #ifdef __CUDA_ARCH__
@@ -355,7 +355,7 @@ inline __device__ void getParallel2DIndex<Parallel2Dir::THREAD_ZX>(int& p1_index
 }
 
 template <>
-inline __device__ void getParallel2DIndex<Parallel2Dir::NONE>(int& p1_index, int& p2_index, int& p1_step, int& p2_step)
+inline __host__ __device__ void getParallel2DIndex<Parallel2Dir::NONE>(int& p1_index, int& p2_index, int& p1_step, int& p2_step)
 {
   p1_index = 0;
   p1_step = 1;

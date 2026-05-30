@@ -9,6 +9,8 @@
 #include <mppi/utils/cuda_math_utils.cuh>
 #include <mppi/utils/math_utils.h>
 
+#include <cstring>  // memset (only transitively included under nvcc)
+
 __global__ void configureFrequencyNoise(cufftComplex* noise, float* variance, int num_samples, int control_dim,
                                         int num_freq)
 {
@@ -97,8 +99,9 @@ void powerlaw_psd_gaussian(std::vector<float>& exponents, int num_timesteps, int
     }
   }
 
-  // Calculate variance
-  float sigma[control_dim] = { 0 };
+  // Calculate variance (clang/HIP rejects brace-init of a runtime-sized array)
+  float sigma[control_dim];
+  memset(sigma, 0, sizeof(float) * control_dim);
   for (int i = 0; i < control_dim; i++)
   {
     for (int j = 1; j < freq_size - 1; j++)
@@ -325,8 +328,9 @@ __host__ void COLORED_NOISE::generateSamples(const int& optimization_stride, con
     }
   }
 
-  // Calculate variance
-  float sigma[this->CONTROL_DIM] = { 0 };
+  // Calculate variance (clang/HIP rejects brace-init of a runtime-sized array)
+  float sigma[this->CONTROL_DIM];
+  memset(sigma, 0, sizeof(float) * this->CONTROL_DIM);
   for (int i = 0; i < this->CONTROL_DIM; i++)
   {
     for (int j = 1; j < freq_size - 1; j++)

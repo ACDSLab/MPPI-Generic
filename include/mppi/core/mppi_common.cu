@@ -1,5 +1,12 @@
 #include <mppi/core/mppi_common.cuh>
 #include <curand.h>
+// MPPI_GPU_FUNC_PTR (used at the cudaFuncSetAttribute call sites below) lives in
+// the compat header. On HIP it is force-included via CMAKE_HIP_FLAGS -include and
+// #pragma once guarded, so this explicit include is a no-op. On CUDA the header's
+// #else branch is a self-contained redirect to <cuda_runtime.h>/<curand.h>/<cufft.h>
+// that defines the identity CUDA MPPI_GPU_FUNC_PTR, so the macro is defined on both
+// builds (it is otherwise unreachable under nvcc, breaking the upstream CUDA build).
+#include <mppi/hip_compat/cuda_to_hip.h>
 #include <mppi/utils/gpu_err_chk.cuh>
 #include <mppi/utils/math_utils.h>
 #include <mppi/utils/cuda_math_utils.cuh>
@@ -1200,7 +1207,17 @@ __device__ void costArrayReduction(float* running_cost, const int start_size, co
 {
   int prev_size = start_size;
   const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
+  // The warp-synchronous tail below (warpReduceAdd) assumes a 32-lane warp runs
+  // the last steps in lockstep without a barrier. On AMD wavefronts (wave64 on
+  // CDNA) the low 32 lanes of a 64-lane wave are not guaranteed lockstep across
+  // those unsynced steps, which races the running_cost reduction. Drive the
+  // fully __syncthreads()-synchronized tree all the way to 1 on HIP (same add
+  // order, block-wide barrier -> correct on any wave size).
+#if defined(USE_HIP) || defined(__HIP_PLATFORM_AMD__)
+  const int stop_condition = 0;
+#else
   const int stop_condition = (block_power_of_2) ? 32 : 0;
+#endif
   int size;
   int j;
 
@@ -1218,6 +1235,7 @@ __device__ void costArrayReduction(float* running_cost, const int start_size, co
     __syncthreads();
     prev_size = size;
   }
+#if !defined(USE_HIP) && !defined(__HIP_PLATFORM_AMD__)
   switch (size * 2)
   {
     case 64:
@@ -1257,6 +1275,7 @@ __device__ void costArrayReduction(float* running_cost, const int start_size, co
       }
       break;
   }
+#endif  // !USE_HIP: CUDA keeps the warp-synchronous tail
   __syncthreads();
 }
 
@@ -1286,7 +1305,7 @@ void launchSplitRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__
   const int gridsize_x = math::int_ceil(num_rollouts, dimDynBlock.x);
   dim3 dimGrid(gridsize_x, 1, 1);
   unsigned dynamics_shared_size = calcRolloutDynamicsKernelSharedMemSize(dynamics, sampling, dimDynBlock);
-  HANDLE_ERROR(cudaFuncSetAttribute(rolloutDynamicsKernel<DYN_T, SAMPLING_T>,
+  HANDLE_ERROR(cudaFuncSetAttribute(MPPI_GPU_FUNC_PTR(rolloutDynamicsKernel<DYN_T, SAMPLING_T>),
                                     cudaFuncAttributeMaxDynamicSharedMemorySize, dynamics_shared_size));
   rolloutDynamicsKernel<DYN_T, SAMPLING_T><<<dimGrid, dimDynBlock, dynamics_shared_size, stream>>>(
       dynamics->model_d_, sampling->sampling_d_, dt, num_timesteps, num_rollouts, init_x_d, y_d);
@@ -1319,7 +1338,7 @@ void launchRolloutKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ cost
   const int gridsize_x = math::int_ceil(num_rollouts, dimBlock.x);
   dim3 dimGrid(gridsize_x, 1, 1);
   unsigned shared_mem_size = calcRolloutCombinedKernelSharedMemSize(dynamics, costs, sampling, dimBlock);
-  HANDLE_ERROR(cudaFuncSetAttribute(rolloutKernel<DYN_T, COST_T, SAMPLING_T>,
+  HANDLE_ERROR(cudaFuncSetAttribute(MPPI_GPU_FUNC_PTR(rolloutKernel<DYN_T, COST_T, SAMPLING_T>),
                                     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem_size));
   rolloutKernel<DYN_T, COST_T, SAMPLING_T><<<dimGrid, dimBlock, shared_mem_size, stream>>>(
       dynamics->model_d_, sampling->sampling_d_, costs->cost_d_, dt, num_timesteps, num_rollouts, init_x_d, lambda,
@@ -1352,7 +1371,7 @@ void launchVisualizeKernel(DYN_T* __restrict__ dynamics, COST_T* __restrict__ co
   const int gridsize_x = math::int_ceil(num_rollouts, dimVisBlock.x);
   dim3 dimGrid(gridsize_x, 1, 1);
   unsigned shared_mem_size = calcVisualizeKernelSharedMemSize(dynamics, costs, sampling, num_timesteps, dimVisBlock);
-  HANDLE_ERROR(cudaFuncSetAttribute(rolloutKernel<DYN_T, COST_T, SAMPLING_T>,
+  HANDLE_ERROR(cudaFuncSetAttribute(MPPI_GPU_FUNC_PTR(rolloutKernel<DYN_T, COST_T, SAMPLING_T>),
                                     cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem_size));
   visualizeKernel<DYN_T, COST_T, SAMPLING_T><<<dimGrid, dimVisBlock, shared_mem_size, stream>>>(
       dynamics->model_d_, sampling->sampling_d_, costs->cost_d_, dt, num_timesteps, num_rollouts, init_x_d, lambda,

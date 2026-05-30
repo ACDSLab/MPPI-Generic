@@ -4,7 +4,12 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 if(NOT DEFINED CMAKE_CXX_STANDARD)
-  if (CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL "13")
+  if (USE_HIP)
+    # ROCm 7.x ships a C++17 libstdc++ that already provides std::void_t etc.;
+    # the CUDA default of C++11 then collides with the library's own C++17
+    # back-fills. HIP/ROCm is firmly C++17-era, so build the HIP path at C++17.
+    set(CMAKE_CXX_STANDARD 17)
+  elseif (CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL "13")
     # Cuda's libcu++ requires C++17 on CUDA 13+
     set(CMAKE_CXX_STANDARD 17)
   else()
@@ -13,6 +18,9 @@ if(NOT DEFINED CMAKE_CXX_STANDARD)
 endif()
 if (NOT DEFINED CMAKE_CUDA_STANDARD)
   set(CMAKE_CUDA_STANDARD ${CMAKE_CXX_STANDARD})
+endif()
+if (USE_HIP AND NOT DEFINED CMAKE_HIP_STANDARD)
+  set(CMAKE_HIP_STANDARD ${CMAKE_CXX_STANDARD})
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -34,9 +42,14 @@ endif()
 set(CMAKE_CUDA_FLAGS_DEBUG "${CMAKE_CUDA_FLAGS_DEBUG} -G --keep")
 set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "${CMAKE_CUDA_FLAGS_RELWITHDEBINFO} --generate-line-info")
 
-# Generate variable for all the extra cuda libraries we use
+# Generate variable for all the extra GPU libraries we use (cuRAND/cuFFT, or
+# their hipRAND/hipFFT equivalents on the HIP build).
 set(MPPI_GENERIC_CUDA_EXTRA_LIBS "")
-if (CMAKE_VERSION VERSION_LESS 3.24)
+if (USE_HIP)
+  find_package(hiprand REQUIRED)
+  find_package(hipfft REQUIRED)
+  list(APPEND MPPI_GENERIC_CUDA_EXTRA_LIBS hip::hiprand hip::hipfft)
+elseif (CMAKE_VERSION VERSION_LESS 3.24)
   # required for curand on some systems
   find_package(CUDA REQUIRED)
 
@@ -59,8 +72,12 @@ set(CUDA_PROPAGATE_HOST_FLAGS OFF)
 #################################################################
 # Autodetect Cuda Architecture on system and add to executables #
 #################################################################
+# HIP arch is set from CMAKE_HIP_ARCHITECTURES in the top-level CMakeLists; skip
+# the CUDA arch autodetection entirely on the HIP build.
+if (USE_HIP)
+  # nothing to do
 # CMake 3.24 added '-arch=native' support so until that version, we need to use the old method of autodetection
-if (CMAKE_VERSION VERSION_LESS 3.24)
+elseif (CMAKE_VERSION VERSION_LESS 3.24)
   # Don't rerun autodetection when used as a submodule
   if (NOT DEFINED MPPI_ARCH_FLAGS)
     # More info for autodetection:
