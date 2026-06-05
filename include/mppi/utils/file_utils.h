@@ -6,7 +6,13 @@
 #define MPPIGENERIC_FILE_UTILS_H
 
 #include <string>
+#ifdef _WIN32
+#include <io.h>
+#define F_OK 0
+#define access _access
+#else
 #include <unistd.h>
+#endif
 
 inline bool fileExists(const std::string& name)
 {

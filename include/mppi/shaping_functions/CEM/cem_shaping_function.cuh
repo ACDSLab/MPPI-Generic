@@ -4,6 +4,7 @@
 #include <mppi/core/mppi_common.cuh>
 #include <mppi/utils/managed.cuh>
 #include <mppi/shaping_functions/shaping_function.cuh>
+#include <numeric>
 
 struct CEMShapingFunctionParams
 {

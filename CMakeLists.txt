@@ -104,6 +104,13 @@ if (USE_HIP)
     # min/max macro collisions with std::min/max in MSVC headers.
     set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX")
+    # cnpy.h includes <zlib.h>; find it now so the include dir is on CMAKE_HIP_FLAGS
+    # before any add_subdirectory. cnpy's own CMakeLists uses directory-scope
+    # include_directories which does not propagate to sibling subdirs.
+    find_package(ZLIB QUIET)
+    if (ZLIB_INCLUDE_DIR)
+      set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -I${ZLIB_INCLUDE_DIR}")
+    endif()
   endif()
 else()
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w")

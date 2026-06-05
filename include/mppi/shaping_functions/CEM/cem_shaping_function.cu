@@ -23,7 +23,7 @@ void CEMShapingFunctionImpl<CLASS_T, PARAMS_T, NUM_ROLLOUTS, BDIM_X>::computeWei
   HANDLE_ERROR(cudaStreamSynchronize(stream));
 
   std::vector<int> indexes(NUM_ROLLOUTS);
-  iota(indexes.begin(), indexes.end(), 0);
+  std::iota(indexes.begin(), indexes.end(), 0);
 
   std::nth_element(indexes.begin(), indexes.begin() + (int)(NUM_ROLLOUTS * this->params_.gamma), indexes.end(),
                    [&trajectory_costs](int i1, int i2) { return trajectory_costs(i1) > trajectory_costs(i2); });
