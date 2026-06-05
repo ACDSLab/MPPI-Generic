@@ -12,7 +12,7 @@
 #include <Eigen/Dense>
 #ifdef _WIN32
 #include <chrono>
-#define usleep(us) std::this_thread::sleep_for(std::chrono::microseconds(us))
+#define usleep(us) std::this_thread::sleep_for(std::chrono::microseconds(static_cast<long long>(us)))
 #else
 #include <unistd.h>
 #endif
