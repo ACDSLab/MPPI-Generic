@@ -99,6 +99,12 @@ set(BUILD_FLAGS "-Wuninitialized -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
 if (USE_HIP)
   set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -w")
+  if (WIN32)
+    # M_PI / M_PI_2 etc. require _USE_MATH_DEFINES on Windows; NOMINMAX avoids
+    # min/max macro collisions with std::min/max in MSVC headers.
+    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX")
+  endif()
 else()
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w")
 endif()
