@@ -11,6 +11,7 @@ if (USE_HIP)
     racer_dubins_elevation_model_test.cu
     racer_dubins_elevation_suspension_test.cu
     racer_dubins_elevation_lstm_steering_model_test.cu
+    racer_dubins_elevation_lstm_uncertainty_model_test.cu
     bicycle_slip_parametric_model_test.cu
   )
 endif()
