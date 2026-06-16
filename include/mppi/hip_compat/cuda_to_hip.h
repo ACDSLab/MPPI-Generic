@@ -1,5 +1,5 @@
 #pragma once
-// Strategy A CUDA->HIP compat shim for the MPPI-Generic ROCm port.
+// CUDA->HIP compat shim for the MPPI-Generic ROCm port.
 //
 // On ROCm/HIP this maps the CUDA runtime / cuRAND / cuFFT spellings the library
 // uses onto their HIP equivalents and pulls in the HIP runtime. On NVIDIA it is

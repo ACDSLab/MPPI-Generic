@@ -14,15 +14,15 @@ file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" MPPI_VERSION_FROM_FILE)
 string(STRIP "${MPPI_VERSION_FROM_FILE}" MPPI_VERSION)
 
 # USE_HIP builds the .cu translation units with the ROCm/HIP toolchain instead
-# of CUDA (Strategy A: same sources, language switched, one cuda_to_hip.h shim).
+# of CUDA (same sources, language switched, one cuda_to_hip.h shim).
 # Declared before project() so the GPU language is enabled conditionally.
 option(USE_HIP "Build the GPU sources with HIP for AMD GPUs instead of CUDA" OFF)
 if (USE_HIP)
   project(MPPI-Generic VERSION ${MPPI_VERSION} LANGUAGES C CXX)
   enable_language(HIP)
-  # Never hardcode the lead arch as a literal: a literal here would override
-  # -DCMAKE_HIP_ARCHITECTURES and force every follower (gfx1100, gfx1151) to
-  # edit this file. Default the lead arch only when the cache var is unset.
+  # Never hardcode a default arch as a literal: a literal here would override
+  # -DCMAKE_HIP_ARCHITECTURES and force every other GPU target (gfx1100,
+  # gfx1151) to edit this file. Default the arch only when the cache var is unset.
   if (NOT DEFINED CMAKE_HIP_ARCHITECTURES OR CMAKE_HIP_ARCHITECTURES STREQUAL "")
     set(CMAKE_HIP_ARCHITECTURES "gfx90a")
   endif()
