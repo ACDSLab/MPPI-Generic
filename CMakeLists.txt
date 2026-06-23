@@ -19,13 +19,9 @@ string(STRIP "${MPPI_VERSION_FROM_FILE}" MPPI_VERSION)
 option(USE_HIP "Build the GPU sources with HIP for AMD GPUs instead of CUDA" OFF)
 if (USE_HIP)
   project(MPPI-Generic VERSION ${MPPI_VERSION} LANGUAGES C CXX)
+  # enable_language(HIP) honors -DCMAKE_HIP_ARCHITECTURES, otherwise auto-detects
+  # the host GPU(s), and errors on a no-GPU build host.
   enable_language(HIP)
-  # Never hardcode a default arch as a literal: a literal here would override
-  # -DCMAKE_HIP_ARCHITECTURES and force every other GPU target (gfx1100,
-  # gfx1151) to edit this file. Default the arch only when the cache var is unset.
-  if (NOT DEFINED CMAKE_HIP_ARCHITECTURES OR CMAKE_HIP_ARCHITECTURES STREQUAL "")
-    set(CMAKE_HIP_ARCHITECTURES "gfx90a")
-  endif()
   message(STATUS "HIP Architecture(s): ${CMAKE_HIP_ARCHITECTURES}")
   # Force-include the compat header at the top of every HIP TU so its cuda*->hip*
   # mappings and the device-pass __CUDA_ARCH__ define precede any use, regardless
