@@ -11,7 +11,7 @@ template <class DATA_T>
 class TwoDTextureHelper : public TextureHelper<TwoDTextureHelper<DATA_T>, DATA_T>
 {
 public:
-  TwoDTextureHelper<DATA_T>(int number, cudaStream_t stream = 0)
+  TwoDTextureHelper(int number, cudaStream_t stream = 0)
     : TextureHelper<TwoDTextureHelper<DATA_T>, DATA_T>(number, stream)
   {
   }
