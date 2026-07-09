@@ -28,11 +28,11 @@ public:
                      bool column_major = true);
   void updateTexture(const int index, std::vector<DATA_T>& data, bool column_major = false);
   void updateTexture(const int index, std::vector<DATA_T>& data, cudaExtent& extent, bool column_major = false);
-  bool setExtent(int index, cudaExtent& extent) override;
+  bool setExtent(const int index, const cudaExtent& extent) override;
   void copyDataToGPU(int index, bool sync = false);
 
-  __host__ __device__ DATA_T queryTexture(const int index, const float3& point);
-  DATA_T queryTextureCPU(const int index, const float3& point);
+  __host__ __device__ DATA_T queryTexture(const int index, const float3& point) const;
+  DATA_T queryTextureCPU(const int index, const float3& point) const;
 
 protected:
 };

@@ -63,7 +63,7 @@ void TwoDTextureHelper<DATA_T>::updateTexture(const int index, std::vector<DATA_
 }
 
 template <class DATA_T>
-__host__ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int index, const float3& point)
+__host__ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int index, const float3& point) const
 {
 #ifdef __CUDA_ARCH__
   return tex2D<DATA_T>(this->textures_d_[index].tex_d, point.x, point.y);
@@ -73,7 +73,7 @@ __host__ __device__ DATA_T TwoDTextureHelper<DATA_T>::queryTexture(const int ind
 }
 
 template <class DATA_T>
-bool TwoDTextureHelper<DATA_T>::setExtent(int index, cudaExtent& extent)
+bool TwoDTextureHelper<DATA_T>::setExtent(const int index, const cudaExtent& extent)
 {
   if (extent.depth != 0)
   {
@@ -148,9 +148,9 @@ void TwoDTextureHelper<DATA_T>::updateTexture(
 }
 
 template <class DATA_T>
-DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3& point)
+DATA_T TwoDTextureHelper<DATA_T>::queryTextureCPU(const int index, const float3& point) const
 {
-  TextureParams<DATA_T>* param = &this->textures_[index];
+  const TextureParams<DATA_T>* param = &this->textures_[index];
 
   // convert normalized to array index
   float2 query = make_float2(point.x * param->extent.width, point.y * param->extent.height);

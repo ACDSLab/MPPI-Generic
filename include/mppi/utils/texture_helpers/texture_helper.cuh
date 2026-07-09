@@ -94,22 +94,25 @@ public:
   virtual void addNewTexture(const cudaExtent& extent);
 
   __host__ __device__ void bodyOffsetToWorldPose(const float3& offset, const float3& body_pose, const float3& rotation,
-                                                 float3& output);
-  __host__ __device__ void worldPoseToMapPose(const int index, const float3& input, float3& output);
-  __host__ __device__ void mapPoseToTexCoord(const int index, const float3& input, float3& output);
-  __host__ __device__ void worldPoseToTexCoord(const int index, const float3& input, float3& output);
+                                                 float3& output) const;
+  __host__ __device__ void worldPoseToMapPose(const int index, const float3& input, float3& output) const;
+  __host__ __device__ void mapPoseToTexCoord(const int index, const float3& input, float3& output) const;
+  __host__ __device__ void worldPoseToTexCoord(const int index, const float3& input, float3& output) const;
+  __host__ __device__ void mapPoseToWorldPose(const int index, const float3& input, float3& output) const;
+  __host__ __device__ void texCoordToMapPose(const int index, const float3& input, float3& output) const;
+  __host__ __device__ void texCoordToWorldPose(const int index, const float3& input, float3& output) const;
   __host__ __device__ void bodyOffsetWorldToTexCoord(const int index, const float3& offset, const float3& body_pose,
-                                                     const float3& rotation, float3& output);
+                                                     const float3& rotation, float3& output) const;
   __host__ __device__ DATA_T queryTextureAtWorldOffsetPose(const int index, const float3& input, const float3& offset,
-                                                           const float3& rotation);
-  __host__ __device__ DATA_T queryTextureAtWorldPose(const int index, const float3& input);
-  __host__ __device__ DATA_T queryTextureAtMapPose(const int index, const float3& input);
+                                                           const float3& rotation) const;
+  __host__ __device__ DATA_T queryTextureAtWorldPose(const int index, const float3& input) const;
+  __host__ __device__ DATA_T queryTextureAtMapPose(const int index, const float3& input) const;
 
-  virtual void updateOrigin(int index, float3 new_origin);
-  virtual void updateRotation(int index, std::array<float3, 3>& new_rotation);
-  virtual void updateResolution(int index, float resolution);
-  virtual void updateResolution(int index, float3 resolution);
-  virtual bool setExtent(int index, cudaExtent& extent);
+  virtual void updateOrigin(const int index, const float3 new_origin);
+  virtual void updateRotation(const int index, const std::array<float3, 3>& new_rotation);
+  virtual void updateResolution(const int index, const float resolution);
+  virtual void updateResolution(const int index, const float3 resolution);
+  virtual bool setExtent(const int index, const cudaExtent& extent);
   virtual void copyDataToGPU(int index, bool sync = false) = 0;
   virtual void copyParamsToGPU(int index, bool sync = false);
   virtual void enableTexture(int index)
@@ -142,6 +145,16 @@ public:
     return textures_buffer_;
   }
 
+  __host__ __device__ TextureParams<DATA_T>* getTexturesPtr()
+  {
+    return this->textures_d_;
+  }
+
+  __host__ __device__ TextureParams<DATA_T> getTextureParams(const int index)
+  {
+    return this->textures_d_[index];
+  }
+
   std::vector<std::vector<DATA_T>> getCpuValues()
   {
     return cpu_values_;
@@ -167,6 +180,11 @@ public:
   __host__ __device__ float3 getOrigin(int index) const
   {
     return this->textures_d_[index].origin;
+  }
+
+  __host__ __device__ float3* getRotation(int index) const
+  {
+    return this->textures_d_[index].rotations;
   }
 
   __host__ __device__ float3 getResolution(int index) const

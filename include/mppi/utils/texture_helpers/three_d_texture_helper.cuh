@@ -23,7 +23,7 @@ public:
                                       Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>>
                          values,
                      bool column_major = true);
-  bool setExtent(int index, cudaExtent& extent) override;
+  bool setExtent(const int index, const cudaExtent& extent) override;
   void copyDataToGPU(int index, bool sync = false) override;
 
   std::vector<std::vector<bool>> getLayerCopy()
@@ -31,7 +31,7 @@ public:
     return layer_copy_;
   }
 
-  __host__ __device__ DATA_T queryTexture(const int index, const float3& point);
+  __host__ __device__ DATA_T queryTexture(const int index, const float3& point) const;
 
 protected:
   // cpu values

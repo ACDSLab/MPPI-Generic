@@ -85,14 +85,15 @@ void TextureHelper<TEX_T, DATA_T>::allocateCudaTexture(int index)
 template <class TEX_T, class DATA_T>
 __host__ __device__ void TextureHelper<TEX_T, DATA_T>::bodyOffsetToWorldPose(const float3& offset,
                                                                              const float3& body_pose,
-                                                                             const float3& rotation, float3& output)
+                                                                             const float3& rotation,
+                                                                             float3& output) const
 {
   mppi::math::bodyOffsetToWorldPoseEuler(offset, body_pose, rotation, output);
 }
 
 template <class TEX_T, class DATA_T>
 __host__ __device__ void TextureHelper<TEX_T, DATA_T>::worldPoseToMapPose(const int index, const float3& input,
-                                                                          float3& output)
+                                                                          float3& output) const
 {
   float3 diff = make_float3(input.x - textures_d_[index].origin.x, input.y - textures_d_[index].origin.y,
                             input.z - textures_d_[index].origin.z);
@@ -103,8 +104,19 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::worldPoseToMapPose(const 
 }
 
 template <class TEX_T, class DATA_T>
+__host__ __device__ void TextureHelper<TEX_T, DATA_T>::mapPoseToWorldPose(const int index, const float3& input,
+                                                                          float3& output) const
+{
+  float3* rotation_mat_ptr = textures_d_[index].rotations;
+  output.x = rotation_mat_ptr[0].x * input.x + rotation_mat_ptr[1].x * input.y + rotation_mat_ptr[2].x * input.z;
+  output.y = rotation_mat_ptr[0].y * input.x + rotation_mat_ptr[1].y * input.y + rotation_mat_ptr[2].y * input.z;
+  output.z = rotation_mat_ptr[0].z * input.x + rotation_mat_ptr[1].z * input.y + rotation_mat_ptr[2].z * input.z;
+  output += textures_d_[index].origin;
+}
+
+template <class TEX_T, class DATA_T>
 __host__ __device__ void TextureHelper<TEX_T, DATA_T>::mapPoseToTexCoord(const int index, const float3& input,
-                                                                         float3& output)
+                                                                         float3& output) const
 {
   // printf("res %f %f %f extent %f %f %f\n", textures_d_[index].resolution.x, textures_d_[index].resolution.y,
   // textures_d_[index].resolution.z, textures_d_[index].extent.width, textures_d_[index].extent.depth);
@@ -123,8 +135,26 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::mapPoseToTexCoord(const i
 }
 
 template <class TEX_T, class DATA_T>
+__host__ __device__ void TextureHelper<TEX_T, DATA_T>::texCoordToMapPose(const int index, const float3& input,
+                                                                         float3& output) const
+{
+  output = input;
+  // unnormalize pixel values
+  output.x *= textures_d_[index].extent.width;
+  output.y *= textures_d_[index].extent.height;
+  if (textures_d_[index].extent.depth != 0)
+  {
+    output.z *= textures_d_[index].extent.depth;
+  }
+
+  output.x *= textures_d_[index].resolution.x;
+  output.y *= textures_d_[index].resolution.y;
+  output.z *= textures_d_[index].resolution.z;
+}
+
+template <class TEX_T, class DATA_T>
 __host__ __device__ void TextureHelper<TEX_T, DATA_T>::worldPoseToTexCoord(const int index, const float3& input,
-                                                                           float3& output)
+                                                                           float3& output) const
 {
   float3 map;
   worldPoseToMapPose(index, input, map);
@@ -134,9 +164,19 @@ __host__ __device__ void TextureHelper<TEX_T, DATA_T>::worldPoseToTexCoord(const
 }
 
 template <class TEX_T, class DATA_T>
+__host__ __device__ void TextureHelper<TEX_T, DATA_T>::texCoordToWorldPose(const int index, const float3& input,
+                                                                           float3& output) const
+{
+  float3 map;
+  texCoordToMapPose(index, input, map);
+  mapPoseToWorldPose(index, map, output);
+}
+
+template <class TEX_T, class DATA_T>
 __host__ __device__ void TextureHelper<TEX_T, DATA_T>::bodyOffsetWorldToTexCoord(const int index, const float3& offset,
                                                                                  const float3& body_pose,
-                                                                                 const float3& rotation, float3& output)
+                                                                                 const float3& rotation,
+                                                                                 float3& output) const
 {
   float3 offset_result;
   bodyOffsetToWorldPose(offset, body_pose, rotation, offset_result);
@@ -262,41 +302,43 @@ template <class TEX_T, class DATA_T>
 __host__ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtWorldOffsetPose(const int index,
                                                                                        const float3& input,
                                                                                        const float3& offset,
-                                                                                       const float3& rotation)
+                                                                                       const float3& rotation) const
 {
   float3 tex_coords;
   bodyOffsetWorldToTexCoord(index, offset, input, rotation, tex_coords);
-  TEX_T* derived = static_cast<TEX_T*>(this);
+  const TEX_T* derived = static_cast<const TEX_T*>(this);
   return derived->queryTexture(index, tex_coords);
 }
 
 template <class TEX_T, class DATA_T>
-__host__ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtWorldPose(const int index, const float3& input)
+__host__ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtWorldPose(const int index,
+                                                                                 const float3& input) const
 {
   float3 tex_coords;
   worldPoseToTexCoord(index, input, tex_coords);
-  TEX_T* derived = static_cast<TEX_T*>(this);
+  const TEX_T* derived = static_cast<const TEX_T*>(this);
   return derived->queryTexture(index, tex_coords);
 }
 
 template <class TEX_T, class DATA_T>
-__host__ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtMapPose(const int index, const float3& input)
+__host__ __device__ DATA_T TextureHelper<TEX_T, DATA_T>::queryTextureAtMapPose(const int index,
+                                                                               const float3& input) const
 {
   float3 tex_coords;
   mapPoseToTexCoord(index, input, tex_coords);
-  TEX_T* derived = static_cast<TEX_T*>(this);
+  const TEX_T* derived = static_cast<const TEX_T*>(this);
   return derived->queryTexture(index, tex_coords);
 }
 
 template <class TEX_T, class DATA_T>
-void TextureHelper<TEX_T, DATA_T>::updateOrigin(int index, float3 new_origin)
+void TextureHelper<TEX_T, DATA_T>::updateOrigin(const int index, const float3 new_origin)
 {
   this->textures_buffer_[index].origin = new_origin;
   this->textures_buffer_[index].update_params = true;
 }
 
 template <class TEX_T, class DATA_T>
-void TextureHelper<TEX_T, DATA_T>::updateRotation(int index, std::array<float3, 3>& new_rotation)
+void TextureHelper<TEX_T, DATA_T>::updateRotation(const int index, const std::array<float3, 3>& new_rotation)
 {
   this->textures_buffer_[index].rotations[0] = new_rotation[0];
   this->textures_buffer_[index].rotations[1] = new_rotation[1];
@@ -305,7 +347,7 @@ void TextureHelper<TEX_T, DATA_T>::updateRotation(int index, std::array<float3, 
 }
 
 template <class TEX_T, class DATA_T>
-void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float resolution)
+void TextureHelper<TEX_T, DATA_T>::updateResolution(const int index, const float resolution)
 {
   this->textures_buffer_[index].resolution.x = resolution;
   this->textures_buffer_[index].resolution.y = resolution;
@@ -314,7 +356,7 @@ void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float resolution)
 }
 
 template <class TEX_T, class DATA_T>
-void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float3 resolution)
+void TextureHelper<TEX_T, DATA_T>::updateResolution(const int index, const float3 resolution)
 {
   this->textures_buffer_[index].resolution.x = resolution.x;
   this->textures_buffer_[index].resolution.y = resolution.y;
@@ -323,7 +365,7 @@ void TextureHelper<TEX_T, DATA_T>::updateResolution(int index, float3 resolution
 }
 
 template <class TEX_T, class DATA_T>
-bool TextureHelper<TEX_T, DATA_T>::setExtent(int index, cudaExtent& extent)
+bool TextureHelper<TEX_T, DATA_T>::setExtent(const int index, const cudaExtent& extent)
 {
   // checks if the extent has changed and reallocates if yes
   TextureParams<DATA_T>* param = &textures_buffer_[index];

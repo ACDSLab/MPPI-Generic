@@ -679,6 +679,54 @@ TEST_F(TextureHelperTest, WorldPoseToMapPoseTest)
   EXPECT_FLOAT_EQ(output.z, 0.1 * 7 + 0.2 * 8 + 0.3 * 9);
 }
 
+TEST_F(TextureHelperTest, MapPoseToWorldPoseTest)
+{
+  int number = 5;
+  TextureHelperImpl helper = TextureHelperImpl(number);
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(0, 1, 0);
+  new_rot_mat[1] = make_float3(1, 0, 0);
+  new_rot_mat[2] = make_float3(0, 0, 1);
+  helper.updateRotation(0, new_rot_mat);
+  helper.updateOrigin(0, make_float3(2, 1, -4));
+  helper.copyToDevice();
+
+  float3 world_pose = make_float3(0.1, 0.2, 0.4);
+  float3 map_pose, new_world_pose;
+  // Convert to Map Pose and back
+  helper.worldPoseToMapPose(0, world_pose, map_pose);
+  helper.mapPoseToWorldPose(0, map_pose, new_world_pose);
+
+  EXPECT_FLOAT_EQ(world_pose.x, new_world_pose.x);
+  EXPECT_FLOAT_EQ(world_pose.y, new_world_pose.y);
+  EXPECT_FLOAT_EQ(world_pose.z, new_world_pose.z);
+}
+
+TEST_F(TextureHelperTest, texCoordToWorldPoseTest)
+{
+  int number = 5;
+  TextureHelperImpl helper = TextureHelperImpl(number);
+
+  std::array<float3, 3> new_rot_mat{};
+  new_rot_mat[0] = make_float3(0, 1, 0);
+  new_rot_mat[1] = make_float3(1, 0, 0);
+  new_rot_mat[2] = make_float3(0, 0, 1);
+  helper.updateRotation(0, new_rot_mat);
+  helper.updateOrigin(0, make_float3(2, 1, -4));
+  helper.copyToDevice();
+
+  float3 world_pose = make_float3(0.1, 0.2, 0.8);
+  float3 tex_coords, new_world_pose;
+  // Convert to Map Pose and back
+  helper.worldPoseToTexCoord(0, world_pose, tex_coords);
+  helper.texCoordToWorldPose(0, tex_coords, new_world_pose);
+
+  EXPECT_FLOAT_EQ(world_pose.x, new_world_pose.x);
+  EXPECT_FLOAT_EQ(world_pose.y, new_world_pose.y);
+  EXPECT_FLOAT_EQ(world_pose.z, new_world_pose.z);
+}
+
 TEST_F(TextureHelperTest, BodyOffsetToWorldPoseTest)
 {
   int number = 5;
