@@ -209,8 +209,21 @@ __global__ void rolloutCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __rest
 #else
   const int max_time_iters = ceilf((float)num_timesteps / blockDim.x);
 #endif
-  costs->initializeCosts(y, u, theta_c, 0.0f, dt);
-  sampling->initializeDistributions(y, 0.0f, dt, theta_d);
+
+  // Read initial output and control
+  if (thread_idx == 0)
+  {
+    sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + 0;
+    mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
+    // TODO: load controls at t = 0
+    // sampling->readControlSample(global_idx, 0, distribution_idx, u, theta_d, blockDim.y, thread_idy, y);
+  }
+  __syncthreads();
+  if (threadIdx.x == 0)
+  {
+    costs->initializeCosts(y, u, theta_c, 0.0f, dt);
+    sampling->initializeDistributions(y, 0.0f, dt, theta_d);
+  }
   __syncthreads();
   for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
@@ -582,8 +595,20 @@ __global__ void visualizeCostKernel(COST_T* __restrict__ costs, SAMPLING_T* __re
 #else
   const int max_time_iters = ceilf((float)num_timesteps / blockDim.x);
 #endif
-  costs->initializeCosts(y, u, theta_c, 0.0f, dt);
-  sampling->initializeDistributions(y, 0.0f, dt, theta_d);
+  // Read initial output and control
+  if (thread_idx == 0)
+  {
+    sample_time_offset = (num_rollouts * thread_idz + global_idx) * num_timesteps + 0;
+    mp1::loadArrayParallel<COST_T::OUTPUT_DIM>(y, 0, y_d, sample_time_offset * COST_T::OUTPUT_DIM);
+    // TODO: load controls at t = 0
+    // sampling->readControlSample(global_idx, 0, distribution_idx, u, theta_d, blockDim.y, thread_idy, y);
+  }
+  __syncthreads();
+  if (threadIdx.x == 0)
+  {
+    costs->initializeCosts(y, u, theta_c, 0.0f, dt);
+    sampling->initializeDistributions(y, 0.0f, dt, theta_d);
+  }
   __syncthreads();
   for (int time_iter = 0; time_iter < max_time_iters; ++time_iter)
   {
