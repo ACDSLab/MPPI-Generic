@@ -907,7 +907,7 @@ int computeBestIndex(float* cost_rollouts_host, int num_rollouts)
 }
 
 __device__ inline float computeBaselineCost(int num_rollouts, const float* __restrict__ trajectory_costs_d,
-                                            float* __restrict__ reduction_buffer, int rollout_idx_global,
+                                            float* reduction_buffer, int rollout_idx_global,
                                             int rollout_idx_step)
 {
   // Copy costs to shared memory
@@ -934,11 +934,12 @@ __device__ inline float computeBaselineCost(int num_rollouts, const float* __res
   int prev_size = num_rollouts / 2;
   for (int i = rollout_idx_global; i < prev_size; i += rollout_idx_step)
   {
-    reduction_buffer[i] = min(trajectory_costs_d[i], trajectory_costs_d[i + prev_size]);
-  }
-  if (num_rollouts - 2 * prev_size == 1 && threadIdx.x == blockDim.x - 1)
-  {
-    reduction_buffer[prev_size - 1] = min(reduction_buffer[num_rollouts - 1], reduction_buffer[prev_size - 1]);
+    float val = min(trajectory_costs_d[i], trajectory_costs_d[i + prev_size]);
+    if (num_rollouts - 2 * prev_size == 1 && i == prev_size - 1)
+    {
+      val = min(val, trajectory_costs_d[num_rollouts - 1]);
+    }
+    reduction_buffer[i] = val;
   }
 #endif
 
@@ -992,7 +993,7 @@ __device__ __host__ inline void TsallisTransform(int num_rollouts, float* __rest
 }
 
 __device__ inline float computeNormalizer(int num_rollouts, const float* __restrict__ trajectory_costs_d,
-                                          float* __restrict__ reduction_buffer, int rollout_idx_global,
+                                          float* reduction_buffer, int rollout_idx_global,
                                           int rollout_idx_step)
 {
   // Copy costs to shared memory
@@ -1009,11 +1010,12 @@ __device__ inline float computeNormalizer(int num_rollouts, const float* __restr
   int prev_size = num_rollouts / 2;
   for (int i = rollout_idx_global; i < prev_size; i += rollout_idx_step)
   {
-    reduction_buffer[i] = trajectory_costs_d[i] + trajectory_costs_d[i + prev_size];
-  }
-  if (num_rollouts - 2 * prev_size == 1 && threadIdx.x == blockDim.x - 1)
-  {
-    reduction_buffer[prev_size - 1] += reduction_buffer[num_rollouts - 1];
+    float val = trajectory_costs_d[i] + trajectory_costs_d[i + prev_size];
+    if (num_rollouts - 2 * prev_size == 1 && i == prev_size - 1)
+    {
+      val += trajectory_costs_d[num_rollouts - 1];
+    }
+    reduction_buffer[i] = val;
   }
 #endif
   __syncthreads();
