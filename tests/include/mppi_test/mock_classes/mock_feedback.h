@@ -23,7 +23,7 @@ public:
   }
 };
 
-class MockFeedback : public FeedbackController<MockGPUFeedback, mockGPUFeedbackParams, NUM_TIMESTEPS>
+class MockFeedback : public FeedbackController<MockGPUFeedback, mockGPUFeedbackParams>
 {
 public:
   MOCK_METHOD0(initTrackingController, void());

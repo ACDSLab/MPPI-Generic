@@ -478,6 +478,12 @@ __host__ void GAUSSIAN_CLASS::setHostOptimalControlSequence(float* optimal_contr
 }
 
 GAUSSIAN_TEMPLATE
+__host__ __device__ float* GAUSSIAN_CLASS::getDeviceOptimalControlSequence(const int& distribution_idx)
+{
+  return &(this->control_means_d_[this->getNumTimesteps() * CONTROL_DIM * distribution_idx]);
+}
+
+GAUSSIAN_TEMPLATE
 __host__ __device__ float GAUSSIAN_CLASS::computeLikelihoodRatioCost(const float* __restrict__ u,
                                                                      float* __restrict__ theta_d,
                                                                      const int sample_index, const int t,

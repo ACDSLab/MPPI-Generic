@@ -15,7 +15,7 @@ const int NUM_ROLLOUTS = 128;
 
 using DYN = DoubleIntegratorDynamics;
 using COST = QuadraticCost<DYN>;
-using FB_CONTROLLER = DDPFeedback<DYN, TIMESTEPS>;
+using FB_CONTROLLER = DDPFeedback<DYN>;
 
 #ifdef USE_COLORED_NOISE
 using SAMPLER = mppi::sampling_distributions::ColoredNoiseDistribution<DYN::DYN_PARAMS_T>;
@@ -66,8 +66,8 @@ int main()
   int max_iter = 1;
   int total_time_horizon = 300;
 
-  auto controller = VanillaMPPIController<DYN, COST, FB_CONTROLLER, TIMESTEPS, NUM_ROLLOUTS, SAMPLER>(
-      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha);
+  auto controller = VanillaMPPIController<DYN, COST, FB_CONTROLLER, SAMPLER>(
+      &model, &cost, &fb_controller, &sampler, dt, max_iter, lambda, alpha, TIMESTEPS, NUM_ROLLOUTS);
 
   auto controller_params = controller.getParams();
   controller_params.dynamics_rollout_dim_ = dim3(64, 1, 1);

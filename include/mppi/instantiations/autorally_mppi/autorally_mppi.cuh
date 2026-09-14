@@ -8,13 +8,10 @@
 
 // #ifdef USE_NEURAL_NETWORK_MODEL__ /*Use neural network dynamics model*/
 const int MPPI_NUM_ROLLOUTS__ = 1920;
-const int BLOCKSIZE_X = 8;
-const int BLOCKSIZE_Y = 16;
-const int NUM_TIMESTEPS = 150;
 typedef NeuralNetModel<7, 2, 3> DynamicsModel;
 typedef ARStandardCost CostFunctionClass;
 
-typedef DDPFeedback<DynamicsModel, NUM_TIMESTEPS> FEEDBACK_T;
+typedef DDPFeedback<DynamicsModel> FEEDBACK_T;
 typedef mppi::sampling_distributions::GaussianDistribution<DynamicsModel::DYN_PARAMS_T> Sampler;
 
 // #elif USE_BASIS_FUNC_MODEL__ /*Use the basis function model* */

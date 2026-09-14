@@ -13,39 +13,39 @@
 
 #include <vector>
 
-template <int S_DIM, int C_DIM, int MAX_TIMESTEPS>
-struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS>
+template <int S_DIM, int C_DIM>
+struct ColoredMPPIParams : public ControllerParams<S_DIM, C_DIM>
 {
   float r = 2.0;
   float gamma = 0;
   Eigen::Matrix<float, S_DIM, 1> state_leash_dist_ = Eigen::Matrix<float, S_DIM, 1>::Zero();
 
   ColoredMPPIParams() = default;
-  ColoredMPPIParams(const ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)
+  ColoredMPPIParams(const ColoredMPPIParams<S_DIM, C_DIM>& other)
   {
-    typedef ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS> BASE;
+    typedef ControllerParams<S_DIM, C_DIM> BASE;
     const BASE& other_item_ref = other;
     *(static_cast<BASE*>(this)) = other_item_ref;
     // this->colored_noise_exponents_ = other.colored_noise_exponents_;
   }
 
-  ColoredMPPIParams(ColoredMPPIParams<S_DIM, C_DIM, MAX_TIMESTEPS>& other)
+  ColoredMPPIParams(ColoredMPPIParams<S_DIM, C_DIM>& other)
   {
-    typedef ControllerParams<S_DIM, C_DIM, MAX_TIMESTEPS> BASE;
+    typedef ControllerParams<S_DIM, C_DIM> BASE;
     BASE& other_item_ref = other;
     *(static_cast<BASE*>(this)) = other_item_ref;
     // this->colored_noise_exponents_ = other.colored_noise_exponents_;
   }
 };
 
-template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS,
+template <class DYN_T, class COST_T, class FB_T,
           class SAMPLING_T = ::mppi::sampling_distributions::ColoredNoiseDistribution<typename DYN_T::DYN_PARAMS_T>,
-          class PARAMS_T = ColoredMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM, MAX_TIMESTEPS>>
-class ColoredMPPIController : public Controller<DYN_T, COST_T, FB_T, SAMPLING_T, MAX_TIMESTEPS, NUM_ROLLOUTS, PARAMS_T>
+          class PARAMS_T = ColoredMPPIParams<DYN_T::STATE_DIM, DYN_T::CONTROL_DIM>>
+class ColoredMPPIController : public Controller<DYN_T, COST_T, FB_T, SAMPLING_T, PARAMS_T>
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  typedef Controller<DYN_T, COST_T, FB_T, SAMPLING_T, MAX_TIMESTEPS, NUM_ROLLOUTS, PARAMS_T> PARENT_CLASS;
+  typedef Controller<DYN_T, COST_T, FB_T, SAMPLING_T, PARAMS_T> PARENT_CLASS;
   // need control_array = ... so that we can initialize
   // Eigen::Matrix with Eigen::Matrix::Zero();
   using control_array = typename PARENT_CLASS::control_array;
@@ -60,10 +60,11 @@ public:
    * Public member functions
    */
   // Constructor
-  ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter,
-                        float lambda, float alpha, int num_timesteps = MAX_TIMESTEPS,
-                        const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(),
-                        cudaStream_t stream = nullptr);
+  ColoredMPPIController(
+      DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt, int max_iter, float lambda,
+      float alpha, int num_timesteps, int num_rollouts,
+      const Eigen::Ref<const control_trajectory>& init_control_traj = control_trajectory::Zero(DYN_T::CONTROL_DIM, 1),
+      cudaStream_t stream = nullptr);
 
   ColoredMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, PARAMS_T& params,
                         cudaStream_t stream = nullptr);

@@ -1,25 +1,31 @@
 #include "tube_mppi_controller.cuh"
 #include <mppi/core/mppi_common.cuh>
 
-#define TUBE_MPPI_TEMPLATE                                                                                             \
-  template <class DYN_T, class COST_T, class FB_T, int MAX_TIMESTEPS, int NUM_ROLLOUTS, class SAMPLING_T,              \
-            class PARAMS_T>
+#define TUBE_MPPI_TEMPLATE template <class DYN_T, class COST_T, class FB_T, class SAMPLING_T, class PARAMS_T>
 
-#define TubeMPPI TubeMPPIController<DYN_T, COST_T, FB_T, MAX_TIMESTEPS, NUM_ROLLOUTS, SAMPLING_T, PARAMS_T>
+#define TubeMPPI TubeMPPIController<DYN_T, COST_T, FB_T, SAMPLING_T, PARAMS_T>
 
 TUBE_MPPI_TEMPLATE
 TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SAMPLING_T* sampler, float dt,
-                             int max_iter, float lambda, float alpha, int num_timesteps,
+                             int max_iter, float lambda, float alpha, int num_timesteps, int num_rollouts,
                              const Eigen::Ref<const control_trajectory>& init_control_traj, cudaStream_t stream)
-  : PARENT_CLASS(model, cost, fb_controller, sampler, dt, max_iter, lambda, alpha, num_timesteps, init_control_traj,
-                 stream)
+  : PARENT_CLASS(model, cost, fb_controller, sampler, dt, max_iter, lambda, alpha, num_timesteps, num_rollouts,
+                 init_control_traj, stream)
 {
-  nominal_control_trajectory_ = init_control_traj;
-
   // call rollout kernel with z = 2 since we have a nominal state
   this->params_.dynamics_rollout_dim_.z = max(2, this->params_.dynamics_rollout_dim_.z);
   this->params_.cost_rollout_dim_.z = max(2, this->params_.cost_rollout_dim_.z);
   this->sampler_->setNumDistributions(2);
+
+  // Properly size nominal variables
+  setNumTimestepsHelper(this->getNumTimesteps(), false);
+  setNumRolloutsHelper(this->getNumRollouts(), false);
+
+  // Zero the nominal trajectories
+  nominal_state_trajectory_.setZero();
+  nominal_state_trajectory_.setZero();
+  nominal_control_trajectory_ = this->params_.init_control_traj_;
+  trajectory_costs_nominal_.setZero();
 
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
@@ -35,12 +41,20 @@ TubeMPPI::TubeMPPIController(DYN_T* model, COST_T* cost, FB_T* fb_controller, SA
                              cudaStream_t stream)
   : PARENT_CLASS(model, cost, fb_controller, sampler, params, stream)
 {
-  nominal_control_trajectory_ = this->params_.init_control_traj_;
-
   // call rollout kernel with z = 2 since we have a nominal state
   this->params_.dynamics_rollout_dim_.z = max(2, this->params_.dynamics_rollout_dim_.z);
   this->params_.cost_rollout_dim_.z = max(2, this->params_.cost_rollout_dim_.z);
   this->sampler_->setNumDistributions(2);
+
+  // Properly size nominal variables
+  setNumTimestepsHelper(this->getNumTimesteps(), false);
+  setNumRolloutsHelper(this->getNumRollouts(), false);
+
+  // Zero the nominal trajectories
+  nominal_state_trajectory_.setZero();
+  nominal_state_trajectory_.setZero();
+  nominal_control_trajectory_ = this->params_.init_control_traj_;
+  trajectory_costs_nominal_.setZero();
 
   // Allocate CUDA memory for the controller
   allocateCUDAMemory();
@@ -114,7 +128,7 @@ void TubeMPPI::chooseAppropriateKernel()
   for (int i = 0; i < this->getNumKernelEvaluations() && !too_much_mem_single_kernel; i++)
   {
     mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), this->getNumRollouts(),
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->trajectory_costs_d_,
         this->params_.dynamics_rollout_dim_, this->stream_, true);
   }
@@ -123,7 +137,7 @@ void TubeMPPI::chooseAppropriateKernel()
   for (int i = 0; i < this->getNumKernelEvaluations() && !too_much_mem_split_kernel; i++)
   {
     mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+        this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), this->getNumRollouts(),
         this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->trajectory_costs_d_,
         this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_, true);
   }
@@ -150,8 +164,27 @@ void TubeMPPI::chooseAppropriateKernel()
     kernel_choice = "single";
   }
   this->logger_->info("Choosing %s kernel based on split taking %f ms and single taking %f ms after %d iterations\n",
-                     kernel_choice.c_str(), split_kernel_time_ms, single_kernel_time_ms,
-                     this->getNumKernelEvaluations());
+                      kernel_choice.c_str(), split_kernel_time_ms, single_kernel_time_ms,
+                      this->getNumKernelEvaluations());
+}
+
+TUBE_MPPI_TEMPLATE
+void TubeMPPI::setNumTimestepsHelper(const int num_timesteps, const bool update_gpu_mem)
+{
+  PARENT_CLASS::setNumTimestepsHelper(num_timesteps, update_gpu_mem);
+  // Set up nominal trajectories
+  PARENT_CLASS::resizeTimeTrajectory(nominal_control_trajectory_, num_timesteps);
+  nominal_control_trajectory_ = this->params_.init_control_traj_;
+  PARENT_CLASS::resizeTimeTrajectory(nominal_state_trajectory_, num_timesteps);
+}
+
+TUBE_MPPI_TEMPLATE
+void TubeMPPI::setNumRolloutsHelper(const int num_rollouts, const bool update_gpu_mem)
+{
+  PARENT_CLASS::setNumRolloutsHelper(num_rollouts, update_gpu_mem);
+  // Set up nominal trajectories
+  Eigen::NoChange_t same_col = Eigen::NoChange_t::NoChange;
+  trajectory_costs_nominal_.conservativeResize(num_rollouts, same_col);
 }
 
 TUBE_MPPI_TEMPLATE
@@ -171,7 +204,7 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
   //  std::cout << "                Nominal State: "; this->model_->printState(nominal_state_trajectory_.col(0).data());
 
   // Handy reference pointers to the nominal state
-  float* trajectory_costs_nominal_d = this->trajectory_costs_d_ + NUM_ROLLOUTS;
+  float* trajectory_costs_nominal_d = this->trajectory_costs_d_ + this->getNumRollouts();
   float* initial_state_nominal_d = this->initial_state_d_ + DYN_T::STATE_DIM;
 
   for (int opt_iter = 0; opt_iter < this->getNumIters(); opt_iter++)
@@ -196,59 +229,61 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
     if (this->getKernelChoiceAsEnum() == kernelType::USE_SPLIT_KERNELS)
     {
       mppi::kernels::launchSplitRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), this->getNumRollouts(),
           this->getLambda(), this->getAlpha(), this->initial_state_d_, this->output_d_, this->trajectory_costs_d_,
           this->params_.dynamics_rollout_dim_, this->params_.cost_rollout_dim_, this->stream_, false);
     }
     else
     {
       mppi::kernels::launchRolloutKernel<DYN_T, COST_T, SAMPLING_T>(
-          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), NUM_ROLLOUTS,
+          this->model_, this->cost_, this->sampler_, this->getDt(), this->getNumTimesteps(), this->getNumRollouts(),
           this->getLambda(), this->getAlpha(), this->initial_state_d_, this->trajectory_costs_d_,
           this->params_.dynamics_rollout_dim_, this->stream_, false);
     }
 
     // Copy the costs back to the host
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+                                 this->getNumRollouts() * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
 
     HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_nominal_.data(), trajectory_costs_nominal_d,
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+                                 this->getNumRollouts() * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
-    this->setBaseline(mppi::kernels::computeBaselineCost(this->trajectory_costs_.data(), NUM_ROLLOUTS), 0);
-    this->setBaseline(mppi::kernels::computeBaselineCost(this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 1);
+    this->setBaseline(mppi::kernels::computeBaselineCost(this->trajectory_costs_.data(), this->getNumRollouts()), 0);
+    this->setBaseline(
+        mppi::kernels::computeBaselineCost(this->trajectory_costs_nominal_.data(), this->getNumRollouts()), 1);
 
     // Launch the norm exponential kernel for both actual and nominal
-    mppi::kernels::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), this->trajectory_costs_d_,
+    mppi::kernels::launchNormExpKernel(this->getNumRollouts(), this->getNormExpThreads(), this->trajectory_costs_d_,
                                        1.0 / this->getLambda(), this->getBaselineCost(0), this->stream_, false);
 
-    mppi::kernels::launchNormExpKernel(NUM_ROLLOUTS, this->getNormExpThreads(), trajectory_costs_nominal_d,
+    mppi::kernels::launchNormExpKernel(this->getNumRollouts(), this->getNormExpThreads(), trajectory_costs_nominal_d,
                                        1.0 / this->getLambda(), this->getBaselineCost(1), this->stream_, false);
 
     HANDLE_ERROR(cudaMemcpyAsync(this->trajectory_costs_.data(), this->trajectory_costs_d_,
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+                                 this->getNumRollouts() * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaMemcpyAsync(trajectory_costs_nominal_.data(), trajectory_costs_nominal_d,
-                                 NUM_ROLLOUTS * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
+                                 this->getNumRollouts() * sizeof(float), cudaMemcpyDeviceToHost, this->stream_));
     HANDLE_ERROR(cudaStreamSynchronize(this->stream_));
 
     // Compute the normalizer
-    this->setNormalizer(mppi::kernels::computeNormalizer(this->trajectory_costs_.data(), NUM_ROLLOUTS), 0);
-    this->setNormalizer(mppi::kernels::computeNormalizer(this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS), 1);
+    this->setNormalizer(mppi::kernels::computeNormalizer(this->trajectory_costs_.data(), this->getNumRollouts()), 0);
+    this->setNormalizer(
+        mppi::kernels::computeNormalizer(this->trajectory_costs_nominal_.data(), this->getNumRollouts()), 1);
 
     // Compute real free energy
     mppi::kernels::computeFreeEnergy(this->free_energy_statistics_.real_sys.freeEnergyMean,
                                      this->free_energy_statistics_.real_sys.freeEnergyVariance,
                                      this->free_energy_statistics_.real_sys.freeEnergyModifiedVariance,
-                                     this->trajectory_costs_.data(), NUM_ROLLOUTS, this->getBaselineCost(0),
+                                     this->trajectory_costs_.data(), this->getNumRollouts(), this->getBaselineCost(0),
                                      this->getLambda());
 
     // Compute Nominal State free Energy
     mppi::kernels::computeFreeEnergy(this->free_energy_statistics_.nominal_sys.freeEnergyMean,
                                      this->free_energy_statistics_.nominal_sys.freeEnergyVariance,
                                      this->free_energy_statistics_.nominal_sys.freeEnergyModifiedVariance,
-                                     this->trajectory_costs_nominal_.data(), NUM_ROLLOUTS, this->getBaselineCost(1),
-                                     this->getLambda());
+                                     this->trajectory_costs_nominal_.data(), this->getNumRollouts(),
+                                     this->getBaselineCost(1), this->getLambda());
 
     // Compute the cost weighted average
     this->sampler_->updateDistributionParamsFromDevice(this->trajectory_costs_d_, this->getNormalizerCost(0), 0, false);
@@ -286,10 +321,10 @@ void TubeMPPI::computeControl(const Eigen::Ref<const state_array>& state, int op
   smoothControlTrajectory();
   computeStateTrajectory(state);  // Input is the actual state
 
-  this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerCost(0) / NUM_ROLLOUTS;
+  this->free_energy_statistics_.real_sys.normalizerPercent = this->getNormalizerCost(0) / this->getNumRollouts();
   this->free_energy_statistics_.real_sys.increase =
       this->getBaselineCost(0) - this->free_energy_statistics_.real_sys.previousBaseline;
-  this->free_energy_statistics_.nominal_sys.normalizerPercent = this->getNormalizerCost(1) / NUM_ROLLOUTS;
+  this->free_energy_statistics_.nominal_sys.normalizerPercent = this->getNormalizerCost(1) / this->getNumRollouts();
   this->free_energy_statistics_.nominal_sys.increase =
       this->getBaselineCost(1) - this->free_energy_statistics_.nominal_sys.previousBaseline;
 
@@ -308,7 +343,7 @@ void TubeMPPI::copyControlToDevice(bool synchronize)
 TUBE_MPPI_TEMPLATE
 void TubeMPPI::allocateCUDAMemory()
 {
-  PARENT_CLASS::allocateCUDAMemoryHelper(1);
+  PARENT_CLASS::allocateCUDAMemoryHelper(2);
 }
 
 TUBE_MPPI_TEMPLATE

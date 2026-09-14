@@ -160,6 +160,8 @@ public:
     PARENT_CLASS::setNumDistributions(num_distributions, synchronize);
   }
 
+  __host__ __device__ float* getDeviceOptimalControlSequence(const int& distribution_idx);
+
   __host__ void updateDistributionParamsFromDevice(const float* trajectory_weights_d, float normalizer,
                                                    const int& distribution_i, bool synchronize = false) override;
 
