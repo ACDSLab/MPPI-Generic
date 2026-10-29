@@ -125,6 +125,11 @@ endif()
 set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
 set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
 add_subdirectory(submodules/cnpy)
+if (USE_HIP AND WIN32)
+  # cnpy is a SHARED library with no export annotations; export everything so the
+  # import library carries its symbols on Windows.
+  set_target_properties(cnpy PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
 # Set the no package registry back to default
 set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 
