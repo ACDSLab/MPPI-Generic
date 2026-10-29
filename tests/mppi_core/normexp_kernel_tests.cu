@@ -30,7 +30,11 @@ __global__ void computeNormalizerKernel(const float* __restrict__ costs, float* 
   __shared__ float reduction_buffer[NUM_ROLLOUTS];
   int global_idx = threadIdx.x;
   int global_step = blockDim.x;
-  *output = mppi::kernels::computeNormalizer(NUM_ROLLOUTS, costs, reduction_buffer, global_idx, global_step);
+  float result = mppi::kernels::computeNormalizer(NUM_ROLLOUTS, costs, reduction_buffer, global_idx, global_step);
+  if (threadIdx.x == 0)
+  {
+    *output = result;
+  }
 };
 
 template <int NUM_ROLLOUTS>
@@ -39,7 +43,11 @@ __global__ void computeBaselineCostKernel(const float* __restrict__ costs, float
   __shared__ float reduction_buffer[NUM_ROLLOUTS];
   int global_idx = threadIdx.x;
   int global_step = blockDim.x;
-  *output = mppi::kernels::computeBaselineCost(NUM_ROLLOUTS, costs, reduction_buffer, global_idx, global_step);
+  float result = mppi::kernels::computeBaselineCost(NUM_ROLLOUTS, costs, reduction_buffer, global_idx, global_step);
+  if (threadIdx.x == 0)
+  {
+    *output = result;
+  }
 };
 
 TEST_F(NormExpKernel, computeBaselineCost_Test)
@@ -121,6 +129,150 @@ TEST_F(NormExpKernel, computeBaselineCostDevice_Test)
 
   float sum_cost_known = *std::min_element(cost_vec.begin(), cost_vec.end());
   ASSERT_FLOAT_EQ(sum_cost_compute, sum_cost_known);
+}
+
+template <int NUM_ROLLOUTS>
+void checkBaselineCostDeviceOdd()
+{
+  // Odd rollout counts exercise the leftover-element fixup in the first
+  // reduction stage; costs descend so the true minimum sits at the last
+  // index, the exact element the fixup is responsible for.
+  std::array<float, NUM_ROLLOUTS> cost_vec = { 0 };
+  for (int i = 0; i < cost_vec.size(); i++)
+  {
+    cost_vec[i] = cost_vec.size() - i;
+  }
+  float* min_d;
+  float* costs_d;
+  float min_cost_compute;
+  HANDLE_ERROR(cudaMalloc((void**)&min_d, sizeof(float)));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float) * NUM_ROLLOUTS));
+  HANDLE_ERROR(cudaMemcpy(costs_d, cost_vec.data(), sizeof(float) * NUM_ROLLOUTS, cudaMemcpyHostToDevice));
+  computeBaselineCostKernel<NUM_ROLLOUTS><<<1, 1024>>>(costs_d, min_d);
+  HANDLE_ERROR(cudaMemcpy(&min_cost_compute, min_d, sizeof(float), cudaMemcpyDeviceToHost));
+
+  HANDLE_ERROR(cudaFree(min_d));
+  HANDLE_ERROR(cudaFree(costs_d));
+
+  float min_cost_known = *std::min_element(cost_vec.begin(), cost_vec.end());
+  ASSERT_FLOAT_EQ(min_cost_compute, min_cost_known);
+}
+
+TEST_F(NormExpKernel, computeBaselineCostDeviceOddRollouts_Test)
+{
+  checkBaselineCostDeviceOdd<999>();   // odd, below the 1024-thread launch
+  checkBaselineCostDeviceOdd<6049>();  // odd, above it (strided loops multi-trip)
+}
+
+template <int NUM_ROLLOUTS>
+void checkNormalizerDeviceOdd()
+{
+  // Small exactly-representable integer values keep every partial sum exact
+  // in float, so the serial reference and the parallel tree sum are
+  // bit-identical and the exact-equality assert is independent of
+  // reduction order.
+  std::array<float, NUM_ROLLOUTS> cost_vec = { 0 };
+  for (int i = 0; i < cost_vec.size(); i++)
+  {
+    cost_vec[i] = (i % 7) + 1;
+  }
+  float* norm_d;
+  float* costs_d;
+  float sum_cost_compute;
+  HANDLE_ERROR(cudaMalloc((void**)&norm_d, sizeof(float)));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_d, sizeof(float) * NUM_ROLLOUTS));
+  HANDLE_ERROR(cudaMemcpy(costs_d, cost_vec.data(), sizeof(float) * NUM_ROLLOUTS, cudaMemcpyHostToDevice));
+  computeNormalizerKernel<NUM_ROLLOUTS><<<1, 1024>>>(costs_d, norm_d);
+  HANDLE_ERROR(cudaMemcpy(&sum_cost_compute, norm_d, sizeof(float), cudaMemcpyDeviceToHost));
+
+  HANDLE_ERROR(cudaFree(norm_d));
+  HANDLE_ERROR(cudaFree(costs_d));
+
+  float sum_cost_known = std::accumulate(cost_vec.begin(), cost_vec.end(), 0.0f);
+  ASSERT_FLOAT_EQ(sum_cost_compute, sum_cost_known);
+}
+
+TEST_F(NormExpKernel, computeNormalizerDeviceOddRollouts_Test)
+{
+  checkNormalizerDeviceOdd<999>();   // odd, below the 1024-thread launch
+  checkNormalizerDeviceOdd<6049>();  // odd, above it (strided loops multi-trip)
+}
+
+TEST_F(NormExpKernel, fullGPUcomputeWeightsEveryIteration_Test)
+{
+  // Focused regression for the qualifier-dependent reduction failure: the
+  // defect is data-dependent, so this samples fresh costs each iteration and
+  // checks EVERY iteration (the timing comparison test only checks the
+  // final one). No timing, stops at the first bad dataset.
+  const int num_rollouts = 10000;
+  const int blocksize_x = 8;
+  const int num_iterations = 500;
+  std::array<float, num_rollouts> cost_vec = { 0 };
+  std::array<float, num_rollouts> host_dev_costs = { 0 };
+  std::array<float, num_rollouts> dev_only_costs = { 0 };
+  float lambda = 0.3;
+  cudaStream_t stream;
+  HANDLE_ERROR(cudaStreamCreate(&stream));
+
+  float* costs_dev_only_d;
+  float* costs_host_only_d;
+  float2* baseline_and_normalizer_d;
+  float2 host_components, device_components;
+  HANDLE_ERROR(cudaMalloc((void**)&baseline_and_normalizer_d, sizeof(float2)));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_dev_only_d, sizeof(float) * num_rollouts));
+  HANDLE_ERROR(cudaMalloc((void**)&costs_host_only_d, sizeof(float) * num_rollouts));
+
+  for (int iter = 0; iter < num_iterations; iter++)
+  {
+    for (auto& cost : cost_vec)
+    {
+      cost = distribution(generator);
+    }
+    HANDLE_ERROR(
+        cudaMemcpyAsync(costs_dev_only_d, cost_vec.data(), sizeof(float) * num_rollouts, cudaMemcpyHostToDevice, stream));
+    HANDLE_ERROR(cudaMemcpyAsync(costs_host_only_d, cost_vec.data(), sizeof(float) * num_rollouts,
+                                 cudaMemcpyHostToDevice, stream));
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+
+    host_components.x = mppi::kernels::computeBaselineCost(cost_vec.data(), num_rollouts);
+    mppi::kernels::launchNormExpKernel(num_rollouts, blocksize_x, costs_host_only_d, 1.0 / lambda, host_components.x,
+                                       stream, false);
+    HANDLE_ERROR(cudaMemcpyAsync(host_dev_costs.data(), costs_host_only_d, num_rollouts * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+    host_components.y = mppi::kernels::computeNormalizer(host_dev_costs.data(), num_rollouts);
+
+    mppi::kernels::launchWeightTransformKernel<num_rollouts>(costs_dev_only_d, baseline_and_normalizer_d, 1.0 / lambda,
+                                                             1, stream, false);
+    HANDLE_ERROR(cudaMemcpyAsync(dev_only_costs.data(), costs_dev_only_d, num_rollouts * sizeof(float),
+                                 cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(
+        cudaMemcpyAsync(&device_components, baseline_and_normalizer_d, sizeof(float2), cudaMemcpyDeviceToHost, stream));
+    HANDLE_ERROR(cudaStreamSynchronize(stream));
+
+    SCOPED_TRACE("iteration " + std::to_string(iter));
+    EXPECT_FLOAT_EQ(device_components.x, host_components.x);
+    EXPECT_FLOAT_EQ(device_components.y, host_components.y);
+    // The two weight arrays should be bit-identical (same device transform on
+    // the same baseline), so scan for the first mismatch and report just that
+    // pair instead of running num_rollouts assertions per iteration.
+    for (int i = 0; i < num_rollouts; i++)
+    {
+      if (dev_only_costs[i] != host_dev_costs[i])
+      {
+        EXPECT_FLOAT_EQ(dev_only_costs[i], host_dev_costs[i]) << "first weight mismatch at index " << i;
+        break;
+      }
+    }
+    if (::testing::Test::HasFailure())
+    {
+      break;
+    }
+  }
+  HANDLE_ERROR(cudaFree(baseline_and_normalizer_d));
+  HANDLE_ERROR(cudaFree(costs_dev_only_d));
+  HANDLE_ERROR(cudaFree(costs_host_only_d));
+  HANDLE_ERROR(cudaStreamDestroy(stream));
 }
 
 TEST_F(NormExpKernel, computeExpNorm_Test)

@@ -14,6 +14,11 @@ __device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(const float* __
                                                                  float* __restrict__ control_output)
 {
   float* fb_gain_t = &(this->state_.fb_gain_traj_[DYN_T::STATE_DIM * DYN_T::CONTROL_DIM * t]);
+  // Compute a fresh correction regardless of the caller's output initialization.
+  for (int j = 0; j < DYN_T::CONTROL_DIM; j++)
+  {
+    control_output[j] = 0.0f;
+  }
   float e = 0;
   for (int i = 0; i < DYN_T::STATE_DIM; i++)
   {
@@ -23,7 +28,7 @@ __device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(const float* __
       float4* fb_gain_t4 = reinterpret_cast<float4*>(&fb_gain_t[i * DYN_T::CONTROL_DIM]);
       for (int j = 0; j < DYN_T::CONTROL_DIM / 4; j++)
       {
-        reinterpret_cast<float4*>(control_output)[j] = fb_gain_t4[j] * e;
+        reinterpret_cast<float4*>(control_output)[j] += fb_gain_t4[j] * e;
       }
     }
     else if (DYN_T::CONTROL_DIM % 2 == 0)
@@ -31,7 +36,7 @@ __device__ void DeviceDDPImpl<GPU_FB_T, DYN_T, NUM_TIMESTEPS>::k(const float* __
       float2* fb_gain_t2 = reinterpret_cast<float2*>(&fb_gain_t[i * DYN_T::CONTROL_DIM]);
       for (int j = 0; j < DYN_T::CONTROL_DIM / 2; j++)
       {
-        reinterpret_cast<float2*>(control_output)[j] = fb_gain_t2[j] * e;
+        reinterpret_cast<float2*>(control_output)[j] += fb_gain_t2[j] * e;
       }
     }
     else

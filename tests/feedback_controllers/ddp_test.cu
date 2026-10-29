@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <mppi/dynamics/linear/linear.cuh>
 // #include <mppi/ddp/ddp_model_wrapper.h>
 // #include <mppi/ddp/ddp_tracking_costs.h>
 // #include <mppi/ddp/ddp.h>
@@ -354,4 +355,73 @@ TEST(DDPSolver_Test, Quadrotor_Tracking)
   std::cout << std::fixed << std::setprecision(5) << "X_goal: " << x_goal.transpose() << "\nX_end: " << x.transpose()
             << "\ndiff in state: " << (x - x_goal).norm() << std::endl;
   EXPECT_LE((x - x_goal).norm(), 3);
+}
+
+template <int CONTROL_DIM>
+__global__ void applyFeedback(DeviceDDP<LinearDynamics<5, CONTROL_DIM>, 1>* feedback, float* outputs)
+{
+  const float actual[5] = { 1, 2, 3, 4, 5 };
+  const float goal[5] = { 0, 0, 0, 0, 0 };
+  // Each y lane owns a complete private output, as in the RMPPI kernels.
+  float control[CONTROL_DIM] MPPI_ALIGN(16);
+  for (int i = 0; i < CONTROL_DIM; ++i)
+  {
+    control[i] = 123.0f;
+  }
+  feedback->k(actual, goal, 0, nullptr, control);
+  for (int i = 0; i < CONTROL_DIM; ++i)
+  {
+    outputs[threadIdx.y * CONTROL_DIM + i] = control[i];
+  }
+}
+
+template <int CONTROL_DIM>
+void checkDeviceFeedback()
+{
+  using Dynamics = LinearDynamics<5, CONTROL_DIM>;
+  Dynamics dynamics;
+  DDPFeedback<Dynamics, 1> feedback(&dynamics, 0.01f);
+  auto state = feedback.getFeedbackState();
+  for (int i = 0; i < 5 * CONTROL_DIM; ++i)
+  {
+    state.fb_gain_traj_[i] = i + 1.0f;
+  }
+  feedback.setFeedbackState(state);
+  feedback.GPUSetup();
+
+  typename Dynamics::state_array actual, goal;
+  actual << 1, 2, 3, 4, 5;
+  goal.setZero();
+  const auto expected = feedback.k(actual, goal, 0);
+  // Known dot products: [95, 110] or [175, 190, 205, 220].
+  for (int i = 0; i < CONTROL_DIM; ++i)
+  {
+    EXPECT_FLOAT_EQ(expected[i], 40.0f * CONTROL_DIM + 15.0f * (i + 1));
+  }
+
+  float outputs[3 * CONTROL_DIM];
+  float* outputs_d = nullptr;
+  HANDLE_ERROR(cudaMalloc(&outputs_d, sizeof(outputs)));
+  applyFeedback<CONTROL_DIM><<<1, dim3(1, 3)>>>(feedback.getDevicePointer(), outputs_d);
+  HANDLE_ERROR(cudaGetLastError());
+  HANDLE_ERROR(cudaDeviceSynchronize());
+  HANDLE_ERROR(cudaMemcpy(outputs, outputs_d, sizeof(outputs), cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaFree(outputs_d));
+  for (int y = 0; y < 3; ++y)
+  {
+    for (int i = 0; i < CONTROL_DIM; ++i)
+    {
+      EXPECT_FLOAT_EQ(outputs[y * CONTROL_DIM + i], expected[i]) << "y=" << y << " control=" << i;
+    }
+  }
+}
+
+TEST(DeviceDDP, TwoControls)
+{
+  checkDeviceFeedback<2>();
+}
+
+TEST(DeviceDDP, FourControls)
+{
+  checkDeviceFeedback<4>();
 }
