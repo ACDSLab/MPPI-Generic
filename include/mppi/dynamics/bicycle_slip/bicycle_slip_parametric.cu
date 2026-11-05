@@ -157,10 +157,10 @@ void BicycleSlipParametricImpl<CLASS_T, PARAMS_T>::updateState(const Eigen::Ref<
   next_state = state + state_der * dt;
   next_state(S_INDEX(YAW)) = angle_utils::normalizeAngle(next_state(S_INDEX(YAW)));
   next_state(S_INDEX(STEER_ANGLE)) =
-      max(min(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
+      fmaxf(fminf(next_state(S_INDEX(STEER_ANGLE)), this->params_.max_steer_angle), -this->params_.max_steer_angle);
   next_state(S_INDEX(STEER_ANGLE_RATE)) = state_der(S_INDEX(STEER_ANGLE));
   next_state(S_INDEX(BRAKE_STATE)) =
-      min(max(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
+      fminf(fmaxf(next_state(S_INDEX(BRAKE_STATE)), 0.0f), -this->control_rngs_[C_INDEX(THROTTLE_BRAKE)].x);
   next_state(S_INDEX(ROLL)) = state(S_INDEX(ROLL));
   next_state(S_INDEX(PITCH)) = state(S_INDEX(PITCH));
 }

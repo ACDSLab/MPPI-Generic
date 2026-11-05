@@ -107,8 +107,8 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
 
   // linear engine model
   float vel_x = (R.transpose() * v_I)[0];
-  float throttle = max(0.0, control[C_INDEX(THROTTLE_BRAKE)]);
-  float brake = max(0.0, -control[C_INDEX(THROTTLE_BRAKE)]);
+  float throttle = fmax(0.0, control[C_INDEX(THROTTLE_BRAKE)]);
+  float brake = fmax(0.0, -control[C_INDEX(THROTTLE_BRAKE)]);
   float acc = params_.c_t * throttle - copysign(params_.c_b * brake, vel_x) - params_.c_v * vel_x + params_.c_0;
   float propulsion_force = params_.mass * acc;
 
@@ -192,7 +192,7 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
     float partial_mu_s_partial_v;
     float mu_s = stribeck_friction(v_w_s_i, params_.mu, params_.v_slip, partial_mu_s_partial_v);
     float f_s_i = -mu_s * f_n_i;
-    float f_t_i = max(-params_.mu * f_n_i, min(propulsion_force / 4, params_.mu * f_n_i));
+    float f_t_i = fmaxf(-params_.mu * f_n_i, fminf(propulsion_force / 4, params_.mu * f_n_i));
     Eigen::RowVector3f f_n_i_Jac = f_k_i_Jac;
     Eigen::RowVector3f f_t_i_Jac = Eigen::RowVector3f::Zero();
     if (propulsion_force / 4 > params_.mu * f_n_i)

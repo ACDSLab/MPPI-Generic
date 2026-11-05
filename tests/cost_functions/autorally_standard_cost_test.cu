@@ -833,14 +833,14 @@ float calculateStandardCostmapValue(ARStandardCost& cost, float3 state, int widt
   float x_back = state.x + cost.BACK_D * cosf(state.z);
   float y_back = state.y + cost.BACK_D * sinf(state.z);
 
-  float new_x = max(min(x_front - x_min, x_max - x_min), 0.0f);
-  float new_y = max(min(y_front - y_min, y_max - y_min), 0.0f);
+  float new_x = fmaxf(fminf(x_front - x_min, x_max - x_min), 0.0f);
+  float new_y = fmaxf(fminf(y_front - y_min, y_max - y_min), 0.0f);
 
   float front = fabs(height / 2.0f - (new_y)) + (new_x) / width;
   // std::cout << "front point = " << new_x << ", " << new_y << " = " << front << std::endl;
 
-  new_x = max(min(x_back - x_min + 1.0 / (width * ppm), x_max - x_min), 0.0f);
-  new_y = max(min(y_back - y_min + 1.0 / (height * ppm), y_max - y_min), 0.0f);
+  new_x = fmax(fmin(x_back - x_min + 1.0 / (width * ppm), x_max - x_min), 0.0f);
+  new_y = fmax(fmin(y_back - y_min + 1.0 / (height * ppm), y_max - y_min), 0.0f);
 
   float back = fabs(height / 2.0f - (new_y)) + (new_x) / width;
   // std::cout << "back point = " << new_x << ", " << new_y << " = " << back << std::endl;

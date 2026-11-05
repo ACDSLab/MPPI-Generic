@@ -46,13 +46,13 @@ void RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeParametricAccelDeriv(
   float brake = this->params_.c_b[index] * brake_state * (state(S_INDEX(VEL_X)) >= 0.0f ? -1.0f : 1.0f);
   if (abs(state(S_INDEX(VEL_X))) <= linear_brake_slope)
   {
-    throttle = this->params_.c_t[index] * max(control(C_INDEX(THROTTLE_BRAKE)) - this->params_.low_min_throttle, 0.0f);
+    throttle = this->params_.c_t[index] * fmaxf(control(C_INDEX(THROTTLE_BRAKE)) - this->params_.low_min_throttle, 0.0f);
     brake = this->params_.c_b[index] * brake_state * -state(S_INDEX(VEL_X));
   }
 
   state_der(S_INDEX(VEL_X)) = (!enable_brake) * throttle * this->params_.gear_sign + brake -
                               this->params_.c_v[index] * state(S_INDEX(VEL_X)) + this->params_.c_0;
-  state_der(S_INDEX(VEL_X)) = min(max(state_der(S_INDEX(VEL_X)), -this->params_.clamp_ax), this->params_.clamp_ax);
+  state_der(S_INDEX(VEL_X)) = fminf(fmaxf(state_der(S_INDEX(VEL_X)), -this->params_.clamp_ax), this->params_.clamp_ax);
   if (fabsf(state[S_INDEX(PITCH)]) < static_cast<float>(M_PI_2))
   {
     state_der[S_INDEX(VEL_X)] -= this->params_.gravity * sinf(state[S_INDEX(PITCH)]);
@@ -304,7 +304,7 @@ bool RacerDubinsElevationImpl<CLASS_T, PARAMS_T>::computeGrad(const Eigen::Ref<c
   {
     A(4, 4) = -this->params_.steering_constant;
   }
-  A(4, 4) = max(min(A(4, 4), this->params_.max_steer_rate), -this->params_.max_steer_rate);
+  A(4, 4) = fmaxf(fminf(A(4, 4), this->params_.max_steer_rate), -this->params_.max_steer_rate);
   // gravity
   A(0, 7) = -this->params_.gravity * cosf(state(S_INDEX(PITCH)));
 
