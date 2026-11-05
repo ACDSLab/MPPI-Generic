@@ -107,8 +107,8 @@ __device__ __host__ void RacerSuspension::computeStateDeriv(const Eigen::Ref<con
 
   // linear engine model
   float vel_x = (R.transpose() * v_I)[0];
-  float throttle = fmax(0.0, control[C_INDEX(THROTTLE_BRAKE)]);
-  float brake = fmax(0.0, -control[C_INDEX(THROTTLE_BRAKE)]);
+  float throttle = fmax(0.0, static_cast<double>(control[C_INDEX(THROTTLE_BRAKE)]));
+  float brake = fmax(0.0, static_cast<double>(-control[C_INDEX(THROTTLE_BRAKE)]));
   float acc = params_.c_t * throttle - copysign(params_.c_b * brake, vel_x) - params_.c_v * vel_x + params_.c_0;
   float propulsion_force = params_.mass * acc;
 
