@@ -47,7 +47,7 @@ jobs:
             -DMPPI_BUILD_TESTS=ON
 
       - name: Build
-        run: cmake --build build -j --target math_utils_test cuda_math_utils_tests miscellaneous_tests
+        run: cmake --build build -j3 --target math_utils_test cuda_math_utils_tests miscellaneous_tests
 
       # The speed benchmarks and the batched Gauss-Jordan test are too slow on a
       # simulated GPU, so they are skipped.
@@ -58,9 +58,43 @@ jobs:
           vgpu run ./math_utils/cuda_math_utils_tests
           vgpu run ./misc/miscellaneous_tests
 
-      - name: Free disk space
-        if: always()
+  controller-test:
+    name: vanilla MPPI cartpole test on a simulated H100
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libeigen3-dev libyaml-cpp-dev python3-numpy
+
+      - name: Set up the simulated GPU and CUDA toolkit
+        uses: pantheongpu/setup-pantheonsim@dda0c8df8d72627c295edbae525354ba2bcb1687 # v0.1.4
+        with:
+          gpu: nvidia/h100
+          cuda-toolkit: "13.0"
+
+      - name: Configure
         run: |
-          df -h /
-          rm -rf build
-          df -h /
+          # 80-virtual embeds PTX only: the simulator JIT-compiles PTX and does not run SASS.
+          # The setup action exports CMAKE_TOOLCHAIN_FILE, and this project skips its
+          # tests whenever a toolchain file is set, so unset it for the configure step.
+          NVCC=$(command -v nvcc || echo /usr/local/cuda-13.0/bin/nvcc)
+          env -u CMAKE_TOOLCHAIN_FILE cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CUDA_COMPILER="$NVCC" \
+            -DCMAKE_CUDA_ARCHITECTURES=80-virtual \
+            -DMPPI_CUDA_ARCH_LIST=80-virtual \
+            -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared \
+            -DMPPI_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build -j3 --target vanilla_mppi_test
+
+      # One controller test: the cartpole swing-up with vanilla MPPI (1000 control
+      # steps, 2048 rollouts of 100 timesteps). The quadrotor test is much longer.
+      - name: Test
+        working-directory: build/tests/controllers
+        run: vgpu run ./vanilla_mppi_test --gtest_filter='Cartpole_VanillaMPPI.*'
