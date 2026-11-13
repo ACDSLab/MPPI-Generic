@@ -2,6 +2,7 @@
 #include <kernel_tests/core/weightedreduction_kernel_test.cuh>
 #include <mppi/utils/test_helper.h>
 #include <random>
+#include <numeric>
 
 TEST(WeightedReductionKernel, setInitialControlToZero)
 {

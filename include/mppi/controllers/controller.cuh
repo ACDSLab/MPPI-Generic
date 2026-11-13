@@ -6,6 +6,7 @@
 #define MPPIGENERIC_CONTROLLER_CUH
 
 #include <array>
+#include <numeric>
 #include <Eigen/Core>
 #include <chrono>
 #include "curand.h"

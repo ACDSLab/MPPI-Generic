@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 #include <mppi/sampling_distributions/colored_noise/colored_noise.cuh>
 
+#include <cstring>  // memset (only transitively included under nvcc)
 #include <numeric>
 #include "gtest/gtest.h"
 
@@ -216,7 +217,8 @@ TEST(ColoredNoise, DISABLED_checkWhiteNoise)
   std::vector<float> exponents(CONTROL_DIM, 0.0);
   int full_buffer_size = NUM_ROLLOUTS * NUM_TIMESTEPS * CONTROL_DIM;
   float* colored_noise_d;
-  float colored_noise_output[full_buffer_size] = { 0 };
+  float colored_noise_output[full_buffer_size];
+  memset(colored_noise_output, 0, sizeof(float) * full_buffer_size);
   HANDLE_ERROR(cudaMalloc((void**)&colored_noise_d, sizeof(float) * full_buffer_size));
   cudaStream_t stream;
   curandGenerator_t gen;
@@ -263,7 +265,8 @@ TEST(ColoredNoise, DISABLED_checkPinkNoise)
   std::vector<float> exponents(CONTROL_DIM, 1.0);
   int full_buffer_size = NUM_ROLLOUTS * NUM_TIMESTEPS * CONTROL_DIM;
   float* colored_noise_d;
-  float colored_noise_output[full_buffer_size] = { 0 };
+  float colored_noise_output[full_buffer_size];
+  memset(colored_noise_output, 0, sizeof(float) * full_buffer_size);
   HANDLE_ERROR(cudaMalloc((void**)&colored_noise_d, sizeof(float) * full_buffer_size));
   cudaStream_t stream;
   curandGenerator_t gen;
@@ -305,7 +308,8 @@ TEST(ColoredNoise, DISABLED_checkRedNoise)
   std::vector<float> exponents(CONTROL_DIM, 2.0);
   int full_buffer_size = NUM_ROLLOUTS * NUM_TIMESTEPS * CONTROL_DIM;
   float* colored_noise_d;
-  float colored_noise_output[full_buffer_size] = { 0 };
+  float colored_noise_output[full_buffer_size];
+  memset(colored_noise_output, 0, sizeof(float) * full_buffer_size);
   HANDLE_ERROR(cudaMalloc((void**)&colored_noise_d, sizeof(float) * full_buffer_size));
   cudaStream_t stream;
   curandGenerator_t gen;
@@ -357,7 +361,8 @@ TEST(ColoredNoise, DISABLED_checkMultiNoise)
   // exponents[4] = 0.75;
   int full_buffer_size = NUM_ROLLOUTS * NUM_TIMESTEPS * CONTROL_DIM;
   float* colored_noise_d;
-  float colored_noise_output[full_buffer_size] = { 0 };
+  float colored_noise_output[full_buffer_size];
+  memset(colored_noise_output, 0, sizeof(float) * full_buffer_size);
   HANDLE_ERROR(cudaMalloc((void**)&colored_noise_d, sizeof(float) * full_buffer_size));
   cudaStream_t stream;
   curandGenerator_t gen;

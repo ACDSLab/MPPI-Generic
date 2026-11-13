@@ -22,7 +22,7 @@ void RacerDubinsImpl<CLASS_T, PARAMS_T>::computeDynamics(const Eigen::Ref<const 
                             tan(state(S_INDEX(STEER_ANGLE)) / this->params_.steer_angle_scale);
   float yaw, sin_yaw, cos_yaw;
   yaw = state[S_INDEX(YAW)];
-  sincosf(yaw, &sin_yaw, &cos_yaw);
+  sin_yaw = sinf(yaw); cos_yaw = cosf(yaw);
   state_der(S_INDEX(POS_X)) = state(S_INDEX(VEL_X)) * cos_yaw;
   state_der(S_INDEX(POS_Y)) = state(S_INDEX(VEL_X)) * sin_yaw;
   state_der(S_INDEX(STEER_ANGLE)) =

@@ -467,7 +467,7 @@ TEST_F(BufferedPlantTest, getInterpState)
   pos = Eigen::Vector3f::Ones() * 2;
   vel = Eigen::Vector3f::Ones() * 2;
   omega = Eigen::Vector3f::Ones() * 2;
-  quat = Eigen::AngleAxisf(M_PI_2f32, Eigen::Vector3f::UnitZ());
+  quat = Eigen::AngleAxisf(static_cast<float>(M_PI_2), Eigen::Vector3f::UnitZ());
   u = MockDynamics::control_array::Ones() * 2;
 
   plant->updateOdometry(pos, quat, vel, omega, 1.0);
@@ -490,7 +490,7 @@ TEST_F(BufferedPlantTest, getInterpState)
 
   EXPECT_FLOAT_EQ(map.at("ROLL"), 0);
   EXPECT_FLOAT_EQ(map.at("PITCH"), 0);
-  EXPECT_FLOAT_EQ(map.at("YAW"), M_PI_4f32);
+  EXPECT_FLOAT_EQ(map.at("YAW"), static_cast<float>(M_PI_4));
 
   EXPECT_FLOAT_EQ(map.at("VEL_X"), 1.5);
   EXPECT_FLOAT_EQ(map.at("VEL_Y"), 1.5);

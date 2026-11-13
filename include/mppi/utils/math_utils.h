@@ -245,9 +245,9 @@ inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, co
   __sincosf(p_norm, &sin_theta_2, &cos_theta_2);
   __sincosf(y_norm, &sin_psi_2, &cos_psi_2);
 #else
-  sincosf(r * 0.5f, &sin_phi_2, &cos_phi_2);
-  sincosf(p * 0.5f, &sin_theta_2, &cos_theta_2);
-  sincosf(y * 0.5f, &sin_psi_2, &cos_psi_2);
+  sin_phi_2 = sinf(r * 0.5f); cos_phi_2 = cosf(r * 0.5f);
+  sin_theta_2 = sinf(p * 0.5f); cos_theta_2 = cosf(p * 0.5f);
+  sin_psi_2 = sinf(y * 0.5f); cos_psi_2 = cosf(y * 0.5f);
 #endif
 
   q[0] = cos_phi_2 * cos_theta_2 * cos_psi_2 + sin_phi_2 * sin_theta_2 * sin_psi_2;
@@ -440,9 +440,9 @@ inline __host__ __device__ void Euler2QuatNWU(const float& r, const float& p, co
   __sincosf(p_norm, &sin_theta_2, &cos_theta_2);
   __sincosf(y_norm, &sin_psi_2, &cos_psi_2);
 #else
-  sincosf(r * 0.5f, &sin_phi_2, &cos_phi_2);
-  sincosf(p * 0.5f, &sin_theta_2, &cos_theta_2);
-  sincosf(y * 0.5f, &sin_psi_2, &cos_psi_2);
+  sin_phi_2 = sinf(r * 0.5f); cos_phi_2 = cosf(r * 0.5f);
+  sin_theta_2 = sinf(p * 0.5f); cos_theta_2 = cosf(p * 0.5f);
+  sin_psi_2 = sinf(y * 0.5f); cos_psi_2 = cosf(y * 0.5f);
 #endif
 
   q.w() = cos_phi_2 * cos_theta_2 * cos_psi_2 + sin_phi_2 * sin_theta_2 * sin_psi_2;
@@ -465,9 +465,9 @@ inline __host__ __device__ void Euler2DCM_NWU(const float& r, const float& p, co
   __sincosf(p_norm, &sin_theta, &cos_theta);
   __sincosf(y_norm, &sin_psi, &cos_psi);
 #else
-  sincosf(r, &sin_phi, &cos_phi);
-  sincosf(p, &sin_theta, &cos_theta);
-  sincosf(y, &sin_psi, &cos_psi);
+  sin_phi = sinf(r); cos_phi = cosf(r);
+  sin_theta = sinf(p); cos_theta = cosf(p);
+  sin_psi = sinf(y); cos_psi = cosf(y);
 #endif
 
   M[0][0] = cos_theta * cos_psi;
@@ -496,9 +496,9 @@ inline __host__ __device__ void Euler2DCM_NWU(const float& r, const float& p, co
   __sincosf(p_norm, &sin_theta, &cos_theta);
   __sincosf(y_norm, &sin_psi, &cos_psi);
 #else
-  sincosf(r, &sin_phi, &cos_phi);
-  sincosf(p, &sin_theta, &cos_theta);
-  sincosf(y, &sin_psi, &cos_psi);
+  sin_phi = sinf(r); cos_phi = cosf(r);
+  sin_theta = sinf(p); cos_theta = cosf(p);
+  sin_psi = sinf(y); cos_psi = cosf(y);
 #endif
 
   M(0, 0) = cos_theta * cos_psi;

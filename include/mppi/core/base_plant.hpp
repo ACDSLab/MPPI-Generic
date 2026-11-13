@@ -10,7 +10,12 @@
 
 // Double check if these are included in mppi_common.h
 #include <Eigen/Dense>
+#ifdef _WIN32
+#include <chrono>
+#define usleep(us) std::this_thread::sleep_for(std::chrono::microseconds(static_cast<long long>(us)))
+#else
 #include <unistd.h>
+#endif
 #include <vector>
 #include <array>
 #include <chrono>

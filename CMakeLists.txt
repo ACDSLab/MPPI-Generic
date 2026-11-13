@@ -12,7 +12,67 @@ endif()
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" MPPI_VERSION_FROM_FILE)
 # Clean up trailng whitespace and newlines
 string(STRIP "${MPPI_VERSION_FROM_FILE}" MPPI_VERSION)
-project(MPPI-Generic VERSION ${MPPI_VERSION} LANGUAGES C CXX CUDA)
+
+# USE_HIP builds the .cu translation units with the ROCm/HIP toolchain instead
+# of CUDA (same sources, language switched, one cuda_to_hip.h shim).
+# Declared before project() so the GPU language is enabled conditionally.
+option(USE_HIP "Build the GPU sources with HIP for AMD GPUs instead of CUDA" OFF)
+if (USE_HIP)
+  project(MPPI-Generic VERSION ${MPPI_VERSION} LANGUAGES C CXX)
+  # enable_language(HIP) honors -DCMAKE_HIP_ARCHITECTURES, otherwise auto-detects
+  # the host GPU(s), and errors on a no-GPU build host.
+  enable_language(HIP)
+  message(STATUS "HIP Architecture(s): ${CMAKE_HIP_ARCHITECTURES}")
+  # Force-include the compat header at the top of every HIP TU so its cuda*->hip*
+  # mappings and the device-pass __CUDA_ARCH__ define precede any use, regardless
+  # of each file's own include order.
+  set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -include ${CMAKE_CURRENT_SOURCE_DIR}/include/mppi/hip_compat/cuda_to_hip.h")
+else()
+  project(MPPI-Generic VERSION ${MPPI_VERSION} LANGUAGES C CXX CUDA)
+endif()
+
+# On the HIP build every .cu translation unit must compile with hipcc instead of
+# nvcc. Rather than editing each of the test/example/library CMakeLists (which
+# would churn the diff), override add_executable/add_library at this scope: the
+# overrides forward to the real commands, then retag the target's .cu sources as
+# LANGUAGE HIP and set HIP_ARCHITECTURES. This applies to every target created in
+# the tests/, examples/ and src/ subtrees added below. The CUDA build is
+# untouched (USE_HIP OFF -> the overrides are a passthrough).
+if (USE_HIP)
+  macro(mppi_retag_gpu_sources _tgt)
+    get_target_property(_mppi_srcs ${_tgt} SOURCES)
+    foreach(_src IN LISTS _mppi_srcs)
+      if (_src MATCHES "\\.cu$")
+        set_source_files_properties(${_src} PROPERTIES LANGUAGE HIP)
+      endif()
+    endforeach()
+    set_target_properties(${_tgt} PROPERTIES HIP_ARCHITECTURES "${CMAKE_HIP_ARCHITECTURES}")
+  endmacro()
+
+  function(add_executable _name)
+    _add_executable(${_name} ${ARGN})
+    # Skip alias/imported forms (no real sources to retag).
+    if (TARGET ${_name})
+      get_target_property(_aliased ${_name} ALIASED_TARGET)
+      get_target_property(_imported ${_name} IMPORTED)
+      if (NOT _aliased AND NOT _imported)
+        mppi_retag_gpu_sources(${_name})
+      endif()
+    endif()
+  endfunction()
+
+  function(add_library _name)
+    _add_library(${_name} ${ARGN})
+    if (TARGET ${_name})
+      get_target_property(_aliased ${_name} ALIASED_TARGET)
+      get_target_property(_imported ${_name} IMPORTED)
+      get_target_property(_type ${_name} TYPE)
+      if (NOT _aliased AND NOT _imported AND NOT _type STREQUAL "INTERFACE_LIBRARY")
+        mppi_retag_gpu_sources(${_name})
+      endif()
+    endif()
+  endfunction()
+endif()
 
 ####################################
 # Set up options for configuration #
@@ -33,7 +93,24 @@ include(MPPIGenericToolsConfig)
 
 set(BUILD_FLAGS "-Wuninitialized -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${BUILD_FLAGS}")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w")
+if (USE_HIP)
+  set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -w")
+  if (WIN32)
+    # M_PI / M_PI_2 etc. require _USE_MATH_DEFINES on Windows; NOMINMAX avoids
+    # min/max macro collisions with std::min/max in MSVC headers.
+    set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_USE_MATH_DEFINES -DNOMINMAX")
+    # cnpy.h includes <zlib.h>; find it now so the include dir is on CMAKE_HIP_FLAGS
+    # before any add_subdirectory. cnpy's own CMakeLists uses directory-scope
+    # include_directories which does not propagate to sibling subdirs.
+    find_package(ZLIB QUIET)
+    if (ZLIB_INCLUDE_DIR)
+      set(CMAKE_HIP_FLAGS "${CMAKE_HIP_FLAGS} -I${ZLIB_INCLUDE_DIR}")
+    endif()
+  endif()
+else()
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -w")
+endif()
 
 # Allow the lib location to be overwritten from command line
 if (NOT CMAKE_LIBRARY_OUTPUT_DIRECTORY)
@@ -48,6 +125,11 @@ endif()
 set(TMP_PACKAGE_REGISTRY_EXPORT ${CMAKE_EXPORT_NO_PACKAGE_REGISTRY})
 set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ON)
 add_subdirectory(submodules/cnpy)
+if (USE_HIP AND WIN32)
+  # cnpy is a SHARED library with no export annotations; export everything so the
+  # import library carries its symbols on Windows.
+  set_target_properties(cnpy PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
 # Set the no package registry back to default
 set(CMAKE_EXPORT_NO_PACKAGE_REGISTRY ${TMP_PACKAGE_REGISTRY_EXPORT})
 
@@ -64,6 +146,14 @@ configure_file("${PROJECT_SOURCE_DIR}/include/mppi/version.h.in" "${PROJECT_BINA
 # Create a Header-only MPPI Library
 add_library(${MPPI_HEADER_LIBRARY_NAME} INTERFACE)
 add_library(MPPI::MPPI ALIAS ${MPPI_HEADER_LIBRARY_NAME})
+# On HIP, the hip_compat/ shim directory must precede the rest of include/ so
+# that the library's <cuda_runtime.h>/<curand.h>/<cufft.h>/<cooperative_groups.h>
+# angle-bracket includes resolve to the cuda_to_hip.h compat layer.
+if (USE_HIP)
+  target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/mppi/hip_compat>"
+  )
+endif()
 target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
   ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
   "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
@@ -82,11 +172,19 @@ target_include_directories(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
   "$<INSTALL_INTERFACE:include/cnpy>"
 )
 
-# --display-error-number was added as a compilation flag in CUDA 11.2
-if (${CUDA_VERSION} VERSION_GREATER_EQUAL "11.2")
-target_compile_options(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
-  $<$<COMPILE_LANGUAGE:CUDA>:--display-error-number>
-)
+# Propagate USE_HIP into the source so the cuda_to_hip.h shim and the wave64
+# reduction guards activate for every TU that links the header library.
+if (USE_HIP)
+  target_compile_definitions(${MPPI_HEADER_LIBRARY_NAME} INTERFACE USE_HIP)
+endif()
+
+# --display-error-number was added as a compilation flag in CUDA 11.2 (CUDA only)
+if (NOT USE_HIP)
+  if (${CUDA_VERSION} VERSION_GREATER_EQUAL "11.2")
+    target_compile_options(${MPPI_HEADER_LIBRARY_NAME} INTERFACE
+      $<$<COMPILE_LANGUAGE:CUDA>:--display-error-number>
+    )
+  endif()
 endif()
 
 # Allow the ability to turn off cuda barriers through CMake. Necessary for GPUs older than

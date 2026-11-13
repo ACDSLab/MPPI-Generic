@@ -92,8 +92,10 @@ inline const char* cufftGetErrorString(cufftResult& code)
       return "Missing parameters in call";
     case CUFFT_PARSE_ERROR:
       return "Internal plan database error";
-    case CUFFT_LICENSE_ERROR:
+#if !defined(USE_HIP) && !defined(__HIP_PLATFORM_AMD__)
+    case CUFFT_LICENSE_ERROR:  // no hipFFT equivalent
       return "License Error. Used in previous versions";
+#endif
 #else
     case CUFFT_MISSING_DEPENDENCY:
       return "cuFFT is unable to find a dependency";

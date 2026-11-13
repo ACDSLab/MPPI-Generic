@@ -1136,7 +1136,7 @@ TEST_F(RacerDubinsElevationTest, TestComputeGradComputation)
       state(7) = state(7) * M_PI_2;
       state(8) = state(8) * 10;
     }
-    state(5) = min(abs(state(5) / 0.33f), 0.3f);
+    state(5) = fminf(abs(state(5) / 0.33f), 0.3f);
 
     // std::cout << "iteration " << i << std::endl;
     // std::cout << "state: " << state.transpose() << std::endl;

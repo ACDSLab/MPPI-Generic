@@ -161,15 +161,15 @@ float calculateRobustCostmapValue(ARRobustCost& cost, float3 state, int width, i
   float y_back = state.y + cost.BACK_D * sinf(state.z);
 
   // check for overflow
-  float new_x = max(min(x_front - x_min, x_max - x_min), 0.0f);
-  float new_y = max(min(y_front - y_min, y_max - y_min), 0.0f);
+  float new_x = fmaxf(fminf(x_front - x_min, x_max - x_min), 0.0f);
+  float new_y = fmaxf(fminf(y_front - y_min, y_max - y_min), 0.0f);
 
   // calculate the track value
   float front_track = fabs(height / 2.0f - (new_y)) + (new_x) / width;
   std::cout << "front point = " << new_x << ", " << new_y << " = " << front_track << std::endl;
 
-  new_x = max(min(x_back - x_min + 1.0 / (width * ppm), x_max - x_min), 0.0f);
-  new_y = max(min(y_back - y_min + 1.0 / (height * ppm), y_max - y_min), 0.0f);
+  new_x = fmax(fmin(x_back - x_min + 1.0 / (width * ppm), x_max - x_min), 0.0f);
+  new_y = fmax(fmin(y_back - y_min + 1.0 / (height * ppm), y_max - y_min), 0.0f);
 
   float back_track = fabs(height / 2.0f - (new_y)) + (new_x) / width;
   std::cout << "back point = " << new_x << ", " << new_y << " = " << back_track << std::endl;

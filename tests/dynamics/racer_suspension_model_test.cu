@@ -142,6 +142,30 @@ TEST_F(RacerSuspensionTest, OmegaJacobian)
   }
 }
 
+TEST_F(RacerSuspensionTest, FractionalThrottleBrake)
+{
+  using DYN_PARAMS = RacerSuspensionParams;
+  auto dynamics = RacerSuspension(stream);
+  RacerSuspension::state_array x = RacerSuspension::state_array::Zero();
+  x[S_IND_CLASS(DYN_PARAMS, ATTITUDE_QW)] = 1;
+  x[S_IND_CLASS(DYN_PARAMS, P_I_Z)] = 0.2;
+  x[S_IND_CLASS(DYN_PARAMS, V_I_X)] = 1;
+
+  auto accel = [&](float throttle_brake) {
+    RacerSuspension::state_array x_dot = RacerSuspension::state_array::Zero();
+    RacerSuspension::control_array u = RacerSuspension::control_array::Zero();
+    RacerSuspension::output_array output = RacerSuspension::output_array::Zero();
+    u[C_IND_CLASS(DYN_PARAMS, THROTTLE_BRAKE)] = throttle_brake;
+    dynamics.computeStateDeriv(x, u, x_dot, output);
+    return x_dot[S_IND_CLASS(DYN_PARAMS, V_I_X)];
+  };
+
+  // Throttle force is linear in the command while the tires are below the friction limit
+  EXPECT_NEAR(accel(0.5), (accel(0.0) + accel(1.0)) / 2, 1e-3);
+  EXPECT_LT(accel(-0.5), accel(0.0));
+  EXPECT_GT(accel(-0.5), accel(-1.0));
+}
+
 TEST_F(RacerSuspensionTest, CPUvsGPU)
 {
   GTEST_SKIP();

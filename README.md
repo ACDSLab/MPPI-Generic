@@ -61,5 +61,19 @@ make
 make test
 ```
 
+## Building MPPI-Generic for AMD GPUs (ROCm)
+
+The GPU sources can also be built with HIP for AMD GPUs. Install [ROCm](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/) (it provides hipRAND, hipFFT and the HIP compiler), then configure with `-DUSE_HIP=ON` and the target architecture of your GPU:
+
+```bash
+mkdir build
+cd build
+cmake -DUSE_HIP=ON -DCMAKE_HIP_ARCHITECTURES=gfx90a -DMPPI_BUILD_TESTS=ON ..
+make
+make test
+```
+
+If `CMAKE_HIP_ARCHITECTURES` is omitted, CMake detects the architecture of the installed GPU. The CUDA build is unchanged when `USE_HIP` is off.
+
 ## Acknowledgements
 Approved for Public Release, Distribution Unlimited.

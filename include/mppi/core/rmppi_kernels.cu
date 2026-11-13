@@ -1137,7 +1137,13 @@ __device__ void multiCostArrayReduction(float* running_cost, float* running_cost
 {
   int prev_size = start_size;
   const bool block_power_of_2 = (prev_size & (prev_size - 1)) == 0;
+  // See costArrayReduction (mppi_common.cu): the warp-synchronous warpReduceAdd
+  // tail races on AMD wave64; on HIP drive the __syncthreads() tree down to 1.
+#if defined(USE_HIP) || defined(__HIP_PLATFORM_AMD__)
+  const int stop_condition = 0;
+#else
   const int stop_condition = (block_power_of_2) ? 32 : 0;
+#endif
   int size;
   int j;
 
@@ -1157,6 +1163,7 @@ __device__ void multiCostArrayReduction(float* running_cost, float* running_cost
     __syncthreads();
     prev_size = size;
   }
+#if !defined(USE_HIP) && !defined(__HIP_PLATFORM_AMD__)
   switch (size * 2)
   {
     case 64:
@@ -1202,6 +1209,7 @@ __device__ void multiCostArrayReduction(float* running_cost, float* running_cost
       }
       break;
   }
+#endif  // !USE_HIP: CUDA keeps the warp-synchronous tail
   __syncthreads();
 }
 }  // namespace rmppi

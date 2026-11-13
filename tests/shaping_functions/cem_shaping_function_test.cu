@@ -159,7 +159,7 @@ TEST_F(CEMShapingFunctionTest, computeWeightsTest)
     // find the correct costs for the baseline
     std::sort(cost_traj.data(), cost_traj.data() + num_rollouts, std::greater<float>());
     float pivot = cost_traj[gamma * num_rollouts];
-    std::random_shuffle(cost_traj.data(), cost_traj.data() + num_rollouts);
+    std::shuffle(cost_traj.data(), cost_traj.data() + num_rollouts, generator);
     for (int i = 0; i < num_rollouts; i++)
     {
       cost_traj_copy(i) = cost_traj(i);

@@ -63,6 +63,11 @@ struct __align__(2 * sizeof(T)) type2
   }
 };
 
+// HIP's HIP_vector_type already provides the full set of float2/3/4 arithmetic,
+// compound-assignment, unary-minus and equality operators (host+device), so the
+// hand-rolled CUDA versions below collide ("ambiguous operator"). Use HIP's on
+// the HIP build; keep them for CUDA (whose vector_types.h defines no operators).
+#if !defined(USE_HIP) && !defined(__HIP_PLATFORM_AMD__)
 // Scalar-Vector Multiplication
 __host__ __device__ inline float2 operator*(const float2& a, const float& b)
 {
@@ -240,6 +245,7 @@ __host__ __device__ inline float4& operator+=(float4& a, const float4& b)
   a.w += b.w;
   return a;
 }
+#endif  // !USE_HIP (vector-arithmetic operators; HIP provides its own)
 
 __host__ __device__ inline float dot(const float2& a, const float2& b)
 {
@@ -276,6 +282,7 @@ __host__ __device__ inline float norm(const float4& a)
   return sqrtf(dot(a, a));
 }
 
+#if !defined(USE_HIP) && !defined(__HIP_PLATFORM_AMD__)
 __host__ __device__ inline float2 operator-(const float2& a)
 {
   return make_float2(-a.x, -a.y);
@@ -305,6 +312,7 @@ __host__ __device__ inline bool operator==(const float4& lhs, const float4& rhs)
 {
   return (lhs.x == rhs.x) && (lhs.y == rhs.y) && (lhs.z == rhs.z) && (lhs.w == rhs.w);
 }
+#endif  // !USE_HIP (unary-minus + equality; HIP provides its own)
 
 // Create different data types given the same input. Needed for handling border values in cudaTextures with Border
 // adress mode

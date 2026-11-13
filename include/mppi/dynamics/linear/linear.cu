@@ -71,8 +71,10 @@ __device__ inline void LINEAR_DYNAMICS::step(float* state, float* next_state, fl
   float* B = params_p->B;
 
   const mp1::Parallel1Dir P_DIR = mp1::Parallel1Dir::THREAD_Y;
-  mm::gemm1<this->STATE_DIM, this->STATE_DIM, 1, P_DIR>(A, state, state_der);
-  mm::gemm1<this->STATE_DIM, this->CONTROL_DIM, 1, P_DIR>(B, control, state_der, 1.0f, 1.0f);
+  // clang/HIP does not accept `this->STATE_DIM` as a constant-expression template
+  // argument (nvcc does); use the class-qualified static member.
+  mm::gemm1<LINEAR_DYNAMICS::STATE_DIM, LINEAR_DYNAMICS::STATE_DIM, 1, P_DIR>(A, state, state_der);
+  mm::gemm1<LINEAR_DYNAMICS::STATE_DIM, LINEAR_DYNAMICS::CONTROL_DIM, 1, P_DIR>(B, control, state_der, 1.0f, 1.0f);
   // __syncthreads();
   int index, step;
   mp1::getParallel1DIndex<P_DIR>(index, step);
